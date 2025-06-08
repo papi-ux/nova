@@ -103,8 +103,8 @@ public class ShortcutTrampoline extends Activity {
                                 return;
                             }
 
-                            // Try to wake the target PC if it's offline (up to some retry limit)
-                            if (details.state == ComputerDetails.State.OFFLINE && details.macAddress != null && --wakeHostTries >= 0) {
+                            // Try to wake the target PC if it's not online (up to some retry limit)
+                            if (details.state != ComputerDetails.State.ONLINE && details.macAddress != null && --wakeHostTries >= 0) {
                                 try {
                                     // Make a best effort attempt to wake the target PC
                                     WakeOnLanSender.sendWolPacket(computer);
