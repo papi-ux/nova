@@ -95,6 +95,7 @@ public class StreamSettings extends AppCompatActivity implements SearchPreferenc
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.AppTheme);
         super.onCreate(savedInstanceState);
 
         previousPrefs = PreferenceConfiguration.readPreferences(this);
