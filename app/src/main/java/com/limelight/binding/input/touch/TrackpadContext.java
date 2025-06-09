@@ -3,6 +3,7 @@ package com.limelight.binding.input.touch;
 import android.os.Handler;
 import android.os.Looper;
 
+import com.limelight.LimeLog;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.input.MouseButtonPacket;
 
@@ -23,6 +24,10 @@ public class TrackpadContext implements TouchContext {
     private int maxPointerCountInGesture;
     private boolean isClickPending;
     private boolean isDblClickPending;
+    private boolean isFlicking;
+    private double velocityX = 0.0;
+    private double velocityY = 0.0;
+    private long lastMoveTime;
 
     private final NvConnection conn;
     private final int actionIndex;
@@ -39,6 +44,11 @@ public class TrackpadContext implements TouchContext {
     private static final int SCROLL_SPEED_FACTOR_X = 2;
     private static final int SCROLL_SPEED_FACTOR_Y = 3;
     private static final double ACCELERATION_THRESHOLD = 8.0;
+    private static final double FLICK_FRICTION = 0.93;
+    // Unit: pixels/ms.
+    private static final double FLICK_THRESHOLD = 0.8;
+    private static final int MOMENTUM_FRAME_INTERVAL_MS = 10;
+    private static final int FLICK_VELOCITY_DECAY_TIMEOUT_MS = 50;
 
     public TrackpadContext(NvConnection conn, int actionIndex) {
         this.conn = conn;
@@ -52,6 +62,77 @@ public class TrackpadContext implements TouchContext {
         this.sensitivityX = (float) sensitivityX / 100;
         this.sensitivityY = (float) sensitivityY / 100;
     }
+
+    private final Runnable momentumRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isFlicking) {
+                return;
+            }
+
+            pendingDeltaX += velocityX * MOMENTUM_FRAME_INTERVAL_MS;
+            pendingDeltaY += velocityY * MOMENTUM_FRAME_INTERVAL_MS;
+
+            short intDeltaX = (short) pendingDeltaX;
+            short intDeltaY = (short) pendingDeltaY;
+
+            if (intDeltaX != 0 || intDeltaY != 0) {
+                conn.sendMouseMove(intDeltaX, intDeltaY);
+                pendingDeltaX -= intDeltaX;
+                pendingDeltaY -= intDeltaY;
+            }
+
+            velocityX *= FLICK_FRICTION;
+            velocityY *= FLICK_FRICTION;
+
+            if (Math.sqrt(velocityX * velocityX + velocityY * velocityY) * MOMENTUM_FRAME_INTERVAL_MS < 0.5) {
+                isFlicking = false;
+                if (confirmedDrag) {
+                    conn.sendMouseButtonUp(getMouseButtonIndex());
+                    confirmedDrag = false;
+                }
+            }
+
+            if (isFlicking) {
+                handler.postDelayed(this, MOMENTUM_FRAME_INTERVAL_MS);
+            }
+        }
+    };
+
+    private final Runnable scrollMomentumRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isFlicking) {
+                return;
+            }
+
+            double frameVelocityX = velocityX * MOMENTUM_FRAME_INTERVAL_MS;
+            double frameVelocityY = velocityY * MOMENTUM_FRAME_INTERVAL_MS;
+
+            if (Math.abs(frameVelocityX) > Math.abs(frameVelocityY)) {
+                conn.sendMouseHighResHScroll((short)(-frameVelocityX * SCROLL_SPEED_FACTOR_X));
+                if (Math.abs(frameVelocityY) * 1.05 > Math.abs(frameVelocityX)) {
+                    conn.sendMouseHighResScroll((short)(frameVelocityY * SCROLL_SPEED_FACTOR_Y));
+                }
+            } else {
+                conn.sendMouseHighResScroll((short)(frameVelocityY * SCROLL_SPEED_FACTOR_Y));
+                if (Math.abs(frameVelocityX) * 1.05 >= Math.abs(frameVelocityY)) {
+                    conn.sendMouseHighResHScroll((short)(-frameVelocityX * SCROLL_SPEED_FACTOR_X));
+                }
+            }
+
+            velocityX *= FLICK_FRICTION;
+            velocityY *= FLICK_FRICTION;
+
+            if (Math.sqrt(velocityX * velocityX + velocityY * velocityY) * MOMENTUM_FRAME_INTERVAL_MS < 0.5) {
+                isFlicking = false;
+            }
+
+            if (isFlicking) {
+                handler.postDelayed(this, MOMENTUM_FRAME_INTERVAL_MS);
+            }
+        }
+    };
 
     @Override
     public int getActionIndex() {
@@ -87,6 +168,11 @@ public class TrackpadContext implements TouchContext {
 
     @Override
     public boolean touchDownEvent(int eventX, int eventY, long eventTime, boolean isNewFinger) {
+        if (isFlicking) {
+            isFlicking = false;
+            handler.removeCallbacksAndMessages(null);
+        }
+
         originalTouchX = lastTouchX = eventX;
         originalTouchY = lastTouchY = eventY;
 
@@ -97,6 +183,9 @@ public class TrackpadContext implements TouchContext {
             originalTouchTime = eventTime;
             cancelled = confirmedMove = confirmedScroll = false;
             distanceMoved = 0;
+            velocityX = 0;
+            velocityY = 0;
+            lastMoveTime = eventTime;
             if (isClickPending) {
                 isClickPending = false;
                 isDblClickPending = true;
@@ -122,6 +211,15 @@ public class TrackpadContext implements TouchContext {
             return;
         }
 
+        // Decay velocity based on time since last move event to avoid
+        // flicks when the user pauses before lifting their finger.
+        long timeSinceLastMove = eventTime - lastMoveTime;
+        if (timeSinceLastMove > 0) {
+            double decay = Math.max(0.0, 1.0 - (double)timeSinceLastMove / FLICK_VELOCITY_DECAY_TIMEOUT_MS);
+            velocityX *= decay;
+            velocityY *= decay;
+        }
+
         byte buttonIndex = getMouseButtonIndex();
 
         if (isDblClickPending) {
@@ -134,8 +232,15 @@ public class TrackpadContext implements TouchContext {
         }
         else if (confirmedDrag) {
             handler.removeCallbacksAndMessages(null);
-            conn.sendMouseButtonUp(buttonIndex);
-            confirmedDrag = false;
+
+            double speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+            if (speed > FLICK_THRESHOLD) {
+                isFlicking = true;
+                handler.post(momentumRunnable);
+            } else {
+                conn.sendMouseButtonUp(buttonIndex);
+                confirmedDrag = false;
+            }
         }
         else if (isTap(eventTime)) {
             conn.sendMouseButtonDown(buttonIndex);
@@ -150,6 +255,18 @@ public class TrackpadContext implements TouchContext {
                 isDblClickPending = false;
             }, CLICK_RELEASE_DELAY);
         }
+        else if (confirmedMove) {
+            // This was a move/scroll that wasn't a drag or tap. Let's see if we should flick.
+            double speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+            if (speed > FLICK_THRESHOLD) {
+                isFlicking = true;
+                if (confirmedScroll) {
+                    handler.post(scrollMomentumRunnable);
+                } else {
+                    handler.post(momentumRunnable);
+                }
+            }
+        }
     }
 
     @Override
@@ -159,6 +276,8 @@ public class TrackpadContext implements TouchContext {
         }
 
         if (eventX != lastTouchX || eventY != lastTouchY) {
+            long deltaTime = eventTime - lastMoveTime;
+
             checkForConfirmedMove(eventX, eventY);
 
             if (isDblClickPending) {
@@ -189,30 +308,55 @@ public class TrackpadContext implements TouchContext {
             deltaX *= sensitivityX;
             deltaY *= sensitivityY;
 
+            // Update velocity for flicking
+            if (deltaTime > 0 && (confirmedMove || confirmedDrag)) {
+                double currentVelocityX = deltaX / deltaTime;
+                double currentVelocityY = deltaY / deltaTime;
+
+                if (velocityX == 0 && velocityY == 0) {
+                    // First measurement
+                    velocityX = currentVelocityX;
+                    velocityY = currentVelocityY;
+                } else {
+                    // Simple EMA for smoothing
+                    velocityX = velocityX * 0.8 + currentVelocityX * 0.2;
+                    velocityY = velocityY * 0.8 + currentVelocityY * 0.2;
+                }
+            }
+
+            lastMoveTime = eventTime;
+
             pendingDeltaX += deltaX;
             pendingDeltaY += deltaY;
 
             lastTouchX = eventX;
             lastTouchY = eventY;
 
+            short sendDeltaX = (short)pendingDeltaX;
+            short sendDeltaY = (short)pendingDeltaY;
+
             if (pointerCount == 1) {
-                conn.sendMouseMove((short) pendingDeltaX, (short) pendingDeltaY);
+                if (sendDeltaX != 0 || sendDeltaY != 0) {
+                    conn.sendMouseMove(sendDeltaX, sendDeltaY);
+                }
             } else {
                 if (actionIndex == 1) {
                     if (confirmedDrag) {
-                        conn.sendMouseMove((short) pendingDeltaX, (short) pendingDeltaY);
+                        if (sendDeltaX != 0 || sendDeltaY != 0) {
+                            conn.sendMouseMove(sendDeltaX, sendDeltaY);
+                        }
                     } else if (pointerCount == 2) {
                         checkForConfirmedScroll();
                         if (confirmedScroll) {
                             if (absDeltaX > absDeltaY) {
-                                conn.sendMouseHighResHScroll((short)(-pendingDeltaX * SCROLL_SPEED_FACTOR_X));
+                                conn.sendMouseHighResHScroll((short)(-sendDeltaX * SCROLL_SPEED_FACTOR_X));
                                 if (absDeltaY * 1.05 > absDeltaX) {
-                                    conn.sendMouseHighResScroll((short)(pendingDeltaY * SCROLL_SPEED_FACTOR_Y));
+                                    conn.sendMouseHighResScroll((short)(sendDeltaY * SCROLL_SPEED_FACTOR_Y));
                                 }
                             } else {
-                                conn.sendMouseHighResScroll((short)(pendingDeltaY * SCROLL_SPEED_FACTOR_Y));
+                                conn.sendMouseHighResScroll((short)(sendDeltaY * SCROLL_SPEED_FACTOR_Y));
                                 if (absDeltaX * 1.05 >= absDeltaY) {
-                                    conn.sendMouseHighResHScroll((short)(-pendingDeltaX * SCROLL_SPEED_FACTOR_X));
+                                    conn.sendMouseHighResHScroll((short)(-sendDeltaX * SCROLL_SPEED_FACTOR_X));
                                 }
                             }
                         }
@@ -220,8 +364,8 @@ public class TrackpadContext implements TouchContext {
                 }
             }
 
-            pendingDeltaX -= (short)pendingDeltaX;
-            pendingDeltaY -= (short)pendingDeltaY;
+            pendingDeltaX -= sendDeltaX;
+            pendingDeltaY -= sendDeltaY;
         }
 
         return true;
@@ -230,6 +374,11 @@ public class TrackpadContext implements TouchContext {
     @Override
     public void cancelTouch() {
         cancelled = true;
+
+        if (isFlicking) {
+            isFlicking = false;
+            handler.removeCallbacksAndMessages(null);
+        }
 
         if (confirmedDrag) {
             conn.sendMouseButtonUp(getMouseButtonIndex());
@@ -243,7 +392,7 @@ public class TrackpadContext implements TouchContext {
 
     @Override
     public void setPointerCount(int pointerCount) {
-        if (pointerCount < this.pointerCount && confirmedDrag) {
+        if (pointerCount < this.pointerCount && confirmedDrag && !isFlicking) {
             conn.sendMouseButtonUp(getMouseButtonIndex());
             confirmedDrag = false;
             confirmedMove = false;
