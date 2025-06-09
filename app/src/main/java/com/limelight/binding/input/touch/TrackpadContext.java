@@ -7,6 +7,8 @@ import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.input.MouseButtonPacket;
 
 public class TrackpadContext implements TouchContext {
+    private double pendingDeltaX = 0;
+    private double pendingDeltaY = 0;
     private int lastTouchX = 0;
     private int lastTouchY = 0;
     private int originalTouchX = 0;
@@ -36,6 +38,7 @@ public class TrackpadContext implements TouchContext {
     private static final int CLICK_RELEASE_DELAY = TAP_TIME_THRESHOLD;
     private static final int SCROLL_SPEED_FACTOR_X = 2;
     private static final int SCROLL_SPEED_FACTOR_Y = 3;
+    private static final double ACCELERATION_THRESHOLD = 8.0;
 
     public TrackpadContext(NvConnection conn, int actionIndex) {
         this.conn = conn;
@@ -86,6 +89,8 @@ public class TrackpadContext implements TouchContext {
     public boolean touchDownEvent(int eventX, int eventY, long eventTime, boolean isNewFinger) {
         originalTouchX = lastTouchX = eventX;
         originalTouchY = lastTouchY = eventY;
+
+        pendingDeltaX = pendingDeltaY = 0;
 
         if (isNewFinger) {
             maxPointerCountInGesture = pointerCount;
@@ -161,48 +166,62 @@ public class TrackpadContext implements TouchContext {
                 confirmedDrag = true;
             }
 
-            int absDeltaX = Math.abs(eventX - lastTouchX);
-            int absDeltaY = Math.abs(eventY - lastTouchY);
+            int rawDeltaX = eventX - lastTouchX;
+            int rawDeltaY = eventY - lastTouchY;
+            int absDeltaX = Math.abs(rawDeltaX);
+            int absDeltaY = Math.abs(rawDeltaY);
+
+            double magnitude = Math.sqrt(rawDeltaX * rawDeltaX + rawDeltaY * rawDeltaY);
+            double precisionMultiplier = Math.sqrt(Math.min(1.0, magnitude / ACCELERATION_THRESHOLD));
 
             float deltaX, deltaY;
             if (swapAxis) {
-                deltaY = (eventX < lastTouchX) ? -absDeltaX : absDeltaX;
-                deltaX = (eventY < lastTouchY) ? -absDeltaY : absDeltaY;
+                deltaY = rawDeltaX;
+                deltaX = rawDeltaY;
             } else {
-                deltaX = (eventX < lastTouchX) ? -absDeltaX : absDeltaX;
-                deltaY = (eventY < lastTouchY) ? -absDeltaY : absDeltaY;
+                deltaX = rawDeltaX;
+                deltaY = rawDeltaY;
             }
+
+            deltaX *= precisionMultiplier;
+            deltaY *= precisionMultiplier;
 
             deltaX *= sensitivityX;
             deltaY *= sensitivityY;
+
+            pendingDeltaX += deltaX;
+            pendingDeltaY += deltaY;
 
             lastTouchX = eventX;
             lastTouchY = eventY;
 
             if (pointerCount == 1) {
-                conn.sendMouseMove((short) deltaX, (short) deltaY);
+                conn.sendMouseMove((short) pendingDeltaX, (short) pendingDeltaY);
             } else {
                 if (actionIndex == 1) {
                     if (confirmedDrag) {
-                        conn.sendMouseMove((short) deltaX, (short) deltaY);
+                        conn.sendMouseMove((short) pendingDeltaX, (short) pendingDeltaY);
                     } else if (pointerCount == 2) {
                         checkForConfirmedScroll();
                         if (confirmedScroll) {
                             if (absDeltaX > absDeltaY) {
-                                conn.sendMouseHighResHScroll((short)(-deltaX * SCROLL_SPEED_FACTOR_X));
+                                conn.sendMouseHighResHScroll((short)(-pendingDeltaX * SCROLL_SPEED_FACTOR_X));
                                 if (absDeltaY * 1.05 > absDeltaX) {
-                                    conn.sendMouseHighResScroll((short)(deltaY * SCROLL_SPEED_FACTOR_Y));
+                                    conn.sendMouseHighResScroll((short)(pendingDeltaY * SCROLL_SPEED_FACTOR_Y));
                                 }
                             } else {
-                                conn.sendMouseHighResScroll((short)(deltaY * SCROLL_SPEED_FACTOR_Y));
+                                conn.sendMouseHighResScroll((short)(pendingDeltaY * SCROLL_SPEED_FACTOR_Y));
                                 if (absDeltaX * 1.05 >= absDeltaY) {
-                                    conn.sendMouseHighResHScroll((short)(-deltaX * SCROLL_SPEED_FACTOR_X));
+                                    conn.sendMouseHighResHScroll((short)(-pendingDeltaX * SCROLL_SPEED_FACTOR_X));
                                 }
                             }
                         }
                     }
                 }
             }
+
+            pendingDeltaX -= (short)pendingDeltaX;
+            pendingDeltaY -= (short)pendingDeltaY;
         }
 
         return true;
