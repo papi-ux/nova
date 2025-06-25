@@ -449,7 +449,7 @@ public class NvHTTP {
         return details;
     }
 
-    private String getCurrentGameUUID(String serverInfo) throws IOException, XmlPullParserException {
+    public String getCurrentGameUUID(String serverInfo) throws IOException, XmlPullParserException {
         return getXmlString(serverInfo, "currentgameuuid", false);
     }
 
