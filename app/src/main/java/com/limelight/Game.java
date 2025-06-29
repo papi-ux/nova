@@ -197,7 +197,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private boolean quitOnStop = false;
     private boolean isHidingOverlays;
     private boolean floatingButtonShown;
-    private boolean overlayToggleButtonShown;
+    private boolean overlayToggleZoomButtonShown;
     private TextView notificationOverlayView;
     private int requestedNotificationOverlayVisibility = View.GONE;
     private View performanceOverlayView;
@@ -970,9 +970,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     floatingMenuButton.setVisibility(View.GONE);
                 }
 
-                overlayToggleButtonShown = overlayToggleButton != null && overlayToggleButton.isShown();
+                overlayToggleZoomButtonShown = overlayToggleButton != null && overlayToggleButton.isShown();
 
-                if (overlayToggleButtonShown) {
+                if (overlayToggleZoomButtonShown) {
                     overlayToggleButton.setVisibility(View.GONE);
                 }
 
@@ -1006,7 +1006,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     floatingMenuButton.setVisibility(View.VISIBLE);
                 }
 
-                if (overlayToggleButtonShown) {
+                if (overlayToggleZoomButtonShown) {
                     overlayToggleButton.setVisibility(View.VISIBLE);
                 }
 

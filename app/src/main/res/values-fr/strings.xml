@@ -46,7 +46,7 @@
     <string name="pair_pc_confirm_title">Appairer le PC</string>
     <string name="pair_pc_confirm_message">Voulez-vous vraiment vous appairer avec %s ? Veuillez ne pas vous appairer avec des ordinateurs inconnus.</string>
     <string name="pair_pc_offline">L\'ordinateur est hors ligne</string>
-    <string name="pair_pc_ingame">L\'ordinateur est actuellement dans un jeu. Vous devez fermer le jeu avant l’appairage.</string>
+    <string name="pair_pc_ingame">L\'ordinateur est actuellement dans un jeu. Vous devez fermer le jeu avant l'appairage.</string>
     <string name="pair_pairing_title">Appariement</string>
     <string name="pair_pairing_msg">Veuillez entrer le code PIN suivant sur le PC cible :</string>
     <string name="pair_pairing_help">Si votre PC hôte utilise Sunshine, accédez à l\'interface web de Sunshine pour saisir le code PIN.</string>
@@ -166,7 +166,7 @@
     <string name="title_fps_list">Fréquence d\'images vidéo</string>
     <string name="summary_fps_list">Augmentez pour un flux vidéo plus fluide. Diminuez pour de meilleures performances sur les appareils bas de gamme.</string>
     <string name="title_seekbar_bitrate">Débit vidéo</string>
-    <string name="summary_seekbar_bitrate">Augmentez-le pour une meilleure qualité d’image. Diminuez-le pour améliorer les performances sur les connexions plus lentes.</string>
+    <string name="summary_seekbar_bitrate">Augmentez-le pour une meilleure qualité d'image. Diminuez-le pour améliorer les performances sur les connexions plus lentes.</string>
     <string name="title_seekbar_metered_bitrate">Débit vidéo sur les réseaux limités</string>
     <string name="summary_seekbar_metered_bitrate">Un débit élevé consomme plus de données, un débit plus faible améliore la fluidité sur les réseaux limités.\nDéfinissez sur 0 pour ¼ de la valeur ci-dessus.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
@@ -282,7 +282,7 @@
     <string name="title_enable_perf_overlay">Afficher les statistiques de performance lors du stream</string>
     <string name="summary_enable_perf_overlay">Affiche des informations sur les performances du stream en temps réel pendant le stream</string>
     <string name="title_enable_post_stream_toast">Afficher la latence moyenne après un stream</string>
-    <string name="summary_enable_post_stream_toast">Affiche un message d’information sur la latence après la fin du stream</string>
+    <string name="summary_enable_post_stream_toast">Affiche un message d'information sur la latence après la fin du stream</string>
 
     <string name="category_help">Aide</string>
     <string name="title_setup_guide">Guide de configuration</string>
@@ -591,4 +591,5 @@
     <string name="summary_show_overlay_zoom_toggle_button">Affiche un bouton déplaçable en haut de l\'écran pour activer/désactiver le mode panoramique/zoom.</string>
     <string name="title_checkbox_remember_zoom_pan">Mémoriser le zoom et le panoramique</string>
     <string name="summary_checkbox_remember_zoom_pan">Enregistre la position de zoom et de panoramique entre les sessions.</string>
+    <string name="title_edit_profile">Modifier le profil</string>
 </resources>

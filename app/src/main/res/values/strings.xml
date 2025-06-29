@@ -659,4 +659,6 @@
 
     <string name="title_checkbox_remember_zoom_pan">Remember Zoom&amp;Pan</string>
     <string name="summary_checkbox_remember_zoom_pan">Save changes to zoom and pan position between sessions</string>
+
+    <string name="title_edit_profile">Edit Profile</string>
 </resources>

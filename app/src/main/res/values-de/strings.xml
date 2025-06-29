@@ -306,4 +306,6 @@
     <string name="title_checkbox_remember_zoom_pan">Zoom &amp; Pan merken</string>
     <string name="summary_checkbox_remember_zoom_pan">Speichert Zoom- und Schwenkposition zwischen Sitzungen.</string>
 
+    <string name="title_edit_profile">Profil bearbeiten</string>
+
 </resources>
