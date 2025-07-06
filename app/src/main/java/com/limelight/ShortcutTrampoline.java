@@ -1,5 +1,7 @@
 package com.limelight;
 
+import static com.limelight.utils.ServerHelper.getSecondaryDisplay;
+
 import android.app.Activity;
 import android.app.Service;
 import android.content.ComponentName;

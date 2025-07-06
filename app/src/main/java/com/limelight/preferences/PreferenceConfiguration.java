@@ -265,6 +265,8 @@ public class PreferenceConfiguration {
 
     public boolean enableExDisplay;
 
+    public boolean enableFullExDisplay;
+
     //串流画面顶部居中显示
     public boolean alignDisplayTopCenter;
 
@@ -854,6 +856,8 @@ public class PreferenceConfiguration {
         config.enableNewAnalogStick=prefs.getBoolean(CHECKBOX_CHECKBOX_ENABLE_ANALOG_STICK_NEW,false);
 
         config.enableExDisplay=prefs.getBoolean("checkbox_enable_exdisplay",false);
+
+        config.enableFullExDisplay=prefs.getBoolean("checkbox_enable_fullexdisplay",false);
 
         config.alignDisplayTopCenter =prefs.getBoolean("checkbox_enable_view_top_center",false);
 

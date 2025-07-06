@@ -1,6 +1,8 @@
 package com.limelight;
 
 
+import static com.limelight.utils.ServerHelper.getSecondaryDisplay;
+
 import com.limelight.binding.PlatformBinding;
 import com.limelight.binding.audio.AndroidAudioRenderer;
 import com.limelight.binding.input.ControllerHandler;
@@ -61,7 +63,6 @@ import android.graphics.Outline;
 import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
-import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
@@ -1086,35 +1087,15 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 (prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_BALANCED && prefConfig.reduceRefreshRate);
     }
 
-    private Display getSecondaryDisplay() {
-        DisplayManager displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
-        Display display = null;
-            Display[] displays = displayManager.getDisplays();
-            int mainDisplayId = Display.DEFAULT_DISPLAY;
-            int secondaryDisplayId = -1;
-            for (Display displayVariant : displays) {
-                LimeLog.info(displayVariant.toString());
-                if (displayVariant.getDisplayId() != mainDisplayId) {
-                    secondaryDisplayId = displayVariant.getDisplayId();
-                    break;
-                }
-            }
-
-            if (secondaryDisplayId != -1) {
-               display = displayManager.getDisplay(secondaryDisplayId);
-            }
-            return display;
-        }
-
-        private Boolean isSecondaryDisplayActive() {
-            return prefConfig.enableExDisplay && (secondaryDisplayPresentation != null || getSecondaryDisplay() != null);
-        }
+    private Boolean isSecondaryDisplayActive() {
+        return prefConfig.enableExDisplay && (secondaryDisplayPresentation != null || getSecondaryDisplay(this) != null);
+    }
 
     private float prepareDisplayForRendering() {
        Display display = getWindowManager().getDefaultDisplay();
 
         if (isSecondaryDisplayActive()) {
-            display = getSecondaryDisplay();
+            display = getSecondaryDisplay(this);
         }
         WindowManager.LayoutParams windowLayoutParams = getWindow().getAttributes();
         float displayRefreshRate;
@@ -2394,14 +2375,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                                                     event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER)) ||
                                     eventSource == 12290) // 12290 = Samsung DeX mode desktop mouse
             ) {
-                /*
-                 * Allows for remote desktop control like mouse movement without the need to press
-                 * down
-                 */
-                if (isSecondaryDisplayActive() && event.getActionMasked() == MotionEvent.ACTION_HOVER_MOVE) {
-                    updateMousePosition(view, event);
-                    return true;
-                }
                 int buttonState = event.getButtonState();
                 int changedButtons = buttonState ^ lastButtonState;
 
@@ -2449,7 +2422,22 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         }
                     }
                 }
-                else if ((eventSource & InputDevice.SOURCE_CLASS_POSITION) != 0) {
+                /*
+                 * Allows full desktop mouse control also on devices like samsung
+                 * which dont support RelativeMouseAxes due to virtual dex mouse override
+                 * For secondary screens only
+                 * Not working with games mostly
+                 * As streamView is not in focus on primary display system ui interferes
+                 * To make it work, use full secondary mode
+                 */
+                else if(isSecondaryDisplayActive() && event.getActionMasked() == MotionEvent.ACTION_HOVER_MOVE) {
+                    if (prefConfig.absoluteMouseMode) {
+                         updateMousePosition(view, event);
+                    } else {
+                        Toast.makeText(Game.this, event.getAxisValue(MotionEvent.AXIS_RELATIVE_X) + " ", Toast.LENGTH_SHORT).show();
+                        mouseMove((int) event.getAxisValue(MotionEvent.AXIS_RELATIVE_X), (int) event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y));
+                    }
+                } else if ((eventSource & InputDevice.SOURCE_CLASS_POSITION) != 0) {
                     // If this input device is not associated with the view itself (like a trackpad),
                     // we'll convert the device-specific coordinates to use to send the cursor position.
                     // This really isn't ideal but it's probably better than nothing.
@@ -2572,7 +2560,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                                 break;
                         }
                     } else {
-                        updateMousePosition(view, event);
+                        if (prefConfig.absoluteMouseMode) {
+                            updateMousePosition(view, event);
+                        } else {
+                            mouseMove((int) event.getAxisValue(MotionEvent.AXIS_RELATIVE_X), (int) event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y));
+                        }
                     }
                 }
 
@@ -3164,11 +3156,25 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     }
 
                     Dialog.displayDialog(Game.this, getResources().getString(R.string.conn_error_title), dialogText, true);
+                    finishSecondScreen();
                 }
             }
         });
 
         return false;
+    }
+
+    private void finishSecondScreen() {
+        // Otherwise screen stays connected but not working with no way of quitting it
+        if(prefConfig.enableFullExDisplay) {
+            Handler h = new Handler();
+            h.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    finish();
+                }
+            }, 2000);
+        }
     }
 
     @Override
@@ -3245,6 +3251,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                         Dialog.displayDialog(Game.this, getResources().getString(R.string.conn_terminated_title),
                                 message, true);
+                        finishSecondScreen();
                     }
                     else {
                         finish();
@@ -3760,15 +3767,17 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     public SecondaryDisplayPresentation secondaryDisplayPresentation;
     public void showSecondScreen(){
-            Display secondaryDisplay = getSecondaryDisplay();
+            Display secondaryDisplay = getSecondaryDisplay(this);
 
             if(secondaryDisplay != null) {
-                Toast.makeText(Game.this,
-                        getString(R.string.external_display_info) + " "
-                                + secondaryDisplay.getMode().getPhysicalWidth() + "x"
-                                + secondaryDisplay.getMode().getPhysicalHeight() + " "
-                                + secondaryDisplay.getMode().getRefreshRate() + "Hz",
-                        Toast.LENGTH_LONG).show();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    Toast.makeText(Game.this,
+                            getString(R.string.external_display_info) + " "
+                                    + secondaryDisplay.getMode().getPhysicalWidth() + "x"
+                                    + secondaryDisplay.getMode().getPhysicalHeight() + " "
+                                    + secondaryDisplay.getMode().getRefreshRate() + "Hz",
+                            Toast.LENGTH_LONG).show();
+                }
 
                 secondaryDisplayPresentation = new SecondaryDisplayPresentation(this, secondaryDisplay);
                 secondaryDisplayPresentation.show();
