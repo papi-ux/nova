@@ -19,8 +19,8 @@ import androidx.core.content.ContextCompat;
 
 public class SecondaryScreenNotification extends AppCompatActivity {
 
-    private static final String CHANNEL_ID = "sticky_channel_id";
-    private static final int NOTIFICATION_ID = 1;
+    private static final String SECONDARY_SCREEN_ACTIVE_CHANNEL_ID = "secondary_screen_active_channel_id";
+    public static final int SECONDARY_SCREEN_NOTIFICATION_ID = 1;
     private static final int REQUEST_NOTIFICATION_PERMISSION = 1001;
 
     @Override
@@ -52,7 +52,7 @@ public class SecondaryScreenNotification extends AppCompatActivity {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
+                    SECONDARY_SCREEN_ACTIVE_CHANNEL_ID,
                     "SecondScreen is active",
                     NotificationManager.IMPORTANCE_LOW
             );
@@ -69,7 +69,7 @@ public class SecondaryScreenNotification extends AppCompatActivity {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+        Notification notification = new NotificationCompat.Builder(this, SECONDARY_SCREEN_ACTIVE_CHANNEL_ID)
                 .setContentTitle("Second Screen is active")
                 .setContentText("Touch to open virtual touchpad or make physical keyboard mouse events work again on second screen")
                 .setSmallIcon(R.drawable.app_icon)
@@ -78,7 +78,7 @@ public class SecondaryScreenNotification extends AppCompatActivity {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
 
-        notificationManager.notify(NOTIFICATION_ID, notification);
+        notificationManager.notify(SECONDARY_SCREEN_NOTIFICATION_ID, notification);
     }
 
     @Override

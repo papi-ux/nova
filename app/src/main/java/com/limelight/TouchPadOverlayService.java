@@ -5,6 +5,7 @@ import static android.view.MotionEvent.INVALID_POINTER_ID;
 import static com.limelight.Game.FIVE_FINGER_TAP_THRESHOLD;
 import static com.limelight.Game.FOUR_FINGER_TAP_THRESHOLD;
 import static com.limelight.Game.THREE_FINGER_TAP_THRESHOLD;
+import static com.limelight.SecondaryScreenNotification.SECONDARY_SCREEN_NOTIFICATION_ID;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityOptions;
@@ -30,6 +31,7 @@ import android.widget.ImageView;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
+import androidx.core.app.NotificationManagerCompat;
 
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.touch.TrackpadContext;
@@ -281,6 +283,17 @@ public class TouchPadOverlayService extends Service {
 
         touchpadView.addView(closeButton);
         windowManager.addView(touchpadView, params);
+        if (Game.instance != null && Game.instance.conn != null) {
+            Intent gameIntent = new Intent(this, Game.class);
+            gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+             startActivity(gameIntent);
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (touchpadView != null) windowManager.removeView(touchpadView);
     }
 
     private void closeTouchpad() {
@@ -440,13 +453,6 @@ public class TouchPadOverlayService extends Service {
         }
 
         return true;
-    }
-
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (touchpadView != null) windowManager.removeView(touchpadView);
     }
 
     private Boolean isConnected() {

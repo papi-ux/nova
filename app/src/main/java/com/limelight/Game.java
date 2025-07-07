@@ -1,6 +1,7 @@
 package com.limelight;
 
 
+import static com.limelight.SecondaryScreenNotification.SECONDARY_SCREEN_NOTIFICATION_ID;
 import static com.limelight.utils.ServerHelper.getSecondaryDisplay;
 
 import com.limelight.binding.PlatformBinding;
@@ -63,6 +64,7 @@ import android.graphics.Outline;
 import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
+import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
@@ -99,6 +101,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ImageButton;
 import androidx.annotation.NonNull;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.preference.PreferenceManager;
 
 import java.io.ByteArrayInputStream;
@@ -689,8 +692,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         streamView.getHolder().addCallback(this);
 
         //外接显示器模式
-        if(prefConfig.enableExDisplay){
+        if(prefConfig.enableExDisplay && !prefConfig.enableFullExDisplay){
             showSecondScreen();
+        } else if(prefConfig.enableFullExDisplay) {
+            listenForExternalDisplayRemoval();
         }
 
         gameMenuCallbacks = new GameMenu(this, conn);
@@ -698,6 +703,30 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         floatingMenuButton = findViewById(R.id.floatingMenuButton);
         updateFloatingButtonVisibility(prefConfig.enableBackMenu && prefConfig.enableFloatingButton);
         initFloatingButton();
+    }
+
+    private void listenForExternalDisplayRemoval() {
+        DisplayManager displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+        displayManager.registerDisplayListener(new DisplayManager.DisplayListener() {
+            @Override
+            public void onDisplayAdded(int displayId) {}
+
+            @Override
+            public void onDisplayRemoved(int displayId) {
+                if(getSecondaryDisplay(getBaseContext()) == null) {
+                    handleDisplayRemoved();
+                    finish();
+                }
+            }
+
+            @Override
+            public void onDisplayChanged(int displayId) {}
+        }, null);
+    }
+    
+    private void handleDisplayRemoved() {
+        stopService(new Intent(getBaseContext(), TouchPadOverlayService.class));
+        NotificationManagerCompat.from(getBaseContext()).cancel(SECONDARY_SCREEN_NOTIFICATION_ID);
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -1354,6 +1383,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             secondaryDisplayPresentation.dismiss();
             secondaryDisplayPresentation = null;
         }
+
+        if(isSecondaryDisplayActive()) handleDisplayRemoved();
 
         if (controllerHandler != null) {
             controllerHandler.destroy();

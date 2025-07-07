@@ -11,5 +11,10 @@ public class StartTouchPadReceiver extends BroadcastReceiver {
         // Open TouchpadView
         Intent serviceIntent = new Intent(context, TouchPadOverlayService.class);
         context.startService(serviceIntent);
+        if (Game.instance != null && Game.instance.conn != null) {
+            Intent gameIntent = new Intent(context, Game.class);
+            gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            context.startActivity(gameIntent);
+        }
     }
 }
