@@ -18,7 +18,6 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
-import android.util.Log;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -33,6 +32,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
 import com.limelight.binding.input.touch.TouchContext;
+import com.limelight.binding.input.touch.TrackpadContext;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.input.MouseButtonPacket;
@@ -99,6 +99,11 @@ public class TouchPadOverlayService extends Service {
 
         touchpadView.setClickable(true);
         touchpadView.setFocusable(true);
+
+        // Initialize trackpad contexts
+        for (int i = 0; i < trackpadContextMap.length; i++) {
+            trackpadContextMap[i] = new TrackpadContext(conn, i, prefConfig.trackpadSwapAxis, prefConfig.trackpadSensitivityX, prefConfig.trackpadSensitivityY);
+        }
 
         // Create the close button
         ImageButton closeButton = new ImageButton(this);
@@ -211,8 +216,6 @@ public class TouchPadOverlayService extends Service {
                                 float dx = x - lastX;
                                 float dy = y - lastY;
 
-                                Log.d("Touchpad", "Relative movement: dx=" + dx + " dy=" + dy);
-
                                 if (isConnected())
                                     conn.sendMouseMove((short) dx, (short) dy);
                             }
@@ -237,7 +240,7 @@ public class TouchPadOverlayService extends Service {
                             if (timeDiff < 120) {
                                 conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_LEFT);
                                 conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_LEFT);
-                            } else if (timeDiff < 300 ) {
+                            } else if (timeDiff < 300) {
                                 conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_RIGHT);
                                 conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_RIGHT);
                             }
