@@ -1384,7 +1384,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             secondaryDisplayPresentation = null;
         }
 
-        if(isSecondaryDisplayActive()) handleDisplayRemoved();
+        if(prefConfig.enableFullExDisplay) handleDisplayRemoved();
 
         if (controllerHandler != null) {
             controllerHandler.destroy();
