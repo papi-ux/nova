@@ -210,4 +210,6 @@
     <string name="summary_language_list">Bahasa yang digunakan untuk Moonlight</string>
     <string name="summary_checkbox_enable_sops">Izinkan GFE mengubah setelan game untuk streaming yang optimal</string>
     <string name="error_code_prefix">Kode galat:</string>
+    <string name="title_enable_commit_text">Aktifkan input commit-text (geser/suara)</string>
+    <string name="summary_enable_commit_text">Meneruskan teks multi-karakter dari papan ketik lunak (gestur geser, prediksi, dikte suara). Mungkin menyebabkan masalah pada gim yang bergantung pada input per tombol.</string>
 </resources>

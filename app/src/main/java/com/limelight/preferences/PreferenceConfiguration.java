@@ -129,6 +129,8 @@ public class PreferenceConfiguration {
     private static final String SEEKBAR_TRACKPAD_DRAG_DROP_THRESHOLD = "seekbar_trackpad_drag_drop_threshold";
     private static final String CHECKBOX_TRACKPAD_SWAP_AXIS = "checkbox_trackpad_swap_axis";
 
+    private static final String CHECKBOX_ENABLE_COMMIT_TEXT = "checkbox_enable_commit_text";
+
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
     private static final boolean DEFAULT_ENABLE_ULTRA_LOW_LATENCY = false;
@@ -192,6 +194,7 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_TRACKPAD_DRAG_DROP_VIBRATION = false;
     private static final int DEFAULT_TRACKPAD_DRAG_DROP_THRESHOLD = 250;
     private static final boolean DEFAULT_TRACKPAD_SWAP_AXIS = false;
+    private static final boolean DEFAULT_ENABLE_COMMIT_TEXT = false;
     private static final String DEFAULT_ONSCREEN_KEYBOARD_ALIGN_MODE = "center";
 
     public static final int FRAME_PACING_MIN_LATENCY = 0;
@@ -301,6 +304,9 @@ public class PreferenceConfiguration {
 
     //强制使用设备自身的震动马达
     public boolean enableDeviceRumble;
+
+    // Enable forwarding of commitText from soft keyboard
+    public boolean enableCommitText;
 
     public boolean enableKeyboardVibrate;
 
@@ -886,6 +892,8 @@ public class PreferenceConfiguration {
         config.enableClearDefaultSpecial=prefs.getBoolean("checkbox_enable_clear_default_special_button", false);
 
         config.enableDeviceRumble=prefs.getBoolean("checkbox_enable_device_rumble", false);
+
+        config.enableCommitText = prefs.getBoolean(CHECKBOX_ENABLE_COMMIT_TEXT, DEFAULT_ENABLE_COMMIT_TEXT);
 
         config.enableKeyboardSquare=prefs.getBoolean("checkbox_enable_keyboard_square",false);
 

@@ -99,6 +99,12 @@ import android.widget.Toast;
 import android.widget.ImageButton;
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
+import android.view.SurfaceView;
+import android.view.inputmethod.InputConnection;
+import android.os.Looper;
+import java.nio.charset.StandardCharsets;
+import java.util.Queue;
+import java.util.ArrayDeque;
 
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -273,6 +279,27 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private static final float CLICK_ACTION_THRESHOLD = 5;
     private float floatingButtonStartX, floatingButtonStartY;
 
+    // Queue for batching commitText payloads
+    private static final int UTF8_CHUNK_SIZE = 512;
+    private final Queue<String> commitTextQueue = new ArrayDeque<>();
+    private final Handler commitTextHandler = new Handler(Looper.getMainLooper());
+
+    private final Runnable flushCommitTextQueue = new Runnable() {
+        @Override
+        public void run() {
+            if (commitTextQueue.isEmpty()) {
+                return;
+            }
+            String chunk = commitTextQueue.poll();
+            if (conn != null) {
+                conn.sendUtf8Text(chunk);
+            }
+            if (!commitTextQueue.isEmpty()) {
+                commitTextHandler.postDelayed(this, 15);
+            }
+        }
+    };
+
     @SuppressLint({"MissingInflatedId", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -351,6 +378,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         streamView.setOnGenericMotionListener(this);
         streamView.setOnKeyListener(this);
         streamView.setInputCallbacks(this);
+        streamView.setCommitTextEnabled(prefConfig.enableCommitText);
 
         //光标是否显示
         cursorVisible = prefConfig.enableMouseLocalCursor;
@@ -696,7 +724,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         gameMenuCallbacks = new GameMenu(this, conn);
-        
+
         floatingMenuButton = findViewById(R.id.floatingMenuButton);
         updateFloatingButtonVisibility(prefConfig.enableBackMenu && prefConfig.enableFloatingButton);
         initFloatingButton();
@@ -3751,5 +3779,52 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         });
         streamView.setClipToOutline(true);
+    }
+
+    @Override
+    public boolean handleCommitText(CharSequence text) {
+        if (!prefConfig.enableCommitText || conn == null) {
+            return false;
+        }
+        enqueueCommitText(text.toString());
+        return true;
+    }
+
+    @Override
+    public boolean handleDeleteSurroundingText(int beforeLength, int afterLength) {
+        if (!prefConfig.enableCommitText || conn == null) {
+            return false;
+        }
+        // Send backspace events for deleted preceding characters
+        if (beforeLength > 0) {
+            short backspaceCode = keyboardTranslator.translate(KeyEvent.KEYCODE_DEL, 0, -1);
+            for (int i = 0; i < beforeLength; i++) {
+                conn.sendKeyboardInput(backspaceCode, com.limelight.nvstream.input.KeyboardPacket.KEY_DOWN, (byte)0, (byte)0);
+                conn.sendKeyboardInput(backspaceCode, com.limelight.nvstream.input.KeyboardPacket.KEY_UP, (byte)0, (byte)0);
+            }
+        }
+        return true;
+    }
+
+    private void enqueueCommitText(String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        byte[] utf8 = text.getBytes(StandardCharsets.UTF_8);
+        int offset = 0;
+        while (offset < utf8.length) {
+            int end = Math.min(offset + UTF8_CHUNK_SIZE, utf8.length);
+            // Ensure we don't cut inside a multi-byte sequence
+            while (end < utf8.length && (utf8[end] & 0xC0) == 0x80) {
+                end--; // step back until we are at start of code point
+            }
+            String chunk = new String(utf8, offset, end - offset, StandardCharsets.UTF_8);
+            commitTextQueue.add(chunk);
+            offset = end;
+        }
+        // Kick off flushing if not already scheduled
+        if (commitTextQueue.size() == 1) {
+            commitTextHandler.post(flushCommitTextQueue);
+        }
     }
 }

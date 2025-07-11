@@ -638,4 +638,8 @@
     <string name="title_checkbox_stretch_video">Kéo giãn video</string>
 
     <string name="menu_button">Menu</string>
+
+    <!-- New Strings -->
+    <string name="title_enable_commit_text">Bật nhập commit-text (vuốt/giọng nói)</string>
+    <string name="summary_enable_commit_text">Chuyển tiếp văn bản nhiều ký tự từ bàn phím ảo (gõ vuốt, gợi ý, nhập giọng nói). Có thể gây lỗi với trò chơi yêu cầu nhập từng phím.</string>
 </resources>

@@ -207,4 +207,6 @@
     <string name="resolution_prefix_native_fullscreen">Systemspesifikk fullskjerm</string>
     <string name="perf_overlay_netlatency">Gjennomsnittlig nettverksforsinkelse: %1$d ms (variasjon: %2$d ms)</string>
     <string name="perf_overlay_streamdetails">Videostrøm: %1$s %2$.2f BPS</string>
+    <string name="title_enable_commit_text">Aktiver commit-tekst-input (sveip/stemme)</string>
+    <string name="summary_enable_commit_text">Sender tekst med flere tegn fra skjermtastaturet (gesture-skriving, forslag, stemmediktat). Kan skape problemer i spill som krever tast-for-tast-inndata.</string>
 </resources>
