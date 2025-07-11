@@ -639,4 +639,6 @@
     <string name="profile_manager_confirm_profile_deleteion">确认要删除配置 \'%s\' 吗?</string>
     <string name="profile_manager_delete">删除</string>
     <string name="profile_manager_profile_deleted">配置 \'%s\' 已删除</string>
+    <string name="profile_manager_failed_to_save">配置保存失败，请检查 logcat 以获取详细信息。</string>
+    <string name="profile_manager_failed_to_load">配置加载失败，请检查 logcat 以获取详细信息。</string>
 </resources>

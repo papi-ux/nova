@@ -679,4 +679,6 @@
     <string name="profile_manager_confirm_profile_deleteion">Are you sure you want to delete \'%s\'?</string>
     <string name="profile_manager_delete">Delete</string>
     <string name="profile_manager_profile_deleted">Deleted profile \'%s\'</string>
+    <string name="profile_manager_failed_to_save">Failed to save profile. Please check logcat for details.</string>
+    <string name="profile_manager_failed_to_load">Failed to load profiles. Please check logcat for details.</string>
 </resources>

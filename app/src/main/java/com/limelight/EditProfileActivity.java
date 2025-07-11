@@ -139,12 +139,14 @@ public class EditProfileActivity extends AppCompatActivity implements SearchPref
             ProfilesManager.getInstance().add(newProfile);
         }
 
-        ProfilesManager.getInstance().save(this);
-
-        // Show confirmation Toast
-        Toast.makeText(this,
-                getString(R.string.profile_manager_profile_saved, displayName),
-                Toast.LENGTH_SHORT).show();
+        if (ProfilesManager.getInstance().save(this)) {
+            // Show confirmation Toast
+            Toast.makeText(this,
+                    getString(R.string.profile_manager_profile_saved, displayName),
+                    Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, R.string.profile_manager_failed_to_save, Toast.LENGTH_LONG).show();
+        }
 
         finish();
     }
