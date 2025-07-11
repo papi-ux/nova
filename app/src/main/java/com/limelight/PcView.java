@@ -4,6 +4,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.limelight.binding.PlatformBinding;
 import com.limelight.binding.crypto.AndroidCryptoProvider;
 import com.limelight.computers.ComputerManagerListener;
@@ -151,7 +152,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         ImageButton settingsButton = findViewById(R.id.settingsButton);
         ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
         ImageButton helpButton = findViewById(R.id.helpButton);
-        ImageButton profilesButton = findViewById(R.id.profilesButton);
+        FloatingActionButton profilesButton = findViewById(R.id.profilesButton);
 
         settingsButton.setOnClickListener(new OnClickListener() {
             @Override

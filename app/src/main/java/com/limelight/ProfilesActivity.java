@@ -9,6 +9,8 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.widget.ImageButton;
+
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.limelight.profiles.ProfilesAdapter;
 import com.limelight.profiles.ProfilesManager;
 
@@ -33,7 +35,7 @@ public class ProfilesActivity extends AppCompatActivity implements ProfilesManag
         emptyState = findViewById(R.id.emptyState);
 
         // Setup FloatingActionButton
-        ImageButton fab = findViewById(R.id.addProfileFab);
+        FloatingActionButton fab = findViewById(R.id.addProfileFab);
         fab.setOnClickListener(v -> {
             Intent intent = new Intent(this, EditProfileActivity.class);
             startActivity(intent);

@@ -56,12 +56,12 @@
         android:id="@+id/addProfileFab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
         android:layout_alignParentEnd="true"
-        android:layout_marginBottom="24dp"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="16dp"
         android:layout_marginEnd="24dp"
-        android:src="@drawable/ic_add"
+        android:layout_marginBottom="24dp"
         android:contentDescription="@string/profile_manager_new_profile"
-        android:layout_margin="16dp" />
+        android:src="@drawable/ic_add_base" />
 
 </RelativeLayout>

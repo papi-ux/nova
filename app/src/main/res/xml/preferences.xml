@@ -863,7 +863,7 @@
             android:defaultValue="default"
             android:entries="@array/language_names"
             android:entryValues="@array/language_values"
-            android:icon="@android:drawable/stat_notify_chat"
+            android:icon="@drawable/ic_language"
             android:key="list_languages"
             android:summary="@string/summary_language_list"
             android:title="@string/title_language_list" />
