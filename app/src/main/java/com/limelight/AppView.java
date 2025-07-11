@@ -310,6 +310,10 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         UiHelper.notifyNewRootView(this);
 
+        // Setup the profiles button
+        findViewById(R.id.profilesButton)
+            .setOnClickListener(v -> startActivity(new Intent(this, ProfilesActivity.class)));
+
         showHiddenApps = getIntent().getBooleanExtra(SHOW_HIDDEN_APPS_EXTRA, false);
         uuidString = getIntent().getStringExtra(UUID_EXTRA);
 
@@ -412,7 +416,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
                 // Clear the content if the user cancelled or if there was an error before this point
                 ShortcutHelper.artFileContentToExport = null;
                 // Show "File export cancelled." toast only if the user explicitly cancelled.
-                if (resultCode == Activity.RESULT_CANCELED) { 
+                if (resultCode == Activity.RESULT_CANCELED) {
                     Toast.makeText(this, R.string.file_export_cancelled, Toast.LENGTH_SHORT).show();
                 }
             }

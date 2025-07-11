@@ -3,4 +3,5 @@
     <issue id="InvalidPackage">
         <ignore path="**/bcpkix-jdk15on-*.jar"/>
     </issue>
+    <issue id="MissingThemeAttr" severity="error" />
 </lint>

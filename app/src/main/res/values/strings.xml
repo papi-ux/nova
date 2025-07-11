@@ -400,6 +400,9 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (Switch Monitor)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
 
+    <string name="toggle_pan_zoom_mode">Toggle Pan/Zoom Mode</string>
+    <string name="profiles_description">Profiles allow you to create and save different streaming configurations. Each profile stores its own settings which can be quickly switched between.</string>
+
     <string name="title_analog_scrolling">Use an analog stick to scroll</string>
     <string name="summary_analog_scrolling">Select an analog stick to scroll when in mouse emulation mode</string>
     <string name="analogscroll_none">None (both sticks move the mouse)</string>
@@ -438,6 +441,8 @@
     <string name="summary_checkbox_enable_perf_logging">"Stores performance data per configuration. (Offline only) "</string>
     <string name="title_checkbox_enable_perf_overlay_lite_dialog">Lite mode click to pop up quick options</string>
     <string name="summary_checkbox_enable_perf_overlay_lite_dialog">Replace the back button logic, pop up the game quick menu.</string>
+    <string name="title_show_overlay_zoom_toggle_button">Show overlay zoom toggle button</string>
+    <string name="summary_show_overlay_zoom_toggle_button">Displays a draggable button at the top of the screen to toggle pan/zoom mode.</string>
     <string name="title_virtual_trackpad_settings">Virtual Trackpad Settings</string>
     <string name="title_quit_dialog">Back Menu</string>
     <string name="summary_quit_dialog">When enabled, clicking the physical back button on the streaming interface will show related options!\nSoft keyboard, performance information, touch mode switching, send special keys</string>
@@ -652,7 +657,9 @@
     <string name="title_export_sunshine_launcher_file">Export Launcher File for Sunshine</string>
     <string name="message_export_sunshine_launcher_file">Exporting launcher file for Sunshine is unstable, and may break at any moment. You\'ll need to export again every time if you changed the app name or image.\nUse Apollo for a more stable experience.</string>
 
-    <!-- New Strings -->
     <string name="title_enable_commit_text">Enable commit-text input (swipe/voice)</string>
     <string name="summary_enable_commit_text">Forward multi-character text from soft keyboards (gesture typing, predictions, voice dictation). May break games that rely on key-by-key input.</string>
+    <string name="title_checkbox_remember_zoom_pan">Remember Zoom&amp;Pan</string>
+    <string name="summary_checkbox_remember_zoom_pan">Save changes to zoom and pan position between sessions</string>
+    <string name="title_edit_profile">Edit Profile</string>
 </resources>

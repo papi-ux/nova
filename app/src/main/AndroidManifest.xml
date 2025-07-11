@@ -43,6 +43,7 @@
         android:required="false"/>
 
     <application
+        android:name=".MoonlightApplication"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/backup_rules_s"
@@ -76,7 +77,7 @@
         <meta-data
             android:name="com.android.graphics.intervention.wm.allowDownscale"
             android:value="false"/>
-        
+
         <!-- Game Mode configuration -->
         <meta-data
             android:name="android.game_mode_config"
@@ -130,6 +131,25 @@
             android:resizeableActivity="true"
             android:enableOnBackInvokedCallback="true"
             android:configChanges="mcc|mnc|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|screenSize|smallestScreenSize|layoutDirection">
+            <meta-data android:name="WindowManagerPreference:FreeformWindowSize" android:value="system-default" />
+            <meta-data android:name="WindowManagerPreference:FreeformWindowOrientation" android:value="landscape" />
+        </activity>
+        <activity
+            android:name=".ProfilesActivity"
+            android:resizeableActivity="true"
+            android:enableOnBackInvokedCallback="true"
+            android:configChanges="mcc|mnc|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|screenSize|smallestScreenSize|layoutDirection"
+            android:theme="@style/SettingsTheme">
+            <meta-data android:name="WindowManagerPreference:FreeformWindowSize" android:value="system-default" />
+            <meta-data android:name="WindowManagerPreference:FreeformWindowOrientation" android:value="landscape" />
+        </activity>
+        <activity
+            android:name=".EditProfileActivity"
+            android:resizeableActivity="true"
+            android:enableOnBackInvokedCallback="true"
+            android:configChanges="mcc|mnc|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|screenSize|smallestScreenSize|layoutDirection"
+            android:label="@string/title_edit_profile"
+            android:theme="@style/SettingsTheme">
             <meta-data android:name="WindowManagerPreference:FreeformWindowSize" android:value="system-default" />
             <meta-data android:name="WindowManagerPreference:FreeformWindowOrientation" android:value="landscape" />
         </activity>

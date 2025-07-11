@@ -289,4 +289,9 @@
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
     <string name="title_enable_commit_text">Activar entrada de texto commit (gestos/voz)</string>
     <string name="summary_enable_commit_text">Envía texto de varias letras desde teclados en pantalla (escritura gestual, predicciones, dictado por voz). Puede afectar a juegos que dependen de pulsaciones individuales.</string>
+    <string name="title_show_overlay_zoom_toggle_button">Mostrar botón de alternar zoom de superposición</string>
+    <string name="summary_show_overlay_zoom_toggle_button">Muestra un botón desplazable en la parte superior de la pantalla para activar o desactivar el modo de desplazamiento/zoom.</string>
+    <string name="title_checkbox_remember_zoom_pan">Recordar zoom y desplazamiento</string>
+    <string name="summary_checkbox_remember_zoom_pan">Guarda la posición de zoom y desplazamiento entre sesiones.</string>
+    <string name="title_edit_profile">Editar perfil</string>
 </resources>

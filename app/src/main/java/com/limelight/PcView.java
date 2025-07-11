@@ -151,6 +151,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         ImageButton settingsButton = findViewById(R.id.settingsButton);
         ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
         ImageButton helpButton = findViewById(R.id.helpButton);
+        ImageButton profilesButton = findViewById(R.id.profilesButton);
 
         settingsButton.setOnClickListener(new OnClickListener() {
             @Override
@@ -169,6 +170,12 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
             @Override
             public void onClick(View v) {
                 HelpLauncher.launchSetupGuide(PcView.this);
+            }
+        });
+        profilesButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(PcView.this, ProfilesActivity.class));
             }
         });
 

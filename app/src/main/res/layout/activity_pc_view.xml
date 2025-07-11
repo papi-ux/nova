@@ -62,7 +62,7 @@
         style="?android:attr/borderlessButtonStyle"/>
 
     <ImageButton
-        android:id="@+id/helpButton"
+        android:id="@+id/profilesButton"
         android:layout_width="70dp"
         android:layout_height="65dp"
         android:cropToPadding="false"
@@ -70,6 +70,19 @@
         android:layout_alignParentTop="true"
         android:layout_toRightOf="@+id/settingsButton"
         android:layout_toEndOf="@+id/settingsButton"
+        android:src="@drawable/ic_profiles"
+        android:preferKeepClear="true"
+        style="?android:attr/borderlessButtonStyle"/>
+
+    <ImageButton
+        android:id="@+id/helpButton"
+        android:layout_width="70dp"
+        android:layout_height="65dp"
+        android:cropToPadding="false"
+        android:scaleType="fitXY"
+        android:layout_alignParentTop="true"
+        android:layout_toRightOf="@+id/profilesButton"
+        android:layout_toEndOf="@+id/profilesButton"
         android:src="@drawable/ic_help"
         android:preferKeepClear="true"
         style="?android:attr/borderlessButtonStyle"/>

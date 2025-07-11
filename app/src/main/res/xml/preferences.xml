@@ -555,6 +555,19 @@
 
         <CheckBoxPreference
             android:defaultValue="false"
+            android:key="checkbox_show_overlay_zoom_toggle_button"
+            android:summary="@string/summary_show_overlay_zoom_toggle_button"
+            android:title="@string/title_show_overlay_zoom_toggle_button"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_remember_zoom_pan"
+            android:summary="@string/summary_checkbox_remember_zoom_pan"
+            android:title="@string/title_checkbox_remember_zoom_pan"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
             android:key="checkbox_enable_post_stream_toast"
             android:summary="@string/summary_enable_post_stream_toast"
             android:title="@string/title_enable_post_stream_toast"
