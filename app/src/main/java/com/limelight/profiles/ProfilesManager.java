@@ -69,7 +69,8 @@ public class ProfilesManager {
             }
             File file = new File(dir, PROFILES_FILE);
             if (!file.exists()) {
-                return false;
+                // We don't want to warn user about profile not exist
+                return true;
             }
             try (Reader reader = new FileReader(file)) {
                 Gson gson = new Gson();
