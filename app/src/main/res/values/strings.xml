@@ -401,7 +401,6 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
 
     <string name="toggle_pan_zoom_mode">Toggle Pan/Zoom Mode</string>
-    <string name="profiles_description">Profiles allow you to create and save different streaming configurations. Each profile stores its own settings which can be quickly switched between.</string>
 
     <string name="title_analog_scrolling">Use an analog stick to scroll</string>
     <string name="summary_analog_scrolling">Select an analog stick to scroll when in mouse emulation mode</string>
@@ -428,7 +427,6 @@
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
     <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
 
-    <!-- New Strings -->
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
     <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>
@@ -662,4 +660,16 @@
     <string name="title_checkbox_remember_zoom_pan">Remember Zoom&amp;Pan</string>
     <string name="summary_checkbox_remember_zoom_pan">Save changes to zoom and pan position between sessions</string>
     <string name="title_edit_profile">Edit Profile</string>
+    <string name="profile_manager_new_profile">New Profile</string>
+    <string name="profile_manager_profile_not_found">Profile not found</string>
+    <string name="profile_manager_edit_profile">"Edit Profile: "</string>
+    <string name="profile_manager_profile">"Profile "</string>
+    <string name="profile_manager_profile_saved">Profile %s saved.</string>
+    <string name="profile_manager_edit_profile_name">Edit Profile Name</string>
+    <string name="profile_manager_name_cannot_be_blank">Name cannot be blank</string>
+    <string name="profile_manager_edit_profile_with">Edit Profile: %s</string>
+    <string name="profile_manager_new_profile_with">New Profile: %s</string>
+    <string name="profile_manager_no_profiles_yet">No profiles yet</string>
+    <string name="profile_manager_profiles_description">Profiles allow you to create and save different streaming configurations. Each profile stores its own settings which can be quickly switched between.</string>
+    <string name="profile_manager_tap_create_profile">Tap + to create your first profile</string>
 </resources>

@@ -611,8 +611,25 @@
     <!-- AppView Toast Messages -->
     <string name="file_export_cancelled">文件导出已取消。</string>
     <string name="app_removed_from_pc">应用已从电脑上移除</string>
+
     <string name="title_export_sunshine_launcher_file">为 Sunshine 导出启动文件</string>
     <string name="message_export_sunshine_launcher_file">为 Sunsihne 导出启动文件不稳定且随时可能失效。你需要在每次修改 APP 名称或图片以后重新导出。\n使用 Apollo 可获得更稳定的体验。</string>
     <string name="title_enable_commit_text">启用 Commit-Text 输入（滑动/语音）</string>
     <string name="summary_enable_commit_text">转发来自屏幕键盘的多字符文本（输入法词组、滑动输入、词语预测、语音输入）。可能会影响依赖逐键输入的游戏。</string>
+    <string name="title_show_overlay_zoom_toggle_button">显示缩放悬浮按钮</string>
+    <string name="summary_show_overlay_zoom_toggle_button">在屏幕上显示一个悬浮按钮以切换拖拽/缩放模式</string>
+    <string name="title_checkbox_remember_zoom_pan">记住缩放及位置</string>
+    <string name="summary_checkbox_remember_zoom_pan">在不同会话间记住缩放及位置</string>
+    <string name="profile_manager_new_profile">新配置</string>
+    <string name="profile_manager_profile_not_found">配置未找到</string>
+    <string name="profile_manager_edit_profile">编辑配置：</string>
+    <string name="profile_manager_profile">配置</string>
+    <string name="profile_manager_profile_saved">配置 %s 已保存</string>
+    <string name="profile_manager_edit_profile_name">编辑配置名称</string>
+    <string name="profile_manager_name_cannot_be_blank">名称不能为空</string>
+    <string name="profile_manager_edit_profile_with">编辑配置：%s</string>
+    <string name="profile_manager_new_profile_with">新建配置：%s</string>
+    <string name="profile_manager_no_profiles_yet">没有配置</string>
+    <string name="profile_manager_profiles_description">配置文件允许您创建并保存不同的串流配置。每个配置文件都存储各自的设置，可以快速切换。</string>
+    <string name="profile_manager_tap_create_profile">点击 + 以创建您的第一个配置文件</string>
 </resources>

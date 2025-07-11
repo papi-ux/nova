@@ -1,6 +1,5 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:background="#1A1A1A"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".AppView">
@@ -15,20 +14,8 @@
         android:layout_alignParentEnd="true"
         android:layout_alignParentRight="true"
         android:layout_alignParentBottom="true"
-        android:gravity="center" />
-
-    <ImageButton
-        android:id="@+id/profilesButton"
-        android:layout_width="70dp"
-        android:layout_height="65dp"
-        android:cropToPadding="false"
-        android:scaleType="fitXY"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:src="@drawable/ic_profiles"
-        android:preferKeepClear="true"
-        style="?android:attr/borderlessButtonStyle"/>
+        android:gravity="center" >
+    </FrameLayout>
 
     <TextView
         android:id="@+id/appListText"
@@ -41,5 +28,19 @@
         android:paddingBottom="5dp"
         android:preferKeepClear="true"
         android:textSize="28sp" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/profilesButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginRight="24dp"
+        android:src="@drawable/ic_profiles"
+        android:contentDescription="@string/profile_manager_choose_profile"
+        android:layout_margin="16dp" />
 
 </RelativeLayout>

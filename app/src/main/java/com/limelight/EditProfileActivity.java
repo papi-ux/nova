@@ -1,11 +1,13 @@
 package com.limelight;
 
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.preference.PreferenceFragmentCompat;
@@ -17,6 +19,7 @@ import com.limelight.profiles.SettingsProfile;
 import com.limelight.utils.UiHelper;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,22 +46,25 @@ public class EditProfileActivity extends AppCompatActivity {
 
         if (profileUuid != null) {
             // Editing existing profile
-            currentProfile = ProfilesManager.getInstance().getProfiles().stream()
-                .filter(p -> p.getUuid().toString().equals(profileUuid))
-                .findFirst()
-                .orElse(null);
+            List<SettingsProfile> profiles = ProfilesManager.getInstance().getProfiles();
+            for (SettingsProfile profile : profiles) {
+                if (profile.getUuid().toString().equals(profileUuid)) {
+                    currentProfile = profile;
+                    break;
+                }
+            }
 
             if (currentProfile != null) {
-                setTitle("Edit Profile: " + currentProfile.getName());
+                setTitle(getString(R.string.profile_manager_edit_profile) + currentProfile.getName());
                 inMemoryPrefs = new InMemorySharedPreferences(currentProfile.getOptions());
             } else {
-                Toast.makeText(this, "Profile not found", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.profile_manager_profile_not_found, Toast.LENGTH_SHORT).show();
                 finish();
                 return;
             }
         } else {
             // Creating new profile
-            setTitle("New Profile");
+            setTitle(getString(R.string.profile_manager_new_profile));
             inMemoryPrefs = new InMemorySharedPreferences(new HashMap<>());
         }
 
@@ -109,7 +115,7 @@ public class EditProfileActivity extends AppCompatActivity {
             // Create new profile
             String profileName = pendingProfileName != null ? pendingProfileName.trim() : null;
             if (profileName == null || profileName.isEmpty()) {
-                profileName = "Profile " + (ProfilesManager.getInstance().getProfiles().size() + 1);
+                profileName = getString(R.string.profile_manager_profile) + (ProfilesManager.getInstance().getProfiles().size() + 1);
             }
             long now = System.currentTimeMillis();
             SettingsProfile newProfile = new SettingsProfile(
@@ -127,7 +133,7 @@ public class EditProfileActivity extends AppCompatActivity {
 
         // Show confirmation Toast
         Toast.makeText(this,
-                "Profile '" + displayName + "' saved.",
+                getString(R.string.profile_manager_profile_saved, displayName),
                 Toast.LENGTH_SHORT).show();
 
         finish();
@@ -139,13 +145,13 @@ public class EditProfileActivity extends AppCompatActivity {
         input.setText(initial);
         input.setSelection(initial.length());
 
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Edit Profile Name")
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.profile_manager_edit_profile_name)
                 .setView(input)
                 .setPositiveButton("OK", (dialog, which) -> {
                     String newName = input.getText().toString().trim();
                     if (newName.isEmpty()) {
-                        android.widget.Toast.makeText(this, "Name cannot be blank", android.widget.Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, R.string.profile_manager_name_cannot_be_blank, Toast.LENGTH_SHORT).show();
                         return;
                     }
 
@@ -153,13 +159,13 @@ public class EditProfileActivity extends AppCompatActivity {
                         currentProfile.setName(newName);
                         currentProfile.setModifiedUtc(System.currentTimeMillis());
                         ProfilesManager.getInstance().update(currentProfile);
-                        setTitle("Edit Profile: " + newName);
+                        setTitle(getString(R.string.profile_manager_edit_profile_with, newName));
                     } else {
                         pendingProfileName = newName;
-                        setTitle("New Profile: " + newName);
+                        setTitle(getString(R.string.profile_manager_new_profile_with, newName));
                     }
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(R.string.cancel, null)
                 .show();
     }
 

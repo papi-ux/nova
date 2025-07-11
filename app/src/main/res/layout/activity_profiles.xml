@@ -9,11 +9,11 @@
         android:id="@+id/profilesDescription"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
         android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="8dp"
-        android:text="@string/profiles_description"
+        android:text="@string/profile_manager_profiles_description"
         android:textColor="#CCCCCC"
         android:textSize="14sp" />
 
@@ -39,7 +39,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="No profiles yet"
+            android:text="@string/profile_manager_no_profiles_yet"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -48,7 +48,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Tap + to create your first profile"
+            android:text="@string/profile_manager_tap_create_profile"
             android:textColor="#CCCCCC"
             android:textSize="14sp" />
 
