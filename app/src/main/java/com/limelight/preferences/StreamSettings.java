@@ -14,7 +14,6 @@ import android.os.Handler;
 import android.os.Vibrator;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.DialogFragment;
@@ -317,20 +316,20 @@ public class StreamSettings extends AppCompatActivity implements SearchPreferenc
                     .apply();
         }
 
+        @NonNull
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View view = super.onCreateView(inflater, container, savedInstanceState);
             UiHelper.applyStatusBarPadding(view);
             return view;
         }
 
-        @Override
-        public void onCreatePreferences(Bundle bundle, String s) {}
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState, boolean unused) {
+            return super.onCreateView(inflater, container, savedInstanceState);
+        }
 
         @Override
-        public void onCreate(Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
-
+        public void onCreatePreferences(Bundle bundle, String s) {
             initializePreferences();
 
             SearchPreference searchPreference = findPreference("searchPreference");

@@ -100,8 +100,7 @@ import android.widget.Toast;
 import android.widget.ImageButton;
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
-import android.view.SurfaceView;
-import android.view.inputmethod.InputConnection;
+
 import android.os.Looper;
 import java.nio.charset.StandardCharsets;
 import java.util.Queue;
@@ -818,7 +817,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         if (overlayToggleButton != null) {
             // Change background based on pan/zoom mode state
             overlayToggleButton.setBackgroundResource(isPanZoomMode ?
-                R.drawable.floating_zoom_button_active : R.drawable.floating_zoom_button);
+                R.drawable.floating_menu_button_active : R.drawable.floating_menu_button);
             // No need for alpha changes since the color indicates the state
             overlayToggleButton.setAlpha(1.0f);
         }

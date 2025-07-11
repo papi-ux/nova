@@ -443,14 +443,12 @@
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="true"
-            android:dependency="checkbox_smart_clipboard_sync"
             android:key="checkbox_smart_clipboard_sync_toast"
             android:summary="@string/summary_smart_clipboard_sync_toast"
             android:title="@string/title_smart_clipboard_sync_toast"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="true"
-            android:dependency="checkbox_hide_clipboard_content"
             android:key="checkbox_hide_clipboard_content"
             android:summary="@string/summary_hide_clipboard_content"
             android:title="@string/title_hide_clipboard_content"

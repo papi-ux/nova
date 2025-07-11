@@ -1,20 +1,25 @@
 package com.limelight;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.PreferenceManager;
 
-import com.bytehamster.lib.preferencesearch.SearchConfiguration;
-import com.bytehamster.lib.preferencesearch.SearchPreference;
 import com.bytehamster.lib.preferencesearch.SearchPreferenceResult;
 import com.bytehamster.lib.preferencesearch.SearchPreferenceResultListener;
+import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.preferences.StreamSettings;
 import com.limelight.profiles.ProfilesManager;
 import com.limelight.profiles.SettingsProfile;
 import com.limelight.utils.UiHelper;
@@ -67,10 +72,10 @@ public class EditProfileActivity extends AppCompatActivity implements SearchPref
         } else {
             // Creating new profile
             setTitle(getString(R.string.profile_manager_new_profile));
-            inMemoryPrefs = new InMemorySharedPreferences(new HashMap<>());
+            inMemoryPrefs = new InMemorySharedPreferences(PreferenceManager.getDefaultSharedPreferences(this).getAll());
         }
 
-        prefsFragment = new ProfilePreferenceFragment();
+        prefsFragment = new ProfilePreferenceFragment(this);
 
         // Load preference fragment
         getSupportFragmentManager()
@@ -185,7 +190,7 @@ public class EditProfileActivity extends AppCompatActivity implements SearchPref
         return inMemoryPrefs;
     }
 
-    public static class ProfilePreferenceFragment extends PreferenceFragmentCompat {
+    public static class ProfilePreferenceFragment extends StreamSettings.SettingsFragment {
         private static class InMemoryPreferenceDataStore extends androidx.preference.PreferenceDataStore {
             private final SharedPreferences prefs;
             InMemoryPreferenceDataStore(SharedPreferences prefs) {
@@ -218,25 +223,49 @@ public class EditProfileActivity extends AppCompatActivity implements SearchPref
             }
         }
 
+        private static Map<String, Object> diff(Context ctx, Map<String, ?> target) {
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(ctx);
+            Map<String, Object> patch = new HashMap<>();
+            Map<String, ?> all = prefs.getAll();
+            for (Map.Entry<String, ?> entry : all.entrySet()) {
+                String k = entry.getKey();
+                Object v = entry.getValue();
+                if (target.containsKey(k)) {
+                    Object def = target.get(k);
+                    if (v == null || !v.equals(def)) {
+                        patch.put(k, v);
+                    }
+                } else {
+                    // unknown key, include
+                    patch.put(k, v);
+                }
+            }
+            return patch;
+        }
+
+        public ProfilePreferenceFragment(EditProfileActivity context) {
+            super(PreferenceConfiguration.readPreferences(context));
+        }
+
+        @NonNull
+        @Override
+        public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+            return super.onCreateView(inflater, container, savedInstanceState, true);
+        }
+
         @Override
         public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
             EditProfileActivity act = (EditProfileActivity) requireActivity();
             SharedPreferences memPrefs = act.getInMemoryPrefs();
-
             // Route preference storage to in-memory prefs
             getPreferenceManager().setPreferenceDataStore(new InMemoryPreferenceDataStore(memPrefs));
 
-            addPreferencesFromResource(R.xml.preferences);
+            super.onCreatePreferences(savedInstanceState, rootKey);
 
             // Highlight changed preferences
-            java.util.Map<String, ?> patch = memPrefs.getAll();
+            java.util.Map<String, ?> patch = diff(act, memPrefs.getAll());
+            PreferenceManager.getDefaultSharedPreferences(act);
             highlightPreferences(getPreferenceScreen(), patch.keySet());
-
-            SearchPreference searchPreference = findPreference("searchPreference");
-            assert searchPreference != null;
-            SearchConfiguration config = searchPreference.getSearchConfiguration();
-            config.setActivity(act);
-            config.index(R.xml.preferences);
         }
 
         private void highlightPreferences(androidx.preference.Preference pref, java.util.Set<String> changedKeys) {
@@ -262,7 +291,7 @@ public class EditProfileActivity extends AppCompatActivity implements SearchPref
     private static class InMemorySharedPreferences implements SharedPreferences {
         private final Map<String, Object> values;
 
-        public InMemorySharedPreferences(Map<String, Object> initialValues) {
+        public InMemorySharedPreferences(Map<String, ?> initialValues) {
             this.values = new HashMap<>(initialValues != null ? initialValues : new HashMap<>());
         }
 
