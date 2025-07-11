@@ -3,8 +3,11 @@ package com.limelight.profiles;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
+import android.widget.Toast;
+
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.limelight.LimeLog;
 import com.limelight.preferences.PreferenceConfiguration;
 
 import java.io.File;
@@ -41,9 +44,10 @@ public class ProfilesManager {
         return instance;
     }
 
-    public void load(Context context) {
+    public boolean load(Context context) {
+        LimeLog.info("ArtemisProfile: Loading profile...");
         if (context == null) {
-            return;
+            return false;
         }
 
         try {
@@ -55,17 +59,17 @@ public class ProfilesManager {
 
         // Additional safety check
         if (this.appContext == null) {
-            return;
+            return false;
         }
 
         try {
             File dir = new File(this.appContext.getFilesDir(), PROFILES_DIR);
             if (!dir.exists() && !dir.mkdirs()) {
-                return;
+                return false;
             }
             File file = new File(dir, PROFILES_FILE);
             if (!file.exists()) {
-                return;
+                return false;
             }
             try (Reader reader = new FileReader(file)) {
                 Gson gson = new Gson();
@@ -79,22 +83,28 @@ public class ProfilesManager {
                     activeProfileId = data.activeProfileId;
                 }
             } catch (IOException e) {
-                // ignore or log
+                LimeLog.warning("ArtemisProfile: Failed to load profiles from file:" + e);
+                e.printStackTrace();
+                return false;
             }
         } catch (Exception e) {
-            // Handle any other exceptions gracefully during startup
+            LimeLog.warning("ArtemisProfile: Failed to load profiles:" + e);
+            e.printStackTrace();
+            return false;
         }
+
+        return true;
     }
 
-    public void save(Context context) {
+    public boolean save(Context context) {
         if (context == null) {
-            return;
+            return false;
         }
 
         try {
             File dir = new File(context.getFilesDir(), PROFILES_DIR);
             if (!dir.exists() && !dir.mkdirs()) {
-                return;
+                return false;
             }
             File file = new File(dir, PROFILES_FILE);
             try (Writer writer = new FileWriter(file)) {
@@ -104,11 +114,17 @@ public class ProfilesManager {
                 data.activeProfileId = activeProfileId;
                 gson.toJson(data, writer);
             } catch (IOException e) {
-                // ignore or log
+                LimeLog.warning("ArtemisProfile: Failed to save profiles to file:" + e);
+                e.printStackTrace();
+                return false;
             }
         } catch (Exception e) {
-            // Handle any other exceptions gracefully
+            LimeLog.warning("ArtemisProfile: Failed to save profiles:" + e);
+            e.printStackTrace();
+            return false;
         }
+
+        return true;
     }
 
     public List<SettingsProfile> getProfiles() {
@@ -232,9 +248,10 @@ public class ProfilesManager {
         }
     }
 
-    private void saveIfPossible() {
+    private boolean saveIfPossible() {
         if (appContext != null) {
-            save(appContext);
+            return save(appContext);
         }
+        return false;
     }
 }

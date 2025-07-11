@@ -248,8 +248,7 @@ public class EditProfileActivity extends AppCompatActivity implements SearchPref
             } else {
                 String key = pref.getKey();
                 if (key != null && changedKeys.contains(key)) {
-                    CharSequence prefTitle = pref.getTitle();
-                    pref.setTitle(prefTitle + "*");
+                    pref.setTitle("*" + pref.getTitle());
                 }
             }
         }

@@ -4,6 +4,7 @@
 # Our code
 -keep class com.limelight.binding.input.evdev.* {*;}
 -keep class com.limelight.utils.KeyMapper {*;}
+-keep class com.limelight.profiles.* {*;}
 
 # Moonlight common
 -keep class com.limelight.nvstream.jni.* {*;}
