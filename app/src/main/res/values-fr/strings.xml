@@ -592,4 +592,6 @@
     <string name="title_checkbox_remember_zoom_pan">Mémoriser le zoom et le panoramique</string>
     <string name="summary_checkbox_remember_zoom_pan">Enregistre la position de zoom et de panoramique entre les sessions.</string>
     <string name="title_edit_profile">Modifier le profil</string>
+    <string name="title_enable_commit_text">Activer la saisie commit-text (gestes/voix)</string>
+    <string name="summary_enable_commit_text">Transfère le texte multi-caractères des claviers virtuels (saisie gestuelle, suggestions, dictée vocale). Peut perturber les jeux qui attendent des frappes une par une.</string>
 </resources>

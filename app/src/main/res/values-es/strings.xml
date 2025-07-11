@@ -292,4 +292,6 @@
     <string name="title_checkbox_remember_zoom_pan">Recordar zoom y desplazamiento</string>
     <string name="summary_checkbox_remember_zoom_pan">Guarda la posición de zoom y desplazamiento entre sesiones.</string>
     <string name="title_edit_profile">Editar perfil</string>
+    <string name="title_enable_commit_text">Activar entrada de texto commit (gestos/voz)</string>
+    <string name="summary_enable_commit_text">Envía texto de varias letras desde teclados en pantalla (escritura gestual, predicciones, dictado por voz). Puede afectar a juegos que dependen de pulsaciones individuales.</string>
 </resources>

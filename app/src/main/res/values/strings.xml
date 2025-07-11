@@ -659,6 +659,7 @@
 
     <string name="title_checkbox_remember_zoom_pan">Remember Zoom&amp;Pan</string>
     <string name="summary_checkbox_remember_zoom_pan">Save changes to zoom and pan position between sessions</string>
-
     <string name="title_edit_profile">Edit Profile</string>
+    <string name="title_enable_commit_text">Enable commit-text input (swipe/voice)</string>
+    <string name="summary_enable_commit_text">Forward multi-character text from soft keyboards (gesture typing, predictions, voice dictation). May break games that rely on key-by-key input.</string>
 </resources>

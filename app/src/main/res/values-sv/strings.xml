@@ -271,4 +271,6 @@
     <string name="analogscroll_right">Höger analogspak</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
     <string name="title_analog_scrolling">Använd en analog spak för att bläddra</string>
+    <string name="title_enable_commit_text">Aktivera commit-textinmatning (svep/röst)</string>
+    <string name="summary_enable_commit_text">Vidarebefordra text i flera tecken från mjuka tangentbord (gestinmatning, förslag, röstdiktering). Kan störa spel som kräver tangent för tangent.</string>
 </resources>

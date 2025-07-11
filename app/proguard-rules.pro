@@ -3,6 +3,7 @@
 
 # Our code
 -keep class com.limelight.binding.input.evdev.* {*;}
+-keep class com.limelight.utils.KeyMapper {*;}
 
 # Moonlight common
 -keep class com.limelight.nvstream.jni.* {*;}

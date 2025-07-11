@@ -297,6 +297,8 @@
     <string name="email_chooser_title">Performance Log senden...</string>
     <string name="toast_no_email_clients">Keine E-Mail-Clients installiert.</string>
     <string name="toast_no_logs">Es sind noch keine Leistungsdaten gespeichert.</string>
+    <string name="title_enable_commit_text">Commit-Text-Eingabe (Swipe/Spracherkennung) aktivieren</string>
+    <string name="summary_enable_commit_text">Überträgt mehrzeilige Texte von Bildschirmtastaturen (Swipeeingabe, Wortvorschläge, Spracherkennung). Kann Spiele stören, die einzelne Tastendrücke erwarten.</string>
 
     <string name="toggle_pan_zoom_mode">Schwenk-/Zoom-Modus umschalten</string>
     <string name="profiles_description">Profile ermöglichen es Ihnen, verschiedene Streaming-Konfigurationen zu erstellen und zu speichern. Jedes Profil speichert seine eigenen Einstellungen, zwischen denen schnell gewechselt werden kann.</string>

@@ -279,4 +279,6 @@
     <string name="analogscroll_none">Нет (оба джойстика перемещают мышь)</string>
     <string name="analogscroll_left">Левый аналоговый джойстик</string>
     <string name="pcview_menu_eol">NVIDIA GameStream обслуживание окончено</string>
+    <string name="title_enable_commit_text">Включить передачу готового текста (свайп/голос)</string>
+    <string name="summary_enable_commit_text">Передаёт на ПК многосимвольный текст из экранных клавиатур (жестовый ввод, подсказки, голосовой ввод). Может нарушить работу игр, ожидающих посимвольного ввода.</string>
 </resources>

@@ -246,4 +246,6 @@
     <string name="title_frame_pacing">Frame pacing videa</string>
     <string name="summary_frame_pacing">Zvolte, jak vyvážit zpoždění videa a jeho plynulost</string>
     <string name="pacing_latency">Preferovat nejnižší zpoždění</string>
+    <string name="title_enable_commit_text">Povolit vstup commit-textu (swipe/hlas)</string>
+    <string name="summary_enable_commit_text">Předává vícestránkový text z softwarových klávesnic (psaní gesty, návrhy, diktování). Může narušit hry, které vyžadují jednotlivé stisky kláves.</string>
 </resources>

@@ -172,6 +172,8 @@
     <string name="summary_enable_hdr">Folosește HDR daca aplicația si placa video suportă. Necesită o placa video seria GTX 1000 sau mai nouă.</string>
     <string name="title_enable_perf_overlay">Activează statisticile de performanță</string>
     <string name="summary_enable_perf_overlay">Afișează în timp real statisticile de performanță ale conexiunii.</string>
+    <string name="title_enable_commit_text">Activează trimiterea textului complet (glisare/voce)</string>
+    <string name="summary_enable_commit_text">Trimite către gazdă text cu mai multe caractere provenit de la tastaturile software (scriere prin gesturi, sugestii, dictare vocală). Poate cauza probleme în jocurile care se bazează pe introducerea tastă-cu-tastă.</string>
     <!-- Array strings -->
     <string name="audioconf_stereo">Stereo</string>
     <string name="audioconf_51surround">Sunet Surround 5.1</string>

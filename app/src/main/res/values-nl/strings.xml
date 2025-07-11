@@ -222,4 +222,6 @@
     <string name="applist_menu_tv_channel">Toevoegen aan Kanaal</string>
     <!-- Array strings -->
     <string name="videoformat_hevcalways">Gebruik HEVC altijd (mogelijkheid tot crashes)</string>
+    <string name="title_enable_commit_text">Commit-tekstinvoer inschakelen (veeg/stem)</string>
+    <string name="summary_enable_commit_text">Stuurt meerteksts invoer van softwaretoetsenborden (veegtypen, voorspellingen, spraakdicteren) door naar de pc. Kan problemen geven bij games die per-toetsinvoer vereisen.</string>
 </resources>

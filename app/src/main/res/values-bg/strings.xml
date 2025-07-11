@@ -139,4 +139,7 @@
     <string name="title_checkbox_touchscreen_trackpad">Използване на сензорния екран като тракпад</string>
     <string name="title_checkbox_multi_controller">Автоматично откриване на наличен контролер</string>
     <string name="summary_checkbox_multi_controller">Премахването на отметката от тази опция принуждава контролер винаги да присъства</string>
+    <!-- commit-text feature -->
+    <string name="title_enable_commit_text">Разреши изпращане на текст на блокове (жестово/гласово въвеждане)</string>
+    <string name="summary_enable_commit_text">Изпраща текст от софтуерната клавиатура наведнъж (жестово писане, предложения, гласово диктуване). Възможно е да не работи с игри, които разчитат на по-символно въвеждане.</string>
 </resources>

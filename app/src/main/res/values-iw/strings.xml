@@ -151,4 +151,6 @@
     <string name="title_checkbox_enable_audiofx">הפעל תמיכה באקולייזר</string>
     <string name="category_input_settings">הגדרות קלט</string>
     <string name="title_checkbox_touchscreen_trackpad">השתמש במסך מגע כמשטח מגע</string>
+    <string name="title_enable_commit_text">הפעל קלט commit-text (החלקה/קול)</string>
+    <string name="summary_enable_commit_text">מעביר טקסט מרובה תווים ממקלדות וירטואליות (החלקה, הצעות, הקלדה קולית). עלול לגרום בעיות במשחקים שמסתמכים על קלט לפי מקש.</string>
 </resources>

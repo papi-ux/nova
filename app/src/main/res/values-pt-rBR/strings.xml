@@ -250,4 +250,6 @@
     <string name="summary_analog_scrolling">Selecciona um stick analógico para fazer scroll quando a emulação de rato está ativada</string>
     <string name="error_code_prefix">Código de erro:</string>
     <string name="fps_suffix_fps">FPS</string>
+    <string name="title_enable_commit_text">Ativar envio de texto concluído (gesto/voz)</string>
+    <string name="summary_enable_commit_text">Encaminha textos com vários caracteres de teclados virtuais (digitação por gestos, sugestões, ditado por voz). Pode causar problemas em jogos que dependem de entrada tecla por tecla.</string>
 </resources>
