@@ -601,6 +601,7 @@
     <string name="keyboard_keys_added">%d 个按键已成功添加</string>
     <string name="keyboard_duplicates_skipped">%d 个重复按键已跳过</string>
     <string name="keyboard_load_error">加载键盘配置错误：%s</string>
+    <string name="keyboard_key_custom">%s （自定义）</string>
 
     <!-- ShortcutHelper Toast Messages -->
     <string name="export_launcher_computer_details_incomplete">无法导出：电脑详情不完整。</string>

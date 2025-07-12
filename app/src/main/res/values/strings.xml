@@ -638,6 +638,7 @@
     <string name="keyboard_configure_movable">You can now move the settings button.</string>
     <string name="keyboard_load_error">Error loading keyboard configuration: %s</string>
     <string name="keyboard_add">Add</string>
+    <string name="keyboard_key_custom">%s (Custom)</string>
 
     <!-- Compliance -->
     <string name="category_basic_settings" />

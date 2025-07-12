@@ -216,7 +216,7 @@ public class KeyBoardControllerConfigurationLoader {
         return button;
     }
 
-    private static KeyBoardDigitalButton createCustomButton(
+    public static KeyBoardDigitalButton createCustomButton(
             String elementId,
             final short[] keys,
             final int layer,
@@ -231,8 +231,6 @@ public class KeyBoardControllerConfigurationLoader {
         button.setText(text);
         button.setIcon(icon);
 
-        final byte[] modifier = {(byte) 0};
-
         if (sticky) {
             button.addDigitalButtonListener(new KeyBoardDigitalButton.DigitalButtonListener() {
                 @Override
@@ -241,9 +239,12 @@ public class KeyBoardControllerConfigurationLoader {
                         button.setSticky(false);
                         return;
                     }
-                    controller.vibrate(KeyEvent.ACTION_DOWN);
+
+                    final byte[] modifier = {(byte) 0};
+
                     for (short key : keys) {
                         conn.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], (byte) 0);
+
                         modifier[0] |= getModifier(key);
                     }
                 }
@@ -259,19 +260,24 @@ public class KeyBoardControllerConfigurationLoader {
                     if (button.isSticky()) {
                         return;
                     }
-                    controller.vibrate(KeyEvent.ACTION_UP);
-                    for (int pos = keys.length - 1; pos >= 0; pos--) {
-                        short key = keys[pos];
-                        modifier[0] &= (byte) ~getModifier(key);
-                        conn.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
+
+                    final byte[] modifier = {(byte) 0};
+
+                    for (int i = keys.length - 1; i >= 0; i--) {
+                        modifier[0] &= (byte) ~getModifier(keys[i]);
+                        conn.sendKeyboardInput(keys[i], KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
                     }
                 }
             });
         } else {
             button.addDigitalButtonListener(new KeyBoardDigitalButton.DigitalButtonListener() {
+                private final byte[] modifier = new byte[1];
+
                 @Override
                 public void onClick() {
                     controller.vibrate(KeyEvent.ACTION_DOWN);
+                    // Press keys down
+                    modifier[0] = 0;
                     for (short key : keys) {
                         conn.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], (byte) 0);
                         modifier[0] |= getModifier(key);
@@ -280,20 +286,21 @@ public class KeyBoardControllerConfigurationLoader {
 
                 @Override
                 public void onLongClick() {
+                    // Nothing to do for non-sticky buttons
                 }
 
                 @Override
                 public void onRelease() {
                     controller.vibrate(KeyEvent.ACTION_UP);
-                    for (int pos = keys.length - 1; pos >= 0; pos--) {
-                        short key = keys[pos];
+                    // Release keys
+                    for (int i = keys.length - 1; i >= 0; i--) {
+                        short key = keys[i];
                         modifier[0] &= (byte) ~getModifier(key);
                         conn.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
                     }
                 }
             });
         }
-
         return button;
     }
 

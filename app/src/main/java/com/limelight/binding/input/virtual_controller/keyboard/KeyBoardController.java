@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Vibrator;
+import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
@@ -24,17 +25,21 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import com.limelight.Game;
+import com.limelight.GameMenu;
 import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.binding.input.ControllerHandler;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.utils.KeyConfigHelper;
+import com.limelight.utils.KeyMapper;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -422,46 +427,80 @@ public class KeyBoardController {
             JSONArray rockerList = data.getJSONArray("rocker");
             JSONArray dpadList = data.getJSONArray("dpad");
 
-            // Calculate total number of items
-            int totalItems = keystrokeList.length() + mouseList.length() + rockerList.length() + dpadList.length();
-            String[] keyNames = new String[totalItems];
-            boolean[] checkedItems = new boolean[totalItems];
-            JSONArray allItems = new JSONArray();
+            List<JSONObject> allItemsList = new ArrayList<>();
+            List<String> keyNamesList = new ArrayList<>();
 
             // Add keyboard keys
             for (int i = 0; i < keystrokeList.length(); i++) {
                 JSONObject key = keystrokeList.getJSONObject(i);
                 key.put("type", 0); // keyboard type
-                allItems.put(key);
-                keyNames[i] = key.getString("name");
+                allItemsList.add(key);
+                keyNamesList.add(key.getString("name"));
             }
 
             // Add mouse buttons
-            int currentIndex = keystrokeList.length();
             for (int i = 0; i < mouseList.length(); i++) {
                 JSONObject obj = mouseList.getJSONObject(i);
                 obj.put("type", 1); // mouse type
-                allItems.put(obj);
-                keyNames[currentIndex + i] = obj.getString("name");
+                allItemsList.add(obj);
+                keyNamesList.add(obj.getString("name"));
             }
 
             // Add rocker (joystick) controls
-            currentIndex += mouseList.length();
             for (int i = 0; i < rockerList.length(); i++) {
                 JSONObject obj = rockerList.getJSONObject(i);
                 obj.put("type", 2); // rocker type
-                allItems.put(obj);
-                keyNames[currentIndex + i] = obj.getString("name") + " (Joystick)";
+                allItemsList.add(obj);
+                keyNamesList.add(obj.getString("name") + " (Joystick)");
             }
 
             // Add dpad controls
-            currentIndex += rockerList.length();
             for (int i = 0; i < dpadList.length(); i++) {
                 JSONObject obj = dpadList.getJSONObject(i);
                 obj.put("type", 3); // dpad type
-                allItems.put(obj);
-                keyNames[currentIndex + i] = obj.getString("name") + " (D-Pad)";
+                allItemsList.add(obj);
+                keyNamesList.add(obj.getString("name") + " (D-Pad)");
             }
+
+            // Load and add custom keys
+            android.content.SharedPreferences preferences = context.getSharedPreferences(GameMenu.PREF_NAME, Context.MODE_PRIVATE);
+            String value = preferences.getString(GameMenu.KEY_NAME, "");
+
+            if (!TextUtils.isEmpty(value)) {
+                try {
+                    KeyConfigHelper.ShortcutFile shortcutFile = KeyConfigHelper.parseShortcutFile(value);
+                    if (shortcutFile != null && shortcutFile.data != null && !shortcutFile.data.isEmpty()) {
+                        List<KeyConfigHelper.Shortcut> shortcutData = shortcutFile.data;
+                        for (int idx = 0; idx < shortcutData.size(); idx++) {
+                            KeyConfigHelper.Shortcut sc = shortcutData.get(idx);
+
+                            String id = (sc.id == null || sc.id.isEmpty()) ? Integer.toString(idx) : sc.id;
+                            String name = sc.name;
+
+                            JSONObject customKey = new JSONObject();
+                            customKey.put("type", 4); // Custom key type
+                            customKey.put("name", name);
+                            customKey.put("elementId", "custom_" + id);
+                            customKey.put("sticky", sc.sticky);
+
+                            JSONArray keyCodesJson = new JSONArray();
+                            for (String code : sc.keys) {
+                                keyCodesJson.put(code);
+                            }
+                            customKey.put("keys", keyCodesJson);
+
+                            allItemsList.add(customKey);
+                            keyNamesList.add(context.getString(R.string.keyboard_key_custom, name));
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Toast.makeText(context, "Error loading custom keys: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            String[] keyNames = keyNamesList.toArray(new String[0]);
+            boolean[] checkedItems = new boolean[keyNames.length];
 
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             builder.setTitle(context.getString(R.string.keyboard_select_keys));
@@ -483,35 +522,32 @@ public class KeyBoardController {
                     w = KeyBoardControllerConfigurationLoader.screenScale(BUTTON_SIZE, height);
                 }
 
-                // Create a set of existing element IDs for quick lookup
                 Set<String> existingElementIds = new HashSet<>();
-                for (keyBoardVirtualControllerElement el : elements) {
-                    if (el.getVisibility() != View.GONE) {
-                        existingElementIds.add(el.elementId);
-                    }
-                }
-
-                // Get current element positions to avoid overlap - include ALL elements
                 List<Rect> existingPositions = new ArrayList<>();
                 for (keyBoardVirtualControllerElement element : elements) {
-                    try {
-                        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) element.getLayoutParams();
-                        if (params != null) {
+                    if (element.getVisibility() != View.GONE) {
+                        // Create a set of existing element IDs for quick lookup
+                        existingElementIds.add(element.elementId);
+                        // Get current element positions to avoid overlap - include ALL elements
+                        try {
+                            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) element.getLayoutParams();
+                            if (params != null) {
+                                existingPositions.add(new Rect(
+                                        params.leftMargin,
+                                        params.topMargin,
+                                        params.leftMargin + params.width,
+                                        params.topMargin + params.height
+                                ));
+                            }
+                        } catch (ClassCastException e) {
+                            // If element doesn't have FrameLayout.LayoutParams, try to get position another way
                             existingPositions.add(new Rect(
-                                params.leftMargin,
-                                params.topMargin,
-                                params.leftMargin + params.width,
-                                params.topMargin + params.height
+                                    (int) element.getX(),
+                                    (int) element.getY(),
+                                    (int) element.getX() + element.getWidth(),
+                                    (int) element.getY() + element.getHeight()
                             ));
                         }
-                    } catch (ClassCastException e) {
-                        // If element doesn't have FrameLayout.LayoutParams, try to get position another way
-                        existingPositions.add(new Rect(
-                            (int) element.getX(),
-                            (int) element.getY(),
-                            (int) element.getX() + element.getWidth(),
-                            (int) element.getY() + element.getHeight()
-                        ));
                     }
                 }
 
@@ -521,12 +557,12 @@ public class KeyBoardController {
                 for (int i = 0; i < checkedItems.length; i++) {
                     if (checkedItems[i]) {
                         try {
-                            JSONObject obj = allItems.getJSONObject(i);
+                            JSONObject obj = allItemsList.get(i);
                             int type = obj.optInt("type", 0);
 
                             // Determine elementId to check for duplicates
                             String elementId;
-                            if (type == 2 || type == 3) { // Rocker or D-Pad
+                            if (type == 2 || type == 3 || type == 4) { // Rocker, D-Pad, or Custom
                                 elementId = obj.getString("elementId");
                             } else { // Keyboard or Mouse
                                 int code = obj.getInt("code");
@@ -551,7 +587,32 @@ public class KeyBoardController {
                             
                             keyBoardVirtualControllerElement newElement = null;
                             
-                            if (type == 2) { // Rocker (joystick)
+                            if (type == 4) { // Custom Key
+                                String name = obj.getString("name");
+                                boolean sticky = obj.getBoolean("sticky");
+                                JSONArray keysJson = obj.getJSONArray("keys");
+
+                                short[] vkKeyCodes = new short[keysJson.length()];
+                                for (int j = 0; j < keysJson.length(); j++) {
+                                    String code = keysJson.getString(j);
+                                    int keycode;
+                                    if (code.startsWith("0x")) {
+                                        keycode = Integer.parseInt(code.substring(2), 16);
+                                    } else if (code.startsWith("VK_")) {
+                                        Field field = KeyMapper.class.getDeclaredField(code);
+                                        keycode = field.getInt(null);
+                                    } else {
+                                        throw new IllegalArgumentException("Unknown key code: " + code);
+                                    }
+                                    vkKeyCodes[j] = (short) keycode;
+                                }
+
+                                newElement = KeyBoardControllerConfigurationLoader.createCustomButton(
+                                        elementId, vkKeyCodes, 1, name, -1, sticky, this, conn, context
+                                );
+                                addElement(newElement, position.x, position.y, w, w);
+
+                            } else if (type == 2) { // Rocker (joystick)
                                 int[] keys = new int[]{
                                     obj.getInt("upCode"),
                                     obj.getInt("downCode"),
