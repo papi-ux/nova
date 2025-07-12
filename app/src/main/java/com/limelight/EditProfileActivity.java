@@ -17,6 +17,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceGroup;
 import androidx.preference.PreferenceManager;
 
 import com.bytehamster.lib.preferencesearch.SearchPreferenceResult;
@@ -283,12 +285,39 @@ public class EditProfileActivity extends AppCompatActivity implements SearchPref
 
             super.onCreatePreferences(savedInstanceState, rootKey);
 
+            Preference prefScreen = getPreferenceScreen();
+
+            // FIXME:
+            // We can't separate keyboard files and special button files in profiles
+            // Shitty code written by previous implementations, too much to fix
+            // Hide the import options for now
+            Preference _pref = findPreference("option_reset_osc_preference");
+            if (_pref != null) {
+                _pref.setVisible(false);
+            }
+            _pref = findPreference("import_keyboard_file");
+            if (_pref != null) {
+                _pref.setVisible(false);
+            }
+            _pref = findPreference("export_keyboard_file");
+            if (_pref != null) {
+                _pref.setVisible(false);
+            }
+            _pref = findPreference("import_special_button_file");
+            if (_pref != null) {
+                _pref.setVisible(false);
+            }
+            _pref = findPreference("option_help_custom_keys");
+            if (_pref != null) {
+                _pref.setVisible(false);
+            }
+
             // Highlight changed preferences
             java.util.Map<String, ?> patch = diff(
                     PreferenceManager.getDefaultSharedPreferences(act).getAll(),
                     memPrefs.getAll()
             );
-            highlightPreferences(getPreferenceScreen(), patch.keySet());
+            highlightPreferences(prefScreen, patch.keySet());
         }
 
         @Override
@@ -296,10 +325,10 @@ public class EditProfileActivity extends AppCompatActivity implements SearchPref
             ((EditProfileActivity)requireActivity()).reloadSettings();
         }
 
-        private void highlightPreferences(androidx.preference.Preference pref, java.util.Set<String> changedKeys) {
+        private void highlightPreferences(Preference pref, java.util.Set<String> changedKeys) {
             if (pref == null) return;
 
-            if (pref instanceof androidx.preference.PreferenceGroup) {
+            if (pref instanceof PreferenceGroup) {
                 androidx.preference.PreferenceGroup group = (androidx.preference.PreferenceGroup) pref;
                 for (int i = 0; i < group.getPreferenceCount(); i++) {
                     highlightPreferences(group.getPreference(i), changedKeys);

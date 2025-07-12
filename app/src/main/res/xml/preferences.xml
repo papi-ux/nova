@@ -897,7 +897,7 @@
 
         <com.limelight.preferences.WebLauncherPreference
             url="https://github.com/ClassicOldSong/moonlight-android/wiki/Performance-Statistics-Collection"
-            android:key="option_help_custom_keys"
+            android:key="option_view_shared_pref_logs"
             android:summary="@string/summary_performance_link"
             android:title="@string/title_performance_link"
             app:iconSpaceReserved="false" />
