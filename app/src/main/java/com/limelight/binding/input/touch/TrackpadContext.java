@@ -38,8 +38,7 @@ public class TrackpadContext implements TouchContext {
     private float sensitivityX = 1;
     private float sensitivityY = 1;
 
-    private static final int TAP_MOVEMENT_THRESHOLD = 20;
-    private static final int TAP_DISTANCE_THRESHOLD = 25;
+    private static final int TAP_MOVEMENT_THRESHOLD = 30;
     private static final int TAP_TIME_THRESHOLD = 230;
     private static final int CLICK_RELEASE_DELAY = TAP_TIME_THRESHOLD;
     private static final int SCROLL_SPEED_FACTOR_X = 2;
@@ -312,7 +311,7 @@ public class TrackpadContext implements TouchContext {
             int absDeltaY = Math.abs(rawDeltaY);
 
             double magnitude = Math.sqrt(rawDeltaX * rawDeltaX + rawDeltaY * rawDeltaY);
-            double precisionMultiplier = Math.sqrt(Math.min(1.0, magnitude / ACCELERATION_THRESHOLD));
+            double precisionMultiplier = Math.cbrt(magnitude / ACCELERATION_THRESHOLD);
 
             float deltaX, deltaY;
             if (swapAxis) {
@@ -458,7 +457,7 @@ public class TrackpadContext implements TouchContext {
 
         // Check if we've exceeded the maximum distance moved
         distanceMoved += Math.sqrt(Math.pow(eventX - lastTouchX, 2) + Math.pow(eventY - lastTouchY, 2));
-        if (distanceMoved >= TAP_DISTANCE_THRESHOLD) {
+        if (distanceMoved >= TAP_MOVEMENT_THRESHOLD) {
             confirmedMove = true;
         }
     }
