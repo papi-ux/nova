@@ -440,7 +440,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // colorspace by codec (and it's probably safe to say a SoC with HEVC decoding is
         // plenty modern enough to handle H.264 VUI colorspace info).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O || hevcDecoder != null || av1Decoder != null) {
-            return MoonBridge.COLORSPACE_REC_601;
+            return MoonBridge.COLORSPACE_REC_709;
         }
         else {
             return MoonBridge.COLORSPACE_REC_601;
@@ -484,7 +484,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Android 7.0 adds color options to the MediaFormat
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            videoFormat.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
+            videoFormat.setInteger(MediaFormat.KEY_COLOR_RANGE,
+                    getPreferredColorRange() == MoonBridge.COLOR_RANGE_FULL ?
+                            MediaFormat.COLOR_RANGE_FULL : MediaFormat.COLOR_RANGE_LIMITED);
 
             // If the stream is HDR-capable, the decoder will detect transitions in color standards
             // rather than us hardcoding them into the MediaFormat.
