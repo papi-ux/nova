@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 import com.limelight.computers.ComputerDatabaseManager;
 import com.limelight.computers.ComputerManagerListener;
 import com.limelight.computers.ComputerManagerService;
@@ -40,7 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-public class ShortcutTrampoline extends Activity {
+public class ShortcutTrampoline extends AppCompatActivity {
     private PreferenceConfiguration prefConfig;
     private String uuidString;
     private NvApp app;

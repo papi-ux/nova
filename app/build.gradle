@@ -156,11 +156,11 @@ android {
 }
 
 dependencies {
-    implementation 'org.bouncycastle:bcprov-jdk18on:1.79'
-    implementation 'org.bouncycastle:bcpkix-jdk18on:1.79'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.81'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.81'
     implementation 'org.jcodec:jcodec:0.2.5'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    implementation 'org.jmdns:jmdns:3.5.9'
+    implementation 'org.jmdns:jmdns:3.6.1'
     implementation 'com.github.cgutman:ShieldControllerExtensions:1.0.1'
     implementation 'com.google.code.gson:gson:2.13.1'
     implementation 'androidx.annotation:annotation:1.9.1'
@@ -174,6 +174,6 @@ dependencies {
     // Unit test dependencies
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'androidx.test:core:1.6.1'
-    testImplementation 'org.robolectric:robolectric:4.11.1'
-    testImplementation 'org.mockito:mockito-core:5.11.0'
+    testImplementation 'org.robolectric:robolectric:4.15.1'
+    testImplementation 'org.mockito:mockito-core:5.18.0'
 }

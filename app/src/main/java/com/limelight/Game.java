@@ -99,6 +99,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ImageButton;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.view.ContextThemeWrapper;
 import androidx.preference.PreferenceManager;
 
 import android.os.Looper;
@@ -120,7 +122,7 @@ import java.util.Locale;
 import java.util.Map;
 
 
-public class Game extends Activity implements SurfaceHolder.Callback,
+public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         OnGenericMotionListener, OnTouchListener, NvConnectionListener, EvdevListener,
         OnSystemUiVisibilityChangeListener, GameGestures, StreamView.InputCallbacks,
         PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {

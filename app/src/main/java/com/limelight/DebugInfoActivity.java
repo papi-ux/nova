@@ -20,13 +20,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
 
 import com.limelight.utils.DeviceUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class DebugInfoActivity extends Activity implements View.OnClickListener {
+public class DebugInfoActivity extends AppCompatActivity implements View.OnClickListener {
 
     private TextView tx_gamepad_info;
     private Vibrator vibrator;

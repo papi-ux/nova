@@ -1,18 +1,13 @@
 package com.limelight.preferences;
 
-import android.app.AlertDialog;
 import android.content.Context;
-import android.os.Bundle;
 import android.util.AttributeSet;
 import android.view.Gravity;
-import android.view.View;
-import android.view.View.OnClickListener;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import androidx.preference.DialogPreference;
+import androidx.appcompat.app.AlertDialog;
 import androidx.preference.Preference;
 
 import com.limelight.R;
