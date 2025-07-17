@@ -563,6 +563,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             }else{
                 performanceOverlayBig.setVisibility(View.VISIBLE);
             }
+            if (prefConfig.enablePerfOverlayBottom) {
+                //performanceOverlayView.getLayoutParams().layout_gravity = Gravity.BOTTOM;
+                FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) performanceOverlayView.getLayoutParams();
+                params.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+                performanceOverlayView.setLayoutParams(params);
+            }
         }
 
         decoderRenderer = new MediaCodecDecoderRenderer(

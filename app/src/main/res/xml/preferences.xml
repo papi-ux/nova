@@ -553,6 +553,14 @@
 
         <CheckBoxPreference
             android:defaultValue="false"
+            android:dependency="checkbox_enable_perf_overlay"
+            android:key="checkbox_enable_perf_overlay_bottom"
+            android:summary="Useful when Display in Top Center and Lite mode are enabled during non-native resolution streaming."
+            android:title="Move overlay to bottom"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
             android:key="checkbox_show_overlay_zoom_toggle_button"
             android:summary="@string/summary_show_overlay_zoom_toggle_button"
             android:title="@string/title_show_overlay_zoom_toggle_button"
