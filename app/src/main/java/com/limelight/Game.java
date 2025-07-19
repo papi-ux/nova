@@ -43,6 +43,7 @@ import com.limelight.profiles.ProfilesManager;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamView;
 import com.limelight.utils.Dialog;
+import com.limelight.utils.ExternalDisplayControlActivity;
 import com.limelight.utils.PanZoomHandler;
 import com.limelight.utils.PerformanceDataTracker;
 import com.limelight.utils.ServerHelper;
@@ -934,7 +935,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void initkeyBoardLayoutController(){
-        keyBoardLayoutController = new KeyBoardLayoutController((FrameLayout)rootView, this, prefConfig);
+        if(isSecondaryDisplayFullModeActive()) {
+            keyBoardLayoutController = ExternalDisplayControlActivity.getPhoneScreenKeyboard(prefConfig);
+        } else {
+            keyBoardLayoutController = new KeyBoardLayoutController((FrameLayout)rootView, this, prefConfig);
+        }
         keyBoardLayoutController.refreshLayout();
         keyBoardLayoutController.show();
     }
@@ -3969,7 +3974,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void quit() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        Context context = this;
+        if (isSecondaryDisplayFullModeActive()) {
+            context = ExternalDisplayControlActivity.instance;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(R.string.game_dialog_title_quit_confirm);
         builder.setMessage(R.string.game_dialog_message_quit_confirm);
 

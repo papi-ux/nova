@@ -12,6 +12,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -32,6 +33,7 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -39,9 +41,10 @@ import androidx.core.graphics.drawable.IconCompat;
 
 import com.limelight.Game;
 import com.limelight.GameMenu;
-import com.limelight.R;
 import com.limelight.StartExternalDisplayControlReceiver;
+import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
 import com.limelight.nvstream.NvConnection;
+import com.limelight.preferences.PreferenceConfiguration;
 
 /**
  * A standalone Activity providing a full-screen touchpad controller for the secondary display.
@@ -50,7 +53,9 @@ import com.limelight.nvstream.NvConnection;
 public class ExternalDisplayControlActivity extends Activity {
 
     @SuppressLint("StaticFieldLeak")
-    private static ExternalDisplayControlActivity instance;
+    public static ExternalDisplayControlActivity instance;
+
+    private static FrameLayout rootLayout;
 
     private static final String NOTIFICATION_CHANNEL_ID = "secondary_screen_active_channel_id";
     public static final int SECONDARY_SCREEN_NOTIFICATION_ID = 1;
@@ -79,6 +84,10 @@ public class ExternalDisplayControlActivity extends Activity {
         if (instance != null) {
             instance.showGameMenu();
         }
+    }
+
+    public static KeyBoardLayoutController getPhoneScreenKeyboard(PreferenceConfiguration prefConfig) {
+        return new KeyBoardLayoutController(rootLayout, instance, prefConfig);
     }
 
     // --- Activity Lifecycle ---
@@ -151,12 +160,20 @@ public class ExternalDisplayControlActivity extends Activity {
         this.gameMenu = new GameMenu(Game.instance, conn, instance);
     }
 
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        if(Game.instance != null) {
+            Game.instance.onConfigurationChanged(newConfig);
+        }
+        super.onConfigurationChanged(newConfig);
+    }
+
     /**
      * Constructs the entire view hierarchy for this Activity in code.
      */
     @SuppressLint("ClickableViewAccessibility")
     private void createProgrammaticUI() {
-        FrameLayout rootLayout = new FrameLayout(this);
+        rootLayout = new FrameLayout(this);
         rootLayout.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         rootLayout.setBackgroundColor(Color.BLACK);
         setContentView(rootLayout);
