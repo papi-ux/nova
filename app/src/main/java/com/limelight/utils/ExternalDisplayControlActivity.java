@@ -148,7 +148,7 @@ public class ExternalDisplayControlActivity extends Activity {
      */
     private void initializeComponents() {
         this.conn = Game.instance.conn;
-        this.gameMenu = new GameMenu(Game.instance, conn, instance);
+        this.gameMenu = new GameMenu(Game.instance, conn, this.instance);
     }
 
     /**

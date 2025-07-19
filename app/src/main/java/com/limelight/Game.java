@@ -758,7 +758,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             listenForExternalDisplayRemoval();
         }
 
-        gameMenuCallbacks = new GameMenu(this, conn, this);
+        gameMenuCallbacks = new GameMenu(this, conn);
 
         floatingMenuButton = findViewById(R.id.floatingMenuButton);
         updateFloatingButtonVisibility(prefConfig.enableBackMenu && prefConfig.enableFloatingButton);

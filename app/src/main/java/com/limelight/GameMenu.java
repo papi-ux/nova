@@ -22,9 +22,6 @@ import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.utils.KeyConfigHelper;
 import com.limelight.utils.KeyMapper;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,15 +58,21 @@ public class GameMenu implements Game.GameMenuCallbacks {
     }
 
     private final Game game;
-    private final Activity context;
+    private final Context dialogScreenContext;
     private final NvConnection conn;
 
     private AlertDialog currentDialog;
 
-    public GameMenu(Game game, NvConnection conn, Activity context) {
+    public GameMenu(Game game, NvConnection conn, Context dialogScreenContext) {
         this.game = game;
         this.conn = conn;
-        this.context = context;
+        this.dialogScreenContext = dialogScreenContext;
+    }
+
+    public GameMenu(Game game, NvConnection conn) {
+        this.game = game;
+        this.conn = conn;
+        this.dialogScreenContext = game;
     }
 
     private String getString(int id) {
@@ -142,7 +145,7 @@ public class GameMenu implements Game.GameMenuCallbacks {
 
     private void showMenuDialog(String title, MenuOption[] options) {
         int themeResId = game.getApplicationInfo().theme;
-        Context themedContext = new ContextThemeWrapper(context, themeResId);
+        Context themedContext = new ContextThemeWrapper(dialogScreenContext, themeResId);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
         builder.setTitle(title);
 
@@ -318,7 +321,7 @@ public class GameMenu implements Game.GameMenuCallbacks {
             options.addAll(device.getGameMenuOptions());
         }
         options.add(new MenuOption(getString(R.string.game_menu_cancel), null));
-        showMenuDialog(getString(R.string.game_menu_advanced), options.toArray(new MenuOption[0]));
+        showMenuDialog(getString(R.string.game_menu_advanced), options.toArray(new MenuOption[options.size()]));
     }
 
     private void showServerCmd(ArrayList<String> serverCmds) {
@@ -353,7 +356,7 @@ public class GameMenu implements Game.GameMenuCallbacks {
                     ArrayList<String> serverCmds = game.getServerCmds();
                     if (serverCmds.isEmpty()) {
                         int themeResId = game.getApplicationInfo().theme;
-                        Context themedContext = new ContextThemeWrapper(context, themeResId);
+                        Context themedContext = new ContextThemeWrapper(dialogScreenContext, themeResId);
                         new AlertDialog.Builder(themedContext)
                                 .setTitle(R.string.game_dialog_title_server_cmd_empty)
                                 .setMessage(R.string.game_dialog_message_server_cmd_empty)
