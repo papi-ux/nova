@@ -1,20 +1,17 @@
 package com.limelight.preferences;
 
-import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import com.limelight.LimeLog;
+import com.limelight.AppView;
+import com.limelight.Game;
 import com.limelight.PcView;
-import com.limelight.binding.PlatformBinding;
+import com.limelight.ShortcutTrampoline;
 import com.limelight.computers.ComputerManagerService;
 import com.limelight.R;
 import com.limelight.nvstream.http.ComputerDetails;
@@ -25,7 +22,6 @@ import com.limelight.utils.ServerHelper;
 import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Service;
 import android.content.ComponentName;
@@ -42,7 +38,9 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class AddComputerManually extends Activity {
+import androidx.appcompat.app.AppCompatActivity;
+
+public class AddComputerManually extends AppCompatActivity {
     private TextView hostText;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private final LinkedBlockingQueue<String> computersToAdd = new LinkedBlockingQueue<>();
@@ -282,6 +280,46 @@ public class AddComputerManually extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        String action = getIntent().getAction();
+
+        String server;
+        String query;
+        Uri data = getIntent().getData();
+        if (Intent.ACTION_VIEW.equals(action) && data != null) {
+            int port = data.getPort();
+
+            if (port == -1) {
+                String urlAction = data.getHost();
+                if (Objects.equals(urlAction, "launch")) {
+                    String hostUUID = data.getQueryParameter("host_uuid");
+                    String hostName = data.getQueryParameter("host_name");
+                    String appUUID = data.getQueryParameter("app_uuid");
+                    String appName = data.getQueryParameter("app_name");
+                    String appID = data.getQueryParameter("app_id");
+
+                    Intent intent = new Intent(AddComputerManually.this, ShortcutTrampoline.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    intent.putExtra(AppView.UUID_EXTRA, hostUUID);
+                    intent.putExtra(AppView.NAME_EXTRA, hostName);
+                    intent.putExtra(Game.EXTRA_APP_UUID, appUUID);
+                    intent.putExtra(Game.EXTRA_APP_NAME, appName);
+                    intent.putExtra(Game.EXTRA_APP_ID, appID);
+
+                    finish();
+
+                    startActivity(intent);
+
+                    return;
+                }
+            }
+
+            server = data.getAuthority();
+            query = data.getQuery();
+        } else {
+            query = null;
+            server = null;
+        }
+
         UiHelper.setLocale(this);
 
         setContentView(R.layout.activity_add_computer_manually);
@@ -323,17 +361,13 @@ public class AddComputerManually extends Activity {
 
 
         // Check if we have been called from deep link
-        Uri data = getIntent().getData();
-        if (data == null) {
+        if (data == null || server == null || query == null) {
             return;
         }
 
-        String server = data.getAuthority();
-        String query = data.getQuery();
-
         hostText.setText(server);
 
-        if (query != null && !query.isEmpty()) {
+        if (!query.isEmpty()) {
             String hostName = data.getQueryParameter("name");
             if (hostName != null && !hostName.isEmpty()) {
                 hostName = hostName + " (" + server + ")";

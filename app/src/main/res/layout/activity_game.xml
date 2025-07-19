@@ -88,18 +88,33 @@
             android:layout_height="wrap_content"/>
 
     </LinearLayout>
-    
+
     <!-- Floating Menu Button -->
     <ImageButton
         android:id="@+id/floatingMenuButton"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
         android:layout_gravity="top|start"
         android:layout_marginTop="24dp"
         android:background="@drawable/floating_menu_button"
         android:contentDescription="@string/menu_button"
         android:src="@drawable/ic_menu"
-        android:visibility="visible"
+        android:padding="6dp"
+        android:visibility="gone"
+        android:elevation="9999dp" />
+
+    <ImageButton
+        android:id="@+id/overlayToggleZoomButton"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="24dp"
+        android:background="@drawable/floating_menu_button"
+        android:src="@drawable/ic_zoom_toggle"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/toggle_pan_zoom_mode"
+        android:visibility="gone"
         android:elevation="9999dp" />
 
 </merge>

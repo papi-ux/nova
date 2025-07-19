@@ -77,7 +77,7 @@
     <string name="ip_hint">串流电脑的IP地址</string>
     <string name="searching_pc">在你的本地网络中搜索串流主机PC...
 \n
-\n 确保Sunshine在主机上运行，或在GeForce Experience SHIELD设置中启用GameStream。</string>
+\n 请确保 Apollo 正在主机上运行。</string>
     <string name="yes"> 确定 </string>
     <string name="no"> 取消 </string>
     <string name="lost_connection"> 与电脑失去连接 </string>
@@ -92,6 +92,7 @@
     <string name="perf_overlay_netdrops">网络丢失帧： %1$.2f%%</string>
     <string name="perf_overlay_dectime">平均解码时间： %1$.2f ms</string>
     <!-- AppList activity -->
+    <string name="toast_no_logs">还没有统计过性能数据</string>
     <string name="applist_connect_msg"> 正在连接电脑…… </string>
     <string name="applist_menu_resume"> 恢复串流 </string>
     <string name="applist_menu_start_vdisplay"> 在虚拟显示器中启动 </string>
@@ -103,6 +104,7 @@
     <string name="applist_menu_cancel"> 取消 </string>
     <string name="applist_menu_details"> 查看详情 </string>
     <string name="applist_menu_scut"> 创建快捷方式 </string>
+    <string name="applist_menu_export_launcher"> 导出启动文件 </string>
     <string name="applist_menu_tv_channel"> 添加到频道 </string>
     <string name="applist_refresh_title"> 游戏列表 </string>
     <string name="applist_refresh_msg"> 刷新中…… </string>
@@ -307,6 +309,7 @@
     <string name="summary_checkbox_gamepad_motion_sensors">使支持的主机能够在模拟具有运动传感器的游戏手柄时请求运动传感器数据。如果在游戏中未使用运动传感器，禁用可能会略微降低电源和网络使用量。</string>
     <string name="videoformat_av1always">首选 AV1（实验性）</string>
     <string name="videoformat_h264always">首选 H.264</string>
+    <string name="title_performance_link">性能统计表</string>
     <string name="toast_controller_type_changed">游戏手柄类型可能会因运动传感器模拟而改变</string>
     <string name="title_special_key_help">自定义按键说明</string>
     <string name="summary_special_key_help">关于如何自定义特殊按键的介绍</string>
@@ -331,6 +334,7 @@
     <string name="game_menu_toggle_virtual_model">(显示/隐藏)虚拟手柄</string>
     <string name="game_menu_toggle_virtual_keyboard_model">(显示/隐藏)虚拟全键盘</string>
     <string name="game_menu_switch_touch_sensitivity_model">触控灵敏度切换</string>
+    <string name="game_menu_toggle_mouse_off">禁用手柄鼠标模拟</string>
     <string name="game_menu_disconnect">断开连接</string>
     <string name="game_menu_cancel">取消</string>
     <string name="game_menu_task_manager">打开任务管理器</string>
@@ -376,6 +380,8 @@
     <string name="summary_checkbox_onscreen_style_official">如果你还是喜欢官方旧版虚拟手柄按键风格可以勾选此选项。\n按键形状可以为方形，如果你勾选了底部虚拟按键【普通按钮为方形按钮】</string>
     <string name="title_checkbox_enable_perf_overlay_lite">开启Lite精简模式</string>
     <string name="summary_checkbox_enable_perf_overlay_lite">展示简化版性能信息：网速/延迟/解码/丢包率/FPS</string>
+    <string name="title_checkbox_enable_perf_logging">启用性能数据统计</string>
+    <string name="summary_checkbox_enable_perf_logging">存储性能记录（仅本地）</string>
     <string name="title_checkbox_enable_perf_overlay_lite_dialog">Lite精简模式点击弹出快捷选项</string>
     <string name="summary_checkbox_enable_perf_overlay_lite_dialog">代替返回键逻辑，弹出游戏快捷菜单。</string>
     <string name="title_virtual_trackpad_settings">虚拟触摸板设置</string>
@@ -430,6 +436,7 @@
     <string name="summary_clear_default_special_button">如果你感觉返回菜单内置的指令对你没什么用的话，可以禁用，只使用自己导入的。</string>
     <string name="title_import_special_button">导入自定义按键</string>
     <string name="summary_import_special_button">在返回菜单及特殊按键中可用。\n注意：导入会覆盖当前配置，请注意备份。</string>
+    <string name="title_share_performance_logs_button">分享性能统计信息</string>
     <string name="title_software_update">软件更新</string>
     <string name="summary_software_update">ClassicOldSong 黑月光修改版 - 访问 GitHub Release 以获取更新</string>
     <string name="title_follow_update">订阅更新</string>
@@ -477,6 +484,7 @@
     <string name="perf_overlay_lite_bandwidth">带宽</string>
     <string name="perf_overlay_lite_network_decoding_delay">网络/解码延迟</string>
     <string name="perf_overlay_lite_packet_loss">丢包率</string>
+    <string name="menu_button">菜单</string>
     <string name="quick_menu_title">快捷菜单</string>
     <string name="wrong_import_format">自定义导入格式错误，请检查！</string>
     <string name="title_checkbox_gamepad_enable_battery_report">启用手柄电池状态报告</string>
@@ -548,7 +556,7 @@
     <string name="game_menu_fetch_clipboard">获取剪贴板</string>
     <string name="game_menu_upload_clipboard">上传剪贴板</string>
     <string name="game_dialog_title_server_cmd_empty">无服务端命令</string>
-    <string name="game_dialog_message_server_cmd_empty">请确保你的服务端为 Apollo，并已授予此客户端“服务端命令”权限。</string>
+    <string name="game_dialog_message_server_cmd_empty">请确保你的服务端为 Apollo，并已授予此客户端"服务端命令"权限。</string>
     <string name="vdisplay_not_ready">服务端虚拟显示器驱动未就绪。请确保 SudoVDA 驱动已正确安装并启用。</string>
     <string name="vdisplay_not_supported"><![CDATA[此服务端不支持虚拟显示器。请使用 <a href=\"https://github.com/ClassicOldSong/Apollo\">Apollo</a> 作为服务端串流软件。]]></string>
     <string name="clipboard_sync_unsupported">此服务器不支持剪贴板同步，请安装或升级服务端至最新的 Apollo。</string>
@@ -574,4 +582,72 @@
     <string name="searchpreference_more">更多</string>
     <string name="searchpreference_clear_history">清除历史</string>
     <string name="searchpreference_no_results">无结果</string>
+    <string name="game_menu_toggle_mouse_on">启用手柄鼠标模拟</string>
+    <string name="summary_performance_link">查看其他设备的性能数据</string>
+    <string name="email_chooser_title">发送性能统计...</string>
+    <string name="toast_no_email_clients">找不到电子邮件客户端</string>
+    <string name="email_subject">Artemistics - 性能统计</string>
+    <string name="summary_share_performance_logs">与朋友或社区分享你的性能统计数据</string>
+    <string name="email_prefix_message">"\n        请按原样将此邮件发送至 artemistics.logs@gmail.com 以帮助社区。\n\n        您分享的性能数据将会帮助改进和扩充以下地址的统计数据：\n\n        https://tinyurl.com/artemis-performance\n\n\n    "</string>
+
+    <!-- Keyboard -->
+    <string name="keyboard_clear_all">清除全部</string>
+    <string name="keyboard_add_keys">添加按键</string>
+    <string name="keyboard_select_keys">选择要添加的按键</string>
+    <string name="keyboard_clear_all_confirm_title">清除全部按键</string>
+    <string name="keyboard_clear_all_confirm_message">确定要移除全部按键吗？</string>
+    <string name="keyboard_add">添加</string>
+    <string name="keyboard_configure_movable">设置按钮已可移动</string>
+    <string name="keyboard_keys_added">%d 个按键已成功添加</string>
+    <string name="keyboard_duplicates_skipped">%d 个重复按键已跳过</string>
+    <string name="keyboard_load_error">加载键盘配置错误：%s</string>
+    <string name="keyboard_key_custom">%s （自定义）</string>
+
+    <!-- ShortcutHelper Toast Messages -->
+    <string name="export_launcher_computer_details_incomplete">无法导出：电脑详情不完整。</string>
+    <string name="export_launcher_app_details_incomplete">无法导出：应用详情不完整。</string>
+    <string name="failed_to_initiate_file_export">无法初始化文件导出：%s</string>
+    <string name="file_export_failed_no_location_selected">文件导出失败：未选择位置。</string>
+    <string name="file_export_failed_no_content_to_write">文件导出失败：没有内容可写。</string>
+    <string name="file_exported_successfully">文件导出成功。</string>
+    <string name="failed_to_open_file_for_writing">无法打开文件进行写入。</string>
+    <string name="error_writing_file">写入文件时出错：%s</string>
+    <string name="unexpected_error_during_file_export">文件导出期间发生意外错误。</string>
+
+    <!-- AppView Toast Messages -->
+    <string name="file_export_cancelled">文件导出已取消。</string>
+    <string name="app_removed_from_pc">应用已从电脑上移除</string>
+
+    <string name="title_export_sunshine_launcher_file">为 Sunshine 导出启动文件</string>
+    <string name="message_export_sunshine_launcher_file">为 Sunsihne 导出启动文件不稳定且随时可能失效。你需要在每次修改 APP 名称或图片以后重新导出。\n使用 Apollo 可获得更稳定的体验。</string>
+    <string name="title_enable_commit_text">启用 Commit-Text 输入（滑动/语音）</string>
+    <string name="summary_enable_commit_text">转发来自屏幕键盘的多字符文本（输入法词组、滑动输入、词语预测、语音输入）。可能会影响依赖逐键输入的游戏。</string>
+    <string name="title_show_overlay_zoom_toggle_button">显示缩放悬浮按钮</string>
+    <string name="summary_show_overlay_zoom_toggle_button">在屏幕上显示一个悬浮按钮以切换拖拽/缩放模式</string>
+    <string name="title_checkbox_remember_zoom_pan">记住缩放及位置</string>
+    <string name="summary_checkbox_remember_zoom_pan">在不同会话间记住缩放及位置</string>
+    <string name="profile_manager_new_profile">新配置</string>
+    <string name="profile_manager_profile_not_found">配置未找到</string>
+    <string name="profile_manager_edit_profile">编辑配置：</string>
+    <string name="profile_manager_profile">配置</string>
+    <string name="profile_manager_profile_saved">配置 %s 已保存</string>
+    <string name="profile_manager_edit_profile_name">编辑配置名称</string>
+    <string name="profile_manager_name_cannot_be_blank">名称不能为空</string>
+    <string name="profile_manager_edit_profile_with">编辑配置：%s</string>
+    <string name="profile_manager_new_profile_with">新配置：%s</string>
+    <string name="profile_manager_no_profiles_yet">尚无配置</string>
+    <string name="profile_manager_profiles_description">配置文件允许您创建并保存不同的串流配置。每个配置文件都存储各自的设置，可以快速切换。</string>
+    <string name="profile_manager_tap_create_profile">点击 + 以创建您的第一个配置文件</string>
+    <string name="profile_manager_choose_profile">选择配置</string>
+    <string name="profile_manager_deactivated_profile">配置已停用</string>
+    <string name="profile_manager_activated_profile">已激活配置 %s</string>
+    <string name="profile_manager_delete_profile">删除配置</string>
+    <string name="profile_manager_confirm_profile_deleteion">确认要删除配置 %s 吗?</string>
+    <string name="profile_manager_delete">删除</string>
+    <string name="profile_manager_profile_deleted">配置 %s 已删除</string>
+    <string name="profile_manager_failed_to_save">配置保存失败，请检查 logcat 以获取详细信息。</string>
+    <string name="profile_manager_failed_to_load">配置加载失败，请检查 logcat 以获取详细信息。</string>
+    <string name="profile_manager_active_profile">当前配置：%s</string>
+    <string name="rename">重命名</string>
+    <string name="save">保存</string>
 </resources>

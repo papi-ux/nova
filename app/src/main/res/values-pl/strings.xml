@@ -271,4 +271,6 @@
     <string name="videoformat_auto">Automatycznie (zalecane)</string>
     <string name="videoformat_av1always">Preferowany AV1 (eksperymentalny)</string>
     <string name="summary_setup_guide">Wyświetl instrukcje, jak skonfigurować komputer do gier do streamowania</string>
+    <string name="title_enable_commit_text">Włącz przekazywanie tekstu (pisanie gestem/głos)</string>
+    <string name="summary_enable_commit_text">Przekazuje wieloznakowy tekst z klawiatur ekranowych (pisanie gestem, podpowiedzi, dyktowanie głosowe) do hosta. Może powodować problemy w grach wymagających wprowadzania znak po znaku.</string>
 </resources>

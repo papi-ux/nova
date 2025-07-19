@@ -6,12 +6,11 @@
         by AppBaseTheme from res/values-vXX/styles.xml on newer devices.
 
     -->
-    <style name="AppBaseTheme" parent="android:Theme">
+    <style name="AppBaseTheme" parent="Theme.MaterialComponents.NoActionBar">
         <!--
             Theme customizations available in newer API levels can go in
             res/values-vXX/styles.xml, while customizations related to
             backward-compatibility can go here.
-
         -->
     </style>
 
@@ -22,6 +21,8 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:statusBarColor">#1A1A1A</item>
         <item name="android:navigationBarColor">#1A1A1A</item>
+        <item name="android:colorBackground">#1A1A1A</item>
+        <item name="android:windowBackground">#1A1A1A</item>
     </style>
 
     <style name="StreamBaseTheme" parent="AppBaseTheme">
@@ -34,11 +35,23 @@
         <!-- All customizations that are NOT specific to a particular API-level can go here. -->
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
+        <!-- Added for API 34+ where ImageButton requires these color attrs to inflate -->
+        <item name="android:colorControlNormal">@android:color/white</item>
+        <item name="android:colorControlHighlight">@android:color/white</item>
+        <item name="android:colorAccent">@android:color/white</item>
+        <item name="android:colorControlActivated">@android:color/white</item>
+        <item name="android:colorButtonNormal">@android:color/white</item>
+        <!-- Duplicate non-prefixed color attributes for AppCompat widgets -->
+        <item name="colorControlNormal">@android:color/white</item>
+        <item name="colorControlHighlight">@android:color/white</item>
+        <item name="colorAccent">@android:color/white</item>
+        <item name="colorControlActivated">@android:color/white</item>
+        <item name="colorButtonNormal">@android:color/white</item>
     </style>
 
-    <style name="SettingsTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+    <style name="SettingsTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
     <declare-styleable name="ApertureViewGroup">

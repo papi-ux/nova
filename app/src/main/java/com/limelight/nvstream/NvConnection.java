@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Semaphore;
@@ -310,9 +311,9 @@ public class NvConnection {
         }
         
         // If there's a game running, resume it
-        if (h.getCurrentGame(serverInfo) != 0) {
+        if (h.getCurrentGame(serverInfo) != 0 || (h.getCurrentGameUUID(serverInfo) != null && !h.getCurrentGameUUID(serverInfo).isEmpty())) {
             try {
-                if (h.getCurrentGame(serverInfo) == app.getAppId()) {
+                if (h.getCurrentGame(serverInfo) == app.getAppId() || Objects.equals(h.getCurrentGameUUID(serverInfo), app.getAppUUID())) {
                     if (!h.launchApp(context, "resume", app.getAppUUID(), app.getAppId(), context.negotiatedHdr)) {
                         context.connListener.displayMessage("Failed to resume existing session");
                         return false;

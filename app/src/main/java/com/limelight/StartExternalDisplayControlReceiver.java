@@ -24,7 +24,7 @@ public class StartExternalDisplayControlReceiver extends BroadcastReceiver {
     }
 
     public static void requestFocusToSecondScreen() {
-        if (Game.instance != null && Game.instance.conn != null) {
+        if (Game.instance != null) {
             Intent gameIntent = new Intent(Game.instance, Game.class);
             gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             Game.instance.startActivity(gameIntent);

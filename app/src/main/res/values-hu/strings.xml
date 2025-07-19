@@ -258,4 +258,6 @@
     <string name="resolution_prefix_native_landscape">(Tájkép)</string>
     <string name="perf_overlay_hostprocessinglatency">Host feldolgozási késleltetés min/max/átlag: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="pacing_latency">A legalacsonyabb késleltetés előnyben részesítése</string>
+    <string name="title_enable_commit_text">Commit-szöveg bevitel engedélyezése (húzás/hang)</string>
+    <string name="summary_enable_commit_text">A képernyő-billentyűzetek többkarakteres szövegét (gesztusos gépelés, predikciók, hangalapú diktálás) továbbítja. Megzavarhatja azokat a játékokat, amelyek egyes gombnyomásokra támaszkodnak.</string>
 </resources>

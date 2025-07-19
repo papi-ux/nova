@@ -153,4 +153,19 @@ public class PanZoomHandler {
             return true;
         }
     }
+
+    public void setInitialZoomAndPan(float scale, float offsetX, float offsetY) {
+        this.scaleFactor = scale;
+        // apply to view
+        streamView.setScaleX(scaleFactor);
+        streamView.setScaleY(scaleFactor);
+        this.childX = offsetX;
+        this.childY = offsetY;
+        streamView.setX(childX);
+        streamView.setY(childY);
+    }
+
+    public float getScaleFactor() { return scaleFactor; }
+    public float getChildX() { return childX; }
+    public float getChildY() { return childY; }
 }

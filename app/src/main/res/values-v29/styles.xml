@@ -1,8 +1,11 @@
 <resources>
-    <style name="AppBaseTheme" parent="android:Theme.Material">
+    <style name="AppBaseTheme" parent="Theme.Material3.Dark.NoActionBar">
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <!-- Avoid some systems like MIUI which break the visibility of games title -->
         <item name="android:forceDarkAllowed">false</item>
+    </style>
+
+    <style name="SettingsTheme" parent="AppTheme">
     </style>
 </resources>

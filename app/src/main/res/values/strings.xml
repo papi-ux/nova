@@ -116,7 +116,7 @@
     <!-- General strings -->
     <string name="ip_hint">IP address of host PC</string>
     <string name="searching_pc">Searching for host PCs on your local network…\n\n
-        Ensure Sunshine is running on your host PC or GameStream is enabled in the GeForce Experience SHIELD settings.</string>
+        Ensure Apollo is running on your host PC.</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="lost_connection">Lost connection to PC</string>
@@ -134,6 +134,19 @@
     <string name="perf_overlay_netlatency">Average network latency: %1$d ms (variance: %2$d ms)</string>
     <string name="perf_overlay_dectime">Average decoding time: %1$.2f ms</string>
 
+    <!-- Performance Report Sharing -->
+    <string name="email_prefix_message">
+        Please send this email as-is to artemistics.logs@gmail.com to support the community.\n
+        Your shared performance data will help improve and expand the dataset available at:\n
+        https://tinyurl.com/artemis-performance\n\n
+    </string>
+
+    <string name="email_recipient">artemistics.logs@gmail.com</string>
+    <string name="email_subject">Artemistics - Performance Log</string>
+    <string name="email_chooser_title">Send performance log...</string>
+    <string name="toast_no_email_clients">No email clients installed.</string>
+    <string name="toast_no_logs">There is no performance data stored yet.</string>
+
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>
     <string name="applist_menu_resume">Resume Session</string>
@@ -146,6 +159,7 @@
     <string name="applist_menu_cancel">Cancel</string>
     <string name="applist_menu_details">View Details</string>
     <string name="applist_menu_scut">Create Shortcut</string>
+    <string name="applist_menu_export_launcher">Export Launcher File</string>
     <string name="applist_menu_tv_channel">Add to Channel</string>
     <string name="applist_menu_hide_app">Hide App</string>
     <string name="applist_refresh_title">App List</string>
@@ -304,6 +318,8 @@
     <string name="summary_privacy_policy">View Artemis\'s privacy policy</string>
     <string name="title_special_key_help">Custom Keys help</string>
     <string name="summary_special_key_help">Instructions about how to setup custom special keys</string>
+    <string name="summary_performance_link">See performance of other devices.\nPlease note, these data are managed by the community, it is not managed by Artemis and does not represent Artemis officially.</string>
+    <string name="title_performance_link">Performance Dashboard</string>
 
     <!-- Toasts -->
     <string name="toast_controller_type_changed">Gamepad type may be changed due to motion sensor emulation</string>
@@ -384,6 +400,8 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (Switch Monitor)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
 
+    <string name="toggle_pan_zoom_mode">Toggle Pan/Zoom Mode</string>
+
     <string name="title_analog_scrolling">Use an analog stick to scroll</string>
     <string name="summary_analog_scrolling">Select an analog stick to scroll when in mouse emulation mode</string>
     <string name="analogscroll_none">None (both sticks move the mouse)</string>
@@ -409,7 +427,6 @@
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
     <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
 
-    <!-- New Strings -->
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
     <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>
@@ -418,8 +435,12 @@
     <string name="summary_checkbox_onscreen_style_official">If you still like the old style of official virtual gamepad buttons, you can select this option.\nButton shapes can be square if you selected the bottom virtual button [Normal buttons are square buttons]</string>
     <string name="title_checkbox_enable_perf_overlay_lite">Enable Lite mode</string>
     <string name="summary_checkbox_enable_perf_overlay_lite">Display simplified performance information: Network Speed / Latency / Decode / Packet Loss Rate / FPS</string>
+    <string name="title_checkbox_enable_perf_logging">Enable Performance Logging</string>
+    <string name="summary_checkbox_enable_perf_logging">"Stores performance data per configuration. (Offline only) "</string>
     <string name="title_checkbox_enable_perf_overlay_lite_dialog">Lite mode click to pop up quick options</string>
     <string name="summary_checkbox_enable_perf_overlay_lite_dialog">Replace the back button logic, pop up the game quick menu.</string>
+    <string name="title_show_overlay_zoom_toggle_button">Show overlay zoom toggle button</string>
+    <string name="summary_show_overlay_zoom_toggle_button">Displays a draggable button at the top of the screen to toggle pan/zoom mode.</string>
     <string name="title_virtual_trackpad_settings">Virtual Trackpad Settings</string>
     <string name="title_quit_dialog">Back Menu</string>
     <string name="summary_quit_dialog">When enabled, clicking the physical back button on the streaming interface will show related options!\nSoft keyboard, performance information, touch mode switching, send special keys</string>
@@ -432,6 +453,8 @@
     <string name="summary_auto_orientation">The streaming screen will be displayed according to the device\'s orientation when the stream begins.</string>
     <string name="title_import_special_button">Import Custom Keys</string>
     <string name="summary_import_special_button">Available in Back Menu and special keys.\nNote: Importing will overwrite current configuration, please backup accordingly.</string>
+    <string name="summary_share_performance_logs">Share your performance with friends or the community</string>
+    <string name="title_share_performance_logs_button">Share Performance Logs</string>
     <string name="title_software_update">Software Update</string>
     <string name="summary_software_update">Artemis Nior Version by ClassicOldSong - Visit GitHub Release to get latest version</string>
     <string name="title_follow_update">Follow Update</string>
@@ -608,7 +631,67 @@
     <string name="searchpreference_clear_history">Clear history</string>
     <string name="searchpreference_no_results">No results</string>
 
+    <!-- Keyboard -->
+    <string name="keyboard_clear_all">Clear All</string>
+    <string name="keyboard_add_keys">Add Keys</string>
+    <string name="keyboard_select_keys">Select Keys to Add</string>
+    <string name="keyboard_clear_all_confirm_title">Clear All Keys</string>
+    <string name="keyboard_clear_all_confirm_message">Are you sure you want to hide all on-screen controls? You can add them back later in configuration mode.</string>
+    <string name="keyboard_keys_added">%d keys added successfully</string>
+    <string name="keyboard_duplicates_skipped">%d duplicates were skipped</string>
+    <string name="keyboard_configure_movable">You can now move the settings button.</string>
+    <string name="keyboard_load_error">Error loading keyboard configuration: %s</string>
+    <string name="keyboard_add">Add</string>
+    <string name="keyboard_key_custom">%s (Custom)</string>
+
     <!-- Compliance -->
     <string name="category_basic_settings" />
     <string name="title_checkbox_stretch_video" />
+
+    <!-- ShortcutHelper Toast Messages -->
+    <string name="export_launcher_computer_details_incomplete">Cannot export: Computer details are incomplete.</string>
+    <string name="export_launcher_app_details_incomplete">Cannot export: App details are incomplete.</string>
+    <string name="failed_to_initiate_file_export">Failed to initiate file export: %s</string>
+    <string name="file_export_failed_no_location_selected">File export failed: No location selected.</string>
+    <string name="file_export_failed_no_content_to_write">File export failed: No content to write.</string>
+    <string name="file_exported_successfully">File exported successfully.</string>
+    <string name="failed_to_open_file_for_writing">Failed to open file for writing.</string>
+    <string name="error_writing_file">Error writing file: %s</string>
+    <string name="unexpected_error_during_file_export">An unexpected error occurred during file export.</string>
+
+    <!-- AppView Toast Messages -->
+    <string name="file_export_cancelled">File export cancelled.</string>
+    <string name="app_removed_from_pc">App removed from PC</string>
+    <string name="title_export_sunshine_launcher_file">Export Launcher File for Sunshine</string>
+    <string name="message_export_sunshine_launcher_file">Exporting launcher file for Sunshine is unstable, and may break at any moment. You\'ll need to export again every time if you changed the app name or image.\nUse Apollo for a more stable experience.</string>
+
+    <string name="title_enable_commit_text">Enable commit-text input (swipe/voice)</string>
+    <string name="summary_enable_commit_text">Forward multi-character text from soft keyboards (gesture typing, predictions, voice dictation). May break games that rely on key-by-key input.</string>
+    <string name="title_checkbox_remember_zoom_pan">Remember Zoom&amp;Pan</string>
+    <string name="summary_checkbox_remember_zoom_pan">Save changes to zoom and pan position between sessions</string>
+    <string name="title_edit_profile">Edit Profile</string>
+    <string name="profile_manager_new_profile">New Profile</string>
+    <string name="profile_manager_profile_not_found">Profile not found</string>
+    <string name="profile_manager_edit_profile">"Edit Profile: "</string>
+    <string name="profile_manager_profile">"Profile "</string>
+    <string name="profile_manager_profile_saved">Profile \'%s\' saved.</string>
+    <string name="profile_manager_edit_profile_name">Edit Profile Name</string>
+    <string name="profile_manager_name_cannot_be_blank">Name cannot be blank</string>
+    <string name="profile_manager_edit_profile_with">Edit Profile: %s</string>
+    <string name="profile_manager_new_profile_with">New Profile: %s</string>
+    <string name="profile_manager_no_profiles_yet">No profiles yet</string>
+    <string name="profile_manager_profiles_description">Profiles allow you to create and save different streaming configurations. Each profile stores its own settings which can be quickly switched between.</string>
+    <string name="profile_manager_tap_create_profile">Tap + to create your first profile</string>s
+    <string name="profile_manager_choose_profile">Choose Profile</string>
+    <string name="profile_manager_deactivated_profile">Deactivated profile</string>
+    <string name="profile_manager_activated_profile">Activated profile \'%s\'</string>
+    <string name="profile_manager_delete_profile">Delete Profile</string>
+    <string name="profile_manager_confirm_profile_deleteion">Are you sure you want to delete \'%s\'?</string>
+    <string name="profile_manager_delete">Delete</string>
+    <string name="profile_manager_profile_deleted">Deleted profile \'%s\'</string>
+    <string name="profile_manager_failed_to_save">Failed to save profile. Please check logcat for details.</string>
+    <string name="profile_manager_failed_to_load">Failed to load profiles. Please check logcat for details.</string>
+    <string name="profile_manager_active_profile">Active profile: %s</string>
+    <string name="rename">Rename</string>
+    <string name="save">Save</string>
 </resources>

@@ -8,12 +8,12 @@ import static com.limelight.GameMenu.getModifier;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.view.KeyEvent;
 import android.widget.Toast;
+
 import androidx.preference.PreferenceManager;
 
 import com.limelight.GameMenu;
@@ -22,16 +22,15 @@ import com.limelight.R;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.input.KeyboardPacket;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.utils.KeyConfigHelper;
 import com.limelight.utils.KeyMapper;
 
-import org.jcodec.common.ArrayUtil;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.InputStream;
 import java.lang.reflect.Field;
-import java.util.BitSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,6 +40,7 @@ public class KeyBoardControllerConfigurationLoader {
     public static final String OSC_PREFERENCE_VALUE = "OSC_Keyboard";
 
     private static final Set<Integer> MODIFIER_KEY_CODES = new HashSet<>();
+
     static {
         MODIFIER_KEY_CODES.add(KeyEvent.KEYCODE_ALT_LEFT);
         MODIFIER_KEY_CODES.add(KeyEvent.KEYCODE_ALT_RIGHT);
@@ -57,15 +57,15 @@ public class KeyBoardControllerConfigurationLoader {
     }
 
     // The default controls are specified using a grid of 128*72 cells at 16:9
-    private static int screenScale(int units, int height) {
+    public static int screenScale(int units, int height) {
         return (int) (((float) height / (float) 72) * (float) units);
     }
 
-    private static int screenScaleSwicth(int result, int height) {
+    public static int screenScaleSwitch(int result, int height) {
         return result * 72 / height;
     }
 
-    private static KeyboardDigitalPadButton createDiaitalPadButton(String elementId, int keyCodeLeft, int keyCodeRight, int keyCodeUp, int keyCodeDown, final KeyBoardController controller, final Context context) {
+    public static KeyboardDigitalPadButton createDiaitalPadButton(String elementId, int keyCodeLeft, int keyCodeRight, int keyCodeUp, int keyCodeDown, final KeyBoardController controller, final Context context) {
         KeyboardDigitalPadButton button = new KeyboardDigitalPadButton(controller, context, elementId);
         button.addDigitalPadListener(new KeyboardDigitalPadButton.DigitalPadListener() {
             @Override
@@ -112,7 +112,7 @@ public class KeyBoardControllerConfigurationLoader {
     }
 
 
-    private static KeyBoardAnalogStickButton createKeyBoardAnalogStickButton(final KeyBoardController controller, String elementId, final Context context, int[] keylist) {
+    public static KeyBoardAnalogStickButton createKeyBoardAnalogStickButton(final KeyBoardController controller, String elementId, final Context context, int[] keylist) {
 
         KeyBoardAnalogStickButton analogStick = new KeyBoardAnalogStickButton(controller, elementId, context, keylist);
         analogStick.setListener(new KeyBoardAnalogStickButton.KeyBoardAnalogStickListener() {
@@ -144,7 +144,7 @@ public class KeyBoardControllerConfigurationLoader {
 
     }
 
-    private static KeyBoardDigitalButton createDigitalButton(
+    public static KeyBoardDigitalButton createDigitalButton(
             final String elementId,
             final int keyShort,
             final int type,
@@ -158,7 +158,7 @@ public class KeyBoardControllerConfigurationLoader {
         button.setText(text);
         button.setIcon(icon);
 
-        if(elementId.startsWith("m_s_")||elementId.startsWith("key_s_")){
+        if (elementId.startsWith("m_s_") || elementId.startsWith("key_s_")) {
             button.setEnableSwitchDown(true);
         }
 
@@ -216,7 +216,7 @@ public class KeyBoardControllerConfigurationLoader {
         return button;
     }
 
-    private static KeyBoardDigitalButton createCustomButton(
+    public static KeyBoardDigitalButton createCustomButton(
             String elementId,
             final short[] keys,
             final int layer,
@@ -231,8 +231,6 @@ public class KeyBoardControllerConfigurationLoader {
         button.setText(text);
         button.setIcon(icon);
 
-        final byte[] modifier = {(byte) 0};
-
         if (sticky) {
             button.addDigitalButtonListener(new KeyBoardDigitalButton.DigitalButtonListener() {
                 @Override
@@ -241,9 +239,12 @@ public class KeyBoardControllerConfigurationLoader {
                         button.setSticky(false);
                         return;
                     }
-                    controller.vibrate(KeyEvent.ACTION_DOWN);
+
+                    final byte[] modifier = {(byte) 0};
+
                     for (short key : keys) {
                         conn.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], (byte) 0);
+
                         modifier[0] |= getModifier(key);
                     }
                 }
@@ -259,19 +260,24 @@ public class KeyBoardControllerConfigurationLoader {
                     if (button.isSticky()) {
                         return;
                     }
-                    controller.vibrate(KeyEvent.ACTION_UP);
-                    for (int pos = keys.length - 1; pos >= 0; pos--) {
-                        short key = keys[pos];
-                        modifier[0] &= (byte) ~getModifier(key);
-                        conn.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
+
+                    final byte[] modifier = {(byte) 0};
+
+                    for (int i = keys.length - 1; i >= 0; i--) {
+                        modifier[0] &= (byte) ~getModifier(keys[i]);
+                        conn.sendKeyboardInput(keys[i], KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
                     }
                 }
             });
         } else {
             button.addDigitalButtonListener(new KeyBoardDigitalButton.DigitalButtonListener() {
+                private final byte[] modifier = new byte[1];
+
                 @Override
                 public void onClick() {
                     controller.vibrate(KeyEvent.ACTION_DOWN);
+                    // Press keys down
+                    modifier[0] = 0;
                     for (short key : keys) {
                         conn.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], (byte) 0);
                         modifier[0] |= getModifier(key);
@@ -280,25 +286,26 @@ public class KeyBoardControllerConfigurationLoader {
 
                 @Override
                 public void onLongClick() {
+                    // Nothing to do for non-sticky buttons
                 }
 
                 @Override
                 public void onRelease() {
                     controller.vibrate(KeyEvent.ACTION_UP);
-                    for (int pos = keys.length - 1; pos >= 0; pos--) {
-                        short key = keys[pos];
+                    // Release keys
+                    for (int i = keys.length - 1; i >= 0; i--) {
+                        short key = keys[i];
                         modifier[0] &= (byte) ~getModifier(key);
                         conn.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
                     }
                 }
             });
         }
-
         return button;
     }
 
 
-    private static KeyBoardTouchPadButton createDigitalTouchButton(
+    public static KeyBoardTouchPadButton createDigitalTouchButton(
             final String elementId,
             final int keyShort,
             final int type,
@@ -313,7 +320,7 @@ public class KeyBoardControllerConfigurationLoader {
         button.addDigitalButtonListener(new KeyBoardTouchPadButton.DigitalButtonListener() {
             @Override
             public void onClick() {
-                int code=keyShort==9?3:1;
+                int code = keyShort == 9 ? 3 : 1;
                 KeyEvent keyEvent = new KeyEvent(KeyEvent.ACTION_DOWN, code);
                 keyEvent.setSource(type);
                 controller.sendKeyEvent(keyEvent);
@@ -325,12 +332,12 @@ public class KeyBoardControllerConfigurationLoader {
 
             @Override
             public void onMove(int x, int y) {
-                controller.sendMouseMove(x,y);
+                controller.sendMouseMove(x, y);
             }
 
             @Override
             public void onRelease() {
-                int code=keyShort==9?3:1;
+                int code = keyShort == 9 ? 3 : 1;
                 KeyEvent keyEvent = new KeyEvent(KeyEvent.ACTION_UP, code);
                 keyEvent.setSource(type);
                 controller.sendKeyEvent(keyEvent);
@@ -358,7 +365,7 @@ public class KeyBoardControllerConfigurationLoader {
         int maxW = screen.widthPixels / 18;
 
         if (w > maxW) {
-            BUTTON_SIZE = screenScaleSwicth(maxW, height);
+            BUTTON_SIZE = screenScaleSwitch(maxW, height);
             w = screenScale(BUTTON_SIZE, height);
         }
 
@@ -409,13 +416,13 @@ public class KeyBoardControllerConfigurationLoader {
                 int keyCodeMiddle = obj.optInt("middleCode");
                 int[] keys = new int[]{keyCodeUp, keyCodeDown, keyCodeLeft, keyCodeRight, keyCodeMiddle};
 
-                if(config.enableNewAnalogStick){
+                if (config.enableNewAnalogStick) {
                     controller.addElement(createKeyBoardAnalogStickButton2(controller, code, context, keys),
                             screenScale(4, height),
                             screenScale(41, height),
                             (int) (w * 2.5), (int) (w * 2.5)
                     );
-                }else{
+                } else {
                     controller.addElement(createKeyBoardAnalogStickButton(controller, code, context, keys),
                             screenScale(4, height),
                             screenScale(41, height),
@@ -449,7 +456,7 @@ public class KeyBoardControllerConfigurationLoader {
 
                 String elementId = type == 0 ? "key_" + code : "m_" + code;
 
-                if(switchButton == 1){
+                if (switchButton == 1) {
                     elementId = type == 0 ? "key_s_" + code : "m_s_" + code;
                 }
 
@@ -459,12 +466,12 @@ public class KeyBoardControllerConfigurationLoader {
 
                 int y = screenScale(BUTTON_SIZE + lastIndex * BUTTON_SIZE, height);
 
-                if(TextUtils.equals("m_9", elementId)||TextUtils.equals("m_10", elementId)||TextUtils.equals("m_11", elementId)){
+                if (TextUtils.equals("m_9", elementId) || TextUtils.equals("m_10", elementId) || TextUtils.equals("m_11", elementId)) {
                     controller.addElement(createDigitalTouchButton(elementId, code, type, 1, name, -1, controller, context),
                             x, y,
                             w, w
                     );
-                }else{
+                } else {
                     controller.addElement(createDigitalButton(elementId, code, type, 1, name, -1, config.stickyModifierKey && isModifierKey(code), controller, context),
                             x, y,
                             w, w
@@ -475,49 +482,63 @@ public class KeyBoardControllerConfigurationLoader {
 
             // Custom keys
             SharedPreferences preferences = context.getSharedPreferences(GameMenu.PREF_NAME, Activity.MODE_PRIVATE);
-            String value = preferences.getString(GameMenu.KEY_NAME,"");
+            String value = preferences.getString(GameMenu.KEY_NAME, "");
 
-            if(!TextUtils.isEmpty(value)){
+            if (!TextUtils.isEmpty(value)) {
                 try {
-                    JSONObject object = new JSONObject(value);
-                    JSONArray keyMapArr = object.optJSONArray("data");
-                    if(keyMapArr != null&&keyMapArr.length()>0){
-                        for (int idx = 0; idx < keyMapArr.length(); idx++) {
-                            JSONObject keyMap = keyMapArr.getJSONObject(idx);
-                            String id = keyMap.optString("id", Integer.toString(idx));
-                            String name = keyMap.optString("name");
-                            JSONArray keySequence = keyMap.getJSONArray("keys");
-                            short[] vkKeyCodes = new short[keySequence.length()];
-                            for (int j = 0; j < keySequence.length(); j++) {
-                                String code = keySequence.getString(j);
+                    KeyConfigHelper.ShortcutFile shortcutFile =
+                            KeyConfigHelper.parseShortcutFile(value);
+
+                    if (shortcutFile != null &&
+                            shortcutFile.data != null &&
+                            !shortcutFile.data.isEmpty()) {
+
+                        List<KeyConfigHelper.Shortcut> data = shortcutFile.data;
+                        for (int idx = 0; idx < data.size(); idx++) {
+                            KeyConfigHelper.Shortcut sc = data.get(idx);
+
+                            String id = (sc.id == null || sc.id.isEmpty())
+                                    ? Integer.toString(idx) : sc.id;
+                            String name = sc.name;                 // may be null
+
+                            List<String> keys = sc.keys;
+                            short[] vkKeyCodes = new short[keys.size()];
+
+                            for (int j = 0; j < keys.size(); j++) {
+                                String code = keys.get(j);
                                 int keycode;
-                                if (code.startsWith("0x")) {
+
+                                if (code.startsWith("0x")) {              // literal hex
                                     keycode = Integer.parseInt(code.substring(2), 16);
-                                } else if (code.startsWith("VK_")) {
-                                    Field vkCodeField = KeyMapper.class.getDeclaredField(code);
-                                    keycode = vkCodeField.getInt(null);
+
+                                } else if (code.startsWith("VK_")) {      // symbolic VK_*
+                                    Field field = KeyMapper.class.getDeclaredField(code);
+                                    keycode = field.getInt(null);
+
                                 } else {
-                                    throw new Exception("Unknown key code: " + code);
+                                    throw new IllegalArgumentException("Unknown key code: " + code);
                                 }
                                 vkKeyCodes[j] = (short) keycode;
                             }
 
-                            boolean sticky = keyMap.optBoolean("sticky", false);
+                            boolean sticky = sc.sticky;
 
                             int lastIndex = (int) ((idx + i) / buttonSum);
 
-                            int x = screenScale(1 + (int) ((idx + i) % buttonSum) * BUTTON_SIZE, height);
+                            int x = screenScale((int) (1 + ((idx + i) % buttonSum) * BUTTON_SIZE), height);
                             int y = screenScale(BUTTON_SIZE + lastIndex * BUTTON_SIZE, height);
 
-                            controller.addElement(createCustomButton("custom_" + id, vkKeyCodes, 1, name, -1, sticky, controller, conn, context),
-                                x, y,
-                                w, w
+                            controller.addElement(
+                                    createCustomButton("custom_" + id, vkKeyCodes, 1,
+                                            name, -1, sticky, controller, conn, context),
+                                    x, y,
+                                    w, w
                             );
                         }
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                    Toast.makeText(context,context.getString(R.string.wrong_import_format),Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, context.getString(R.string.wrong_import_format), Toast.LENGTH_SHORT).show();
                 }
             }
 

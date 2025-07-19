@@ -5,7 +5,7 @@ buildscript {
         google()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.9.1'
+        classpath 'com.android.tools.build:gradle:8.11.1'
     }
 }
 
@@ -13,6 +13,34 @@ allprojects {
     repositories {
         mavenCentral()
         google()
-        maven { url 'https://jitpack.io' }
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+
+// Aggregate all variant/unit tests under the root `test` task
+gradle.projectsEvaluated {
+    def agg = tasks.findByName('test') ?: tasks.register('test') {
+        group = 'verification'
+        description = 'Runs every unit-test task in all sub-projects'
+    }
+
+    subprojects.each { p ->
+        p.tasks.matching { it.name.endsWith('UnitTest') }.all { t ->
+            agg.configure { dependsOn t }
+        }
+    }
+}
+
+subprojects { subProj ->
+    subProj.tasks.withType(Test).configureEach {
+        // Always execute tests; bypass up-to-date checks
+        outputs.upToDateWhen { false }
+
+        // Verbose console output for test status
+        testLogging {
+            events "passed", "failed", "skipped"
+            exceptionFormat "full"
+            showStandardStreams = true
+        }
     }
 }

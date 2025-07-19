@@ -414,6 +414,12 @@
             android:summary="@string/summary_ignore_synth_events"
             android:title="@string/title_checkbox_ignore_synth_events"
             app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_commit_text"
+            android:summary="@string/summary_enable_commit_text"
+            android:title="@string/title_enable_commit_text"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -445,14 +451,12 @@
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="true"
-            android:dependency="checkbox_smart_clipboard_sync"
             android:key="checkbox_smart_clipboard_sync_toast"
             android:summary="@string/summary_smart_clipboard_sync_toast"
             android:title="@string/title_smart_clipboard_sync_toast"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="true"
-            android:dependency="checkbox_hide_clipboard_content"
             android:key="checkbox_hide_clipboard_content"
             android:summary="@string/summary_hide_clipboard_content"
             android:title="@string/title_hide_clipboard_content"
@@ -538,6 +542,7 @@
             android:summary="@string/summary_enable_perf_overlay"
             android:title="@string/title_enable_perf_overlay"
             app:iconSpaceReserved="false" />
+
         <CheckBoxPreference
             android:defaultValue="false"
             android:dependency="checkbox_enable_perf_overlay"
@@ -545,12 +550,34 @@
             android:summary="@string/summary_checkbox_enable_perf_overlay_lite"
             android:title="@string/title_checkbox_enable_perf_overlay_lite"
             app:iconSpaceReserved="false" />
+
         <CheckBoxPreference
             android:defaultValue="false"
             android:dependency="checkbox_enable_perf_overlay_lite"
             android:key="checkbox_enable_perf_overlay_lite_dialog"
             android:summary="@string/summary_checkbox_enable_perf_overlay_lite_dialog"
             android:title="@string/title_checkbox_enable_perf_overlay_lite_dialog"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_enable_perf_overlay"
+            android:key="checkbox_enable_perf_overlay_bottom"
+            android:summary="Useful when Display in Top Center and Lite mode are enabled during non-native resolution streaming."
+            android:title="Move overlay to bottom"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_show_overlay_zoom_toggle_button"
+            android:summary="@string/summary_show_overlay_zoom_toggle_button"
+            android:title="@string/title_show_overlay_zoom_toggle_button"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_remember_zoom_pan"
+            android:summary="@string/summary_checkbox_remember_zoom_pan"
+            android:title="@string/title_checkbox_remember_zoom_pan"
             app:iconSpaceReserved="false" />
 
         <CheckBoxPreference
@@ -852,7 +879,7 @@
             android:defaultValue="default"
             android:entries="@array/language_names"
             android:entryValues="@array/language_values"
-            android:icon="@android:drawable/stat_notify_chat"
+            android:icon="@drawable/ic_language"
             android:key="list_languages"
             android:summary="@string/summary_language_list"
             android:title="@string/title_language_list" />
@@ -868,6 +895,27 @@
             android:key="option_help_custom_keys"
             android:summary="@string/summary_special_key_help"
             android:title="@string/title_special_key_help"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_perf_logging"
+            android:summary="@string/summary_checkbox_enable_perf_logging"
+            android:title="@string/title_checkbox_enable_perf_logging"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="share_performance_logs"
+            android:summary="@string/summary_share_performance_logs"
+            android:title="@string/title_share_performance_logs_button"
+            android:dependency="checkbox_enable_perf_logging"
+            app:iconSpaceReserved="false" />
+
+        <com.limelight.preferences.WebLauncherPreference
+            url="https://github.com/ClassicOldSong/moonlight-android/wiki/Performance-Statistics-Collection"
+            android:key="option_view_shared_pref_logs"
+            android:summary="@string/summary_performance_link"
+            android:title="@string/title_performance_link"
             app:iconSpaceReserved="false" />
 
         <Preference

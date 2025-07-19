@@ -78,6 +78,7 @@ public class ComputerDetails {
     public int externalPort;
     public PairingManager.PairState pairState;
     public int runningGameId;
+    public String runningGameUUID;
     public String rawAppList;
     public boolean nvidiaServer;
 
@@ -156,6 +157,7 @@ public class ComputerDetails {
         this.httpsPort = details.httpsPort;
         this.pairState = details.pairState;
         this.runningGameId = details.runningGameId;
+        this.runningGameUUID = details.runningGameUUID;
         this.nvidiaServer = details.nvidiaServer;
         this.rawAppList = details.rawAppList;
 
@@ -231,6 +233,7 @@ public class ComputerDetails {
                 "MAC Address: " + macAddress + "\n" +
                 "Pair State: " + pairState + "\n" +
                 "Running Game ID: " + runningGameId + "\n" +
+                "Running Game UUID: " + runningGameUUID + "\n" +
                 "HTTPS Port: " + httpsPort + "\n";
     }
 }

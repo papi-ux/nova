@@ -465,99 +465,102 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         if (context instanceof InputDeviceContext) {
             InputDeviceContext devContext = (InputDeviceContext) context;
 
-            LimeLog.info(devContext.name+" ("+context.id+") needs a controller number assigned");
-            if (!devContext.external) {
-                LimeLog.info("Built-in buttons hardcoded as controller 0");
-                context.controllerNumber = 0;
-            }
-            else if (prefConfig.multiController && devContext.hasJoystickAxes) {
-                context.controllerNumber = 0;
+            if (context instanceof UsbDeviceContext) {
+                if (prefConfig.multiController) {
+                    LimeLog.info("Reserving the next available controller number for USB device");
+                    for (short i = 0; i < MAX_GAMEPADS; i++) {
+                        if ((currentControllers & (1 << i)) == 0) {
+                            // Found an unused controller value
+                            currentControllers |= (1 << i);
 
-                LimeLog.info("Reserving the next available controller number");
-                for (short i = 0; i < MAX_GAMEPADS; i++) {
-                    if ((currentControllers & (1 << i)) == 0) {
-                        // Found an unused controller value
-                        currentControllers |= (1 << i);
+                            // Take this value out of the initial gamepad set
+                            initialControllers &= ~(1 << i);
 
-                        // Take this value out of the initial gamepad set
-                        initialControllers &= ~(1 << i);
-
-                        context.controllerNumber = i;
-                        context.reservedControllerNumber = true;
-                        break;
+                            context.controllerNumber = i;
+                            context.reservedControllerNumber = true;
+                            break;
+                        }
                     }
                 }
-            }
-            else if (!devContext.hasJoystickAxes) {
-                // If this device doesn't have joystick axes, it may be an input device associated
-                // with another joystick (like a PS4 touchpad). We'll propagate that joystick's
-                // controller number to this associated device.
+                else {
+                    LimeLog.info("Not reserving a controller number");
+                    context.controllerNumber = 0;
+                }
 
-                context.controllerNumber = 0;
+                // If the gamepad doesn't have motion sensors, use the on-device sensors as a fallback for player 1
+                if (prefConfig.gamepadMotionSensorsFallbackToDevice && context.controllerNumber == 0 && (prefConfig.forceMotionSensorsFallbackToDevice || devContext.sensorManager == null)) {
+                    devContext.sensorManager = deviceSensorManager;
+                }
+            } else {
 
-                // For the DS4 case, the associated joystick is the next device after the touchpad.
-                // We'll try the opposite case too, just to be a little future-proof.
-                InputDevice associatedDevice = InputDevice.getDevice(devContext.id + 1);
-                if (!isAssociatedJoystick(devContext.inputDevice, associatedDevice)) {
-                    associatedDevice = InputDevice.getDevice(devContext.id - 1);
+                LimeLog.info(devContext.name+" ("+context.id+") needs a controller number assigned");
+                if (!devContext.external) {
+                    LimeLog.info("Built-in buttons hardcoded as controller 0");
+                    context.controllerNumber = 0;
+                }
+                else if (prefConfig.multiController && devContext.hasJoystickAxes) {
+                    LimeLog.info("Reserving the next available controller number");
+                    for (short i = 0; i < MAX_GAMEPADS; i++) {
+                        if ((currentControllers & (1 << i)) == 0) {
+                            // Found an unused controller value
+                            currentControllers |= (1 << i);
+
+                            // Take this value out of the initial gamepad set
+                            initialControllers &= ~(1 << i);
+
+                            context.controllerNumber = i;
+                            context.reservedControllerNumber = true;
+                            break;
+                        }
+                    }
+                }
+                else if (!devContext.hasJoystickAxes) {
+                    // If this device doesn't have joystick axes, it may be an input device associated
+                    // with another joystick (like a PS4 touchpad). We'll propagate that joystick's
+                    // controller number to this associated device.
+
+                    context.controllerNumber = 0;
+
+                    // For the DS4 case, the associated joystick is the next device after the touchpad.
+                    // We'll try the opposite case too, just to be a little future-proof.
+                    InputDevice associatedDevice = InputDevice.getDevice(devContext.id + 1);
                     if (!isAssociatedJoystick(devContext.inputDevice, associatedDevice)) {
-                        LimeLog.info("No associated joystick device found");
-                        associatedDevice = null;
+                        associatedDevice = InputDevice.getDevice(devContext.id - 1);
+                        if (!isAssociatedJoystick(devContext.inputDevice, associatedDevice)) {
+                            LimeLog.info("No associated joystick device found");
+                            associatedDevice = null;
+                        }
+                    }
+
+                    if (associatedDevice != null) {
+                        InputDeviceContext associatedDeviceContext = inputDeviceContexts.get(associatedDevice.getId());
+
+                        // Create a new context for the associated device if one doesn't exist
+                        if (associatedDeviceContext == null) {
+                            associatedDeviceContext = createInputDeviceContextForDevice(associatedDevice);
+                            inputDeviceContexts.put(associatedDevice.getId(), associatedDeviceContext);
+                        }
+
+                        // Assign a controller number for the associated device if one isn't assigned
+                        if (!associatedDeviceContext.assignedControllerNumber) {
+                            assignControllerNumberIfNeeded(associatedDeviceContext);
+                        }
+
+                        // Propagate the associated controller number
+                        context.controllerNumber = associatedDeviceContext.controllerNumber;
+
+                        LimeLog.info("Propagated controller number from "+associatedDeviceContext.name);
                     }
                 }
-
-                if (associatedDevice != null) {
-                    InputDeviceContext associatedDeviceContext = inputDeviceContexts.get(associatedDevice.getId());
-
-                    // Create a new context for the associated device if one doesn't exist
-                    if (associatedDeviceContext == null) {
-                        associatedDeviceContext = createInputDeviceContextForDevice(associatedDevice);
-                        inputDeviceContexts.put(associatedDevice.getId(), associatedDeviceContext);
-                    }
-
-                    // Assign a controller number for the associated device if one isn't assigned
-                    if (!associatedDeviceContext.assignedControllerNumber) {
-                        assignControllerNumberIfNeeded(associatedDeviceContext);
-                    }
-
-                    // Propagate the associated controller number
-                    context.controllerNumber = associatedDeviceContext.controllerNumber;
-
-                    LimeLog.info("Propagated controller number from "+associatedDeviceContext.name);
+                else {
+                    LimeLog.info("Not reserving a controller number");
+                    context.controllerNumber = 0;
                 }
-            }
-            else {
-                LimeLog.info("Not reserving a controller number");
-                context.controllerNumber = 0;
-            }
 
-            // If the gamepad doesn't have motion sensors, use the on-device sensors as a fallback for player 1
-            if (prefConfig.gamepadMotionSensorsFallbackToDevice && context.controllerNumber == 0 && (prefConfig.forceMotionSensorsFallbackToDevice || devContext.sensorManager == null)) {
-                devContext.sensorManager = deviceSensorManager;
-            }
-        }
-        else {
-            if (prefConfig.multiController) {
-                context.controllerNumber = 0;
-
-                LimeLog.info("Reserving the next available controller number");
-                for (short i = 0; i < MAX_GAMEPADS; i++) {
-                    if ((currentControllers & (1 << i)) == 0) {
-                        // Found an unused controller value
-                        currentControllers |= (1 << i);
-
-                        // Take this value out of the initial gamepad set
-                        initialControllers &= ~(1 << i);
-
-                        context.controllerNumber = i;
-                        context.reservedControllerNumber = true;
-                        break;
-                    }
+                // If the gamepad doesn't have motion sensors, use the on-device sensors as a fallback for player 1
+                if (prefConfig.gamepadMotionSensorsFallbackToDevice && context.controllerNumber == 0 && (prefConfig.forceMotionSensorsFallbackToDevice || devContext.sensorManager == null)) {
+                    devContext.sensorManager = deviceSensorManager;
                 }
-            }
-            else {
-                LimeLog.info("Not reserving a controller number");
-                context.controllerNumber = 0;
             }
         }
 

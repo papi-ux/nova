@@ -37,7 +37,7 @@
     <string name="error_manager_not_running">ComputerManager 서비스가 실행되지 않고 있습니다. 잠시 기다리거나 앱을 다시 시작하세요.</string>
     <string name="error_unknown_host">호스트 응답에 실패함</string>
     <string name="error_404">GFE가 HTTP 404에러를 보냈습니다. 지원되는 GPU가 설치되어 있는지 확인하세요.
-	    원격 데스트톱 응용 프로그램을 사용하는 것도 이 에러를 유발할 수 있습니다. PC를 다시 시작하거나 Geforce Experience를 다시 설치해보세요. 
+	    원격 데스트톱 응용 프로그램을 사용하는 것도 이 에러를 유발할 수 있습니다. PC를 다시 시작하거나 Geforce Experience를 다시 설치해보세요.
     </string>
     <!-- Start application messages -->
     <string name="conn_establishing_title">연결 시도중</string>
@@ -287,4 +287,6 @@
     <string name="title_seekbar_vibrate_fallback_strength">에뮬레이트된 진동 강도 조정</string>
     <string name="summary_analog_scrolling">마우스 에뮬레이션 모드에서 스크롤할 아날로그 스틱을 선택하세요</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
+    <string name="title_enable_commit_text">커밋 텍스트 입력 활성화 (스와이프/음성)</string>
+    <string name="summary_enable_commit_text">소프트 키보드의 여러 글자 입력(제스처 타이핑, 예측, 음성 입력)을 PC로 전달합니다. 키 단위 입력에 의존하는 게임에서는 문제가 발생할 수 있습니다.</string>
 </resources>

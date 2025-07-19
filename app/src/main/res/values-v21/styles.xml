@@ -5,7 +5,7 @@
         AppBaseTheme from BOTH res/values/styles.xml and
         res/values-v21/styles.xml on API 21+ devices.
     -->
-    <style name="AppBaseTheme" parent="android:Theme.Material">
+    <style name="AppBaseTheme" parent="Theme.MaterialComponents.NoActionBar">
         <!-- API 21 theme customizations can go here. -->
     </style>
 

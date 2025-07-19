@@ -438,6 +438,7 @@ public class NvHTTP {
 
         details.pairState = getPairState(serverInfo);
         details.runningGameId = getCurrentGame(serverInfo);
+        details.runningGameUUID = getCurrentGameUUID(serverInfo);
 
         // The MJOLNIR codename was used by GFE but never by any third-party server
         details.nvidiaServer = getXmlString(serverInfo, "state", true).contains("MJOLNIR");
@@ -447,7 +448,11 @@ public class NvHTTP {
 
         return details;
     }
-    
+
+    public String getCurrentGameUUID(String serverInfo) throws IOException, XmlPullParserException {
+        return getXmlString(serverInfo, "currentgameuuid", false);
+    }
+
     public ComputerDetails getComputerDetails(boolean likelyOnline) throws IOException, XmlPullParserException {
         return getComputerDetails(getServerInfo(likelyOnline));
     }
