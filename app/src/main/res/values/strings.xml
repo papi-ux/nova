@@ -472,10 +472,12 @@
     <string name="title_joyconfix">Compatible with Switch JoyCon</string>
     <string name="summary_joyconfix">If your JoyCon cannot be used or has key recognition issues, you can try to enable this feature. Adapted for Android 10 and above</string>
     <string name="title_keyboard_opacity">Virtual Full Keyboard Opacity</string>
+    <string name="title_onscreen_keyboard_autofit">Virtual Full Keyboard Disable Autofit</string>
     <string name="title_onscreen_keyboard_height">Virtual Full Keyboard Height</string>
     <string name="title_onscreen_keyboard_width">Virtual Full Keyboard Width</string>
     <string name="title_onscreen_keyboard_align_mode">Virtual Full Keyboard Align Mode</string>
     <string name="summary_onscreen_keyboard_height">Adjust the height of the virtual full keyboard</string>
+    <string name="summary_onscreen_keyboard_autofit">Dont adjust the size and position of the keyboard automatically and allows custom size </string>
     <string name="summary_onscreen_keyboard_width">Adjust the width of the virtual full keyboard</string>
     <string name="summary_onscreen_keyboard_align_mode">How the virtual full keyboard aligns to the view port</string>
     <string name="title_free_analog_stick">Free Analog Stick</string>

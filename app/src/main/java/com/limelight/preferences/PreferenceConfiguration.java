@@ -230,6 +230,7 @@ public class PreferenceConfiguration {
     public int oscOpacity;
     public int oscKeyboardOpacity;
     public int onscreenKeyboardHeight;
+    public boolean onscreenKeyboardAutoFitDisabled;
     public int onscreenKeyboardWidth;
     public String onscreenKeyboardAlignMode;
     public boolean enforceDisplayMode, useVirtualDisplay, enableSops, playHostAudio, disableWarnings;
@@ -917,6 +918,7 @@ public class PreferenceConfiguration {
         config.enableNewAnalogStickOpacity = prefs.getInt("seekbar_osc_free_analog_stick_opacity",20);
 
         config.onscreenKeyboardHeight = prefs.getInt("seekbar_onscreen_keyboard_height",200);
+        config.onscreenKeyboardAutoFitDisabled = prefs.getBoolean("onscreen_keyboard_autofit",false);
         config.onscreenKeyboardWidth = prefs.getInt("seekbar_onscreen_keyboard_width",1000);
         config.onscreenKeyboardAlignMode = prefs.getString(LIST_ONSCREEN_KEYBOARD_ALIGN_MODE, DEFAULT_ONSCREEN_KEYBOARD_ALIGN_MODE);
 

@@ -107,6 +107,7 @@
         </activity>
         <activity android:name=".utils.ExternalDisplayControlActivity"
             android:exported="false"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|screenSize|smallestScreenSize|layoutDirection"
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
             android:taskAffinity=""

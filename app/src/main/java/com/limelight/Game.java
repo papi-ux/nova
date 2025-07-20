@@ -930,6 +930,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         keyBoardController.show();
     }
 
+    public Boolean isKeyboardLayoutVisible() {
+        return keyBoardLayoutController != null && keyBoardLayoutController.shown;
+    }
 
     private void initVirtualController(){
         virtualController = new VirtualController(controllerHandler, (FrameLayout)rootView, this);

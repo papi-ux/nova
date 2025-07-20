@@ -496,8 +496,15 @@
             app:iconSpaceReserved="false"
             seekbar:min="0"
             seekbar:step="1" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="onscreen_keyboard_autofit"
+            android:summary="@string/summary_onscreen_keyboard_autofit"
+            android:title="@string/title_onscreen_keyboard_autofit"
+            app:iconSpaceReserved="false" />
         <com.limelight.preferences.SeekBarPreference
             android:defaultValue="200"
+            android:dependency="onscreen_keyboard_autofit"
             android:key="seekbar_onscreen_keyboard_height"
             android:max="400"
             android:summary="@string/summary_onscreen_keyboard_height"
@@ -510,6 +517,7 @@
             android:defaultValue="1000"
             seekbar:min="150"
             android:max="1000"
+            android:dependency="onscreen_keyboard_autofit"
             android:key="seekbar_onscreen_keyboard_width"
             android:summary="@string/summary_onscreen_keyboard_width"
             android:text="dp"
