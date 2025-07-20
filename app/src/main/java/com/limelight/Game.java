@@ -44,6 +44,7 @@ import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamView;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ExternalDisplayControlActivity;
+import com.limelight.utils.MouseModeOption;
 import com.limelight.utils.PanZoomHandler;
 import com.limelight.utils.PerformanceDataTracker;
 import com.limelight.utils.ServerHelper;
@@ -113,6 +114,8 @@ import androidx.preference.PreferenceManager;
 
 import android.os.Looper;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Queue;
 import java.util.ArrayDeque;
 
@@ -128,6 +131,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 
 public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
@@ -711,8 +715,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         // Initialize touch contexts based on preferences
         // The mouse mode preference is also read in PreferenceConfiguration to set the boolean flags
-        String mouseMode = ProfilesManager.getInstance().getOverlayingSharedPreferences(this).getString("mouse_mode_list", "0");
-        applyMouseMode(Integer.parseInt(mouseMode));
+         initMouseMode();
 
         // Initialize trackpad contexts
         for (int i = 0; i < trackpadContextMap.length; i++) {
@@ -3872,23 +3875,127 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
     }
 
-    public void selectMouseMode(){
-        String[] strings = getResources().getStringArray(R.array.mouse_mode_names);
-        String[] items = Arrays.copyOf(strings,strings.length + 1);
-        items[items.length - 1] = getString(R.string.toggle_local_mouse_cursor);
-        new AlertDialog.Builder(this).setItems(items, (dialog, which) -> {
-            dialog.dismiss();
-            if(which == strings.length){
-                toggleMouseLocalCursor();
-                return;
+    /**
+     * Initializes and applies the appropriate mouse mode based on user preferences
+     * and whether the app is running in secondary display mode (such as Samsung DeX).
+     *
+     * Behavior:
+     * - If the app is in secondary display mode:
+     *   - Applies the user's saved mouse mode if it's one of the supported modes:
+     *     "Trackpad Natural", "Trackpad Gaming", or "Disabled".
+     *   - Otherwise, defaults to applying the "Trackpad Natural" mode.
+     *
+     * - If the app is not in secondary display mode:
+     *   - Applies the user's saved mouse mode as is.
+     *
+     * This ensures the correct input mode is applied depending on the environment,
+     * improving compatibility with desktop-like multi-display modes.
+     */
+    private void initMouseMode() {
+        String[] mouseModes = getResources().getStringArray(R.array.mouse_mode_names);
+
+        String savedMouseModeIndexStr = ProfilesManager.getInstance()
+                .getOverlayingSharedPreferences(this)
+                .getString("mouse_mode_list", "0");
+
+        int savedMouseModeIndex;
+        try {
+            savedMouseModeIndex = Integer.parseInt(savedMouseModeIndexStr);
+        } catch (NumberFormatException e) {
+            savedMouseModeIndex = 0;
+        }
+
+        String savedMouseModeString = (savedMouseModeIndex >= 0 && savedMouseModeIndex < mouseModes.length)
+                ? mouseModes[savedMouseModeIndex]
+                : null;
+
+        String natural = getString(R.string.mouse_mode_track_pad_natural);
+        String gaming = getString(R.string.mouse_mode_track_pad_gaming);
+        String disabled = getString(R.string.mouse_mode_disabled);
+
+        int naturalIndex = 2; //fallback natural mode for secondary screen
+        for (int i = 0; i < mouseModes.length; i++) {
+            if (mouseModes[i].equals(natural)) {
+                naturalIndex = i;
+                break;
             }
-            applyMouseMode(which);
-            // Save the mouse mode preference
-            ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
-                .edit()
-                .putString("mouse_mode_list", String.valueOf(which))
-                .apply();
-        }).setTitle(getString(R.string.game_menu_select_mouse_mode)).create().show();
+        }
+        // We only want to temporary override the mouse mode to work with external, but not store it
+        if (isSecondaryDisplayMode()) {
+            if (savedMouseModeString != null &&
+                    (savedMouseModeString.equals(natural) ||
+                            savedMouseModeString.equals(gaming) ||
+                            savedMouseModeString.equals(disabled))) {
+                applyMouseMode(savedMouseModeIndex);
+            } else {
+                applyMouseMode(naturalIndex);
+            }
+        } else {
+            applyMouseMode(savedMouseModeIndex);
+        }
+    }
+
+    /**
+     * Displays a dialog allowing the user to select a mouse input mode.
+     *
+     * Behavior:
+     * - On regular displays, all available mouse modes are shown.
+     * - On secondary displays (e.g. Samsung DeX), only a limited set of modes are allowed:
+     *   "Trackpad Natural", "Trackpad Gaming", and "Disabled".
+     * - An additional option to toggle the local mouse cursor is always included.
+     *
+     * When the user selects a mode:
+     * - If it's the toggle option, the local mouse cursor mode is toggled.
+     * - Otherwise, the selected mode is applied and saved to shared preferences.
+     *
+     * @param context The context to use to decide where to show the dialog.
+     */
+    public void selectMouseMode(Context context){
+        String[] allModes = getResources().getStringArray(R.array.mouse_mode_names);
+
+        Set<String> allowedLabels = new HashSet<>(Arrays.asList(
+                getString(R.string.mouse_mode_track_pad_natural),
+                getString(R.string.mouse_mode_track_pad_gaming),
+                getString(R.string.mouse_mode_disabled)
+        ));
+
+        List<MouseModeOption> options = new ArrayList<>();
+
+        for (int i = 0; i < allModes.length; i++) {
+            String label = allModes[i];
+            boolean isAllowed = !isSecondaryDisplayMode() || allowedLabels.contains(label);
+            if (isAllowed) {
+                options.add(new MouseModeOption(i, label));
+            }
+        }
+
+        options.add(new MouseModeOption(-1, getString(R.string.toggle_local_mouse_cursor)));
+
+        String[] labels = new String[options.size()];
+        for (int i = 0; i < options.size(); i++) {
+            labels[i] = options.get(i).label;
+        }
+        final MouseModeOption[] optionArray = options.toArray(new MouseModeOption[0]);
+
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.game_menu_select_mouse_mode))
+                .setItems(labels, (dialog, which) -> {
+                    dialog.dismiss();
+                    MouseModeOption selected = optionArray[which];
+                    if (selected.index == -1) {
+                        toggleMouseLocalCursor();
+                    } else {
+                        applyMouseMode(selected.index);
+                        ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
+                                .edit()
+                                .putString("mouse_mode_list", String.valueOf(selected.index))
+                                .apply();
+                    }
+                })
+                .create()
+                .show();
+
+
     }
 
     //本地鼠标光标切换
@@ -4032,8 +4139,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 ((ViewGroup) rootView).removeView(streamView); // <- fix
                 secondaryDisplayPresentation.addView(streamView);
             }
-            // Force mouse mode as trackpad during presentation as user won't see anything on device screen
-            applyMouseMode(2);
         }
     }
 
