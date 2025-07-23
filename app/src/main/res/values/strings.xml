@@ -365,6 +365,7 @@
     <string name="game_menu_toggle_hud">Toggle Performance Overlay</string>
     <string name="game_menu_toggle_floating_button">Toggle Floating Button</string>
     <string name="game_menu_select_mouse_mode">Select Mouse mode</string>
+    <string name="game_menu_select_steam_mode">Select Stream mode</string>
     <string name="game_menu_enable_zoom_mode">Enable Pan/Zoom</string>
     <string name="game_menu_disable_zoom_mode">Disable Pan/Zoom</string>
     <string name="game_menu_rotate_screen">Rotate Screen</string>
@@ -424,9 +425,10 @@
     <string name="title_custom_refresh_rate">Custom refresh rate</string>
     <string name="summary_custom_refresh_rate">Enter refresh rate manually. Only supports Apollo.</string>
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
+    <string name="title_render_mode">Render Mode</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
+    <string name="summary_render_mode">Select render mode either 2d default or one of the SBS 3D modes. 3D will simply double your width and add the effect automatically, no setup required. </string>
     <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
-
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
     <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>
@@ -554,6 +556,10 @@
     <string name="summary_checkbox_enable_sticky_modifier_key_virtual_keyboard">Use sticky modifier keys on virtual full keyboard and custom onscreen keyboard.</string>
     <string name="virtual_keyboard_hide">Hide\nKBD</string>
     <string name="mouse_mode_multi_touch">Multi touch</string>
+    <string name="render_mode_twod">Default 2D</string>
+    <string name="threed_mode_fake">Fake 3D (Fast)</string>
+    <string name="threed_mode_ai_subtle">AI SBS 3D</string>
+    <string name="threed_mode_ai_strong">AI SBS 3D (Strong)</string>
     <string name="mouse_mode_absolute_touch">Absolute touch</string>
     <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
     <string name="mouse_mode_track_pad_gaming">Track pad(Gaming/Long press to drag)</string>

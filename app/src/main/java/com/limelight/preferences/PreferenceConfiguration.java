@@ -236,6 +236,7 @@ public class PreferenceConfiguration {
     public boolean enforceDisplayMode, useVirtualDisplay, enableSops, playHostAudio, disableWarnings;
     public ScaleMode videoScaleMode;
     public String language;
+    public int renderMode;
     public boolean smallIconMode, multiController, usbDriver, flipFaceButtons;
     public boolean onscreenController;
     public boolean hideOSCWhenHasGamepad;
@@ -852,7 +853,9 @@ public class PreferenceConfiguration {
         config.smallIconMode = prefs.getBoolean(SMALL_ICONS_PREF_STRING, getDefaultSmallMode(context));
         config.multiController = prefs.getBoolean(MULTI_CONTROLLER_PREF_STRING, DEFAULT_MULTI_CONTROLLER);
         config.usbDriver = prefs.getBoolean(USB_DRIVER_PREF_SRING, DEFAULT_USB_DRIVER);
-
+        String renderMode = prefs.getString("render_mode_list", "0");
+        int renderModeInt = Integer.parseInt(renderMode);
+        config.renderMode = renderModeInt;
         // Read mouse mode and set touch settings accordingly
         String mouseMode = prefs.getString("mouse_mode_list", "0");
         int mouseModeInt = Integer.parseInt(mouseMode);
