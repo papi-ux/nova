@@ -43,26 +43,56 @@ public class ShaderUtils {
                     "uniform sampler2D s_DepthTexture;\n" +
                     "uniform float u_parallax;\n" +
                     "uniform float u_convergence;\n" +
+                    "uniform vec2 u_focusPoint;\n" +
                     "void main() {\n" +
                     "  float depth = texture2D(s_DepthTexture, v_TexCoord).r;\n" +
                     "  float ai_shift = u_parallax * (depth - 0.5) * 0.5;\n" +
-                    "  float total_shift = u_convergence + ai_shift;\n" +
+                    "\n" +
+                    "  // Erzeuge einen Faktor, der am Fokuspunkt 1.0 ist und zu den Rändern hin sanft auf 0.0 abfällt.\n" +
+                    "  float dist = distance(v_TexCoord, u_focusPoint);\n" +
+                    "  float centerFactor = 1.0 - smoothstep(0.1, 0.7, dist);\n" +
+                    "\n" +
+                    "  // Wende den Fokus-Faktor auf den gesamten 3D-Effekt an.\n" +
+                    "  float total_shift = (u_convergence + ai_shift) * centerFactor;\n" +
                     "  vec2 shiftedCoord = vec2(v_TexCoord.x - total_shift, v_TexCoord.y);\n" +
                     "\n" +
+                    "  // Lese die originale und die verschobene Farbe.\n" +
                     "  vec4 originalColor = texture2D(s_ColorTexture, v_TexCoord);\n" +
                     "  vec4 shiftedColor = texture2D(s_ColorTexture, clamp(shiftedCoord, 0.0, 1.0));\n" +
                     "\n" +
-                    "  float outOfBounds = max(0.0, -shiftedCoord.x) + max(0.0, shiftedCoord.x - 1.0);\n" +
-                    "  float edgeBlendFactor = 1.0 - smoothstep(0.0, 0.01, outOfBounds);\n" +
-                    "\n" +
-                    "  // KORREKTUR: Der Übergang für die Artefakt-Unterdrückung wurde sanfter gemacht.\n" +
-                    "  // Er beginnt früher (bei 15%) und verläuft über einen größeren Bereich.\n" +
+                    "  // Berechne einen Mischfaktor basierend auf der Stärke der Verschiebung.\n" +
+                    "  // Bei starken Verschiebungen (harten Kanten) wird mehr vom Originalbild beigemischt,\n" +
+                    "  // um das Flimmern zu reduzieren.\n" +
                     "  float shiftMagnitude = abs(ai_shift) / u_parallax;\n" +
-                    "  float artifactBlendFactor = 1.0 - smoothstep(0.15, 0.4, shiftMagnitude);\n" +
+                    "  float artifactBlendFactor = 1.0 - smoothstep(0.25, 0.4, shiftMagnitude);\n" +
                     "\n" +
-                    "  float finalBlendFactor = min(edgeBlendFactor, artifactBlendFactor);\n" +
-                    "\n" +
-                    "  gl_FragColor = mix(originalColor, shiftedColor, finalBlendFactor);\n" +
+                    "  // Mische das 3D-Bild mit dem 2D-Originalbild an den problematischen Stellen.\n" +
+                    "  gl_FragColor = mix(originalColor, shiftedColor, artifactBlendFactor);\n" +
+                    "}";
+    public static final String FRAGMENT_SHADER_BILATERAL_BLUR =
+            "precision mediump float;\n" +
+                    "varying vec2 v_TexCoord;\n" +
+                    "uniform sampler2D s_InputTexture;\n" +
+                    "uniform vec2 u_texelSize;\n" +
+                    "const int KERNEL_RADIUS = 4;\n" +
+                    "const float DEPTH_THRESHOLD = 0.02;\n" + // Wie groß der Tiefenunterschied sein darf
+                    "void main() {\n" +
+                    "  float centerDepth = texture2D(s_InputTexture, v_TexCoord).r;\n" +
+                    "  float totalWeight = 0.0;\n" +
+                    "  float smoothedDepth = 0.0;\n" +
+                    "  for (int x = -KERNEL_RADIUS; x <= KERNEL_RADIUS; x++) {\n" +
+                    "    for (int y = -KERNEL_RADIUS; y <= KERNEL_RADIUS; y++) {\n" +
+                    "      vec2 offset = vec2(x, y) * u_texelSize;\n" +
+                    "      float sampleDepth = texture2D(s_InputTexture, v_TexCoord + offset).r;\n" +
+                    "      // Berechne die Gewichtung basierend auf dem Tiefenunterschied\n" +
+                    "      float depthDiff = abs(centerDepth - sampleDepth);\n" +
+                    "      float weight = 1.0 - smoothstep(0.0, DEPTH_THRESHOLD, depthDiff);\n" +
+                    "      smoothedDepth += sampleDepth * weight;\n" +
+                    "      totalWeight += weight;\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "  // Berechne den gewichteten Durchschnitt\n" +
+                    "  gl_FragColor = vec4(vec3(smoothedDepth / totalWeight), 1.0);\n" +
                     "}";
     public static final String SIMPLE_VERTEX_SHADER =
             "attribute vec4 a_Position;\n" +
@@ -81,26 +111,4 @@ public class ShaderUtils {
                     "void main() {\n" +
                     "    gl_FragColor = texture2D(u_Texture, v_TexCoord);\n" +
                     "}\n";
-
-    public static final String FRAGMENT_SHADER_BLUR =
-            "precision mediump float;\n" +
-                    "varying vec2 v_TexCoord;\n" +
-                    "uniform sampler2D s_Texture;\n" +
-                    "uniform vec2 u_textureSize;\n" + // Die Größe der Textur (z.B. 256x256)
-                    "void main() {\n" +
-                    "  vec2 texelSize = 1.0 / u_textureSize;\n" +
-                    "  vec4 result = vec4(0.0);\n" +
-                    // Sample 9 Pixel in einem 3x3-Raster um den aktuellen Pixel
-                    "  result += texture2D(s_Texture, v_TexCoord + vec2(-texelSize.x, -texelSize.y));\n" +
-                    "  result += texture2D(s_Texture, v_TexCoord + vec2(0.0, -texelSize.y));\n" +
-                    "  result += texture2D(s_Texture, v_TexCoord + vec2(texelSize.x, -texelSize.y));\n" +
-                    "  result += texture2D(s_Texture, v_TexCoord + vec2(-texelSize.x, 0.0));\n" +
-                    "  result += texture2D(s_Texture, v_TexCoord);\n" +
-                    "  result += texture2D(s_Texture, v_TexCoord + vec2(texelSize.x, 0.0));\n" +
-                    "  result += texture2D(s_Texture, v_TexCoord + vec2(-texelSize.x, texelSize.y));\n" +
-                    "  result += texture2D(s_Texture, v_TexCoord + vec2(0.0, texelSize.y));\n" +
-                    "  result += texture2D(s_Texture, v_TexCoord + vec2(texelSize.x, texelSize.y));\n" +
-                    // Bilde den Durchschnitt der 9 Samples
-                    "  gl_FragColor = result / 9.0;\n" +
-                    "}";
 }
