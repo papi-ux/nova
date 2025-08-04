@@ -64,12 +64,16 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         final float averageDepth;
         final float focusPointX;
         final float focusPointY;
+        final float minFocusPointX; // Furthest point X
+        final float minFocusPointY; // Furthest point Y
 
-        DepthResult(ByteBuffer map, float avg, float focusX, float focusY) {
+        DepthResult(ByteBuffer map, float avg, float focusX, float focusY, float minFocusX, float minFocusY) {
             depthMap = map;
             averageDepth = avg;
             focusPointX = focusX;
             focusPointY = focusY;
+            minFocusPointX = minFocusX;
+            minFocusPointY = minFocusY;
         }
     }
 
@@ -81,6 +85,9 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     private float targetFocusPointX = 0.5f;
     private float targetFocusPointY = 0.5f;
+
+    private float targetMinFocusPointX = 0.5f;
+    private float targetMinFocusPointY = 0.5f;
     private int videoTextureId;
     private int depthMapTextureId;
     private int fboHandle;
@@ -105,6 +112,9 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     private volatile float smoothedFocusPointX = 0.5f;
     private volatile float smoothedFocusPointY = 0.5f;
+
+    private volatile float smoothedMinFocusPointX = 0.5f;
+    private volatile float smoothedMinFocusPointY = 0.5f;
 
     private int filteredDepthMapTextureId; // Smoothed version of the depth map
     private int filterFboHandle; // FBO for the blur pass
@@ -154,7 +164,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
         simple3dProgram = createProgram(ShaderUtils.SIMPLE_VERTEX_SHADER, ShaderUtils.SIMPLE_FRAGMENT_SHADER);
         bilateralBlurProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_BILATERAL_BLUR);
-        dibr3dProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_DIBR_DYN_CONVERGENCE_3D);
+        dibr3dProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_DUAL_BUBBLE_3D);
 
         initializeFilterFbo();
         initializeTfLite();
@@ -168,56 +178,174 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         }
     }
 
+    /**
+     * Draws the scene with Depth-Image-Based Rendering (DIBR) for both eyes.
+     * This method synthesizes both the left and right eye views from a single
+     * color texture and a corresponding depth map.
+     *
+     * @param program The handle to the DIBR shader program.
+     * @param parallax The base parallax factor, controlling the intensity of the 3D effect.
+     * @param convergenceStrength A factor to adjust the dynamic convergence based on scene depth.
+     */
+    /**
+     * Draws the scene with Depth-Image-Based Rendering (DIBR) for both eyes.
+     * This method synthesizes both the left and right eye views from a single
+     * color texture and a corresponding depth map.
+     *
+     * @param program The handle to the DIBR shader program.
+     * @param parallax The base parallax factor, controlling the intensity of the 3D effect.
+     * @param convergenceStrength A factor to adjust the dynamic convergence based on scene depth.
+     */
     private void drawWithDibr(int program, float parallax, float convergenceStrength) {
         int viewWidth = glSurfaceView.getWidth();
         int viewHeight = glSurfaceView.getHeight();
 
-        // Left eye (unmodified)
-        GLES20.glViewport(0, 0, viewWidth / 2, viewHeight);
-        drawQuad(simple3dProgram, 1.0f, 0.0f);
+        // --- 1. Common Setup for Both Eyes ---
 
-        // Right eye (synthesized)
-        GLES20.glViewport(viewWidth / 2, 0, viewWidth / 2, viewHeight);
+        // Use the DIBR shader program for all subsequent rendering.
         GLES20.glUseProgram(program);
 
+        // Get handles for shader attributes and uniforms.
         int posHandle = GLES20.glGetAttribLocation(program, "a_Position");
         int texHandle = GLES20.glGetAttribLocation(program, "a_TexCoord");
-        GLES20.glVertexAttribPointer(posHandle, 2, GLES20.GL_FLOAT, false, 0, quadVertexBuffer);
-        GLES20.glVertexAttribPointer(texHandle, 2, GLES20.GL_FLOAT, false, 0, textureVertexBuffer);
-        GLES20.glEnableVertexAttribArray(posHandle);
-        GLES20.glEnableVertexAttribArray(texHandle);
-
-        float dynamicConvergence = (smoothedAverageSceneDepth) * (convergenceStrength / 10f);
-
-        LimeLog.info("dynamicConvergence: " + dynamicConvergence);
-
         int colorTexHandle = GLES20.glGetUniformLocation(program, "s_ColorTexture");
         int depthTexHandle = GLES20.glGetUniformLocation(program, "s_DepthTexture");
         int parallaxHandle = GLES20.glGetUniformLocation(program, "u_parallax");
         int convergenceHandle = GLES20.glGetUniformLocation(program, "u_convergence");
         int focusPointHandle = GLES20.glGetUniformLocation(program, "u_focusPoint");
 
-        if (convergenceHandle != -1) {
-            GLES20.glUniform1f(convergenceHandle, dynamicConvergence);
-        }
+        // Enable and set the vertex attribute arrays for position and texture coordinates.
+        GLES20.glVertexAttribPointer(posHandle, 2, GLES20.GL_FLOAT, false, 0, quadVertexBuffer);
+        GLES20.glVertexAttribPointer(texHandle, 2, GLES20.GL_FLOAT, false, 0, textureVertexBuffer);
+        GLES20.glEnableVertexAttribArray(posHandle);
+        GLES20.glEnableVertexAttribArray(texHandle);
+
+        // Calculate the dynamic convergence based on the average scene depth.
+        // This helps adjust the focal point to reduce eye strain.
+        float dynamicConvergence = (smoothedAverageSceneDepth) * (convergenceStrength / 10f);
+        LimeLog.info("dynamicConvergence: " + dynamicConvergence);
+
+        // Halve the parallax and convergence values to apply them to each eye individually.
+        float halfParallax = parallax / 2.0f;
+        float halfConvergence = dynamicConvergence / 2.0f;
+
+
+        // Set the uniforms that are the same for both eyes (focus point).
         if (focusPointHandle != -1) {
             GLES20.glUniform2f(focusPointHandle, smoothedFocusPointX, smoothedFocusPointY);
         }
+
+        // Bind the color texture (video frame) to texture unit 0.
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         GLES20.glBindTexture(GL_TEXTURE_EXTERNAL_OES, videoTextureId);
         GLES20.glUniform1i(colorTexHandle, 0);
 
+        // Bind the depth map texture to texture unit 1.
         GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, filteredDepthMapTextureId);
         GLES20.glUniform1i(depthTexHandle, 1);
 
-        GLES20.glUniform1f(parallaxHandle, parallax);
+
+        // --- 2. Left Eye Rendering ---
+
+        // Set the viewport to the left half of the screen.
+        GLES20.glViewport(0, 0, viewWidth / 2, viewHeight);
+
+        // Set the parallax uniform to a NEGATIVE value for the left eye.
+        GLES20.glUniform1f(parallaxHandle, -halfParallax);
+
+        // Set the convergence uniform. Assuming the shader subtracts the convergence value,
+        // a negative value here will shift the image to the right.
+        if (convergenceHandle != -1) {
+            GLES20.glUniform1f(convergenceHandle, -halfConvergence);
+        }
+
+        // Draw the quad for the left eye.
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+
+        // --- 3. Right Eye Rendering ---
+
+        // Set the viewport to the right half of the screen.
+        GLES20.glViewport(viewWidth / 2, 0, viewWidth / 2, viewHeight);
+
+        // Set the parallax uniform to a POSITIVE value for the right eye.
+        GLES20.glUniform1f(parallaxHandle, halfParallax);
+
+        // Set the convergence uniform. A positive value will shift the image to the left.
+        if (convergenceHandle != -1) {
+            GLES20.glUniform1f(convergenceHandle, halfConvergence);
+        }
+
+        // Draw the quad for the right eye.
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
     }
+    private float lockedTargetFocusPointX = 0.5f;
+    private float lockedTargetFocusPointY = 0.5f;
+    private float lockedTargetMinFocusPointX = 0.5f;
+    private float lockedTargetMinFocusPointY = 0.5f;
+    private float targetDepthContrast = 0.0f; // NEU
+    private void drawWithDualBubbleDepth(int dualBubble3dProgram, float parallaxStrength, float convergenceStrength) {
+        int viewWidth = glSurfaceView.getWidth();
+        int viewHeight = glSurfaceView.getHeight();
+
+        GLES20.glUseProgram(dualBubble3dProgram);
+
+        // Get handles
+        int posHandle = GLES20.glGetAttribLocation(dualBubble3dProgram, "a_Position");
+        int texHandle = GLES20.glGetAttribLocation(dualBubble3dProgram, "a_TexCoord");
+        int colorTexHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "s_ColorTexture");
+        int depthTexHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "s_DepthTexture");
+        int parallaxHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_parallax");
+        int convergenceHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_convergence");
+        int focusPointHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_focusPoint");
+        int minFocusPointHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_minFocusPoint"); // New handle
+        int avgDepthHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_averageSceneDepth");
+        int debugModeHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_debugMode");
+
+        // Set vertex attributes
+        GLES20.glVertexAttribPointer(posHandle, 2, GLES20.GL_FLOAT, false, 0, quadVertexBuffer);
+        GLES20.glVertexAttribPointer(texHandle, 2, GLES20.GL_FLOAT, false, 0, textureVertexBuffer);
+        GLES20.glEnableVertexAttribArray(posHandle);
+        GLES20.glEnableVertexAttribArray(texHandle);
+        float convergenceScaler = convergenceStrength * 0.018f;
+        // Calculate convergence
+        float dynamicConvergence = (smoothedAverageSceneDepth) * (convergenceScaler);
+        float parallax = 0.065f * parallaxStrength;
+        float halfParallax = parallax / 2.0f;
+        float halfConvergence = dynamicConvergence / 2.0f;
+
+        GLES20.glUniform2f(focusPointHandle, smoothedFocusPointX, smoothedFocusPointY);
+        GLES20.glUniform2f(minFocusPointHandle, smoothedMinFocusPointX, smoothedMinFocusPointY); // Set new uniform
+        GLES20.glUniform1f(avgDepthHandle, smoothedAverageSceneDepth);
+        GLES20.glUniform1i(debugModeHandle, false ? 1 : 0); //
+
+        // Bind textures
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GL_TEXTURE_EXTERNAL_OES, videoTextureId);
+        GLES20.glUniform1i(colorTexHandle, 0);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, filteredDepthMapTextureId);
+        GLES20.glUniform1i(depthTexHandle, 1);
+
+        // --- Left Eye ---
+        GLES20.glViewport(0, 0, viewWidth / 2, viewHeight);
+        GLES20.glUniform1f(parallaxHandle, -halfParallax);
+        GLES20.glUniform1f(convergenceHandle, -halfConvergence);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+        // --- Right Eye ---
+        GLES20.glViewport(viewWidth / 2, 0, viewWidth / 2, viewHeight);
+        GLES20.glUniform1f(parallaxHandle, halfParallax);
+        GLES20.glUniform1f(convergenceHandle, halfConvergence);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+    }
+
 
     private void applyBilateralFilter() {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, filterFboHandle);
         GLES20.glViewport(0, 0, modelInputWidth, modelInputHeight);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
         GLES20.glUseProgram(bilateralBlurProgram);
 
@@ -230,36 +358,36 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
         int inputTextureHandle = GLES20.glGetUniformLocation(bilateralBlurProgram, "s_InputTexture");
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, depthMapTextureId);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, depthMapTextureId); // Lese die rohe Karte
         GLES20.glUniform1i(inputTextureHandle, 0);
 
         int texelSizeHandle = GLES20.glGetUniformLocation(bilateralBlurProgram, "u_texelSize");
         GLES20.glUniform2f(texelSizeHandle, 1.0f / modelInputWidth, 1.0f / modelInputHeight);
 
-        drawQuad(bilateralBlurProgram, 1.0f, 0.0f);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4); // Schreibe in die gefilterte Textur
 
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
     }
 
-    private float subtilParallax = 0.01f;
-    private float subtilConvergence = 0.03f;
+    private float subtilParallax = 0.7f;
+    private float subtilConvergence = 0.7f; //0.7f
 
     private void drawWithDibrAiSubtleShader() {
-        drawWithDibr(dibr3dProgram, subtilParallax, subtilConvergence);
+        drawWithDualBubbleDepth(dibr3dProgram, subtilParallax, subtilConvergence);
     }
 
-    private float normalParallax = 0.025f;
-    private float normalConvergence = 0.05f;
+    private float normalParallax = 0.00f;
+    private float normalConvergence = 0.8f;
 
     private void drawWithFake3DShader() {
-        drawWithDibr(dibr3dProgram, normalParallax, normalConvergence);
+        drawWithDualBubbleDepth(dibr3dProgram, normalParallax, normalConvergence);
     }
 
-    private float strongParallax = 0.03f;
-    private float strongConvergence = 0.6f;
+    private float strongParallax = 0.8f;
+    private float strongConvergence = 0f;
 
     private void drawWithDibrAiStrongShader() {
-        drawWithDibr(dibr3dProgram, strongParallax, strongConvergence);
+        drawWithDualBubbleDepth(dibr3dProgram, strongParallax, strongConvergence);
     }
 
     private void initBuffer() {
@@ -308,9 +436,9 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             final double SCENE_CUT_THRESHOLD = 80.0; // Strong change (scene cut)
             final double FAST_MOTION_THRESHOLD = 50.0; // Medium change (fast motion)
 
-            final float LOW_SMOOTHING = 0.1f;   // For scene cuts
-            final float MEDIUM_SMOOTHING = 0.05f; // For fast motion
-            final float HIGH_SMOOTHING = 0.01f;  // For slow pans
+            final float LOW_SMOOTHING = 0.2f;   // For scene cuts
+            final float MEDIUM_SMOOTHING = 0.15f; // For fast motion
+            final float HIGH_SMOOTHING = 0.1f;  // For slow pans
 
             float currentSmoothingFactor;
 
@@ -348,10 +476,13 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
 
     private void smoothFocusPoint(float smoothingfactor) {
-        smoothedFocusPointX = (targetFocusPointX * (1.0f-smoothingfactor)) + (smoothedFocusPointX * smoothingfactor);
-        smoothedFocusPointY = (targetFocusPointY * (1.0f-smoothingfactor)) + (smoothedFocusPointY * smoothingfactor);
+        float lerpFactor = 1.0f - smoothingfactor;
+        smoothedFocusPointX = (targetFocusPointX * lerpFactor) + (smoothedFocusPointX * smoothingfactor);
+        smoothedFocusPointY = (targetFocusPointY * lerpFactor) + (smoothedFocusPointY * smoothingfactor);
+        smoothedMinFocusPointX = (targetMinFocusPointX * lerpFactor) + (smoothedMinFocusPointX * smoothingfactor);
+        smoothedMinFocusPointY = (targetMinFocusPointY * lerpFactor) + (smoothedMinFocusPointY * smoothingfactor);
     }
-
+    private float lockedTargetDepthContrast = 0.0f; // NEU
     @Override
     public void onDrawFrame(GL10 gl) {
         long startTime = System.nanoTime();
@@ -383,9 +514,36 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                 latestUnsmoothedDepthMap = newResult.depthMap;
             }
 
-            targetAverageSceneDepth = newResult.averageDepth;
-            targetFocusPointX = newResult.focusPointX;
-            targetFocusPointY = newResult.focusPointY;
+            final float FOCUS_CHANGE_THRESHOLD = 2.0f / 16.0f; // Schwellenwert (z.B. 2 Raster-Zonen)
+
+            LimeLog.info("SMOOTHRESULT " + newResult.averageDepth + " " + newResult.minFocusPointX + " " + newResult.focusPointX);
+            float distMax = (float) Math.hypot(newResult.focusPointX - lockedTargetFocusPointX,
+                    newResult.focusPointY - lockedTargetFocusPointY);
+            if (distMax > FOCUS_CHANGE_THRESHOLD) {
+                lockedTargetFocusPointX = newResult.focusPointX;
+                lockedTargetFocusPointY = newResult.focusPointY;
+            }
+
+            final float CONTRAST_CHANGE_THRESHOLD = 0.1f; // Schwellenwert für Kontraständerung
+
+            if (Math.abs(newResult.averageDepth - lockedTargetDepthContrast) > CONTRAST_CHANGE_THRESHOLD) {
+                lockedTargetDepthContrast = newResult.averageDepth; // Kontrast immer aktualisieren
+            }
+
+            float distMin = (float) Math.hypot(newResult.minFocusPointX - lockedTargetMinFocusPointX,
+                    newResult.minFocusPointY - lockedTargetMinFocusPointY);
+            if (distMin > FOCUS_CHANGE_THRESHOLD) {
+                lockedTargetMinFocusPointX = newResult.minFocusPointX;
+                lockedTargetMinFocusPointY = newResult.minFocusPointY;
+            }
+
+
+            targetAverageSceneDepth = lockedTargetDepthContrast;
+            targetFocusPointX = lockedTargetFocusPointX;
+            targetFocusPointY = lockedTargetFocusPointY;
+            targetMinFocusPointX = lockedTargetMinFocusPointX;
+            targetMinFocusPointY = lockedTargetMinFocusPointY;
+            targetDepthContrast = lockedTargetDepthContrast;
         }
 
         // Smooth the convergence value and the depth map in every frame
@@ -588,15 +746,10 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     }
                 }
 
-                long depthSum = 0;
-                for (int i = 0; i < depthBytes.capacity(); i++) {
-                    depthSum += (depthBytes.get(i) & 0xFF);
-                }
-                float newAverageDepth = (float) (depthSum / (double) depthBytes.capacity()) / 255.0f;
-
                 // --- Calculate the new focus point ---
                 final int NUM_REGIONS = 16;
                 long[][] regionSums = new long[NUM_REGIONS][NUM_REGIONS];
+                int[][] regionCounts = new int[NUM_REGIONS][NUM_REGIONS];
                 int regionWidth = modelInputWidth / NUM_REGIONS;
                 int regionHeight = modelInputHeight / NUM_REGIONS;
 
@@ -607,28 +760,41 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                         int regionY = y / regionHeight;
                         if (regionX < NUM_REGIONS && regionY < NUM_REGIONS) {
                             regionSums[regionY][regionX] += (depthBytes.get() & 0xFF);
+                            regionCounts[regionY][regionX]++;
                         }
                     }
                 }
                 depthBytes.rewind();
 
                 int maxRegionX = 0, maxRegionY = 0;
-                long maxSum = 0;
+                int minRegionX = 0, minRegionY = 0;
+                long maxSum = -1;
+                long minSum = Long.MAX_VALUE;
+
                 for (int y = 0; y < NUM_REGIONS; y++) {
                     for (int x = 0; x < NUM_REGIONS; x++) {
-                        if (regionSums[y][x] > maxSum) {
-                            maxSum = regionSums[y][x];
+                        long currentSum = regionSums[y][x];
+                        if (currentSum > maxSum) {
+                            maxSum = currentSum;
                             maxRegionX = x;
                             maxRegionY = y;
+                        }
+                        if (currentSum < minSum) {
+                            minSum = currentSum;
+                            minRegionX = x;
+                            minRegionY = y;
                         }
                     }
                 }
 
                 float newFocusPointX = (maxRegionX + 0.5f) / NUM_REGIONS;
                 float newFocusPointY = (maxRegionY + 0.5f) / NUM_REGIONS;
-
-                // Pass all results to the main thread
-                latestDepthResult.set(new DepthResult(depthBytes, newAverageDepth, newFocusPointX, newFocusPointY));
+                float newMinFocusPointX = (minRegionX + 0.5f) / NUM_REGIONS;
+                float newMinFocusPointY = (minRegionY + 0.5f) / NUM_REGIONS;
+                float maxDepth = (float)(regionSums[maxRegionY][maxRegionX] / (double)regionCounts[maxRegionY][maxRegionX]) / 255.0f;
+                float minDepth = (float)(regionSums[minRegionY][minRegionX] / (double)regionCounts[minRegionY][minRegionX]) / 255.0f;
+                float depthContrast = maxDepth - minDepth;
+                latestDepthResult.set(new DepthResult(depthBytes, depthContrast, newFocusPointX, newFocusPointY, newMinFocusPointX, newMinFocusPointY));
 
             } catch (Exception e) {
                 Log.e("DepthEstimationTask", "AI inference failed", e);
@@ -708,14 +874,15 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     }
 
     private void initializeFilterFbo() {
+        // --- FINALE KORREKTUR: Verwende createRgbaTexture, um Kompatibilität sicherzustellen ---
         filteredDepthMapTextureId = createRgbaTexture(modelInputWidth, modelInputHeight);
         int[] fbos = new int[1];
         GLES20.glGenFramebuffers(1, fbos, 0);
         filterFboHandle = fbos[0];
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboHandle);
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, filterFboHandle);
         GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, filteredDepthMapTextureId, 0);
         if (GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) != GLES20.GL_FRAMEBUFFER_COMPLETE) {
-            Log.e("Stereo3DRenderer", "Framebuffer is not complete.");
+            Log.e("Stereo3DRenderer", "Filter Framebuffer is not complete.");
         }
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
     }

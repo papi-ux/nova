@@ -13,29 +13,7 @@ public class ShaderUtils {
                     "  gl_Position = a_Position;\n" +
                     "  v_TexCoord = a_TexCoord;\n" +
                     "}";
-    public static final String FRAGMENT_SHADER_FAKE_3D =
-            "#extension GL_OES_EGL_image_external : require\n" +
-                    "precision mediump float;\n" +
-                    "varying vec2 v_TexCoord;\n" +
-                    "uniform samplerExternalOES s_Texture;\n" +
-                    "uniform float u_xOffset;\n" +
-                    "uniform float u_xScale;\n" +
-                    "const float EDGE_FADE = 0.05;\n" + // Schmaler Rand für die Überblendung
-                    "void main() {\n" +
-                    "  vec2 shiftedCoord = vec2((v_TexCoord.x * u_xScale) + u_xOffset, v_TexCoord.y);\n" +
-                    "  vec4 originalColor = texture2D(s_Texture, v_TexCoord);\n" +
-                    "  vec4 shiftedColor = texture2D(s_Texture, clamp(shiftedCoord, 0.0, 1.0));\n" +
-                    "\n" +
-                    "  float edgeFactor = 1.0;\n" +
-                    "  if (v_TexCoord.x < EDGE_FADE) {\n" +
-                    "    edgeFactor = smoothstep(0.0, EDGE_FADE, v_TexCoord.x);\n" +
-                    "  } else if (v_TexCoord.x > 1.0 - EDGE_FADE) {\n" +
-                    "    edgeFactor = smoothstep(1.0, 1.0 - EDGE_FADE, v_TexCoord.x);\n" +
-                    "  }\n" +
-                    "\n" +
-                    "  gl_FragColor = mix(originalColor, shiftedColor, edgeFactor);\n" +
-                    "}";
-    public static final String FRAGMENT_SHADER_DIBR_DYN_CONVERGENCE_3D =
+    public static final String FRAGMENT_SHADER_DUAL_BUBBLE_3D =
             "#extension GL_OES_EGL_image_external : require\n" +
                     "precision mediump float;\n" +
                     "varying vec2 v_TexCoord;\n" +
@@ -44,56 +22,77 @@ public class ShaderUtils {
                     "uniform float u_parallax;\n" +
                     "uniform float u_convergence;\n" +
                     "uniform vec2 u_focusPoint;\n" +
+                    "uniform vec2 u_minFocusPoint;\n" +
+                    "uniform bool u_debugMode;\n" +
                     "void main() {\n" +
+                    // --- Ihre Logik, aber korrigiert ---
                     "  float depth = texture2D(s_DepthTexture, v_TexCoord).r;\n" +
                     "  float ai_shift = u_parallax * (depth - 0.5) * 0.5;\n" +
                     "\n" +
-                    "  // Erzeuge einen Faktor, der am Fokuspunkt 1.0 ist und zu den Rändern hin sanft auf 0.0 abfällt.\n" +
+                    // 1. Berechne die Stärke beider Blasen
                     "  float dist = distance(v_TexCoord, u_focusPoint);\n" +
-                    "  float centerFactor = 1.0 - smoothstep(0.1, 0.7, dist);\n" +
+                    "  float bubbleRadius = 0.9;\n" + // Die Gesamtgröße der Blase
+                    "  float t_pos = clamp(dist / bubbleRadius, 0.0, 1.0);\n" +
+                    // Normalisiere den Abstand
+                    "  float centerFactor = 1.0 - pow(t_pos, 1.0);\n" + // Erzeuge eine parabolische Kurve
+                    //   "  float centerFactor = 1.0 - smoothstep(0.1, 0.7, dist);\n" +
+                    "  float dist_min = distance(v_TexCoord, u_minFocusPoint);\n" +
+                    "  float t_pos_min = clamp(dist_min / bubbleRadius, 0.0, 1.0);\n" +
+                    "  float centerFactorMin = 1.0 - pow(t_pos_min, 2.0);\n" +
+                    "  float combinedFactor = 0.0;\n" +
+                    "  if (centerFactor > centerFactorMin) {\n" +
+                    "    combinedFactor = u_convergence * centerFactor;\n" +
+                    "  } else {\n" +
+                    "    combinedFactor = -u_convergence * centerFactorMin;\n" +
+                    "  }\n" +
                     "\n" +
-                    "  // Wende den Fokus-Faktor auf den gesamten 3D-Effekt an.\n" +
-                    "  float total_shift = (u_convergence + ai_shift) * centerFactor;\n" +
+                    // 2. Erzeuge einen positiven Shift für die nahe Blase und einen negativen für die ferne
+                    "  float positive_shift = u_convergence * centerFactor;\n" +
+                    "  float negative_shift = -u_convergence * centerFactorMin;\n" + // Invertiere den Shift für die ferne Blase
+                    "\n" +
+                    // 3. Kombiniere die Shifts und wende die globale Konvergenz an
+                    "  float combined_ai_shift = positive_shift + negative_shift;\n" +
+                    "  float total_shift = ai_shift + combined_ai_shift;\n" +
                     "  vec2 shiftedCoord = vec2(v_TexCoord.x - total_shift, v_TexCoord.y);\n" +
                     "\n" +
-                    "  // Lese die originale und die verschobene Farbe.\n" +
+                    // --- Der Rest Ihrer bewährten Logik ---
                     "  vec4 originalColor = texture2D(s_ColorTexture, v_TexCoord);\n" +
                     "  vec4 shiftedColor = texture2D(s_ColorTexture, clamp(shiftedCoord, 0.0, 1.0));\n" +
+                    //"  float shiftMagnitude = abs(ai_shift) / max(u_parallax, 0.001);\n" +
+                    //  "  float artifactBlendFactor = 1.0 - smoothstep(0.25, 0.4, shiftMagnitude);\n" +
+                    "  vec4 finalColor = shiftedColor;\n" +
                     "\n" +
-                    "  // Berechne einen Mischfaktor basierend auf der Stärke der Verschiebung.\n" +
-                    "  // Bei starken Verschiebungen (harten Kanten) wird mehr vom Originalbild beigemischt,\n" +
-                    "  // um das Flimmern zu reduzieren.\n" +
-                    "  float shiftMagnitude = abs(ai_shift) / u_parallax;\n" +
-                    "  float artifactBlendFactor = 1.0 - smoothstep(0.25, 0.4, shiftMagnitude);\n" +
-                    "\n" +
-                    "  // Mische das 3D-Bild mit dem 2D-Originalbild an den problematischen Stellen.\n" +
-                    "  gl_FragColor = mix(originalColor, shiftedColor, artifactBlendFactor);\n" +
-                    "}";
+                    // --- Debug-Farben ---
+                    "  if (u_debugMode) {\n" +
+                    "    float debugDepth = total_shift;\n" + // Visualisiere den kombinierten Shift
+                    "    vec3 debugTint = vec3(0.0);\n" +
+                    "    if (debugDepth > 0.0) { debugTint.r = debugDepth * 50.0; }\n" +
+                    "    else { debugTint.b = -debugDepth * 50.0; }\n" +
+                    "    finalColor.rgb += debugTint;\n" +
+                    "  }\n" +
+                    "  gl_FragColor = finalColor;\n" +
+                    "}\n";
+
     public static final String FRAGMENT_SHADER_BILATERAL_BLUR =
             "precision mediump float;\n" +
                     "varying vec2 v_TexCoord;\n" +
                     "uniform sampler2D s_InputTexture;\n" +
                     "uniform vec2 u_texelSize;\n" +
-                    "const int KERNEL_RADIUS = 4;\n" +
-                    "const float DEPTH_THRESHOLD = 0.02;\n" + // Wie groß der Tiefenunterschied sein darf
                     "void main() {\n" +
-                    "  float centerDepth = texture2D(s_InputTexture, v_TexCoord).r;\n" +
-                    "  float totalWeight = 0.0;\n" +
-                    "  float smoothedDepth = 0.0;\n" +
-                    "  for (int x = -KERNEL_RADIUS; x <= KERNEL_RADIUS; x++) {\n" +
-                    "    for (int y = -KERNEL_RADIUS; y <= KERNEL_RADIUS; y++) {\n" +
-                    "      vec2 offset = vec2(x, y) * u_texelSize;\n" +
-                    "      float sampleDepth = texture2D(s_InputTexture, v_TexCoord + offset).r;\n" +
-                    "      // Berechne die Gewichtung basierend auf dem Tiefenunterschied\n" +
-                    "      float depthDiff = abs(centerDepth - sampleDepth);\n" +
-                    "      float weight = 1.0 - smoothstep(0.0, DEPTH_THRESHOLD, depthDiff);\n" +
-                    "      smoothedDepth += sampleDepth * weight;\n" +
-                    "      totalWeight += weight;\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "  // Berechne den gewichteten Durchschnitt\n" +
-                    "  gl_FragColor = vec4(vec3(smoothedDepth / totalWeight), 1.0);\n" +
-                    "}";
+                    "  vec4 sum = vec4(0.0);\n" +
+                    // Simple 9-tap Gaussian blur. This makes the depth map much softer.
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 4.0 * u_texelSize) * 0.05;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 3.0 * u_texelSize) * 0.09;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 2.0 * u_texelSize) * 0.12;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 1.0 * u_texelSize) * 0.15;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord) * 0.18;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 1.0 * u_texelSize) * 0.15;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 2.0 * u_texelSize) * 0.12;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 3.0 * u_texelSize) * 0.09;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 4.0 * u_texelSize) * 0.05;\n" +
+                    "  gl_FragColor = sum;\n" +
+                    "}\n";
+
     public static final String SIMPLE_VERTEX_SHADER =
             "attribute vec4 a_Position;\n" +
                     "attribute vec2 a_TexCoord;\n" +
