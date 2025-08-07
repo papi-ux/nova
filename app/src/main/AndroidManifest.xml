@@ -160,7 +160,7 @@
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
             android:taskAffinity=""
-            android:theme="@style/StreamTheme"/>
+            android:theme="@style/ExternalDisplayControllerTheme"/>
         <activity
             android:name=".preferences.StreamSettings"
             android:resizeableActivity="true"

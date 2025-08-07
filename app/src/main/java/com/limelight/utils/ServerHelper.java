@@ -1,5 +1,8 @@
 package com.limelight.utils;
 
+import static com.limelight.StartExternalDisplayControlReceiver.requestFocusToExternalDisplayControl;
+import static com.limelight.StartExternalDisplayControlReceiver.requestFocusToGameActivity;
+
 import android.app.Activity;
 import android.app.ActivityOptions;
 import android.content.Context;
@@ -155,11 +158,11 @@ public class ServerHelper {
         Intent intent = createStartIntent(parent, app, computer, managerBinder, withVDisplay);
 
         if (hasSecondaryDisplay) {
-            Intent intentTouchpad = new Intent(parent, ExternalDisplayControlActivity.class);
-            intentTouchpad.putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, intent);
+            Intent touchpadIntent = new Intent(parent, ExternalDisplayControlActivity.class);
+            touchpadIntent.putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, intent);
             Bundle optionsDefault = ActivityOptions.makeBasic().setLaunchDisplayId(Display.DEFAULT_DISPLAY).toBundle();
 
-            parent.startActivity(intentTouchpad, optionsDefault);
+            parent.startActivity(touchpadIntent, optionsDefault);
         } else {
             // Fallback: launch normally on primary display
             parent.startActivity(intent);

@@ -56,6 +56,13 @@
         <item name="android:windowBackground">@android:color/transparent</item>
     </style>
 
+    <style name="ExternalDisplayControllerTheme" parent="AppTheme">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:colorBackground">@android:color/transparent</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+
     <declare-styleable name="ApertureViewGroup">
         <attr name="aperture_color1" format="color" />
         <attr name="aperture_color2" format="color" />

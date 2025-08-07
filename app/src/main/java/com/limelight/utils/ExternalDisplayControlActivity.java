@@ -1,11 +1,10 @@
 package com.limelight.utils;
 
-import static com.limelight.StartExternalDisplayControlReceiver.requestFocusToSecondScreen;
+import static com.limelight.StartExternalDisplayControlReceiver.requestFocusToGameActivity;
 import static com.limelight.utils.ServerHelper.getSecondaryDisplay;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.ActivityOptions;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -18,11 +17,6 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.LinearGradient;
-import android.graphics.Paint;
-import android.graphics.RadialGradient;
-import android.graphics.Shader;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
@@ -32,7 +26,6 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Display;
 import android.view.Gravity;
-import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -52,6 +45,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.IconCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.limelight.Game;
 import com.limelight.GameMenu;
@@ -144,6 +140,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
                     Handler handler = new Handler(Looper.getMainLooper());
                     handler.postDelayed(this::initViews, 500);
                 } else {
+                    LimeLog.warning("NO EXTERNAL DISPLAY!!!???");
                     startActivity(gameIntent);
                     finish();
                 }
@@ -154,13 +151,22 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
     }
 
     private void initViews() {
+        WindowInsetsControllerCompat windowInsetsController = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+
+        windowInsetsController.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        );
+
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars());
+        windowInsetsController.hide(WindowInsetsCompat.Type.navigationBars());
+
         initializeComponents();
         createProgrammaticUI();
         checkNotificationPermission();
         initTouchEventHandling();
         setupKeyboardInputHandling();
         setupInactivityTimeoutForBrightness();
-        requestFocusToSecondScreen();
+        requestFocusToGameActivity();
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -233,7 +239,9 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (!isGameInstanceAvailable()) {
+        if (isGameInstanceAvailable()) {
+            Game.instance.handleFocusChange(hasFocus);
+        } else {
             finish();
         }
     }
@@ -276,7 +284,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
         if (Game.instance != null) {
-            requestFocusToSecondScreen();
+            requestFocusToGameActivity();
             return Game.instance.onGenericMotionEvent(event);
         }
         return false;
@@ -304,7 +312,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
         // Top-left buttons
         LinearLayout topLeftButtons = createButtonContainer(Gravity.TOP | Gravity.START);
         rootLayout.addView(topLeftButtons);
-        topLeftButtons.addView(createImageButton(R.drawable.ic_focus_secondary, v -> requestFocusToSecondScreen()));
+        topLeftButtons.addView(createImageButton(R.drawable.ic_focus_secondary, v -> requestFocusToGameActivity()));
         topLeftButtons.setFocusable(false);
 
         // Bottom-center buttons
