@@ -400,6 +400,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             prefConfig.height = displayHeight;
             prefConfig.fps = currentMode.getRefreshRate();
             prefConfig.videoScaleMode = PreferenceConfiguration.ScaleMode.STRETCH;
+            prefConfig.enableFloatingButton = false;
+            prefConfig.showOverlayZoomToggleButton = false;
             currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
         } else {

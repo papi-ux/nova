@@ -313,6 +313,22 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
         LinearLayout topLeftButtons = createButtonContainer(Gravity.TOP | Gravity.START);
         rootLayout.addView(topLeftButtons);
         topLeftButtons.addView(createImageButton(R.drawable.ic_focus_secondary, v -> requestFocusToGameActivity()));
+        ImageButton zoomButton = createImageButton(R.drawable.ic_zoom_toggle, v -> {
+            if (Game.instance != null) {
+                toggleZoomMode();
+                if (Game.instance.isZoomModeEnabled()) {
+                    ((ImageButton)v).setAlpha(1.0f);
+                } else {
+                    ((ImageButton)v).setAlpha(0.5f);
+                }
+            }
+        });
+        if (Game.instance != null && Game.instance.isZoomModeEnabled()) {
+            zoomButton.setAlpha(1.0f);
+        } else {
+            zoomButton.setAlpha(0.5f);
+        }
+        topLeftButtons.addView(zoomButton);
         topLeftButtons.setFocusable(false);
 
         // Bottom-center buttons
@@ -412,6 +428,12 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
     private void togglePcKeyboard() {
         if(Game.instance != null) {
             Game.instance.showHidekeyBoardLayoutController();
+        }
+    }
+
+    private void toggleZoomMode() {
+        if(Game.instance != null) {
+            Game.instance.toggleZoomMode();
         }
     }
 
