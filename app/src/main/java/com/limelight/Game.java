@@ -3200,7 +3200,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
         return handleMotionEvent(null, event) || super.onGenericMotionEvent(event);
-
     }
 
     /**
