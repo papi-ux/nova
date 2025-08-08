@@ -370,7 +370,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         prefConfig = PreferenceConfiguration.readPreferences(this);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
-        Display defaultDisplay = getWindowManager().getDefaultDisplay();
         Display currentDisplay = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             int displayId = getIntent().getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY);
@@ -378,10 +377,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         if (currentDisplay == null) {
-            currentDisplay = defaultDisplay;
+            currentDisplay = getWindowManager().getDefaultDisplay();
         }
 
-        onExternelDisplay = currentDisplay != defaultDisplay;
+        onExternelDisplay = currentDisplay.getDisplayId() != Display.DEFAULT_DISPLAY;
 
         boolean shouldInvertDecoderResolution = false;
 
@@ -1336,19 +1335,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private float prepareDisplayForRendering(Display currentDisplay) {
-        Display display;
-
-        if (isOnExternalDisplay()) {
-            display = getSecondaryDisplay(this);
-        } else {
-            display = getActiveDisplay(Game.this, prefConfig);
-        }
         WindowManager.LayoutParams windowLayoutParams = getWindow().getAttributes();
         float displayRefreshRate;
 
         // On M, we can explicitly set the optimal display mode
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Display.Mode bestMode = display.getMode();
+            Display.Mode bestMode = currentDisplay.getMode();
             boolean isNativeResolutionStream = PreferenceConfiguration.isNativeResolution(prefConfig.width, prefConfig.height);
             boolean refreshRateIsGood = isRefreshRateGoodMatch(bestMode.getRefreshRate());
             boolean refreshRateIsEqual = isRefreshRateEqualMatch(bestMode.getRefreshRate());
@@ -1356,7 +1348,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             LimeLog.info("Current display mode: "+bestMode.getPhysicalWidth()+"x"+
                     bestMode.getPhysicalHeight()+"x"+bestMode.getRefreshRate());
 
-            for (Display.Mode candidate : display.getSupportedModes()) {
+            for (Display.Mode candidate : currentDisplay.getSupportedModes()) {
                 boolean refreshRateReduced = candidate.getRefreshRate() < bestMode.getRefreshRate();
                 boolean resolutionReduced = candidate.getPhysicalWidth() < bestMode.getPhysicalWidth() ||
                         candidate.getPhysicalHeight() < bestMode.getPhysicalHeight();
@@ -1375,8 +1367,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 // 60 FPS, which may require a resolution reduction due to HDMI bandwidth limitations,
                 // or it's a native resolution stream.
                 if (prefConfig.width < 3840 && prefConfig.fps <= 60 && !isNativeResolutionStream) {
-                    if (display.getMode().getPhysicalWidth() != candidate.getPhysicalWidth() ||
-                            display.getMode().getPhysicalHeight() != candidate.getPhysicalHeight()) {
+                    if (currentDisplay.getMode().getPhysicalWidth() != candidate.getPhysicalWidth() ||
+                            currentDisplay.getMode().getPhysicalHeight() != candidate.getPhysicalHeight()) {
                         continue;
                     }
                 }
@@ -1437,14 +1429,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     bestMode.getPhysicalHeight()+"x"+bestMode.getRefreshRate());
 
             // Only apply new window layout parameters if we've actually changed the display mode
-            if (display.getMode().getModeId() != bestMode.getModeId()) {
+            if (currentDisplay.getMode().getModeId() != bestMode.getModeId()) {
                 // If we only changed refresh rate and we're on an OS that supports Surface.setFrameRate()
                 // use that instead of using preferredDisplayModeId to avoid the possibility of triggering
                 // bugs that can cause the system to switch from 4K60 to 4K24 on Chromecast 4K.
                 if (prefConfig.enforceDisplayMode ||
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-                        display.getMode().getPhysicalWidth() != bestMode.getPhysicalWidth() ||
-                        display.getMode().getPhysicalHeight() != bestMode.getPhysicalHeight()) {
+                        currentDisplay.getMode().getPhysicalWidth() != bestMode.getPhysicalWidth() ||
+                        currentDisplay.getMode().getPhysicalHeight() != bestMode.getPhysicalHeight()) {
                     // Apply the display mode change
                     windowLayoutParams.preferredDisplayModeId = bestMode.getModeId();
                     getWindow().setAttributes(windowLayoutParams);
@@ -1461,8 +1453,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
         // On L, we can at least tell the OS that we want a refresh rate
         else {
-            float bestRefreshRate = display.getRefreshRate();
-            for (float candidate : display.getSupportedRefreshRates()) {
+            float bestRefreshRate = currentDisplay.getRefreshRate();
+            for (float candidate : currentDisplay.getSupportedRefreshRates()) {
                 LimeLog.info("Examining refresh rate: "+candidate);
 
                 if (candidate > bestRefreshRate) {
@@ -1495,7 +1487,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // on these devices. On Marshmallow, we can start changing to 4K manually but no
             // 4K devices run 6.0 at the moment.
             Point screenSize = new Point(0, 0);
-            display.getSize(screenSize);
+            currentDisplay.getSize(screenSize);
 
             double screenAspectRatio = ((double)screenSize.y) / screenSize.x;
             double streamAspectRatio = ((double)displayHeight) / displayWidth;
