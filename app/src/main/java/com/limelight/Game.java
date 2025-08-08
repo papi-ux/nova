@@ -3933,6 +3933,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
     public void toggleZoomMode() {
         this.isPanZoomMode = !this.isPanZoomMode;
+        if (this.isPanZoomMode) {
+            Toast.makeText(this, getString(R.string.pan_zoom_mode_enabled), Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, getString(R.string.pan_zoom_mode_disabled), Toast.LENGTH_SHORT).show();
+        }
         updateZoomButtonAppearance();
     }
 

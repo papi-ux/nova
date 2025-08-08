@@ -128,10 +128,10 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
                     ActivityOptions options = ActivityOptions.makeBasic();
                     options.setLaunchDisplayId(secondaryDisplay.getDisplayId());
                     Toast.makeText(this,
-                            getString(R.string.external_display_info) + " "
-                                    + secondaryDisplay.getMode().getPhysicalWidth() + "x"
-                                    + secondaryDisplay.getMode().getPhysicalHeight() + " "
-                                    + secondaryDisplay.getMode().getRefreshRate() + "Hz",
+                            getString(R.string.external_display_info,
+                                    secondaryDisplay.getMode().getPhysicalWidth(),
+                                    secondaryDisplay.getMode().getPhysicalHeight(),
+                                    secondaryDisplay.getMode().getRefreshRate()),
                             Toast.LENGTH_LONG).show();
 
                     startActivity(gameIntent, options.toBundle());
@@ -140,7 +140,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
                     Handler handler = new Handler(Looper.getMainLooper());
                     handler.postDelayed(this::initViews, 500);
                 } else {
-                    LimeLog.warning("NO EXTERNAL DISPLAY!!!???");
+                    LimeLog.warning(getString(R.string.no_external_display));
                     startActivity(gameIntent);
                     finish();
                 }
@@ -166,7 +166,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
         initTouchEventHandling();
         setupKeyboardInputHandling();
         setupInactivityTimeoutForBrightness();
-        requestFocusToGameActivity();
+        requestFocusToGameActivity(false);
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -284,7 +284,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
         if (Game.instance != null) {
-            requestFocusToGameActivity();
+            requestFocusToGameActivity(false);
             return Game.instance.onGenericMotionEvent(event);
         }
         return false;
@@ -312,7 +312,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
         // Top-left buttons
         LinearLayout topLeftButtons = createButtonContainer(Gravity.TOP | Gravity.START);
         rootLayout.addView(topLeftButtons);
-        topLeftButtons.addView(createImageButton(R.drawable.ic_focus_secondary, v -> requestFocusToGameActivity()));
+//        topLeftButtons.addView(createImageButton(R.drawable.ic_focus_secondary, v -> requestFocusToGameActivity(false)));
         ImageButton zoomButton = createImageButton(R.drawable.ic_zoom_toggle, v -> {
             if (Game.instance != null) {
                 toggleZoomMode();
@@ -486,7 +486,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
     private void showStickyNotification() {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, "Second Screen Control", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, getString(R.string.notification_channel_name), NotificationManager.IMPORTANCE_LOW);
             channel.setShowBadge(false);
             notificationManager.createNotificationChannel(channel);
         }
@@ -501,8 +501,8 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
         @SuppressLint("NotificationTrampoline") Notification notification = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-                    .setContentTitle("Second Screen Active")
-                    .setContentText("Tap to open touchpad controller.")
+                    .setContentTitle(getString(R.string.notification_title))
+                    .setContentText(getString(R.string.notification_text))
                     .setSmallIcon(icon)
                     .setLargeIcon(logoBitmap)
                     .setOngoing(true)
@@ -511,8 +511,8 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
                     .build();
         } else {
             notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-                    .setContentTitle("Second Screen Active")
-                    .setContentText("Tap to open touchpad controller.")
+                    .setContentTitle(getString(R.string.notification_title))
+                    .setContentText(getString(R.string.notification_text))
                     .setLargeIcon(logoBitmap)
                     .setOngoing(true)
                     .setContentIntent(pendingIntent)
@@ -546,7 +546,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 showStickyNotification();
             } else {
-                Toast.makeText(this, "Notification permission denied.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, getString(R.string.permission_denied), Toast.LENGTH_SHORT).show();
             }
         }
     }

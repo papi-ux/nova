@@ -23,7 +23,7 @@ public class StartExternalDisplayControlReceiver extends BroadcastReceiver {
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     public void onReceive(Context context, Intent intent) {
-        requestFocusToGameActivity();
+        requestFocusToGameActivity(true);
     }
 
     public static void requestFocusToExternalDisplayControl(Context context) {
@@ -35,7 +35,7 @@ public class StartExternalDisplayControlReceiver extends BroadcastReceiver {
         }
     }
 
-    public static void requestFocusToGameActivity() {
+    public static void requestFocusToGameActivity(boolean focusExternalDisplayControl) {
         if (isTimeoutActive) {
             return;
         }
@@ -43,7 +43,9 @@ public class StartExternalDisplayControlReceiver extends BroadcastReceiver {
         isTimeoutActive = true;
 
         if (Game.instance != null) {
-            requestFocusToExternalDisplayControl(Game.instance);
+            if (focusExternalDisplayControl) {
+                requestFocusToExternalDisplayControl(Game.instance);
+            }
             ActivityManager am = (ActivityManager) Game.instance.getSystemService(Context.ACTIVITY_SERVICE);
             if (am != null) {
                 am.moveTaskToFront(Game.instance.getTaskId(), 0);
