@@ -96,7 +96,7 @@ public class ServerHelper {
         Intent gameIntent = null;
         PreferenceConfiguration prefConfig = PreferenceConfiguration.readPreferences(parent);
         // Try to add secondary DisplayContext if supported and connected
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && (prefConfig.enableFullExDisplay) && getSecondaryDisplay(parent) != null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && prefConfig.enableFullExDisplay && getSecondaryDisplay(parent) != null) {
             Context displayContext = parent.createDisplayContext(getSecondaryDisplay(parent)); // use secondary display
             gameIntent = new Intent(displayContext, Game.class);
             gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -124,7 +124,7 @@ public class ServerHelper {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                && (prefConfig.enableFullExDisplay)
+                && prefConfig.enableFullExDisplay
                 && !isDesktopModeActive(parent)
         ) {
             Display secondaryDisplay = getSecondaryDisplay(parent);
