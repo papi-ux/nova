@@ -487,7 +487,6 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
         showStickyNotification();
     }
 
-    @SuppressLint("NotificationTrampoline")
     private void showStickyNotification() {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -498,50 +497,18 @@ public class ExternalDisplayControlActivity extends AppCompatActivity {
 
         Intent broadcastIntent = new Intent(this, StartExternalDisplayControlReceiver.class);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, broadcastIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        Bitmap logoBitmap = drawableToBitmap(new ArtemisLogoDrawable());
 
-        // 2. Create an IconCompat object from the Bitmap. This is the support library's
-        //    way of handling icons for maximum compatibility.
-        IconCompat icon = IconCompat.createWithBitmap(logoBitmap);
-        @SuppressLint("NotificationTrampoline") Notification notification = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-                    .setContentTitle(getString(R.string.notification_title))
-                    .setContentText(getString(R.string.notification_text))
-                    .setSmallIcon(icon)
-                    .setLargeIcon(logoBitmap)
-                    .setOngoing(true)
-                    .setContentIntent(pendingIntent)
-                    .setPriority(NotificationCompat.PRIORITY_LOW)
-                    .build();
-        } else {
-            notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-                    .setContentTitle(getString(R.string.notification_title))
-                    .setContentText(getString(R.string.notification_text))
-                    .setLargeIcon(logoBitmap)
-                    .setOngoing(true)
-                    .setContentIntent(pendingIntent)
-                    .setPriority(NotificationCompat.PRIORITY_LOW)
-                    .build();
-        }
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                .setContentTitle(getString(R.string.notification_title))
+                .setContentText(getString(R.string.notification_text))
+                .setSmallIcon(R.drawable.app_icon)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setOngoing(true);
+
+        Notification notification = notificationBuilder.build();
+
         notificationManager.notify(SECONDARY_SCREEN_NOTIFICATION_ID, notification);
-    }
-
-    /**
-     * Helper method to convert any Drawable into a Bitmap.
-     * This is necessary to use a programmatic drawable as a notification icon.
-     */
-    private Bitmap drawableToBitmap(Drawable drawable) {
-        // A notification icon is typically 24x24 dp. We'll create a 96x96 px bitmap
-        // which will scale down nicely on most densities.
-        int width = dpToPx(24);
-        int height = dpToPx(24);
-
-        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-        drawable.draw(canvas);
-        return bitmap;
     }
 
     @Override

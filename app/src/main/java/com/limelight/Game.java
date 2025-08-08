@@ -370,15 +370,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         prefConfig = PreferenceConfiguration.readPreferences(this);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
-        // Listen for non-touch events on the game surface
-        streamView = findViewById(R.id.surfaceView);
-        streamView.setOnGenericMotionListener(this);
-        streamView.setOnKeyListener(this);
-        streamView.setInputCallbacks(this);
-        streamView.setCommitTextEnabled(prefConfig.enableCommitText);
-
-        rootView = streamView.getParent();
-
         Display defaultDisplay = getWindowManager().getDefaultDisplay();
         Display currentDisplay = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -404,6 +395,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             prefConfig.videoScaleMode = PreferenceConfiguration.ScaleMode.STRETCH;
             prefConfig.enableFloatingButton = false;
             prefConfig.showOverlayZoomToggleButton = false;
+            prefConfig.enableCommitText = false;
+            prefConfig.enablePip = false;
             currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
         } else {
@@ -454,6 +447,15 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // allows proper touch splitting, which the OSC relies upon.
         View backgroundTouchView = findViewById(R.id.backgroundTouchView);
         backgroundTouchView.setOnTouchListener(this);
+
+        // Listen for non-touch events on the game surface
+        streamView = findViewById(R.id.surfaceView);
+        streamView.setOnGenericMotionListener(this);
+        streamView.setOnKeyListener(this);
+        streamView.setInputCallbacks(this);
+        streamView.setCommitTextEnabled(prefConfig.enableCommitText);
+
+        rootView = streamView.getParent();
 
         panZoomHandler = new PanZoomHandler(
                 getApplicationContext(),
@@ -1329,7 +1331,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 (prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_BALANCED && prefConfig.reduceRefreshRate);
     }
 
-    public Boolean isOnExternalDisplay() {
+    public boolean isOnExternalDisplay() {
         return onExternelDisplay;
     }
 
