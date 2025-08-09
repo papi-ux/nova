@@ -1004,6 +1004,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public void toggleFullKeyboard() {
         if (isOnExternalDisplay()) {
             ExternalDisplayControlActivity.instance.toggleFullKeyboard();
+            return;
         }
         if (keyBoardLayoutController == null) {
             initkeyBoardLayoutController();
