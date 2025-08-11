@@ -64,7 +64,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     private PreferenceConfiguration prefConfig;
 
     private ExternalControllerView rootLayout;
-
+    private ImageButton zoomButton;
     private KeyBoardLayoutController keyBoardLayoutController;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -367,16 +367,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         LinearLayout topLeftButtons = createButtonContainer(Gravity.TOP | Gravity.START);
         topLeftButtons.setFocusable(false);
 //        topLeftButtons.addView(createImageButton(R.drawable.ic_focus_secondary, v -> requestFocusToGameActivity(false)));
-        ImageButton zoomButton = createImageButton(R.drawable.ic_zoom_toggle, v -> {
-            if (Game.instance != null) {
-                toggleZoomMode();
-                if (Game.instance.isZoomModeEnabled()) {
-                    ((ImageButton) v).setAlpha(1.0f);
-                } else {
-                    ((ImageButton) v).setAlpha(0.5f);
-                }
-            }
-        });
+        zoomButton = createImageButton(R.drawable.ic_zoom_toggle, v -> toggleZoomMode(true));
         if (Game.instance != null && Game.instance.isZoomModeEnabled()) {
             zoomButton.setAlpha(1.0f);
         } else {
@@ -441,9 +432,17 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         keyBoardLayoutController.toggleVisibility();
     }
 
-    private void toggleZoomMode() {
+    public void toggleZoomMode(boolean callGame) {
         if (Game.instance != null) {
-            Game.instance.toggleZoomMode();
+            if (callGame) {
+                Game.instance.toggleZoomMode();
+            } else {
+                if (Game.instance.isZoomModeEnabled()) {
+                    zoomButton.setAlpha(1.0f);
+                } else {
+                    zoomButton.setAlpha(0.5f);
+                }
+            }
         }
     }
 

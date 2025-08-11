@@ -3906,6 +3906,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             Toast.makeText(this, getString(R.string.pan_zoom_mode_disabled), Toast.LENGTH_SHORT).show();
         }
         updateZoomButtonAppearance();
+
+        if (ExternalDisplayControlActivity.instance != null) {
+            ExternalDisplayControlActivity.instance.toggleZoomMode(false);
+        }
     }
 
     public void rotateScreen() {
