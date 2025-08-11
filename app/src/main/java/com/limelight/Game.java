@@ -2840,7 +2840,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         }
                     } else {
                         if (prefConfig.absoluteMouseMode) {
-                            updateMousePosition(view, event);
+                            if (cursorVisible) {
+                                updateMousePosition(view, event);
+                            } else {
+                                conn.sendMouseMoveAsMousePosition((short)event.getAxisValue(MotionEvent.AXIS_RELATIVE_X), (short)event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y), (short)streamView.getWidth(), (short)streamView.getHeight());
+                            }
                         } else {
                             mouseMove((int) event.getAxisValue(MotionEvent.AXIS_RELATIVE_X), (int) event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y));
                         }
