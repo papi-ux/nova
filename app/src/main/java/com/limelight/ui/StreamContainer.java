@@ -13,6 +13,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.FrameLayout;
 
+import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.utils.Stereo3DRenderer;
 
 /**
@@ -78,8 +79,10 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
         //setStreamMode(StreamMode.MODE_2D, true);
     }
 
+    public void setPrefConfig(PreferenceConfiguration prefConfig) {
+        mStereoRenderer.setPrefConfig(prefConfig);
+    }
     // --- Aspect Ratio and Scaling Logic ---
-
     public void setDesiredAspectRatio(double aspectRatio) {
         this.desiredAspectRatio = aspectRatio;
         requestLayout();

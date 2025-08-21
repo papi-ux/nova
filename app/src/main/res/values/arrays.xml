@@ -164,9 +164,7 @@
     </string-array>
     <string-array name="render_mode_names">
         <item>@string/render_mode_twod</item>
-        <item>@string/threed_mode_fake</item>
-        <item>@string/threed_mode_ai_subtle</item>
-        <item>@string/threed_mode_ai_strong</item>
+        <item>@string/threed_mode</item>
     </string-array>
     <string-array name="render_mode_values" translatable="false">
         <item>0</item>

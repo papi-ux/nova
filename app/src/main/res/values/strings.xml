@@ -557,9 +557,7 @@
     <string name="virtual_keyboard_hide">Hide\nKBD</string>
     <string name="mouse_mode_multi_touch">Multi touch</string>
     <string name="render_mode_twod">Default 2D</string>
-    <string name="threed_mode_fake">AI SBS 3D Low</string>
-    <string name="threed_mode_ai_subtle">AI SBS 3D Mid </string>
-    <string name="threed_mode_ai_strong">AI SBS 3D High </string>
+    <string name="threed_mode">AI SBS 3D</string>
     <string name="mouse_mode_absolute_touch">Absolute touch</string>
     <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
     <string name="mouse_mode_track_pad_gaming">Track pad(Gaming/Long press to drag)</string>

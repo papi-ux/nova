@@ -253,6 +253,12 @@ public class PreferenceConfiguration {
     public boolean showGuideButton;
     public boolean enableHdr;
     public boolean enablePip;
+
+    public float parallax_depth;
+
+    public float scenery_depth;
+
+    public float transition_speed;
     public boolean enablePerfOverlay;
     public boolean enablePerfLogging;
     //简化版性能信息
@@ -365,6 +371,11 @@ public class PreferenceConfiguration {
 
     private static final String CHECKBOX_REMEMBER_ZOOM_PAN = "checkbox_remember_zoom_pan";
     private static final String NUMBER_ZOOM_SCALE = "number_zoom_scale";
+
+    private static final String SCENERY_DEPTH = "scenery_depth";
+    private static final String TRANSITION_SPEED = "transition_speed";
+
+    private static final String PARALLAX_DEPTH = "parallax_depth";
     private static final String NUMBER_PAN_OFFSET_X = "number_pan_offset_x";
     private static final String NUMBER_PAN_OFFSET_Y = "number_pan_offset_y";
 
@@ -995,6 +1006,10 @@ public class PreferenceConfiguration {
         config.zoomScale = prefs.getFloat(NUMBER_ZOOM_SCALE, DEFAULT_ZOOM_SCALE);
         config.panOffsetX = prefs.getFloat(NUMBER_PAN_OFFSET_X, DEFAULT_PAN_OFFSET);
         config.panOffsetY = prefs.getFloat(NUMBER_PAN_OFFSET_Y, DEFAULT_PAN_OFFSET);
+
+        config.parallax_depth = prefs.getInt(PARALLAX_DEPTH, 50) / 100f;
+        config.scenery_depth = prefs.getInt(SCENERY_DEPTH, 50) / 100f;
+        config.transition_speed = prefs.getInt(TRANSITION_SPEED, 50) / 100f;
 
         return config;
     }

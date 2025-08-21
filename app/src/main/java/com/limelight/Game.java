@@ -396,6 +396,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
         // Listen for non-touch events on the game surface
         streamContainer = findViewById(R.id.streamContainer);
+        streamContainer.setPrefConfig(prefConfig);
         streamContainer.setOnGenericMotionListener(this);
         streamContainer.setOnKeyListener(this);
         streamContainer.setInputCallbacks(this);

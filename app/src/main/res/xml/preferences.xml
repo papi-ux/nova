@@ -160,6 +160,33 @@
             android:summary="@string/summary_render_mode"
             android:title="@string/title_render_mode"
             app:iconSpaceReserved="false" />
+        <SeekBarPreference
+            android:key="parallax_depth"
+            android:title="Parallax Depth"
+            android:summary="Adjust the parallax effect strength for 3D"
+            android:defaultValue="25"
+            android:max="100"
+            app:min="0"
+            app:showSeekBarValue="true"
+            app:updatesContinuously="true"/>
+        <SeekBarPreference
+            android:key="scenery_depth"
+            android:title="Scenery Depth"
+            android:summary="Adjust the scenery effect strength for 3D"
+            android:defaultValue="75"
+            android:max="100"
+            app:min="0"
+            app:showSeekBarValue="true"
+            app:updatesContinuously="true"/>
+        <SeekBarPreference
+            android:key="transition_speed"
+            android:title="Transition Speed"
+            android:summary="New DepthMap applied instantly (100) or slowly (1)"
+            android:defaultValue="80"
+            android:max="100"
+            app:min="10"
+            app:showSeekBarValue="true"
+            app:updatesContinuously="true"/>
         <CheckBoxPreference
             android:defaultValue="false"
             android:key="checkbox_enable_hdr"

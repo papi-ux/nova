@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.Surface;
 
 import com.limelight.LimeLog;
+import com.limelight.preferences.PreferenceConfiguration;
 
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.gpu.CompatibilityList;
@@ -119,6 +120,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private int filteredDepthMapTextureId; // Smoothed version of the depth map
     private int filterFboHandle; // FBO for the blur pass
     private final Object frameLock = new Object();
+    private PreferenceConfiguration prefConf;
     private final AtomicBoolean isAiRunning = new AtomicBoolean(false);
     private final AtomicBoolean gpuDelegateFailed = new AtomicBoolean(false);
 
@@ -135,6 +137,10 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         quadVertexBuffer.put(QUAD_VERTICES).position(0);
         textureVertexBuffer = ByteBuffer.allocateDirect(TEXTURE_VERTICES.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
         textureVertexBuffer.put(TEXTURE_VERTICES).position(0);
+    }
+
+    public void setPrefConfig(PreferenceConfiguration prefConf) {
+        this.prefConf = prefConf;
     }
 
     public Surface getVideoSurface() {
@@ -289,55 +295,54 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         int viewWidth = glSurfaceView.getWidth();
         int viewHeight = glSurfaceView.getHeight();
 
-        GLES20.glUseProgram(dualBubble3dProgram);
+        float parallax = 0.065f * parallaxStrength;
+        float convergence = convergenceStrength * 0.018f * smoothedAverageSceneDepth;
 
-        // Get handles
-        int posHandle = GLES20.glGetAttribLocation(dualBubble3dProgram, "a_Position");
-        int texHandle = GLES20.glGetAttribLocation(dualBubble3dProgram, "a_TexCoord");
-        int colorTexHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "s_ColorTexture");
-        int depthTexHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "s_DepthTexture");
-        int parallaxHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_parallax");
-        int convergenceHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_convergence");
-        int focusPointHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_focusPoint");
-        int minFocusPointHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_minFocusPoint"); // New handle
-        int avgDepthHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_averageSceneDepth");
-        int debugModeHandle = GLES20.glGetUniformLocation(dualBubble3dProgram, "u_debugMode");
+        // --- Left Eye (Positive Effects Only) ---
+        GLES20.glViewport(0, 0, viewWidth / 2, viewHeight);
+        drawEye(dualBubble3dProgram, -parallax, -convergence);
 
-        // Set vertex attributes
+        // --- Right Eye (Negative Effects Only) ---
+        GLES20.glViewport(viewWidth / 2, 0, viewWidth / 2, viewHeight);
+        drawEye(dualBubble3dProgram, parallax, convergence);
+    }
+    private Boolean isDebugMode = true;
+    private void drawEye(int program, float parallax, float convergence) {
+        GLES20.glUseProgram(program);
+
+        int posHandle = GLES20.glGetAttribLocation(program, "a_Position");
+        int texHandle = GLES20.glGetAttribLocation(program, "a_TexCoord");
+        int colorTexHandle = GLES20.glGetUniformLocation(program, "s_ColorTexture");
+        int depthTexHandle = GLES20.glGetUniformLocation(program, "s_DepthTexture");
+        int parallaxHandle = GLES20.glGetUniformLocation(program, "u_parallax");
+        int convergenceHandle = GLES20.glGetUniformLocation(program, "u_convergence");
+        int focusPointHandle = GLES20.glGetUniformLocation(program, "u_focusPoint");
+        int minFocusPointHandle = GLES20.glGetUniformLocation(program, "u_minFocusPoint");
+        int debugModeHandle = GLES20.glGetUniformLocation(program, "u_debugMode");
+        int bothEyesHandle = GLES20.glGetUniformLocation(program, "u_bothEyes");
+        int depthContrastHandle = GLES20.glGetUniformLocation(program, "u_averageSceneDepth");
+
         GLES20.glVertexAttribPointer(posHandle, 2, GLES20.GL_FLOAT, false, 0, quadVertexBuffer);
         GLES20.glVertexAttribPointer(texHandle, 2, GLES20.GL_FLOAT, false, 0, textureVertexBuffer);
         GLES20.glEnableVertexAttribArray(posHandle);
         GLES20.glEnableVertexAttribArray(texHandle);
-        float convergenceScaler = convergenceStrength * 0.018f;
-        // Calculate convergence
-        float dynamicConvergence = (smoothedAverageSceneDepth) * (convergenceScaler);
-        float parallax = 0.065f * parallaxStrength;
-        float halfParallax = parallax / 2.0f;
-        float halfConvergence = dynamicConvergence / 2.0f;
 
+        GLES20.glUniform1i(debugModeHandle, isDebugMode ? 1 : 0);
+        GLES20.glUniform1i(bothEyesHandle, 0);
         GLES20.glUniform2f(focusPointHandle, smoothedFocusPointX, smoothedFocusPointY);
-        GLES20.glUniform2f(minFocusPointHandle, smoothedMinFocusPointX, smoothedMinFocusPointY); // Set new uniform
-        GLES20.glUniform1f(avgDepthHandle, smoothedAverageSceneDepth);
-        GLES20.glUniform1i(debugModeHandle, false ? 1 : 0); //
+        GLES20.glUniform2f(minFocusPointHandle, smoothedMinFocusPointX, smoothedMinFocusPointY);
+        GLES20.glUniform1f(depthContrastHandle, smoothedAverageSceneDepth);
 
-        // Bind textures
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         GLES20.glBindTexture(GL_TEXTURE_EXTERNAL_OES, videoTextureId);
         GLES20.glUniform1i(colorTexHandle, 0);
+
         GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, filteredDepthMapTextureId);
         GLES20.glUniform1i(depthTexHandle, 1);
 
-        // --- Left Eye ---
-        GLES20.glViewport(0, 0, viewWidth / 2, viewHeight);
-        GLES20.glUniform1f(parallaxHandle, -halfParallax);
-        GLES20.glUniform1f(convergenceHandle, -halfConvergence);
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-
-        // --- Right Eye ---
-        GLES20.glViewport(viewWidth / 2, 0, viewWidth / 2, viewHeight);
-        GLES20.glUniform1f(parallaxHandle, halfParallax);
-        GLES20.glUniform1f(convergenceHandle, halfConvergence);
+        GLES20.glUniform1f(parallaxHandle, parallax);
+        GLES20.glUniform1f(convergenceHandle, convergence);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
     }
 
@@ -369,22 +374,21 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
     }
 
-    private float subtilParallax = 0f;
-    private float subtilConvergence = 0.7f; //0.7f
-
     private void drawWithDibrAiSubtleShader() {
-        drawWithDualBubbleDepth(dibr3dProgram, subtilParallax, subtilConvergence);
+        if(prefConf != null) {
+            drawWithDualBubbleDepth(dibr3dProgram, prefConf.parallax_depth, prefConf.scenery_depth);
+        }
     }
 
-    private float normalParallax = 0.2f;
-    private float normalConvergence = 0.8f;
+    private float normalParallax = 0.3f;
+    private float normalConvergence = 1f;
 
     private void drawWithFake3DShader() {
         drawWithDualBubbleDepth(dibr3dProgram, normalParallax, normalConvergence);
     }
 
-    private float strongParallax = 0.3f;
-    private float strongConvergence = 1f;
+    private float strongParallax = 0.5f;
+    private float strongConvergence = 0.5f;
 
     private void drawWithDibrAiStrongShader() {
         drawWithDualBubbleDepth(dibr3dProgram, strongParallax, strongConvergence);
@@ -411,6 +415,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private void smoothConvergence(float smoothingfactor) {
         smoothedAverageSceneDepth = (targetAverageSceneDepth * (1.0f - smoothingfactor)) + (smoothedAverageSceneDepth * smoothingfactor);
     }
+    private float[] previousSmoothedDepthFloats;
     private void smoothAndUpdateDepthMap() {
         synchronized (depthMapLock) {
             // If we don't have a target to smooth towards, there's nothing to do.
@@ -424,7 +429,16 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                 previousSmoothedDepthBytes.rewind();
                 latestUnsmoothedDepthMap.rewind();
             }
-
+            if(previousSmoothedDepthFloats == null) {
+                // Einmalige Initialisierung
+                if (previousSmoothedDepthFloats == null || previousSmoothedDepthFloats.length != latestUnsmoothedDepthMap.capacity()) {
+                    previousSmoothedDepthFloats = new float[latestUnsmoothedDepthMap.capacity()];
+                    // Optional: Mit den Startwerten füllen
+                    for (int i = 0; i < latestUnsmoothedDepthMap.capacity(); i++) {
+                        previousSmoothedDepthFloats[i] = latestUnsmoothedDepthMap.get(i) & 0xFF;
+                    }
+                }
+            }
             long totalDifference = 0;
             // Calculate the difference between the NEW raw and the PREVIOUS smoothed depth map
             for (int i = 0; i < latestUnsmoothedDepthMap.capacity(); i++) {
@@ -435,10 +449,13 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             // --- KORREKTUR: Adaptive Logik aktivieren ---
             final double SCENE_CUT_THRESHOLD = 80.0; // Strong change (scene cut)
             final double FAST_MOTION_THRESHOLD = 50.0; // Medium change (fast motion)
-
-            final float LOW_SMOOTHING = 0.2f;   // For scene cuts
-            final float MEDIUM_SMOOTHING = 0.15f; // For fast motion
-            final float HIGH_SMOOTHING = 0.1f;  // For slow pans
+            float transSpeed = 1f;
+            if(prefConf != null) {
+                transSpeed = prefConf.transition_speed;
+            }
+            final float LOW_SMOOTHING = transSpeed;   // For scene cuts
+            final float MEDIUM_SMOOTHING = transSpeed / 8; // For fast motion
+            final float HIGH_SMOOTHING = transSpeed / 15;  // For slow pans
 
             float currentSmoothingFactor;
 
@@ -449,25 +466,34 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             } else {
                 currentSmoothingFactor = HIGH_SMOOTHING;
             }
-
+            LimeLog.info("SMOOTHITEST " + averageDifference + " " +LOW_SMOOTHING + " " + MEDIUM_SMOOTHING + " "+HIGH_SMOOTHING);
             ByteBuffer newSmoothedBytes = ByteBuffer.allocate(latestUnsmoothedDepthMap.capacity()).order(ByteOrder.nativeOrder());
 
             latestUnsmoothedDepthMap.rewind();
             previousSmoothedDepthBytes.rewind();
 
-            // Perform linear interpolation (LERP) for each pixel.
             for (int i = 0; i < latestUnsmoothedDepthMap.capacity(); i++) {
-                byte prev = previousSmoothedDepthBytes.get(i);
-                byte curr = latestUnsmoothedDepthMap.get(i); // The target
-                byte smooth = (byte) ((1.0f - currentSmoothingFactor) * (prev & 0xFF) + currentSmoothingFactor * (curr & 0xFF));
-                newSmoothedBytes.put(i, smooth);
+                // Lies den vorherigen Float-Wert
+                float prev = previousSmoothedDepthFloats[i];
+                // Das Ziel ist immer noch ein Byte
+                float curr = latestUnsmoothedDepthMap.get(i) & 0xFF;
+
+                // Berechne den neuen Float-Wert
+                float smoothFloat = (1.0f - currentSmoothingFactor) * prev + currentSmoothingFactor * curr;
+
+                // Speichere den neuen Wert mit voller Präzision für den nächsten Frame
+                previousSmoothedDepthFloats[i] = smoothFloat;
+
+                // Wandle den Wert ERST JETZT in ein Byte für die GPU um
+                newSmoothedBytes.put(i, (byte) smoothFloat);
             }
+
             newSmoothedBytes.rewind();
 
             // Upload the newly smoothed map to the GPU for rendering.
             uploadLatestDepthMapToGpu(newSmoothedBytes);
-            smoothFocusPoint(1f - currentSmoothingFactor);
-            smoothConvergence(1f - currentSmoothingFactor);
+            smoothFocusPoint(1f - (currentSmoothingFactor));
+            smoothConvergence(1f - (currentSmoothingFactor));
 
             // Save this smoothed map as the new "previous" map for the next frame's interpolation.
             previousSmoothedDepthBytes = newSmoothedBytes;
@@ -815,7 +841,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
             GpuDelegate delegate = new GpuDelegate(compat.getBestOptionsForThisDevice());
             opts.addDelegate(delegate);
-            tflite = new Interpreter(loadModelFile(context, "Midas-V2.tflite"), opts);
+            tflite = new Interpreter(loadModelFile(context, AI_MODEL), opts);
         } catch (Exception e) {
             Log.w("Stereo3DRenderer", "Failed to create TFLite interpreter with GPU delegate, falling back to CPU.", e);
             reinitializeTfLiteOnCpu();
@@ -838,12 +864,14 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             Interpreter.Options options = new Interpreter.Options();
             options.setUseNNAPI(true);
             options.setNumThreads(4);
-            tflite = new Interpreter(loadModelFile(context, "Midas-V2.tflite"), options);
+            tflite = new Interpreter(loadModelFile(context, AI_MODEL), options);
             Log.i("Stereo3DRenderer", "Successfully re-initialized TFLite interpreter on CPU.");
         } catch (IOException e) {
             Log.e("Stereo3DRenderer", "Failed to re-initialize TFLite model on CPU.", e);
         }
     }
+
+    private String AI_MODEL = "Midas-V2.tflite";
 
     private MappedByteBuffer loadModelFile(Context context, String modelPath) throws
             IOException {

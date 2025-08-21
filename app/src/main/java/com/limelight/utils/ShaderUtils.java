@@ -24,47 +24,67 @@ public class ShaderUtils {
                     "uniform vec2 u_focusPoint;\n" +
                     "uniform vec2 u_minFocusPoint;\n" +
                     "uniform bool u_debugMode;\n" +
+                    "uniform bool u_bothEyes;\n" +
                     "void main() {\n" +
-                    // --- Ihre Logik, aber korrigiert ---
+                    // --- Basis-3D-Effekt aus der Tiefenkarte ---\n" +
                     "  float depth = texture2D(s_DepthTexture, v_TexCoord).r;\n" +
-                    "  float ai_shift = u_parallax * (depth - 0.5) * 0.5;\n" +
+                    "  float parallax_magnitude = abs(u_parallax);\n" +
+                    "  float ai_shift = parallax_magnitude * (depth - 0.5) * 0.5;\n" +
                     "\n" +
-                    // 1. Berechne die Stärke beider Blasen
-                    "  float dist = distance(v_TexCoord, u_focusPoint);\n" +
-                    "  float bubbleRadius = 0.9;\n" + // Die Gesamtgröße der Blase
-                    "  float t_pos = clamp(dist / bubbleRadius, 0.0, 1.0);\n" +
-                    // Normalisiere den Abstand
-                    "  float centerFactor = 1.0 - pow(t_pos, 1.0);\n" + // Erzeuge eine parabolische Kurve
-                    //   "  float centerFactor = 1.0 - smoothstep(0.1, 0.7, dist);\n" +
-                    "  float dist_min = distance(v_TexCoord, u_minFocusPoint);\n" +
-                    "  float t_pos_min = clamp(dist_min / bubbleRadius, 0.0, 1.0);\n" +
-                    "  float centerFactorMin = 1.0 - pow(t_pos_min, 2.0);\n" +
-                    "  float combinedFactor = 0.0;\n" +
-                    "  if (centerFactor > centerFactorMin) {\n" +
-                    "    combinedFactor = u_convergence * centerFactor;\n" +
+                    "  float combined_ai_shift = 0.0;\n" +
+                    "  float bubbleRadius = 0.5;\n" +
+                    "\n" +
+                    "  if (u_bothEyes) {\n" +
+                    "    // Modus 1: Beide Augen, alles ist aktiv, kein Beschneiden.\n" +
+                    "    float dist = distance(v_TexCoord, u_focusPoint);\n" +
+                    "    float t_pos = clamp(dist / bubbleRadius, 0.0, 1.0);\n" +
+                    "    float centerFactor = 1.0 - pow(t_pos, 1.0);\n" +
+                    "    float positive_shift = u_convergence * centerFactor;\n" +
+                    "\n" +
+                    "    float dist_min = distance(v_TexCoord, u_minFocusPoint);\n" +
+                    "    float t_pos_min = clamp(dist_min / bubbleRadius, 0.0, 1.0);\n" +
+                    "    float centerFactorMin = 1.0 - pow(t_pos_min, 2.0);\n" +
+                    "    float negative_shift = -u_convergence * centerFactorMin;\n" +
+                    "    combined_ai_shift = positive_shift + negative_shift;\n" +
                     "  } else {\n" +
-                    "    combinedFactor = -u_convergence * centerFactorMin;\n" +
+                    "    // Modus 2: Geteilte Steuerung. Parallax beschneidet, Convergence fügt Bubble hinzu.\n" +
+                    "\n" +
+                    "    // SCHRITT 1: Globalen Shift IMMER basierend auf u_parallax beschneiden.\n" +
+                    "    if (u_parallax > 0.0) {\n" +
+                    "        ai_shift = max(ai_shift, 0.0);\n" +
+                    "    } else if (u_parallax < 0.0) {\n" +
+                    "        ai_shift = min(ai_shift, 0.0);\n" +
+                    "    }\n" +
+                    "\n" +
+                    "    // SCHRITT 2: Bubble-Shift UNABHÄNGIG basierend auf u_convergence hinzufügen.\n" +
+                    "    if (u_convergence > 0.0) {\n" +
+                    "        float dist = distance(v_TexCoord, u_focusPoint);\n" +
+                    "        float t_pos = clamp(dist / bubbleRadius, 0.0, 1.0);\n" +
+                    "        float centerFactor = 1.0 - pow(t_pos, 1.0);\n" +
+                    "        combined_ai_shift = u_convergence * centerFactor;\n" +
+                    "    } else if (u_convergence < 0.0) {\n" +
+                    "        float dist_min = distance(v_TexCoord, u_minFocusPoint);\n" +
+                    "        float t_pos_min = clamp(dist_min / bubbleRadius, 0.0, 1.0);\n" +
+                    "        float centerFactorMin = 1.0 - pow(t_pos_min, 2.0);\n" +
+                    "        combined_ai_shift = u_convergence * centerFactorMin;\n" +
+                    "    }\n" +
+                    "    // Wenn u_convergence = 0, bleibt combined_ai_shift einfach 0. Perfekt.\n" +
                     "  }\n" +
                     "\n" +
-                    // 2. Erzeuge einen positiven Shift für die nahe Blase und einen negativen für die ferne
-                    "  float positive_shift = u_convergence * centerFactor;\n" +
-                    "  float negative_shift = -u_convergence * centerFactorMin;\n" + // Invertiere den Shift für die ferne Blase
-                    "\n" +
-                    // 3. Kombiniere die Shifts und wende die globale Konvergenz an
-                    "  float combined_ai_shift = positive_shift + negative_shift;\n" +
+                    // Kombiniere den (jetzt korrekt beschnittenen) Basis-Shift mit dem (optionalen) Blasen-Shift\n" +
                     "  float total_shift = ai_shift + combined_ai_shift;\n" +
                     "  vec2 shiftedCoord = vec2(v_TexCoord.x - total_shift, v_TexCoord.y);\n" +
                     "\n" +
-                    // --- Der Rest Ihrer bewährten Logik ---
+                    // --- Der Rest Ihrer bewährten Logik ---\n" +
                     "  vec4 originalColor = texture2D(s_ColorTexture, v_TexCoord);\n" +
                     "  vec4 shiftedColor = texture2D(s_ColorTexture, clamp(shiftedCoord, 0.0, 1.0));\n" +
-                    "  float shiftMagnitude = abs(total_shift) / max(u_parallax, 0.001);\n" +
-                    "  float artifactBlendFactor = 1.0 - smoothstep(0.25, 0.4, shiftMagnitude);\n" +
-                    "  vec4 finalColor = mix(originalColor, shiftedColor, artifactBlendFactor);\n" +
+                    "  float shiftMagnitude = abs(total_shift) / max(abs(parallax_magnitude) + abs(u_convergence), 0.001);\n" +
+                    "  float artifactBlendFactor = (1.0 - smoothstep(0.1, 1.0, shiftMagnitude)) * 0.005;\n" +
+                    "  vec4 finalColor = mix(shiftedColor, originalColor, artifactBlendFactor);\n" +
                     "\n" +
-                    // --- Debug-Farben ---
+                    // --- Debug-Farben ---\n" +
                     "  if (u_debugMode) {\n" +
-                    "    float debugDepth = total_shift;\n" + // Visualisiere den kombinierten Shift
+                    "    float debugDepth = total_shift;\n" +
                     "    vec3 debugTint = vec3(0.0);\n" +
                     "    if (debugDepth > 0.0) { debugTint.r = debugDepth * 50.0; }\n" +
                     "    else { debugTint.b = -debugDepth * 50.0; }\n" +
@@ -80,16 +100,20 @@ public class ShaderUtils {
                     "uniform vec2 u_texelSize;\n" +
                     "void main() {\n" +
                     "  vec4 sum = vec4(0.0);\n" +
-                    // Simple 9-tap Gaussian blur. This makes the depth map much softer.
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 4.0 * u_texelSize) * 0.05;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 3.0 * u_texelSize) * 0.09;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 2.0 * u_texelSize) * 0.12;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 1.0 * u_texelSize) * 0.15;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord) * 0.18;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 1.0 * u_texelSize) * 0.15;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 2.0 * u_texelSize) * 0.12;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 3.0 * u_texelSize) * 0.09;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 4.0 * u_texelSize) * 0.05;\n" +
+                    // Erweiterter 13-Tap Gaussian Blur für einen weicheren Effekt
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 6.0 * u_texelSize) * 0.0093;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 5.0 * u_texelSize) * 0.0280;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 4.0 * u_texelSize) * 0.0656;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 3.0 * u_texelSize) * 0.1210;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 2.0 * u_texelSize) * 0.1747;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord - 1.0 * u_texelSize) * 0.1974;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord) * 0.2080;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 1.0 * u_texelSize) * 0.1974;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 2.0 * u_texelSize) * 0.1747;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 3.0 * u_texelSize) * 0.1210;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 4.0 * u_texelSize) * 0.0656;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 5.0 * u_texelSize) * 0.0280;\n" +
+                    "  sum += texture2D(s_InputTexture, v_TexCoord + 6.0 * u_texelSize) * 0.0093;\n" +
                     "  gl_FragColor = sum;\n" +
                     "}\n";
 
