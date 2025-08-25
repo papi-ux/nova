@@ -12,6 +12,9 @@
 -keep class com.limelight.utils.KeyConfigHelper$ShortcutFile {*;}
 -keep class com.limelight.utils.KeyConfigHelper$Shortcut {*;}
 
+# Keep TensorFlow Lite GPU delegate classes that R8 might incorrectly remove
+-keep class org.tensorflow.lite.gpu.** { *; }
+
 # Profiles
 -keep class com.limelight.profiles.ProfilesManager$ProfilesData {*;}
 -keep class com.limelight.profiles.SettingsProfile {*;}

@@ -25,6 +25,11 @@ public class ShaderUtils {
                     "uniform vec2 u_minFocusPoint;\n" +
                     "uniform bool u_debugMode;\n" +
                     "uniform bool u_bothEyes;\n" +
+
+                    // --- VIGNETTE-EINSTELLUNGEN ZUM ANPASSEN ---\n" +
+                    "const float vignette_start = 0.70;\n" + // Ausblenden beginnt bei 85% der Distanz zur Seite
+                    "const float vignette_end = 1.0;\n" +   // Ausblenden ist bei 100% abgeschlossen
+
                     "void main() {\n" +
                     // --- Basis-3D-Effekt aus der Tiefenkarte ---\n" +
                     "  float depth = texture2D(s_DepthTexture, v_TexCoord).r;\n" +
@@ -35,7 +40,6 @@ public class ShaderUtils {
                     "  float bubbleRadius = 0.5;\n" +
                     "\n" +
                     "  if (u_bothEyes) {\n" +
-                    "    // Modus 1: Beide Augen, alles ist aktiv, kein Beschneiden.\n" +
                     "    float dist = distance(v_TexCoord, u_focusPoint);\n" +
                     "    float t_pos = clamp(dist / bubbleRadius, 0.0, 1.0);\n" +
                     "    float centerFactor = 1.0 - pow(t_pos, 1.0);\n" +
@@ -47,16 +51,12 @@ public class ShaderUtils {
                     "    float negative_shift = -u_convergence * centerFactorMin;\n" +
                     "    combined_ai_shift = positive_shift + negative_shift;\n" +
                     "  } else {\n" +
-                    "    // Modus 2: Geteilte Steuerung. Parallax beschneidet, Convergence fügt Bubble hinzu.\n" +
-                    "\n" +
-                    "    // SCHRITT 1: Globalen Shift IMMER basierend auf u_parallax beschneiden.\n" +
                     "    if (u_parallax > 0.0) {\n" +
                     "        ai_shift = max(ai_shift, 0.0);\n" +
                     "    } else if (u_parallax < 0.0) {\n" +
                     "        ai_shift = min(ai_shift, 0.0);\n" +
                     "    }\n" +
                     "\n" +
-                    "    // SCHRITT 2: Bubble-Shift UNABHÄNGIG basierend auf u_convergence hinzufügen.\n" +
                     "    if (u_convergence > 0.0) {\n" +
                     "        float dist = distance(v_TexCoord, u_focusPoint);\n" +
                     "        float t_pos = clamp(dist / bubbleRadius, 0.0, 1.0);\n" +
@@ -68,12 +68,17 @@ public class ShaderUtils {
                     "        float centerFactorMin = 1.0 - pow(t_pos_min, 2.0);\n" +
                     "        combined_ai_shift = u_convergence * centerFactorMin;\n" +
                     "    }\n" +
-                    "    // Wenn u_convergence = 0, bleibt combined_ai_shift einfach 0. Perfekt.\n" +
                     "  }\n" +
                     "\n" +
-                    // Kombiniere den (jetzt korrekt beschnittenen) Basis-Shift mit dem (optionalen) Blasen-Shift\n" +
                     "  float total_shift = ai_shift + combined_ai_shift;\n" +
-                    "  vec2 shiftedCoord = vec2(v_TexCoord.x - total_shift, v_TexCoord.y);\n" +
+
+                    // --- HORIZONTALE VIGNETTE-LOGIK START ---\n" +
+                    "  float h_dist = abs(v_TexCoord.x - 0.5) * 2.0;\n" +
+                    "  float vignette_factor = 1.0 - smoothstep(vignette_start, vignette_end, h_dist);\n" +
+                    "  float final_shift = total_shift * vignette_factor;\n" +
+                    // --- HORIZONTALE VIGNETTE-LOGIK ENDE ---\n" +
+
+                    "  vec2 shiftedCoord = vec2(v_TexCoord.x - final_shift, v_TexCoord.y);\n" +
                     "\n" +
                     // --- Der Rest Ihrer bewährten Logik ---\n" +
                     "  vec4 originalColor = texture2D(s_ColorTexture, v_TexCoord);\n" +
@@ -84,7 +89,7 @@ public class ShaderUtils {
                     "\n" +
                     // --- Debug-Farben ---\n" +
                     "  if (u_debugMode) {\n" +
-                    "    float debugDepth = total_shift;\n" +
+                    "    float debugDepth = final_shift;\n" +
                     "    vec3 debugTint = vec3(0.0);\n" +
                     "    if (debugDepth > 0.0) { debugTint.r = debugDepth * 50.0; }\n" +
                     "    else { debugTint.b = -debugDepth * 50.0; }\n" +
@@ -93,29 +98,34 @@ public class ShaderUtils {
                     "  gl_FragColor = finalColor;\n" +
                     "}\n";
 
-    public static final String FRAGMENT_SHADER_BILATERAL_BLUR =
+    public static final String FRAGMENT_SHADER_GAUSSIAN_BLUR =
             "precision mediump float;\n" +
                     "varying vec2 v_TexCoord;\n" +
                     "uniform sampler2D s_InputTexture;\n" +
                     "uniform vec2 u_texelSize;\n" +
+
+                    // NEU: Diese Uniform steuert die Richtung des Weichzeichners
+                    "uniform vec2 u_blurDirection;\n" +
+
+                    // Die Stärke des Weichzeichners (Radius)
+                    "const float blurRadius = 50.0;\n" +
+                    // Die Qualität/Sigma des Weichzeichners
+                    "const float sigma = 100.0;\n" +
+
                     "void main() {\n" +
                     "  vec4 sum = vec4(0.0);\n" +
-                    // Erweiterter 13-Tap Gaussian Blur für einen weicheren Effekt
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 6.0 * u_texelSize) * 0.0093;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 5.0 * u_texelSize) * 0.0280;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 4.0 * u_texelSize) * 0.0656;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 3.0 * u_texelSize) * 0.1210;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 2.0 * u_texelSize) * 0.1747;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord - 1.0 * u_texelSize) * 0.1974;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord) * 0.2080;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 1.0 * u_texelSize) * 0.1974;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 2.0 * u_texelSize) * 0.1747;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 3.0 * u_texelSize) * 0.1210;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 4.0 * u_texelSize) * 0.0656;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 5.0 * u_texelSize) * 0.0280;\n" +
-                    "  sum += texture2D(s_InputTexture, v_TexCoord + 6.0 * u_texelSize) * 0.0093;\n" +
-                    "  gl_FragColor = sum;\n" +
-                    "}\n";
+                    "  float weightSum = 0.0;\n" +
+
+                    "  for (float i = -blurRadius; i <= blurRadius; i++) {\n" +
+                         // Berechne die Gewichtung für diesen Pixel basierend auf der Distanz"
+    "      float weight = exp(-(i*i) / (2.0 * sigma * sigma));\n" +
+                  // Lies den Farbwert an der verschobenen Position"
+            "      sum += texture2D(s_InputTexture, v_TexCoord + i * u_texelSize * u_blurDirection) * weight;\n" +
+            "      weightSum += weight;\n" +
+            "  }\n" +
+              // Gib den gewichteten Durchschnitt aus
+            "  gl_FragColor = sum / weightSum;\n" +
+            "}\n";
 
     public static final String SIMPLE_VERTEX_SHADER =
             "attribute vec4 a_Position;\n" +

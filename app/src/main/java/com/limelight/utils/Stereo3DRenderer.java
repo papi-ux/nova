@@ -1,5 +1,7 @@
 package com.limelight.utils;
 
+import static org.jcodec.common.tools.Debug.println;
+import java.util.Arrays;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.SurfaceTexture;
@@ -7,7 +9,12 @@ import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
 import android.view.Surface;
-
+import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.InterpreterApi;
+import org.tensorflow.lite.gpu.GpuDelegate;
+import org.tensorflow.lite.gpu.GpuDelegateFactory;
+import org.tensorflow.lite.nnapi.NnApiDelegate;
+import org.tensorflow.lite.Delegate;
 import com.limelight.LimeLog;
 import com.limelight.preferences.PreferenceConfiguration;
 
@@ -17,6 +24,7 @@ import org.tensorflow.lite.gpu.GpuDelegate;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -169,10 +177,11 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         depthMapTextureId = createEmptyTexture(modelInputWidth, modelInputHeight);
 
         simple3dProgram = createProgram(ShaderUtils.SIMPLE_VERTEX_SHADER, ShaderUtils.SIMPLE_FRAGMENT_SHADER);
-        bilateralBlurProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_BILATERAL_BLUR);
+        bilateralBlurProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_GAUSSIAN_BLUR);
         dibr3dProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_DUAL_BUBBLE_3D);
 
         initializeFilterFbo();
+        initializeIntermediateFbo();
         initializeTfLite();
         initializeFbo();
         initBuffer();
@@ -182,6 +191,76 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         if (onSurfaceReadyListener != null) {
             onSurfaceReadyListener.onSurfaceReady(videoSurface);
         }
+    }
+
+    // FÜGE DIESE NEUE METHODE ZU DEINER KLASSE HINZU:
+    private void initializeIntermediateFbo() {
+        intermediateTextureId = createRgbaTexture(modelInputWidth, modelInputHeight);
+        int[] fbos = new int[1];
+        GLES20.glGenFramebuffers(1, fbos, 0);
+        intermediateFboHandle = fbos[0];
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, intermediateFboHandle);
+        GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, intermediateTextureId, 0);
+        if (GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) != GLES20.GL_FRAMEBUFFER_COMPLETE) {
+            Log.e("Stereo3DRenderer", "Intermediate Framebuffer is not complete.");
+        }
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+    }
+    private void applyTwoPassGaussianBlur() {
+        // Behalte den Namen deines Shader-Programms bei (z.B. bilateralBlurProgram)
+        // B
+        int blurProgram = bilateralBlurProgram;
+
+        GLES20.glUseProgram(blurProgram);
+
+        // Hole die Handles für die Uniforms und Attribute
+        int posHandle = GLES20.glGetAttribLocation(blurProgram, "a_Position");
+        int texHandle = GLES20.glGetAttribLocation(blurProgram, "a_TexCoord");
+        int inputTextureHandle = GLES20.glGetUniformLocation(blurProgram, "s_InputTexture");
+        int texelSizeHandle = GLES20.glGetUniformLocation(blurProgram, "u_texelSize");
+        int directionHandle = GLES20.glGetUniformLocation(blurProgram, "u_blurDirection");
+
+        // Setze die Attribute (sind für beide Durchgänge gleich)
+        GLES20.glVertexAttribPointer(posHandle, 2, GLES20.GL_FLOAT, false, 0, quadVertexBuffer);
+        GLES20.glVertexAttribPointer(texHandle, 2, GLES20.GL_FLOAT, false, 0, textureVertexBuffer);
+        GLES20.glEnableVertexAttribArray(posHandle);
+        GLES20.glEnableVertexAttribArray(texHandle);
+
+        // Setze die Texel-Größe (ist für beide Durchgänge gleich)
+        GLES20.glUniform2f(texelSizeHandle, 1.0f / modelInputWidth, 1.0f / modelInputHeight);
+
+
+        // --- 1. HORIZONTALER DURCHGANG (rohe Karte -> Zwischen-Textur) ---
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, intermediateFboHandle);
+        GLES20.glViewport(0, 0, modelInputWidth, modelInputHeight);
+
+        // Setze die Richtung auf horizontal
+        GLES20.glUniform2f(directionHandle, 1.0f, 0.0f);
+
+        // Binde die rohe Tiefenkarte (depthMapTextureId) als Input
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, depthMapTextureId);
+        GLES20.glUniform1i(inputTextureHandle, 0);
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+
+        // --- 2. VERTIKALER DURCHGANG (Zwischen-Textur -> finale gefilterte Textur) ---
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, filterFboHandle);
+        GLES20.glViewport(0, 0, modelInputWidth, modelInputHeight);
+
+        // Setze die Richtung auf vertikal
+        GLES20.glUniform2f(directionHandle, 0.0f, 1.0f);
+
+        // Binde die ZWISCHEN-Textur (intermediateTextureId) als Input
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, intermediateTextureId);
+        GLES20.glUniform1i(inputTextureHandle, 0);
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+        // Setze den Framebuffer auf den Standard-Bildschirm zurück
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
     }
 
     /**
@@ -295,7 +374,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         int viewWidth = glSurfaceView.getWidth();
         int viewHeight = glSurfaceView.getHeight();
 
-        float parallax = 0.065f * parallaxStrength;
+        float parallax = 0.1f * (parallaxStrength * 1.5f);
         float convergence = convergenceStrength * 0.018f * smoothedAverageSceneDepth;
 
         // --- Left Eye (Positive Effects Only) ---
@@ -306,7 +385,8 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         GLES20.glViewport(viewWidth / 2, 0, viewWidth / 2, viewHeight);
         drawEye(dualBubble3dProgram, parallax, convergence);
     }
-    private Boolean isDebugMode = true;
+    private Boolean isDebugMode = false;
+
     private void drawEye(int program, float parallax, float convergence) {
         GLES20.glUseProgram(program);
 
@@ -394,19 +474,20 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         drawWithDualBubbleDepth(dibr3dProgram, strongParallax, strongConvergence);
     }
 
+    private int intermediateTextureId; // Für das Ergebnis des ersten Blur-Durchgangs
+    private int intermediateFboHandle;
+
     private void initBuffer() {
         if (tflite != null) {
             // Annahme: Input ist ein Float-Tensor [1, H, W, 3]
-            int inputSize = 1 * modelInputHeight * modelInputWidth * 3 * 4; // 1*H*W*C*BytesPerFloat
+            int inputSize = 1 * modelInputHeight * modelInputWidth * 3; // 1*H*W*C*BytesPerFloat
             tfliteInputBuffer = ByteBuffer.allocateDirect(inputSize).order(ByteOrder.nativeOrder());
 
             // Annahme: Output ist ein Float-Tensor [1, H, W, 1]
-            int outputSize = 1 * modelInputHeight * modelInputWidth * 1 * 4; // 1*H*W*C*BytesPerFloat
+            int outputSize = 1 * modelInputHeight * modelInputWidth * 1; // 1*H*W*C*BytesPerFloat
             tfliteOutputBuffer = ByteBuffer.allocateDirect(outputSize).order(ByteOrder.nativeOrder());
         }
     }
-
-    private ByteBuffer previousSmoothedDepthBytes = null;
     private ByteBuffer latestUnsmoothedDepthMap = null;
     private int frameCount = 0;
 
@@ -415,88 +496,94 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private void smoothConvergence(float smoothingfactor) {
         smoothedAverageSceneDepth = (targetAverageSceneDepth * (1.0f - smoothingfactor)) + (smoothedAverageSceneDepth * smoothingfactor);
     }
-    private float[] previousSmoothedDepthFloats;
+
+
+    private float[] depthVelocity; // Speichert die "Geschwindigkeit" jedes Pixels für die Feder-Glättung
+
+    private float[] smoothedDepthPosition; // Speichert die geglättete Position mit voller Präzision
     private void smoothAndUpdateDepthMap() {
         synchronized (depthMapLock) {
-            // If we don't have a target to smooth towards, there's nothing to do.
             if (latestUnsmoothedDepthMap == null) {
                 return;
             }
 
-            // Initialize the 'previous' buffer on the very first run, using the target map.
-            if (previousSmoothedDepthBytes == null) {
-                previousSmoothedDepthBytes = ByteBuffer.allocate(latestUnsmoothedDepthMap.capacity()).put(latestUnsmoothedDepthMap);
-                previousSmoothedDepthBytes.rewind();
+            // Initialisiere alle Zustands-Arrays und Buffer beim ersten Durchlauf.
+            if (smoothedDepthPosition == null) {
+                int mapSize = latestUnsmoothedDepthMap.capacity();
+                smoothedDepthPosition = new float[mapSize];
+                depthVelocity = new float[mapSize];
+                previousSmoothedDepthBytes = ByteBuffer.allocate(mapSize);
+
                 latestUnsmoothedDepthMap.rewind();
-            }
-            if(previousSmoothedDepthFloats == null) {
-                // Einmalige Initialisierung
-                if (previousSmoothedDepthFloats == null || previousSmoothedDepthFloats.length != latestUnsmoothedDepthMap.capacity()) {
-                    previousSmoothedDepthFloats = new float[latestUnsmoothedDepthMap.capacity()];
-                    // Optional: Mit den Startwerten füllen
-                    for (int i = 0; i < latestUnsmoothedDepthMap.capacity(); i++) {
-                        previousSmoothedDepthFloats[i] = latestUnsmoothedDepthMap.get(i) & 0xFF;
-                    }
+                previousSmoothedDepthBytes.put(latestUnsmoothedDepthMap); // Fülle den Byte-Buffer
+                latestUnsmoothedDepthMap.rewind();
+                for (int i = 0; i < mapSize; i++) {
+                    // Fülle den Float-Array
+                    smoothedDepthPosition[i] = latestUnsmoothedDepthMap.get(i) & 0xFF;
                 }
             }
+
+            // Berechne die durchschnittliche Änderung (nutzt den Byte-Buffer, wie von dir gewünscht)
             long totalDifference = 0;
-            // Calculate the difference between the NEW raw and the PREVIOUS smoothed depth map
+            latestUnsmoothedDepthMap.rewind();
+            previousSmoothedDepthBytes.rewind();
             for (int i = 0; i < latestUnsmoothedDepthMap.capacity(); i++) {
                 totalDifference += Math.abs((latestUnsmoothedDepthMap.get(i) & 0xFF) - (previousSmoothedDepthBytes.get(i) & 0xFF));
             }
             double averageDifference = (double) totalDifference / latestUnsmoothedDepthMap.capacity();
 
-            // --- KORREKTUR: Adaptive Logik aktivieren ---
-            final double SCENE_CUT_THRESHOLD = 80.0; // Strong change (scene cut)
-            final double FAST_MOTION_THRESHOLD = 50.0; // Medium change (fast motion)
-            float transSpeed = 1f;
-            if(prefConf != null) {
-                transSpeed = prefConf.transition_speed;
-            }
-            final float LOW_SMOOTHING = transSpeed;   // For scene cuts
-            final float MEDIUM_SMOOTHING = transSpeed / 8; // For fast motion
-            final float HIGH_SMOOTHING = transSpeed / 15;  // For slow pans
-
-            float currentSmoothingFactor;
-
-            if (averageDifference > SCENE_CUT_THRESHOLD) {
-                currentSmoothingFactor = LOW_SMOOTHING;
-            } else if (averageDifference > FAST_MOTION_THRESHOLD) {
-                currentSmoothingFactor = MEDIUM_SMOOTHING;
+            // Deine adaptive Logik zur Bestimmung der Federstärke (bleibt gleich)
+            final double SCENE_CUT_THRESHOLD = 80.0;
+            float springStrength;
+            if (averageDifference >= SCENE_CUT_THRESHOLD) {
+                springStrength = 1.0f;
+                Arrays.fill(depthVelocity, 0.0f);
             } else {
-                currentSmoothingFactor = HIGH_SMOOTHING;
+                final float MIN_SPRING = 0.0001f;
+                final float MAX_SPRING_NORMAL = (prefConf != null) ? prefConf.transition_speed : 0.3f;
+                double ratio = Math.min(averageDifference / SCENE_CUT_THRESHOLD, 1.0);
+                ratio = Math.pow(ratio, 2.0);
+                springStrength = (float) (MIN_SPRING + (MAX_SPRING_NORMAL - MIN_SPRING) * ratio);
             }
-            LimeLog.info("SMOOTHITEST " + averageDifference + " " +LOW_SMOOTHING + " " + MEDIUM_SMOOTHING + " "+HIGH_SMOOTHING);
-            ByteBuffer newSmoothedBytes = ByteBuffer.allocate(latestUnsmoothedDepthMap.capacity()).order(ByteOrder.nativeOrder());
+            float damping = 0.6f;
+            LimeLog.info("SMOOTHITEST (Spring): " + springStrength + " (AvgDiff): " + averageDifference );
 
+            // --- Finale Feder-Dämpfer-Logik ---
+            ByteBuffer newSmoothedBytes = ByteBuffer.allocate(latestUnsmoothedDepthMap.capacity());
             latestUnsmoothedDepthMap.rewind();
-            previousSmoothedDepthBytes.rewind();
 
             for (int i = 0; i < latestUnsmoothedDepthMap.capacity(); i++) {
-                // Lies den vorherigen Float-Wert
-                float prev = previousSmoothedDepthFloats[i];
-                // Das Ziel ist immer noch ein Byte
-                float curr = latestUnsmoothedDepthMap.get(i) & 0xFF;
+                // Lese den präzisen alten Zustand aus dem float-Array
+                float prevPos = smoothedDepthPosition[i];
+                float currentTarget = latestUnsmoothedDepthMap.get(i) & 0xFF;
+                float newPos;
 
-                // Berechne den neuen Float-Wert
-                float smoothFloat = (1.0f - currentSmoothingFactor) * prev + currentSmoothingFactor * curr;
+                if (springStrength >= 1.0f) {
+                    newPos = currentTarget;
+                    depthVelocity[i] = 0;
+                } else {
+                    float distance = currentTarget - prevPos;
+                    float springForce = distance * springStrength;
+                    float currentVel = depthVelocity[i];
+                    currentVel += springForce;
+                    currentVel *= damping;
+                    depthVelocity[i] = currentVel;
+                    newPos = prevPos + currentVel;
+                }
 
-                // Speichere den neuen Wert mit voller Präzision für den nächsten Frame
-                previousSmoothedDepthFloats[i] = smoothFloat;
+                // Speichere den neuen, präzisen Zustand im float-Array für die nächste Berechnung
+                smoothedDepthPosition[i] = newPos;
 
-                // Wandle den Wert ERST JETZT in ein Byte für die GPU um
-                newSmoothedBytes.put(i, (byte) smoothFloat);
+                // Speichere eine gerundete Version im Byte-Buffer für die GPU und deine Vergleiche
+                newSmoothedBytes.put((byte) Math.max(0, Math.min(255, newPos)));
             }
 
             newSmoothedBytes.rewind();
-
-            // Upload the newly smoothed map to the GPU for rendering.
             uploadLatestDepthMapToGpu(newSmoothedBytes);
-            smoothFocusPoint(1f - (currentSmoothingFactor));
-            smoothConvergence(1f - (currentSmoothingFactor));
+            smoothFocusPoint(1f - springStrength);
 
-            // Save this smoothed map as the new "previous" map for the next frame's interpolation.
-            previousSmoothedDepthBytes = newSmoothedBytes;
+            // Aktualisiere den Byte-Buffer, damit er für den nächsten Vergleich bereit ist.
+            this.previousSmoothedDepthBytes = newSmoothedBytes;
         }
     }
 
@@ -529,7 +616,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         try {
             videoSurfaceTexture.updateTexImage();
         } catch (Exception e) {
-            Log.w("Stereo3DRenderer", "updateTexImage failed", e);
+            Log.w("Stereo3DRenderer", "updateTexImagse failed", e);
             return;
         }
 
@@ -583,6 +670,15 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     double sceneDifference = hasFrameChangedSignificantly(pixelBuffer);
                     LimeLog.info("DIFFERENCE " +sceneDifference);
                     if (sceneDifference > 5f) {
+                       /* if(sceneDifference > 50f) {
+                            LimeLog.info("DIFFERENCE RESET" +sceneDifference);
+                            // Setze BEIDE Karten (die aktuelle und die für die Glättung) sofort zurück.
+                            // Das verhindert, dass von der alten Szene zur neuen geglättet wird.
+                            synchronized (depthMapLock) {
+                                latestUnsmoothedDepthMap = flatDepthMap;
+                                previousSmoothedDepthBytes = flatDepthMap;
+                            }
+                        }*/
                         previousPixelBufferForDiff = pixelBuffer;
                         isAiRunning.set(true);
                         executorService.submit(new DepthEstimationTask(pixelBuffer, sceneDifference));
@@ -590,16 +686,27 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     }
             //    }
             }
-            applyBilateralFilter();
+            applyTwoPassGaussianBlur();
             drawWithShader();
             frameCount++;
             long endTime = System.nanoTime();
             long durationMs = (endTime - startTime) / 1000000;
             Log.d("Stereo3DRenderer", "Total onDrawFrame time: " + durationMs + " ms " + pixelWereCount + "  " + frameCount);
         }
-
     }
+    private ByteBuffer flatDepthMap = createFlatDepthMap();
+    private ByteBuffer createFlatDepthMap() {
+        int mapSize = modelInputWidth * modelInputHeight;
+        byte[] flatData = new byte[mapSize];
 
+        // Fülle das Array mit dem neutralen Wert 128 (entspricht 0.5f im Shader)
+        Arrays.fill(flatData, (byte) 128);
+
+        ByteBuffer flatMap = ByteBuffer.allocate(mapSize);
+        flatMap.put(flatData);
+        flatMap.rewind();
+        return flatMap;
+    }
     private ByteBuffer previousPixelBufferForDiff = null;
 
     /**
@@ -696,6 +803,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private ByteBuffer tfliteInputBuffer;
     private ByteBuffer tfliteOutputBuffer;
 
+    private ByteBuffer previousSmoothedDepthBytes = null;
     private class DepthEstimationTask implements Runnable {
         private final ByteBuffer pixelBuffer;
         private final double imageDifference;
@@ -718,57 +826,79 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                 tfliteInputBuffer.rewind();
                 tfliteOutputBuffer.rewind();
 
-                // 1. Konvertiere die Pixel in das Float-Format des Modells
+                // KORREKTE BEFÜLL-SCHLEIFE (mit .put() statt .putFloat())
                 pixelBuffer.rewind();
                 for (int i = 0; i < modelInputWidth * modelInputHeight; i++) {
-                    tfliteInputBuffer.putFloat((pixelBuffer.get() & 0xFF) / 255.0f); // R
-                    tfliteInputBuffer.putFloat((pixelBuffer.get() & 0xFF) / 255.0f); // G
-                    tfliteInputBuffer.putFloat((pixelBuffer.get() & 0xFF) / 255.0f); // B
+                    byte r = pixelBuffer.get();
+                    byte g = pixelBuffer.get();
+                    byte b = pixelBuffer.get();
                     pixelBuffer.get(); // Alpha überspringen
+
+                    tfliteInputBuffer.put(r);
+                    tfliteInputBuffer.put(g);
+                    tfliteInputBuffer.put(b);
                 }
                 tfliteInputBuffer.rewind();
 
                 // 2. Führe die KI-Inferenz aus
                 tflite.run(tfliteInputBuffer, tfliteOutputBuffer);
+                // KORREKTE UINT8-NORMALISIERUNG
                 tfliteOutputBuffer.rewind();
 
-                // 3. Normalisiere das Ergebnis
-                FloatBuffer floatOutput = tfliteOutputBuffer.asFloatBuffer();
-                float min = Float.MAX_VALUE, max = Float.MIN_VALUE;
-                for (int i = 0; i < floatOutput.capacity(); i++) {
-                    float val = floatOutput.get(i);
+// 1. Finde Min/Max als Integer im Bereich 0-255
+                int min = 255;
+                int max = 0;
+                for (int i = 0; i < tfliteOutputBuffer.capacity(); i++) {
+                    int val = tfliteOutputBuffer.get(i) & 0xFF; // Lese als unsigned byte
                     if (val < min) min = val;
                     if (val > max) max = val;
                 }
-                float range = max - min;
-                ByteBuffer depthBytes = ByteBuffer.allocateDirect(modelInputWidth * modelInputHeight).order(ByteOrder.nativeOrder());
+                int range = max - min;
+
+// 2. Erstelle die finale, kontrastreiche Map
+                ByteBuffer depthBytes = ByteBuffer.allocateDirect(modelInputWidth * modelInputHeight);
+                tfliteOutputBuffer.rewind();
+
                 if (range > 0) {
-                    floatOutput.rewind();
-                    for (int i = 0; i < floatOutput.capacity(); i++) {
-                        float normalized = (floatOutput.get() - min) / range;
-                        depthBytes.put((byte) (normalized * 255.0f));
+                    for (int i = 0; i < tfliteOutputBuffer.capacity(); i++) {
+                        int val = tfliteOutputBuffer.get(i) & 0xFF;
+                        // Normalisiere den Wert und strecke den Kontrast auf den vollen Bereich
+                        int stretchedValue = ((val - min) * 255) / range;
+                        depthBytes.put((byte) stretchedValue);
                     }
+                } else {
+                    // Falls kein Kontrast vorhanden ist (flaches Bild), kopiere einfach die Rohdaten
+                    depthBytes.put(tfliteOutputBuffer);
                 }
                 depthBytes.rewind();
-                final double DEPTH_STABILITY_THRESHOLD = 15.0;
-                final double IMAGE_STABILITY_THRESHOLD = 20;
-                if(this.imageDifference < IMAGE_STABILITY_THRESHOLD) {
-                    if (previousSmoothedDepthBytes != null) {
-                        long totalDepthDifference = 0;
-                        depthBytes.rewind();
-                        previousSmoothedDepthBytes.rewind();
-                        for (int i = 0; i < depthBytes.capacity(); i++) {
-                            totalDepthDifference += Math.abs((depthBytes.get(i) & 0xFF) - (previousSmoothedDepthBytes.get(i) & 0xFF));
-                        }
-                        double averageDepthDifference = (double) totalDepthDifference / depthBytes.capacity();
-                        depthBytes.rewind();
-                        previousSmoothedDepthBytes.rewind();
 
-                        // Discard the new map ONLY IF the depth map changed a lot, BUT the source image did NOT.
-                        if (averageDepthDifference > DEPTH_STABILITY_THRESHOLD) {
-                            LimeLog.info("Unstable AI result ignored. " + imageDifference +": " + averageDepthDifference + ", Image Diff: " + this.imageDifference);
-                            return;
-                        }
+                final double INSTABILITY_THRESHOLD = 10.0;
+                final double MIN_IMAGE_DIFFERENCE = 1.0; // Ignoriere winzige Bildänderungen, um Instabilität zu vermeiden
+
+                if (previousSmoothedDepthBytes != null) {
+                    // 1. Berechne die Änderung der Tiefenkarte (wie bisher)
+                    long totalDepthDifference = 0;
+                    depthBytes.rewind();
+                    previousSmoothedDepthBytes.rewind();
+                    for (int i = 0; i < depthBytes.capacity(); i++) {
+                        totalDepthDifference += Math.abs((depthBytes.get(i) & 0xFF) - (previousSmoothedDepthBytes.get(i) & 0xFF));
+                    }
+                    double averageDepthDifference = (double) totalDepthDifference / depthBytes.capacity();
+                    depthBytes.rewind();
+                    previousSmoothedDepthBytes.rewind();
+
+                    // 2. Berechne den Instabilitäts-Faktor
+                    // Teile die Tiefenänderung durch die Bildänderung.
+                    // Ein kleiner Puffer (MIN_IMAGE_DIFFERENCE) verhindert eine Division durch Null
+                    // und ignoriert winziges Bildrauschen.
+                    double instabilityFactor = averageDepthDifference / Math.max(this.imageDifference, MIN_IMAGE_DIFFERENCE);
+
+                    // 3. Verwerfe die Karte, wenn der Faktor zu hoch ist
+                    // Das bedeutet: "Die Tiefe hat sich VIEL MEHR geändert als das Bild selbst."
+                    if (instabilityFactor > INSTABILITY_THRESHOLD) {
+                        LimeLog.info("Unstable AI result ignored. Instability Factor: " + instabilityFactor +
+                                " (DepthDiff: " + averageDepthDifference + ", ImageDiff: " + this.imageDifference + ")");
+                        return; // Verwirf dieses Ergebnis
                     }
                 }
 
@@ -833,20 +963,39 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         }
     }
 
-
     private void initializeTfLite() {
-        try {
-            CompatibilityList compat = new CompatibilityList();
-            Interpreter.Options opts = new Interpreter.Options();
 
-            GpuDelegate delegate = new GpuDelegate(compat.getBestOptionsForThisDevice());
-            opts.addDelegate(delegate);
-            tflite = new Interpreter(loadModelFile(context, AI_MODEL), opts);
+        Interpreter.Options options = new Interpreter.Options();
+
+        // 1️⃣ NnApiDelegate
+        try {
+            GpuDelegate.Options gpuOptions = new GpuDelegate.Options();
+            gpuOptions.setQuantizedModelsAllowed(true); // Optional: je nach Bedarf
+            gpuOptions.setPrecisionLossAllowed(true);
+            gpuOptions.setInferencePreference(GpuDelegateFactory.Options.INFERENCE_PREFERENCE_SUSTAINED_SPEED);
+            GpuDelegate gpuDelegate = new GpuDelegate(gpuOptions);
+            options.addDelegate(gpuDelegate);
+            System.out.println("MYLOG GPU Delegate aktiviert");
+            tflite = new Interpreter(loadModelFile(context, AI_MODEL), options);
         } catch (Exception e) {
-            Log.w("Stereo3DRenderer", "Failed to create TFLite interpreter with GPU delegate, falling back to CPU.", e);
-            reinitializeTfLiteOnCpu();
-            // Beenden, da reinitializeTfLiteOnCpu den Rest erledigt
-            return;
+            System.out.println("MYLOG GPU Delegate nicht verfügbar: " + e.getMessage());
+            // 2️⃣ GPU Delegate
+            try {
+                NnApiDelegate nnapi = new NnApiDelegate();
+                options.addDelegate(nnapi);
+                System.out.println("MYLOG NNAPI Delegate aktiviert");
+                tflite = new Interpreter(loadModelFile(context, AI_MODEL), options);
+
+            } catch (Exception exception) {
+                System.out.println("MYLOG NNAPI Delegate nicht verfügbar: " + e.getMessage());
+                // 3️⃣ CPU Fallback
+                try {
+                    System.out.println("MYLOG Fallback: CPU");
+                    tflite = new Interpreter(loadModelFile(context, AI_MODEL), options);
+                } catch (Exception ex) {
+                    reinitializeTfLiteOnCpu();
+                }
+            }
         }
     }
 
@@ -871,7 +1020,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         }
     }
 
-    private String AI_MODEL = "Midas-V2.tflite";
+    private String AI_MODEL = "midas-midas-v2-w8a8.tflite";
 
     private MappedByteBuffer loadModelFile(Context context, String modelPath) throws
             IOException {

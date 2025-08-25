@@ -184,7 +184,7 @@
             android:summary="New DepthMap applied instantly (100) or slowly (1)"
             android:defaultValue="80"
             android:max="100"
-            app:min="10"
+            app:min="1"
             app:showSeekBarValue="true"
             app:updatesContinuously="true"/>
         <CheckBoxPreference
