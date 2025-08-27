@@ -10,6 +10,8 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.limelight.utils.ExternalDisplayControlActivity;
+
 public class StreamView extends SurfaceView {
     private double desiredAspectRatio;
     private InputCallbacks inputCallbacks;
@@ -114,7 +116,8 @@ public class StreamView extends SurfaceView {
     @Override
     public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
-        if (inputCallbacks != null) {
+        if (inputCallbacks != null && !inputCallbacks.isOnExternalDisplay()) {
+            // We don't handle focus change on the Game activity when external display controller presents
             inputCallbacks.handleFocusChange(hasWindowFocus);
         }
     }
@@ -159,5 +162,6 @@ public class StreamView extends SurfaceView {
         boolean handleCommitText(CharSequence text);
         boolean handleDeleteSurroundingText(int beforeLength, int afterLength);
         boolean handleFocusChange(boolean hasWindowFocus);
+        boolean isOnExternalDisplay();
     }
 }

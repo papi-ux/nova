@@ -6,11 +6,13 @@ package com.limelight.binding.input.virtual_controller.keyboard;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
@@ -302,12 +304,20 @@ public class KeyBoardLayoutController {
 
     public void refreshLayout() {
         frame_layout.removeView(keyboardView);
-        // DisplayMetrics screen = context.getResources().getDisplayMetrics();
-        // (int)(screen.heightPixels/0.4)/
-        int height = prefConfig.onscreenKeyboardHeight;
-        int widthPreference = prefConfig.onscreenKeyboardWidth;
-        int width = widthPreference == 1000 ? ViewGroup.LayoutParams.MATCH_PARENT : dip2px(context, widthPreference);
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, dip2px(context, height));
+
+        int height = 0;
+        int width = 0;
+        int widthPreference = 0;
+        if (prefConfig.onscreenKeyboardAutoFitDisabled) {
+            height = dip2px(context,prefConfig.onscreenKeyboardHeight);
+            widthPreference = prefConfig.onscreenKeyboardWidth;
+            width = widthPreference == 1000 ? ViewGroup.LayoutParams.MATCH_PARENT : dip2px(context, widthPreference);
+        } else {
+            DisplayMetrics screen = context.getResources().getDisplayMetrics();
+            width = screen.widthPixels;
+            height = (int) (screen.heightPixels * 0.5);
+        }
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
         params.gravity = Gravity.BOTTOM;
         switch (prefConfig.onscreenKeyboardAlignMode) {
             case "left": {

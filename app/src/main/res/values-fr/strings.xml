@@ -355,10 +355,6 @@
     <string name="game_menu_send_keys_win">Win (Meta)</string>
     <string name="game_menu_send_keys_win_d">Win + D</string>
     <string name="game_menu_send_keys_alt_b">ALT + B</string>
-    <string name="game_menu_send_keys_win_x_u_s">Win + X ~ U + S (Veille)</string>
-    <string name="game_menu_send_keys_win_x_u_r">Win + X ~ U + R (Redémarrer)</string>
-    <string name="game_menu_send_keys_win_x_u_u">Win + X ~ U + U (Éteindre)</string>
-    <string name="game_menu_send_keys_win_x_u_i">Win + X ~ U + I (Déconnexion)</string>
     <string name="game_menu_send_keys_win_g">Win + G (Barre de jeu Xbox)</string>
     <string name="game_menu_send_keys_ctrl_alt_tab">Ctrl + Alt + Tab</string>
     <string name="game_menu_send_keys_shift_tab">Shift + Tab (Overlay Steam)</string>

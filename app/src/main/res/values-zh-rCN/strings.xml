@@ -6,6 +6,30 @@
     <string name="scut_pc_not_found"> 电脑未找到 </string>
     <string name="scut_invalid_uuid"> 提供的电脑无效 </string>
     <string name="scut_invalid_app_id"> 提供的App无效 </string>
+
+    <!-- Compliance -->
+    <string name="category_basic_settings">基础设置</string>
+    <string name="title_checkbox_stretch_video">拉伸视频以适应屏幕</string>
+
+    <!-- New/Fully External Display Mode -->
+    <string name="title_fullexdisplay_mode">完全外接显示器模式（Beta）</string>
+    <string name="summary_fullexdisplay_mode">允许全沉浸式副屏模式，自动匹配刷新率和分辨率。此模式下手动设置无效。</string>
+
+    <!-- On-screen Keyboard Autofit -->
+    <string name="title_onscreen_keyboard_autofit">虚拟全键盘禁用自适应</string>
+    <string name="summary_onscreen_keyboard_autofit">不自动调整键盘大小和位置，允许自定义大小</string>
+
+    <!-- External Display Info -->
+    <string name="external_display_info">外接显示器已连接：%1$dx%2$d，%3$.1fHz</string>
+    <string name="notification_channel_name">外接显示器控制</string>
+    <string name="notification_title">外接显示器已激活</string>
+    <string name="notification_text">点击打开触控板控制器</string>
+    <string name="permission_denied">通知权限被拒绝</string>
+    <string name="no_external_display">未检测到外接显示器</string>
+    <string name="no_game_instance">未检测到游戏实例</string>
+
+    <!-- Edit Profile -->
+    <string name="title_edit_profile">编辑配置</string>
     <!-- Help strings -->
     <string name="help_loading_title"> 查看帮助 </string>
     <string name="help_loading_msg"> 正在加载帮助页面…… </string>
@@ -343,16 +367,17 @@
     <string name="game_menu_send_keys_win">Win</string>
     <string name="game_menu_send_keys_win_d">Win + D (返回桌面)</string>
     <string name="game_menu_send_keys_alt_b">ALT + B (切换HDR)</string>
-    <string name="game_menu_send_keys_win_x_u_s">Win + X ~ U + S (睡眠)</string>
-    <string name="game_menu_send_keys_win_x_u_r">Win + X ~ U + R (重启)</string>
-    <string name="game_menu_send_keys_win_x_u_u">Win + X ~ U + U (关机)</string>
-    <string name="game_menu_send_keys_win_x_u_i">Win + X ~ U + I (注销)</string>
     <string name="game_menu_send_keys_win_g">Win + G (打开Xbox Game Bar)</string>
     <string name="game_menu_send_keys_ctrl_alt_tab">Ctrl + Alt + Tab</string>
     <string name="game_menu_send_keys_shift_tab">Shift + Tab (打开Steam Overlay)</string>
     <string name="game_menu_send_keys_win_shift_left">Win + shift + left (在桌面间移动窗口)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (PC退出串流)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (切换显示器)</string>
+
+    <string name="toggle_pan_zoom_mode">切换平移/缩放模式</string>
+    <string name="pan_zoom_mode_enabled">已启用平移/缩放模式</string>
+    <string name="pan_zoom_mode_disabled">已禁用平移/缩放模式</string>
+
     <string name="title_analog_scrolling">使用摇杆控制鼠标移动</string>
     <string name="analogscroll_left">左摇杆</string>
     <string name="analogscroll_right">右摇杆</string>
@@ -626,6 +651,8 @@
     <string name="summary_show_overlay_zoom_toggle_button">在屏幕上显示一个悬浮按钮以切换拖拽/缩放模式</string>
     <string name="title_checkbox_remember_zoom_pan">记住缩放及位置</string>
     <string name="summary_checkbox_remember_zoom_pan">在不同会话间记住缩放及位置</string>
+    <string name="title_checkbox_enable_perf_overlay_bottom">移动性能信息至底部</string>
+    <string name="summary_checkbox_enable_perf_overlay_bottom">当串流分辨率非本地原生且启用了画面顶部居中显示时有用。</string>
     <string name="profile_manager_new_profile">新配置</string>
     <string name="profile_manager_profile_not_found">配置未找到</string>
     <string name="profile_manager_edit_profile">编辑配置：</string>

@@ -1,5 +1,7 @@
 package com.limelight.preferences;
 
+import static com.limelight.utils.ServerHelper.getActiveDisplay;
+
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -48,6 +50,7 @@ import android.widget.Toast;
 import com.google.gson.Gson;
 import com.limelight.DebugInfoActivity;
 import com.limelight.BuildConfig;
+import com.limelight.Game;
 import com.limelight.GameMenu;
 import com.limelight.LimeLog;
 import com.limelight.PcView;
@@ -78,7 +81,7 @@ public class StreamSettings extends AppCompatActivity implements SearchPreferenc
 
     void reloadSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Display.Mode mode = getWindowManager().getDefaultDisplay().getMode();
+            Display.Mode mode = getActiveDisplay(StreamSettings.this, previousPrefs).getMode();
             previousDisplayPixelCount = mode.getPhysicalWidth() * mode.getPhysicalHeight();
         }
         prefsFragment = new SettingsFragment(PreferenceConfiguration.readPreferences(
@@ -133,7 +136,7 @@ public class StreamSettings extends AppCompatActivity implements SearchPreferenc
         super.onConfigurationChanged(newConfig);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Display.Mode mode = getWindowManager().getDefaultDisplay().getMode();
+            Display.Mode mode = getActiveDisplay(StreamSettings.this, previousPrefs).getMode();
 
             // If the display's physical pixel count has changed, we consider that it's a new display
             // and we should reload our settings (which include display-dependent values).
@@ -652,7 +655,7 @@ public class StreamSettings extends AppCompatActivity implements SearchPreferenc
             }
             else {
                 Display.HdrCapabilities hdrCaps = display.getHdrCapabilities();
-
+                Log.d("HDR CAP", display + "");
                 // We must now ensure our display is compatible with HDR10
                 boolean foundHdr10 = false;
                 if (hdrCaps != null) {

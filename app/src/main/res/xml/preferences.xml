@@ -162,9 +162,9 @@
 
         <CheckBoxPreference
             android:defaultValue="false"
-            android:key="checkbox_enable_exdisplay"
-            android:summary="@string/summary_exdisplay_mode"
-            android:title="@string/title_exdisplay_mode"
+            android:key="checkbox_enable_fullexdisplay"
+            android:summary="@string/summary_fullexdisplay_mode"
+            android:title="@string/title_fullexdisplay_mode"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>
@@ -488,8 +488,15 @@
             app:iconSpaceReserved="false"
             seekbar:min="0"
             seekbar:step="1" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="onscreen_keyboard_autofit"
+            android:summary="@string/summary_onscreen_keyboard_autofit"
+            android:title="@string/title_onscreen_keyboard_autofit"
+            app:iconSpaceReserved="false" />
         <com.limelight.preferences.SeekBarPreference
             android:defaultValue="200"
+            android:dependency="onscreen_keyboard_autofit"
             android:key="seekbar_onscreen_keyboard_height"
             android:max="400"
             android:summary="@string/summary_onscreen_keyboard_height"
@@ -502,6 +509,7 @@
             android:defaultValue="1000"
             seekbar:min="150"
             android:max="1000"
+            android:dependency="onscreen_keyboard_autofit"
             android:key="seekbar_onscreen_keyboard_width"
             android:summary="@string/summary_onscreen_keyboard_width"
             android:text="dp"
@@ -555,8 +563,8 @@
             android:defaultValue="false"
             android:dependency="checkbox_enable_perf_overlay"
             android:key="checkbox_enable_perf_overlay_bottom"
-            android:summary="Useful when Display in Top Center and Lite mode are enabled during non-native resolution streaming."
-            android:title="Move overlay to bottom"
+            android:summary="@string/summary_checkbox_enable_perf_overlay_bottom"
+            android:title="@string/title_checkbox_enable_perf_overlay_bottom"
             app:iconSpaceReserved="false" />
 
         <CheckBoxPreference

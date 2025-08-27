@@ -3,6 +3,7 @@ package com.limelight.nvstream.http;
 import com.limelight.LimeLog;
 
 public class NvApp {
+    public static final String REMOTE_INPUT_UUID = "8CB5C136-DA67-4F99-B4A1-F9CD35005CF4";
     private String appName = "";
     private String appUUID = "";
     private int appId;
