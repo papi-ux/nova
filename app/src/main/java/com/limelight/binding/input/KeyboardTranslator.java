@@ -8,6 +8,7 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 
 import com.limelight.LimeLog;
+import com.limelight.nvstream.input.KeyboardPacket;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.utils.KeyMapper;
 
@@ -89,6 +90,21 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
     public static final int VK_RETURN = 13;
 
     public static final int VK_F4 = 115;
+
+    public static byte getModifier(short key) {
+        switch (key) {
+            case VK_LSHIFT:
+                return KeyboardPacket.MODIFIER_SHIFT;
+            case VK_LCONTROL:
+                return KeyboardPacket.MODIFIER_CTRL;
+            case VK_LWIN:
+                return KeyboardPacket.MODIFIER_META;
+            case VK_LMENU:
+                return KeyboardPacket.MODIFIER_ALT;
+            default:
+                return 0;
+        }
+    }
 
     private final PreferenceConfiguration prefConfig;
 

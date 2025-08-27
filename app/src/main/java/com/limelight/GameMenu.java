@@ -16,8 +16,6 @@ import android.widget.Toast;
 
 import com.limelight.binding.input.GameInputDevice;
 import com.limelight.binding.input.KeyboardTranslator;
-import com.limelight.nvstream.NvConnection;
-import com.limelight.nvstream.input.KeyboardPacket;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.utils.KeyConfigHelper;
 import com.limelight.utils.KeyMapper;
@@ -35,8 +33,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class GameMenu implements Game.GameMenuCallbacks {
 
+    public static final long KEY_UP_DELAY = 25;
     private static final long TEST_GAME_FOCUS_DELAY = 10;
-    private static final long KEY_UP_DELAY = 25;
 
     public static final String PREF_NAME = "specialPrefs"; // SharedPreferences的名称
 
@@ -60,19 +58,16 @@ public class GameMenu implements Game.GameMenuCallbacks {
 
     private final Game game;
     private final Context dialogScreenContext;
-    private final NvConnection conn;
 
     private AlertDialog currentDialog;
 
-    public GameMenu(Game game, NvConnection conn, Context dialogScreenContext) {
+    public GameMenu(Game game, Context dialogScreenContext) {
         this.game = game;
-        this.conn = conn;
         this.dialogScreenContext = dialogScreenContext;
     }
 
-    public GameMenu(Game game, NvConnection conn) {
+    public GameMenu(Game game) {
         this.game = game;
-        this.conn = conn;
         this.dialogScreenContext = game;
     }
 
@@ -80,42 +75,9 @@ public class GameMenu implements Game.GameMenuCallbacks {
         return game.getResources().getString(id);
     }
 
-    public static byte getModifier(short key) {
-        switch (key) {
-            case KeyboardTranslator.VK_LSHIFT:
-                return KeyboardPacket.MODIFIER_SHIFT;
-            case KeyboardTranslator.VK_LCONTROL:
-                return KeyboardPacket.MODIFIER_CTRL;
-            case KeyboardTranslator.VK_LWIN:
-                return KeyboardPacket.MODIFIER_META;
-            case KeyboardTranslator.VK_LMENU:
-                return KeyboardPacket.MODIFIER_ALT;
-            default:
-                return 0;
-        }
-    }
 
     private void sendKeys(short[] keys) {
-        final byte[] modifier = {(byte) 0};
-
-        for (short key : keys) {
-            conn.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], (byte) 0);
-
-            // Apply the modifier of the pressed key, e.g. CTRL first issues a CTRL event (without
-            // modifier) and then sends the following keys with the CTRL modifier applied
-            modifier[0] |= getModifier(key);
-        }
-
-        new Handler().postDelayed((() -> {
-            for (int pos = keys.length - 1; pos >= 0; pos--) {
-                short key = keys[pos];
-
-                // Remove the keys modifier before releasing the key
-                modifier[0] &= (byte) ~getModifier(key);
-
-                conn.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
-            }
-        }), KEY_UP_DELAY);
+        game.sendKeys(keys);
     }
 
     private void runWithGameFocus(Runnable runnable) {
@@ -230,9 +192,6 @@ public class GameMenu implements Game.GameMenuCallbacks {
             options.add(new MenuOption(getString(R.string.game_menu_send_keys_win_shift_left),
                     () -> sendKeys(new short[]{KeyboardTranslator.VK_LWIN, KeyboardTranslator.VK_LSHIFT, KeyboardTranslator.VK_LEFT})));
 
-            options.add(new MenuOption(getString(R.string.game_menu_send_keys_ctrl_alt_shift_q),
-                    () -> sendKeys(new short[]{KeyboardTranslator.VK_LCONTROL,KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_LSHIFT, KeyboardTranslator.VK_Q})));
-
             options.add(new MenuOption(getString(R.string.game_menu_send_keys_ctrl_alt_shift_f1),
                     () -> sendKeys(new short[]{KeyboardTranslator.VK_LCONTROL,KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_LSHIFT, KeyboardTranslator.VK_F1})));
 
@@ -241,22 +200,6 @@ public class GameMenu implements Game.GameMenuCallbacks {
 
             options.add(new MenuOption(getString(R.string.game_menu_send_keys_alt_b),
                     () -> sendKeys(new short[]{KeyboardTranslator.VK_LWIN, KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_B})));
-            options.add(new MenuOption(getString(R.string.game_menu_send_keys_win_x_u_s), () -> {
-                sendKeys(new short[]{KeyboardTranslator.VK_LWIN, KeyboardTranslator.VK_X});
-                new Handler().postDelayed((() -> sendKeys(new short[]{KeyboardTranslator.VK_U, KeyboardTranslator.VK_S})), 200);
-            }));
-            options.add(new MenuOption(getString(R.string.game_menu_send_keys_win_x_u_u), () -> {
-                sendKeys(new short[]{KeyboardTranslator.VK_LWIN, KeyboardTranslator.VK_X});
-                new Handler().postDelayed((() -> sendKeys(new short[]{KeyboardTranslator.VK_U, KeyboardTranslator.VK_U})), 200);
-            }));
-            options.add(new MenuOption(getString(R.string.game_menu_send_keys_win_x_u_r), () -> {
-                sendKeys(new short[]{KeyboardTranslator.VK_LWIN, KeyboardTranslator.VK_X});
-                new Handler().postDelayed((() -> sendKeys(new short[]{KeyboardTranslator.VK_U, KeyboardTranslator.VK_R})), 200);
-            }));
-            options.add(new MenuOption(getString(R.string.game_menu_send_keys_win_x_u_i), () -> {
-                sendKeys(new short[]{KeyboardTranslator.VK_LWIN, KeyboardTranslator.VK_X});
-                new Handler().postDelayed((() -> sendKeys(new short[]{KeyboardTranslator.VK_U, KeyboardTranslator.VK_I})), 200);
-            }));
         }
 
         // Import custom shortcuts
@@ -304,14 +247,18 @@ public class GameMenu implements Game.GameMenuCallbacks {
 
     private void showAdvancedMenu(GameInputDevice device) {
         List<MenuOption> options = new ArrayList<>();
-        options.add(new MenuOption(getString(R.string.game_menu_select_mouse_mode), true, () -> game.selectMouseMode(dialogScreenContext)));
+
+        if (game.allowChangeMouseMode) {
+            options.add(new MenuOption(getString(R.string.game_menu_select_mouse_mode), true, () -> game.selectMouseMode(dialogScreenContext)));
+        }
+        
         options.add(new MenuOption(getString(R.string.game_menu_toggle_hud), true, game::toggleHUD));
         options.add(new MenuOption(getString(R.string.game_menu_toggle_floating_button), true, game::toggleFloatingButtonVisibility));
-        options.add(new MenuOption(getString(R.string.game_menu_toggle_keyboard_model), true, game::showHideKeyboardController));
-        if (!game.isSecondaryDisplayMode()) {
-            options.add(new MenuOption(getString(R.string.game_menu_toggle_virtual_model), true, game::showHideVirtualController));
+        options.add(new MenuOption(getString(R.string.game_menu_toggle_keyboard_model), true, game::toggleKeyboardController));
+        if (!game.isOnExternalDisplay()) {
+            options.add(new MenuOption(getString(R.string.game_menu_toggle_virtual_model), true, game::toggleVirtualController));
         }
-        options.add(new MenuOption(getString(R.string.game_menu_toggle_virtual_keyboard_model), true, game::showHidekeyBoardLayoutController));
+        options.add(new MenuOption(getString(R.string.game_menu_toggle_virtual_keyboard_model), true, game::toggleFullKeyboard));
         options.add(new MenuOption(getString(R.string.game_menu_task_manager), true, () -> sendKeys(new short[]{KeyboardTranslator.VK_LCONTROL, KeyboardTranslator.VK_LSHIFT, KeyboardTranslator.VK_ESCAPE})));
 
         // **FIXED:** This is a UI navigation action, so it should not use withGameFocus.
@@ -377,8 +324,10 @@ public class GameMenu implements Game.GameMenuCallbacks {
         options.add(new MenuOption(getString(game.isZoomModeEnabled() ? R.string.game_menu_disable_zoom_mode : R.string.game_menu_enable_zoom_mode), true,
                 game::toggleZoomMode));
 
-        options.add(new MenuOption(getString(R.string.game_menu_rotate_screen), true,
-                game::rotateScreen));
+        if (dialogScreenContext == game) {
+            options.add(new MenuOption(getString(R.string.game_menu_rotate_screen), true,
+                    game::rotateScreen));
+        }
 
         options.add(new MenuOption(getString(R.string.game_menu_advanced), true,
                 () -> showAdvancedMenu(device)));

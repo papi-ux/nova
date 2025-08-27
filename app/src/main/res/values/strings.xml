@@ -388,10 +388,6 @@
     <string name="game_menu_send_keys_win">Win (Meta)</string>
     <string name="game_menu_send_keys_win_d">Win + D</string>
     <string name="game_menu_send_keys_alt_b">ALT + B</string>
-    <string name="game_menu_send_keys_win_x_u_s">Win + X ~ U + S (Sleep)</string>
-    <string name="game_menu_send_keys_win_x_u_r">Win + X ~ U + R (Reboot)</string>
-    <string name="game_menu_send_keys_win_x_u_u">Win + X ~ U + U (Power Off)</string>
-    <string name="game_menu_send_keys_win_x_u_i">Win + X ~ U + I (Log Out)</string>
     <string name="game_menu_send_keys_win_g">Win + G (Xbox Game Bar)</string>
     <string name="game_menu_send_keys_ctrl_alt_tab">Ctrl + Alt + Tab</string>
     <string name="game_menu_send_keys_shift_tab">Shift + Tab (Steam Overlay)</string>
@@ -402,6 +398,8 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
 
     <string name="toggle_pan_zoom_mode">Toggle Pan/Zoom Mode</string>
+    <string name="pan_zoom_mode_enabled">Pan/Zoom Mode Enabled</string>
+    <string name="pan_zoom_mode_disabled">Pan/Zoom Mode Disabled</string>
 
     <string name="title_analog_scrolling">Use an analog stick to scroll</string>
     <string name="summary_analog_scrolling">Select an analog stick to scroll when in mouse emulation mode</string>
@@ -489,8 +487,7 @@
     <string name="title_exdisplay_mode">External Display Mode (Beta)</string>
     <string name="title_fullexdisplay_mode">Fully External Display Mode (Beta)</string>
     <string name="summary_exdisplay_mode">Stream display on the monitor, virtual buttons and performance information and other controls on the phone screen.</string>
-    <string name="summary_fullexdisplay_mode">Allows full immersive secondary screen mode with full refresh rate and resolution and all input bound to that screen including relative mouse movement for games. Phone wont be a touchpad!
-    Perfect for physical mouse keyboard setup or game controller! </string>
+    <string name="summary_fullexdisplay_mode">Allows full immersive secondary screen mode with automatically matched refresh rate and resolution. Manual settings won\'t apply in this mode.</string>
     <string name="title_top_center_display">Display in Top Center</string>
     <string name="summary_top_center_display">Streaming picture will be aligned to the top of the screen instead of centered when resolution is not native.</string>
     <string name="title_touch_sensitivity">Touch Screen Sensitivity</string>
@@ -618,7 +615,13 @@
     <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this server. Please use <a href=\"https://github.com/ClassicOldSong/Apollo\">Apollo</a> as the host streaming software.]]></string>
     <string name="clipboard_sync_unsupported">This server does not support clipboard sync. Please install or upgrade your server to the latest version of Apollo.</string>
     <string name="send_clipboard_failed">Failed to send clipboard: </string>
-    <string name="external_display_info">External Display connected with:  </string>
+    <string name="external_display_info">External Display connected with: %1$dx%2$d at %3$.1fHz</string>
+    <string name="notification_channel_name">External Display Control</string>
+    <string name="notification_title">External Display Active</string>
+    <string name="notification_text">Tap to open touchpad controller</string>
+    <string name="permission_denied">Notification permission denied</string>
+    <string name="no_external_display">No external display detected</string>
+    <string name="no_game_instance">No game instance available</string>
     <string name="get_clipboard_failed">Failed to get clipboard: </string>
     <string name="send_clipboard_success">Clipboard sent successfully</string>
     <string name="get_clipboard_success">Clipboard get successfully</string>
@@ -675,6 +678,8 @@
     <string name="summary_enable_commit_text">Forward multi-character text from soft keyboards (gesture typing, predictions, voice dictation). May break games that rely on key-by-key input.</string>
     <string name="title_checkbox_remember_zoom_pan">Remember Zoom&amp;Pan</string>
     <string name="summary_checkbox_remember_zoom_pan">Save changes to zoom and pan position between sessions</string>
+    <string name="title_checkbox_enable_perf_overlay_bottom">Move overlay to bottom</string>
+    <string name="summary_checkbox_enable_perf_overlay_bottom">Useful when Display in Top Center and Lite mode are enabled during non-native resolution streaming.</string>
     <string name="title_edit_profile">Edit Profile</string>
     <string name="profile_manager_new_profile">New Profile</string>
     <string name="profile_manager_profile_not_found">Profile not found</string>

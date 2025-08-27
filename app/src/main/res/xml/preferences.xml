@@ -183,14 +183,6 @@
             android:title="@string/title_fullexdisplay_mode"
             app:iconSpaceReserved="false" />
 
-        <CheckBoxPreference
-            android:defaultValue="false"
-            android:key="checkbox_enable_exdisplay"
-            android:summary="@string/summary_exdisplay_mode"
-            android:title="@string/title_exdisplay_mode"
-            android:dependency="checkbox_enable_fullexdisplay"
-            app:iconSpaceReserved="false" />
-
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -587,8 +579,8 @@
             android:defaultValue="false"
             android:dependency="checkbox_enable_perf_overlay"
             android:key="checkbox_enable_perf_overlay_bottom"
-            android:summary="Useful when Display in Top Center and Lite mode are enabled during non-native resolution streaming."
-            android:title="Move overlay to bottom"
+            android:summary="@string/summary_checkbox_enable_perf_overlay_bottom"
+            android:title="@string/title_checkbox_enable_perf_overlay_bottom"
             app:iconSpaceReserved="false" />
 
         <CheckBoxPreference

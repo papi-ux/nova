@@ -283,8 +283,6 @@ public class PreferenceConfiguration {
     //自由摇杆啊
     public boolean enableNewAnalogStick;
 
-    public boolean enableExDisplay;
-
     public boolean enableFullExDisplay;
 
     //串流画面顶部居中显示
@@ -930,8 +928,6 @@ public class PreferenceConfiguration {
         config.onscreenKeyboardAlignMode = prefs.getString(LIST_ONSCREEN_KEYBOARD_ALIGN_MODE, DEFAULT_ONSCREEN_KEYBOARD_ALIGN_MODE);
 
         config.enableNewAnalogStick=prefs.getBoolean(CHECKBOX_CHECKBOX_ENABLE_ANALOG_STICK_NEW,false);
-
-        config.enableExDisplay=prefs.getBoolean("checkbox_enable_exdisplay",false);
 
         config.enableFullExDisplay=prefs.getBoolean("checkbox_enable_fullexdisplay",false);
 

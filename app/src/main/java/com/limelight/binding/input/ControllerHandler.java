@@ -1,7 +1,5 @@
 package com.limelight.binding.input;
 
-import static com.limelight.utils.ServerHelper.getActiveDisplay;
-
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
@@ -35,7 +33,6 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.widget.Toast;
 
-import com.limelight.Game;
 import com.limelight.GameMenu;
 import com.limelight.LimeLog;
 import com.limelight.R;
@@ -2300,7 +2297,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 int zFactor = 1;
 
                 if (needsDeviceOrientationCorrection) {
-                    int deviceRotation = getActiveDisplay(activityContext, prefConfig).getRotation();
+                    int deviceRotation = activityContext.getWindowManager().getDefaultDisplay().getRotation();
                     switch (deviceRotation) {
                         case Surface.ROTATION_0:
                         case Surface.ROTATION_180:

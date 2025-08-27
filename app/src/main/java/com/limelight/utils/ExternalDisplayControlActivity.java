@@ -1,10 +1,11 @@
 package com.limelight.utils;
 
-import static com.limelight.StartExternalDisplayControlReceiver.requestFocusToSecondScreen;
+import static com.limelight.StartExternalDisplayControlReceiver.requestFocusToGameActivity;
+import static com.limelight.utils.ServerHelper.getSecondaryDisplay;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
+import android.app.ActivityOptions;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -13,60 +14,61 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.LinearGradient;
-import android.graphics.Paint;
-import android.graphics.RadialGradient;
-import android.graphics.Shader;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.Editable;
-import android.text.TextWatcher;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.graphics.drawable.IconCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.limelight.Game;
 import com.limelight.GameMenu;
+import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.StartExternalDisplayControlReceiver;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
-import com.limelight.nvstream.NvConnection;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.ui.ExternalControllerView;
 
 /**
  * A standalone Activity providing a full-screen touchpad controller for the secondary display.
  * It creates its own UI programmatically and hosts the GameMenu for in-game options.
  */
-public class ExternalDisplayControlActivity extends Activity {
+public class ExternalDisplayControlActivity extends AppCompatActivity implements View.OnKeyListener {
+
+    public static String EXTRA_LAUNCH_INTENT = "launchIntent";
 
     @SuppressLint("StaticFieldLeak")
     public static ExternalDisplayControlActivity instance;
 
-    private static FrameLayout rootLayout;
+    private PreferenceConfiguration prefConfig;
 
-    private final Handler inactivityHandler = new Handler(Looper.getMainLooper());
+    private ExternalControllerView rootLayout;
+    private ImageButton zoomButton;
+    private KeyBoardLayoutController keyBoardLayoutController;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private int failCount = 0;
     private Runnable dimScreenRunnable;
     private float originalBrightness = -1f; // -1 = use system default
     private static final int INACTIVITY_TIMEOUT_MS = 10_000;
@@ -76,10 +78,7 @@ public class ExternalDisplayControlActivity extends Activity {
     public static final int SECONDARY_SCREEN_NOTIFICATION_ID = 1;
     private static final int PERMISSION_REQUEST_CODE = 1001;
 
-    private NvConnection conn;
     private GameMenu gameMenu;
-    private EditText dummyEditText;
-    private boolean mIsEditingText = false;
 
     // --- Static Methods for External Control ---
 
@@ -89,9 +88,15 @@ public class ExternalDisplayControlActivity extends Activity {
         }
     }
 
-    public static void toggleKeyboardForExternal() {
+    public static void toggleKeyboard() {
         if (instance != null) {
-            instance.toggleKeyboard();
+            instance._toggleKeyboard();
+        }
+    }
+
+    public static void toggleFullKeyboard() {
+        if (instance != null) {
+            instance._toggleFullKeyboard();
         }
     }
 
@@ -101,25 +106,70 @@ public class ExternalDisplayControlActivity extends Activity {
         }
     }
 
-    public static KeyBoardLayoutController getPhoneScreenKeyboard(PreferenceConfiguration prefConfig) {
-        return new KeyBoardLayoutController(rootLayout, instance, prefConfig);
-    }
-
     // --- Activity Lifecycle ---
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (!isGameInstanceAvailable()) return;
         instance = this;
+        prefConfig = PreferenceConfiguration.readPreferences(this);
+
+        if (!isGameInstanceAvailable()) {
+            Intent gameIntent = getIntent().getParcelableExtra(EXTRA_LAUNCH_INTENT);
+            if (gameIntent == null) {
+                finish();
+            } else {
+                Display secondaryDisplay = getSecondaryDisplay(this);
+                if (secondaryDisplay != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    ActivityOptions options = ActivityOptions.makeBasic();
+                    options.setLaunchDisplayId(secondaryDisplay.getDisplayId());
+                    Toast.makeText(this,
+                            getString(R.string.external_display_info,
+                                    secondaryDisplay.getMode().getPhysicalWidth(),
+                                    secondaryDisplay.getMode().getPhysicalHeight(),
+                                    secondaryDisplay.getMode().getRefreshRate()),
+                            Toast.LENGTH_LONG).show();
+
+                    startActivity(gameIntent, options.toBundle());
+                } else {
+                    LimeLog.warning(getString(R.string.no_external_display));
+                    startActivity(gameIntent);
+                    finish();
+                }
+            }
+        }
+
+        initViews();
+    }
+
+    private void initViews() {
+        if (Game.instance == null) {
+            if (failCount > 10) {
+                Toast.makeText(this, getString(R.string.no_game_instance), Toast.LENGTH_LONG).show();
+                finish();
+            }
+            // Wait for the intent to get started
+            handler.postDelayed(this::initViews, 500);
+            failCount++;
+            return;
+        }
+
+        WindowInsetsControllerCompat windowInsetsController = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+
+        windowInsetsController.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        );
+
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars());
+        windowInsetsController.hide(WindowInsetsCompat.Type.navigationBars());
 
         initializeComponents();
         createProgrammaticUI();
         checkNotificationPermission();
-        setupInactivityTimeoutForBrightness();
         initTouchEventHandling();
-        requestFocusToSecondScreen();
+        setupInactivityTimeoutForBrightness();
+        requestFocusToGameActivity(false);
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -134,40 +184,20 @@ public class ExternalDisplayControlActivity extends Activity {
         });
     }
 
-    public static Drawable createTouchpadBackground(Context context) {
-        int size = 2000;
-        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        paint.setColor(Color.BLACK);
-        canvas.drawRect(0, 0, size, size, paint);
-
-        Paint gridPaint = new Paint();
-        gridPaint.setColor(Color.argb(20, 255, 255, 255));
-        gridPaint.setStrokeWidth(1f);
-        int gridSpacing = 10;
-
-        for (int i = 0; i <= size; i += gridSpacing) {
-            canvas.drawLine(i, 0, i, size, gridPaint);
-            canvas.drawLine(0, i, size, i, gridPaint);
-        }
-
-        return new BitmapDrawable(context.getResources(), bitmap);
-    }
-
-
-
     @Override
     protected void onResume() {
         super.onResume();
-        isGameInstanceAvailable();
+        if (!isGameInstanceAvailable() && gameMenu != null) {
+            finish();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        isGameInstanceAvailable();
+        if (!isGameInstanceAvailable()) {
+            finish();
+        }
     }
 
     @Override
@@ -205,23 +235,25 @@ public class ExternalDisplayControlActivity extends Activity {
     }
 
     private void resetInactivityTimer() {
-        inactivityHandler.removeCallbacks(dimScreenRunnable);
-        inactivityHandler.postDelayed(dimScreenRunnable, INACTIVITY_TIMEOUT_MS);
+        handler.removeCallbacks(dimScreenRunnable);
+        handler.postDelayed(dimScreenRunnable, INACTIVITY_TIMEOUT_MS);
     }
-
-
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        isGameInstanceAvailable();
+        if (isGameInstanceAvailable()) {
+            Game.instance.handleFocusChange(hasFocus);
+        } else {
+            finish();
+        }
     }
 
     @Override
     public void onBackPressed() {
-        if(Game.instance != null && Game.instance.isKeyboardLayoutVisible()) {
-            togglePcKeyboard();
-        } else if(gameMenu != null && !gameMenu.isMenuOpen() && Game.instance != null)
+        if (Game.instance != null && Game.instance.isKeyboardLayoutVisible()) {
+            toggleFullKeyboard();
+        } else if (gameMenu != null && !gameMenu.isMenuOpen() && Game.instance != null)
             Game.instance.onBackPressed();
         else {
             super.onBackPressed();
@@ -234,154 +266,183 @@ public class ExternalDisplayControlActivity extends Activity {
      * Checks if the static Game.instance is alive. If not, finishes this Activity.
      */
     private boolean isGameInstanceAvailable() {
-        if (Game.instance == null) {
-            finish();
-            return false;
-        }
-        return true;
+        return Game.instance != null;
     }
 
     /**
      * Initializes core components needed for this controller Activity.
      */
     private void initializeComponents() {
-        this.conn = Game.instance.conn;
-        this.gameMenu = new GameMenu(Game.instance, conn, instance);
+        this.gameMenu = new GameMenu(Game.instance, instance);
     }
 
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
-        if(Game.instance != null) {
+        if (Game.instance != null) {
             Game.instance.onConfigurationChanged(newConfig);
         }
         super.onConfigurationChanged(newConfig);
     }
 
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent event) {
+        if (Game.instance != null) {
+            requestFocusToGameActivity(false);
+            return Game.instance.onGenericMotionEvent(event);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onKey(View view, int keyCode, KeyEvent keyEvent) {
+        if (Game.instance != null) {
+            if (keyEvent.getDeviceId() >= 0) {
+                requestFocusToGameActivity(false);
+            }
+            switch (keyEvent.getAction()) {
+                case KeyEvent.ACTION_DOWN:
+                    return Game.instance.handleKeyDown(keyEvent);
+                case KeyEvent.ACTION_UP:
+                    return Game.instance.handleKeyUp(keyEvent);
+                case KeyEvent.ACTION_MULTIPLE:
+                    return Game.instance.handleKeyMultiple(keyEvent);
+                default:
+                    return false;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (Game.instance != null) {
+            if (event.getDeviceId() >= 0) {
+                requestFocusToGameActivity(false);
+            }
+            return Game.instance.onKeyDown(keyCode, event);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (Game.instance != null) {
+            if (event.getDeviceId() >= 0) {
+                requestFocusToGameActivity(false);
+            }
+            return Game.instance.onKeyUp(keyCode, event);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) {
+        if (Game.instance != null) {
+            if (event.getDeviceId() >= 0) {
+                requestFocusToGameActivity(false);
+            }
+            return Game.instance.onKeyMultiple(keyCode, repeatCount, event);
+        }
+        return false;
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private void createProgrammaticUI() {
-        rootLayout = new FrameLayout(this);
-        rootLayout.setBackground(createTouchpadBackground(this));
-        rootLayout.setLayoutParams(new FrameLayout.LayoutParams(
+        rootLayout = new ExternalControllerView(this);
+        rootLayout.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
+        rootLayout.setFocusable(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            rootLayout.setFocusedByDefault(true);
+        }
+
+        rootLayout.setInputCallbacks(Game.instance);
+        rootLayout.setCommitTextEnabled(prefConfig.enableCommitText);
+
         setContentView(rootLayout);
-
-        setupKeyboardInputHandling(rootLayout);
-
-        rootLayout.setOnTouchListener((v, event) -> {
-            if (Game.instance != null) {
-                Game.instance.handleMotionEvent(v, event);
-            }
-            return true;
-        });
-
-        // Top-right buttons
-        LinearLayout topRightButtons = createButtonContainer(Gravity.TOP | Gravity.END);
-        rootLayout.addView(topRightButtons);
-        topRightButtons.addView(createImageButton(R.drawable.ic_menu_external, v -> showGameMenu()));
-        topRightButtons.addView(createImageButton(R.drawable.ic_close_external, v -> finish()));
 
         // Top-left buttons
         LinearLayout topLeftButtons = createButtonContainer(Gravity.TOP | Gravity.START);
+        topLeftButtons.setFocusable(false);
+//        topLeftButtons.addView(createImageButton(R.drawable.ic_focus_secondary, v -> requestFocusToGameActivity(false)));
+        zoomButton = createImageButton(R.drawable.ic_zoom_toggle, v -> toggleZoomMode(true));
+        if (Game.instance != null && Game.instance.isZoomModeEnabled()) {
+            zoomButton.setAlpha(1.0f);
+        } else {
+            zoomButton.setAlpha(0.5f);
+        }
+        topLeftButtons.addView(zoomButton);
         rootLayout.addView(topLeftButtons);
-        topLeftButtons.addView(createImageButton(R.drawable.ic_focus_secondary, v -> requestFocusToSecondScreen()));
 
-        // Bottom-center buttons
-        LinearLayout bottomCenterButtons = createButtonContainer(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        rootLayout.addView(bottomCenterButtons);
+        // Top-center buttons
+//        LinearLayout topCenterButtons = createButtonContainer(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+//        topCenterButtons.setFocusable(false);
+//        rootLayout.addView(topCenterButtons);
+
+        // Top-right buttons
+        LinearLayout topRightButtons = createButtonContainer(Gravity.TOP | Gravity.END);
+        topRightButtons.setFocusable(false);
+        topRightButtons.addView(createImageButton(R.drawable.ic_menu_external, v -> showGameMenu()));
+        topRightButtons.addView(createImageButton(R.drawable.ic_close_external, v -> finish()));
+        rootLayout.addView(topRightButtons);
 
         // Bottom-left button: Android keyboard toggle
         LinearLayout bottomLeftButton = createButtonContainer(Gravity.BOTTOM | Gravity.START);
+        bottomLeftButton.setFocusable(false);
+        bottomLeftButton.addView(createImageButton(R.drawable.ic_android_keyboard, v -> _toggleKeyboard()));
         rootLayout.addView(bottomLeftButton);
-        bottomLeftButton.addView(createImageButton(R.drawable.ic_android_keyboard, v -> toggleKeyboard()));
+
+        // Bottom-center buttons
+//        LinearLayout bottomCenterButtons = createButtonContainer(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+//        bottomCenterButtons.setFocusable(false);
+//        rootLayout.addView(bottomCenterButtons);
 
         // Bottom-right button: Custom keyboard toggle
         LinearLayout bottomRightButton = createButtonContainer(Gravity.BOTTOM | Gravity.END);
+        bottomRightButton.setFocusable(false);
+        bottomRightButton.addView(createImageButton(R.drawable.ic_fullscreen_keyboard, v -> _toggleFullKeyboard()));
         rootLayout.addView(bottomRightButton);
-        bottomRightButton.addView(createImageButton(R.drawable.ic_fullscreen_keyboard, v -> togglePcKeyboard()));
-    }
-
-
-    /**
-     * Sets up the hidden EditText and its listeners to handle soft keyboard input.
-     *
-     * @param rootLayout The root view to add the EditText to.
-     */
-    private void setupKeyboardInputHandling(FrameLayout rootLayout) {
-        dummyEditText = new EditText(this);
-        dummyEditText.setLayoutParams(new FrameLayout.LayoutParams(1, 1));
-        dummyEditText.setAlpha(0f);
-        dummyEditText.setFocusableInTouchMode(true);
-        rootLayout.addView(dummyEditText);
-
-        // Listener for hardware keys (if any) sent to this view
-        dummyEditText.setOnKeyListener((view, i, keyEvent) -> {
-            if (Game.instance != null) {
-                return Game.instance.onKey(view, i, keyEvent);
-            }
-            return false;
-        });
-
-        // Set and handle the "Enter" key's special action (e.g., "Done", "Go")
-        dummyEditText.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        dummyEditText.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                if (Game.instance != null) {
-                    hitEnter();
-                    toggleKeyboard();
-                }
-                return true;
-            }
-            return false;
-        });
-
-        // Listener for regular typed characters and pasted text
-        dummyEditText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                if (mIsEditingText) return;
-
-                if (s.length() > 0 && Game.instance != null) {
-                    mIsEditingText = true;
-                    // Enter without closing keyboard
-                    if (s.charAt(s.length() - 1) == '\n') {
-                        hitEnter();
-                    } else {
-                        Game.instance.conn.sendUtf8Text(s.toString());
-                    }
-                    s.clear();
-                    mIsEditingText = false;
-                }
-            }
-        });
     }
 
     /**
      * Toggles the visibility of the on-screen software keyboard.
      */
-    private void toggleKeyboard() {
-        dummyEditText.requestFocus();
-        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0);
-        }
+    private void _toggleKeyboard() {
+        LimeLog.info("Toggling keyboard overlay on ExternalDisplayControlActivity");
+        InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        inputManager.toggleSoftInput(0, 0);
     }
 
+    private void initFullKeyboard(PreferenceConfiguration prefConfig) {
+        keyBoardLayoutController = new KeyBoardLayoutController(rootLayout, this, prefConfig);
+        keyBoardLayoutController.refreshLayout();
+        keyBoardLayoutController.show();
+    }
 
     /**
      * Toggles the visibility of the full screen keyboard
      */
-    private void togglePcKeyboard() {
-        if(Game.instance != null) {
-            Game.instance.showHidekeyBoardLayoutController();
+    private void _toggleFullKeyboard() {
+        if (keyBoardLayoutController == null) {
+            initFullKeyboard(prefConfig);
+            return;
+        }
+        keyBoardLayoutController.toggleVisibility();
+    }
+
+    public void toggleZoomMode(boolean callGame) {
+        if (Game.instance != null) {
+            if (callGame) {
+                Game.instance.toggleZoomMode();
+            } else {
+                if (Game.instance.isZoomModeEnabled()) {
+                    zoomButton.setAlpha(1.0f);
+                } else {
+                    zoomButton.setAlpha(0.5f);
+                }
+            }
         }
     }
 
@@ -391,11 +452,6 @@ public class ExternalDisplayControlActivity extends Activity {
         if (gameMenu != null) {
             gameMenu.showMenu(null);
         }
-    }
-
-    private void hitEnter() {
-        Game.instance.onKey(null, KeyEvent.KEYCODE_ENTER, new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
-        Game.instance.onKey(null, KeyEvent.KEYCODE_ENTER, new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
     }
 
     // --- UI Factory Methods ---
@@ -430,61 +486,28 @@ public class ExternalDisplayControlActivity extends Activity {
         showStickyNotification();
     }
 
-    @SuppressLint("NotificationTrampoline")
     private void showStickyNotification() {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, "Second Screen Control", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, getString(R.string.notification_channel_name), NotificationManager.IMPORTANCE_LOW);
             channel.setShowBadge(false);
             notificationManager.createNotificationChannel(channel);
         }
 
         Intent broadcastIntent = new Intent(this, StartExternalDisplayControlReceiver.class);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, broadcastIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        Bitmap logoBitmap = drawableToBitmap(new ArtemisLogoDrawable());
 
-        // 2. Create an IconCompat object from the Bitmap. This is the support library's
-        //    way of handling icons for maximum compatibility.
-        IconCompat icon = IconCompat.createWithBitmap(logoBitmap);
-        @SuppressLint("NotificationTrampoline") Notification notification = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-                    .setContentTitle("Second Screen Active")
-                    .setContentText("Tap to open touchpad controller.")
-                    .setSmallIcon(icon)
-                    .setLargeIcon(logoBitmap)
-                    .setOngoing(true)
-                    .setContentIntent(pendingIntent)
-                    .setPriority(NotificationCompat.PRIORITY_LOW)
-                    .build();
-        } else {
-            notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-                    .setContentTitle("Second Screen Active")
-                    .setContentText("Tap to open touchpad controller.")
-                    .setLargeIcon(logoBitmap)
-                    .setOngoing(true)
-                    .setContentIntent(pendingIntent)
-                    .setPriority(NotificationCompat.PRIORITY_LOW)
-                    .build();
-        }
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                .setContentTitle(getString(R.string.notification_title))
+                .setContentText(getString(R.string.notification_text))
+                .setSmallIcon(R.drawable.app_icon)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setOngoing(true);
+
+        Notification notification = notificationBuilder.build();
+
         notificationManager.notify(SECONDARY_SCREEN_NOTIFICATION_ID, notification);
-    }
-
-    /**
-     * Helper method to convert any Drawable into a Bitmap.
-     * This is necessary to use a programmatic drawable as a notification icon.
-     */
-    private Bitmap drawableToBitmap(Drawable drawable) {
-        // A notification icon is typically 24x24 dp. We'll create a 96x96 px bitmap
-        // which will scale down nicely on most densities.
-        int width = dpToPx(24);
-        int height = dpToPx(24);
-
-        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-        drawable.draw(canvas);
-        return bitmap;
     }
 
     @Override
@@ -494,7 +517,7 @@ public class ExternalDisplayControlActivity extends Activity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 showStickyNotification();
             } else {
-                Toast.makeText(this, "Notification permission denied.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, getString(R.string.permission_denied), Toast.LENGTH_SHORT).show();
             }
         }
     }

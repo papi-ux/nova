@@ -470,7 +470,7 @@ public class StreamSettings extends AppCompatActivity implements SearchPreferenc
                 }
             }
 
-            Display display = getActiveDisplay(activity, prevPrefConfig);
+            Display display = activity.getWindowManager().getDefaultDisplay();
             float maxSupportedFps = display.getRefreshRate();
 
             // Hide non-supported resolution/FPS combinations
