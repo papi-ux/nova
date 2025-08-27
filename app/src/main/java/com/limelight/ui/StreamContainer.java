@@ -33,10 +33,7 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
 
     public enum StreamMode {
         MODE_2D,
-        MODE_FAST_PATH_3D,
-
-        MODE_AI_3D,
-        MODE_AI_3D_STRONG
+        MODE_AI_3D
     }
 
     private final SurfaceView mSurfaceView;
@@ -75,8 +72,6 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
         mGLSurfaceView.setRenderer(mStereoRenderer);
         mGLSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
         addView(mGLSurfaceView, childParams);
-
-        //setStreamMode(StreamMode.MODE_2D, true);
     }
 
 
@@ -205,9 +200,6 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
         return mCurrentSurface;
     }
 
-    public void setStreamMode(StreamMode mode) {
-        setStreamMode(mode, false);
-    }
     public StreamMode mapIntToStreamMode(int modeIndex) {
         StreamContainer.StreamMode[] modes = StreamContainer.StreamMode.values();
         if (modeIndex >= 0 && modeIndex < modes.length) {
@@ -218,6 +210,10 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
     }
     public void setRenderMode(int renderMode, boolean isInitializing) {
         setStreamMode(mapIntToStreamMode(renderMode), isInitializing);
+    }
+
+    public boolean is3DEnabled() {
+        return currentMode == StreamMode.MODE_AI_3D;
     }
 
     public void setStreamMode(StreamMode mode, boolean isInitializing) {
@@ -237,17 +233,8 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
                     surfaceChanged(mSurfaceView.getHolder(), 0, mSurfaceView.getWidth(), mSurfaceView.getHeight());
                 }
                 break;
-            case MODE_FAST_PATH_3D:
-                mGLSurfaceView.setVisibility(View.VISIBLE);
-                mStereoRenderer.setRenderMode(Stereo3DRenderer.RenderMode.MODE_FASTPATH_3D);
-                break;
             case MODE_AI_3D:
                 mGLSurfaceView.setVisibility(View.VISIBLE);
-                mStereoRenderer.setRenderMode(Stereo3DRenderer.RenderMode.MODE_AI_3D);
-                break;
-            case MODE_AI_3D_STRONG:
-                mGLSurfaceView.setVisibility(View.VISIBLE);
-                mStereoRenderer.setRenderMode(Stereo3DRenderer.RenderMode.MODE_AI_3D_STRONG);
                 break;
         }
     }
@@ -277,7 +264,6 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
         }
     }
 
-    // --- Stereo3DRenderer.OnSurfaceReadyListener Implementation ---
     @Override
     public void onSurfaceReady(Surface surface) {
         if (currentMode != StreamMode.MODE_2D) {

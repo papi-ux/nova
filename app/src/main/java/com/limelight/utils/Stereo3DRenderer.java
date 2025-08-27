@@ -45,13 +45,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         void onSurfaceReady(Surface surface);
     }
 
-    public enum RenderMode {
-        MODE_2D,
-        MODE_FASTPATH_3D,
-        MODE_AI_3D_STRONG,
-        MODE_AI_3D
-    }
-
     private static final int GL_TEXTURE_EXTERNAL_OES = 0x8D65;
     private static final float[] QUAD_VERTICES = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
     private static final float[] TEXTURE_VERTICES = {0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
@@ -96,7 +89,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private final AtomicBoolean gpuDelegateFailed = new AtomicBoolean(false);
 
     private final AtomicBoolean frameAvailable = new AtomicBoolean(false);
-    private RenderMode currentRenderMode = RenderMode.MODE_2D;
 
     public Stereo3DRenderer(GLSurfaceView view, OnSurfaceReadyListener listener, Context context) {
         this.glSurfaceView = view;
@@ -115,10 +107,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     public Surface getVideoSurface() {
         return videoSurface;
-    }
-
-    public void setRenderMode(RenderMode mode) {
-        this.currentRenderMode = mode;
     }
 
     @Override
@@ -325,24 +313,10 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
     }
 
-    private void drawWithDibrAiSubtleShader() {
+    private void drawWithShader() {
         if (prefConf != null) {
             drawWithDualBubbleDepth(dibr3dProgram, prefConf.parallax_depth, 0f);
         }
-    }
-
-    private final float normalParallax = 0.3f;
-    private final float normalConvergence = 1f;
-
-    private void drawWithFake3DShader() {
-        drawWithDualBubbleDepth(dibr3dProgram, normalParallax, normalConvergence);
-    }
-
-    private final float strongParallax = 0.5f;
-    private final float strongConvergence = 0.5f;
-
-    private void drawWithDibrAiStrongShader() {
-        drawWithDualBubbleDepth(dibr3dProgram, strongParallax, strongConvergence);
     }
 
     private int intermediateTextureId; // Für das Ergebnis des ersten Blur-Durchgangs
@@ -508,24 +482,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
         // Initialisiere die Buffer für den CPU-Vergleich
         downsamplePixelBuffer = ByteBuffer.allocateDirect(DOWNSAMPLE_SIZE * DOWNSAMPLE_SIZE * 4).order(ByteOrder.nativeOrder());
-    }
-
-    private void drawWithShader() {
-        switch (currentRenderMode) {
-            case MODE_AI_3D_STRONG:
-                drawWithDibrAiStrongShader();
-                break;
-            case MODE_AI_3D:
-                drawWithFake3DShader();
-                break;
-            case MODE_FASTPATH_3D:
-                drawWithDibrAiSubtleShader();
-                break;
-            case MODE_2D:
-            default:
-                draw2DShader();
-                break;
-        }
     }
 
     private void draw2DShader() {

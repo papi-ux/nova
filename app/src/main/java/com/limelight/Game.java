@@ -51,6 +51,7 @@ import com.limelight.utils.PerformanceDataTracker;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.SpinnerDialog;
+import com.limelight.utils.Stereo3DRenderer;
 import com.limelight.utils.UiHelper;
 
 import android.annotation.SuppressLint;
@@ -384,7 +385,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         boolean shouldInvertDecoderResolution = false;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && onExternelDisplay) {
+       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+               && onExternelDisplay
+               && prefConfig.renderMode == 0 // For 3D we want to maintain configured resolution
+       ) {
             Display.Mode currentMode = currentDisplay.getMode();
             displayWidth = currentMode.getPhysicalWidth();
             displayHeight = currentMode.getPhysicalHeight();
@@ -2104,6 +2108,29 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         return true;
     }
 
+    public void sendKeys(short[] keys) {
+        final byte[] modifier = {(byte) 0};
+
+        for (short key : keys) {
+            conn.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], (byte) 0);
+
+            // Apply the modifier of the pressed key, e.g. CTRL first issues a CTRL event (without
+            // modifier) and then sends the following keys with the CTRL modifier applied
+            modifier[0] |= getModifier(key);
+        }
+
+        new Handler().postDelayed((() -> {
+            for (int pos = keys.length - 1; pos >= 0; pos--) {
+                short key = keys[pos];
+
+                // Remove the keys modifier before releasing the key
+                modifier[0] &= (byte) ~getModifier(key);
+
+                conn.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
+            }
+        }), GameMenu.KEY_UP_DELAY);
+    }
+
     public boolean handleFocusChange(boolean hasFocus) {
         if (connected && prefConfig.smartClipboardSync) {
             if (hasFocus) {
@@ -3194,53 +3221,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         return handleMotionEvent(null, event) || super.onGenericMotionEvent(event);
 
     }
-
-    /**
-     * Maps MotionEvent coordinates from the internal display to the given streamView
-     * on the external display by scaling from the primary display's resolution to
-     * the streamView's size.
-     *
-     * @param event      The MotionEvent to map (typically from ACTION_HOVER)
-     * @param streamView The View shown on the external display
-     * @return A PointF with the mapped (x, y) inside the streamView
-     */
-    public PointF mapMouseCoordinatesToStreamView(MotionEvent event, View streamView) {
-        if (event == null || streamView == null) {
-            return new PointF(0, 0);
-        }
-
-        float sourceWidth = 0f;
-        float sourceHeight = 0f;
-
-        int[] loc = new int[2];
-        if (rootView instanceof View) {
-            View mouseHoverArea = (View) rootView;
-            mouseHoverArea.getLocationOnScreen(loc);
-            sourceWidth = mouseHoverArea.getWidth();
-            sourceHeight = mouseHoverArea.getHeight();
-        }
-
-        float rawX = event.getX();
-        float rawY = event.getY();
-
-        float targetWidth = streamView.getWidth();
-        float targetHeight = streamView.getHeight();
-
-        // Calculate relative position in source display
-        float relativeX = rawX / sourceWidth;
-        float relativeY = rawY / sourceHeight;
-
-        // Scale to target streamView
-        float scaledX = relativeX * targetWidth;
-        float scaledY = relativeY * targetHeight;
-
-        // Clamp within bounds
-        scaledX = Math.max(0, Math.min(scaledX, targetWidth - 1));
-        scaledY = Math.max(0, Math.min(scaledY, targetHeight - 1));
-
-        return new PointF(scaledX, scaledY);
-    }
-
 
     private void updateMousePosition(View touchedView, MotionEvent event) {
         // X and Y are already relative to the provided view object

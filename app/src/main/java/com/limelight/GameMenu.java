@@ -109,8 +109,6 @@ public class GameMenu implements Game.GameMenuCallbacks {
     private void showMenuDialog(String title, MenuOption[] options) {
         int themeResId = game.getApplicationInfo().theme;
 
-      //  Stereo3DRenderer.isDebugMode = !Stereo3DRenderer.isDebugMode;
-
         Context themedContext = new ContextThemeWrapper(dialogScreenContext, themeResId);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
         builder.setTitle(title);
