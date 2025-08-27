@@ -167,6 +167,11 @@
             android:title="@string/title_fullexdisplay_mode"
             app:iconSpaceReserved="false" />
 
+        <CheckBoxPreference
+            android:key="checkbox_full_screen"
+            android:title="@string/title_checkbox_full_screen"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
