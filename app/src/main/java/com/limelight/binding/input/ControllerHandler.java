@@ -2504,13 +2504,12 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             // Make sure it's real by checking that the key is actually down before taking
             // any action.
             if ((context.inputMap & ControllerPacket.PLAY_FLAG) != 0 &&
-                    context.startUpTime - context.startDownTime > ControllerHandler.START_DOWN_TIME_MOUSE_MODE_MS &&
-                    prefConfig.mouseEmulation) {
+                    context.startUpTime - context.startDownTime > ControllerHandler.START_DOWN_TIME_MOUSE_MODE_MS) {
                 if (prefConfig.enableBackMenu && context.backMenuPending){
                     //todo 展示快捷菜单
                     context.backMenuPending = false;
                     gestures.showGameMenu(context);
-                } else {
+                } else if (prefConfig.mouseEmulation) {
                     context.toggleMouseEmulation();
                 }
             }
