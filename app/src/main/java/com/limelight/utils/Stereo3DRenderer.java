@@ -88,7 +88,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private int dibr3dProgram;
 
 
-    private final int NUM_INPUT_BUFFERS = 3;
+    private final int NUM_INPUT_BUFFERS = 10;
     private BlockingQueue<ByteBuffer> freeInputBuffers;
     private final int NUM_SMOOTHED_BUFFERS = 3;
     private BlockingQueue<ByteBuffer> freeSmoothedBuffers;
@@ -676,9 +676,9 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     rawDepthBuffer.rewind();
                     rawDepthBuffer.put(processedDataArray);
                     double imageDifference = 0.0f;
-                    final double INSTABILITY_THRESHOLD = 15.0;
+                    final double INSTABILITY_THRESHOLD = 10.0;
                     final double INSTABILITY_THRESHOLD_STRONG = 1.0;
-                    final double IMAGE_TRESHOLD = 5;
+                    final double IMAGE_TRESHOLD = 6;
                     final double MIN_IMAGE_DIFFERENCE = 1f;
 
                     if (previousPixelBuffer != null) {
@@ -800,7 +800,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         }
     }
 
-    private final int NUM_BUFFERS = 3; // Poolgröße, 2-3 ist meist ideal
+    private final int NUM_BUFFERS = 6; // Poolgröße, 2-3 ist meist ideal
     private BlockingQueue<ByteBuffer> freeOutputBuffers;
     private BlockingQueue<InferenceResult> filledOutputBuffers;
     private BlockingQueue<ByteBuffer> inferenceInputQueue = new ArrayBlockingQueue<>(1);
