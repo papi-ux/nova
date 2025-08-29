@@ -14,6 +14,7 @@
 
 # Keep TensorFlow Lite GPU delegate classes that R8 might incorrectly remove
 -keep class org.tensorflow.lite.gpu.** { *; }
+-keep class org.opencv.** { *; }
 
 # Profiles
 -keep class com.limelight.profiles.ProfilesManager$ProfilesData {*;}

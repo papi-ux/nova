@@ -11,6 +11,14 @@ import android.view.Surface;
 import com.limelight.LimeLog;
 import com.limelight.preferences.PreferenceConfiguration;
 
+import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfFloat;
+import org.opencv.core.MatOfInt;
+import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.gpu.GpuDelegate;
 import org.tensorflow.lite.gpu.GpuDelegateFactory;
@@ -24,6 +32,9 @@ import java.nio.FloatBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,6 +51,15 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     public interface OnSurfaceReadyListener {
         void onSurfaceReady(Surface surface);
+    }
+
+    static {
+        // This block is executed once when the class is first loaded.
+        if (!OpenCVLoader.initLocal()) {
+            Log.e("OpenCV", "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+        } else {
+            Log.d("OpenCV", "OpenCV library found inside package. Using it!");
+        }
     }
 
     // Constants
@@ -64,6 +84,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private int filteredDepthMapTextureId;
     private int fboHandle;
     private int fboTextureId;
+
     private int filterFboHandle;
     private int downsampleFboHandle;
     private int downsampleTextureId;
@@ -77,14 +98,12 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private final int modelInputWidth = 256;
     private final int modelInputHeight = 256;
     private ByteBuffer tfliteInputBuffer;
-    private ByteBuffer tfliteOutputBuffer;
 
     // State & Logic Variables
     private Surface videoSurface;
     private SurfaceTexture videoSurfaceTexture;
     private PreferenceConfiguration prefConf;
     private double latestSceneDifference = 0.0f;
-    private boolean sceneChanged = true;
     private ByteBuffer latestUnsmoothedDepthMap = createFlatDepthMap();
     private ByteBuffer previousSmoothedDepthBytes = createFlatDepthMap();
     private ByteBuffer previousPixelBuffer;
@@ -97,6 +116,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private ExecutorService executorService;
     private final AtomicBoolean isAiRunning = new AtomicBoolean(false);
     private final AtomicBoolean isSmoothingRunning = new AtomicBoolean(false);
+    private final AtomicBoolean isAiResultHandlingRunning = new AtomicBoolean(false);
     private final AtomicBoolean gpuDelegateFailed = new AtomicBoolean(false);
     private final AtomicBoolean frameAvailable = new AtomicBoolean(false);
     private final AtomicReference<ByteBuffer> newSmoothedMapAvailable = new AtomicReference<>();
@@ -148,10 +168,23 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         initializeDownsampleFbo();
         initBuffer();
 
+        int mapSize = modelInputWidth * modelInputHeight;
+        freeSmoothedBuffers = new ArrayBlockingQueue<>(NUM_SMOOTHED_BUFFERS);
+        readyToRenderQueue = new ArrayBlockingQueue<>(NUM_SMOOTHED_BUFFERS);
+        for (int i = 0; i < NUM_SMOOTHED_BUFFERS; i++) {
+            freeSmoothedBuffers.offer(ByteBuffer.allocateDirect(mapSize).order(ByteOrder.nativeOrder()));
+        }
+
         int pboSize = modelInputWidth * modelInputHeight * 4;
         previousPixelBuffer = ByteBuffer.allocateDirect(pboSize).order(ByteOrder.nativeOrder());
+        int inputPixelSize = modelInputWidth * modelInputHeight * 4;
+        freeInputBuffers = new ArrayBlockingQueue<>(NUM_INPUT_BUFFERS);
+        inferenceInputQueue = new ArrayBlockingQueue<>(1); // This queue still only needs one slot
+        for (int i = 0; i < NUM_INPUT_BUFFERS; i++) {
+            freeInputBuffers.offer(ByteBuffer.allocateDirect(inputPixelSize).order(ByteOrder.nativeOrder()));
+        }
 
-        executorService = Executors.newFixedThreadPool(2);
+        executorService = Executors.newFixedThreadPool(3);
 
         if (onSurfaceReadyListener != null) {
             onSurfaceReadyListener.onSurfaceReady(videoSurface);
@@ -181,7 +214,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         // 3. Vergleiche den aktuellen kleinen Buffer mit dem vom letzten Frame
         double difference = 0.0;
         if (previousDownsamplePixelBuffer != null) {
-            difference = hasFrameChangedSignificantly(downsamplePixelBuffer, previousDownsamplePixelBuffer);
+            difference = calculateAverageDifferenceOCV(downsamplePixelBuffer, previousDownsamplePixelBuffer, DOWNSAMPLE_SIZE, DOWNSAMPLE_SIZE);
         }
 
         // 4. Speichere den aktuellen kleinen Buffer für den nächsten Frame
@@ -328,16 +361,27 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     private void initBuffer() {
         if (tflite != null) {
-            // Annahme: Input ist ein Float-Tensor [1, H, W, 3]
-            int inputSize = modelInputHeight * modelInputWidth * 3; // 1*H*W*C*BytesPerFloat
+            int inputSize = modelInputHeight * modelInputWidth * 3;
             tfliteInputBuffer = ByteBuffer.allocateDirect(inputSize).order(ByteOrder.nativeOrder());
 
-            // Annahme: Output ist ein Float-Tensor [1, H, W, 1]
-            int outputSize = modelInputHeight * modelInputWidth; // 1*H*W*C*BytesPerFloat
-            tfliteOutputBuffer = ByteBuffer.allocateDirect(outputSize).order(ByteOrder.nativeOrder());
+            // NEU: Erstelle den Buffer-Pool
+            int outputSize = modelInputHeight * modelInputWidth;
+            freeOutputBuffers = new ArrayBlockingQueue<>(NUM_BUFFERS);
+            filledOutputBuffers = new ArrayBlockingQueue<>(NUM_BUFFERS);
+            for (int i = 0; i < NUM_BUFFERS; i++) {
+                freeOutputBuffers.offer(ByteBuffer.allocateDirect(outputSize).order(ByteOrder.nativeOrder()));
+            }
         }
     }
 
+    private final int NUM_INPUT_BUFFERS = 3;
+    private BlockingQueue<ByteBuffer> freeInputBuffers;
+    private final int NUM_SMOOTHED_BUFFERS = 3;
+    private BlockingQueue<ByteBuffer> freeSmoothedBuffers;
+    private BlockingQueue<ByteBuffer> readyToRenderQueue;
+
+    // The single buffer that the GPU is currently reading from
+    private ByteBuffer currentlyRenderingMap;
     @Override
     public void onDrawFrame(GL10 gl) {
         long startTime = System.nanoTime();
@@ -355,9 +399,22 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             frameAvailable.set(false);
         }
 
-        ByteBuffer smoothedMap = newSmoothedMapAvailable.getAndSet(null);
-        if (smoothedMap != null) {
-            this.previousSmoothedDepthBytes = smoothedMap;
+        // Return the buffer we used last frame to the free pool
+        if (currentlyRenderingMap != null) {
+            freeSmoothedBuffers.offer(currentlyRenderingMap);
+            currentlyRenderingMap = null;
+        }
+
+        // Check for a new, completed frame. .poll() is non-blocking.
+        ByteBuffer newMap = readyToRenderQueue.poll();
+        if (newMap != null) {
+            currentlyRenderingMap = newMap;
+        }
+
+        // Upload the latest completed map to the GPU.
+        // If no new one was ready, it will re-upload the previous one.
+        if (currentlyRenderingMap != null) {
+            uploadLatestDepthMapToGpu(currentlyRenderingMap);
         }
         try {
             videoSurfaceTexture.updateTexImage();
@@ -367,24 +424,43 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         }
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        applyTwoPassGaussianBlur();
         if (tflite != null) {
             if (previousSmoothedDepthBytes != null && !isSmoothingRunning.get()) {
                 isSmoothingRunning.set(true);
-                executorService.submit(new SmoothDepthmapTask());
+                //   executorService.submit(new SmoothDepthmapTask());
             }
-            double sceneDifference = detectSceneChange();
+            if (!isAiResultHandlingRunning.get()) {
+                isAiResultHandlingRunning.set(true);
+                executorService.submit(new AiResultHandling());
+            }
+            if (!isAiRunning.get()) {
+                isAiRunning.set(true);
+                executorService.submit(new AiTask());
+            }
+            try {
+                ByteBuffer pixelBufferForAI = freeInputBuffers.poll();
+                if (pixelBufferForAI != null) {
+                    // 1. Try to get a free, empty buffer from the resource pool.
+                    // 2. A buffer was available. Fill it with the latest pixel data.
+                    readPixelsForAI(pixelBufferForAI);
 
-            if (sceneDifference >= 1f || sceneChanged) {
-                if (!isAiRunning.get()) {
-                    isAiRunning.set(true);
-                    sceneChanged = false;
-                    executorService.submit(new DepthEstimationTask(readPixelsForAI()));
-                } else {
-                    sceneChanged = true;
+                    // 3. Offer the now-FILLED buffer to the AI's "to-do" queue.
+                    if (inferenceInputQueue.offer(pixelBufferForAI)) {
+                        // Success: The AI will now process this buffer.
+                        Log.d("InferenceTask", "Success: The AI will now process this buffer.");
+                    } else {
+                        // The AI is still busy with the last job, and our single-slot
+                        // "to-do" queue is full. This is rare but possible.
+                        // Return the buffer we just filled immediately to the free pool.
+
+                        freeInputBuffers.put(pixelBufferForAI);
+                    }
+                    // If pixelBufferForAI was null, it means all buffers are busy.
+                    // We simply skip this frame, which is the correct back-pressure behavior.
                 }
+            } catch (InterruptedException e) {
             }
-            uploadLatestDepthMapToGpu(previousSmoothedDepthBytes);
-            applyTwoPassGaussianBlur();
             drawWithShader();
             long endTime = System.nanoTime();
             long durationMs = (endTime - startTime) / 1000000;
@@ -405,38 +481,35 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         return pixelBuffer;
     }
 
+    /**
+     * Fills the provided ByteBuffer with pixel data from the FBO.
+     * This method does NOT allocate a new buffer.
+     *
+     * @param destinationBuffer The pre-allocated buffer to write pixel data into.
+     */
+    private void readPixelsForAI(ByteBuffer destinationBuffer) {
+        destinationBuffer.rewind();
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboHandle);
+        GLES20.glViewport(0, 0, modelInputWidth, modelInputHeight);
+
+        drawQuad(simple3dProgram, 1.0f, 0.0f);
+
+        GLES20.glReadPixels(0, 0, modelInputWidth, modelInputHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, destinationBuffer);
+
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+    }
+
     private ByteBuffer createFlatDepthMap() {
         int mapSize = modelInputWidth * modelInputHeight;
         byte[] flatData = new byte[mapSize];
-
-        // Fülle das Array mit dem neutralen Wert 128 (entspricht 0.5f im Shader)
         Arrays.fill(flatData, (byte) 128);
 
-        ByteBuffer flatMap = ByteBuffer.allocate(mapSize);
+        // KORREKT: Verwende allocateDirect, um einen nativen Buffer zu erstellen.
+        ByteBuffer flatMap = ByteBuffer.allocateDirect(mapSize).order(ByteOrder.nativeOrder());
+
         flatMap.put(flatData);
         flatMap.rewind();
         return flatMap;
-    }
-
-
-    /**
-     * Compares the new pixel buffer to the last analyzed one to decide if a new AI inference is needed.
-     *
-     * @param newPixelBuffer The pixel data of the current frame.
-     * @return True if the frame has changed significantly, false otherwise.
-     */
-    private double hasFrameChangedSignificantly(ByteBuffer newPixelBuffer, ByteBuffer oldPixelBuffer) {
-        if (oldPixelBuffer == null) return 0.0;
-
-        long totalDifference = 0;
-        newPixelBuffer.rewind();
-        oldPixelBuffer.rewind();
-
-        for (int i = 0; i < newPixelBuffer.capacity(); i++) {
-            totalDifference += Math.abs((newPixelBuffer.get(i) & 0xFF) - (oldPixelBuffer.get(i) & 0xFF));
-        }
-
-        return Math.max((double) totalDifference / newPixelBuffer.capacity() - 6, 0);
     }
 
     private void uploadLatestDepthMapToGpu(ByteBuffer depthMap) {
@@ -487,10 +560,269 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
     }
 
-    private class SmoothDepthmapTask implements Runnable {
+    private class AiTask implements Runnable {
 
-        SmoothDepthmapTask() {
+        @Override
+        public void run() {
+            ByteBuffer pixelBuffer = null;
+            while (!Thread.currentThread().isInterrupted()) {
+                long startTime = System.nanoTime();
+                long waitTime = System.nanoTime();
+                long aiTime = System.nanoTime();
+                long aiTime_end = System.nanoTime();
+                try {
+                    if (tflite == null) return;
+                    pixelBuffer = inferenceInputQueue.take();
+                    Log.d("InferenceTask", "AI inference started");
+                    // 1. Hole einen freien Buffer aus dem Pool (wartet, falls keiner verfügbar ist)
+                    ByteBuffer outputBuffer = freeOutputBuffers.take();
+                    waitTime = System.nanoTime();
+                    outputBuffer.rewind();
+
+                    // 2. Bereite den Input-Buffer vor (wie bisher)
+                    tfliteInputBuffer.rewind();
+                    pixelBuffer.rewind();
+
+                    convertRgbaToRgb(pixelBuffer, tfliteInputBuffer, modelInputWidth, modelInputHeight);
+
+                    aiTime = System.nanoTime();
+                    tflite.run(tfliteInputBuffer, outputBuffer);
+                    aiTime_end = System.nanoTime();
+                    filledOutputBuffers.put(new InferenceResult(pixelBuffer, outputBuffer));
+                    Log.d("InferenceTask", "AI inference ended");
+                } catch (InterruptedException e) {
+                    Log.d("InferenceTask", "AI inference failed", e);
+                    Thread.currentThread().interrupt();
+                } catch (Exception e) {
+                    Log.d("InferenceTask", "AI inference failed", e);
+                    gpuDelegateFailed.set(true);
+                } finally {
+                    long duration = (System.nanoTime() - startTime) / 1_000_000;
+                    long waitTimeText = (waitTime - startTime) / 1_000_000;
+                    long aitimeText = (aiTime_end - aiTime) / 1_000_000;
+                    Log.d("Stereo3DRenderer", "CalculateTime AiDepthMap: " + duration + " ms " + filledOutputBuffers.remainingCapacity() + " " + waitTimeText + " ms" + "aitime: " + aitimeText);
+                }
+            }
+            isAiRunning.set(false);
         }
+    }
+
+    private static class InferenceResult {
+        final ByteBuffer pixelBuffer; // The original image
+        final ByteBuffer rawDepthBuffer;  // The raw AI result
+
+        InferenceResult(ByteBuffer pixelBuffer, ByteBuffer rawDepthBuffer) {
+            this.pixelBuffer = pixelBuffer;
+            this.rawDepthBuffer = rawDepthBuffer;
+        }
+    }
+
+    /**
+     * Converts an RGBA ByteBuffer to an RGB ByteBuffer using fast, native OpenCV functions.
+     * This method is thread-safe and cleans up all native resources.
+     *
+     * @param rgbaBuffer The source buffer containing RGBA data.
+     * @param rgbBuffer  The pre-allocated destination buffer for RGB data.
+     * @param width      The width of the image.
+     * @param height     The height of the image.
+     */
+    public static void convertRgbaToRgb(ByteBuffer rgbaBuffer, ByteBuffer rgbBuffer, int width, int height) {
+        Mat rgbaMat = null;
+        Mat rgbMat = null;
+        try {
+            // 1. Wrap the source and destination buffers in Mat headers (zero-copy)
+            rgbaMat = new Mat(height, width, CvType.CV_8UC4, rgbaBuffer);
+            rgbMat = new Mat(height, width, CvType.CV_8UC3, rgbBuffer);
+
+            // 2. Perform the conversion using the highly optimized native function
+            Imgproc.cvtColor(rgbaMat, rgbMat, Imgproc.COLOR_RGBA2RGB);
+
+        } finally {
+            // 3. CRUCIAL: Always release the Mat headers to prevent memory leaks
+            if (rgbaMat != null) {
+                rgbaMat.release();
+            }
+            if (rgbMat != null) {
+                rgbMat.release();
+            }
+        }
+    }
+
+    /**
+     * Calculates the average pixel difference between two ByteBuffers using fast, native OpenCV functions.
+     * This is a high-performance replacement for a manual Java for-loop.
+     *
+     * @param buffer1 The first ByteBuffer (e.g., newestBuffer).
+     * @param buffer2 The second ByteBuffer (e.g., previousUnsmoothedDepthBytes).
+     * @param width   The width of the image.
+     * @param height  The height of the image.
+     * @return The average difference per pixel (a value between 0 and 255).
+     */
+    public static double calculateAverageDifferenceOCV(ByteBuffer buffer1, ByteBuffer buffer2, int width, int height) {
+        // Safety check for uninitialized buffers
+        if (buffer1 == null || buffer2 == null) {
+            return 255.0; // Return a high value to indicate a significant change
+        }
+
+        Mat mat1 = null;
+        Mat mat2 = null;
+        Mat diffMat = null;
+        try {
+            // 1. Wrap the buffers in Mat headers. This is a fast, zero-copy operation.
+            mat1 = new Mat(height, width, CvType.CV_8UC1, buffer1);
+            mat2 = new Mat(height, width, CvType.CV_8UC1, buffer2);
+
+            // 2. Create a destination Mat to hold the difference image.
+            diffMat = new Mat();
+
+            // 3. Calculate the absolute difference for every pixel using a single, native call.
+            Core.absdiff(mat1, mat2, diffMat);
+
+            // 4. Calculate the mean (average) value of all pixels in the difference matrix.
+            Scalar meanDifference = Core.mean(diffMat);
+
+            // 5. The result for a single-channel image is in the first element of the Scalar.
+            return meanDifference.val[0];
+
+        } finally {
+            // 6. CRUCIAL: Always release the Mat headers to prevent native memory leaks.
+            if (mat1 != null) {
+                mat1.release();
+            }
+            if (mat2 != null) {
+                mat2.release();
+            }
+            if (diffMat != null) {
+                diffMat.release();
+            }
+        }
+    }
+
+    private class AiResultHandling implements Runnable {
+
+        private final byte[] processedDataArray = new byte[modelInputWidth * modelInputHeight];
+        private ByteBuffer previousRawMap = null;
+
+        @Override
+        public void run() {
+            ByteBuffer resultBuffer = createFlatDepthMap();
+            InferenceResult result = null;
+            while (!Thread.currentThread().isInterrupted()) {
+                boolean takeResult = true;
+                long startTime = System.nanoTime();
+                long waitTime = System.nanoTime();
+                Mat rawMat = null;
+                Mat processedMat = null;
+                double rawDifference = 0.0;
+                try {
+                    Log.d("Stereo3DRenderer", "checking AI started");
+                    // 1. Warte auf ein gefülltes Ergebnis vom InferenceTask
+                    result = filledOutputBuffers.take();
+                    resultBuffer = freeSmoothedBuffers.take();
+
+                    ByteBuffer rawDepthBuffer = result.rawDepthBuffer;
+                    ByteBuffer currentPixelBuffer = result.pixelBuffer;
+
+                    if (previousRawMap != null) {
+                        // Vergleiche den rohen Buffer von diesem Frame mit dem vom letzten.
+                        rawDifference = calculateAverageDifferenceOCV(rawDepthBuffer, previousRawMap, modelInputWidth, modelInputHeight);
+                    }
+
+                    // Aktualisiere 'previous' mit den aktuellen rohen Daten für den nächsten Test
+                    if (previousRawMap == null || previousRawMap.capacity() != rawDepthBuffer.capacity()) {
+                        previousRawMap = ByteBuffer.allocateDirect(rawDepthBuffer.capacity());
+                    }
+                    previousRawMap.rewind();
+                    rawDepthBuffer.rewind();
+                    previousRawMap.put(rawDepthBuffer);
+
+                    InferenceResult intermediateBuffer;
+                    while ((intermediateBuffer = filledOutputBuffers.poll()) != null) {
+                        freeOutputBuffers.put(result.rawDepthBuffer);
+                        rawDepthBuffer = intermediateBuffer.rawDepthBuffer;
+                    }
+                    rawDepthBuffer.rewind();
+                    rawMat = new Mat(modelInputHeight, modelInputWidth, CvType.CV_8UC1, rawDepthBuffer);
+                    processedMat = new Mat();
+                    Core.normalize(rawMat, processedMat, 0, 255, Core.NORM_MINMAX);
+                    processedMat.get(0, 0, processedDataArray);
+                    waitTime = System.nanoTime();
+                    rawDepthBuffer.rewind();
+                    rawDepthBuffer.put(processedDataArray);
+                    double imageDifference = 0.0f;
+                    final double INSTABILITY_THRESHOLD = 15.0;
+                    final double INSTABILITY_THRESHOLD_STRONG = 1.0;
+                    final double IMAGE_TRESHOLD = 5;
+                    final double MIN_IMAGE_DIFFERENCE = 1f;
+
+                    if (previousPixelBuffer != null) {
+                        currentPixelBuffer.rewind();
+                        imageDifference = hasFrameChangedSignificantlyOCV(currentPixelBuffer, previousPixelBuffer) * 100;
+                        previousPixelBuffer.rewind();
+                        previousPixelBuffer.put(currentPixelBuffer);
+                        if (imageDifference < MIN_IMAGE_DIFFERENCE) {
+                            takeResult = false;
+                        }
+                        imageDifference = Math.max(imageDifference, 0);
+                        double instabilityFactor = rawDifference / Math.max(imageDifference, MIN_IMAGE_DIFFERENCE);
+
+
+                        if(instabilityFactor > INSTABILITY_THRESHOLD_STRONG && imageDifference <= IMAGE_TRESHOLD) {
+                            LimeLog.info("Unstable AI ignored strong " + instabilityFactor +
+                                    " (DepthDiff: " + rawDifference + ", ImageDiff: " + imageDifference + ")");
+                            takeResult = false;
+                        } else if (instabilityFactor > INSTABILITY_THRESHOLD && imageDifference > IMAGE_TRESHOLD) {
+                            LimeLog.info("Unstable AI ignored weak " + instabilityFactor +
+                                    " (DepthDiff: " + rawDifference + ", ImageDiff: " + imageDifference + ")");
+                            takeResult = false;
+                        }
+                        if (takeResult) {
+                            LimeLog.info("New Result delivered for processing " + instabilityFactor +
+                                    " (DepthDiff: " + rawDifference + ", ImageDiff: " + imageDifference + ")");
+                        }
+                    }
+
+                    if (takeResult) {
+                        rawDepthBuffer.rewind();
+                        resultBuffer.rewind();
+
+                        resultBuffer.put(rawDepthBuffer);
+
+                        rawDepthBuffer.rewind();
+                        resultBuffer.rewind();
+                        readyToRenderQueue.put(resultBuffer);
+                    }
+                    latestSceneDifference = imageDifference;
+                    freeOutputBuffers.put(rawDepthBuffer);
+                } catch (Exception e) {
+                    Log.e("Stereo3DRenderer", "AIRESULT exception", e);
+                } finally {
+                    if (rawMat != null) {
+                        rawMat.release();
+                    }
+                    if (processedMat != null) {
+                        processedMat.release();
+                    }
+                    if (resultBuffer != null) {
+                        freeSmoothedBuffers.offer(resultBuffer);
+                    }
+                    if(result != null) {
+                        freeInputBuffers.offer(result.pixelBuffer);
+                    }
+                    long duration = (System.nanoTime() - startTime) / 1_000_000;
+                    long waitTimeText = (waitTime - startTime) / 1_000_000;
+                    Log.d("Stereo3DRenderer", "CalculateTime AiResult:    " + duration + " ms" + " " + freeOutputBuffers.remainingCapacity() + " " + waitTimeText + " ms");
+                }
+            }
+            Log.d("Stereo3DRenderer", "Total AI RESULT FALSE");
+            isAiResultHandlingRunning.set(false);
+        }
+    }
+
+
+    private ByteBuffer newSmoothedBytes;
+
+    private class SmoothDepthmapTask implements Runnable {
 
         @Override
         public void run() {
@@ -501,205 +833,103 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                         if (latestUnsmoothedDepthMap == null) {
                             return;
                         }
-                        // Initialisiere alle Zustands-Arrays und Buffer beim ersten Durchlauf.
-                        if (smoothedDepthPosition == null) {
-                            int mapSize = latestUnsmoothedDepthMap.capacity();
-                            smoothedDepthPosition = new float[mapSize];
-                            depthVelocity = new float[mapSize];
-                            previousSmoothedDepthBytes = ByteBuffer.allocate(mapSize);
+                        // 1. Berechne die Unterschiede
+                        double imageDiff = latestSceneDifference;
+                        double depthDiff = calculateAverageDifferenceOCV(latestUnsmoothedDepthMap, previousSmoothedDepthBytes, modelInputWidth, modelInputHeight);
 
-                            latestUnsmoothedDepthMap.rewind();
-                            previousSmoothedDepthBytes.put(latestUnsmoothedDepthMap); // Fülle den Byte-Buffer
-                            latestUnsmoothedDepthMap.rewind();
-                            for (int i = 0; i < mapSize; i++) {
-                                // Fülle den Float-Array
-                                smoothedDepthPosition[i] = latestUnsmoothedDepthMap.get(i) & 0xFF;
-                            }
-                        }
+                        // 2. Berechne den adaptiven Mix-Faktor
+                        final double MAX_CHANGE_SCORE = 100.0; // Der "Unterschieds-Wert", bei dem zu 100% die neue Karte genommen wird
+                        final float MIN_MIX_FACTOR = 0.1f;    // Mindest-Mischung, um "stuck frames" zu vermeiden
+                        final float MAX_MIX_FACTOR = 1.0f;    // Maximale Mischung
 
-                        // Berechne die durchschnittliche Änderung (nutzt den Byte-Buffer, wie von dir gewünscht)
-                        long totalDifference = 0;
+                        double changeScore = imageDiff + depthDiff;
+                        double ratio = Math.min(changeScore / MAX_CHANGE_SCORE, 1.0);
+                        float mixFactor = (float) (MIN_MIX_FACTOR + (MAX_MIX_FACTOR - MIN_MIX_FACTOR) * ratio);
+
+                        // 3. Führe die Mischung (LERP) durch
+                        ByteBuffer resultBuffer = ByteBuffer.allocateDirect(latestUnsmoothedDepthMap.capacity());
                         latestUnsmoothedDepthMap.rewind();
                         previousSmoothedDepthBytes.rewind();
-                        for (int i = 0; i < latestUnsmoothedDepthMap.capacity(); i++) {
-                            totalDifference += Math.abs((latestUnsmoothedDepthMap.get(i) & 0xFF) - (previousSmoothedDepthBytes.get(i) & 0xFF));
-                        }
-                        double averageDifference = (double) totalDifference / latestUnsmoothedDepthMap.capacity();
-
-                        // Deine adaptive Logik zur Bestimmung der Federstärke (bleibt gleich)
-                        double instabilityFactor = averageDifference / Math.max(latestSceneDifference, 1f);
-                        final double SCENE_CUT_THRESHOLD = 80.0;
-                        float springStrength;
-                        float damping = 0.6f;
-                        if (averageDifference >= SCENE_CUT_THRESHOLD || instabilityFactor > 10f) {
-                            springStrength = 1.0f;
-                            Arrays.fill(depthVelocity, 0.0f);
-                            damping = 1f;
-                        } else {
-                            final float MIN_SPRING = 0f;
-                            final float MAX_SPRING_NORMAL = (float) instabilityFactor / 100f;
-                            double ratio = Math.min(averageDifference / SCENE_CUT_THRESHOLD, 1.0);
-                            ratio = Math.pow(ratio, 2.0);
-                            springStrength = (float) (MIN_SPRING + (MAX_SPRING_NORMAL - MIN_SPRING) * ratio);
-                        }
-
-                        if (springStrength < 0.01) {
-                            break;
-                        }
-                        // --- Finale Feder-Dämpfer-Logik ---
-                        ByteBuffer newSmoothedBytes = ByteBuffer.allocate(latestUnsmoothedDepthMap.capacity());
-                        latestUnsmoothedDepthMap.rewind();
 
                         for (int i = 0; i < latestUnsmoothedDepthMap.capacity(); i++) {
-                            // Lese den präzisen alten Zustand aus dem float-Array
-                            float prevPos = smoothedDepthPosition[i];
-                            float currentTarget = latestUnsmoothedDepthMap.get(i) & 0xFF;
-                            float newPos;
-
-                            if (springStrength >= 1.0f) {
-                                newPos = currentTarget;
-                                depthVelocity[i] = 0;
-                            } else {
-                                float distance = currentTarget - prevPos;
-                                float springForce = distance * springStrength;
-                                float currentVel = depthVelocity[i];
-                                currentVel += springForce;
-                                currentVel *= damping;
-                                depthVelocity[i] = currentVel;
-                                newPos = prevPos + currentVel;
-                            }
-
-                            // Speichere den neuen, präzisen Zustand im float-Array für die nächste Berechnung
-                            smoothedDepthPosition[i] = newPos;
-
-                            // Speichere eine gerundete Version im Byte-Buffer für die GPU und deine Vergleiche
-                            newSmoothedBytes.put((byte) Math.max(0, Math.min(255, newPos)));
+                            int prev = previousSmoothedDepthBytes.get(i) & 0xFF;
+                            int curr = latestUnsmoothedDepthMap.get(i) & 0xFF;
+                            int mixed = (int) (prev * (1.0f - mixFactor) + curr * mixFactor);
+                            resultBuffer.put((byte) mixed);
                         }
-
-                        newSmoothedBytes.rewind();
-                        newSmoothedMapAvailable.set(newSmoothedBytes);
+                        newSmoothedMapAvailable.set(resultBuffer);
 
                     }
                 } catch (Exception e) {
                 } finally {
                     long duration = (System.nanoTime() - startTime) / 1_000_000;
-                    Log.d("Stereo3DRenderer", "Total Smoothing time: " + duration + " ms");
+                    Log.d("Stereo3DRenderer", "CalculateTime Smoothing time: " + duration + " ms");
                 }
             }
             isSmoothingRunning.set(false);
         }
     }
 
-    private class DepthEstimationTask implements Runnable {
-        private final ByteBuffer pixelBuffer;
-
-        DepthEstimationTask(ByteBuffer pixelBuffer) {
-            this.pixelBuffer = pixelBuffer;
+    /**
+     * Compares two frames using OpenCV's histogram correlation to robustly detect scene changes.
+     *
+     * @param newPixelBuffer The RGBA buffer of the current frame.
+     * @param oldPixelBuffer The RGBA buffer of the previous frame.
+     * @return A "difference score" from 0.0 (identical) to 1.0 (very different).
+     */
+    private double hasFrameChangedSignificantlyOCV(ByteBuffer newPixelBuffer, ByteBuffer oldPixelBuffer) {
+        if (newPixelBuffer == null || oldPixelBuffer == null || newPixelBuffer.capacity() != oldPixelBuffer.capacity()) {
+            return 1.0; // Assume maximum change if buffers are invalid
         }
 
-        @Override
-        public void run() {
-            long startTime = System.nanoTime();
-            try {
-                // Überprüfen, ob die Member-Variablen-Buffer initialisiert sind.
-                if (tflite == null || pixelBuffer == null || tfliteInputBuffer == null || tfliteOutputBuffer == null) {
-                    return;
-                }
-                ByteBuffer depthBytes = ByteBuffer.allocateDirect(modelInputWidth * modelInputHeight);
-                // Die Member-Variablen-Buffer zurücksetzen, anstatt neue zu erstellen.
-                tfliteInputBuffer.rewind();
-                tfliteOutputBuffer.rewind();
+        Mat mat1 = null;
+        Mat mat2 = null;
+        Mat grayMat1 = null;
+        Mat grayMat2 = null;
+        Mat hist1 = null;
+        Mat hist2 = null;
 
-                pixelBuffer.rewind();
-                for (int i = 0; i < modelInputWidth * modelInputHeight; i++) {
-                    byte r = pixelBuffer.get();
-                    byte g = pixelBuffer.get();
-                    byte b = pixelBuffer.get();
-                    pixelBuffer.get(); // Alpha überspringen
+        try {
+            // 1. Wrap the ByteBuffers in Mat headers (no data is copied)
+            mat1 = new Mat(modelInputHeight, modelInputWidth, CvType.CV_8UC4, newPixelBuffer);
+            mat2 = new Mat(modelInputHeight, modelInputWidth, CvType.CV_8UC4, oldPixelBuffer);
 
-                    tfliteInputBuffer.put(r);
-                    tfliteInputBuffer.put(g);
-                    tfliteInputBuffer.put(b);
-                }
-                tfliteInputBuffer.rewind();
+            // 2. Convert the images to grayscale for a simpler and more stable comparison
+            grayMat1 = new Mat();
+            grayMat2 = new Mat();
+            Imgproc.cvtColor(mat1, grayMat1, Imgproc.COLOR_RGBA2GRAY);
+            Imgproc.cvtColor(mat2, grayMat2, Imgproc.COLOR_RGBA2GRAY);
 
-                // 2. Führe die KI-Inferenz aus
-                tflite.run(tfliteInputBuffer, tfliteOutputBuffer);
-                // KORREKTE UINT8-NORMALISIERUNG
-                tfliteOutputBuffer.rewind();
-                double imageDifference = 0.0f;
-                int min = 255;
-                int max = 0;
-                for (int i = 0; i < tfliteOutputBuffer.capacity(); i++) {
-                    int val = tfliteOutputBuffer.get(i) & 0xFF; // Lese als unsigned byte
-                    if (val < min) min = val;
-                    if (val > max) max = val;
-                }
-                int range = max - min;
+            // 3. Calculate the histogram for each grayscale image
+            hist1 = new Mat();
+            hist2 = new Mat();
+            Imgproc.calcHist(Collections.singletonList(grayMat1), new MatOfInt(0), new Mat(), hist1, new MatOfInt(256), new MatOfFloat(0f, 256f));
+            Imgproc.calcHist(Collections.singletonList(grayMat2), new MatOfInt(0), new Mat(), hist2, new MatOfInt(256), new MatOfFloat(0f, 256f));
 
-                tfliteOutputBuffer.rewind();
+            // 4. Compare the two histograms using the correlation method
+            //    Result is between -1.0 (inverse) and 1.0 (identical).
+            double correlation = Imgproc.compareHist(hist1, hist2, Imgproc.HISTCMP_CORREL);
 
-                if (range > 0) {
-                    for (int i = 0; i < tfliteOutputBuffer.capacity(); i++) {
-                        int val = tfliteOutputBuffer.get(i) & 0xFF;
-                        // Normalisiere den Wert und strecke den Kontrast auf den vollen Bereich
-                        int stretchedValue = ((val - min) * 255) / range;
-                        depthBytes.put((byte) stretchedValue);
-                    }
-                } else {
-                    // Falls kein Kontrast vorhanden ist (flaches Bild), kopiere einfach die Rohdaten
-                    depthBytes.put(tfliteOutputBuffer);
-                }
-                depthBytes.rewind();
+            // 5. Convert the correlation score into a "difference" score
+            //    1.0 becomes 0.0 (no difference)
+            //    0.0 becomes 1.0 (high difference)
+            return 1.0 - correlation;
 
-                final double INSTABILITY_THRESHOLD = 10.0;
-                final double MIN_IMAGE_DIFFERENCE = 1.0; // Ignoriere winzige Bildänderungen, um Instabilität zu vermeiden
-
-                if (previousSmoothedDepthBytes != null) {
-                    // 1. Berechne die Änderung der Tiefenkarte (wie bisher)
-                    long totalDepthDifference = 0;
-                    depthBytes.rewind();
-                    previousSmoothedDepthBytes.rewind();
-                    for (int i = 0; i < depthBytes.capacity(); i++) {
-                        totalDepthDifference += Math.abs((depthBytes.get(i) & 0xFF) - (previousSmoothedDepthBytes.get(i) & 0xFF));
-                    }
-                    double averageDepthDifference = (double) totalDepthDifference / depthBytes.capacity();
-                    depthBytes.rewind();
-                    previousSmoothedDepthBytes.rewind();
-                    if (previousPixelBuffer != null) {
-                        imageDifference = hasFrameChangedSignificantly(pixelBuffer, previousPixelBuffer);
-                        previousPixelBuffer.rewind();
-                        previousPixelBuffer.put(pixelBuffer);
-                        if (imageDifference < MIN_IMAGE_DIFFERENCE) {
-                            return;
-                        }
-                    }
-                    double instabilityFactor = averageDepthDifference / Math.max(imageDifference, MIN_IMAGE_DIFFERENCE);
-
-                    // 3. Verwerfe die Karte, wenn der Faktor zu hoch ist
-                    // Das bedeutet: "Die Tiefe hat sich VIEL MEHR geändert als das Bild selbst."
-                    if (instabilityFactor > INSTABILITY_THRESHOLD) {
-                        LimeLog.info("Unstable AI result ignored. Instability Factor: " + instabilityFactor +
-                                " (DepthDiff: " + averageDepthDifference + ", ImageDiff: " + imageDifference + ")");
-                        return; // Verwirf dieses Ergebnis
-                    }
-                }
-                //ByteBuffer newTest = mixDepthMaps(previousSmoothedDepthBytes, depthBytes, 0.5f);
-                synchronized (depthMapLock) {
-                    latestUnsmoothedDepthMap = depthBytes;
-                    latestSceneDifference = imageDifference;
-                }
-
-            } catch (Exception e) {
-                Log.e("DepthEstimationTask", "AI inference failed", e);
-                gpuDelegateFailed.set(true);
-            } finally {
-                isAiRunning.set(false);
-                long duration = (System.nanoTime() - startTime) / 1_000_000;
-                Log.d("Stereo3DRenderer", "Total DepthEstimationTask time: " + duration + " ms");
-            }
+        } finally {
+            // CRUCIAL: ALWAYS release Mat memory to prevent leaks
+            if (mat1 != null) mat1.release();
+            if (mat2 != null) mat2.release();
+            if (grayMat1 != null) grayMat1.release();
+            if (grayMat2 != null) grayMat2.release();
+            if (hist1 != null) hist1.release();
+            if (hist2 != null) hist2.release();
         }
     }
+
+    private final int NUM_BUFFERS = 3; // Poolgröße, 2-3 ist meist ideal
+    private BlockingQueue<ByteBuffer> freeOutputBuffers;
+    private BlockingQueue<InferenceResult> filledOutputBuffers;
+    private BlockingQueue<ByteBuffer> inferenceInputQueue = new ArrayBlockingQueue<>(1);
 
     private void initializeTfLite() {
 
