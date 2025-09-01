@@ -1641,6 +1641,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         // Destroy the capture provider
         inputCaptureProvider.destroy();
+        streamContainer.onDestroy();
     }
 
     @Override

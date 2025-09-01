@@ -97,19 +97,25 @@ public class ShaderUtils {
                     "  }\n" +
                     "  gl_FragColor = finalColor;\n" +
                     "}\n";
-
-    public static final String FRAGMENT_SHADER_GAUSSIAN_BLUR =
+    /**
+     * An optimized, single-pass Gaussian blur shader that works as a drop-in replacement.
+     * It achieves better performance by taking fewer texture samples over the same blur radius.
+     * NOTE: For best performance and quality, a two-pass implementation is still highly recommended.
+     */
+    public static final String OPTIMIZED_SINGLE_PASS_GAUSSIAN_BLUR_SHADER =
             "precision mediump float;\n" +
                     "varying vec2 v_TexCoord;\n" +
                     "uniform sampler2D s_InputTexture;\n" +
                     "uniform vec2 u_texelSize;\n" +
-
-                    // NEU: Diese Uniform steuert die Richtung des Weichzeichners
                     "uniform vec2 u_blurDirection;\n" +
 
-                    // Die Stärke des Weichzeichners (Radius)
-                    "const float blurRadius = 50.0;\n" +
-                    // Die Qualität/Sigma des Weichzeichners
+                    // --- OPTIMIZATIONS ---
+                    // 1. We reduce the loop iterations from 50 to 10 (21 total samples instead of 101).
+                    "const float blurRadius = 10.0;\n" +
+                    // 2. We step by a larger amount to cover the same visual area. (10 * 5.0 = 50.0)
+                    "const float blurStep = 5.0;\n" +
+                    // ---
+
                     "const float sigma = 100.0;\n" +
 
                     "void main() {\n" +
@@ -117,15 +123,18 @@ public class ShaderUtils {
                     "  float weightSum = 0.0;\n" +
 
                     "  for (float i = -blurRadius; i <= blurRadius; i++) {\n" +
-                         // Berechne die Gewichtung für diesen Pixel basierend auf der Distanz"
-    "      float weight = exp(-(i*i) / (2.0 * sigma * sigma));\n" +
-                  // Lies den Farbwert an der verschobenen Position"
-            "      sum += texture2D(s_InputTexture, v_TexCoord + i * u_texelSize * u_blurDirection) * weight;\n" +
-            "      weightSum += weight;\n" +
-            "  }\n" +
-              // Gib den gewichteten Durchschnitt aus
-            "  gl_FragColor = sum / weightSum;\n" +
-            "}\n";
+                    // The actual distance we sample at is now larger.
+                    "    float sampleDistance = i * blurStep;\n" +
+
+                    // Calculate the weight for this larger distance.
+                    "    float weight = exp(-(sampleDistance * sampleDistance) / (2.0 * sigma * sigma));\n" +
+
+                    // Read the color value at the larger, stepped position.
+                    "    sum += texture2D(s_InputTexture, v_TexCoord + sampleDistance * u_texelSize * u_blurDirection) * weight;\n" +
+                    "    weightSum += weight;\n" +
+                    "  }\n" +
+                    "  gl_FragColor = sum / weightSum;\n" +
+                    "}\n";
 
     public static final String SIMPLE_VERTEX_SHADER =
             "attribute vec4 a_Position;\n" +

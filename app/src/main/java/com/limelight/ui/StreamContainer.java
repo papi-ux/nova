@@ -14,7 +14,7 @@ import android.view.inputmethod.InputConnection;
 import android.widget.FrameLayout;
 
 import com.limelight.preferences.PreferenceConfiguration;
-import  com.limelight.utils.Stereo3DRenderer;
+import com.limelight.utils.Stereo3DRenderer;
 
 /**
  * A container that manages different stream display modes and now correctly
@@ -261,6 +261,8 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
         if (currentMode == StreamMode.MODE_2D) {
             isSurfaceReady = false;
             mCurrentSurface = null;
+        } else {
+            mStereoRenderer.onSurfaceDestroyed();
         }
     }
 
@@ -270,5 +272,9 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
             mCurrentSurface = surface;
             notifySurfaceReady();
         }
+    }
+
+    public void onDestroy() {
+        mStereoRenderer.onSurfaceDestroyed();
     }
 }

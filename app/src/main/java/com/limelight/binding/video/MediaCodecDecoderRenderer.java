@@ -1442,9 +1442,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 VideoStatsFps fps = lastTwo.getFps();
                 String decoder;
                 float totalFps = fps.totalFps;
-                if(Stereo3DRenderer.fps != 0) {
-                    totalFps = Stereo3DRenderer.fps;
-                }
 
                 if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
                     decoder = avcDecoder.getName();
@@ -1457,9 +1454,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 }
 
                 float decodeTimeMs = (float)lastTwo.decoderTimeMs / lastTwo.totalFramesReceived;
-                if(Stereo3DRenderer.drawDelay > 0) {
-                    decodeTimeMs = decodeTimeMs + Stereo3DRenderer.drawDelay;
-                }
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
                 StringBuilder sb = new StringBuilder();
                 if(prefs.enablePerfOverlayLite){
@@ -1495,10 +1489,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 }else{
                     sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, totalFps));
                     if(Stereo3DRenderer.fps > 0) {
-                        sb.append("\tAiFps: ");
+                        sb.append('\n');
+                        sb.append("Drawn FPS: ");
+                        sb.append(Stereo3DRenderer.fps);
+                        sb.append("\t DepthMapsPS: ");
                         sb.append(Stereo3DRenderer.threeDFps);
-                        sb.append("\t 3DRenderer: ");
+                        sb.append("\t 3DDelegate: ");
                         sb.append(Stereo3DRenderer.renderer);
+                        sb.append(" " +context.getString(R.string.perf_overlay_drawdelay, Stereo3DRenderer.drawDelay));
                     }
                     sb.append('\n');
                     sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n');
