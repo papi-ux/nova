@@ -237,21 +237,6 @@
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="false"
-            android:key="checkbox_vibrate_fallback"
-            android:summary="@string/summary_checkbox_vibrate_fallback"
-            android:title="@string/title_checkbox_vibrate_fallback"
-            app:iconSpaceReserved="false" />
-        <com.limelight.preferences.SeekBarPreference
-            android:defaultValue="100"
-            android:dependency="checkbox_vibrate_fallback"
-            android:key="seekbar_vibrate_fallback_strength"
-            android:max="200"
-            android:summary="@string/summary_seekbar_vibrate_fallback_strength"
-            android:text="@string/suffix_seekbar_vibrate_fallback_strength"
-            android:title="@string/title_seekbar_vibrate_fallback_strength"
-            app:iconSpaceReserved="false" />
-        <CheckBoxPreference
-            android:defaultValue="false"
             android:key="checkbox_flip_face_buttons"
             android:summary="@string/summary_checkbox_flip_face_buttons"
             android:title="@string/title_checkbox_flip_face_buttons"
@@ -301,9 +286,26 @@
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="false"
+            android:dependency="checkbox_enable_rumble"
+            android:key="checkbox_vibrate_fallback"
+            android:summary="@string/summary_checkbox_vibrate_fallback"
+            android:title="@string/title_checkbox_vibrate_fallback"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_vibrate_fallback"
             android:key="checkbox_enable_device_rumble"
             android:summary="@string/summary_device_rumble"
             android:title="@string/title_device_rumble"
+            app:iconSpaceReserved="false" />
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:dependency="checkbox_vibrate_fallback"
+            android:key="seekbar_vibrate_fallback_strength"
+            android:max="200"
+            android:summary="@string/summary_seekbar_vibrate_fallback_strength"
+            android:text="@string/suffix_seekbar_vibrate_fallback_strength"
+            android:title="@string/title_seekbar_vibrate_fallback_strength"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
@@ -850,6 +852,12 @@
         app:iconSpaceReserved="false">
         <CheckBoxPreference
             android:defaultValue="false"
+            android:key="checkbox_prevent_packet_loss"
+            android:summary="@string/summary_prevent_packet_loss"
+            android:title="@string/title_prevent_packet_loss"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
             android:key="checkbox_unlock_fps"
             android:summary="@string/summary_unlock_fps"
             android:title="@string/title_unlock_fps"
@@ -865,12 +873,6 @@
             android:key="checkbox_full_range"
             android:summary="@string/summary_full_range"
             android:title="@string/title_full_range"
-            app:iconSpaceReserved="false" />
-        <CheckBoxPreference
-            android:defaultValue="false"
-            android:key="checkbox_prevent_packet_loss"
-            android:summary="@string/summary_prevent_packet_loss"
-            android:title="@string/title_prevent_packet_loss"
             app:iconSpaceReserved="false" />
         <ListPreference
             android:defaultValue="auto"
