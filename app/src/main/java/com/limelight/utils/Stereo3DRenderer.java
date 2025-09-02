@@ -61,6 +61,9 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private final int NUM_INPUT_BUFFERS = 10;
     private final int NUM_SMOOTHED_BUFFERS = 3;
 
+    private final int[] pboHandles = new int[2];
+    private int pboIndex = 0;
+    private int PBO_SIZE = modelInputWidth * modelInputHeight * 4;
 
     public static volatile float fps = 0;
     public static volatile float threeDFps = 0;
@@ -236,7 +239,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
         simple3dProgram = createProgram(ShaderUtils.SIMPLE_VERTEX_SHADER, ShaderUtils.SIMPLE_FRAGMENT_SHADER);
         bilateralBlurProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.OPTIMIZED_SINGLE_PASS_GAUSSIAN_BLUR_SHADER);
-        dibr3dProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_DUAL_BUBBLE_3D);
+        dibr3dProgram = createProgram(ShaderUtils.VERTEX_SHADER, ShaderUtils.FRAGMENT_SHADER_3D);
 
         initializeFilterFbo();
         initializeIntermediateFbo();
@@ -348,7 +351,9 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         int viewWidth = glSurfaceView.getWidth();
         int viewHeight = glSurfaceView.getHeight();
 
-        float parallax = 0.1f * (parallaxStrength * 2f);
+        float parallax = parallaxStrength * 0.035f;
+
+        LimeLog.info("PArallax Strength " + parallax + " " + parallaxStrength);
 
         // --- Left Eye (Positive Effects Only) ---
         GLES20.glViewport(0, 0, viewWidth / 2, viewHeight);
@@ -361,18 +366,12 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     private void drawEye(int program, float parallax) {
         GLES20.glUseProgram(program);
-
         int posHandle = GLES20.glGetAttribLocation(program, "a_Position");
         int texHandle = GLES20.glGetAttribLocation(program, "a_TexCoord");
         int colorTexHandle = GLES20.glGetUniformLocation(program, "s_ColorTexture");
         int depthTexHandle = GLES20.glGetUniformLocation(program, "s_DepthTexture");
         int parallaxHandle = GLES20.glGetUniformLocation(program, "u_parallax");
-        int convergenceHandle = GLES20.glGetUniformLocation(program, "u_convergence");
-        int focusPointHandle = GLES20.glGetUniformLocation(program, "u_focusPoint");
-        int minFocusPointHandle = GLES20.glGetUniformLocation(program, "u_minFocusPoint");
         int debugModeHandle = GLES20.glGetUniformLocation(program, "u_debugMode");
-        int bothEyesHandle = GLES20.glGetUniformLocation(program, "u_bothEyes");
-        int depthContrastHandle = GLES20.glGetUniformLocation(program, "u_averageSceneDepth");
 
         GLES20.glVertexAttribPointer(posHandle, 2, GLES20.GL_FLOAT, false, 0, quadVertexBuffer);
         GLES20.glVertexAttribPointer(texHandle, 2, GLES20.GL_FLOAT, false, 0, textureVertexBuffer);
@@ -380,10 +379,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         GLES20.glEnableVertexAttribArray(texHandle);
 
         GLES20.glUniform1i(debugModeHandle, isDebugMode ? 1 : 0);
-        GLES20.glUniform1i(bothEyesHandle, 0);
-        GLES20.glUniform2f(focusPointHandle, 0f, 0f);
-        GLES20.glUniform2f(minFocusPointHandle, 0f, 0f);
-        GLES20.glUniform1f(depthContrastHandle, 0f);
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         GLES20.glBindTexture(GL_TEXTURE_EXTERNAL_OES, videoTextureId);
@@ -394,7 +389,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         GLES20.glUniform1i(depthTexHandle, 1);
 
         GLES20.glUniform1f(parallaxHandle, parallax);
-        GLES20.glUniform1f(convergenceHandle, 0f);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
     }
 
@@ -408,8 +402,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         if (tflite != null) {
             int inputSize = modelInputHeight * modelInputWidth * 3;
             tfliteInputBuffer = ByteBuffer.allocateDirect(inputSize).order(ByteOrder.nativeOrder());
-
-            // NEU: Erstelle den Buffer-Pool
             int outputSize = modelInputHeight * modelInputWidth;
             freeOutputBuffers = new ArrayBlockingQueue<>(NUM_BUFFERS);
             filledOutputBuffers = new ArrayBlockingQueue<>(NUM_BUFFERS);
@@ -427,7 +419,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                 Log.w("Stereo3DRenderer", "No new frame available, skipping draw");
                 return;
             }
-
             frameAvailable.set(false);
         }
         try {
@@ -521,41 +512,10 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                         freeSmoothedBuffers.remainingCapacity(), freeSmoothCap
                 );
                 Log.d("PIPELINE_STATUS", queueStatus);
+            } else {
+                calcFps++;
             }
-            calcFps++;
         }
-    }
-
-
-    private ByteBuffer readPixelsForAI() {
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboHandle);
-        GLES20.glViewport(0, 0, modelInputWidth, modelInputHeight);
-
-        drawQuad(simple3dProgram, 1.0f, 0.0f);
-
-        ByteBuffer pixelBuffer = ByteBuffer.allocateDirect(modelInputWidth * modelInputHeight * 4).order(ByteOrder.nativeOrder());
-        GLES20.glReadPixels(0, 0, modelInputWidth, modelInputHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixelBuffer);
-
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-        return pixelBuffer;
-    }
-
-    /**
-     * Fills the provided ByteBuffer with pixel data from the FBO.
-     * This method does NOT allocate a new buffer.
-     *
-     * @param destinationBuffer The pre-allocated buffer to write pixel data into.
-     */
-    private void readPixelsForAI(ByteBuffer destinationBuffer) {
-        destinationBuffer.rewind();
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboHandle);
-        GLES20.glViewport(0, 0, modelInputWidth, modelInputHeight);
-
-        drawQuad(simple3dProgram, 1.0f, 0.0f);
-
-        GLES20.glReadPixels(0, 0, modelInputWidth, modelInputHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, destinationBuffer);
-
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
     }
 
     private ByteBuffer createFlatDepthMap() {
@@ -563,7 +523,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         byte[] flatData = new byte[mapSize];
         Arrays.fill(flatData, (byte) 128);
 
-        // KORREKT: Verwende allocateDirect, um einen nativen Buffer zu erstellen.
         ByteBuffer flatMap = ByteBuffer.allocateDirect(mapSize).order(ByteOrder.nativeOrder());
 
         flatMap.put(flatData);
@@ -627,6 +586,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     convertRgbaToRgb(pixelBuffer, tfliteInputBuffer, modelInputWidth, modelInputHeight);
 
                     aiTime = System.nanoTime();
+                    ReflectivePaddingInt8Minimal.applyReflectedPadding(tfliteInputBuffer);
                     tflite.run(tfliteInputBuffer, outputBuffer);
                     calcThreeDFps++;
                     aiTime_end = System.nanoTime();
@@ -762,10 +722,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, 0);
     }
 
-    private final int[] pboHandles = new int[2];
-    private int pboIndex = 0;
-    private int PBO_SIZE = modelInputWidth * modelInputHeight * 4;
-
     /**
      * Liest die Pixel des FBOs asynchron aus, ohne die GPU-Pipeline zu blockieren.
      * Verwendet zwei Pixel Buffer Objects (PBOs) in einer Ping-Pong-Konfiguration.
@@ -779,52 +735,31 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
      * @param destinationBuffer Der Buffer, in den das Ergebnis geschrieben wird. Returns false if no data was available.
      */
     private boolean readPixelsForAI_Async(ByteBuffer destinationBuffer) {
-        // 1. Zeichne das aktuelle Videobild in den FBO, aus dem wir lesen wollen
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboHandle);
         GLES20.glViewport(0, 0, modelInputWidth, modelInputHeight);
         drawQuad(simple3dProgram, 1.0f, 0.0f);
-
-        // 2. Bestimme die Puffer-Indizes für den "Ping-Pong"-Tausch
         int writeIndex = pboIndex;
         int readIndex = (pboIndex + 1) % 2;
-
-        // --- ASYNCHRONER BEFEHL: Beginne, den aktuellen Frame in den "write" PBO zu kopieren ---
         GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, pboHandles[writeIndex]);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             GLES30.glReadPixels(0, 0, modelInputWidth, modelInputHeight, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, 0);
         }
-
-        // --- LESEZUGRIFF: Greife jetzt auf den "read" PBO zu, der die Daten vom letzten Frame enthält ---
         GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, pboHandles[readIndex]);
-
-        // 3. "Mappe" den GPU-Speicher in eine temporäre, für die CPU lesbare Ansicht.
         ByteBuffer mappedBuffer = (ByteBuffer) GLES30.glMapBufferRange(
                 GLES30.GL_PIXEL_PACK_BUFFER, 0, PBO_SIZE, GLES30.GL_MAP_READ_BIT);
-
         boolean success = false;
         if (mappedBuffer != null) {
-            // --- HIER IST DEINE GEWÜNSCHTE LOGIK ---
-            // 4. Bereite beide Buffer vor und kopiere die Daten aus der temporären Ansicht
-            //    in deinen finalen Ziel-Buffer.
             destinationBuffer.rewind();
-            // Mapped buffer is already rewound by default, but this is safe
             mappedBuffer.rewind();
             destinationBuffer.put(mappedBuffer);
-            // --- ENDE DER KOPIE ---
-
-            // 5. Hebe das Mapping der temporären Ansicht auf.
             GLES30.glUnmapBuffer(GLES30.GL_PIXEL_PACK_BUFFER);
             success = true;
         }
 
-        // 6. Hebe alle Bindungen auf.
         GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, 0);
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
 
-        // 7. Wechsle zum nächsten Puffer für den nächsten Frame.
         pboIndex = readIndex;
-
-        // 8. Gib zurück, ob die Operation erfolgreich war.
         return success;
     }
 
@@ -833,6 +768,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         private final byte[] processedDataArray = new byte[modelInputWidth * modelInputHeight];
         private ByteBuffer previousRawMap = null;
         private double continouesDifferenceImageCount = 0.0f;
+        private double continouesAverageDifference = 0.0f;
         private double continouesDifferenceDepthMapCount = 0.0f;
 
         private int continouesMapCount = 0;
@@ -861,6 +797,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                 Mat rawMat = null;
                 Mat processedMat = null;
                 takeResult = true;
+                takeContinousResult = false;
                 double rawDifference = 0.0;
                 try {
                     Log.d("Stereo3DRenderer", "checking AI started");
@@ -890,13 +827,15 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     rawDepthBuffer.rewind();
                     previousRawMap.put(rawDepthBuffer);
                     final double RENDER_TRESHHOLD = 6;
-                    if (rawDifference < RENDER_TRESHHOLD) {
+                    final double MINIMUM_TRESHOLD = 2;
+                    if (rawDifference < MINIMUM_TRESHOLD) {
                         takeResult = false;
                     }
                     if (takeResult) {
                         double imageDifference = 0.0f;
 
                         final double INSTABILITY_THRESHOLD = 10.0;
+                        final double INSTABILITY_THRESHOLD_CONTINOUES = 2.0;
                         final double INSTABILITY_THRESHOLD_STRONG = 1.0;
                         final double MIN_IMAGE_DIFFERENCE = 1f;
 
@@ -922,14 +861,17 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                             LimeLog.info("New Result delivered for processing " + instabilityFactor +
                                     " (DepthDiff: " + rawDifference + ", ImageDiff: " + imageDifference + ")");
                         } else {
-                            takeContinousResult = true;
+                            takeContinousResult = false;
                             continouesDifferenceDepthMapCount += rawDifference;
                             continouesDifferenceImageCount += imageDifference;
-                            double averageImageDifference = continouesDifferenceImageCount / continouesMapCount;
-                            instabilityFactor = continouesDifferenceDepthMapCount / Math.max(averageImageDifference, MIN_IMAGE_DIFFERENCE);
-                            if (instabilityFactor > INSTABILITY_THRESHOLD) {
-                                LimeLog.info("Unstable Continoues AI ignored weak " + instabilityFactor +
-                                        " (DepthDiff: " + continouesDifferenceDepthMapCount + ", ImageDiff: " + averageImageDifference + ")");
+                            continouesAverageDifference = continouesDifferenceImageCount / continouesMapCount;
+                            instabilityFactor = continouesDifferenceDepthMapCount / Math.max(continouesAverageDifference, MIN_IMAGE_DIFFERENCE);
+                            if (instabilityFactor > INSTABILITY_THRESHOLD_CONTINOUES) {
+                                LimeLog.info("Unstable Continoues AI taken weak " + instabilityFactor +
+                                        " (DepthDiff: " + continouesDifferenceDepthMapCount + ", ImageDiff: " + continouesAverageDifference + ")");
+                                takeContinousResult = true;
+                            }
+                            if (imageDifference < 0.002) {
                                 takeContinousResult = false;
                             }
                             if (takeContinousResult) {
@@ -937,8 +879,8 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                                         " (DepthDiff: " + continouesDifferenceDepthMapCount + ", ImageDiff: " + continouesDifferenceImageCount + ")");
                             }
                         }
-                        if (continouesMapCount > 10) {
-                            resetContinousCounter();
+                        if (continouesMapCount > 20) {
+                               resetContinousCounter();
                         }
                         if (takeResult || takeContinousResult) {
                             resetContinousCounter();
@@ -951,7 +893,10 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                                 isFirstFrame = false;
                             }
                             if (takeContinousResult) {
-                                Core.addWeighted(processedMat, SMOOTHING_FACTOR, previousSmoothedMat, 1.0 - SMOOTHING_FACTOR, 0.0, previousSmoothedMat);
+                                double smoothing = continouesAverageDifference / 10;
+                                smoothing = Math.min(smoothing, 0.2);
+                                smoothing = Math.max(smoothing, 0.08);
+                                Core.addWeighted(processedMat, smoothing, previousSmoothedMat, 1.0 - smoothing, 0.0, previousSmoothedMat);
                             } else {
                                 previousSmoothedMat = processedMat.clone();
                             }

@@ -13,69 +13,46 @@ public class ShaderUtils {
                     "  gl_Position = a_Position;\n" +
                     "  v_TexCoord = a_TexCoord;\n" +
                     "}";
-    public static final String FRAGMENT_SHADER_DUAL_BUBBLE_3D =
+
+    public static final String FRAGMENT_SHADER_3D =
             "#extension GL_OES_EGL_image_external : require\n" +
                     "precision mediump float;\n" +
                     "varying vec2 v_TexCoord;\n" +
                     "uniform samplerExternalOES s_ColorTexture;\n" +
                     "uniform sampler2D s_DepthTexture;\n" +
                     "uniform float u_parallax;\n" +
-                    "uniform float u_convergence;\n" +
-                    "uniform vec2 u_focusPoint;\n" +
-                    "uniform vec2 u_minFocusPoint;\n" +
                     "uniform bool u_debugMode;\n" +
-                    "uniform bool u_bothEyes;\n" +
-
-                    // --- VIGNETTE-EINSTELLUNGEN ZUM ANPASSEN ---\n" +
-                    "const float vignette_start = 0.70;\n" + // Ausblenden beginnt bei 85% der Distanz zur Seite
-                    "const float vignette_end = 1.0;\n" +   // Ausblenden ist bei 100% abgeschlossen
 
                     "void main() {\n" +
                     // --- Basis-3D-Effekt aus der Tiefenkarte ---\n" +
                     "  float depth = texture2D(s_DepthTexture, v_TexCoord).r;\n" +
                     "  float parallax_magnitude = abs(u_parallax);\n" +
-                    "  float ai_shift = parallax_magnitude * (depth - 0.5) * 0.5;\n" +
+                    "  float ai_shift = parallax_magnitude * (depth - 0.5) * 2.0 * pow(abs(depth - 0.5)*2.0, 0.7);\n" +
+
+
+                    "  // --- Dynamische Vignette nur anhand der Randbereiche ---\n" +
+                    "  float edgeWidth = 0.01;\n" + // 5% links/rechts
+                    "  float depthLeft  = texture2D(s_DepthTexture, vec2(edgeWidth, 0.5)).r;\n" +
+                    "  float depthRight = texture2D(s_DepthTexture, vec2(1.0 - edgeWidth, 0.5)).r;\n" +
+                    "  float ai_shift_left  = u_parallax * (depthLeft  - 0.5);\n" +
+                    "  float ai_shift_right = u_parallax * (depthRight - 0.5);\n" +
+                    "  float maxEdgeShift = max(abs(ai_shift_left), abs(ai_shift_right));\n" +
+
+                    "  float vignette_start = mix(0.7, 1.0, clamp(maxEdgeShift / 0.5, 0.0, 1.0));\n" +
+                    "  const float vignette_end = 1.0;\n" +
+
                     "\n" +
-                    "  float combined_ai_shift = 0.0;\n" +
-                    "  float bubbleRadius = 0.5;\n" +
                     "\n" +
-                    "  if (u_bothEyes) {\n" +
-                    "    float dist = distance(v_TexCoord, u_focusPoint);\n" +
-                    "    float t_pos = clamp(dist / bubbleRadius, 0.0, 1.0);\n" +
-                    "    float centerFactor = 1.0 - pow(t_pos, 1.0);\n" +
-                    "    float positive_shift = u_convergence * centerFactor;\n" +
-                    "\n" +
-                    "    float dist_min = distance(v_TexCoord, u_minFocusPoint);\n" +
-                    "    float t_pos_min = clamp(dist_min / bubbleRadius, 0.0, 1.0);\n" +
-                    "    float centerFactorMin = 1.0 - pow(t_pos_min, 2.0);\n" +
-                    "    float negative_shift = -u_convergence * centerFactorMin;\n" +
-                    "    combined_ai_shift = positive_shift + negative_shift;\n" +
-                    "  } else {\n" +
                     "    if (u_parallax > 0.0) {\n" +
                     "        ai_shift = max(ai_shift, 0.0);\n" +
                     "    } else if (u_parallax < 0.0) {\n" +
                     "        ai_shift = min(ai_shift, 0.0);\n" +
                     "    }\n" +
                     "\n" +
-                    "    if (u_convergence > 0.0) {\n" +
-                    "        float dist = distance(v_TexCoord, u_focusPoint);\n" +
-                    "        float t_pos = clamp(dist / bubbleRadius, 0.0, 1.0);\n" +
-                    "        float centerFactor = 1.0 - pow(t_pos, 1.0);\n" +
-                    "        combined_ai_shift = u_convergence * centerFactor;\n" +
-                    "    } else if (u_convergence < 0.0) {\n" +
-                    "        float dist_min = distance(v_TexCoord, u_minFocusPoint);\n" +
-                    "        float t_pos_min = clamp(dist_min / bubbleRadius, 0.0, 1.0);\n" +
-                    "        float centerFactorMin = 1.0 - pow(t_pos_min, 2.0);\n" +
-                    "        combined_ai_shift = u_convergence * centerFactorMin;\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "\n" +
-                    "  float total_shift = ai_shift + combined_ai_shift;\n" +
-
                     // --- HORIZONTALE VIGNETTE-LOGIK START ---\n" +
-                    "  float h_dist = abs(v_TexCoord.x - 0.5) * 2.0;\n" +
-                    "  float vignette_factor = 1.0 - smoothstep(vignette_start, vignette_end, h_dist);\n" +
-                    "  float final_shift = total_shift * vignette_factor;\n" +
+                     "  float h_dist = pow(abs(v_TexCoord.x - 0.5) * 2.0, 1.5);\n" +
+                     "  float vignette_factor = 1.0 - smoothstep(vignette_start, vignette_end, h_dist);\n" +
+                    "   float final_shift = ai_shift * vignette_factor;\n" +
                     // --- HORIZONTALE VIGNETTE-LOGIK ENDE ---\n" +
 
                     "  vec2 shiftedCoord = vec2(v_TexCoord.x - final_shift, v_TexCoord.y);\n" +
@@ -83,7 +60,7 @@ public class ShaderUtils {
                     // --- Der Rest Ihrer bewährten Logik ---\n" +
                     "  vec4 originalColor = texture2D(s_ColorTexture, v_TexCoord);\n" +
                     "  vec4 shiftedColor = texture2D(s_ColorTexture, clamp(shiftedCoord, 0.0, 1.0));\n" +
-                    "  float shiftMagnitude = abs(total_shift) / max(abs(parallax_magnitude) + abs(u_convergence), 0.001);\n" +
+                    "  float shiftMagnitude = abs(final_shift) / max(abs(parallax_magnitude), 0.001);\n" +
                     "  float artifactBlendFactor = (1.0 - smoothstep(0.1, 1.0, shiftMagnitude)) * 0.005;\n" +
                     "  vec4 finalColor = mix(shiftedColor, originalColor, artifactBlendFactor);\n" +
                     "\n" +
@@ -97,6 +74,12 @@ public class ShaderUtils {
                     "  }\n" +
                     "  gl_FragColor = finalColor;\n" +
                     "}\n";
+
+
+
+
+
+
     /**
      * An optimized, single-pass Gaussian blur shader that works as a drop-in replacement.
      * It achieves better performance by taking fewer texture samples over the same blur radius.
@@ -111,12 +94,12 @@ public class ShaderUtils {
 
                     // --- OPTIMIZATIONS ---
                     // 1. We reduce the loop iterations from 50 to 10 (21 total samples instead of 101).
-                    "const float blurRadius = 10.0;\n" +
+                    "const float blurRadius = 15.0;\n" +
                     // 2. We step by a larger amount to cover the same visual area. (10 * 5.0 = 50.0)
                     "const float blurStep = 5.0;\n" +
                     // ---
 
-                    "const float sigma = 100.0;\n" +
+                    "const float sigma = 22.0;\n" +
 
                     "void main() {\n" +
                     "  vec4 sum = vec4(0.0);\n" +
