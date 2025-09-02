@@ -184,6 +184,8 @@
     <string name="summary_checkbox_usb_bind_all"> 强制 Artemis 的USB驱动接管所有受支持的Xbox/Nintendo Pro手柄 </string>
     <string name="title_checkbox_mouse_emulation"> 通过手柄模拟鼠标 </string>
     <string name="summary_checkbox_mouse_emulation"> 长按开始键将手柄切换为鼠标模式 </string>
+    <string name="title_checkbox_remember_mouse_mode">记住鼠标模式</string>
+    <string name="summary_checkbox_remember_mouse_mode">记住在串流中选择的鼠标模式。禁用时，串流中改变的鼠标模式将是临时的。</string>
     <string name="title_checkbox_mouse_nav_buttons"> 启用前进后退鼠标键 </string>
     <string name="summary_checkbox_mouse_nav_buttons"> 在一些支持不佳的设备上启用此项可能会使其右键失效 </string>
     <string name="title_checkbox_flip_face_buttons"> 反转技能键 </string>
@@ -321,6 +323,8 @@
 \n尝试禁用 HDR 模式、更改流分辨率或更改主机 PC 的显示分辨率。</string>
     <string name="summary_full_range">如果你的设备无法正确显示全范围视频内容，这会导致明暗区域的细节丢失。</string>
     <string name="title_full_range">强制完全动态范围视频 (实验性)</string>
+    <string name="title_prevent_packet_loss">防止丢包</string>
+    <string name="summary_prevent_packet_loss">对于不明原因丢包的设备，可以尝试开启此选项。</string>
     <string name="pair_pairing_help">如果你的主机运行的是 Sunshine，请前往Sunshine的网页界面输入PIN码。</string>
     <string name="pcview_menu_eol">NVIDIA GameStream 终止服务</string>
     <string name="perf_overlay_hostprocessinglatency">主机处理延迟最小值/最大值/平均值: %1$.1f/%2$.1f/%3$.1f ms</string>
@@ -342,6 +346,8 @@
     <string name="title_checkbox_gamepad_motion_fallback">模拟游戏手柄运动传感器支持</string>
     <string name="title_checkbox_force_device_motion">强制使用设备的运动传感器</string>
     <string name="summary_checkbox_force_device_motion">强制使用设备内置的运动传感器，即使手柄报告支持运动传感器。</string>
+    <string name="title_enable_rumble">启用手柄震动</string>
+    <string name="summary_enable_rumble">为支持的手柄启用震动反馈。</string>
     <string name="error_code_prefix">错误代码:</string>
     <string name="title_seekbar_vibrate_fallback_strength">调整模拟震动强度</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">％</string>

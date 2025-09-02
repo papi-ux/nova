@@ -42,6 +42,7 @@ public class KeyBoardLayoutController {
     private final long timerLongClickTimeout = 300;
     private final Context context;
     private final PreferenceConfiguration prefConfig;
+    private ViewCallbacks viewCallbacks;
     private FrameLayout frame_layout = null;
     private final Handler handler;
     public boolean shown = false;
@@ -106,6 +107,10 @@ public class KeyBoardLayoutController {
         this.handler = new Handler(Looper.getMainLooper());
         initKeyPopup();
         initKeyboard();
+    }
+
+    public void setViewCallbacks(ViewCallbacks viewCallbacks) {
+        this.viewCallbacks = viewCallbacks;
     }
 
     public Handler getHandler() {
@@ -271,6 +276,10 @@ public class KeyBoardLayoutController {
         hidePopupRunnable = () -> keyPopup.dismiss();
     }
 
+    public boolean isKeyboardVisible() {
+        return keyboardView.getVisibility() == View.VISIBLE;
+    }
+
     public void hide(boolean temporary) {
         if (prefConfig.enableKeyboardVibrate) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -283,6 +292,10 @@ public class KeyBoardLayoutController {
         if (!temporary) {
             shown = false;
         }
+
+        if (viewCallbacks != null) {
+            viewCallbacks.onKeyboardControllerVisibilityChange(false);
+        }
     }
 
     public void hide() {
@@ -292,6 +305,9 @@ public class KeyBoardLayoutController {
     public void show() {
         keyboardView.setVisibility(View.VISIBLE);
         shown = true;
+        if (viewCallbacks != null) {
+            viewCallbacks.onKeyboardControllerVisibilityChange(true);
+        }
     }
 
     public void toggleVisibility() {
@@ -355,5 +371,9 @@ public class KeyBoardLayoutController {
         } else {
             Game.instance.onKey(null, keyEvent.getKeyCode(), keyEvent);
         }
+    }
+
+    public interface ViewCallbacks {
+        void onKeyboardControllerVisibilityChange(boolean visible);
     }
 }

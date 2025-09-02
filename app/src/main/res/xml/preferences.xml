@@ -242,6 +242,13 @@
             android:summary="@string/summary_checkbox_mouse_emulation"
             android:title="@string/title_checkbox_mouse_emulation"
             app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_remember_mouse_mode"
+            android:summary="@string/summary_checkbox_remember_mouse_mode"
+            android:title="@string/title_checkbox_remember_mouse_mode"
+            android:dependency="checkbox_mouse_emulation"
+            app:iconSpaceReserved="false" />
         <ListPreference
             android:defaultValue="right"
             android:dependency="checkbox_mouse_emulation"
@@ -250,21 +257,6 @@
             android:key="analog_scrolling"
             android:summary="@string/summary_analog_scrolling"
             android:title="@string/title_analog_scrolling"
-            app:iconSpaceReserved="false" />
-        <CheckBoxPreference
-            android:defaultValue="false"
-            android:key="checkbox_vibrate_fallback"
-            android:summary="@string/summary_checkbox_vibrate_fallback"
-            android:title="@string/title_checkbox_vibrate_fallback"
-            app:iconSpaceReserved="false" />
-        <com.limelight.preferences.SeekBarPreference
-            android:defaultValue="100"
-            android:dependency="checkbox_vibrate_fallback"
-            android:key="seekbar_vibrate_fallback_strength"
-            android:max="200"
-            android:summary="@string/summary_seekbar_vibrate_fallback_strength"
-            android:text="@string/suffix_seekbar_vibrate_fallback_strength"
-            android:title="@string/title_seekbar_vibrate_fallback_strength"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="false"
@@ -310,10 +302,33 @@
             android:title="@string/title_checkbox_gamepad_enable_battery_report"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_enable_rumble"
+            android:summary="@string/summary_enable_rumble"
+            android:title="@string/title_enable_rumble"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
             android:defaultValue="false"
+            android:dependency="checkbox_enable_rumble"
+            android:key="checkbox_vibrate_fallback"
+            android:summary="@string/summary_checkbox_vibrate_fallback"
+            android:title="@string/title_checkbox_vibrate_fallback"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_vibrate_fallback"
             android:key="checkbox_enable_device_rumble"
             android:summary="@string/summary_device_rumble"
             android:title="@string/title_device_rumble"
+            app:iconSpaceReserved="false" />
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:dependency="checkbox_vibrate_fallback"
+            android:key="seekbar_vibrate_fallback_strength"
+            android:max="200"
+            android:summary="@string/summary_seekbar_vibrate_fallback_strength"
+            android:text="@string/suffix_seekbar_vibrate_fallback_strength"
+            android:title="@string/title_seekbar_vibrate_fallback_strength"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
@@ -858,6 +873,12 @@
         android:key="category_advanced_settings"
         android:title="@string/category_advanced_settings"
         app:iconSpaceReserved="false">
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_prevent_packet_loss"
+            android:summary="@string/summary_prevent_packet_loss"
+            android:title="@string/title_prevent_packet_loss"
+            app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="false"
             android:key="checkbox_unlock_fps"

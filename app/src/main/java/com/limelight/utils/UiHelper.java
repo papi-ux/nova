@@ -161,7 +161,7 @@ public class UiHelper {
                     view.setPadding(tappableInsets.left,
                             tappableInsets.top,
                             tappableInsets.right,
-                            0);
+                            tappableInsets.bottom);
 
                     // Show a translucent navigation bar if we can't tap there
                     if (tappableInsets.bottom != 0) {

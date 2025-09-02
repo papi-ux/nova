@@ -356,6 +356,8 @@ public class MoonBridge {
 
     public static native void sendExecServerCmd(int cmdId);
 
+    public static native void sendEmptyPayload();
+
     public static native void sendMouseMove(short deltaX, short deltaY);
 
     public static native void sendMousePosition(short x, short y, short referenceWidth, short referenceHeight);

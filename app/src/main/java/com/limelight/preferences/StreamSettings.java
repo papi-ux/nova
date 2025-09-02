@@ -110,7 +110,7 @@ public class StreamSettings extends AppCompatActivity implements SearchPreferenc
 
         setContentView(R.layout.activity_stream_settings);
 
-        UiHelper.notifyNewRootView(this);
+//        UiHelper.notifyNewRootView(this);
     }
 
     @Override

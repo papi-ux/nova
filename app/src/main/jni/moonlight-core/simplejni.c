@@ -22,6 +22,11 @@ Java_com_limelight_nvstream_jni_MoonBridge_sendExecServerCmd(JNIEnv *env, jclass
 }
 
 JNIEXPORT void JNICALL
+Java_com_limelight_nvstream_jni_MoonBridge_sendEmptyPayload(JNIEnv *env, jclass clazz) {
+    LiSendEmptyPayload();
+}
+
+JNIEXPORT void JNICALL
 Java_com_limelight_nvstream_jni_MoonBridge_sendMousePosition(JNIEnv *env, jclass clazz,
                                                              jshort x, jshort y, jshort referenceWidth, jshort referenceHeight) {
     LiSendMousePositionEvent(x, y, referenceWidth, referenceHeight);

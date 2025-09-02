@@ -54,7 +54,7 @@ import com.limelight.ui.ExternalControllerView;
  * A standalone Activity providing a full-screen touchpad controller for the secondary display.
  * It creates its own UI programmatically and hosts the GameMenu for in-game options.
  */
-public class ExternalDisplayControlActivity extends AppCompatActivity implements View.OnKeyListener {
+public class ExternalDisplayControlActivity extends AppCompatActivity implements View.OnKeyListener, KeyBoardLayoutController.ViewCallbacks {
 
     public static String EXTRA_LAUNCH_INTENT = "launchIntent";
 
@@ -66,6 +66,8 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     private ExternalControllerView rootLayout;
     private ImageButton zoomButton;
     private KeyBoardLayoutController keyBoardLayoutController;
+
+    private boolean isKeyboardVisible = false;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int failCount = 0;
@@ -164,6 +166,15 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars());
         windowInsetsController.hide(WindowInsetsCompat.Type.navigationBars());
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(getWindow().getDecorView(), (v, insets) -> {
+                boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
+                updateKeyboardVisibility(imeVisible || (keyBoardLayoutController != null && keyBoardLayoutController.isKeyboardVisible()));
+                return androidx.core.view.ViewCompat.onApplyWindowInsets(v, insets);
+            });
+        }
+
         initializeComponents();
         createProgrammaticUI();
         checkNotificationPermission();
@@ -206,6 +217,11 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         instance = null;
     }
 
+    @Override
+    public void onKeyboardControllerVisibilityChange(boolean visible) {
+        updateKeyboardVisibility(visible);
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private void setupInactivityTimeoutForBrightness() {
         // Save the original brightness
@@ -223,20 +239,40 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         resetInactivityTimer();
     }
 
-    private void handleUserActivity() {
-        // Restore brightness if dimmed
+    private void updateKeyboardVisibility(boolean visible) {
+        if (isKeyboardVisible != visible) {
+            isKeyboardVisible = visible;
+            if (isKeyboardVisible) {
+                // Keyboard is visible, so prevent screen dimming
+                handler.removeCallbacks(dimScreenRunnable);
+                // and restore brightness
+                restoreBrightnessIfNeeded();
+            } else {
+                // Keyboard is hidden, so resume inactivity timer
+                resetInactivityTimer();
+            }
+        }
+    }
+
+    private void restoreBrightnessIfNeeded() {
         WindowManager.LayoutParams l = getWindow().getAttributes();
         if (l.screenBrightness == 0.0f) {
             l.screenBrightness = originalBrightness;
             getWindow().setAttributes(l);
         }
+    }
 
+    private void handleUserActivity() {
+        // Restore brightness if dimmed
+        restoreBrightnessIfNeeded();
         resetInactivityTimer();
     }
 
     private void resetInactivityTimer() {
         handler.removeCallbacks(dimScreenRunnable);
-        handler.postDelayed(dimScreenRunnable, INACTIVITY_TIMEOUT_MS);
+        if (!isKeyboardVisible) {
+            handler.postDelayed(dimScreenRunnable, INACTIVITY_TIMEOUT_MS);
+        }
     }
 
     @Override
@@ -417,6 +453,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
     private void initFullKeyboard(PreferenceConfiguration prefConfig) {
         keyBoardLayoutController = new KeyBoardLayoutController(rootLayout, this, prefConfig);
+        keyBoardLayoutController.setViewCallbacks(this);
         keyBoardLayoutController.refreshLayout();
         keyBoardLayoutController.show();
     }
