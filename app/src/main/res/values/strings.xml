@@ -133,7 +133,7 @@
     <string name="perf_overlay_netdrops">Frames dropped by your network connection: %1$.2f%%</string>
     <string name="perf_overlay_netlatency">Average network latency: %1$d ms (variance: %2$d ms)</string>
     <string name="perf_overlay_dectime">Average decoding time: %1$.2f ms</string>
-    <string name="perf_overlay_drawdelay">Draw delay: %1$.2f ms</string>
+    <string name="perf_overlay_drawdelay"> Delay: %1$.2f ms</string>
 
     <!-- Performance Report Sharing -->
     <string name="email_prefix_message">
@@ -413,6 +413,9 @@
     <string name="perf_overlay_lite_netdrops">%1$.2f%%</string>
     <string name="perf_overlay_lite_streamdetails">%1$s</string>
     <string name="perf_overlay_lite_fps">%1$.2f</string>
+    <string name="perf_overlay_drawn_fps">GpuFPS:</string>
+    <string name="perf_overlay_ai_fps">3DFPS:</string>
+    <string name="perf_overlay_ai_delegate">Delegate:</string>
     <string name="perf_overlay_lite_decoder">Decoder: %1$s</string>
     <string name="title_import_keyboard_layout">Import keyboard layout</string>
     <string name="title_export_keyboard_layout">Export keyboard layout</string>
@@ -426,7 +429,7 @@
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
     <string name="title_render_mode">Render Mode</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
-    <string name="summary_render_mode">Select render mode either 2d default or one of the SBS 3D modes. 3D will simply double your width and add the effect automatically, no setup required. </string>
+    <string name="summary_render_mode">Default 2D or SBS 3D. 3D will simply double your width and add the effect automatically, no setup required. AI 2D to 3D conversion </string>
     <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>

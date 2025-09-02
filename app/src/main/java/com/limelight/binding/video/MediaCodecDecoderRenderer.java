@@ -1478,25 +1478,45 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     sb.append("\t");
                     sb.append(context.getString(R.string.perf_overlay_lite_packet_loss) + ": ");
                     sb.append(context.getString(R.string.perf_overlay_lite_netdrops,(float)lastTwo.framesLost / lastTwo.totalFrames * 100));
-                    sb.append("\t FPS：");
-                    sb.append(context.getString(R.string.perf_overlay_lite_fps, fps.totalFps));
                     if(Stereo3DRenderer.isActive) {
-                        sb.append("\t DrawnFps: ");
+                        sb.append(" ");
+                        sb.append(context.getString(R.string.perf_overlay_drawn_fps));
+                        sb.append(" ");
                         sb.append(Stereo3DRenderer.fps);
-                        sb.append("\t 3DRenderer: ");
+                        sb.append(" ");
+                        sb.append(context.getString(R.string.perf_overlay_ai_fps));
+                        sb.append(" ");
+                        sb.append(Stereo3DRenderer.threeDFps);
+                        sb.append(" ");
+                        sb.append(context.getString(R.string.perf_overlay_ai_delegate));
+                        sb.append(" ");
                         sb.append(Stereo3DRenderer.renderer);
+                        sb.append(" ");
+                        sb.append(context.getString(R.string.perf_overlay_drawdelay, Stereo3DRenderer.drawDelay));
+                    } else {
+                        sb.append("\t FPS：");
+                        sb.append(context.getString(R.string.perf_overlay_lite_fps, fps.totalFps));
                     }
                 }else{
-                    sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps));
                     if(Stereo3DRenderer.isActive) {
+                        sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, Stereo3DRenderer.fps));
                         sb.append('\n');
-                        sb.append("Drawn FPS: ");
+                        sb.append(context.getString(R.string.perf_overlay_drawn_fps));
+                        sb.append(" ");
                         sb.append(Stereo3DRenderer.fps);
-                        sb.append("\t DepthMapsPS: ");
+                        sb.append(" ");
+                        sb.append(context.getString(R.string.perf_overlay_ai_fps));
+                        sb.append(" ");
                         sb.append(Stereo3DRenderer.threeDFps);
-                        sb.append("\t 3DDelegate: ");
+                        sb.append(" ");
+                        sb.append(context.getString(R.string.perf_overlay_ai_delegate));
+                        sb.append(" ");
                         sb.append(Stereo3DRenderer.renderer);
-                        sb.append(" " +context.getString(R.string.perf_overlay_drawdelay, Stereo3DRenderer.drawDelay));
+                        sb.append(" ");
+                        sb.append(context.getString(R.string.perf_overlay_drawdelay, Stereo3DRenderer.drawDelay));
+                    } else {
+                        // If GPU renders the frames, the render FPS is the actual drawn and visible fps for the user
+                        sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps));
                     }
                     sb.append('\n');
                     sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n');
