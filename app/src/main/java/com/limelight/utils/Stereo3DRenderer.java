@@ -66,7 +66,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     public static volatile float threeDFps = 0;
     public static volatile float drawDelay = 0.0f;
     public static Boolean isDebugMode = false;
-    public static String performanceStats = "";
+    public static Boolean isActive = false;
     public static String renderer = "CPU";
 
     // Private Static Fields
@@ -203,11 +203,11 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         previousPixelBuffer = null;
         currentlyRenderingMap = null;
         prefConf = null;
-        performanceStats = "";
         drawDelay = 0.0f;
         calcFps = 0;
         calcThreeDFps = 0.0f;
         renderer = "CPU";
+        isActive = false;
     }
 
     public void setPrefConfig(PreferenceConfiguration prefConf) {
@@ -276,6 +276,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             isAiRunning.set(true);
             executorService.submit(new AiTask());
         }
+        isActive = true;
     }
 
     private void initializeIntermediateFbo() {
@@ -466,7 +467,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                 if (fps > 0) {
                     drawDelay = ((float) totalDrawTime / fps / 1000000000f);
                 }
-                performanceStats = "3D : FPS: " + fps + " DPS: " + depthMapResultCount + " DPAIS: " + threeDFps;
                 totalDrawTime = 0;
 
                 fps = calcFps;

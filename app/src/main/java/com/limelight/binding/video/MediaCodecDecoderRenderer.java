@@ -1441,7 +1441,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 lastTwo.add(activeWindowVideoStats);
                 VideoStatsFps fps = lastTwo.getFps();
                 String decoder;
-                float totalFps = fps.totalFps;
 
                 if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
                     decoder = avcDecoder.getName();
@@ -1480,15 +1479,16 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     sb.append(context.getString(R.string.perf_overlay_lite_packet_loss) + ": ");
                     sb.append(context.getString(R.string.perf_overlay_lite_netdrops,(float)lastTwo.framesLost / lastTwo.totalFrames * 100));
                     sb.append("\t FPS：");
-                    sb.append(context.getString(R.string.perf_overlay_lite_fps, totalFps));
-                    sb.append("\t AiFps: ");
-                    sb.append(Stereo3DRenderer.threeDFps);
-                    sb.append("\t 3DRenderer: ");
-                    sb.append(Stereo3DRenderer.renderer);
-//
+                    sb.append(context.getString(R.string.perf_overlay_lite_fps, fps.totalFps));
+                    if(Stereo3DRenderer.isActive) {
+                        sb.append("\t DrawnFps: ");
+                        sb.append(Stereo3DRenderer.fps);
+                        sb.append("\t 3DRenderer: ");
+                        sb.append(Stereo3DRenderer.renderer);
+                    }
                 }else{
-                    sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, totalFps));
-                    if(Stereo3DRenderer.fps > 0) {
+                    sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps));
+                    if(Stereo3DRenderer.isActive) {
                         sb.append('\n');
                         sb.append("Drawn FPS: ");
                         sb.append(Stereo3DRenderer.fps);
