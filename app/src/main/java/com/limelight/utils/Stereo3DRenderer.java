@@ -340,7 +340,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         int viewWidth = glSurfaceView.getWidth();
         int viewHeight = glSurfaceView.getHeight();
 
-        float parallax = parallaxStrength * 0.065f;
+        float parallax = parallaxStrength * 0.055f;
 
         GLES20.glViewport(0, 0, viewWidth / 2, viewHeight);
         drawEye(dualBubble3dProgram, -parallax, convergence);
