@@ -22,7 +22,7 @@ public class ShaderUtils {
                     "void main() {\n" +
                     "  float depth = texture2D(s_DepthTexture, v_TexCoord).r;\n" +
                     "  float parallax_magnitude = abs(u_parallax);\n" +
-                    "  float ai_shift = parallax_magnitude * (depth - 0.5) * 2.0 * pow(abs(depth - 0.5)*2.0, 0.6);\n" +
+                    "  float ai_shift = parallax_magnitude * (depth - 0.5) * 1.0 * pow(abs(depth - 0.5)*2.0, 0.7);\n" +
 
 
                     "  // --- Dynamische Vignette nur anhand der Randbereiche ---\n" +

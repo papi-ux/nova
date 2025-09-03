@@ -63,6 +63,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     // Public Static Fields
     public static volatile float fps = 0;
+    public static volatile float previousFps = 0;
     public static volatile float threeDFps = 0;
     public static volatile float drawDelay = 0.0f;
     public static Boolean isDebugMode = false;
@@ -339,7 +340,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         int viewWidth = glSurfaceView.getWidth();
         int viewHeight = glSurfaceView.getHeight();
 
-        float parallax = parallaxStrength * 0.03f;
+        float parallax = parallaxStrength * 0.1f;
 
         LimeLog.info("PArallax Strength " + parallax + " " + parallaxStrength);
 
@@ -468,7 +469,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     drawDelay = ((float) totalDrawTime / fps / 1000000000f);
                 }
                 totalDrawTime = 0;
-
+                previousFps = fps;
                 fps = calcFps;
                 calcFps = 0;
                 depthMapResultCount = 0;
@@ -689,7 +690,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             tflite = new Interpreter(loadModelFile(context, AI_MODEL), options);
             LimeLog.info("Successfully re-initialized TFLite interpreter on CPU.");
         } catch (IOException e) {
-            LimeLog.severe("Failed to re-initialize TFLite model on CPU: "  + e.getMessage());
+            LimeLog.severe("Failed to re-initialize TFLite model on CPU: " + e.getMessage());
         }
     }
 
@@ -882,10 +883,26 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
         double averageDifference = (double) totalDifference / pixelsSampled;
 
-        final double CHANGE_THRESHOLD = 15.0;
-
-        return averageDifference > CHANGE_THRESHOLD;
+        if (averageDifference > ON_DRAW_CHANGE_TRESHOLD) {
+            currentChangeDifference = Math.max(0, currentChangeDifference - TRESHHOLD_STEP);
+        } else if (currentChangeDifference < ON_DRAW_CHANGE_TRESHOLD) {
+            currentChangeDifference = currentChangeDifference + TRESHHOLD_STEP;
+        }
+        boolean differenceDetected = averageDifference > currentChangeDifference || fps > previousFps || time_treshhold_reached;
+        if(differenceDetected) {
+            time_treshhold_reached = false;
+            lastDifferenceDetected = System.nanoTime();
+        } else if(System.nanoTime() - lastDifferenceDetected >= 1_000_000_000) {
+            time_treshhold_reached = true;
+        }
+        return differenceDetected;
     }
+    private long lastDifferenceDetected = 0L;
+
+    private boolean time_treshhold_reached = false;
+    private float ON_DRAW_CHANGE_TRESHOLD = 15.0f;
+    private float TRESHHOLD_STEP = 0.5f;
+    private volatile float currentChangeDifference = ON_DRAW_CHANGE_TRESHOLD;
 
     private class AiTask implements Runnable {
         @Override
@@ -937,54 +954,25 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     private class AiResultHandling implements Runnable {
 
-        // --- Constants for AI result processing logic ---
-        private static final double RENDER_THRESHOLD = 6.0;
-        private static final double MINIMUM_THRESHOLD = 2.0;
-        private static final double INSTABILITY_THRESHOLD = 10.0;
-        private static final double INSTABILITY_THRESHOLD_CONTINUOUS = 2.0;
-        private static final double INSTABILITY_THRESHOLD_STRONG = 1.0;
-        private static final double MIN_IMAGE_DIFFERENCE = 1.0;
-        private static final double MIN_CONTINUOUS_IMAGE_DIFFERENCE = 0.002;
         private static final double IMAGE_DIFFERENCE_MULTIPLIER = 100.0;
-        private static final int MAX_CONTINUOUS_MAP_COUNT = 20;
-
-        // --- Constants for temporal smoothing ---
-        private static final double SMOOTHING_DIVISOR = 10.0;
-        private static final double MAX_SMOOTHING_FACTOR = 0.2;
-        private static final double MIN_SMOOTHING_FACTOR = 0.08;
+        private static final double MAX_SMOOTHING_FACTOR = 1;
+        private static final double MIN_SMOOTHING_FACTOR = 0.01;
 
         // --- Member Fields ---
         private final byte[] processedDataArray = new byte[modelInputWidth * modelInputHeight];
-        private ByteBuffer previousRawMap = null;
         private Mat previousSmoothedMat;
-        private double continouesDifferenceImageCount = 0.0f;
-        private double continouesAverageDifference = 0.0f;
-        private double continouesDifferenceDepthMapCount = 0.0f;
-        private int continouesMapCount = 0;
         private boolean isFirstFrame = true;
-
-        private void resetContinousCounter() {
-            continouesDifferenceImageCount = 0.0f;
-            continouesDifferenceDepthMapCount = 0.0f;
-            continouesMapCount = 0;
-        }
 
         @Override
         public void run() {
             ByteBuffer resultBuffer = createFlatDepthMap();
             InferenceResult result = null;
-            boolean takeResult = true;
-            boolean takeContinousResult = false;
 
             while (!Thread.currentThread().isInterrupted()) {
                 long startTime = System.nanoTime();
                 long waitTime = System.nanoTime();
                 Mat rawMat = null;
                 Mat processedMat = null;
-                takeResult = true;
-                takeContinousResult = false;
-                double rawDifference = 0.0;
-
                 try {
                     result = filledOutputBuffers.take();
                     resultBuffer = freeSmoothedBuffers.take();
@@ -1000,98 +988,34 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     ByteBuffer rawDepthBuffer = result.rawDepthBuffer;
                     ByteBuffer currentPixelBuffer = result.pixelBuffer;
 
-                    if (previousRawMap != null) {
-                        rawDifference = calculateAverageDifferenceOCV(rawDepthBuffer, previousRawMap, modelInputWidth, modelInputHeight);
+                    currentPixelBuffer.rewind();
+                    double imageDifference = hasFrameChangedSignificantlyOCV(currentPixelBuffer, previousPixelBuffer) * IMAGE_DIFFERENCE_MULTIPLIER;
+
+                    rawMat = new Mat(modelInputHeight, modelInputWidth, CvType.CV_8UC1, rawDepthBuffer);
+                    processedMat = new Mat();
+                    Core.normalize(rawMat, processedMat, 0, 255, Core.NORM_MINMAX);
+
+                    if (isFirstFrame) {
+                        previousSmoothedMat = processedMat.clone();
+                        isFirstFrame = false;
                     }
 
-                    if (previousRawMap == null || previousRawMap.capacity() != rawDepthBuffer.capacity()) {
-                        previousRawMap = ByteBuffer.allocateDirect(rawDepthBuffer.capacity());
-                    }
-                    previousRawMap.rewind();
+                    double smoothing = imageDifference / (fps / 3);
+                    smoothing = Math.min(smoothing, MAX_SMOOTHING_FACTOR);
+                    smoothing = Math.max(smoothing, MIN_SMOOTHING_FACTOR);
+                    Core.addWeighted(processedMat, smoothing, previousSmoothedMat, 1.0 - smoothing, 0.0, previousSmoothedMat);
+
+                    previousSmoothedMat.get(0, 0, processedDataArray);
                     rawDepthBuffer.rewind();
-                    previousRawMap.put(rawDepthBuffer);
+                    rawDepthBuffer.put(processedDataArray);
 
-                    if (rawDifference < MINIMUM_THRESHOLD) {
-                        takeResult = false;
-                    }
+                    rawDepthBuffer.rewind();
+                    resultBuffer.rewind();
+                    resultBuffer.put(rawDepthBuffer);
 
-                    if (takeResult) {
-                        currentPixelBuffer.rewind();
-                        double imageDifference = hasFrameChangedSignificantlyOCV(currentPixelBuffer, previousPixelBuffer) * IMAGE_DIFFERENCE_MULTIPLIER;
-                        continouesMapCount++;
-
-                        if (imageDifference < MIN_IMAGE_DIFFERENCE) {
-                            takeResult = false;
-                        }
-
-                        imageDifference = Math.max(imageDifference, 0);
-                        double instabilityFactor = rawDifference / Math.max(imageDifference, MIN_IMAGE_DIFFERENCE);
-
-                        if (instabilityFactor > INSTABILITY_THRESHOLD_STRONG && imageDifference <= RENDER_THRESHOLD) {
-                            takeResult = false;
-                        } else if (instabilityFactor > INSTABILITY_THRESHOLD && imageDifference > RENDER_THRESHOLD) {
-                            takeResult = false;
-                        }
-
-                        if (takeResult) {
-                            Log.d("Stereo3DRenderer", "New SceneChange Result:" + instabilityFactor +
-                                    " (DepthDiff: " + rawDifference + ", ImageDiff: " + imageDifference + ")");
-                        } else {
-                            takeContinousResult = false;
-                            continouesDifferenceDepthMapCount += rawDifference;
-                            continouesDifferenceImageCount += imageDifference;
-                            continouesAverageDifference = continouesDifferenceImageCount / continouesMapCount;
-                            instabilityFactor = continouesDifferenceDepthMapCount / Math.max(continouesAverageDifference, MIN_IMAGE_DIFFERENCE);
-
-                            if (instabilityFactor > INSTABILITY_THRESHOLD_CONTINUOUS) {
-                                takeContinousResult = true;
-                            }
-                            if (imageDifference < MIN_CONTINUOUS_IMAGE_DIFFERENCE) {
-                                takeContinousResult = false;
-                            }
-                            if (takeContinousResult) {
-                                Log.d("Stereo3DRenderer", "New Continous Result: " + instabilityFactor +
-                                        " (DepthDiff: " + continouesDifferenceDepthMapCount + ", ImageDiff: " + continouesDifferenceImageCount + ")");
-                            }
-                        }
-
-                        if (continouesMapCount > MAX_CONTINUOUS_MAP_COUNT) {
-                            resetContinousCounter();
-                        }
-
-                        if (takeResult || takeContinousResult) {
-                            resetContinousCounter();
-                            rawMat = new Mat(modelInputHeight, modelInputWidth, CvType.CV_8UC1, rawDepthBuffer);
-                            processedMat = new Mat();
-                            Core.normalize(rawMat, processedMat, 0, 255, Core.NORM_MINMAX);
-
-                            if (isFirstFrame) {
-                                previousSmoothedMat = processedMat.clone();
-                                isFirstFrame = false;
-                            }
-
-                            if (takeContinousResult) {
-                                double smoothing = continouesAverageDifference / SMOOTHING_DIVISOR;
-                                smoothing = Math.min(smoothing, MAX_SMOOTHING_FACTOR);
-                                smoothing = Math.max(smoothing, MIN_SMOOTHING_FACTOR);
-                                Core.addWeighted(processedMat, smoothing, previousSmoothedMat, 1.0 - smoothing, 0.0, previousSmoothedMat);
-                            } else {
-                                previousSmoothedMat = processedMat.clone();
-                            }
-
-                            previousSmoothedMat.get(0, 0, processedDataArray);
-                            rawDepthBuffer.rewind();
-                            rawDepthBuffer.put(processedDataArray);
-
-                            rawDepthBuffer.rewind();
-                            resultBuffer.rewind();
-                            resultBuffer.put(rawDepthBuffer);
-
-                            rawDepthBuffer.rewind();
-                            resultBuffer.rewind();
-                            readyToRenderQueue.put(resultBuffer);
-                        }
-                    }
+                    rawDepthBuffer.rewind();
+                    resultBuffer.rewind();
+                    readyToRenderQueue.put(resultBuffer);
 
                     previousPixelBuffer.rewind();
                     previousPixelBuffer.put(currentPixelBuffer);
@@ -1113,7 +1037,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     }
                     long duration = (System.nanoTime() - startTime) / 1_000_000;
                     long waitTimeText = (waitTime - startTime) / 1_000_000;
-                    Log.d("Stereo3DRenderer", "CalculateTime AiResult:    " + duration + " ms" + " " + freeOutputBuffers.remainingCapacity() + " " + waitTimeText + " ms " + takeResult);
+                    Log.d("Stereo3DRenderer", "CalculateTime AiResult:    " + duration + " ms" + " " + freeOutputBuffers.remainingCapacity() + " " + waitTimeText + " ms ");
                 }
             }
             isAiResultHandlingRunning.set(false);
