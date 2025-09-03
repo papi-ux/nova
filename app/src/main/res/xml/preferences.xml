@@ -160,24 +160,28 @@
             android:summary="@string/summary_render_mode"
             android:title="@string/title_render_mode"
             app:iconSpaceReserved="false" />
-        <SeekBarPreference
+        <com.limelight.preferences.SeekBarPreference
             android:key="parallax_depth"
+            android:dialogMessage=""
+            android:text="%"
             android:title="@string/title_render_mode_strength_title"
             android:summary="@string/title_render_mode_strength_description"
-            android:defaultValue="80"
+            android:defaultValue="50"
             android:max="100"
-            app:min="1"
-            app:showSeekBarValue="true"
-            app:updatesContinuously="true"/>
-        <SeekBarPreference
+            seekbar:min="1"
+            seekbar:step="1"
+            app:iconSpaceReserved="false" />
+        <com.limelight.preferences.SeekBarPreference
             android:key="convergence_ratio"
+            android:dialogMessage=""
+            android:text="%"
             android:title="@string/title_render_mode_convergence_title"
             android:summary="@string/title_render_mode_convergence_description"
             android:defaultValue="50"
             android:max="100"
-            app:min="-50"
-            app:showSeekBarValue="true"
-            app:updatesContinuously="true"/>
+            seekbar:min="-50"
+            seekbar:step="1"
+            app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="false"
             android:key="checkbox_enable_hdr"
