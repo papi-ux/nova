@@ -1213,7 +1213,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void updatePipAutoEnter() {
-        if (!prefConfig.enablePip) {
+        if (!prefConfig.enablePip || isOnExternalDisplay()) {
             return;
         }
 
@@ -1258,7 +1258,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // PiP is only supported on Oreo and later, and we don't need to manually enter PiP on
         // Android S and later. On Android R, we will use onPictureInPictureRequested() instead.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            if (autoEnterPip) {
+            if (autoEnterPip && !isOnExternalDisplay()) {
                 try {
                     // This has thrown all sorts of weird exceptions on Samsung devices
                     // running Oreo. Just eat them and close gracefully on leave, rather
