@@ -63,7 +63,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     // Public Static Fields
     public static volatile float fps = 0;
-    public static volatile float previousFps = 0;
     public static volatile float threeDFps = 0;
     public static volatile float drawDelay = 0.0f;
     public static Boolean isDebugMode = false;
@@ -116,7 +115,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private BlockingQueue<ByteBuffer> freeInputBuffers;
     private BlockingQueue<ByteBuffer> freeOutputBuffers;
     private BlockingQueue<ByteBuffer> freeSmoothedBuffers;
-    private BlockingQueue<ByteBuffer> inferenceInputQueue = new ArrayBlockingQueue<>(1);
+    private BlockingQueue<RenderResult> inferenceInputQueue = new ArrayBlockingQueue<>(1);
     private PreferenceConfiguration prefConf;
     private ByteBuffer previousPixelBuffer;
     private BlockingQueue<ByteBuffer> readyToRenderQueue;
@@ -278,6 +277,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             executorService.submit(new AiTask());
         }
         isActive = true;
+        glSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
     }
 
     private void initializeIntermediateFbo() {
@@ -403,8 +403,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         long startTime = System.nanoTime();
         synchronized (frameLock) {
             if (!frameAvailable.get()) {
-                Log.w("Stereo3DRenderer", "No new frame available, skipping draw");
-                return;
             }
             frameAvailable.set(false);
         }
@@ -439,22 +437,21 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                 boolean success = readPixelsForAI_Async(pixelBufferForAI);
 
                 if (success) {
-                    if (hasSceneChangedFast(pixelBufferForAI, previousFrameForComparison)) {
+                    if (System.nanoTime() - lastFrameSnapshot >= 1_000_000) {
+                        double difference = hasSceneChangedFast(pixelBufferForAI, previousFrameForComparison);
+                        lastFrameSnapshot = System.nanoTime();
                         pixelBufferForAI.rewind();
                         previousFrameForComparison.rewind();
                         previousFrameForComparison.put(pixelBufferForAI);
 
-                        if (inferenceInputQueue.offer(pixelBufferForAI)) {
+                        if (inferenceInputQueue.offer(new RenderResult(pixelBufferForAI, difference))) {
                             Log.d("AiTask", "Success: The AI will now process this buffer.");
                         } else {
                             freeInputBuffers.offer(pixelBufferForAI);
                         }
                     } else {
-                        Log.d("AiTask", "Fail: The AI will now clear this buffer.");
                         freeInputBuffers.offer(pixelBufferForAI);
                     }
-                } else {
-                    freeInputBuffers.offer(pixelBufferForAI);
                 }
             }
             long endTime = System.nanoTime();
@@ -469,7 +466,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                     drawDelay = ((float) totalDrawTime / fps / 1000000000f);
                 }
                 totalDrawTime = 0;
-                previousFps = fps;
                 fps = calcFps;
                 calcFps = 0;
                 depthMapResultCount = 0;
@@ -546,6 +542,16 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         InferenceResult(ByteBuffer pixelBuffer, ByteBuffer rawDepthBuffer) {
             this.pixelBuffer = pixelBuffer;
             this.rawDepthBuffer = rawDepthBuffer;
+        }
+    }
+
+    private static class RenderResult {
+        final ByteBuffer pixelBuffer;
+        final double imageDifference;
+
+        RenderResult(ByteBuffer pixelBuffer, double imageDifference) {
+            this.pixelBuffer = pixelBuffer;
+            this.imageDifference = imageDifference;
         }
     }
 
@@ -850,9 +856,9 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         }
     }
 
-    private boolean hasSceneChangedFast(ByteBuffer currentFrame, ByteBuffer previousFrame) {
+    private double hasSceneChangedFast(ByteBuffer currentFrame, ByteBuffer previousFrame) {
         if (currentFrame == null || previousFrame == null || currentFrame.capacity() != previousFrame.capacity()) {
-            return true;
+            return 0.0;
         }
 
         currentFrame.rewind();
@@ -879,35 +885,25 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             }
         }
 
-        if (pixelsSampled == 0) return true;
+        if (pixelsSampled == 0) return 0.0;
 
         double averageDifference = (double) totalDifference / pixelsSampled;
 
-        if (averageDifference > ON_DRAW_CHANGE_TRESHOLD) {
-            currentChangeDifference = Math.max(0, currentChangeDifference - TRESHHOLD_STEP);
-        } else if (currentChangeDifference < ON_DRAW_CHANGE_TRESHOLD) {
-            currentChangeDifference = currentChangeDifference + TRESHHOLD_STEP;
-        }
-        boolean differenceDetected = averageDifference > currentChangeDifference || fps > previousFps || time_treshhold_reached;
-        if(differenceDetected) {
-            time_treshhold_reached = false;
-            lastDifferenceDetected = System.nanoTime();
-        } else if(System.nanoTime() - lastDifferenceDetected >= 1_000_000_000) {
-            time_treshhold_reached = true;
-        }
-        return differenceDetected;
+        return averageDifference;
     }
-    private long lastDifferenceDetected = 0L;
 
-    private boolean time_treshhold_reached = false;
-    private float ON_DRAW_CHANGE_TRESHOLD = 15.0f;
-    private float TRESHHOLD_STEP = 0.5f;
-    private volatile float currentChangeDifference = ON_DRAW_CHANGE_TRESHOLD;
+    private long lastFrameSnapshot = 0L;
+
+    private float ON_DRAW_CHANGE_TRESHOLD = 5.0f;
 
     private class AiTask implements Runnable {
+
+        private ByteBuffer previousRawMap = null;
+
         @Override
         public void run() {
             ByteBuffer pixelBuffer = null;
+            double difference = 0.0f;
             while (!Thread.currentThread().isInterrupted()) {
                 long startTime = System.nanoTime();
                 long waitTime = System.nanoTime();
@@ -915,7 +911,9 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                 long aiTime_end = System.nanoTime();
                 try {
                     if (tflite == null) return;
-                    pixelBuffer = inferenceInputQueue.take();
+                    RenderResult result = inferenceInputQueue.take();
+                    pixelBuffer = result.pixelBuffer;
+                    difference = result.imageDifference;
                     ByteBuffer outputBuffer = freeOutputBuffers.take();
                     waitTime = System.nanoTime();
                     outputBuffer.rewind();
@@ -927,7 +925,22 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
                     aiTime = System.nanoTime();
                     ReflectivePaddingInt8Minimal.applyReflectedPadding(tfliteInputBuffer);
-                    tflite.run(tfliteInputBuffer, outputBuffer);
+
+                    if (difference > ON_DRAW_CHANGE_TRESHOLD || previousRawMap == null) {
+                        tflite.run(tfliteInputBuffer, outputBuffer);
+                        if (previousRawMap == null) {
+                            previousRawMap = ByteBuffer.allocateDirect(outputBuffer.capacity());
+                        }
+                        previousRawMap.clear();
+                        outputBuffer.rewind();
+                        previousRawMap.put(outputBuffer);
+                        previousRawMap.rewind();
+                    } else {
+                        outputBuffer.clear();
+                        previousRawMap.rewind();
+                        outputBuffer.put(previousRawMap);
+                        outputBuffer.rewind();
+                    }
                     calcThreeDFps++;
                     aiTime_end = System.nanoTime();
                     filledOutputBuffers.put(new InferenceResult(pixelBuffer, outputBuffer));
@@ -1000,7 +1013,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                         isFirstFrame = false;
                     }
 
-                    double smoothing = imageDifference / (fps / 3);
+                    double smoothing = imageDifference / (threeDFps / 3);
                     smoothing = Math.min(smoothing, MAX_SMOOTHING_FACTOR);
                     smoothing = Math.max(smoothing, MIN_SMOOTHING_FACTOR);
                     Core.addWeighted(processedMat, smoothing, previousSmoothedMat, 1.0 - smoothing, 0.0, previousSmoothedMat);
