@@ -2,9 +2,9 @@
 <resources>
     <!-- PC view menu entries -->
     <string name="pcview_menu_app_list">Посмотреть список игр</string>
-    <string name="pcview_menu_pair_pc">Создать пару с ПК</string>
-    <string name="pcview_menu_pair_pc_otp">Привязка по OTP</string>
-    <string name="pcview_menu_unpair_pc">Разорвать пару</string>
+    <string name="pcview_menu_pair_pc">Сопряжение с ПК</string>
+    <string name="pcview_menu_pair_pc_otp">Сопряжение с ПК по OTP</string>
+    <string name="pcview_menu_unpair_pc">Отменить сопряжение</string>
     <string name="pcview_menu_send_wol">Отправить Wake-On-LAN запрос</string>
     <string name="pcview_menu_delete_pc">Удалить ПК</string>
     <!-- Network test strings -->
@@ -18,27 +18,27 @@
     <string name="nettest_text_inconclusive">Тестирование подключения не может быть выполнено, потому что сервера тестирования подключения Artemis не доступны. Проверьте ваше Интернет-соединение или повторите попытку позже.</string>
     <string name="nettest_text_failure">Похоже, что текущее сетевое подключение вашего устройства блокирует Artemis. Трансляция через Интернет может не работать при подключении к этой сети.\n\nСледующие сетевые порты были заблокированы:\n</string>
     <!-- Pair messages -->
-    <string name="pairing">Создание пары…</string>
-    <string name="pair_pc_confirm_message">Вы действительно хотите привязать %s? Не привязывайтесь к незнакомым компьютерам.</string>
+    <string name="pairing">Сопряжение…</string>
+    <string name="pair_pc_confirm_message">Вы действительно хотите выполнить сопряжение с %s? Не выполняйте сопряжение с незнакомыми компьютерами.</string>
     <string name="pair_pc_offline">Компьютер выключен или находится не в сети</string>
-    <string name="pair_pc_ingame">Компьютер в данный момент находится в игре. Вы должны закрыть игру перед созданием пары.</string>
-    <string name="pair_pairing_title">Создание пары</string>
+    <string name="pair_pc_ingame">Компьютер в данный момент находится в игре. Вы должны закрыть игру перед сопряжением.</string>
+    <string name="pair_pairing_title">Сопряжение</string>
     <string name="pair_pairing_msg">Пожалуйста введите этот PIN на целевом ПК:</string>
-    <string name="pair_otp_pairing_help">Привязка по OTP доступна только с Apollo. При использовании другого ПО введите PIN вручную в веб-интерфейсе.</string>
+    <string name="pair_otp_pairing_help">Сопряжение по OTP доступно только с Apollo. При использовании другого ПО введите PIN вручную в веб-интерфейсе.</string>
     <string name="pair_incorrect_pin">Неправильный PIN</string>
-    <string name="pair_fail">Создание пары не удалось</string>
+    <string name="pair_fail">Сопряжение не удалось</string>
     <!-- WOL messages -->
-    <string name="pair_passphrase_length_msg">Парольная фраза должна быть не менее 4 символов</string>
+    <string name="pair_passphrase_length_msg">Пароль должен быть не менее 4 символов</string>
     <string name="wol_pc_online">Компьютер в сети</string>
     <string name="wol_no_mac">Невозможно разбудить компьютер, поскольку нет сохраненного MAC-адреса</string>
     <string name="wol_waking_pc">Пробуждение ПК…</string>
     <string name="wol_waking_msg">Пробуждение ПК может занять несколько секунд. Если этого не происходит, удостоверьтесь что Wake-On-LAN настроен правильно.</string>
     <string name="wol_fail">Ошибка при отправке Wake-On-LAN пакетов</string>
     <!-- Unpair messages -->
-    <string name="unpairing">Разрыв пары…</string>
-    <string name="unpair_success">Разрыв пары закончился успешно</string>
-    <string name="unpair_fail">Разрыв пары не удался</string>
-    <string name="unpair_error">Устройство не было спарено</string>
+    <string name="unpairing">Отмена сопряжения…</string>
+    <string name="unpair_success">Сопряжение успешно отменено</string>
+    <string name="unpair_fail">Отменить сопряжение не удалось</string>
+    <string name="unpair_error">Устройство не было сопряжено</string>
     <!-- Errors -->
     <string name="error_pc_offline">Компьютер выключен или находится не в сети</string>
     <string name="error_manager_not_running">Сервис ComputerManager не запущен. Пожалуйста, подождите несколько секунд или перезапустите приложение.</string>
@@ -109,6 +109,7 @@
     <string name="suffix_seekbar_deadzone">%</string>
     <string name="title_checkbox_xb1_driver">Драйвер контроллеров Xbox 360/One</string>
     <string name="summary_checkbox_xb1_driver">Включить встроенный USB драйвер для устройств без собственной поддержки контроллеров Xbox</string>
+    <string name="summary_checkbox_remember_mouse_mode">Запоминать выбранный режим мыши во время трансляции. Когда отключено, изменение режима мыши во время трансляции будет временным.</string>
     <string name="title_checkbox_flip_face_buttons">Перевернуть кнопки A/B и X/Y</string>
     <string name="summary_checkbox_flip_face_buttons">Меняет местами кнопки A/B и X/Y на геймпадах и экранных кнопках</string>
     <string name="category_ui_settings">Настройки интерфейса</string>
@@ -170,6 +171,7 @@
     <string name="applist_menu_details">Посмотреть детали</string>
     <string name="applist_menu_scut">Создать ярлык</string>
     <string name="summary_checkbox_force_device_motion">Принудительно использовать встроенный в устройство датчик движения, даже если контроллер сообщает о поддержке датчиков движения.</string>
+    <string name="summary_enable_rumble">"Включить вибрацию на поддерживаемых геймпадах.   "</string>
     <string name="category_input_settings">Настройки ввода</string>
     <string name="title_checkbox_touchscreen_trackpad">Использовать сенсор как тачпад</string>
     <string name="summary_checkbox_touchscreen_trackpad">Если включено, сенсор выступает в роли тачпада. Если отключено, сенсор напрямую контролирует курсор мыши.</string>
@@ -177,12 +179,13 @@
     <string name="pcview_menu_details">Посмотреть детали</string>
     <string name="poor_connection_msg">Слабое соединение с ПК</string>
     <string name="title_details">Детали</string>
+    <string name="summary_prevent_packet_loss">Для устройств, которые теряют пакеты по неизвестным причинам, можно попробовать включить эту опцию.</string>
     <string name="title_enable_perf_overlay">Включить отображение статистики</string>
     <string name="title_unlock_fps">Показать неподдерживаемые настройки частоты кадров</string>
     <string name="applist_details_id">ID приложения:</string>
     <string name="title_checkbox_vibrate_fallback">Эмуляция виброотдачи</string>
     <string name="summary_checkbox_vibrate_osc">Вибрировать устройство для эмуляции виброотдачи при экранном управлении</string>
-    <string name="summary_checkbox_vibrate_fallback">Вибрирует устройство для имитации отдачи, если ваш геймпад её не поддерживает.</string>
+    <string name="summary_checkbox_vibrate_fallback">Вибрировать устройство для эмуляции виброотдачи, если ваш геймпад её не поддерживает.</string>
     <string name="summary_checkbox_mouse_nav_buttons">Включение этой опции может привести к неправильной работе правой кнопки мыши на некоторых устройствах</string>
     <string name="scut_pc_not_found">ПК не найден</string>
     <string name="unable_to_pin_shortcut">Текущий лаунчер не позволяет создавать закреплённые ярлыки.</string>
@@ -195,7 +198,7 @@
     <string name="perf_overlay_incomingfps">Входящая частота кадров из сети: %1$.2f FPS</string>
     <string name="perf_overlay_renderingfps">Частота кадров при рендеринге: %1$.2f FPS</string>
     <string name="perf_overlay_netdrops">Кадры, пропущенные вашим сетевым подключением: %1$.2f%%</string>
-    <string name="perf_overlay_dectime">Среднее время декодирования: %1$.2f ms</string>
+    <string name="perf_overlay_dectime">Среднее время декодирования: %1$.2f мс</string>
     <string name="summary_fps_list">Увеличение для более плавного видео потока. Уменьшите для лучшей производительности на более слабых устройствах.</string>
     <string name="scut_invalid_uuid">Указанный ПК недействителен</string>
     <string name="scut_invalid_app_id">Указанное приложение недействительно</string>
@@ -283,7 +286,7 @@
     <string name="title_performance_link">Панель производительности</string>
     <string name="toast_controller_type_changed">Тип геймпада может быть изменен из-за эмуляции датчика движения</string>
     <string name="videoformat_av1always">Предпочитать AV1 (Экспериментальный)</string>
-    <string name="pan_zoom_mode_disabled">Режим Пан./Масш. выключен</string>
+    <string name="pan_zoom_mode_disabled">Режим прокрутки/масш. выключен</string>
     <string name="title_analog_scrolling">Использовать аналоговый джойстик для прокрутки</string>
     <string name="analogscroll_right">Правый аналоговый джойстик</string>
     <string name="pair_pairing_help">Если на вашем хост-ПК установлен Sunshine, перейдите в веб-интерфейс Sunshine и введите PIN-код.</string>
@@ -309,13 +312,13 @@
     <string name="quick_menu_title">Быстрое меню</string>
     <string name="configuration_mode_move_buttons">Режим перемещения кнопок</string>
     <string name="configuration_mode_resize_buttons">Режим изменения размера кнопок</string>
-    <string name="configuration_mode_disable_enable_buttons">Режим вкл/выкл кнопок</string>
+    <string name="configuration_mode_disable_enable_buttons">Режим вкл./выкл. кнопок</string>
     <string name="align_left">Выровнять влево</string>
     <string name="align_center">Выровнять по центру</string>
     <string name="pcview_menu_open_management_page">Открыть настройки сервера</string>
-    <string name="pair_pc_confirm_title">Привязать ПК</string>
-    <string name="pair_otp_pairing_msg">Идёт привязка, подождите…</string>
-    <string name="pair_passphrase_hint">Парольная фраза</string>
+    <string name="pair_pc_confirm_title">Сопряжение с ПК</string>
+    <string name="pair_otp_pairing_msg">Сопряжение, подождите…</string>
+    <string name="pair_passphrase_hint">Пароль</string>
     <string name="pair_pin_length_msg">PIN должен состоять из 4 цифр</string>
     <string name="email_subject">Artemistics - журнал производительности</string>
     <string name="email_chooser_title">Отправить журнал производительности...</string>
@@ -344,8 +347,8 @@
     <string name="game_menu_toggle_hud">Вкл./выкл. панель производительности</string>
     <string name="game_menu_toggle_floating_button">Вкл./выкл. плавающую кнопку</string>
     <string name="game_menu_select_mouse_mode">Выбрать режим мыши</string>
-    <string name="game_menu_enable_zoom_mode">Включить пан./масш.</string>
-    <string name="game_menu_disable_zoom_mode">Выключить пан./масш.</string>
+    <string name="game_menu_enable_zoom_mode">Включить прокрутку/масш.</string>
+    <string name="game_menu_disable_zoom_mode">Выключить прокрутку/масш.</string>
     <string name="game_menu_rotate_screen">Повернуть экран</string>
     <string name="game_menu_toggle_keyboard_model">Вкл./выкл. спец-клавиши</string>
     <string name="game_menu_toggle_virtual_model">Вкл./выкл. экранный контроллер</string>
@@ -362,8 +365,8 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (выход из стрима на ПК)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (смена монитора)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (смена монитора)</string>
-    <string name="toggle_pan_zoom_mode">Переключить режим Пан./Масш.</string>
-    <string name="pan_zoom_mode_enabled">Режим Пан./Масш. включён</string>
+    <string name="toggle_pan_zoom_mode">Переключить режим прокрутки/масш.</string>
+    <string name="pan_zoom_mode_enabled">Режим прокрутки/масш. включён</string>
     <string name="perf_overlay_lite_decoder">Декодер: %1$s</string>
     <string name="title_import_keyboard_layout">Импорт раскладки клавиатуры</string>
     <string name="title_export_keyboard_layout">Экспорт раскладки клавиатуры</string>
@@ -378,7 +381,7 @@
     <string name="title_touchscreen_mode">Режим сенсора</string>
     <string name="summary_touchscreen_mode">Выберите режим Мультитач / Одиночное касание / Трекпад / Выключено.\nПеро/стилус остаются работоспособны при Выключено.\nНа внешнем дисплее принудительно Трекпад (Natural).</string>
     <string name="title_checkbox_mouse_local_cursor">Использовать локальный курсор мыши</string>
-    <string name="summary_checkbox_mouse_local_cursor">Курсор внешней физической мыши по умолчанию будет захвачен, эта опция позволяет отображать системный курсор Android.</string>
+    <string name="summary_checkbox_mouse_local_cursor">Захватывается внешний курсор физической мыши. Данная опция позволяет отображать системный курсор Android.</string>
     <string name="title_checkbox_multi_touch_gestures">Включить мультитач-жесты</string>
     <string name="summary_checkbox_multi_touch_gestures">Включить жест с 3 пальцами для клавиатуры, 4 пальцами для полной клавиатуры, 5 пальцами для быстрого меню при использовании режима мультитач.</string>
     <string name="title_checkbox_onscreen_style_official">Официальная тема виртуального геймпада</string>
@@ -390,7 +393,7 @@
     <string name="title_checkbox_enable_perf_overlay_lite_dialog">В упрощенном режиме нажмите, чтобы открыть быстрые опции.</string>
     <string name="summary_checkbox_enable_perf_overlay_lite_dialog">Заменяет логику кнопки Back, открывая быстрое меню игры.</string>
     <string name="title_show_overlay_zoom_toggle_button">Показать кнопку переключения масш. панели</string>
-    <string name="summary_show_overlay_zoom_toggle_button">Показывает перетаскиваемую кнопку вверху экрана для включения пан./масш.</string>
+    <string name="summary_show_overlay_zoom_toggle_button">Показывает перетаскиваемую кнопку вверху экрана для переключения прокрутки/масш.</string>
     <string name="title_virtual_trackpad_settings">Настройки виртуального трекпада</string>
     <string name="title_quit_dialog">Быстрое меню</string>
     <string name="summary_quit_dialog">При включении нажатие физической кнопки Back в интерфейсе стрима покажет связанные опции!\nЭкранная клавиатура, инфо о производительности, переключение режима ввода, отправка спец-клавиш</string>
@@ -415,7 +418,7 @@
     <string name="title_default_layout_scheme">Профиль раскладки по умолчанию</string>
     <string name="summary_default_layout_scheme">Каждый профиль раскладки изначально одинаков (создаётся на основе файла keyboards.json), вы можете удалить его и настроить самостоятельно</string>
     <string name="summary_vibrate_keyboard">При нажатии экранной кнопки срабатывает вибрация телефона. Опция также действует на виртуальные кнопки геймпада</string>
-    <string name="title_square_buttons">Обычные кнопки квадратные</string>
+    <string name="title_square_buttons">Квадратные кнопки</string>
     <string name="summary_square_buttons">Форма виртуальных кнопок квадратная, по умолчанию круглая</string>
     <string name="title_reset_keyboard_layout">Сбросить раскладку виртуальной клавиатуры</string>
     <string name="summary_reset_keyboard_layout">Инициализировать раскладку спец-клавиш (сброс на схему по умолчанию)</string>
@@ -561,7 +564,7 @@
     <string name="vdisplay_not_ready">Виртуальный драйвер дисплея на сервере не готов. Пожалуйста, убедитесь, что драйвер SudoVDA установлен и включён.</string>
     <string name="clipboard_sync_unsupported">Этот сервер не поддерживает синхронизацию буфера. Установите или обновите сервер до последней версии Apollo.</string>
     <string name="send_clipboard_failed">Не удалось отправить буфер обмена:</string>
-    <string name="external_display_info">Внешний дисплей подключён с: %1$dx%2$d при %3$.1fHz\n</string>
+    <string name="external_display_info">Внешний дисплей подключён с: %1$dx%2$d при %3$.1fГц</string>
     <string name="notification_channel_name">Управление внешним дисплеем</string>
     <string name="notification_title">Внешний дисплей активен</string>
     <string name="notification_text">Нажмите, чтобы открыть контроллер-тачпад</string>
@@ -606,7 +609,7 @@
     <string name="file_export_cancelled">Экспорт отменён.</string>
     <string name="app_removed_from_pc">Приложение удалено с ПК</string>
     <string name="title_export_sunshine_launcher_file">Экспорт файла запуска для Sunshine</string>
-    <string name="title_checkbox_remember_zoom_pan">Запомнить пан./масш.</string>
+    <string name="title_checkbox_remember_zoom_pan">Запоминать прокрутку/масш.</string>
     <string name="summary_checkbox_remember_zoom_pan">Сохранять масштаб и позицию между сессиями</string>
     <string name="title_checkbox_enable_perf_overlay_bottom">Переместить панель вниз</string>
     <string name="summary_checkbox_enable_perf_overlay_bottom">Полезно когда дисплей вверху в центре и упрощенном режиме при ненативном разрешении.</string>
@@ -636,4 +639,9 @@
     <string name="rename">Переименовать</string>
     <string name="save">Сохранить</string>
     <string name="email_prefix_message">"\n        Пожалуйста отправьте это письмо как есть на artemistics.logs@gmail.com чтобы поддержать сообщество. \n\n        Ваши данные о производительности помогут улучшить и расширить набор данных по ссылке: \n\n        https://tinyurl.com/artemis-performance       "</string>
+    <string name="title_checkbox_remember_mouse_mode">Запоминать режим мыши</string>
+    <string name="title_enable_rumble">Включить вибрацию</string>
+    <string name="title_prevent_packet_loss">Предотвращать потерю пакетов</string>
+    <string name="perf_overlay_lite_net">%1$dмс</string>
+    <string name="perf_overlay_lite_dectime">%1$.2fмс</string>
 </resources>
