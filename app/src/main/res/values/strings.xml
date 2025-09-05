@@ -722,4 +722,5 @@
     <string name="summary_perf_chart_decode">Plot video decoder time per frame (ms)</string>
     <string name="title_perf_chart_fps">Chart: FPS</string>
     <string name="summary_perf_chart_fps">Plot incoming/rendered frames per second</string>
+    <string name="category_perf_monitor_settings">Performance Monitor</string>
 </resources>
