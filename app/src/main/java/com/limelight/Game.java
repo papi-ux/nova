@@ -164,7 +164,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private static final int FOUR_FINGER_TAP_THRESHOLD = 300;
     private static final int FIVE_FINGER_TAP_THRESHOLD = 300;
 
-    private final Handler timerHandler = new Handler(Looper.getMainLooper());
+    private Handler timerHandler;
 
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
@@ -328,12 +328,20 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
     };
 
+    private final Runnable backgroundPing = () -> {
+        if (connected) {
+            timerHandler.postDelayed(Game.this.backgroundPing, 20);
+            MoonBridge.sendEmptyPayload();
+        }
+    };
+
     @SuppressLint({"MissingInflatedId", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         instance = this;
+        timerHandler = new Handler(Looper.getMainLooper());
 
         UiHelper.setLocale(this);
 
@@ -3581,16 +3589,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     }
                 }, 500);
 
-                if (prefConfig.preventPacketLoss) {
-                    Runnable mousePing = () -> {
-                        if (connected) {
-                            MoonBridge.sendEmptyPayload();
-                            timerHandler.postDelayed(this, 20);
-                        }
-                    };
-                    mousePing.run();
-                }
-
                 // Keep the display on
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -3604,6 +3602,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 setupOverlayToggleButton();
 
                 hideSystemUi(1000);
+
+                if (prefConfig.preventPacketLoss) {
+                    timerHandler.postDelayed(backgroundPing, 1000);
+                }
             }
         });
 
