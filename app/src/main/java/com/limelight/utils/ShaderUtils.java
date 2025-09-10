@@ -23,12 +23,17 @@ public class ShaderUtils {
                     "\n" +
                     "void main() {\n" +
                     "  float depth = texture2D(s_DepthTexture, v_TexCoord).r;\n" +
-                    "  float depthDiff = depth - u_convergence;\n" +
-                    "  // Apply reduction only for far objects close to convergence\n" +
-                    " // float parallaxFactor = 1.0;\n" +
-                    " // parallaxFactor = clamp(abs(depthDiff) / 1.0, 0.0, 1.0);\n" +
+                    "\n" +
+                    "  // Remap depth into symmetric range around convergence\n" +
+                    "  float depthDiff;\n" +
+                    "  if (depth < u_convergence) {\n" +
+                    "    depthDiff = (depth - u_convergence) / u_convergence; // [-1,0]\n" +
+                    "  } else {\n" +
+                    "    depthDiff = (depth - u_convergence) / (1.0 - u_convergence); // [0,1]\n" +
+                    "  }\n" +
+                    "\n" +
                     "  float parallax_magnitude = abs(u_parallax);\n" +
-                    "  float ai_shift = parallax_magnitude * (depth - u_convergence) * 1.0;\n" +
+                    "  float ai_shift = parallax_magnitude * depthDiff;\n" +
                     "\n" +
                     "  // --- Dynamische Vignette ---\n" +
                     "  float edgeWidth = 0.01;\n" +
@@ -91,9 +96,9 @@ public class ShaderUtils {
                     "uniform float u_parallax;\n" +
 
                     "void main() {\n" +
-                    "float blurRadius = 30.0 * u_parallax;\n" +
-                    "float blurStep = 3.0;\n" +
-                    "float sigma = 20.0 * u_parallax;\n" +
+                    "float blurRadius = 60.0 * u_parallax;\n" +
+                    "float blurStep = 2.0 / u_parallax;\n" +
+                    "float sigma = 50.0 * u_parallax;\n" +
                     "  vec4 sum = vec4(0.0);\n" +
                     "  float weightSum = 0.0;\n" +
 

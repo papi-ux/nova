@@ -126,6 +126,8 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     private Surface videoSurface;
     private SurfaceTexture videoSurfaceTexture;
 
+    private float ON_DRAW_CHANGE_TRESHOLD = 2.0f;
+
 
     public interface OnSurfaceReadyListener {
         void onSurfaceReady(Surface surface);
@@ -295,7 +297,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
     }
 
     private float getParallax() {
-            return prefConf.parallax_depth * 1.1f;
+        return prefConf.parallax_depth * 0.7f;
     }
 
     private void applyTwoPassGaussianBlur() {
@@ -404,20 +406,22 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             }
         }
     }
-    private volatile Boolean block= false;
+
+    private volatile Boolean block = false;
+
     @Override
     public void onDrawFrame(GL10 gl) {
         long startTime = System.nanoTime();
 
         synchronized (frameLock) {
             if (!frameAvailable.get()) {
-                if(!isMovieMode) {
+                if (!isMovieMode) {
                     glSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
                 } else {
                     glSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
                     return;
                 }
-            } else if(isMovieMode) {
+            } else if (isMovieMode) {
                 block = true;
             }
             frameAvailable.set(false);
@@ -436,27 +440,27 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         long startTimeAi = System.nanoTime();
         long endTimeAi = System.nanoTime();
         if (tflite != null) {
-            if(block || !isMovieMode) {
-            ByteBuffer pixelBufferForAI = freeInputBuffers.poll();
-            if (pixelBufferForAI != null) {
-                boolean success = readPixelsForAI(pixelBufferForAI);
-                if (success) {
-                    double difference = hasSceneChangedFast(pixelBufferForAI, previousFrameForComparison);
-                    pixelBufferForAI.rewind();
-                    previousFrameForComparison.rewind();
-                    previousFrameForComparison.put(pixelBufferForAI);
+            if (block || !isMovieMode) {
+                ByteBuffer pixelBufferForAI = freeInputBuffers.poll();
+                if (pixelBufferForAI != null) {
+                    boolean success = readPixelsForAI(pixelBufferForAI);
+                    if (success) {
+                        double difference = hasSceneChangedFast(pixelBufferForAI, previousFrameForComparison);
+                        pixelBufferForAI.rewind();
+                        previousFrameForComparison.rewind();
+                        previousFrameForComparison.put(pixelBufferForAI);
 
-                    if (inferenceInputQueue.offer(new RenderResult(pixelBufferForAI, difference))) {
-                        Log.d("AiTask", "Success: The AI will now process this buffer.");
+                        if (inferenceInputQueue.offer(new RenderResult(pixelBufferForAI, difference))) {
+                            Log.d("AiTask", "Success: The AI will now process this buffer.");
+                        } else {
+                            freeInputBuffers.offer(pixelBufferForAI);
+                        }
                     } else {
                         freeInputBuffers.offer(pixelBufferForAI);
                     }
-                } else {
-                    freeInputBuffers.offer(pixelBufferForAI);
                 }
-            }
-            ByteBuffer newMap = null;
-                if(block && isMovieMode) {
+                ByteBuffer newMap = null;
+                if (block && isMovieMode) {
                     while ((newMap = latestDepthMap.getAndSet(null)) == null) {
                         try {
                             Thread.sleep(1);
@@ -599,7 +603,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     public static double calculateAverageDifferenceOCV(ByteBuffer buffer1, ByteBuffer buffer2, int width, int height) {
         if (buffer1 == null || buffer2 == null) {
-            return 255.0;
+            return 1;
         }
 
         Mat mat1 = null;
@@ -611,7 +615,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
             diffMat = new Mat();
             Core.absdiff(mat1, mat2, diffMat);
             Scalar meanDifference = Core.mean(diffMat);
-            return meanDifference.val[0];
+            return meanDifference.val[0] / 255.0;
         } finally {
             if (mat1 != null) {
                 mat1.release();
@@ -651,6 +655,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
         return true;
     }
+
     private boolean readPixelsForAI_Async(ByteBuffer destinationBuffer) {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboHandle);
         GLES20.glViewport(0, 0, modelInputWidth, modelInputHeight);
@@ -855,46 +860,81 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
     private double hasFrameChangedSignificantlyOCV(ByteBuffer newPixelBuffer, ByteBuffer oldPixelBuffer) {
         if (newPixelBuffer == null || oldPixelBuffer == null || newPixelBuffer.capacity() != oldPixelBuffer.capacity()) {
-            return 1.0;
+            return 1.0; // maximal unterschiedliche Frames
         }
 
-        Mat mat1 = null;
-        Mat mat2 = null;
-        Mat grayMat1 = null;
-        Mat grayMat2 = null;
-        Mat hist1 = null;
-        Mat hist2 = null;
+        Mat mat1 = null, mat2 = null;
+        Mat gray1 = null, gray2 = null;
+        Mat edges1 = null, edges2 = null;
+        Mat histGray1 = null, histGray2 = null;
+        Mat histEdge1 = null, histEdge2 = null;
 
         try {
             mat1 = new Mat(modelInputHeight, modelInputWidth, CvType.CV_8UC4, newPixelBuffer);
             mat2 = new Mat(modelInputHeight, modelInputWidth, CvType.CV_8UC4, oldPixelBuffer);
 
-            grayMat1 = new Mat();
-            grayMat2 = new Mat();
-            Imgproc.cvtColor(mat1, grayMat1, Imgproc.COLOR_RGBA2GRAY);
-            Imgproc.cvtColor(mat2, grayMat2, Imgproc.COLOR_RGBA2GRAY);
+            // Graustufen
+            gray1 = new Mat();
+            gray2 = new Mat();
+            Imgproc.cvtColor(mat1, gray1, Imgproc.COLOR_RGBA2GRAY);
+            Imgproc.cvtColor(mat2, gray2, Imgproc.COLOR_RGBA2GRAY);
 
-            hist1 = new Mat();
-            hist2 = new Mat();
-            Imgproc.calcHist(Collections.singletonList(grayMat1), new MatOfInt(0), new Mat(), hist1, new MatOfInt(256), new MatOfFloat(0f, 256f));
-            Imgproc.calcHist(Collections.singletonList(grayMat2), new MatOfInt(0), new Mat(), hist2, new MatOfInt(256), new MatOfFloat(0f, 256f));
+            // Kanten (Sobel)
+            edges1 = new Mat();
+            edges2 = new Mat();
+            Mat gradX1 = new Mat(), gradY1 = new Mat();
+            Mat gradX2 = new Mat(), gradY2 = new Mat();
+            Imgproc.Sobel(gray1, gradX1, CvType.CV_16S, 1, 0);
+            Imgproc.Sobel(gray1, gradY1, CvType.CV_16S, 0, 1);
+            Core.convertScaleAbs(gradX1, gradX1);
+            Core.convertScaleAbs(gradY1, gradY1);
+            Core.addWeighted(gradX1, 0.5, gradY1, 0.5, 0, edges1);
 
-            double correlation = 1.0 -Imgproc.compareHist(hist1, hist2, Imgproc.HISTCMP_CORREL);
-            if(correlation < 0.001) {
-                correlation = 0.0;
-            }
+            Imgproc.Sobel(gray2, gradX2, CvType.CV_16S, 1, 0);
+            Imgproc.Sobel(gray2, gradY2, CvType.CV_16S, 0, 1);
+            Core.convertScaleAbs(gradX2, gradX2);
+            Core.convertScaleAbs(gradY2, gradY2);
+            Core.addWeighted(gradX2, 0.5, gradY2, 0.5, 0, edges2);
 
-            return correlation;
+            gradX1.release();
+            gradY1.release();
+            gradX2.release();
+            gradY2.release();
+
+            // Histogramme Graustufen
+            histGray1 = new Mat();
+            histGray2 = new Mat();
+            Imgproc.calcHist(Collections.singletonList(gray1), new MatOfInt(0), new Mat(), histGray1, new MatOfInt(256), new MatOfFloat(0f, 256f));
+            Imgproc.calcHist(Collections.singletonList(gray2), new MatOfInt(0), new Mat(), histGray2, new MatOfInt(256), new MatOfFloat(0f, 256f));
+
+            // Histogramme Kanten
+            histEdge1 = new Mat();
+            histEdge2 = new Mat();
+            Imgproc.calcHist(Collections.singletonList(edges1), new MatOfInt(0), new Mat(), histEdge1, new MatOfInt(256), new MatOfFloat(0f, 256f));
+            Imgproc.calcHist(Collections.singletonList(edges2), new MatOfInt(0), new Mat(), histEdge2, new MatOfInt(256), new MatOfFloat(0f, 256f));
+
+            // Vergleich: Graustufen + Kanten
+            double grayDiff = 1.0 - Imgproc.compareHist(histGray1, histGray2, Imgproc.HISTCMP_CORREL);
+            double edgeDiff = 1.0 - Imgproc.compareHist(histEdge1, histEdge2, Imgproc.HISTCMP_CORREL);
+
+            // Kombiniere beide Differenzen (Gewichtung kann angepasst werden)
+            double combinedDiff = 0.5 * grayDiff + 0.5 * edgeDiff;
+            return combinedDiff;
 
         } finally {
             if (mat1 != null) mat1.release();
             if (mat2 != null) mat2.release();
-            if (grayMat1 != null) grayMat1.release();
-            if (grayMat2 != null) grayMat2.release();
-            if (hist1 != null) hist1.release();
-            if (hist2 != null) hist2.release();
+            if (gray1 != null) gray1.release();
+            if (gray2 != null) gray2.release();
+            if (edges1 != null) edges1.release();
+            if (edges2 != null) edges2.release();
+            if (histGray1 != null) histGray1.release();
+            if (histGray2 != null) histGray2.release();
+            if (histEdge1 != null) histEdge1.release();
+            if (histEdge2 != null) histEdge2.release();
         }
     }
+
 
     private double hasSceneChangedFast(ByteBuffer currentFrame, ByteBuffer previousFrame) {
         if (currentFrame == null || previousFrame == null || currentFrame.capacity() != previousFrame.capacity()) {
@@ -931,8 +971,6 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
 
         return averageDifference;
     }
-
-    private float ON_DRAW_CHANGE_TRESHOLD = 1.0f;
 
     private class AiTask implements Runnable {
 
@@ -1013,6 +1051,7 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
         private final byte[] processedDataArray = new byte[modelInputWidth * modelInputHeight];
         private Mat previousSmoothedMat;
         private boolean isFirstFrame = true;
+
         @Override
         public void run() {
             ByteBuffer resultBuffer = createFlatDepthMap();
@@ -1049,12 +1088,25 @@ public class Stereo3DRenderer implements GLSurfaceView.Renderer, SurfaceTexture.
                         isFirstFrame = false;
                     }
 
-                    double smoothing = (imageDifference * 10) / (threeDFps * 2);
-                    double minSmoothing = MIN_SMOOTHING_FACTOR;
+                    double smoothing = (imageDifference * 10) / (threeDFps * 3);
                     smoothing = Math.min(smoothing, MAX_SMOOTHING_FACTOR);
-                    smoothing = Math.max(smoothing, minSmoothing);
-                    Core.addWeighted(processedMat, smoothing, previousSmoothedMat, 1.0 - smoothing, 0.0, previousSmoothedMat);
-
+                    smoothing = Math.max(smoothing, MIN_SMOOTHING_FACTOR);
+                    Mat diff = new Mat();
+                    Core.absdiff(processedMat, previousSmoothedMat, diff);
+                    Core.MinMaxLocResult mmr = Core.minMaxLoc(diff);
+                    double thresholdValue = Math.max(1, mmr.maxVal * ((1.0 - smoothing)) * 0.1);
+                    Mat validMask = new Mat();
+                    Imgproc.threshold(diff, validMask, thresholdValue, 255, Imgproc.THRESH_BINARY_INV);
+                    processedMat.copyTo(previousSmoothedMat, validMask);
+                    Mat blended = new Mat();
+                    Core.addWeighted(processedMat, smoothing, previousSmoothedMat, 1.0 - smoothing, 0.0, blended);
+                    Mat inverseMask = new Mat();
+                    Core.bitwise_not(validMask, inverseMask);
+                    blended.copyTo(previousSmoothedMat, inverseMask);
+                    diff.release();
+                    validMask.release();
+                    inverseMask.release();
+                    blended.release();
                     previousSmoothedMat.get(0, 0, processedDataArray);
                     rawDepthBuffer.rewind();
                     rawDepthBuffer.put(processedDataArray);
