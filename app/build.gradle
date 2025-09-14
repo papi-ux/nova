@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 android {
     ndkVersion "27.0.12077973"
 
-    compileSdk 36
+    compileSdk = 36
 
     namespace 'com.limelight'
 
@@ -176,7 +176,7 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'androidx.preference:preference:1.2.1'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
-    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'com.google.android.material:material:1.13.0'
     implementation 'com.github.ByteHamster:SearchPreference:v2.5.1'
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
     implementation 'com.google.ai.edge.litert:litert:1.4.0'
