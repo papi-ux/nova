@@ -2866,18 +2866,19 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 }
                 else if (view != null) {
                     if (event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
-                        // Handle trackpad when pointer is not captured by synthesizing a trackpad movement
+                        // Handle trackpad two finger swipes when pointer is not captured by synthesizing a trackpad movement
+                        // Android emulates trackpad  two finger swipes as one finger swipe on the screen
                         int eventAction = event.getActionMasked();
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && event.getClassification() == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE) {
                             if (!pointerSwiping) {
                                 pointerSwiping = true;
-                                handleTouchInput(event, trackpadContextMap, false, MotionEvent.ACTION_POINTER_DOWN, 1, 2);
+                                handleTouchInput(event, trackpadContextMap, false, prefConfig.trackpadSwapAxis, MotionEvent.ACTION_POINTER_DOWN, 1, 2);
                             }
-                            return handleTouchInput(event, trackpadContextMap, false, MotionEvent.ACTION_MOVE, 1, 2);
+                            return handleTouchInput(event, trackpadContextMap, false, prefConfig.trackpadSwapAxis, MotionEvent.ACTION_MOVE, 1, 2);
                         } else if (pointerSwiping && eventAction == MotionEvent.ACTION_UP) {
                             pointerSwiping = false;
                             synthClickPending = false;
-                            handleTouchInput(event, trackpadContextMap, false, MotionEvent.ACTION_POINTER_UP, 1, 2);
+                            handleTouchInput(event, trackpadContextMap, false, prefConfig.trackpadSwapAxis, MotionEvent.ACTION_POINTER_UP, 1, 2);
                             return true;
                         }
 
@@ -3115,14 +3116,92 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private boolean handleTouchInput(MotionEvent event, TouchContext[] inputContextMap, boolean isTouchScreen) {
-        return handleTouchInput(event, inputContextMap, isTouchScreen, event.getActionMasked(), event.getActionIndex(), event.getPointerCount());
+        // Actual invert logic is handled within the touch context
+        return handleTouchInput(event, inputContextMap, isTouchScreen, false, event.getActionMasked(), event.getActionIndex(), event.getPointerCount());
     }
 
-    private boolean handleTouchInput(MotionEvent event, TouchContext[] inputContextMap, boolean isTouchScreen, int eventAction, int actionIndex, int pointerCount) {
+    private boolean handleTouchInput(MotionEvent event, TouchContext[] inputContextMap, boolean isTouchScreen, boolean invertAxis, int eventAction, int actionIndex, int pointerCount) {
+        TouchContext context = getTouchContext(actionIndex, inputContextMap);
+        if (context == null) {
+            return false;
+        }
+
         int actualActionIndex = event.getActionIndex();
         int actualPointerCount = event.getPointerCount();
 
         boolean shouldDuplicateMovement = actualPointerCount < pointerCount;
+
+        if (eventAction == MotionEvent.ACTION_MOVE) {
+            // ACTION_MOVE is special because it always has actionIndex == 0
+            // We'll call the move handlers for all indexes manually
+
+            // First process the historical events
+            for (int i = 0; i < event.getHistorySize(); i++) {
+                for (TouchContext aTouchContextMap : inputContextMap) {
+                    if (aTouchContextMap.getActionIndex() < pointerCount)
+                    {
+                        int aActionIndex = shouldDuplicateMovement ? 0 : aTouchContextMap.getActionIndex();
+                        int historicalX = (int)event.getHistoricalX(aActionIndex, i);
+                        int historicalY = (int)event.getHistoricalY(aActionIndex, i);
+                        if (isTouchScreen) {
+                            float[] normalizedCoords = getNormalizedCoordinates(streamContainer, historicalX, historicalY);
+                            historicalX = (int)normalizedCoords[0];
+                            historicalY = (int)normalizedCoords[1];
+                        }
+
+                        // Invert axis again since synthetic events are not inverted
+                        // Invert twice could correct the direction
+                        // Blame Android for this problem
+                        // some devices report inverted axis when trackpad pointer is captured
+                        // but not when they're simulated as swipes on the screen
+                        if (invertAxis) {
+                            aTouchContextMap.touchMoveEvent(
+                                    historicalY,
+                                    historicalX,
+                                    event.getHistoricalEventTime(i)
+                            );
+                        } else {
+                            aTouchContextMap.touchMoveEvent(
+                                    historicalX,
+                                    historicalY,
+                                    event.getHistoricalEventTime(i)
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Now process the current values
+            for (TouchContext aTouchContextMap : inputContextMap) {
+                if (aTouchContextMap.getActionIndex() < pointerCount)
+                {
+                    int aActionIndex = shouldDuplicateMovement ? 0 : aTouchContextMap.getActionIndex();
+                    int currentX = (int)event.getX(aActionIndex);
+                    int currentY = (int)event.getY(aActionIndex);
+                    if (isTouchScreen) {
+                        float[] normalizedCoords = getNormalizedCoordinates(streamContainer, currentX, currentY);
+                        currentX = (int)normalizedCoords[0];
+                        currentY = (int)normalizedCoords[1];
+                    }
+
+                    // Invert axis again since synthetic events are not inverted
+                    if (invertAxis) {
+                        aTouchContextMap.touchMoveEvent(
+                                currentY,
+                                currentX,
+                                event.getEventTime()
+                        );
+                    } else {
+                        aTouchContextMap.touchMoveEvent(
+                                currentX,
+                                currentY,
+                                event.getEventTime());
+                    }
+                }
+            }
+
+            return true;
+        }
 
         int eventX = (int)event.getX(actualActionIndex);
         int eventY = (int)event.getY(actualActionIndex);
@@ -3132,11 +3211,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             float[] normalizedCoords = getNormalizedCoordinates(streamContainer, eventX, eventY);
             eventX = (int)normalizedCoords[0];
             eventY = (int)normalizedCoords[1];
-        }
-
-        TouchContext context = getTouchContext(actionIndex, inputContextMap);
-        if (context == null) {
-            return false;
         }
 
         switch (eventAction)
@@ -3150,8 +3224,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 break;
             case MotionEvent.ACTION_POINTER_UP:
             case MotionEvent.ACTION_UP:
-                //是触控板模式 三点呼出软键盘
-                if(prefConfig.touchscreenTrackpad){
+                if (prefConfig.touchscreenTrackpad) {
                     if (pointerCount == 1 &&
                             (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || (event.getFlags() & MotionEvent.FLAG_CANCELED) == 0)) {
                         // All fingers up
@@ -3194,50 +3267,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                             pointer1X,
                             pointer1Y,
                             event.getEventTime(), false);
-                }
-                break;
-            case MotionEvent.ACTION_MOVE:
-                // ACTION_MOVE is special because it always has actionIndex == 0
-                // We'll call the move handlers for all indexes manually
-
-                // First process the historical events
-                for (int i = 0; i < event.getHistorySize(); i++) {
-                    for (TouchContext aTouchContextMap : inputContextMap) {
-                        if (aTouchContextMap.getActionIndex() < pointerCount)
-                        {
-                            int aActionIndex = shouldDuplicateMovement ? 0 : aTouchContextMap.getActionIndex();
-                            int historicalX = (int)event.getHistoricalX(aActionIndex, i);
-                            int historicalY = (int)event.getHistoricalY(aActionIndex, i);
-                            if (isTouchScreen) {
-                                float[] normalizedCoords = getNormalizedCoordinates(streamContainer, historicalX, historicalY);
-                                historicalX = (int)normalizedCoords[0];
-                                historicalY = (int)normalizedCoords[1];
-                            }
-                            aTouchContextMap.touchMoveEvent(
-                                    historicalX,
-                                    historicalY,
-                                    event.getHistoricalEventTime(i));
-                        }
-                    }
-                }
-
-                // Now process the current values
-                for (TouchContext aTouchContextMap : inputContextMap) {
-                    if (aTouchContextMap.getActionIndex() < pointerCount)
-                    {
-                        int aActionIndex = shouldDuplicateMovement ? 0 : aTouchContextMap.getActionIndex();
-                        int currentX = (int)event.getX(aActionIndex);
-                        int currentY = (int)event.getY(aActionIndex);
-                        if (isTouchScreen) {
-                            float[] normalizedCoords = getNormalizedCoordinates(streamContainer, currentX, currentY);
-                            currentX = (int)normalizedCoords[0];
-                            currentY = (int)normalizedCoords[1];
-                        }
-                        aTouchContextMap.touchMoveEvent(
-                                currentX,
-                                currentY,
-                                event.getEventTime());
-                    }
                 }
                 break;
             case MotionEvent.ACTION_CANCEL:
