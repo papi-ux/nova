@@ -21,6 +21,7 @@ public class TrackpadContext implements TouchContext {
     private boolean confirmedScroll;
     private double distanceMoved;
     private int pointerCount;
+    private boolean clickedMiddle = false;
     private int maxPointerCountInGesture;
     private boolean isClickPending;
     private boolean isDblClickPending;
@@ -169,6 +170,9 @@ public class TrackpadContext implements TouchContext {
     private byte getMouseButtonIndex() {
         if (pointerCount == 2) {
             return MouseButtonPacket.BUTTON_RIGHT;
+        } else if (pointerCount == 3) {
+            clickedMiddle = true;
+            return MouseButtonPacket.BUTTON_MIDDLE;
         } else {
             return MouseButtonPacket.BUTTON_LEFT;
         }
@@ -189,6 +193,7 @@ public class TrackpadContext implements TouchContext {
         if (isNewFinger) {
             // A completely new gesture has started.
             // Cancel any pending scroll->move transition.
+            clickedMiddle = false;
             handler.removeCallbacks(scrollTransitionRunnable);
             isScrollTransitioning = false;
             maxPointerCountInGesture = pointerCount;
@@ -204,8 +209,15 @@ public class TrackpadContext implements TouchContext {
                 confirmedDrag = true;
             }
         } else {
+            if (pointerCount == 2 && !confirmedMove) {
+                conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_MIDDLE);
+                conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_MIDDLE);
+                isClickPending = false;
+                isDblClickPending = false;
+                confirmedDrag = false;
+                clickedMiddle = true;
             // Second finger released, should trigger right click immediately
-            if (pointerCount == 1 && !confirmedMove) {
+            } else if (pointerCount == 1 && !confirmedMove && !clickedMiddle) {
                 conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_RIGHT);
                 conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_RIGHT);
                 isClickPending = false;
@@ -317,6 +329,9 @@ public class TrackpadContext implements TouchContext {
             if (swapAxis) {
                 deltaY = rawDeltaX;
                 deltaX = rawDeltaY;
+
+                absDeltaX = Math.abs(rawDeltaY);
+                absDeltaY = Math.abs(rawDeltaX);
             } else {
                 deltaX = rawDeltaX;
                 deltaY = rawDeltaY;
