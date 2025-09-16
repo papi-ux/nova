@@ -217,13 +217,6 @@
             android:summary="@string/summary_fullexdisplay_mode"
             android:title="@string/title_fullexdisplay_mode"
             app:iconSpaceReserved="false" />
-
-        <CheckBoxPreference
-            android:key="checkbox_full_screen"
-            android:title="@string/title_checkbox_full_screen"
-            android:summary="@string/summary_checkbox_full_screen"
-            android:defaultValue="true"
-            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -554,6 +547,12 @@
             android:key="checkbox_enable_floating_button"
             android:summary="@string/summary_floating_button"
             android:title="@string/title_floating_button"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:key="checkbox_full_screen"
+            android:title="@string/title_checkbox_full_screen"
+            android:summary="@string/summary_checkbox_full_screen"
+            android:defaultValue="true"
             app:iconSpaceReserved="false" />
         <com.limelight.preferences.SeekBarPreference
             android:defaultValue="90"
