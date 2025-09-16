@@ -347,6 +347,7 @@
     <string name="game_menu_toggle_hud">Вкл./выкл. панель производительности</string>
     <string name="game_menu_toggle_floating_button">Вкл./выкл. плавающую кнопку</string>
     <string name="game_menu_select_mouse_mode">Выбрать режим мыши</string>
+    <string name="game_menu_select_steam_mode">Выбрать режим стрима</string>
     <string name="game_menu_enable_zoom_mode">Включить прокрутку/масш.</string>
     <string name="game_menu_disable_zoom_mode">Выключить прокрутку/масш.</string>
     <string name="game_menu_rotate_screen">Повернуть экран</string>
@@ -367,6 +368,7 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (смена монитора)</string>
     <string name="toggle_pan_zoom_mode">Переключить режим прокрутки/масш.</string>
     <string name="pan_zoom_mode_enabled">Режим прокрутки/масш. включён</string>
+    <string name="perf_overlay_ai_delegate">Делегат:</string>
     <string name="perf_overlay_lite_decoder">Декодер: %1$s</string>
     <string name="title_import_keyboard_layout">Импорт раскладки клавиатуры</string>
     <string name="title_export_keyboard_layout">Экспорт раскладки клавиатуры</string>
@@ -378,7 +380,9 @@
     <string name="title_custom_refresh_rate">Пользовательская частота обновления</string>
     <string name="summary_custom_refresh_rate">Введите частоту вручную. Поддерживается только Apollo.</string>
     <string name="dialog_custom_refresh_rate">Введите частоту в Гц. Может быть дробной.</string>
+    <string name="title_render_mode_strength_description">Справка: 50 - Выше значение: эффект выраженнее, но возможна нагрузка на глаза и неестественное изображение. Ниже значение: комфорт для глаз и более плавное восприятие.</string>
     <string name="title_touchscreen_mode">Режим сенсора</string>
+    <string name="summary_render_mode">По умолчанию 2D или SBS 3D. В режиме 3D ширина изображения будет автоматически удвоена с добавлением эффекта, настройка не требуется. Преобразование 2D в 3D с помощью ИИ.</string>
     <string name="summary_touchscreen_mode">Выберите режим Мультитач / Одиночное касание / Трекпад / Выключено.\nПеро/стилус остаются работоспособны при Выключено.\nНа внешнем дисплее принудительно Трекпад (Natural).</string>
     <string name="title_checkbox_mouse_local_cursor">Использовать локальный курсор мыши</string>
     <string name="summary_checkbox_mouse_local_cursor">Захватывается внешний курсор физической мыши. Данная опция позволяет отображать системный курсор Android.</string>
@@ -507,6 +511,7 @@
     <string name="summary_checkbox_enable_sticky_modifier_key_virtual_keyboard">Использовать фиксированные модификаторы на полноэкранной и пользовательской клавиатурах.</string>
     <string name="virtual_keyboard_hide">Скрыть\nКЛАВ</string>
     <string name="mouse_mode_multi_touch">Мультитач</string>
+    <string name="render_mode_3d_sbs_movie">AI SBS 3D Фильм (Синхронизированно)</string>
     <string name="mouse_mode_absolute_touch">Абсолютный ввод</string>
     <string name="mouse_mode_track_pad_natural">Трекпад (Natural/Двойной тап для перетаскивания)</string>
     <string name="mouse_mode_track_pad_gaming">Трекпад (Gaming/Долгое нажатие для перетаскивания)</string>
@@ -639,6 +644,7 @@
     <string name="profile_manager_active_profile">Активный профиль: %s</string>
     <string name="rename">Переименовать</string>
     <string name="save">Сохранить</string>
+    <string name="perf_overlay_drawdelay">" Задержка: %1$.2f мс"</string>
     <string name="email_prefix_message">"\n        Пожалуйста отправьте это письмо как есть на artemistics.logs@gmail.com чтобы поддержать сообщество. \n\n        Ваши данные о производительности помогут улучшить и расширить набор данных по ссылке: \n\n        https://tinyurl.com/artemis-performance       "</string>
     <string name="title_checkbox_remember_mouse_mode">Запоминать режим мыши</string>
     <string name="title_enable_rumble">Включить вибрацию</string>
@@ -661,4 +667,13 @@
     <string name="category_perf_monitor_settings">Монитор производительности</string>
     <string name="title_low_latency_frame_balance">LFR (эксперементально)</string>
     <string name="title_checkbox_forceTightThresholds">Агрессивная вертикальная синхронизация (эксперементально)</string>
+    <string name="title_render_mode">Режим рендеринга</string>
+    <string name="title_render_mode_convergence_title">3D конвергенция</string>
+    <string name="title_render_mode_convergence_description">Справка: 50 - Сбалансировано / 0: Перед экраном / 100 - За экраном</string>
+    <string name="title_render_mode_balance_shift_title">Баланс глаз 3D</string>
+    <string name="title_render_mode_balance_shift_description">Справка: 50 - Оба глаза делят эффект глубины 50/50 (объём/удаление) / 0: Левый (100% Объём) - Правый (100% Удаление) / 100: Левый Удаление - Правый Объём // Значения 100 или 0 обеспечивают максимальную чёткость, так как один пиксель остаётся неизменным для другого глаза</string>
+    <string name="title_render_mode_strength_title">Сила 3D-эффекта</string>
+    <string name="render_mode_2d">По умолчанию 2D</string>
+    <string name="title_checkbox_full_screen">Включить полноэкранный режим</string>
+    <string name="summary_checkbox_full_screen">Скрывать системные панели в режиме погружения</string>
 </resources>
