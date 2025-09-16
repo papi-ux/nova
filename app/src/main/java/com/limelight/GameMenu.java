@@ -107,6 +107,7 @@ public class GameMenu implements Game.GameMenuCallbacks {
 
     private void showMenuDialog(String title, MenuOption[] options) {
         int themeResId = game.getApplicationInfo().theme;
+
         Context themedContext = new ContextThemeWrapper(dialogScreenContext, themeResId);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
         builder.setTitle(title);
@@ -243,7 +244,6 @@ public class GameMenu implements Game.GameMenuCallbacks {
 
     private void showAdvancedMenu(GameInputDevice device) {
         List<MenuOption> options = new ArrayList<>();
-
         if (game.allowChangeMouseMode) {
             options.add(new MenuOption(getString(R.string.game_menu_select_mouse_mode), true, () -> game.selectMouseMode(dialogScreenContext)));
         }

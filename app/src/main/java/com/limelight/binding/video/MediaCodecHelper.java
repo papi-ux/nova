@@ -871,7 +871,7 @@ public class MediaCodecHelper {
         }
 
         // TODO: Test some AV1 decoders
-        return false;
+        return true;
     }
 
     @SuppressWarnings("deprecation")

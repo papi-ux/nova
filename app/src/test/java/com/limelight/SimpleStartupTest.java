@@ -64,7 +64,7 @@ public class SimpleStartupTest {
             assertNotNull("ProfilesManager should be initialized", manager);
             assertNotNull("Profiles list should be initialized", manager.getProfiles());
 
-            System.out.println("SUCCESS: Application startup no longer crashes!");
+            LimeLog.info("SUCCESS: Application startup no longer crashes!");
         } catch (Exception e) {
             fail("Application onCreate should not crash after fix: " + e.getMessage());
         }

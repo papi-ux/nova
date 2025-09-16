@@ -162,7 +162,16 @@
         <item>OSC_Keyboard_4</item>
         <item>OSC_Keyboard_5</item>
     </string-array>
-
+    <string-array name="render_mode_names">
+        <item>@string/render_mode_2d</item>
+        <item>@string/render_mode_3d_sbs</item>
+        <item>@string/render_mode_3d_sbs_movie</item>
+    </string-array>
+    <string-array name="render_mode_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
     <string-array name="mouse_mode_names">
         <item>@string/mouse_mode_multi_touch</item>
         <item>@string/mouse_mode_absolute_touch</item>

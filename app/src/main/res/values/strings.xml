@@ -133,6 +133,7 @@
     <string name="perf_overlay_netdrops">Frames dropped by your network connection: %1$.2f%%</string>
     <string name="perf_overlay_netlatency">Average network latency: %1$d ms (variance: %2$d ms)</string>
     <string name="perf_overlay_dectime">Average decoding time: %1$.2f ms</string>
+    <string name="perf_overlay_drawdelay"> Delay: %1$.2f ms</string>
 
     <!-- Performance Report Sharing -->
     <string name="email_prefix_message">
@@ -370,6 +371,7 @@
     <string name="game_menu_toggle_hud">Toggle Performance Overlay</string>
     <string name="game_menu_toggle_floating_button">Toggle Floating Button</string>
     <string name="game_menu_select_mouse_mode">Select Mouse mode</string>
+    <string name="game_menu_select_steam_mode">Select Stream mode</string>
     <string name="game_menu_enable_zoom_mode">Enable Pan/Zoom</string>
     <string name="game_menu_disable_zoom_mode">Disable Pan/Zoom</string>
     <string name="game_menu_rotate_screen">Rotate Screen</string>
@@ -416,6 +418,9 @@
     <string name="perf_overlay_lite_netdrops">%1$.2f%%</string>
     <string name="perf_overlay_lite_streamdetails">%1$s</string>
     <string name="perf_overlay_lite_fps">%1$.2f</string>
+    <string name="perf_overlay_drawn_fps">GpuFPS:</string>
+    <string name="perf_overlay_ai_fps">3DFPS:</string>
+    <string name="perf_overlay_ai_delegate">Delegate:</string>
     <string name="perf_overlay_lite_decoder">Decoder: %1$s</string>
     <string name="title_import_keyboard_layout">Import keyboard layout</string>
     <string name="title_export_keyboard_layout">Export keyboard layout</string>
@@ -427,9 +432,16 @@
     <string name="title_custom_refresh_rate">Custom refresh rate</string>
     <string name="summary_custom_refresh_rate">Enter refresh rate manually. Only supports Apollo.</string>
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
+    <string name="title_render_mode">Render Mode</string>
+    <string name="title_render_mode_convergence_title">3D Convergence</string>
+    <string name="title_render_mode_convergence_description">Reference: 50 - Balanced / 0: InFrontOfScreen /  100 - BehindOfScreen</string>
+    <string name="title_render_mode_balance_shift_title">3D Eye Balance</string>
+    <string name="title_render_mode_balance_shift_description">Reference: 50 - Both eyes share 50% depth far/pop depth effect / 0: Left (100% Pop) - Right (100% Far) /  100 - Left Far - Right Pop // 100 or 0 provide best sharpness as one pixel always exist unshifted on the other eye </string>
+    <string name="title_render_mode_strength_title">3D Effect Strength</string>
+    <string name="title_render_mode_strength_description">Reference: 50 - Higher more effect, but maybe strain on eyes and unnatural. Lower, easier on eyes and smoother expierence.</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
+    <string name="summary_render_mode">Default 2D or SBS 3D. 3D will simply double your width and add the effect automatically, no setup required. AI 2D to 3D conversion </string>
     <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
-
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
     <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>
@@ -548,7 +560,7 @@
     <string name="summary_checkbox_enforce_display_mode">Force surface to use the optimal display mode.\nRequired by some systems (such as ColorOS) to set refresh rate/resolution properly.\nDo not enable on ChromeCast 4K as it might lead to bugs.</string>
     <string name="title_checkbox_ultra_low_latency">Ultra Low Latency (experimental)</string>
     <string name="summary_checkbox_ultra_low_latency">Only effective for SD8Gen2/8(s)Gen3/8Elite and MTK devices.</string>
-    <string name="title_checkbox_forceTightThresholds">Tight Vsync (Experimental)</string>
+   	<string name="title_checkbox_forceTightThresholds">Tight Vsync (Experimental)</string>
     <string name="summary_checkbox_forceTightThresholds">Tighter VSYNC thresholds for lower latency; may increase drops.</string>
     <string name="title_checkbox_use_virtual_display">Use Virtual Display</string>
     <string name="summary_checkbox_use_virtual_display">Use Virtual Display by default.\nVirtual Display can automatically match your client side resolution and frame rate settings, giving you a seamless streaming experience.\nRequires Apollo as host streaming software.</string>
@@ -558,6 +570,9 @@
     <string name="summary_checkbox_enable_sticky_modifier_key_virtual_keyboard">Use sticky modifier keys on virtual full keyboard and custom onscreen keyboard.</string>
     <string name="virtual_keyboard_hide">Hide\nKBD</string>
     <string name="mouse_mode_multi_touch">Multi touch</string>
+    <string name="render_mode_2d">Default 2D</string>
+    <string name="render_mode_3d_sbs">AI SBS 3D</string>
+    <string name="render_mode_3d_sbs_movie">AI SBS 3D Movie (Synced)</string>
     <string name="mouse_mode_absolute_touch">Absolute touch</string>
     <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
     <string name="mouse_mode_track_pad_gaming">Track pad(Gaming/Long press to drag)</string>
@@ -710,17 +725,8 @@
     <string name="save">Save</string>
     <string name="title_low_latency_frame_balance">LFR (Experimental)</string>
     <string name="summary_low_latency_frame_balance">Minimizes delay by dropping queued frames.</string>
-    <string name="category_perf_charts">Performance Charts</string>
-    <string name="desc_chart_latency">Network latency chart</string>
-    <string name="desc_chart_decode">Decode time chart</string>
-    <string name="desc_chart_fps">FPS chart</string>
-    <string name="title_enable_perf_charts">Enable performance charts</string>
-    <string name="summary_enable_perf_charts">Show time-series charts in the in-game performance overlay</string>
-    <string name="title_perf_chart_latency">Chart: Network latency</string>
-    <string name="summary_perf_chart_latency">Plot average network latency (ms)</string>
-    <string name="title_perf_chart_decode">Chart: Decode time</string>
-    <string name="summary_perf_chart_decode">Plot video decoder time per frame (ms)</string>
-    <string name="title_perf_chart_fps">Chart: FPS</string>
-    <string name="summary_perf_chart_fps">Plot incoming/rendered frames per second</string>
     <string name="category_perf_monitor_settings">Performance Monitor</string>
+
+    <string name="title_checkbox_full_screen">Enable Full Screen</string>
+    <string name="summary_checkbox_full_screen">Hide system bars with immersive mode</string>
 </resources>

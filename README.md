@@ -45,6 +45,7 @@ If you switch back to the main stream version, you'll be missing the following a
 28. Virtual Display integration with [Apollo](https://github.com/ClassicOldSong/Apollo)
 29. Server Command integration with [Apollo](https://github.com/ClassicOldSong/Apollo)
 30. Clipboard sync (requires Apollo)
+31. SBS 3D for external Displays (Using AI MiDaS v2 Lite)
 
 # Disclaimer
 
