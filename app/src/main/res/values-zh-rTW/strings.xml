@@ -625,11 +625,11 @@
 	<string name="render_mode_2d">預設 2D</string>
 	<string name="render_mode_3d_sbs">AI SBS 3D</string>
 	<string name="render_mode_3d_sbs_movie">AI SBS 3D 電影（同步）</string>
-	<string name="mouse_mode_absolute_touch">絕對觸控</string>
+	<string name="mouse_mode_absolute_touch">單點觸控</string>
 	<string name="mouse_mode_track_pad_natural">觸控板（自然/雙擊拖曳）</string>
 	<string name="mouse_mode_track_pad_gaming">觸控板（遊戲/長按拖曳）</string>
 	<string name="mouse_mode_disabled">停用</string>
-	<string name="mouse_mode_absolute_touch_swapped">絕對觸控（左右鍵對調）</string>
+	<string name="mouse_mode_absolute_touch_swapped">單點觸控（左右鍵對調）</string>
 
 	<string name="keyboard_layout_set_1">設定檔 1</string>
 	<string name="keyboard_layout_set_2">設定檔 2</string>
