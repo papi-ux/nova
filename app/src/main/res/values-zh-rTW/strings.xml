@@ -442,7 +442,7 @@
 	<string name="title_render_mode_balance_shift_title">3D 視覺平衡</string>
 	<string name="title_render_mode_balance_shift_description">參考值：50 - 雙眼各分擔 50% 的深度效果；0：左眼（100% 凸出）- 右眼（100% 不變）；100：左眼不變、右眼凸出。將數值設為 0 或 100 可獲得更清晰的成像，因為總有一側像素保持未偏移</string>
 	<string name="title_render_mode_strength_title">3D 效果強度</string>
-	<string name="title_render_mode_strength_description">參考值：50。數值越高效果越強，但可能造成眼睛疲勞且不自然；值越低更護眼，體驗更柔和。</string>
+	<string name="title_render_mode_strength_description">參考值：50。數值越高效果越強，但可能造成眼睛疲勞且不自然；數值越低更護眼，體驗更柔和。</string>
 
 	<string name="title_touchscreen_mode">觸控螢幕模式</string>
 	<string name="summary_render_mode">預設為 2D 或 SBS 3D。3D 會自動加倍寬度並套用效果，無需設定。支援 AI 2D 轉 3D。</string>
