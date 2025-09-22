@@ -228,7 +228,7 @@
 	<string name="summary_seekbar_vibrate_fallback_strength">放大或降低裝置上的震動強度</string>
 	<string name="suffix_seekbar_vibrate_fallback_strength">%</string>
 	<string name="title_seekbar_deadzone">調整類比搖桿死區</string>
-	<string name="summary_seekbar_deadzone">正值設定一般死區，負值則套用死區補償。使用死區補償時，請確保您的控制器可調整死區，否則可能難以保持置中。</string>
+	<string name="summary_seekbar_deadzone">正值設定一般死區，負值則套用死區補償。使用死區補償時，請確保您的手把可調整死區，否則可能難以保持置中。</string>
 	<string name="suffix_seekbar_deadzone">%</string>
 	<string name="title_checkbox_xb1_driver">Xbox 360/One/Nintendo Pro USB 手把驅動程式</string>
 	<string name="summary_checkbox_xb1_driver">為不具原生 Xbox/Nintendo Pro 支援的裝置啟用內建 USB 驅動程式</string>
@@ -242,12 +242,12 @@
 	<string name="summary_checkbox_flip_face_buttons">對手把與螢幕控制將 A/B 與 X/Y 面板按鍵對調</string>
 	<string name="title_checkbox_gamepad_touchpad_as_mouse">一律以觸控板控制滑鼠</string>
 	<string name="summary_checkbox_gamepad_touchpad_as_mouse">即使以觸控板模擬手把，仍強制以手把觸控板輸入控制主機滑鼠。</string>
-	<string name="title_checkbox_gamepad_motion_sensors">允許使用手把動作感測器</string>
-	<string name="summary_checkbox_gamepad_motion_sensors">在以具動作感測器的手把進行模擬時，允許支援的主機請求動作感測資料。若遊戲未使用動作感測器，停用可略微降低耗電與網路用量。</string>
-	<string name="title_checkbox_gamepad_motion_fallback">模擬手把動作感測器支援</string>
-	<string name="summary_checkbox_gamepad_motion_fallback">若連接的手把或 Android 版本不支援手把感測器，則使用裝置內建的動作感測器。\n注意：啟用後，您的手把在主機上可能會被辨識為 PlayStation 控制器。</string>
-	<string name="title_checkbox_force_device_motion">一律使用裝置的動作感測器</string>
-	<string name="summary_checkbox_force_device_motion">即使控制器回報支援動作感測器，仍強制使用裝置內建的動作感測器。</string>
+	<string name="title_checkbox_gamepad_motion_sensors">允許使用手把陀螺儀</string>
+	<string name="summary_checkbox_gamepad_motion_sensors">在以具陀螺儀的手把進行模擬時，允許支援的主機請求陀螺儀資料。若遊戲未使用陀螺儀，停用可略微降低耗電與網路用量。</string>
+	<string name="title_checkbox_gamepad_motion_fallback">模擬手把陀螺儀支援</string>
+	<string name="summary_checkbox_gamepad_motion_fallback">若連接的手把或 Android 版本不支援手把陀螺儀，則使用裝置內建的陀螺儀。\n注意：啟用後，您的手把在主機上可能會被辨識為 PlayStation 手把。</string>
+	<string name="title_checkbox_force_device_motion">一律使用裝置的陀螺儀</string>
+	<string name="summary_checkbox_force_device_motion">即使手把支援陀螺儀，仍強制使用裝置內建的陀螺儀。</string>
 	<string name="title_enable_rumble">啟用震動回饋</string>
 	<string name="summary_enable_rumble">在支援的手把上啟用震動回饋。</string>
 	<string name="category_input_settings">輸入設定</string>
@@ -259,10 +259,10 @@
 	<string name="summary_checkbox_mouse_nav_buttons">啟用此選項可能導致部分裝置無法正常右鍵點擊</string>
 
 	<string name="category_on_screen_controls_settings">螢幕控制設定</string>
-	<string name="title_checkbox_show_onscreen_controls">顯示螢幕控制</string>
-	<string name="summary_checkbox_show_onscreen_controls">在觸控螢幕上顯示虛擬控制器覆蓋層</string>
-	<string name="title_hide_osc_when_has_gamepad">使用控制器時隱藏 OSC</string>
-	<string name="summary_hide_osc_when_has_gamepad">當連接實體控制器時隱藏 OSC</string>
+	<string name="title_checkbox_show_onscreen_controls">顯示螢幕控制按鍵</string>
+	<string name="summary_checkbox_show_onscreen_controls">在觸控螢幕上顯示虛擬手把</string>
+	<string name="title_hide_osc_when_has_gamepad">使用手把時隱藏虛擬手把</string>
+	<string name="summary_hide_osc_when_has_gamepad">當連接實體手把時隱藏虛擬手把</string>
 	<string name="title_checkbox_vibrate_osc">啟用震動</string>
 	<string name="summary_checkbox_vibrate_osc">讓裝置震動以模擬螢幕控制的震撼回饋</string>
 	<string name="title_only_l3r3">僅顯示 L3 與 R3</string>
@@ -310,8 +310,8 @@
 	<string name="summary_full_range">若您的裝置無法正確顯示全範圍影像內容，將導致明暗區域細節流失。</string>
 	<string name="title_prevent_packet_loss">防止封包遺失</string>
 	<string name="summary_prevent_packet_loss">若裝置因不明原因出現封包遺失，可嘗試啟用此選項。</string>
-	<string name="title_enable_perf_overlay">串流時顯示效能統計</string>
-	<string name="summary_enable_perf_overlay">串流時即時顯示效能資訊</string>
+	<string name="title_enable_perf_overlay">串流時顯示效能資訊</string>
+	<string name="summary_enable_perf_overlay">串流時顯示即時效能資訊</string>
 	<string name="title_enable_post_stream_toast">串流後顯示延遲訊息</string>
 	<string name="summary_enable_post_stream_toast">串流結束後顯示延遲資訊訊息</string>
 
@@ -328,7 +328,7 @@
 	<string name="title_performance_link">效能儀表板</string>
 
 	<!-- Toasts -->
-	<string name="toast_controller_type_changed">因動作感測器模擬，手把類型可能已變更</string>
+	<string name="toast_controller_type_changed">因陀螺儀模擬，手把類型可能已變更</string>
 
 	<!-- Array strings -->
 	<string name="resolution_360p">360p</string>
@@ -368,7 +368,7 @@
 
 	<!-- In Game menu -->
 	<string name="game_menu_toggle_keyboard">顯示軟體鍵盤</string>
-	<string name="game_menu_toggle_hud">切換效能覆蓋層</string>
+	<string name="game_menu_toggle_hud">切換即時效能資訊</string>
 	<string name="game_menu_toggle_floating_button">切換浮動按鈕</string>
 	<string name="game_menu_select_mouse_mode">選擇滑鼠模式</string>
 	<string name="game_menu_select_steam_mode">選擇串流模式</string>
@@ -376,13 +376,13 @@
 	<string name="game_menu_disable_zoom_mode">停用平移/縮放</string>
 	<string name="game_menu_rotate_screen">旋轉螢幕</string>
 	<string name="game_menu_toggle_keyboard_model">切換特殊按鍵</string>
-	<string name="game_menu_toggle_virtual_model">切換螢幕控制器</string>
+	<string name="game_menu_toggle_virtual_model">切換虛擬手把</string>
 	<string name="game_menu_toggle_virtual_keyboard_model">切換螢幕完整鍵盤</string>
 	<string name="game_menu_switch_touch_sensitivity_model">切換觸控靈敏度</string>
 
 
-	<string name="game_menu_toggle_mouse_on">啟用控制器滑鼠模擬</string>
-	<string name="game_menu_toggle_mouse_off">停用控制器滑鼠模擬</string>
+	<string name="game_menu_toggle_mouse_on">啟用手把滑鼠控制</string>
+	<string name="game_menu_toggle_mouse_off">停用手把滑鼠控制</string>
 	<string name="game_menu_disconnect">中斷連線</string>
 	<string name="game_menu_cancel">取消</string>
 	<string name="game_menu_task_manager">開啟工作管理員</string>
@@ -394,14 +394,14 @@
 	<string name="game_menu_send_keys_win">Win (Meta)</string>
 	<string name="game_menu_send_keys_win_d">Win + D</string>
 	<string name="game_menu_send_keys_alt_b">Alt + B</string>
-	<string name="game_menu_send_keys_win_g">Win + G (Xbox 遊戲列)</string>
+	<string name="game_menu_send_keys_win_g">Win + G (Xbox Game Bar)</string>
 	<string name="game_menu_send_keys_ctrl_alt_tab">Ctrl + Alt + Tab</string>
-	<string name="game_menu_send_keys_shift_tab">Shift + Tab (Steam 覆蓋層)</string>
+	<string name="game_menu_send_keys_shift_tab">Shift + Tab (Steam Overlay)</string>
 	<string name="game_menu_send_keys_alt_enter">Alt + Enter</string>
-	<string name="game_menu_send_keys_win_shift_left">Win + Shift + 左鍵（在桌面間移動應用程式）</string>
-	<string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q（電腦結束串流）</string>
-	<string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1（切換顯示器）</string>
-	<string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12（切換顯示器）</string>
+	<string name="game_menu_send_keys_win_shift_left">Win + Shift + 左鍵（在顯示器間移動應用程式）</string>
+	<string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl + Alt + Shift + Q（電腦結束串流）</string>
+	<string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl + Alt + Shift + F1（切換顯示器）</string>
+	<string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl + Alt + Shift + F12（切換顯示器）</string>
 
 	<string name="toggle_pan_zoom_mode">切換平移/縮放模式</string>
 	<string name="pan_zoom_mode_enabled">已啟用平移/縮放模式</string>
@@ -580,7 +580,7 @@
 	<string name="title_checkbox_back_as_meta">返回鍵作為 Meta</string>
 	<string name="summary_back_as_meta">在按下實體返回鍵時送出 Meta（Win）鍵。</string>
 	<string name="title_back_as_guide">返回鍵作為 Guide</string>
-	<string name="summary_back_as_guide">在控制器上按下返回鍵時送出 Guide（PS/HOME）按鍵。</string>
+	<string name="summary_back_as_guide">在手把上按下返回鍵時送出 Guide（PS/HOME）按鍵。</string>
 
 	<string name="title_checkbox_ignore_synth_events">忽略合成事件</string>
 	<string name="summary_ignore_synth_events">忽略 Android 系統發送的合成事件。可解決部分裝置上滑鼠點擊觸發其他意外按鍵的問題。\n啟用後，系統軟體鍵盤將無法使用。</string>
@@ -654,7 +654,7 @@
 	<string name="debug_info_no_vibrator">未在手把上偵測到震動裝置！</string>
 	<string name="debug_info_set_amplitude">設定振幅 0–255（僅對高品質震動有效）</string>
 	<string name="debug_info_name">名稱： </string>
-	<string name="debug_info_sensors">感測器： </string>
+	<string name="debug_info_sensors">陀螺儀： </string>
 	<string name="debug_info_no_relevant_driver">無（無相關驅動或不支援該手把）</string>
 	<string name="debug_info_no_api_below_android12">Android 12 以下無對應 API</string>
 	<string name="debug_info_vid_pid">VID_PID： </string>
@@ -757,7 +757,7 @@
 	<string name="summary_enable_commit_text">將軟體鍵盤的多字元輸入（手勢輸入、建議字詞、語音聽寫）轉送到主機。可能會影響依賴逐鍵輸入的遊戲。</string>
 	<string name="title_checkbox_remember_zoom_pan">記住縮放與平移</string>
 	<string name="summary_checkbox_remember_zoom_pan">在工作階段之間儲存縮放與平移位置</string>
-	<string name="title_checkbox_enable_perf_overlay_bottom">將覆蓋層移至底部</string>
+	<string name="title_checkbox_enable_perf_overlay_bottom">將效能資訊移至底部</string>
 	<string name="summary_checkbox_enable_perf_overlay_bottom">在非原生解析度串流、同時啟用「置頂置中顯示」與精簡模式時特別有用。</string>
 
 	<string name="title_edit_profile">編輯設定檔</string>
