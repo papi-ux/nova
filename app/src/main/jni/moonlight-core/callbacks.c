@@ -13,6 +13,7 @@
 static OpusMSDecoder* Decoder;
 static OPUS_MULTISTREAM_CONFIGURATION OpusConfig;
 
+
 static JavaVM *JVM;
 static pthread_key_t JniEnvKey;
 static pthread_once_t JniEnvKeyInitOnce = PTHREAD_ONCE_INIT;
@@ -32,6 +33,8 @@ static jmethodID BridgeClStageCompleteMethod;
 static jmethodID BridgeClStageFailedMethod;
 static jmethodID BridgeClConnectionStartedMethod;
 static jmethodID BridgeClConnectionTerminatedMethod;
+static jclass NovaNativeHookClass;
+static jmethodID NovaPreTerminationMethod;
 static jmethodID BridgeClRumbleMethod;
 static jmethodID BridgeClConnectionStatusUpdateMethod;
 static jmethodID BridgeClSetHdrModeMethod;
@@ -78,9 +81,9 @@ JNIEnv* GetThreadEnv(void) {
 }
 
 JNIEXPORT void JNICALL
-Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
+Java_com_papi_nova_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     (*env)->GetJavaVM(env, &JVM);
-    GlobalBridgeClass = (*env)->NewGlobalRef(env, (*env)->FindClass(env, "com/limelight/nvstream/jni/MoonBridge"));
+    GlobalBridgeClass = (*env)->NewGlobalRef(env, (*env)->FindClass(env, "com/papi/nova/nvstream/jni/MoonBridge"));
     BridgeDrSetupMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSetup", "(IIII)I");
     BridgeDrStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStart", "()V");
     BridgeDrStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStop", "()V");
@@ -102,6 +105,23 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeClRumbleTriggersMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClRumbleTriggers", "(SSS)V");
     BridgeClSetMotionEventStateMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetMotionEventState", "(SBS)V");
     BridgeClSetControllerLEDMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetControllerLED", "(SBBB)V");
+
+    // Nova: resolve the pre-termination hook (optional — graceful if class not found)
+    jclass hookClass = (*env)->FindClass(env, "com/papi/nova/jni/PolarisNativeHook");
+    if (hookClass && !(*env)->ExceptionCheck(env)) {
+        NovaNativeHookClass = (*env)->NewGlobalRef(env, hookClass);
+        NovaPreTerminationMethod = (*env)->GetStaticMethodID(env, NovaNativeHookClass,
+            "onPreTermination", "(I)Z");
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            NovaNativeHookClass = NULL;
+            NovaPreTerminationMethod = NULL;
+        }
+    } else {
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        NovaNativeHookClass = NULL;
+        NovaPreTerminationMethod = NULL;
+    }
 }
 
 int BridgeDrSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
@@ -204,6 +224,7 @@ int BridgeArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusCon
     JNIEnv* env = GetThreadEnv();
     int err;
 
+
     err = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeArInitMethod, audioConfiguration, opusConfig->sampleRate, opusConfig->samplesPerFrame);
     if ((*env)->ExceptionCheck(env)) {
         // This is called on a Java thread, so it's safe to return
@@ -304,6 +325,18 @@ void BridgeClConnectionStarted(void) {
 
 void BridgeClConnectionTerminated(int errorCode) {
     JNIEnv* env = GetThreadEnv();
+
+    // Nova: give the resilience manager a chance to absorb the error
+    if (NovaNativeHookClass && NovaPreTerminationMethod) {
+        jboolean absorbed = (*env)->CallStaticBooleanMethod(env,
+            NovaNativeHookClass, NovaPreTerminationMethod, errorCode);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+        } else if (absorbed) {
+            // Nova is handling the error (reconnect in progress)
+            return;
+        }
+    }
 
     (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeClConnectionTerminatedMethod, errorCode);
     if ((*env)->ExceptionCheck(env)) {
@@ -452,7 +485,7 @@ hasFastAes() {
 }
 
 JNIEXPORT jint JNICALL
-Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass clazz,
+Java_com_papi_nova_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass clazz,
                                                            jstring address, jstring appVersion, jstring gfeVersion,
                                                            jstring rtspSessionUrl, jint serverCodecModeSupport,
                                                            jint width, jint height, jint fps,

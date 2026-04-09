@@ -1,12 +1,17 @@
 <resources>
 
-    <!--
-        Base application theme for API 21+. This theme completely replaces
-        AppBaseTheme from BOTH res/values/styles.xml and
-        res/values-v21/styles.xml on API 21+ devices.
-    -->
     <style name="AppBaseTheme" parent="Theme.MaterialComponents.NoActionBar">
-        <!-- API 21 theme customizations can go here. -->
+        <item name="colorPrimary">@color/nova_accent</item>
+        <item name="colorPrimaryDark">@android:color/transparent</item>
+        <item name="colorAccent">@color/nova_accent</item>
+        <item name="colorSurface">@color/nova_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_text_secondary</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog</item>
     </style>
 
 </resources>

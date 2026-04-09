@@ -4,44 +4,67 @@
     <!--
         Base application theme, dependent on API level. This theme is replaced
         by AppBaseTheme from res/values-vXX/styles.xml on newer devices.
-
     -->
     <style name="AppBaseTheme" parent="Theme.MaterialComponents.NoActionBar">
-        <!--
-            Theme customizations available in newer API levels can go in
-            res/values-vXX/styles.xml, while customizations related to
-            backward-compatibility can go here.
-        -->
+        <item name="colorPrimary">@color/nova_accent</item>
+        <item name="colorPrimaryDark">@android:color/transparent</item>
+        <item name="colorAccent">@color/nova_accent</item>
+        <item name="colorSurface">@color/nova_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_text_secondary</item>
+        <!-- Dialog styling -->
+        <item name="alertDialogTheme">@style/NovaAlertDialog</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog</item>
+        <item name="android:contextPopupMenuStyle">@style/NovaPopupMenu</item>
     </style>
 
-    <!-- Application theme. -->
+    <!-- Nova Application Theme — Polaris (default: deep navy) -->
     <style name="AppTheme" parent="AppBaseTheme">
-        <!-- All customizations that are NOT specific to a particular API-level can go here. -->
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
-        <item name="android:statusBarColor">#1A1A1A</item>
-        <item name="android:navigationBarColor">#1A1A1A</item>
-        <item name="android:colorBackground">#1A1A1A</item>
-        <item name="android:windowBackground">#1A1A1A</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:colorBackground">@color/nova_bg_window</item>
+        <item name="android:windowBackground">@color/nova_bg_window</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+    </style>
+
+    <!-- Nova OLED Dark Galaxy Theme — pure black for OLED panels -->
+    <style name="AppTheme.OLED">
+        <item name="android:colorBackground">@color/nova_oled_bg_window</item>
+        <item name="android:windowBackground">@color/nova_oled_bg_window</item>
+        <item name="android:textColor">@color/nova_oled_text_primary</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="colorPrimary">@color/nova_oled_accent</item>
+        <item name="colorAccent">@color/nova_oled_accent</item>
+    </style>
+
+    <!-- Material You — uses system dynamic colors on Android 12+ -->
+    <style name="AppTheme.MaterialYou">
+        <item name="android:colorBackground">@color/nova_bg_window</item>
+        <item name="android:windowBackground">@color/nova_bg_window</item>
+        <!-- colorPrimary and colorAccent are overridden by DynamicColors.applyToActivityIfAvailable() -->
+    </style>
+
+    <style name="SettingsTheme.MaterialYou" parent="SettingsTheme">
+        <!-- colorPrimary and colorAccent are overridden by DynamicColors.applyToActivityIfAvailable() -->
     </style>
 
     <style name="StreamBaseTheme" parent="AppBaseTheme">
-        <!-- Transparent streaming background to avoid extra overdraw -->
         <item name="android:windowBackground">@android:color/transparent</item>
     </style>
 
     <!-- Stream activity theme -->
     <style name="StreamTheme" parent="StreamBaseTheme">
-        <!-- All customizations that are NOT specific to a particular API-level can go here. -->
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
-        <!-- Added for API 34+ where ImageButton requires these color attrs to inflate -->
         <item name="android:colorControlNormal">@android:color/white</item>
         <item name="android:colorControlHighlight">@android:color/white</item>
         <item name="android:colorAccent">@android:color/white</item>
         <item name="android:colorControlActivated">@android:color/white</item>
         <item name="android:colorButtonNormal">@android:color/white</item>
-        <!-- Duplicate non-prefixed color attributes for AppCompat widgets -->
         <item name="colorControlNormal">@android:color/white</item>
         <item name="colorControlHighlight">@android:color/white</item>
         <item name="colorAccent">@android:color/white</item>
@@ -49,11 +72,45 @@
         <item name="colorButtonNormal">@android:color/white</item>
     </style>
 
-    <style name="SettingsTheme" parent="Theme.AppCompat.NoActionBar">
+    <!-- Settings OLED variant -->
+    <style name="SettingsTheme.OLED" parent="SettingsTheme">
+        <item name="android:colorBackground">@color/nova_oled_bg_window</item>
+        <item name="android:windowBackground">@color/nova_oled_bg_window</item>
+        <item name="android:textColorPrimary">@color/nova_oled_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_oled_text_secondary</item>
+        <item name="colorPrimary">@color/nova_oled_accent</item>
+        <item name="colorAccent">@color/nova_oled_accent</item>
+        <item name="colorSurface">@color/nova_oled_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_oled_text_primary</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+    </style>
+
+    <style name="SettingsTheme" parent="Theme.MaterialComponents.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:colorBackground">@android:color/transparent</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackground">@color/nova_bg_window</item>
+        <item name="android:windowBackground">@color/nova_bg_window</item>
+        <item name="colorPrimary">@color/nova_accent</item>
+        <item name="colorAccent">@color/nova_accent</item>
+        <item name="colorSurface">@color/nova_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_text_secondary</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog</item>
+        <item name="preferenceTheme">@style/NovaPreferenceTheme</item>
+    </style>
+
+    <!-- Nova preference category/item styling -->
+    <style name="NovaPreferenceTheme" parent="PreferenceThemeOverlay">
+        <item name="android:textColorPrimary">@color/nova_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_text_secondary</item>
+        <item name="preferenceCategoryStyle">@style/NovaPrefCategory</item>
+    </style>
+
+    <style name="NovaPrefCategory" parent="Preference.Category">
+        <item name="android:textColor">@color/nova_accent</item>
     </style>
 
     <style name="ExternalDisplayControllerTheme" parent="AppTheme">
@@ -61,6 +118,27 @@
         <item name="android:navigationBarColor">@android:color/black</item>
         <item name="android:colorBackground">@android:color/black</item>
         <item name="android:windowBackground">@android:color/black</item>
+    </style>
+
+    <!-- Nova dialog theme -->
+    <style name="NovaAlertDialog" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <item name="android:background">@color/nova_dialog_bg</item>
+        <item name="android:windowBackground">@color/nova_dialog_bg</item>
+        <item name="android:textColorPrimary">@color/nova_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_text_secondary</item>
+        <item name="colorAccent">@color/nova_accent</item>
+        <item name="buttonBarPositiveButtonStyle">@style/NovaDialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/NovaDialogButton</item>
+        <item name="buttonBarNeutralButtonStyle">@style/NovaDialogButton</item>
+    </style>
+
+    <style name="NovaDialogButton" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/nova_accent</item>
+    </style>
+
+    <!-- Nova popup/context menu -->
+    <style name="NovaPopupMenu" parent="Widget.MaterialComponents.PopupMenu">
+        <item name="android:popupBackground">@color/nova_context_bg</item>
     </style>
 
     <declare-styleable name="ApertureViewGroup">
@@ -71,5 +149,59 @@
         <attr name="aperture_duration" format="integer" />
         <attr name="aperture_middle_color" format="color" />
     </declare-styleable>
+
+    <!-- Nova game library filter chips -->
+    <style name="NovaFilterChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:paddingStart">18dp</item>
+        <item name="android:paddingEnd">18dp</item>
+        <item name="android:layout_marginEnd">10dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:background">@drawable/nova_badge_bg</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <!-- Nova bottom sheet -->
+    <style name="NovaBottomSheet" parent="Theme.MaterialComponents.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/NovaBottomSheetStyle</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/nova_bg_window</item>
+        <item name="android:colorBackground">@android:color/transparent</item>
+    </style>
+
+    <style name="NovaBottomSheetStyle" parent="Widget.MaterialComponents.BottomSheet.Modal">
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="shapeAppearanceOverlay">@style/NovaBottomSheetShape</item>
+    </style>
+
+    <style name="NovaBottomSheetShape" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeTopRight">24dp</item>
+    </style>
+
+    <!-- Nova quick menu hotkey button -->
+    <style name="NovaQuickKey" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">38dp</item>
+        <item name="android:layout_margin">3dp</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/nova_ice</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">6dp</item>
+        <item name="android:paddingEnd">6dp</item>
+        <item name="strokeColor">@color/nova_divider</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="backgroundTint">@color/nova_accent_surface</item>
+        <item name="rippleColor">@color/nova_accent_glow</item>
+    </style>
 
 </resources>

@@ -42,7 +42,7 @@
         Usare un software di desktop remoto può causare questo errore. Prova a riavviare il PC o a reinstallare GFE.
     </string>
     <string name="title_decoding_error">Il decodificatore video ha smesso di funzionare</string>
-    <string name="message_decoding_error">Moonlight ha smesso di funzionare per colpa di un problema al decodificatore video di questo dispositivo. Prova a modificare le impostazioni di stream se il problema persiste.</string>
+    <string name="message_decoding_error">Nova ha smesso di funzionare per colpa di un problema al decodificatore video di questo dispositivo. Prova a modificare le impostazioni di stream se il problema persiste.</string>
     <string name="title_decoding_reset">Ripristino impostazioni video</string>
     <string name="message_decoding_reset">Il decodificatore video del dispositivo continua a funzionare in modo anomalo con le impostazioni di streaming selezionate. Le impostazioni di streaming sono state ripristinate ai valori predefiniti.</string>
     <string name="error_usb_prohibited">L\'accesso USB è vietato dall\'amministratore del dispositivo. Verifica le impostazioni Knox o MDM.</string>
@@ -108,7 +108,7 @@
     <string name="title_checkbox_xb1_driver">Driver del controller Xbox 360/One</string>
     <string name="summary_checkbox_xb1_driver">Abilita un driver USB integrato per dispositivi senza supporto al controller Xbox nativo</string>
     <string name="title_checkbox_usb_bind_all">Sovrascrivi il supporto ai controller su Android</string>
-    <string name="summary_checkbox_usb_bind_all">Forza i driver USB di Moonlight di assumere il controllo su tutti i controller Xbox supportati</string>
+    <string name="summary_checkbox_usb_bind_all">Forza i driver USB di Nova di assumere il controllo su tutti i controller Xbox supportati</string>
     <string name="title_checkbox_mouse_emulation">Emulazione del mouse tramite controller</string>
     <string name="summary_checkbox_mouse_emulation">Tenendo premuto il pulsante Start, il controller passerà alla modalità mouse</string>
     <string name="category_on_screen_controls_settings">Impostazioni dei controlli a schermo</string>
@@ -123,7 +123,7 @@
     <string name="toast_reset_osc_success">I controlli a schermo sono stati ripristinati</string>
     <string name="category_ui_settings">Impostazioni dell\'interfaccia</string>
     <string name="title_language_list">Lingua</string>
-    <string name="summary_language_list">Lingua da usare in Moonlight</string>
+    <string name="summary_language_list">Lingua da usare in Nova</string>
     <string name="title_checkbox_small_icon_mode">Usa icone piccole</string>
     <string name="summary_checkbox_small_icon_mode">Usa icone piccole nella griglia per avere più oggetti a schermo</string>
     <string name="category_host_settings">Impostazioni del PC host</string>
@@ -162,14 +162,14 @@
     <string name="perf_overlay_dectime">Tempo medio di decodifica: %1$.2f ms</string>
     <string name="perf_overlay_streamdetails">Flusso video: %1$s %2$.2f FPS</string>
     <string name="nettest_title_waiting">Prova della Connessione di Rete</string>
-    <string name="nettest_text_waiting">Moonlight sta testando la tua connessione di rete per controllare se ogni porta richiesta sia bloccata.
+    <string name="nettest_text_waiting">Nova sta testando la tua connessione di rete per controllare se ogni porta richiesta sia bloccata.
 \n
 \nPotrebbero volerci alcuni secondi…</string>
     <string name="nettest_title_done">Test della Rete Completato</string>
-    <string name="nettest_text_inconclusive">Il test della rete non è stato effettuato perché nessuno dei server per il test della connessione di Moonlight era raggiungibile. Controlla la tua connessione ad Internet o riprova più tardi.</string>
-    <string name="nettest_text_success">La tua rete non sembra bloccare Moonlight. Se hai ancora problemi di connessione, controlla le impostazioni del firewall del PC.
+    <string name="nettest_text_inconclusive">Il test della rete non è stato effettuato perché nessuno dei server per il test della connessione di Nova era raggiungibile. Controlla la tua connessione ad Internet o riprova più tardi.</string>
+    <string name="nettest_text_success">La tua rete non sembra bloccare Nova. Se hai ancora problemi di connessione, controlla le impostazioni del firewall del PC.
 \n
-\nSe stai cercando di trasmettere via Internet, installa il Moonlight Internet Hosting Tool sul tuo PC ed avvia il Test per la trasmissione via Internet incluso per controllare la connessione ad Internet del tuo PC.</string>
+\nSe stai cercando di trasmettere via Internet, installa il Nova Internet Hosting Tool sul tuo PC ed avvia il Test per la trasmissione via Internet incluso per controllare la connessione ad Internet del tuo PC.</string>
     <string name="title_checkbox_vibrate_osc">Abilita vibrazione</string>
     <string name="title_audio_config_list">Configurazione suono surround</string>
     <string name="title_checkbox_touchscreen_trackpad">Usa lo schermo touch come un trackpad</string>
@@ -214,11 +214,11 @@
     <string name="title_frame_pacing">Bilanciamento frame video</string>
     <string name="summary_frame_pacing">Specifica come bilanciare il ritardo video e la fluidità</string>
     <string name="summary_enable_perf_overlay">Mostra informazioni real time sulla trasmissione</string>
-    <string name="nettest_text_failure">Sembra che l\'attuale connessione di rete del tuo dispositivo stia bloccando Moonlight. Trasmettere via Internet potrebbe non funzionare mentre sei connesso a questa rete.
+    <string name="nettest_text_failure">Sembra che l\'attuale connessione di rete del tuo dispositivo stia bloccando Nova. Trasmettere via Internet potrebbe non funzionare mentre sei connesso a questa rete.
 \n
 \nQueste porte di rete sono bloccate:
 \n</string>
-    <string name="nettest_text_blocked">L\'attuale connessione di rete del tuo dispositivo sta bloccando Moonlight. Trasmettere via Internet potrebbe non funzionare mentre sei connesso a questa rete.</string>
+    <string name="nettest_text_blocked">L\'attuale connessione di rete del tuo dispositivo sta bloccando Nova. Trasmettere via Internet potrebbe non funzionare mentre sei connesso a questa rete.</string>
     <string name="unable_to_pin_shortcut">Il tuo launcher non permette la creazione di scorciatoie appuntate.</string>
     <string name="video_decoder_init_failed">Il decoder video non è riuscito ad inizializzarsi. Il tuo dispositivo potrebbe non supportare la risoluzione o il frame rate selezionati.</string>
     <string name="check_ports_msg">Controlla il tuo firewall e le regole di inoltro delle seguenti porte:</string>
@@ -244,14 +244,14 @@
     <string name="category_help">Aiuto</string>
     <string name="title_setup_guide">Guida configurazione</string>
     <string name="pacing_balanced_alt">Bilanciato con il limite FPS</string>
-    <string name="summary_seekbar_deadzone">Nota: Alcuni giochi possono imporre una deadzone più grande di quella che Moonlight è configurato per utilizzare.</string>
+    <string name="summary_seekbar_deadzone">Nota: Alcuni giochi possono imporre una deadzone più grande di quella che Nova è configurato per utilizzare.</string>
     <string name="title_checkbox_absolute_mouse_mode">Modalità mouse desktop remoto</string>
     <string name="summary_checkbox_absolute_mouse_mode">Questo può rendere l\'accelerazione del mouse più naturale per l\'utilizzo del desktop remoto, ma è incompatibile con molti giochi.</string>
     <string name="summary_setup_guide">Visualizza le istruzioni su come configurare il tuo PC da gaming per lo streaming</string>
     <string name="title_troubleshooting">Guida alla risoluzione dei problemi</string>
     <string name="title_privacy_policy">Informativa sulla privacy</string>
     <string name="summary_troubleshooting">Visualizza i suggerimenti per la diagnosi e la risoluzione dei problemi di streaming più comuni</string>
-    <string name="summary_privacy_policy">Visualizza l\'informativa sulla privacy di Moonlight</string>
+    <string name="summary_privacy_policy">Visualizza l\'informativa sulla privacy di Nova</string>
     <string name="frame_conversion_error">Il PC host ha segnalato un errore fatale di codifica video.
 \n
 \nProva a disabilitare la modalità HDR, modificare la risoluzione dello streaming o la risoluzione del display del tuo PC host.</string>

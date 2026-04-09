@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- QR code pattern -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9.5,6.5v3h-3v-3H9.5M11,5H5v6h6V5L11,5zM9.5,14.5v3h-3v-3H9.5M11,13H5v6h6V13L11,13zM17.5,6.5v3h-3v-3H17.5M19,5h-6v6h6V5L19,5zM13,13h1.5v1.5H13V13zM14.5,14.5H16V16h-1.5V14.5zM16,13h1.5v1.5H16V13zM13,16h1.5v1.5H13V16zM14.5,17.5H16V19h-1.5V17.5zM16,16h1.5v1.5H16V16zM17.5,14.5H19V16h-1.5V14.5zM17.5,17.5H19V19h-1.5V17.5z" />
+    <!-- Viewfinder corners -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M3,11H1V3h2V11zM9,1H1v2h8V1zM23,3h-8V1h8V3zM23,11h-2V3h2V11zM1,21h2v-8H1V21zM9,23H1v-2h8V23zM23,21h-2v-8h2V21zM23,23h-8v-2h8V23z" />
+</vector>

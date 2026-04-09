@@ -102,7 +102,7 @@
     <string name="summary_checkbox_show_onscreen_controls">터치스크린에 가상 컨트롤러 오버레이를 표시합니다</string>
     <string name="category_ui_settings">UI 설정</string>
     <string name="title_language_list">언어</string>
-    <string name="summary_language_list">Moonlight에서 사용할 언어를 선택합니다</string>
+    <string name="summary_language_list">Nova에서 사용할 언어를 선택합니다</string>
     <string name="title_checkbox_small_icon_mode">작은 아이콘 사용</string>
     <string name="summary_checkbox_small_icon_mode">한 화면에서 더 많은 게임을 볼 수 있게 게임을 더 작게 표시합니다</string>
     <string name="category_host_settings">호스트 설정</string>
@@ -129,7 +129,7 @@
 \n
 \n화면 설정과 일치하도록 NVIDIA 제어판에서 사용자 정의 해상도를 생성 할 경우 모니터 손상, PC 불안정 및 기타 잠재적인 문제에 대한 NVIDIA의 경고를 읽고 이해했는지 확인하십시오.
 \n
-\nMoonlight는 PC에서 사용자 지정 해상도를 생성하여 발생하는 문제에 대해 책임을 지지 않습니다.
+\nNova는 PC에서 사용자 지정 해상도를 생성하여 발생하는 문제에 대해 책임을 지지 않습니다.
 \n
 \n모니터가 필요한 디스플레이 구성을 지원하지 않을 경우 가상 모니터 설정을 시도할 수 있습니다. 장치나 호스트 PC가 특정 해상도나 새로 고침 빈도로 스트리밍을 지원하지 않을 수 있습니다.</string>
     <string name="title_native_res_dialog">네이티브 해상도 주의사항</string>
@@ -159,19 +159,19 @@
     <string name="error_usb_prohibited">기기 관리자에 의해 USB 액세스가 차단되었습니다. Knox 또는 MDM 설정을 확인하십시오.</string>
     <string name="message_decoding_reset">선택한 스트리밍 설정에서 장치의 비디오 디코더가 계속 문제가 발생합니다. 스트리밍 설정이 기본값으로 재설정되었습니다.</string>
     <string name="title_decoding_reset">비디오 설정 초기화</string>
-    <string name="message_decoding_error">이 장치의 비디오 디코더와 호환되지 않아 Moonlight에서 오류가 발생했습니다. 충돌이 계속되면 스트리밍 설정을 조정 해보십시오.</string>
+    <string name="message_decoding_error">이 장치의 비디오 디코더와 호환되지 않아 Nova에서 오류가 발생했습니다. 충돌이 계속되면 스트리밍 설정을 조정 해보십시오.</string>
     <string name="title_decoding_error">비디오 디코더 오류</string>
-    <string name="nettest_text_blocked">기기의 현재 네트워크가 Moonlight를 차단하고 있습니다. 이 네트워크에 연결되어 있으면 인터넷을 통한 스트리밍이 작동하지 않을 수 있습니다.</string>
-    <string name="nettest_text_failure">기기의 현재 네트워크가 Moonlight를 차단하는 것 같습니다. 이 네트워크에 연결되어 있으면 인터넷을 통한 스트리밍이 작동하지 않을 수 있습니다.
+    <string name="nettest_text_blocked">기기의 현재 네트워크가 Nova를 차단하고 있습니다. 이 네트워크에 연결되어 있으면 인터넷을 통한 스트리밍이 작동하지 않을 수 있습니다.</string>
+    <string name="nettest_text_failure">기기의 현재 네트워크가 Nova를 차단하는 것 같습니다. 이 네트워크에 연결되어 있으면 인터넷을 통한 스트리밍이 작동하지 않을 수 있습니다.
 \n
 \n차단된 네트워크 포트:
 \n</string>
-    <string name="nettest_text_inconclusive">Moonlight의 테스트 서버에 연결할 수 없기 때문에 네트워크 테스트를 할 수 없습니다. 인터넷 연결을 확인하거나 나중에 다시 시도하십시오.</string>
-    <string name="nettest_text_success">네트워크가 Moonlight를 차단하지 않는 것 같습니다. 여전히 연결에 문제가 있으면 PC의 방화벽 설정을 확인하십시오
+    <string name="nettest_text_inconclusive">Nova의 테스트 서버에 연결할 수 없기 때문에 네트워크 테스트를 할 수 없습니다. 인터넷 연결을 확인하거나 나중에 다시 시도하십시오.</string>
+    <string name="nettest_text_success">네트워크가 Nova를 차단하지 않는 것 같습니다. 여전히 연결에 문제가 있으면 PC의 방화벽 설정을 확인하십시오
 \n
-\n인터넷을 통해 연결하려는 경우 PC에 Moonlight Internet Hosting Tool을 설치하고 Internet Streaming Tester를 실행하여 PC의 인터넷 연결을 확인하십시오.</string>
+\n인터넷을 통해 연결하려는 경우 PC에 Nova Internet Hosting Tool을 설치하고 Internet Streaming Tester를 실행하여 PC의 인터넷 연결을 확인하십시오.</string>
     <string name="nettest_title_done">네트워크 연결 테스트 완료</string>
-    <string name="nettest_text_waiting">Moonlight는 필요한 포트가 차단되었는지 확인하기 위해 네트워크 연결을 테스트하고 있습니다.
+    <string name="nettest_text_waiting">Nova는 필요한 포트가 차단되었는지 확인하기 위해 네트워크 연결을 테스트하고 있습니다.
 \n
 \n잠시 기다려 주세요…</string>
     <string name="pcview_menu_header_unknown">상태 확인중</string>
@@ -213,7 +213,7 @@
     <string name="summary_checkbox_mouse_nav_buttons">이 옵션을 활성화하면 일부 장치에서 오른쪽 클릭에 문제가 있을 수 있습니다</string>
     <string name="title_checkbox_mouse_nav_buttons">마우스 사이드버튼 활성화</string>
     <string name="summary_checkbox_mouse_emulation">패드의 Start 버튼을 길게 누르면 컨트롤러가 마우스 모드로 전환됩니다</string>
-    <string name="summary_checkbox_usb_bind_all">Xbox 컨트롤러를 기본으로 지원하는 경우에도 지원되는 모든 컨트롤러에 Moonlight의 USB 드라이버를 사용합니다</string>
+    <string name="summary_checkbox_usb_bind_all">Xbox 컨트롤러를 기본으로 지원하는 경우에도 지원되는 모든 컨트롤러에 Nova의 USB 드라이버를 사용합니다</string>
     <string name="title_checkbox_usb_bind_all">기본 Xbox 컨트롤러 지원 무시</string>
     <string name="title_checkbox_mouse_emulation">컨트롤러를 마우스처럼 사용하기</string>
     <string name="perf_overlay_streamdetails">비디오 스트림 : %1$s %2$.2f FPS</string>
@@ -238,7 +238,7 @@
     <string name="title_troubleshooting">문제 해결 가이드</string>
     <string name="summary_troubleshooting">일반적인 스트리밍 문제 진단 및 해결을 위한 팁 보기</string>
     <string name="title_privacy_policy">개인 정보 정책</string>
-    <string name="summary_privacy_policy">Moonlight의 개인 정보 보호 정책 보기</string>
+    <string name="summary_privacy_policy">Nova의 개인 정보 보호 정책 보기</string>
     <string name="summary_frame_pacing">비디오 지연 시간과 부드러움의 균형을 맞추는 방법 설정</string>
     <string name="pacing_latency">최저 지연 시간 선호</string>
     <string name="pacing_balanced">균형</string>

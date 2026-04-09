@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nova / Polaris Space Whale Palette -->
+    <color name="nova_void">#FF2a2840</color>
+    <color name="nova_deep">#FF393c51</color>
+    <color name="nova_twilight">#FF4c5265</color>
+    <color name="nova_storm">#FF687b81</color>
+    <color name="nova_silver">#FFa8b0b8</color>
+    <color name="nova_ice">#FFd4dde8</color>
+
+    <!-- Polaris theme (default) — deep navy -->
+    <color name="nova_bg_primary">#FF1a1a2e</color>
+    <color name="nova_bg_card">#CC232340</color>
+    <color name="nova_bg_elevated">#E6303050</color>
+    <color name="nova_bg_input">#FF232340</color>
+    <color name="nova_bg_window">#FF1a1a2e</color>
+
+    <!-- OLED Dark Galaxy theme overrides -->
+    <color name="nova_oled_bg_primary">#FF000000</color>
+    <color name="nova_oled_bg_card">#CC0a0a0e</color>
+    <color name="nova_oled_bg_elevated">#E60a0a0e</color>
+    <color name="nova_oled_bg_window">#FF000000</color>
+    <color name="nova_oled_bg_input">#FF0a0a0e</color>
+    <color name="nova_oled_dialog_bg">#FF0a0a0e</color>
+    <color name="nova_oled_context_bg">#FF101016</color>
+    <color name="nova_oled_divider">#FF1a1a22</color>
+    <color name="nova_oled_text_primary">#FFe0e6ed</color>
+    <color name="nova_oled_text_secondary">#FFa8b0b8</color>
+    <color name="nova_oled_text_muted">#FF555e66</color>
+    <color name="nova_oled_accent">#FF8b80ff</color>
+
+    <color name="nova_text_primary">#FFd4dde8</color>
+    <color name="nova_text_secondary">#FFa8b0b8</color>
+    <color name="nova_text_muted">#FF687b81</color>
+
+    <color name="nova_accent">#FF7c73ff</color>
+    <color name="nova_accent_glow">#336c63ff</color>
+    <color name="nova_accent_surface">#1A7c73ff</color>
+    <color name="nova_success">#FF4ade80</color>
+    <color name="nova_warning">#FFfbbf24</color>
+    <color name="nova_error">#FFf87171</color>
+
+    <color name="nova_divider">#FF393c51</color>
+    <color name="nova_ripple">#226c63ff</color>
+
+    <!-- Dialog / popup colors -->
+    <color name="nova_dialog_bg">#FF252545</color>
+    <color name="nova_context_bg">#FF2d2d4a</color>
+
+    <!-- Streaming overlays -->
+    <color name="nova_overlay_dark">#80000000</color>
+
+    <!-- Streaming states -->
+    <color name="nova_streaming">#FF4ade80</color>
+    <color name="nova_connecting">#FFfbbf24</color>
+    <color name="nova_offline">#FFf87171</color>
+    <color name="nova_online">#FF7c73ff</color>
+</resources>

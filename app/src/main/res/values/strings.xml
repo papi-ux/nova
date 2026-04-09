@@ -28,6 +28,7 @@
     <string name="pcview_menu_app_list">View All Apps</string>
     <string name="pcview_menu_pair_pc">Legacy Pair</string>
     <string name="pcview_menu_pair_pc_otp">OTP Pair</string>
+    <string name="pcview_menu_scan_qr">Scan QR to Pair</string>
     <string name="pcview_menu_unpair_pc">Unpair</string>
     <string name="pcview_menu_send_wol">Send Wake-On-LAN request</string>
     <string name="pcview_menu_delete_pc">Delete PC</string>
@@ -39,12 +40,12 @@
 
     <!-- Network test strings -->
     <string name="nettest_title_waiting">Testing Network Connection</string>
-    <string name="nettest_text_waiting">Artemis is testing your network connection to determine if any required ports are blocked.\n\nThis may take a few seconds…</string>
+    <string name="nettest_text_waiting">Nova is testing your network connection to determine if any required ports are blocked.\n\nThis may take a few seconds…</string>
     <string name="nettest_title_done">Network Test Complete</string>
-    <string name="nettest_text_success">Your network does not appear to be blocking Artemis. If you still have trouble connecting, check your PC\'s firewall settings.\n\nIf you are trying to stream over the Internet, install the Artemis Internet Hosting Tool on your PC and run the included Internet Streaming Tester to check your PC\'s Internet connection.</string>
-    <string name="nettest_text_inconclusive">The network test could not be performed because none of Artemis\'s connection testing servers were reachable. Check your Internet connection or try again later.</string>
-    <string name="nettest_text_failure">Your device\'s current network connection seems to be blocking Artemis. Streaming over the Internet may not work while connected to this network.\n\nThe following network ports were blocked:\n</string>
-    <string name="nettest_text_blocked">Your device\'s current network connection is blocking Artemis. Streaming over the Internet may not work while connected to this network.</string>
+    <string name="nettest_text_success">Your network does not appear to be blocking Nova. If you still have trouble connecting, check your PC\'s firewall settings.\n\nIf you are trying to stream over the Internet, install the Nova Internet Hosting Tool on your PC and run the included Internet Streaming Tester to check your PC\'s Internet connection.</string>
+    <string name="nettest_text_inconclusive">The network test could not be performed because none of Nova\'s connection testing servers were reachable. Check your Internet connection or try again later.</string>
+    <string name="nettest_text_failure">Your device\'s current network connection seems to be blocking Nova. Streaming over the Internet may not work while connected to this network.\n\nThe following network ports were blocked:\n</string>
+    <string name="nettest_text_blocked">Your device\'s current network connection is blocking Nova. Streaming over the Internet may not work while connected to this network.</string>
 
     <!-- Pair messages -->
     <string name="pairing">Pairing…</string>
@@ -87,7 +88,7 @@
 	    Using remote desktop software can also cause this error. Try rebooting your machine or reinstalling GFE.
     </string>
     <string name="title_decoding_error">Video Decoder Crashed</string>
-    <string name="message_decoding_error">Artemis has crashed due to an incompatibility with this device\'s video decoder. Try adjusting the streaming settings if the crashes continue.</string>
+    <string name="message_decoding_error">Nova has crashed due to an incompatibility with this device\'s video decoder. Try adjusting the streaming settings if the crashes continue.</string>
     <string name="title_decoding_reset">Video Settings Reset</string>
     <string name="message_decoding_reset">Your device\'s video decoder continues to crash at your selected streaming settings. Your streaming settings have been reset to default.</string>
     <string name="error_usb_prohibited">USB access is prohibited by your device administrator. Check your Knox or MDM settings.</string>
@@ -143,7 +144,7 @@
     </string>
 
     <string name="email_recipient">artemistics.logs@gmail.com</string>
-    <string name="email_subject">Artemistics - Performance Log</string>
+    <string name="email_subject">Nova - Performance Log</string>
     <string name="email_chooser_title">Send performance log...</string>
     <string name="toast_no_email_clients">No email clients installed.</string>
     <string name="toast_no_logs">There is no performance data stored yet.</string>
@@ -233,7 +234,7 @@
     <string name="title_checkbox_xb1_driver">Xbox 360/One/NintendoPro USB gamepad driver</string>
     <string name="summary_checkbox_xb1_driver">Enables a built-in USB driver for devices without native Xbox/Nintendo Pro controller support</string>
     <string name="title_checkbox_usb_bind_all">Override native Xbox gamepad support</string>
-    <string name="summary_checkbox_usb_bind_all">Use Artemis\'s USB driver for all supported gamepads, even if native Xbox/Nintendo Pro controller support is present</string>
+    <string name="summary_checkbox_usb_bind_all">Use Nova\'s USB driver for all supported gamepads, even if native Xbox/Nintendo Pro controller support is present</string>
     <string name="title_checkbox_mouse_emulation">Mouse emulation via gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Long-press the Start button to toggle between gamepad and mouse mode</string>
     <string name="title_checkbox_remember_mouse_mode">Remember mouse mode</string>
@@ -283,7 +284,7 @@
     <string name="title_checkbox_enable_pip">Enable Picture-in-Picture observer mode</string>
     <string name="summary_checkbox_enable_pip">Allows the stream to be viewed (but not controlled) while multitasking</string>
     <string name="title_language_list">Language</string>
-    <string name="summary_language_list">Language to use for Artemis</string>
+    <string name="summary_language_list">Language to use for Nova</string>
     <string name="title_checkbox_small_icon_mode">Use small box art</string>
     <string name="summary_checkbox_small_icon_mode">Smaller box art in the app grid allows more apps to be visible on screen</string>
 
@@ -321,10 +322,10 @@
     <string name="title_troubleshooting">Troubleshooting guide</string>
     <string name="summary_troubleshooting">View tips for diagnosing and fixing common streaming issues</string>
     <string name="title_privacy_policy">Privacy policy</string>
-    <string name="summary_privacy_policy">View Artemis\'s privacy policy</string>
+    <string name="summary_privacy_policy">View Nova\'s privacy policy</string>
     <string name="title_special_key_help">Custom Keys help</string>
     <string name="summary_special_key_help">Instructions about how to setup custom special keys</string>
-    <string name="summary_performance_link">See performance of other devices.\nPlease note, these data are managed by the community, it is not managed by Artemis and does not represent Artemis officially.</string>
+    <string name="summary_performance_link">See performance of other devices.\nPlease note, these data are managed by the community, it is not managed by Nova and does not represent Nova officially.</string>
     <string name="title_performance_link">Performance Dashboard</string>
 
     <!-- Toasts -->
@@ -362,8 +363,8 @@
     <string name="pacing_smoothness">Prefer smoothest video (may significantly increase latency)</string>
 
 
-    <string name="keyboard_service_label">Artemis Physical keyboard</string>
-    <string name="accessibility_description_text">Only used when physical keyboard shortcut were intercepted by system. In some systems, several keyboard shortcut are defind and used by the Android system, causing them not being able to be passed through to the host PC. Artemis will not look through your input, nor collecting your password, credit card number or any other private information.</string>
+    <string name="keyboard_service_label">Nova Physical keyboard</string>
+    <string name="accessibility_description_text">Only used when physical keyboard shortcut were intercepted by system. In some systems, several keyboard shortcut are defind and used by the Android system, causing them not being able to be passed through to the host PC. Nova will not look through your input, nor collecting your password, credit card number or any other private information.</string>
 
 
     <!-- In Game menu -->
@@ -471,9 +472,9 @@
     <string name="summary_share_performance_logs">Share your performance with friends or the community</string>
     <string name="title_share_performance_logs_button">Share Performance Logs</string>
     <string name="title_software_update">Software Update</string>
-    <string name="summary_software_update">Artemis Nior Version by ClassicOldSong - Visit GitHub Releases to get latest version</string>
+    <string name="summary_software_update">Nova — Polaris Streaming Client. Built on Artemis/Moonlight</string>
     <string name="title_follow_update">Follow Update</string>
-    <string name="summary_follow_update">Follow updates of Artemis with Obtainium</string>
+    <string name="summary_follow_update">Get Nova updates via Obtainium</string>
     <string name="title_special_key_layout">Special Key Layout</string>
     <string name="title_show_virtual_key">Display virtual keys on screen</string>
     <string name="summary_show_virtual_key">Display a layer of virtual special keys on the touchscreen.\nKey opacity is shared with the virtual gamepad above.</string>
@@ -522,7 +523,7 @@
     <string name="title_touchpad_sensitivity_y">Touchpad Sensitivity Y Axis</string>
     <string name="summary_touchpad_sensitivity_y">For mouse touchpad mode and virtual special button touchpad control;\nBoth share a sensitivity value, but the sensitivity performance may be different.\nDoes anyone use both together?</string>
     <string name="title_device_rumble">Force vibration on device</string>
-    <string name="summary_device_rumble">If you are not satisfied with the vibration of the connected gamepad, you can enable this option.\nInvalid for forced use of Artemis\'s built-in USB driver</string>
+    <string name="summary_device_rumble">If you are not satisfied with the vibration of the connected gamepad, you can enable this option.\nInvalid for forced use of Nova\'s built-in USB driver</string>
     <string name="title_clear_default_special_button">Disable default Special Keys</string>
     <string name="summary_clear_default_special_button">If you feel the built-in commands in the Back Menu are useless, you can disable them and use your imported ones.</string>
     <string name="title_trackpad_sensitivity_x">Trackpad Sensitivity X</string>

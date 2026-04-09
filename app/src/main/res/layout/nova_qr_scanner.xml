@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:colorBackground">
+
+    <!-- Camera viewfinder -->
+    <com.journeyapps.barcodescanner.DecoratedBarcodeView
+        android:id="@+id/zxing_barcode_scanner"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:zxing_scanner_layout="@layout/nova_qr_viewfinder" />
+
+    <!-- Bottom instruction card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="@drawable/nova_sheet_bg"
+        android:padding="24dp"
+        android:gravity="center">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Scan Pairing Code"
+            android:textSize="18sp"
+            android:textColor="@color/nova_ice"
+            android:fontFamily="sans-serif-medium"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/scanner_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Point camera at the QR code on your Polaris server"
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_muted"
+            android:fontFamily="sans-serif"
+            android:gravity="center" />
+    </LinearLayout>
+
+</FrameLayout>

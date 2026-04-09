@@ -3,7 +3,7 @@
     <string name="summary_reset_osc">Tüm ekran kontrollerini varsayılan boyutu ve pozisyonuna sıfırlar</string>
     <string name="title_checkbox_touchscreen_trackpad">Dokunmatik ekranı trackpad olarak kullan</string>
     <string name="category_input_settings">Girdi Ayarları</string>
-    <string name="summary_language_list">Moonlight için kullanılacak olan dil</string>
+    <string name="summary_language_list">Nova için kullanılacak olan dil</string>
     <string name="ip_hint">Ana bilgisayarın IP adresi</string>
     <string name="title_details">Detaylar</string>
     <string name="dialog_title_osc_opacity">Saydamlığı değiştir</string>
@@ -38,16 +38,16 @@
     <string name="help_loading_title">Yardım</string>
     <string name="scut_invalid_app_id">Tanımlanmış uygulama geçerli değil</string>
     <string name="scut_invalid_uuid">Tanımlanmış bilgisayar geçerli değil</string>
-    <string name="nettest_text_waiting">Moonlight, gerekli bağlantı noktalarının engellenmediğini belirlemek için ağ bağlantınızı test ediyor.
+    <string name="nettest_text_waiting">Nova, gerekli bağlantı noktalarının engellenmediğini belirlemek için ağ bağlantınızı test ediyor.
 \n
 \nBu bir kaç saniye sürebilir…</string>
     <string name="nettest_title_done">Ağ Testi Tamamlandı</string>
-    <string name="nettest_text_inconclusive">Moonlight\'ın bağlantı testi sunucularından hiçbirine erişilemediği için ağ testi gerçekleştirilemedi. İnternet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.</string>
-    <string name="nettest_text_failure">Cihazınızın mevcut ağ bağlantısı Moonlight\'ı engelliyor gibi görünüyor. Bu ağa bağlıyken İnternet üzerinden yayın akışı çalışmayabilir.
+    <string name="nettest_text_inconclusive">Nova\'ın bağlantı testi sunucularından hiçbirine erişilemediği için ağ testi gerçekleştirilemedi. İnternet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.</string>
+    <string name="nettest_text_failure">Cihazınızın mevcut ağ bağlantısı Nova\'ı engelliyor gibi görünüyor. Bu ağa bağlıyken İnternet üzerinden yayın akışı çalışmayabilir.
 \n
 \nAşağıdaki ağ bağlantı noktaları engellenmiş:
 \n</string>
-    <string name="nettest_text_blocked">Cihazınızın mevcut ağ bağlantısı Moonlight\'ı engelliyor. Bu ağa bağlıyken internet üzerinden yayın akışı çalışmayabilir.</string>
+    <string name="nettest_text_blocked">Cihazınızın mevcut ağ bağlantısı Nova\'ı engelliyor. Bu ağa bağlıyken internet üzerinden yayın akışı çalışmayabilir.</string>
     <string name="pair_pc_ingame">Bilgisayar şu anda bir oyunda. Eşleştirmeden önce oyunu kapatmalısınız.</string>
     <string name="pair_pairing_msg">Lütfen hedef bilgisayarda aşağıdaki PIN kodunu girin:</string>
     <string name="pair_already_in_progress">Eşleştirme zaten devam ediyor</string>
@@ -58,9 +58,9 @@
     <string name="wol_waking_msg">Bilgisayarınızın uyanması birkaç saniye sürebilir. Eğer uyanmazsa, Yerel Ağda Uyandırma için doğru şekilde yapılandırıldığından emin olun.</string>
     <string name="unpair_fail">Eşleşme kaldırılamadı</string>
     <string name="unpair_error">Cihaz eşleştirilmedi</string>
-    <string name="nettest_text_success">Ağınız Moonlight\'ı engelliyor gibi görünmüyor. Bağlanmakta hala sorun yaşıyorsanız, bilgisayarınızın güvenlik duvarı ayarlarını kontrol edin.
+    <string name="nettest_text_success">Ağınız Nova\'ı engelliyor gibi görünmüyor. Bağlanmakta hala sorun yaşıyorsanız, bilgisayarınızın güvenlik duvarı ayarlarını kontrol edin.
 \n
-\nİnternet üzerinden yayın yapmaya çalışıyorsanız, Moonlight İnternet Barındırma Aracını bilgisayarınıza yükleyin ve bilgisayarınızın internet bağlantısını kontrol etmek için birlikte verilen İnternet Akış Test Cihazını çalıştırın.</string>
+\nİnternet üzerinden yayın yapmaya çalışıyorsanız, Nova İnternet Barındırma Aracını bilgisayarınıza yükleyin ve bilgisayarınızın internet bağlantısını kontrol etmek için birlikte verilen İnternet Akış Test Cihazını çalıştırın.</string>
     <string name="title_checkbox_multi_controller">Oyun kumandası varlığını otomatik algıla</string>
     <string name="summary_checkbox_multi_controller">Bu seçeneğin işaretini kaldırmak, oyun kumandasının her zaman mevcut olmasını sağlar</string>
     <string name="summary_checkbox_vibrate_fallback">Oyun kumandanız desteklemiyorsa, gürültüyü taklit etmek için cihazınızı titreştirir</string>
@@ -139,7 +139,7 @@
     <string name="resolution_prefix_native_fullscreen">Yerel tam ekran</string>
     <string name="category_audio_settings">Ses Ayarları</string>
     <string name="title_audio_config_list">Çevresel ses yapılandırması</string>
-    <string name="summary_seekbar_deadzone">Not: Bazı oyunlar Moonlight\'ın kullanmak üzere yapılandırıldığından daha büyük bir ölü bölge uygulayabilir.</string>
+    <string name="summary_seekbar_deadzone">Not: Bazı oyunlar Nova\'ın kullanmak üzere yapılandırıldığından daha büyük bir ölü bölge uygulayabilir.</string>
     <string name="suffix_seekbar_deadzone">%</string>
     <string name="title_checkbox_xb1_driver">Xbox 360/One USB oyun kumandası sürücüsü</string>
     <string name="title_checkbox_usb_bind_all">Xbox doğal oyun kumanda desteğini geçersiz kıl</string>
@@ -148,7 +148,7 @@
     <string name="title_checkbox_flip_face_buttons">Yüzey düğmelerini çevir</string>
     <string name="title_checkbox_absolute_mouse_mode">Uzak masaüstü fare modu</string>
     <string name="error_404">GFE bir HTTP 404 hatası bildirdi. Bilgisayarınızın desteklenen bir GPU çalıştırdığından emin olun. Uzak masaüstü yazılımı kullanmak da bu hataya neden olabilir. Cihazınızı yeniden başlatmayı veya GFE\'yi yeniden yüklemeyi deneyin.</string>
-    <string name="message_decoding_error">Moonlight, bu cihazın video kod çözücüsüyle uyumsuzluk nedeniyle çöktü. Kilitlenmeler devam ederse akış ayarlarını değiştirmeyi deneyin.</string>
+    <string name="message_decoding_error">Nova, bu cihazın video kod çözücüsüyle uyumsuzluk nedeniyle çöktü. Kilitlenmeler devam ederse akış ayarlarını değiştirmeyi deneyin.</string>
     <string name="conn_hardware_latency">Ortalama donanım kod çözme gecikmesi:</string>
     <string name="title_decoding_reset">Video Ayarlarını Sıfırla</string>
     <string name="searching_pc">Yerel ağınızdaki ana bilgisayarlar aranıyor…
@@ -168,7 +168,7 @@
     <string name="summary_seekbar_bitrate">Daha iyi görüntü kalitesi için artırın. Daha yavaş bağlantılarda performansı artırmak için azaltın.</string>
     <string name="title_checkbox_stretch_video">Videoyu tam ekrana genişlet</string>
     <string name="title_checkbox_vibrate_fallback">Titreşim ile gürültü desteğini taklit et</string>
-    <string name="summary_checkbox_usb_bind_all">Yerel Xbox oyun kumandası desteği mevcut olsa bile desteklenen tüm oyun kumandaları için Moonlight\'ın USB sürücüsünü kullan</string>
+    <string name="summary_checkbox_usb_bind_all">Yerel Xbox oyun kumandası desteği mevcut olsa bile desteklenen tüm oyun kumandaları için Nova\'ın USB sürücüsünü kullan</string>
     <string name="summary_checkbox_flip_face_buttons">Oyun kumandaları ve ekran kontrolleri için A/B ve X/Y yüzey düğmelerini değiştirir</string>
     <string name="summary_checkbox_absolute_mouse_mode">Bu fare hızlandırmanın uzak masaüstü kullanımı için daha doğal davranmasını sağlayabilir, ancak birçok oyunla uyumsuzdur.</string>
     <string name="summary_checkbox_show_onscreen_controls">Dokunmatik ekranda sanal denetleyici katmanını göster</string>
@@ -231,7 +231,7 @@
     <string name="resolution_480p">480p</string>
     <string name="resolution_1080p">1080p</string>
     <string name="summary_troubleshooting">Yaygın akış sorunlarını teşhis etmeye ve düzeltmeye yönelik ipuçlarını görüntüle</string>
-    <string name="summary_privacy_policy">Moonlight gizlilik politikasını görüntüleyin</string>
+    <string name="summary_privacy_policy">Nova gizlilik politikasını görüntüleyin</string>
     <string name="toast_controller_type_changed">Hareket sensörü taklidi nedeniyle oyun kumandası türü değiştirilebilir</string>
     <string name="audioconf_51surround">5.1 Surround Ses</string>
     <string name="audioconf_71surround">7.1 Surround Ses</string>

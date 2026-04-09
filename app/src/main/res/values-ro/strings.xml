@@ -44,7 +44,7 @@
 	Este posibil sa apară această eroare daca folosești o alta aplicație de remote desktop. Încearcă să repornești PC-ul sau să reinstalezi GFE.
     </string>
     <string name="title_decoding_error">Decodorul video s-a închis în mod neașteptat</string>
-    <string name="message_decoding_error">Moonlight s-a închis în mod neașteptat datorită unei incompatibilități cu decodorul video al acestui dispozitiv. Asigură-te ca folosești ultima versiune de GFE. Dacă problema persistă, ajustează setările de streaming.</string>
+    <string name="message_decoding_error">Nova s-a închis în mod neașteptat datorită unei incompatibilități cu decodorul video al acestui dispozitiv. Asigură-te ca folosești ultima versiune de GFE. Dacă problema persistă, ajustează setările de streaming.</string>
     <string name="title_decoding_reset">Resetează setările video</string>
     <string name="message_decoding_reset">Decodorul video al acestui dispozitiv continuă să se blocheze folosind setările video curente. Au fost resetate cele implicite.</string>
     <string name="error_usb_prohibited">Accesul USB este interzis de către administratorul dispozitivului. Verifică setarile Knox sau MDM.</string>
@@ -132,7 +132,7 @@
     <string name="title_checkbox_xb1_driver">Driver pentru controllerele de Xbox 360/One</string>
     <string name="summary_checkbox_xb1_driver">Activează un driver USB pentru dispozitivele fără suport nativ pentru controllere Xbox</string>
     <string name="title_checkbox_usb_bind_all">Inlocuiește driverul implicit pentru controllere</string>
-    <string name="summary_checkbox_usb_bind_all">Forțează driverul USB Moonlight să preia toate controllerele Xbox suportate</string>
+    <string name="summary_checkbox_usb_bind_all">Forțează driverul USB Nova să preia toate controllerele Xbox suportate</string>
     <string name="title_checkbox_mouse_emulation">Simulează mouse cu controllerul</string>
     <string name="summary_checkbox_mouse_emulation">Apăsarea lungă pe butonul Start schimba modul de operare a controllerului în modul mouse.</string>
     <string name="title_checkbox_mouse_nav_buttons">Activează butoanele de înainte și înapoi ale mousului</string>
@@ -155,7 +155,7 @@
     <string name="suffix_osc_opacity">%</string>
     <string name="category_ui_settings">Setari UI</string>
     <string name="title_language_list">Limba (Language)</string>
-    <string name="summary_language_list">Limba folosită de către Moonlight</string>
+    <string name="summary_language_list">Limba folosită de către Nova</string>
     <string name="title_checkbox_small_icon_mode">Folosește iconițe mici</string>
     <string name="summary_checkbox_small_icon_mode">Iconițele folosite în grile vor fi mici pentru a încăpea mai multe odata</string>
     <string name="category_host_settings">Setările PC-ului gazdă</string>

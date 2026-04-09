@@ -74,7 +74,7 @@
     <string name="wol_waking_msg">ייקחו כמה שניות להפעיל את המחשב. אם הוא לא, אנא וודא שהוא מוגדר נכון לפונקציית Wake-On-LAN.</string>
     <string name="nettest_text_success">הרשת שלך איננה חוסמת את מונלייט, בבקשה בדוק את הגדרות חומת האש במחשב המארח.
 \n
-\nאם אתה מנסה להזרים דרך האינטרנט, אנא התקן את הכל Moonlight Internet Hosting Tool על המחשב והפעל את כלי הבדיקה המצורף בכדי לבדוק את חיבור האינטרנט.</string>
+\nאם אתה מנסה להזרים דרך האינטרנט, אנא התקן את הכל Nova Internet Hosting Tool על המחשב והפעל את כלי הבדיקה המצורף בכדי לבדוק את חיבור האינטרנט.</string>
     <string name="pairing">מאמת…</string>
     <string name="pair_pc_ingame">מחשב באמצע משחק. נא לצאת מהמשחק לפני ביצוע חיבור.</string>
     <string name="pair_already_in_progress">פעולת החיבור מתבצעת</string>

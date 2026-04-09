@@ -34,12 +34,12 @@
 
     <!-- Network test strings -->
     <string name="nettest_title_waiting">Test de la connexion réseau</string>
-    <string name="nettest_text_waiting">Artemis teste votre connexion réseau pour déterminer si les ports requis sont bloqués.\n\nCela peut prendre quelques secondes…</string>
+    <string name="nettest_text_waiting">Nova teste votre connexion réseau pour déterminer si les ports requis sont bloqués.\n\nCela peut prendre quelques secondes…</string>
     <string name="nettest_title_done">Test du réseau terminé</string>
-    <string name="nettest_text_success">Votre réseau ne semble pas bloquer Artemis. Si vous avez encore des difficultés à vous connecter, vérifiez les paramètres du pare-feu de votre PC.\n\nSi vous essayez de streamer depuis Internet, installez l\'outil Artemis Internet Hosting Tool sur votre PC et exécutez le testeur de streaming Internet inclus pour vérifier la connexion Internet de votre PC.</string>
-    <string name="nettest_text_inconclusive">Le test réseau n\'a pas pu être effectué car aucun des serveurs de test de connexion d\'Artemis n\'était accessible. Vérifiez votre connexion Internet ou réessayez plus tard.</string>
-    <string name="nettest_text_failure">La connexion réseau actuelle de votre appareil semble bloquer Artemis. Le streaming sur Internet peut ne pas fonctionner lorsque vous êtes connecté à ce réseau.\n\nLes ports réseau suivants ont été bloqués :</string>
-    <string name="nettest_text_blocked">Votre appareil bloque Artemis. Le streaming sur Internet peut ne pas fonctionner lorsque vous êtes connecté à ce réseau.</string>
+    <string name="nettest_text_success">Votre réseau ne semble pas bloquer Nova. Si vous avez encore des difficultés à vous connecter, vérifiez les paramètres du pare-feu de votre PC.\n\nSi vous essayez de streamer depuis Internet, installez l\'outil Nova Internet Hosting Tool sur votre PC et exécutez le testeur de streaming Internet inclus pour vérifier la connexion Internet de votre PC.</string>
+    <string name="nettest_text_inconclusive">Le test réseau n\'a pas pu être effectué car aucun des serveurs de test de connexion d\'Nova n\'était accessible. Vérifiez votre connexion Internet ou réessayez plus tard.</string>
+    <string name="nettest_text_failure">La connexion réseau actuelle de votre appareil semble bloquer Nova. Le streaming sur Internet peut ne pas fonctionner lorsque vous êtes connecté à ce réseau.\n\nLes ports réseau suivants ont été bloqués :</string>
+    <string name="nettest_text_blocked">Votre appareil bloque Nova. Le streaming sur Internet peut ne pas fonctionner lorsque vous êtes connecté à ce réseau.</string>
 
     <!-- Pair messages -->
     <string name="pairing">Appariement…</string>
@@ -78,7 +78,7 @@
     <string name="error_unknown_host">Échec de la résolution de l\'hôte</string>
     <string name="error_404">GFE renvoie une erreur HTTP 404. Assurez-vous que votre PC possède un GPU pris en charge. L\'utilisation d\'un logiciel de bureau à distance peut également provoquer cette erreur. Essayez de redémarrer votre machine ou de réinstaller GFE.</string>
     <string name="title_decoding_error">Le décodeur vidéo a planté</string>
-    <string name="message_decoding_error">Artemis a planté en raison d\'une incompatibilité avec le décodeur vidéo de cet appareil. Essayez d\'ajuster les paramètres de streaming si les plantages continuent.</string>
+    <string name="message_decoding_error">Nova a planté en raison d\'une incompatibilité avec le décodeur vidéo de cet appareil. Essayez d\'ajuster les paramètres de streaming si les plantages continuent.</string>
     <string name="title_decoding_reset">Réinitialiser les paramètres vidéo</string>
     <string name="message_decoding_reset">Le décodeur vidéo de votre appareil continue de planter avec les paramètres de streaming sélectionnés. Vos paramètres de streaming ont été réinitialisés à ceux par défaut.</string>
     <string name="error_usb_prohibited">L\'accès USB est interdit par l\'administrateur de votre appareil. Vérifiez vos paramètres Knox ou MDM.</string>
@@ -207,7 +207,7 @@
     <string name="title_checkbox_xb1_driver">Pilote USB pour manette Xbox 360/One/NintendoPro</string>
     <string name="summary_checkbox_xb1_driver">Active un pilote USB intégré pour les appareils sans prise en charge native des manettes Xbox/Nintendo Pro</string>
     <string name="title_checkbox_usb_bind_all">Remplacer le support natif des manettes Xbox</string>
-    <string name="summary_checkbox_usb_bind_all">Utilise le pilote USB d\'Artemis pour toutes les manettes prises en charge, même si le support natif des manettes Xbox/Nintendo Pro est présent</string>
+    <string name="summary_checkbox_usb_bind_all">Utilise le pilote USB d\'Nova pour toutes les manettes prises en charge, même si le support natif des manettes Xbox/Nintendo Pro est présent</string>
     <string name="title_checkbox_mouse_emulation">Émulation de la souris via la manette</string>
     <string name="summary_checkbox_mouse_emulation">Appuyez longuement sur le bouton Start pour basculer la manette en mode souris</string>
     <string name="title_checkbox_flip_face_buttons">Inverser les boutons de façade</string>
@@ -254,7 +254,7 @@
     <string name="title_checkbox_enable_pip">Activer le mode observateur Picture-in-Picture</string>
     <string name="summary_checkbox_enable_pip">Permet de visualiser le flux (sans le contrôler) tout en utilisant une autre application</string>
     <string name="title_language_list">Langue</string>
-    <string name="summary_language_list">Langue à utiliser pour Artemis</string>
+    <string name="summary_language_list">Langue à utiliser pour Nova</string>
     <string name="title_checkbox_small_icon_mode">Utiliser des petites icônes</string>
     <string name="summary_checkbox_small_icon_mode">Des icônes plus petites permettent d\'afficher plus d\'applications en même temps</string>
 
@@ -290,7 +290,7 @@
     <string name="title_troubleshooting">Guide de dépannage</string>
     <string name="summary_troubleshooting">Voir des conseils pour diagnostiquer et résoudre les problèmes de streaming courants</string>
     <string name="title_privacy_policy">Politique de confidentialité</string>
-    <string name="summary_privacy_policy">Voir la politique de confidentialité d\'Artemis</string>
+    <string name="summary_privacy_policy">Voir la politique de confidentialité d\'Nova</string>
     <string name="title_special_key_help">Aide sur les touches spéciales personnalisées</string>
     <string name="summary_special_key_help">Instructions sur la configuration des touches spéciales personnalisées</string>
 
@@ -328,8 +328,8 @@
     <string name="pacing_balanced_alt">Équilibré avec limite FPS</string>
     <string name="pacing_smoothness">Préférer la qualité vidéo (risque d\'augmenter la latence)</string>
 
-    <string name="keyboard_service_label">Clavier physique Artemis</string>
-    <string name="accessibility_description_text">Utilisé uniquement lorsque les raccourcis clavier physiques sont interceptés par le système. Dans certains systèmes, plusieurs raccourcis clavier sont définis et utilisés par le système Android, empêchant leur transmission au PC hôte. Artemis ne regardera pas votre saisie, ni ne collectera votre mot de passe, votre numéro de carte de crédit ou toute autre information personnelle.</string>
+    <string name="keyboard_service_label">Clavier physique Nova</string>
+    <string name="accessibility_description_text">Utilisé uniquement lorsque les raccourcis clavier physiques sont interceptés par le système. Dans certains systèmes, plusieurs raccourcis clavier sont définis et utilisés par le système Android, empêchant leur transmission au PC hôte. Nova ne regardera pas votre saisie, ni ne collectera votre mot de passe, votre numéro de carte de crédit ou toute autre information personnelle.</string>
 
     <!-- In Game menu -->
     <string name="game_menu_toggle_keyboard">Afficher le clavier logiciel</string>
@@ -409,9 +409,9 @@
     <string name="title_import_special_button">Importer des touches spéciales personnalisées</string>
     <string name="summary_import_special_button">Disponible dans le menu Retour et les touches spéciales.\nRemarque : l\'importation écrasera la configuration actuelle, veuillez sauvegarder en conséquence.</string>
     <string name="title_software_update">Mise à jour du logiciel</string>
-    <string name="summary_software_update">Version Artemis Nior par ClassicOldSong - Visitez la page des versions GitHub pour obtenir la dernière version</string>
+    <string name="summary_software_update">Version Nova Nior par ClassicOldSong - Visitez la page des versions GitHub pour obtenir la dernière version</string>
     <string name="title_follow_update">Suivre les mises à jour</string>
-    <string name="summary_follow_update">Suivre les mises à jour d\'Artemis avec Obtainium</string>
+    <string name="summary_follow_update">Suivre les mises à jour d\'Nova avec Obtainium</string>
     <string name="title_special_key_layout">Disposition des touches spéciales</string>
     <string name="title_show_virtual_key">Afficher les touches virtuelles à l\'écran</string>
     <string name="summary_show_virtual_key">Affiche une couche de touches spéciales virtuelles sur l\'écran tactile.\nL\'opacité des touches est partagée avec la manette virtuelle ci-dessus.</string>
@@ -456,7 +456,7 @@
     <string name="title_touchpad_sensitivity_y">Sensibilité du trackpad Y</string>
     <string name="summary_touchpad_sensitivity_y">Pour le mode souris trackpad et le contrôle du bouton tactile spécial du trackpad ;\nLes deux partagent une valeur de sensibilité, mais les performances de sensibilité peuvent être différentes.\nQuelqu\'un utilise-t-il les deux ensemble ?</string>
     <string name="title_device_rumble">Forcer les vibrations sur l\'appareil</string>
-    <string name="summary_device_rumble">Si vous n\'êtes pas satisfait des vibrations de la manette connectée, vous pouvez activer cette option.\nNon valide pour l\'utilisation forcée du pilote USB intégré d\'Artemis</string>
+    <string name="summary_device_rumble">Si vous n\'êtes pas satisfait des vibrations de la manette connectée, vous pouvez activer cette option.\nNon valide pour l\'utilisation forcée du pilote USB intégré d\'Nova</string>
     <string name="title_clear_default_special_button">Désactiver les touches spéciales par défaut</string>
     <string name="summary_clear_default_special_button">Si vous trouvez que les commandes intégrées dans le menu Retour sont inutiles, vous pouvez les désactiver et utiliser celles que vous avez importées.</string>
     <string name="title_trackpad_sensitivity_x">Sensibilité du trackpad X</string>

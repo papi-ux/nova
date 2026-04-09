@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/nova_sheet_bg"
+    android:paddingBottom="32dp">
+
+    <!-- Drag handle -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/nova_drag_handle" />
+
+    <!-- Hero cover art -->
+    <ImageView
+        android:id="@+id/detail_cover"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:scaleType="centerCrop"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:background="@color/nova_deep" />
+
+    <!-- Game info -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:id="@+id/detail_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="22sp"
+            android:textColor="@color/nova_ice"
+            android:fontFamily="sans-serif-medium" />
+
+        <!-- Tags row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="8dp">
+
+            <TextView
+                android:id="@+id/detail_source"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/nova_silver"
+                android:background="@drawable/nova_badge_bg"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+
+            <TextView
+                android:id="@+id/detail_category"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textSize="12sp"
+                android:textColor="@color/nova_silver"
+                android:background="@drawable/nova_badge_bg"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+        </LinearLayout>
+
+        <!-- Genre chips -->
+        <LinearLayout
+            android:id="@+id/detail_genres"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="8dp"
+            android:visibility="gone" />
+
+        <!-- Last played -->
+        <TextView
+            android:id="@+id/detail_last_played"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/nova_text_muted"
+            android:paddingTop="8dp"
+            android:visibility="gone" />
+
+        <!-- AI recommendation card (populated from /optimize endpoint) -->
+        <LinearLayout
+            android:id="@+id/detail_ai_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/nova_card_bg"
+            android:padding="12dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="AI Recommended"
+                    android:textSize="10sp"
+                    android:textColor="@color/nova_accent"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.08"
+                    android:textAllCaps="true" />
+
+                <TextView
+                    android:id="@+id/detail_ai_source"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:textSize="9sp"
+                    android:textColor="@color/nova_text_muted" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/detail_ai_settings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="@color/nova_ice"
+                android:fontFamily="sans-serif-medium"
+                android:paddingTop="4dp" />
+
+            <TextView
+                android:id="@+id/detail_ai_reasoning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textColor="@color/nova_text_muted"
+                android:fontFamily="sans-serif"
+                android:paddingTop="4dp"
+                android:maxLines="3"
+                android:ellipsize="end" />
+
+        </LinearLayout>
+
+        <!-- Play button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/detail_play_btn"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="Play"
+            android:textSize="16sp"
+            android:textColor="@color/nova_ice"
+            android:textAllCaps="false"
+            app:backgroundTint="@color/nova_accent"
+            app:cornerRadius="14dp"
+            app:icon="@android:drawable/ic_media_play"
+            app:iconTint="@color/nova_ice"
+            app:iconGravity="textStart" />
+
+        <!-- MangoHud toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="MangoHud (server-side overlay)"
+                android:textSize="14sp"
+                android:textColor="@color/nova_text_secondary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/detail_mangohud_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+
+    </LinearLayout>
+</LinearLayout>

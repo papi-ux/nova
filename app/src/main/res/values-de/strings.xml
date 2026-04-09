@@ -19,19 +19,19 @@
     <string name="pcview_menu_details">Details anzeigen</string>
     <!-- Network test strings -->
     <string name="nettest_title_waiting">Netzwerkverbindung wird getestet</string>
-    <string name="nettest_text_waiting">Moonlight testet Ihre Netzwerkverbindung, um festzustellen, ob benötigte Ports blockiert sind.
+    <string name="nettest_text_waiting">Nova testet Ihre Netzwerkverbindung, um festzustellen, ob benötigte Ports blockiert sind.
 \n
 \nDies kann einige Sekunden dauern…</string>
     <string name="nettest_title_done">Netzwerktest abgeschlossen</string>
-    <string name="nettest_text_success">Dein Netzwerk scheint Moonlight nicht zu blockieren. Wenn du weiterhin Probleme mit der Verbindung hast, überprüfe die Firewall-Einstellungen deines Hosts
+    <string name="nettest_text_success">Dein Netzwerk scheint Nova nicht zu blockieren. Wenn du weiterhin Probleme mit der Verbindung hast, überprüfe die Firewall-Einstellungen deines Hosts
 \n
-\nWenn du versuchst, über das Internet zu streamen, installiere das Moonlight Internet Hosting Tool auf deinem Host und führe den mitgelieferten Internet-Streaming-Tester aus, um die Internetverbindung des Hosts zu überprüfen.</string>
-    <string name="nettest_text_inconclusive">Der Netzwerktest konnte nicht durchgeführt werden, da keiner der Verbindungstestserver von Moonlight erreichbar war. Überprüfe deine Internetverbindung oder versuche es später noch einmal.</string>
-    <string name="nettest_text_failure">Die aktuelle Netzwerkverbindung deines Geräts scheint Moonlight zu blockieren. Das Streaming über das Internet funktioniert möglicherweise nicht, während du mit diesem Netzwerk verbunden bist.
+\nWenn du versuchst, über das Internet zu streamen, installiere das Nova Internet Hosting Tool auf deinem Host und führe den mitgelieferten Internet-Streaming-Tester aus, um die Internetverbindung des Hosts zu überprüfen.</string>
+    <string name="nettest_text_inconclusive">Der Netzwerktest konnte nicht durchgeführt werden, da keiner der Verbindungstestserver von Nova erreichbar war. Überprüfe deine Internetverbindung oder versuche es später noch einmal.</string>
+    <string name="nettest_text_failure">Die aktuelle Netzwerkverbindung deines Geräts scheint Nova zu blockieren. Das Streaming über das Internet funktioniert möglicherweise nicht, während du mit diesem Netzwerk verbunden bist.
 \n
 \nFolgende Netzwerkports wurden blockiert:
 \n</string>
-    <string name="nettest_text_blocked">Die aktuelle Netzwerkverbindung deines Geräts blockiert Moonlight. Das Streaming über das Internet funktioniert möglicherweise nicht, während du mit diesem Netzwerk verbunden bist.</string>
+    <string name="nettest_text_blocked">Die aktuelle Netzwerkverbindung deines Geräts blockiert Nova. Das Streaming über das Internet funktioniert möglicherweise nicht, während du mit diesem Netzwerk verbunden bist.</string>
     <!-- Pair messages -->
     <string name="pairing">Koppeln…</string>
     <string name="pair_pc_offline">Host ist offline</string>
@@ -58,7 +58,7 @@
     <string name="error_unknown_host">Hostname konnte nicht aufgelöst werden</string>
     <string name="error_404">GFE ist auf einen HTTP 404 Fehler gestoßen. Stelle sicher, dass die GPU deines Hosts unterstützt wird. Die Verwendung von Remote-Desktop Software kann ebenso diesen Fehler verursachen. Starte deinen Host neu oder installiere GFE neu.</string>
     <string name="title_decoding_error">Video Dekodierer ist abgestürzt</string>
-    <string name="message_decoding_error">Moonlight ist wegen einer Inkompatibilität zu dem Video Dekodierer deines Gerätes abgestürzt. Sollten weiterhin Abstürze auftreten, ändere deine Streaming Einstellungen.</string>
+    <string name="message_decoding_error">Nova ist wegen einer Inkompatibilität zu dem Video Dekodierer deines Gerätes abgestürzt. Sollten weiterhin Abstürze auftreten, ändere deine Streaming Einstellungen.</string>
     <string name="title_decoding_reset">Video Einstellungen zurücksetzen</string>
     <string name="message_decoding_reset">Der Video Dekodierer deines Geräts ist wiederholt mit den ausgewählten Einstellungen abgestürzt. Deine Streamingeinstellungen wurden zurückgesetzt.</string>
     <string name="error_usb_prohibited">USB Zugriff ist administrativ unterbunden. Bitte überprüfen sie ihre Knox oder MDM Einstellungen.</string>
@@ -149,7 +149,7 @@
     <string name="title_checkbox_xb1_driver">Xbox 360/One Controller Treiber</string>
     <string name="summary_checkbox_xb1_driver">Aktiviert den eingebauten USB Treiber für Geräte die keine Xbox-Controller Unterstützung haben</string>
     <string name="title_checkbox_usb_bind_all">Android Controller Unterstützung überschreiben</string>
-    <string name="summary_checkbox_usb_bind_all">Erzwingt die Verwendung von Moonlights USB Treiber für alle Xbox kompatiblen Controller</string>
+    <string name="summary_checkbox_usb_bind_all">Erzwingt die Verwendung von Novas USB Treiber für alle Xbox kompatiblen Controller</string>
     <string name="title_checkbox_mouse_emulation">Maus Emulation via Controller</string>
     <string name="summary_checkbox_mouse_emulation">Langes gedrückt halten der Start-Taste wechselt in den Maus Modus</string>
     <string name="title_checkbox_mouse_nav_buttons">Vor- und Zurück-Tasten aktivieren</string>
@@ -176,7 +176,7 @@
     <string name="title_checkbox_enable_pip">Aktivieren des Bild-in-Bild Modus</string>
     <string name="summary_checkbox_enable_pip">Ermöglicht die Anzeige (aber nicht die Steuerung) des Streams während des Multitasking</string>
     <string name="title_language_list">Sprache</string>
-    <string name="summary_language_list">Sprache die Moonlight verwenden soll</string>
+    <string name="summary_language_list">Sprache die Nova verwenden soll</string>
     <string name="title_checkbox_small_icon_mode">Verwende kleine Cover</string>
     <string name="summary_checkbox_small_icon_mode">Verwende kleine Cover in der Rasteransicht, um mehr gleichzeitig anzeigen zu können</string>
     <string name="category_host_settings">Host Einstellungen</string>
@@ -249,8 +249,8 @@
     <string name="title_checkbox_absolute_mouse_mode">Modus für ferngesteuerte Maus</string>
     <string name="category_help">Hilfe</string>
     <string name="title_setup_guide">Einstellungsanleitung</string>
-    <string name="summary_privacy_policy">Moonlight\'s Datenschutzbestimmungen anzeigen</string>
-    <string name="summary_seekbar_deadzone">Hinweis: Einige Spiele können eine größere Controller-Totzone erzwingen als die, die in Moonlight konfiguriert ist.</string>
+    <string name="summary_privacy_policy">Nova\'s Datenschutzbestimmungen anzeigen</string>
+    <string name="summary_seekbar_deadzone">Hinweis: Einige Spiele können eine größere Controller-Totzone erzwingen als die, die in Nova konfiguriert ist.</string>
     <string name="summary_checkbox_enable_audiofx">Ermöglicht das Funktionieren von Audioeffekten beim Streaming, kann aber die Audio-Latenz erhöhen</string>
     <string name="resolution_prefix_native_portrait">(Portrait)</string>
     <string name="title_checkbox_reduce_refresh_rate">Aktualisierungsrate verringern erlauben</string>
@@ -293,7 +293,7 @@
     Deine geteilten Leistungsdaten helfen, den verfügbaren Datensatz zu verbessern und zu erweitern:\n
      https://tinyurl.com/artemis-performance\n\n</string>
     <string name="email_recipient">artemistics.logs@gmail.com</string>
-    <string name="email_subject">Artemistics - Performance Log</string>
+    <string name="email_subject">Novatics - Performance Log</string>
     <string name="email_chooser_title">Performance Log senden...</string>
     <string name="toast_no_email_clients">Keine E-Mail-Clients installiert.</string>
     <string name="toast_no_logs">Es sind noch keine Leistungsdaten gespeichert.</string>

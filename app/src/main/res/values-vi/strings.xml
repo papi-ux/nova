@@ -34,12 +34,12 @@
 
     <!-- Network test strings -->
     <string name="nettest_title_waiting">Đang kiểm tra kết nối mạng</string>
-    <string name="nettest_text_waiting">Artemis đang kiểm tra kết nối mạng của bạn để xác định xem có bất kỳ cổng nào bị chặn hay không.\n\nĐiều này có thể mất vài giây…</string>
+    <string name="nettest_text_waiting">Nova đang kiểm tra kết nối mạng của bạn để xác định xem có bất kỳ cổng nào bị chặn hay không.\n\nĐiều này có thể mất vài giây…</string>
     <string name="nettest_title_done">Kiểm tra mạng hoàn tất</string>
-    <string name="nettest_text_success">Mạng của bạn dường như không chặn Artemis. Nếu bạn vẫn gặp khó khăn khi kết nối, hãy kiểm tra cài đặt tường lửa của PC.\n\nNếu bạn đang cố gắng phát trực tuyến qua Internet, hãy cài đặt Công cụ Lưu trữ Internet Artemis trên PC của bạn và chạy Trình kiểm tra Phát trực tuyến Internet đi kèm để kiểm tra kết nối Internet của PC.</string>
-    <string name="nettest_text_inconclusive">Không thể thực hiện kiểm tra mạng vì không có máy chủ kiểm tra kết nối của Artemis nào có thể truy cập được. Kiểm tra kết nối Internet của bạn hoặc thử lại sau.</string>
-    <string name="nettest_text_failure">Kết nối mạng hiện tại của thiết bị của bạn dường như đang chặn Artemis. Phát trực tuyến qua Internet có thể không hoạt động khi kết nối với mạng này.\n\nCác cổng mạng sau đã bị chặn:\n</string>
-    <string name="nettest_text_blocked">Kết nối mạng hiện tại của thiết bị của bạn đang chặn Artemis. Phát trực tuyến qua Internet có thể không hoạt động khi kết nối với mạng này.</string>
+    <string name="nettest_text_success">Mạng của bạn dường như không chặn Nova. Nếu bạn vẫn gặp khó khăn khi kết nối, hãy kiểm tra cài đặt tường lửa của PC.\n\nNếu bạn đang cố gắng phát trực tuyến qua Internet, hãy cài đặt Công cụ Lưu trữ Internet Nova trên PC của bạn và chạy Trình kiểm tra Phát trực tuyến Internet đi kèm để kiểm tra kết nối Internet của PC.</string>
+    <string name="nettest_text_inconclusive">Không thể thực hiện kiểm tra mạng vì không có máy chủ kiểm tra kết nối của Nova nào có thể truy cập được. Kiểm tra kết nối Internet của bạn hoặc thử lại sau.</string>
+    <string name="nettest_text_failure">Kết nối mạng hiện tại của thiết bị của bạn dường như đang chặn Nova. Phát trực tuyến qua Internet có thể không hoạt động khi kết nối với mạng này.\n\nCác cổng mạng sau đã bị chặn:\n</string>
+    <string name="nettest_text_blocked">Kết nối mạng hiện tại của thiết bị của bạn đang chặn Nova. Phát trực tuyến qua Internet có thể không hoạt động khi kết nối với mạng này.</string>
 
     <!-- Pair messages -->
     <string name="pairing">Đang ghép nối…</string>
@@ -82,7 +82,7 @@
 	    Sử dụng phần mềm điều khiển từ xa cũng có thể gây ra lỗi này. Thử khởi động lại máy của bạn hoặc cài đặt lại GFE.
     </string>
     <string name="title_decoding_error">Bộ giải mã video bị lỗi</string>
-    <string name="message_decoding_error">Artemis đã gặp sự cố do không tương thích với bộ giải mã video của thiết bị này. Thử điều chỉnh cài đặt phát trực tuyến nếu sự cố tiếp tục xảy ra.</string>
+    <string name="message_decoding_error">Nova đã gặp sự cố do không tương thích với bộ giải mã video của thiết bị này. Thử điều chỉnh cài đặt phát trực tuyến nếu sự cố tiếp tục xảy ra.</string>
     <string name="title_decoding_reset">Cài đặt video đã được đặt lại</string>
     <string name="message_decoding_reset">Bộ giải mã video của thiết bị của bạn tiếp tục gặp sự cố ở cài đặt phát trực tuyến đã chọn. Cài đặt phát trực tuyến của bạn đã được đặt lại về mặc định.</string>
     <string name="error_usb_prohibited">Truy cập USB bị cấm bởi quản trị viên thiết bị của bạn. Kiểm tra cài đặt Knox hoặc MDM của bạn.</string>
@@ -213,7 +213,7 @@
     <string name="title_checkbox_xb1_driver">Trình điều khiển gamepad USB Xbox 360/One/NintendoPro</string>
     <string name="summary_checkbox_xb1_driver">Bật trình điều khiển USB tích hợp cho các thiết bị không có hỗ trợ gamepad Xbox/Nintendo Pro gốc</string>
     <string name="title_checkbox_usb_bind_all">Ghi đè hỗ trợ gamepad Xbox gốc</string>
-    <string name="summary_checkbox_usb_bind_all">Sử dụng trình điều khiển USB của Artemis cho tất cả các gamepad được hỗ trợ, ngay cả khi hỗ trợ gamepad Xbox/Nintendo Pro gốc có mặt</string>
+    <string name="summary_checkbox_usb_bind_all">Sử dụng trình điều khiển USB của Nova cho tất cả các gamepad được hỗ trợ, ngay cả khi hỗ trợ gamepad Xbox/Nintendo Pro gốc có mặt</string>
     <string name="title_checkbox_mouse_emulation">Mô phỏng chuột qua gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Nhấn giữ nút Start sẽ chuyển gamepad sang chế độ chuột</string>
     <string name="title_checkbox_flip_face_buttons">Đảo nút mặt</string>
@@ -260,7 +260,7 @@
     <string name="title_checkbox_enable_pip">Bật chế độ Picture-in-Picture</string>
     <string name="summary_checkbox_enable_pip">Cho phép xem luồng trong khi thực hiện đa nhiệm</string>
     <string name="title_language_list">Ngôn ngữ</string>
-    <string name="summary_language_list">Ngôn ngữ sử dụng cho Artemis</string>
+    <string name="summary_language_list">Ngôn ngữ sử dụng cho Nova</string>
     <string name="title_checkbox_small_icon_mode">Chế độ biểu tượng nhỏ</string>
     <string name="summary_checkbox_small_icon_mode">Hiển thị biểu tượng nhỏ hơn trong lưới ứng dụng để hiển thị nhiều ứng dụng hơn</string>
 
@@ -296,7 +296,7 @@
     <string name="title_troubleshooting">Hướng dẫn khắc phục sự cố</string>
     <string name="summary_troubleshooting">Xem các mẹo để chẩn đoán và khắc phục các sự cố phát trực tuyến phổ biến</string>
     <string name="title_privacy_policy">Chính sách quyền riêng tư</string>
-    <string name="summary_privacy_policy">Xem chính sách quyền riêng tư của Artemis</string>
+    <string name="summary_privacy_policy">Xem chính sách quyền riêng tư của Nova</string>
     <string name="title_special_key_help">Trợ giúp phím đặc biệt</string>
     <string name="summary_special_key_help">Hướng dẫn về cách thiết lập các phím đặc biệt tùy chỉnh</string>
 
@@ -335,8 +335,8 @@
     <string name="pacing_smoothness">Ưu tiên video mượt nhất (có thể tăng đáng kể độ trễ)</string>
 
 
-    <string name="keyboard_service_label">Bàn phím vật lý Artemis</string>
-    <string name="accessibility_description_text">Chỉ được sử dụng khi phím tắt bàn phím vật lý bị hệ thống chặn. Trong một số hệ thống, một số phím tắt bàn phím được định nghĩa và sử dụng bởi hệ thống Android, khiến chúng không thể được chuyển qua PC máy chủ. Artemis sẽ không xem qua đầu vào của bạn, cũng không thu thập mật khẩu, số thẻ tín dụng hoặc bất kỳ thông tin cá nhân nào khác của bạn.</string>
+    <string name="keyboard_service_label">Bàn phím vật lý Nova</string>
+    <string name="accessibility_description_text">Chỉ được sử dụng khi phím tắt bàn phím vật lý bị hệ thống chặn. Trong một số hệ thống, một số phím tắt bàn phím được định nghĩa và sử dụng bởi hệ thống Android, khiến chúng không thể được chuyển qua PC máy chủ. Nova sẽ không xem qua đầu vào của bạn, cũng không thu thập mật khẩu, số thẻ tín dụng hoặc bất kỳ thông tin cá nhân nào khác của bạn.</string>
 
 
     <!-- In Game menu -->
@@ -433,7 +433,7 @@
     <string name="summary_import_special_button">Sử dụng được trong Menu Quay lại và phím đặc biệt.\nLưu ý: Nhập sẽ ghi đè cấu hình hiện tại, vui lòng sao lưu trước.</string>
 
     <string name="title_software_update">Cập nhật phần mềm</string>
-    <string name="summary_software_update">Phiên bản Artemis Việt Hóa bởi ZeronX - Truy cập GitHub Release để nhận phiên bản mới nhất</string>
+    <string name="summary_software_update">Phiên bản Nova Việt Hóa bởi ZeronX - Truy cập GitHub Release để nhận phiên bản mới nhất</string>
 
     <string name="title_special_key_layout">Bố cục phím đặc biệt</string>
 
@@ -496,7 +496,7 @@
     <string name="title_touchpad_sensitivity_y">Độ nhạy touchpad - Trục Y</string>
     <string name="summary_touchpad_sensitivity_y">Áp dụng cho chế độ touchpad chuột và điều khiển touchpad bằng nút đặc biệt ảo;\nCả hai dùng chung giá trị độ nhạy, nhưng hiệu suất có thể khác nhau.\nKhông biết có ai dùng cả hai cùng lúc không?</string>
     <string name="title_device_rumble">Bắt buộc rung trên thiết bị</string>
-    <string name="summary_device_rumble">Nếu bạn không hài lòng với rung của tay cầm chơi game đã kết nối, bạn có thể bật tùy chọn này.\nKhông có tác dụng nếu buộc sử dụng driver USB tích hợp của Artemis</string>
+    <string name="summary_device_rumble">Nếu bạn không hài lòng với rung của tay cầm chơi game đã kết nối, bạn có thể bật tùy chọn này.\nKhông có tác dụng nếu buộc sử dụng driver USB tích hợp của Nova</string>
     <string name="title_clear_default_special_button">Tắt các phím đặc biệt mặc định</string>
     <string name="summary_clear_default_special_button">Nếu bạn thấy các lệnh tích hợp trong menu quay lại không hữu ích, bạn có thể tắt chúng và dùng các phím tự nhập.</string>
     <string name="title_trackpad_sensitivity_x">Độ nhạy trackpad trục X</string>

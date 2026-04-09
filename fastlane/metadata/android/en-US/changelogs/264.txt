@@ -1,3 +1,0 @@
-- Added network latency values to performance overlay
-- Improved streaming performance
-- Added Vietnamese translation from Weblate

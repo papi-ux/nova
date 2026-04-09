@@ -80,7 +80,7 @@
     <string name="error_unknown_host"> 无法解析主机地址 </string>
     <string name="error_404">GFE返回了HTTP 404 错误，确保你的电脑显卡支持串流。使用远程桌面软件同样会引起此错误，请尝试重启电脑或重装GFE。</string>
     <string name="title_decoding_error"> 视频解码器崩溃 </string>
-    <string name="message_decoding_error">由于与该设备的视频解码器不兼容，Artemis 已崩溃。如果崩溃继续，请尝试调整串流设置。</string>
+    <string name="message_decoding_error">由于与该设备的视频解码器不兼容，Nova 已崩溃。如果崩溃继续，请尝试调整串流设置。</string>
     <string name="title_decoding_reset"> 重置视频设置 </string>
     <string name="message_decoding_reset"> 由于设备的视频解码器在你选择的串流设置上持续崩溃，已重置你的串流设置。 </string>
     <string name="error_usb_prohibited"> 设备管理员已禁止USB访问。请检查您的Knox或MDM设置。 </string>
@@ -181,7 +181,7 @@
     <string name="title_checkbox_xb1_driver">Xbox 360/One/Nintendo Pro 手柄驱动 </string>
     <string name="summary_checkbox_xb1_driver"> 为缺少原生Xbox/Nintendo Pro手柄支持的设备启用内置USB驱动 </string>
     <string name="title_checkbox_usb_bind_all"> 覆盖安卓手柄支持 </string>
-    <string name="summary_checkbox_usb_bind_all"> 强制 Artemis 的USB驱动接管所有受支持的Xbox/Nintendo Pro手柄 </string>
+    <string name="summary_checkbox_usb_bind_all"> 强制 Nova 的USB驱动接管所有受支持的Xbox/Nintendo Pro手柄 </string>
     <string name="title_checkbox_mouse_emulation"> 通过手柄模拟鼠标 </string>
     <string name="summary_checkbox_mouse_emulation"> 长按开始键将手柄切换为鼠标模式 </string>
     <string name="title_checkbox_remember_mouse_mode">记住鼠标模式</string>
@@ -208,7 +208,7 @@
     <string name="toast_reset_osc_success"> 屏幕按钮布局已经重置 </string>
     <string name="category_ui_settings"> 界面设置 </string>
     <string name="title_language_list"> 语言 </string>
-    <string name="summary_language_list"> 选择 Artemis 显示的语言 </string>
+    <string name="summary_language_list"> 选择 Nova 显示的语言 </string>
     <string name="title_checkbox_small_icon_mode"> 使用小图标 </string>
     <string name="summary_checkbox_small_icon_mode"> 使用小图标以在屏幕上显示更多项目 </string>
     <string name="category_host_settings"> 主机设置 </string>
@@ -231,16 +231,16 @@
     <string name="dialog_title_osc_opacity">透明度</string>
     <string name="suffix_osc_opacity">%</string>
     <string name="summary_osc_opacity">令屏幕按钮变得更透明/更不透明</string>
-    <string name="nettest_text_failure">您设备的当前网络似乎正在阻止 Artemis 。连接到该网络时，可能无法通过互联网串流。
+    <string name="nettest_text_failure">您设备的当前网络似乎正在阻止 Nova 。连接到该网络时，可能无法通过互联网串流。
 \n
 \n以下网络端口被阻止：
 \n</string>
-    <string name="nettest_text_inconclusive">网络测试无法执行，因为无法连接到 Artemis 的连接测试服务器。检查您的互联网连接或稍后再试。</string>
-    <string name="nettest_text_success">您的网络似乎没有屏蔽 Artemis 。如果您仍然无法连接，请检查您的电脑的防火墙设置。
+    <string name="nettest_text_inconclusive">网络测试无法执行，因为无法连接到 Nova 的连接测试服务器。检查您的互联网连接或稍后再试。</string>
+    <string name="nettest_text_success">您的网络似乎没有屏蔽 Nova 。如果您仍然无法连接，请检查您的电脑的防火墙设置。
 \n
-\n如果您想通过互联网进行流媒体传输，请在您的电脑上安装 Artemis 互联网主机工具，并运行附带的互联网流媒体测试器来检查您的电脑的互联网连接。</string>
+\n如果您想通过互联网进行流媒体传输，请在您的电脑上安装 Nova 互联网主机工具，并运行附带的互联网流媒体测试器来检查您的电脑的互联网连接。</string>
     <string name="nettest_title_done">网络测试完成</string>
-    <string name="nettest_text_waiting"> Artemis 正在测试你的网络连接，请确保所需端口没有被屏蔽。
+    <string name="nettest_text_waiting"> Nova 正在测试你的网络连接，请确保所需端口没有被屏蔽。
 \n
 \n这可能需要几秒钟……</string>
     <string name="nettest_title_waiting">测试网络连接中</string>
@@ -266,7 +266,7 @@
     <string name="no_frame_received_error">您的网络连接质量不佳。请降低视频码率设置或更换更快的网络连接。</string>
     <string name="no_video_received_error">没有接收到来自主机的视频。</string>
     <string name="video_decoder_init_failed">视频解码器初始化失败。您的设备可能不支持选定的分辨率或帧数。</string>
-    <string name="nettest_text_blocked">您设备当前的网络连接拦截了 Artemis 。连接到该网络时可能无法通过互联网串流。</string>
+    <string name="nettest_text_blocked">您设备当前的网络连接拦截了 Nova 。连接到该网络时可能无法通过互联网串流。</string>
     <string name="perf_overlay_netlatency">平均网络延迟： %1$d ms (抖动： %2$d ms)</string>
     <string name="perf_overlay_streamdetails">视频流： %1$s %2$.2f FPS</string>
     <string name="resolution_prefix_native_fullscreen">原生全屏</string>
@@ -297,7 +297,7 @@
     <string name="video_scale_mode_fill">填充</string>
     <string name="video_scale_mode_stretch">拉伸</string>
     <string name="title_privacy_policy">隐私政策</string>
-    <string name="summary_privacy_policy">查看  Artemis  隐私政策</string>
+    <string name="summary_privacy_policy">查看  Nova  隐私政策</string>
     <string name="category_help">帮助</string>
     <string name="title_setup_guide">安装向导</string>
     <string name="title_troubleshooting">解决方案向导</string>
@@ -351,8 +351,8 @@
     <string name="error_code_prefix">错误代码:</string>
     <string name="title_seekbar_vibrate_fallback_strength">调整模拟震动强度</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">％</string>
-    <string name="keyboard_service_label"> Artemis 物理键盘</string>
-    <string name="accessibility_description_text">此功能仅用于外接实体键盘时，某些系统存在特定的键盘快捷键，此情况会影响串流过程中，无法将相关按键指令传输给目标PC。            Artemis 不会观察您输入的文本，也不会收集您的密码、信用卡号或任何其他信息。</string>
+    <string name="keyboard_service_label"> Nova 物理键盘</string>
+    <string name="accessibility_description_text">此功能仅用于外接实体键盘时，某些系统存在特定的键盘快捷键，此情况会影响串流过程中，无法将相关按键指令传输给目标PC。            Nova 不会观察您输入的文本，也不会收集您的密码、信用卡号或任何其他信息。</string>
     <string name="game_menu_toggle_keyboard">弹出软键盘</string>
     <string name="game_menu_toggle_hud">(显示/隐藏)性能信息</string>
     <string name="game_menu_toggle_floating_button">(显示/隐藏)悬浮按钮</string>
@@ -462,7 +462,7 @@
     <string name="title_touchpad_sensitivity_y">触控板灵敏度Y轴</string>
     <string name="summary_touchpad_sensitivity_y">适用于鼠标触控板模式及虚拟特殊按键触控板控件；\n两者共用一个灵敏度数值，但是灵敏度表现可能不一样。\n有人两个一起用吗？</string>
     <string name="title_device_rumble">强制使用设备本身的震动马达</string>
-    <string name="summary_device_rumble">你如果对连接的手柄本身震动效果不满意，可以开启此选项。\n对强制使用 Artemis 自带USB驱动无效。</string>
+    <string name="summary_device_rumble">你如果对连接的手柄本身震动效果不满意，可以开启此选项。\n对强制使用 Nova 自带USB驱动无效。</string>
     <string name="title_clear_default_special_button">禁用默认的特殊按键指令</string>
     <string name="summary_clear_default_special_button">如果你感觉返回菜单内置的指令对你没什么用的话，可以禁用，只使用自己导入的。</string>
     <string name="title_import_special_button">导入自定义按键</string>
@@ -471,7 +471,7 @@
     <string name="title_software_update">软件更新</string>
     <string name="summary_software_update">ClassicOldSong 黑月光修改版 - 访问 GitHub Release 以获取更新</string>
     <string name="title_follow_update">订阅更新</string>
-    <string name="summary_follow_update">使用 Obtainium 订阅 Artemis 的更新</string>
+    <string name="summary_follow_update">使用 Obtainium 订阅 Nova 的更新</string>
     <string name="title_special_key_layout">特殊按键布局</string>
     <string name="title_show_virtual_key">屏幕显示虚拟按键</string>
     <string name="summary_show_virtual_key">在触摸屏上显示一层虚拟特殊按键。\n按键透明度与上方选项中虚拟手柄共用。</string>
@@ -617,7 +617,7 @@
     <string name="summary_performance_link">查看其他设备的性能数据</string>
     <string name="email_chooser_title">发送性能统计...</string>
     <string name="toast_no_email_clients">找不到电子邮件客户端</string>
-    <string name="email_subject">Artemistics - 性能统计</string>
+    <string name="email_subject">Novatics - 性能统计</string>
     <string name="summary_share_performance_logs">与朋友或社区分享你的性能统计数据</string>
     <string name="email_prefix_message">"\n        请按原样将此邮件发送至 artemistics.logs@gmail.com 以帮助社区。\n\n        您分享的性能数据将会帮助改进和扩充以下地址的统计数据：\n\n        https://tinyurl.com/artemis-performance\n\n\n    "</string>
 

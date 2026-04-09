@@ -1,1 +1,0 @@
-- Fixed an RTSP handshake error on the first connection attempt with certain host PCs

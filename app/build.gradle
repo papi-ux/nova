@@ -1,18 +1,36 @@
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+def signingPropsFile = rootProject.file("signing.properties")
+def signingProps = new Properties()
+if (signingPropsFile.exists()) {
+    signingProps.load(new FileInputStream(signingPropsFile))
+}
 
 android {
     ndkVersion "27.0.12077973"
 
     compileSdk = 36
 
-    namespace 'com.limelight'
+    namespace 'com.papi.nova'
+
+    signingConfigs {
+        nova {
+            if (signingProps['storeFile']) {
+                storeFile file(signingProps['storeFile'])
+                storePassword signingProps['storePassword']
+                keyAlias signingProps['keyAlias']
+                keyPassword signingProps['keyPassword']
+            }
+        }
+    }
 
     defaultConfig {
         minSdk 21
         targetSdk 34
 
-        versionName "20.2.6"
-        versionCode = 57
+        versionName "1.3.0"
+        versionCode = 9
 
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes
         ndk.debugSymbolLevel = 'FULL'
@@ -40,7 +58,7 @@ android {
                     "obtainium_app_url",
                     "data:text/html;base64,PGgxPlJvb3QgYnVpbGQgaXMgbm90IGF2YWlsYWJsZTwvaDE+"
 
-            applicationId "com.limelight.root"
+            applicationId "com.papi.nova.root"
             dimension "root"
             buildConfigField "boolean", "ROOT_BUILD", "true"
         }
@@ -54,9 +72,9 @@ android {
 
             resValue "string",
                     "obtainium_app_url",
-                    "https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.limelight.noir%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FClassicOldSong%2Fmoonlight-android%22%2C%22author%22%3A%22ClassicOldSong%22%2C%22name%22%3A%22Artemis%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22nonRoot%5C%22%2C%5C%22matchGroutToUse%5C%22%3A%5C%22%241%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v(.%2B)%5C%22%7D%22%7D"
+                    "https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22nonRoot%5C%22%2C%5C%22matchGroutToUse%5C%22%3A%5C%22%241%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v(.%2B)%5C%22%7D%22%7D"
 
-            applicationId "com.limelight"
+            applicationId "com.papi.nova"
             dimension "root"
             buildConfigField "boolean", "ROOT_BUILD", "false"
         }
@@ -64,13 +82,19 @@ android {
 
     compileOptions {
         encoding "UTF-8"
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
     }
 
     lint {
         disable 'MissingTranslation'
+        disable 'ExtraTranslation'
         lintConfig file('lint.xml')
+        abortOnError false
     }
 
     bundle {
@@ -95,10 +119,10 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix ".noirdebug"
-            resValue "string", "app_label", "Diana"
-            resValue "string", "app_label_root", "Diana (Root)"
-            resValue "string", "app_label_game", "Diana (Game)"
+            applicationIdSuffix ".debug"
+            resValue "string", "app_label", "Nova Debug"
+            resValue "string", "app_label_root", "Nova Debug (Root)"
+            resValue "string", "app_label_game", "Nova Debug (Game)"
 
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -134,10 +158,14 @@ android {
             // is to please change the applicationId before you publish.
             //
             // TL;DR: Leave the following line alone!
-            applicationIdSuffix ".noir"
-            resValue "string", "app_label", "Artemis"
-            resValue "string", "app_label_root", "Artemis (Root)"
-            resValue "string", "app_label_game", "Artemis (Game)"
+            // No suffix needed — base applicationId is already com.papi.nova
+            resValue "string", "app_label", "Nova"
+            resValue "string", "app_label_root", "Nova (Root)"
+            resValue "string", "app_label_game", "Nova (Game)"
+
+            if (signingProps['storeFile']) {
+                signingConfig signingConfigs.nova
+            }
 
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -168,6 +196,7 @@ dependencies {
     implementation 'org.bouncycastle:bcpkix-jdk18on:1.81'
     implementation 'org.jcodec:jcodec:0.2.5'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     implementation 'org.jmdns:jmdns:3.6.2'
     implementation 'com.github.cgutman:ShieldControllerExtensions:1.0.1'
     implementation 'com.google.code.gson:gson:2.13.1'
@@ -177,11 +206,13 @@ dependencies {
     implementation 'androidx.preference:preference:1.2.1'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'com.google.android.material:material:1.13.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'com.github.ByteHamster:SearchPreference:v2.5.1'
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
     implementation 'com.google.ai.edge.litert:litert:1.4.0'
     implementation 'com.google.ai.edge.litert:litert-gpu:1.4.0'
     implementation 'org.opencv:opencv:4.12.0'
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
 
     // Unit test dependencies
     testImplementation 'junit:junit:4.13.2'

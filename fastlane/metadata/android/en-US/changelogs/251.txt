@@ -1,4 +1,0 @@
-- Added the option to stream at your device's native resolution
-- Added 2 finger scrolling in touchpad mode
-- Added additional troubleshooting information when a connection fails
-- Minor UI tweaks and crash fixes

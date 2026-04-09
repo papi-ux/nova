@@ -2,11 +2,11 @@
 <resources>
     <string name="unable_to_pin_shortcut">Η τρέχουσα εφαρμογή εκκίνησης δεν επιτρέπει τη δημιουργία καρφιτσωμένων συντομεύσεων.</string>
     <string name="pcview_menu_delete_pc">Διαγραφή υπολογιστή</string>
-    <string name="nettest_text_success">Το δίκτυό σας δεν φαίνεται να μπλοκάρει το Moonlight. Αν εξακολουθείτε να έχετε πρόβλημα σύνδεσης, ελέγξτε τις ρυθμίσεις του τείχους προστασίας του υπολογιστή σας.
+    <string name="nettest_text_success">Το δίκτυό σας δεν φαίνεται να μπλοκάρει το Nova. Αν εξακολουθείτε να έχετε πρόβλημα σύνδεσης, ελέγξτε τις ρυθμίσεις του τείχους προστασίας του υπολογιστή σας.
 \n
-\nΕάν προσπαθείτε να κάνετε streaming μέσω του Διαδικτύου, εγκαταστήστε το Moonlight Internet Hosting Tool στον υπολογιστή σας και εκτελέστε το συμπεριλαμβανόμενο Internet Streaming Tester για να ελέγξετε τη σύνδεση του υπολογιστή σας στο Διαδίκτυο.</string>
+\nΕάν προσπαθείτε να κάνετε streaming μέσω του Διαδικτύου, εγκαταστήστε το Nova Internet Hosting Tool στον υπολογιστή σας και εκτελέστε το συμπεριλαμβανόμενο Internet Streaming Tester για να ελέγξετε τη σύνδεση του υπολογιστή σας στο Διαδίκτυο.</string>
     <string name="error_manager_not_running">Η υπηρεσία ComputerManager δεν εκτελείται. Περιμένετε μερικά δευτερόλεπτα ή επανεκκινήστε την εφαρμογή.</string>
-    <string name="message_decoding_error">Το Moonlight κατέρρευσε λόγω ασυμβατότητας με τον αποκωδικοποιητή βίντεο αυτής της συσκευής. Βεβαιωθείτε ότι το GeForce Experience έχει ενημερωθεί στην τελευταία έκδοση στον υπολογιστή σας. Δοκιμάστε να προσαρμόσετε τις ρυθμίσεις ροής, εάν οι καταρρεύσεις συνεχίζονται.</string>
+    <string name="message_decoding_error">Το Nova κατέρρευσε λόγω ασυμβατότητας με τον αποκωδικοποιητή βίντεο αυτής της συσκευής. Βεβαιωθείτε ότι το GeForce Experience έχει ενημερωθεί στην τελευταία έκδοση στον υπολογιστή σας. Δοκιμάστε να προσαρμόσετε τις ρυθμίσεις ροής, εάν οι καταρρεύσεις συνεχίζονται.</string>
     <string name="help_loading_title">Πρόγραμμα προβολής βοήθειας</string>
     <string name="help_loading_msg">Φόρτωση σελίδας βοήθειας…</string>
     <string name="pcview_menu_header_online">Σε σύνδεση</string>
@@ -17,8 +17,8 @@
     <string name="pcview_menu_send_wol">Αποστολή αιτήματος Wake-On-LAN</string>
     <string name="nettest_title_waiting">Δοκιμή σύνδεσης δικτύου</string>
     <string name="nettest_title_done">Ολοκληρώθηκε η δοκιμή δικτύου</string>
-    <string name="nettest_text_inconclusive">Η δοκιμή δικτύου δεν μπορούσε να πραγματοποιηθεί επειδή κανένας από τους διακομιστές δοκιμής σύνδεσης της Moonlight δεν ήταν προσβάσιμος. Ελέγξτε τη σύνδεσή σας στο Internet ή δοκιμάστε ξανά αργότερα.</string>
-    <string name="nettest_text_blocked">Η τρέχουσα σύνδεση δικτύου της συσκευής σας εμποδίζει το Moonlight. Η ροή μέσω του Internet ενδέχεται να μην λειτουργεί ενώ είστε συνδεδεμένοι σε αυτό το δίκτυο.</string>
+    <string name="nettest_text_inconclusive">Η δοκιμή δικτύου δεν μπορούσε να πραγματοποιηθεί επειδή κανένας από τους διακομιστές δοκιμής σύνδεσης της Nova δεν ήταν προσβάσιμος. Ελέγξτε τη σύνδεσή σας στο Internet ή δοκιμάστε ξανά αργότερα.</string>
+    <string name="nettest_text_blocked">Η τρέχουσα σύνδεση δικτύου της συσκευής σας εμποδίζει το Nova. Η ροή μέσω του Internet ενδέχεται να μην λειτουργεί ενώ είστε συνδεδεμένοι σε αυτό το δίκτυο.</string>
     <string name="pairing">Σύζευξη…</string>
     <string name="pair_pc_offline">Ο υπολογιστής είναι εκτός σύνδεσης</string>
     <string name="pair_pc_ingame">Ο υπολογιστής βρίσκεται αυτή τη στιγμή σε παιχνίδι. Πρέπει να κλείσετε το παιχνίδι πριν κάνετε σύζευξη.</string>
@@ -32,7 +32,7 @@
     <string name="scut_invalid_app_id">Η παρεχόμενη εφαρμογή δεν είναι έγκυρη</string>
     <string name="scut_invalid_uuid">Ο παρεχόμενος υπολογιστής δεν είναι έγκυρος</string>
     <string name="pcview_menu_details">Προβολή λεπτομερειών</string>
-    <string name="nettest_text_failure">Η τρέχουσα σύνδεση δικτύου της συσκευής σας φαίνεται να εμποδίζει το Moonlight. Η ροή μέσω του Internet ενδέχεται να μην λειτουργεί ενώ είστε συνδεδεμένοι σε αυτό το δίκτυο.
+    <string name="nettest_text_failure">Η τρέχουσα σύνδεση δικτύου της συσκευής σας φαίνεται να εμποδίζει το Nova. Η ροή μέσω του Internet ενδέχεται να μην λειτουργεί ενώ είστε συνδεδεμένοι σε αυτό το δίκτυο.
 \n
 \nΟι ακόλουθες θύρες δικτύου αποκλείστηκαν:
 \n</string>
@@ -87,7 +87,7 @@
     <string name="title_checkbox_xb1_driver">Πρόγραμμα οδήγησης για Xbox 360/One USB gamepad</string>
     <string name="summary_checkbox_xb1_driver">Ενεργοποιεί ένα ενσωματωμένο πρόγραμμα οδήγησης USB για συσκευές χωρίς εγγενή υποστήριξη χειριστηρίου Xbox</string>
     <string name="title_checkbox_usb_bind_all">Παράκαμψη εγγενούς υποστήριξης του Xbox gamepad</string>
-    <string name="summary_checkbox_usb_bind_all">Χρησιμοποιήστε το πρόγραμμα οδήγησης USB του Moonlight για όλα τα υποστηριζόμενα gamepad, ακόμα και αν υπάρχει υποστήριξη εγγενούς ελεγκτή Xbox</string>
+    <string name="summary_checkbox_usb_bind_all">Χρησιμοποιήστε το πρόγραμμα οδήγησης USB του Nova για όλα τα υποστηριζόμενα gamepad, ακόμα και αν υπάρχει υποστήριξη εγγενούς ελεγκτή Xbox</string>
     <string name="title_checkbox_mouse_emulation">Εξομοίωση ποντικιού μέσω gamepad</string>
     <string name="title_checkbox_mouse_nav_buttons">Ενεργοποίηση κουμπιών ποντικιού πίσω και εμπρός</string>
     <string name="summary_checkbox_mouse_nav_buttons">Η ενεργοποίηση αυτής της επιλογής μπορεί να διακόψει το δεξί κλικ σε ορισμένες συσκευές με σφάλματα</string>
@@ -106,12 +106,12 @@
     <string name="title_checkbox_enable_pip">Ενεργοποίηση της λειτουργίας παρατηρητή εικόνας μέσα σε εικόνα</string>
     <string name="summary_checkbox_enable_pip">Επιτρέπει την προβολή της ροής (αλλά όχι τον έλεγχο) κατά την εκτέλεση πολλαπλών εργασιών</string>
     <string name="title_language_list">Γλώσσα</string>
-    <string name="summary_language_list">Γλώσσα που χρησιμοποιείται για το Moonlight</string>
+    <string name="summary_language_list">Γλώσσα που χρησιμοποιείται για το Nova</string>
     <string name="title_checkbox_small_icon_mode">Χρησιμοποιήστε μικρά κουτιά</string>
     <string name="scut_not_paired">Ο υπολογιστής δεν έχει συζευχθεί</string>
     <string name="pcview_menu_header_offline">Εκτός σύνδεσης</string>
     <string name="pcview_menu_test_network">Δοκιμή σύνδεσης δικτύου</string>
-    <string name="nettest_text_waiting">Το Moonlight δοκιμάζει τη σύνδεση δικτύου σας για να διαπιστώσει εάν κάποια θύρα είναι αποκλεισμένη.
+    <string name="nettest_text_waiting">Το Nova δοκιμάζει τη σύνδεση δικτύου σας για να διαπιστώσει εάν κάποια θύρα είναι αποκλεισμένη.
 \n
 \n
 \nΑυτό μπορεί να πάρει μερικά δευτερόλεπτα…</string>

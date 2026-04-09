@@ -1,2 +1,0 @@
-- Add a workaround for the Android 11 gamepad bug when Accessibility features are enabled
-- See https://issuetracker.google.com/issues/163120692 for more details

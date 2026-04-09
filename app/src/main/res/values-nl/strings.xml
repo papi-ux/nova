@@ -94,7 +94,7 @@
     <string name="summary_checkbox_show_onscreen_controls">Geeft een virtuele controller weer op het touchscreen</string>
     <string name="category_ui_settings">UI Installingen</string>
     <string name="title_language_list">Taal</string>
-    <string name="summary_language_list">Taal te gebruiken in Moonlight</string>
+    <string name="summary_language_list">Taal te gebruiken in Nova</string>
     <string name="title_checkbox_small_icon_mode">Gebruik kleine iconen</string>
     <string name="summary_checkbox_small_icon_mode">Gebruik kleine iconen in kolom onderdelen zodat meer items tegelijk zichtbaar worden</string>
     <string name="category_host_settings">Host Instellingen</string>
@@ -106,7 +106,7 @@
     <string name="title_video_format">Verander HEVC instellingen</string>
     <string name="summary_video_format">HEVC verlaagt video bandbreedte vereisten maar benodigd een recent apparaat</string>
     <string name="suffix_osc_opacity">%</string>
-    <string name="message_decoding_error">Moonlight is gecrasht door een compatibiliteitsprobleem met de video decoder van dit toestel. Zorg ervoor dat GeForce Experience bijgewerkt is naar de laatste versie op uw PC. Probeer de streamingsinstellingen te wijzigen bij blijvende crashes.</string>
+    <string name="message_decoding_error">Nova is gecrasht door een compatibiliteitsprobleem met de video decoder van dit toestel. Zorg ervoor dat GeForce Experience bijgewerkt is naar de laatste versie op uw PC. Probeer de streamingsinstellingen te wijzigen bij blijvende crashes.</string>
     <string name="scut_deleted_pc">PC verwijderd</string>
     <string name="scut_not_paired">PC niet gekoppeld</string>
     <string name="scut_pc_not_found">PC niet gevonden</string>
@@ -119,19 +119,19 @@
     <string name="pcview_menu_test_network">Netwerkconnectie testen</string>
     <string name="pcview_menu_details">Details Bekijken</string>
     <string name="nettest_title_waiting">Netwerkconnectie Testen</string>
-    <string name="nettest_text_waiting">Moonlight is uw netwerkverbinding aan het testen om te bepalen of NVIDIA GameStream geblokkeerd is.
+    <string name="nettest_text_waiting">Nova is uw netwerkverbinding aan het testen om te bepalen of NVIDIA GameStream geblokkeerd is.
 \n
 \nDit kan enkele seconden duren…</string>
     <string name="nettest_title_done">Netwerktest Compleet</string>
-    <string name="nettest_text_success">Uw netwerk lijkt Moonlight niet te blokkeren. Als u nog steeds problemen ondervindt met verbinden, controleer de firewall instellingen van uw PC.
+    <string name="nettest_text_success">Uw netwerk lijkt Nova niet te blokkeren. Als u nog steeds problemen ondervindt met verbinden, controleer de firewall instellingen van uw PC.
 \n
-\nAls u probeert te streamen over het internet, installeer de Moonlight Internet Hosting Tool op uw PC en voer de inbegrepen Internet Streaming Tester uit om uw PC\'s internetverbinding te controleren.</string>
-    <string name="nettest_text_inconclusive">De netwerktest kon niet worden uitgevoerd omdat geen Moonlight netwerktesting servers bereikbaar zijn. Controleer uw internetverbinding of probeer later opnieuw.</string>
-    <string name="nettest_text_failure">De internetverbinding van dit toestel lijkt Moonlight te blokkeren. Streamen over het internet werkt mogelijks niet wanneer u verbonden bent met dit netwerk.
+\nAls u probeert te streamen over het internet, installeer de Nova Internet Hosting Tool op uw PC en voer de inbegrepen Internet Streaming Tester uit om uw PC\'s internetverbinding te controleren.</string>
+    <string name="nettest_text_inconclusive">De netwerktest kon niet worden uitgevoerd omdat geen Nova netwerktesting servers bereikbaar zijn. Controleer uw internetverbinding of probeer later opnieuw.</string>
+    <string name="nettest_text_failure">De internetverbinding van dit toestel lijkt Nova te blokkeren. Streamen over het internet werkt mogelijks niet wanneer u verbonden bent met dit netwerk.
 \n
 \nDe volgende netwerkpoorten zijn geblokkeerd:
 \n</string>
-    <string name="nettest_text_blocked">De internetverbinding van dit toestel blokkeert Moonlight. Streamen over het internet werkt mogelijks niet wanneer u verbonden bent met dit netwerk.</string>
+    <string name="nettest_text_blocked">De internetverbinding van dit toestel blokkeert Nova. Streamen over het internet werkt mogelijks niet wanneer u verbonden bent met dit netwerk.</string>
     <string name="pair_already_in_progress">Koppelen al bezig</string>
     <string name="title_decoding_error">Video Decoder Gecrasht</string>
     <string name="title_decoding_reset">Video Instellingen Resetten</string>
@@ -198,7 +198,7 @@
     <string name="summary_fps_list">Verhogen voor een vloeiendere video stream. Verlagen voor betere prestaties op minder krachtige apparaten.</string>
     <string name="summary_audio_config_list">5.1 of 7.1 surround sound inschakelen voor home-cinema systemen</string>
     <string name="summary_checkbox_touchscreen_trackpad">Wanneer ingeschakeld functioneert het touchscreen als een trackpad. Wanneer uitgeschakeld bedient het touchscreen rechtstreeks de muiscursor.</string>
-    <string name="summary_checkbox_usb_bind_all">Gebruik Moonlight\'s USB driver voor alle ondersteunde gamepads, zelfs als een standaard Xbox controller aanwezig is</string>
+    <string name="summary_checkbox_usb_bind_all">Gebruik Nova\'s USB driver voor alle ondersteunde gamepads, zelfs als een standaard Xbox controller aanwezig is</string>
     <string name="dialog_text_reset_osc">Bent u zeker dat u uw opgeslagen on-screen controle-elementen wilt verwijderen\?</string>
     <string name="summary_enable_perf_overlay">Real-time prestatie-informatie tonen tijdens het streamen</string>
     <string name="title_checkbox_vibrate_fallback">Simuleer rumble-ondersteuning met trillingen</string>

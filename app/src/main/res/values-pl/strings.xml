@@ -58,14 +58,14 @@
     <string name="summary_checkbox_vibrate_fallback">Wibruje urządzenie, aby naśladować dudnienie, jeśli gamepad go nie obsługuje</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
     <string name="title_seekbar_deadzone">Regulacja strefy martwej drążka analogowego</string>
-    <string name="summary_seekbar_deadzone">Uwaga: Niektóre gry mogą wymuszać większą strefę martwą niż ta, do której skonfigurowany jest Moonlight.</string>
+    <string name="summary_seekbar_deadzone">Uwaga: Niektóre gry mogą wymuszać większą strefę martwą niż ta, do której skonfigurowany jest Nova.</string>
     <string name="suffix_seekbar_deadzone">%</string>
     <string name="title_checkbox_xb1_driver">Sterownik USB gamepada Xbox 360/One</string>
     <string name="title_checkbox_usb_bind_all">Zastąpienie natywnej obsługi gamepada Xbox</string>
     <string name="title_checkbox_mouse_emulation">Emulacja myszy za pomocą gamepada</string>
     <string name="title_checkbox_flip_face_buttons">Zamiana przycisków akcji A/B/X/Y</string>
     <string name="summary_checkbox_xb1_driver">Włącza wbudowany sterownik USB dla urządzeń bez natywnej obsługi kontrolera Xbox</string>
-    <string name="summary_checkbox_usb_bind_all">Użyj sterownika USB Moonlight dla wszystkich obsługiwanych gamepadów, nawet jeśli natywna obsługa kontrolera Xbox jest obecna</string>
+    <string name="summary_checkbox_usb_bind_all">Użyj sterownika USB Nova dla wszystkich obsługiwanych gamepadów, nawet jeśli natywna obsługa kontrolera Xbox jest obecna</string>
     <string name="title_checkbox_gamepad_touchpad_as_mouse">Zawsze kontroluj mysz za pomocą touchpada</string>
     <string name="summary_checkbox_gamepad_touchpad_as_mouse">Wymusza sterowanie myszą za pomocą touchpada gamepada, nawet w przypadku emulacji gamepada z touchpadem.</string>
     <string name="title_checkbox_gamepad_motion_sensors">Zezwalaj na korzystanie z czujników ruchu gamepada</string>
@@ -94,7 +94,7 @@
     <string name="title_checkbox_enable_pip">Włącz tryb obserwatora obrazu w obrazie</string>
     <string name="summary_reset_osc">Przywraca domyślny rozmiar i położenie wszystkich elementów sterujących na ekranie</string>
     <string name="title_language_list">Język</string>
-    <string name="summary_language_list">Język używany w Moonlight</string>
+    <string name="summary_language_list">Język używany w Nova</string>
     <string name="category_host_settings">Ustawienia hosta</string>
     <string name="summary_checkbox_small_icon_mode">Mniejsze ramki w siatce aplikacji pozwalają na wyświetlanie większej liczby aplikacji na ekranie</string>
     <string name="title_checkbox_enable_sops">Optymalizacja ustawień gry</string>
@@ -121,7 +121,7 @@
     <string name="summary_enable_post_stream_toast">Wyświetlanie komunikatu informującego o opóźnieniu po zakończeniu strumienia</string>
     <string name="title_setup_guide">Instrukcja konfiguracji</string>
     <string name="title_privacy_policy">Polityka prywatności</string>
-    <string name="summary_privacy_policy">Zobacz politykę prywatności Moonlight</string>
+    <string name="summary_privacy_policy">Zobacz politykę prywatności Nova</string>
     <string name="resolution_360p">360p</string>
     <string name="resolution_720p">720p</string>
     <string name="toast_controller_type_changed">Typ gamepada może zostać zmieniony z powodu emulacji czujnika ruchu</string>
@@ -144,11 +144,11 @@
     <string name="pcview_menu_test_network">Test połączenia sieciowego</string>
     <string name="pcview_menu_details">Wyświetl szczegóły</string>
     <string name="nettest_title_done">Test sieci zakończony</string>
-    <string name="nettest_text_failure">Bieżące połączenie sieciowe urządzenia wydaje się blokować Moonlight. Przesyłanie strumieniowe przez Internet może nie działać podczas połączenia z tą siecią.
+    <string name="nettest_text_failure">Bieżące połączenie sieciowe urządzenia wydaje się blokować Nova. Przesyłanie strumieniowe przez Internet może nie działać podczas połączenia z tą siecią.
 \n
 \nNastępujące porty sieciowe zostały zablokowane:
 \n</string>
-    <string name="nettest_text_blocked">Bieżące połączenie sieciowe urządzenia blokuje Moonlight. Przesyłanie strumieniowe przez Internet może nie działać podczas połączenia z tą siecią.</string>
+    <string name="nettest_text_blocked">Bieżące połączenie sieciowe urządzenia blokuje Nova. Przesyłanie strumieniowe przez Internet może nie działać podczas połączenia z tą siecią.</string>
     <string name="pair_pairing_title">Parowanie</string>
     <string name="pair_pc_offline">Komputer jest offline</string>
     <string name="pair_incorrect_pin">Nieprawidłowy kod PIN</string>
@@ -162,7 +162,7 @@
     <string name="unpair_error">Urządzenie nie zostało sparowane</string>
     <string name="error_pc_offline">Komputer jest offline</string>
     <string name="error_unknown_host">Nie udało się zlokalizować hosta</string>
-    <string name="message_decoding_error">Moonlight uległ awarii z powodu niezgodności z dekoderem wideo tego urządzenia. Spróbuj dostosować ustawienia przesyłania strumieniowego jeśli awarie będą się powtarzać.</string>
+    <string name="message_decoding_error">Nova uległ awarii z powodu niezgodności z dekoderem wideo tego urządzenia. Spróbuj dostosować ustawienia przesyłania strumieniowego jeśli awarie będą się powtarzać.</string>
     <string name="error_404">GFE zwrócił błąd HTTP 404. Upewnij się, że w Twoim komputerze działa obsługiwany procesor graficzny. Używanie oprogramowania pulpitu zdalnego może również powodować ten błąd. Spróbuj ponownie uruchomić komputer lub ponownie zainstalować GFE.</string>
     <string name="title_decoding_reset">Reset ustawień wideo</string>
     <string name="error_usb_prohibited">Dostęp USB jest zabroniony przez administratora urządzenia. Sprawdź ustawienia Knox lub MDM.</string>
@@ -227,16 +227,16 @@
     <string name="pcview_menu_pair_pc">Sparuj z PC</string>
     <string name="pcview_menu_unpair_pc">Rozparuj</string>
     <string name="pcview_menu_send_wol">Wyślij żądanie Wake-On-LAN</string>
-    <string name="nettest_text_waiting">Moonlight testuje połączenie sieciowe w celu ustalenia, czy wymagane porty są zablokowane.
+    <string name="nettest_text_waiting">Nova testuje połączenie sieciowe w celu ustalenia, czy wymagane porty są zablokowane.
 \n
 \nMoże to potrwać kilka sekund…</string>
     <string name="pairing">Parowanie…</string>
     <string name="pair_pc_ingame">Komputer jest obecnie w trakcie gry. Przed sparowaniem należy zamknąć grę.</string>
-    <string name="nettest_text_success">Wygląda na to, że sieć nie blokuje Moonlight. Jeśli nadal masz problemy z połączeniem, sprawdź ustawienia zapory sieciowej na swoim komputerze.
+    <string name="nettest_text_success">Wygląda na to, że sieć nie blokuje Nova. Jeśli nadal masz problemy z połączeniem, sprawdź ustawienia zapory sieciowej na swoim komputerze.
 \n
-\nJeśli próbujesz przesyłać strumieniowo przez Internet, zainstaluj narzędzie Moonlight Internet Hosting Tool na swoim komputerze i uruchom dołączony tester przesyłania strumieniowego przez Internet, aby sprawdzić połączenie internetowe komputera.</string>
+\nJeśli próbujesz przesyłać strumieniowo przez Internet, zainstaluj narzędzie Nova Internet Hosting Tool na swoim komputerze i uruchom dołączony tester przesyłania strumieniowego przez Internet, aby sprawdzić połączenie internetowe komputera.</string>
     <string name="pcview_menu_eol">Zakończenie usług NVIDIA GameStream</string>
-    <string name="nettest_text_inconclusive">Nie można było wykonać testu sieci ponieważ żaden z serwerów testujących połączenie Moonlight nie był osiągalny. Sprawdź połączenie internetowe lub spróbuj ponownie później.</string>
+    <string name="nettest_text_inconclusive">Nie można było wykonać testu sieci ponieważ żaden z serwerów testujących połączenie Nova nie był osiągalny. Sprawdź połączenie internetowe lub spróbuj ponownie później.</string>
     <string name="nettest_title_waiting">Testowanie połączenia sieciowego</string>
     <string name="wol_fail">Nie udało się wysłać pakietów Wake-On-LAN</string>
     <string name="error_manager_not_running">Usługa ComputerManager nie jest uruchomiona. Poczekaj kilka sekund lub uruchom ponownie aplikację.</string>

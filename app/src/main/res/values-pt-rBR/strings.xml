@@ -24,14 +24,14 @@
     <string name="searching_pc">Procurando por PCs rodando o GameStream...
 \n
 \nCertifique-se de que o GameStream esteja ativado nas configurações do SHIELD do GeForce Experience.</string>
-    <string name="nettest_text_success">Sua rede não parece estar bloqueando o Moonlight. Se você ainda tiver problemas para se conectar, verifique as configurações de firewall do seu PC.
+    <string name="nettest_text_success">Sua rede não parece estar bloqueando o Nova. Se você ainda tiver problemas para se conectar, verifique as configurações de firewall do seu PC.
 \n
-\nSe você estiver tentando transmitir pela Internet, instale o Moonlight Internet Hosting Tool em seu PC e execute o Internet Streaming Tester para verificar a conexão com a Internet do seu PC.</string>
+\nSe você estiver tentando transmitir pela Internet, instale o Nova Internet Hosting Tool em seu PC e execute o Internet Streaming Tester para verificar a conexão com a Internet do seu PC.</string>
     <string name="check_ports_msg">Verifique o firewall e permita a(s) seguinte(s) para porta(s):</string>
     <string name="wol_no_mac">Não foi possível acordar o PC porque não tem um endereço MAC armazenado</string>
     <string name="wol_waking_msg">Pode levar alguns segundos para o seu PC acordar. Se isso não acontecer, verifique se ele está configurado corretamente para Wake-On-LAN.</string>
     <string name="error_404">GFE retornou um erro HTTP 404. Verifique se o seu PC está executando uma GPU compatível. O uso do software de área de trabalho remota também pode causar esse erro. Tente reiniciar sua máquina ou reinstalar o GFE.</string>
-    <string name="message_decoding_error">Moonlight crashou devido a uma incompatibilidade com o decodificador de vídeo deste dispositivo. Tente ajustar as configurações de transmissão se as falhas continuarem.</string>
+    <string name="message_decoding_error">Nova crashou devido a uma incompatibilidade com o decodificador de vídeo deste dispositivo. Tente ajustar as configurações de transmissão se as falhas continuarem.</string>
     <string name="message_decoding_reset">O decodificador de vídeo do seu dispositivo continua crashando nas configurações de transmissão selecionadas. Suas configurações de transmissão foram redefinidas para o padrão.</string>
     <string name="error_usb_prohibited">O acesso USB é proibido pelo administrador do seu dispositivo. Verifique suas configurações de Knox ou MDM.</string>
     <string name="unable_to_pin_shortcut">Seu launcher atual não permite a criação de atalhos fixados.</string>
@@ -73,13 +73,13 @@
     <string name="nettest_title_done">Teste de Internet Completo</string>
     <string name="pcview_menu_pair_pc">Parear com o PC</string>
     <string name="pcview_menu_send_wol">Enviar Wake-On-LAN</string>
-    <string name="nettest_text_waiting">O Moonlight está testando a sua conexão de internet para determinar se alguma das portas requeridas estão bloqueadas.\n\nIsso pode levar alguns segundos…</string>
-    <string name="nettest_text_inconclusive">O teste de rede não pôde ser executado porque nenhum dos servidores de teste de conexão do Moonlight estava acessível. Verifique sua conexão com a Internet ou tente novamente mais tarde.</string>
-    <string name="nettest_text_failure">A conexão de rede atual do seu dispositivo parece estar bloqueando o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.
+    <string name="nettest_text_waiting">O Nova está testando a sua conexão de internet para determinar se alguma das portas requeridas estão bloqueadas.\n\nIsso pode levar alguns segundos…</string>
+    <string name="nettest_text_inconclusive">O teste de rede não pôde ser executado porque nenhum dos servidores de teste de conexão do Nova estava acessível. Verifique sua conexão com a Internet ou tente novamente mais tarde.</string>
+    <string name="nettest_text_failure">A conexão de rede atual do seu dispositivo parece estar bloqueando o Nova. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.
 \n
 \nAs seguintes portas de rede estão bloqueadas:
 \n</string>
-    <string name="nettest_text_blocked">A conexão de rede atual do seu dispositivo está bloqueando o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
+    <string name="nettest_text_blocked">A conexão de rede atual do seu dispositivo está bloqueando o Nova. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
     <string name="pairing">Pareando…</string>
     <string name="pair_pc_offline">Esse computador está indisponível</string>
     <string name="pair_pc_ingame">Esse computador está atualmente em um jogo. Você deve fechar o jogo antes de parear.</string>
@@ -185,7 +185,7 @@
     <string name="suffix_seekbar_deadzone">%</string>
     <string name="title_checkbox_xb1_driver">Driver de gamepad USB Xbox 360/One</string>
     <string name="title_checkbox_usb_bind_all">Substituir o suporte nativo ao gamepad do Xbox</string>
-    <string name="summary_checkbox_usb_bind_all">Use o driver USB do Moonlight para todos os gamepads suportados, mesmo se houver suporte nativo ao controle Xbox</string>
+    <string name="summary_checkbox_usb_bind_all">Use o driver USB do Nova para todos os gamepads suportados, mesmo se houver suporte nativo ao controle Xbox</string>
     <string name="title_checkbox_mouse_emulation">Emulação de mouse via gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Segure o botão Start para mudar o gamepad para o modo de mouse</string>
     <string name="summary_checkbox_mouse_nav_buttons">Ativar esta opção pode bugar o clique com o botão direito em alguns dispositivos com bugs</string>
@@ -199,7 +199,7 @@
     <string name="title_checkbox_enable_sops">Otimizar configurações de jogo</string>
     <string name="summary_checkbox_enable_sops">Permitir que o GFE modifique as configurações do jogo para otimizar a transmissão</string>
     <string name="title_language_list">Idioma</string>
-    <string name="summary_language_list">Idioma para ser usado no Moonlight</string>
+    <string name="summary_language_list">Idioma para ser usado no Nova</string>
     <string name="summary_checkbox_enable_pip">Permite que a transmissão seja visualizada (mas não controlada) enquanto usa outros apps</string>
     <string name="category_ui_settings">Configurações de Interface</string>
     <string name="suffix_osc_opacity">%</string>
@@ -228,9 +228,9 @@
     <string name="summary_troubleshooting">Veja dicas para diagnosticar e corrigir problemas comuns de streaming</string>
     <string name="title_privacy_policy">Política de privacidade</string>
     <string name="summary_checkbox_absolute_mouse_mode">Isso pode alterar a aceleração do mouse para se comportar mais naturalmente para uso em desktop remoto, mas é incompatível com muitos jogos.</string>
-    <string name="summary_privacy_policy">Veja a política de privacidade do Moonlight</string>
+    <string name="summary_privacy_policy">Veja a política de privacidade do Nova</string>
     <string name="pacing_balanced_alt">Equilibrado com limite de FPS</string>
-    <string name="summary_seekbar_deadzone">Nota: Alguns jogos podem impor uma zona morta maior do que o Moonlight está configurado para usar.</string>
+    <string name="summary_seekbar_deadzone">Nota: Alguns jogos podem impor uma zona morta maior do que o Nova está configurado para usar.</string>
     <string name="title_checkbox_absolute_mouse_mode">Modo de mouse para área de trabalho remota</string>
     <string name="resolution_prefix_native_landscape">(Paisagem)</string>
     <string name="title_checkbox_reduce_refresh_rate">Permitir redução de taxa de atualização</string>

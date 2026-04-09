@@ -90,7 +90,7 @@
     <string name="summary_checkbox_xb1_driver">Вмикає вбудований USB драйвер для пристроїв без власної підтримки контролерів Xbox</string>
     <string name="category_ui_settings">Налаштування інтерфейсу</string>
     <string name="title_language_list">Мова</string>
-    <string name="summary_language_list">Мова, яка буде використовуватися в Moonlight</string>
+    <string name="summary_language_list">Мова, яка буде використовуватися в Nova</string>
     <string name="title_checkbox_small_icon_mode">Використовувати маленькі іконки</string>
     <string name="summary_checkbox_small_icon_mode">Використовувати маленькі іконки в сітці застосунків, для відображення більшої кількості елементів на екрані</string>
     <string name="category_host_settings">Налаштування хоста</string>
@@ -114,7 +114,7 @@
     <string name="help">Допомога</string>
     <string name="applist_connect_msg">Підключення до пристрою…</string>
     <string name="title_decoding_error">Збій відео розцифрувача</string>
-    <string name="message_decoding_error">Moonlight аварійно завершив роботу через несумісність із відеодекодером цього пристрою. Спробуйте налаштувати параметри потокового передавання, якщо збої триватимуть.</string>
+    <string name="message_decoding_error">Nova аварійно завершив роботу через несумісність із відеодекодером цього пристрою. Спробуйте налаштувати параметри потокового передавання, якщо збої триватимуть.</string>
     <string name="title_decoding_reset">Налаштування відео скинуті</string>
     <string name="message_decoding_reset">Відео розцифрувач вашого пристрою продовжує давати збої з поточними налаштуваннями трансляції. Налаштування трансляції були скинуті до значень за замовчуванням.</string>
     <string name="error_usb_prohibited">USB доступ заборонений адміністратором пристрою. Перевірте налаштування Knox або MDM.</string>
@@ -122,7 +122,7 @@
     <string name="title_checkbox_enable_pip">Увімкнути режим перегляду \"Картинка в картинці\"</string>
     <string name="summary_checkbox_enable_pip">Дозволяє переглядати стрім (але не контролювати) під час багатозадачності</string>
     <string name="title_checkbox_usb_bind_all">Вимкнути рідну підтримку Xbox контролерів від Андроїда</string>
-    <string name="summary_checkbox_usb_bind_all">Використовувати USB драйвер Moonlight для усіх підтриманих контролерів, навіть якщо існує рідна підтримка</string>
+    <string name="summary_checkbox_usb_bind_all">Використовувати USB драйвер Nova для усіх підтриманих контролерів, навіть якщо існує рідна підтримка</string>
     <string name="title_checkbox_mouse_emulation">Емуляція миші через контролер</string>
     <string name="summary_checkbox_mouse_emulation">Довге натиснення ґудзика Start, перемкне контролер в режим миші</string>
     <string name="title_reset_osc">Скинути власне розташування ґудзиків на екрані</string>
@@ -178,9 +178,9 @@
     <string name="early_termination_error">Щось пішло не так на вашому головному ПК під час запуску потоку.
 \n
 \nПереконайтеся, що на головному ПК немає відкритого вмісту, захищеного DRM. Ви також можете спробувати перезавантажити головний ПК.</string>
-    <string name="nettest_text_success">Схоже що ваша мережа не блокує Moonlight. Якщо у вас й надалі проблеми з підключенням, перевірте налаштування брандмауера.
+    <string name="nettest_text_success">Схоже що ваша мережа не блокує Nova. Якщо у вас й надалі проблеми з підключенням, перевірте налаштування брандмауера.
 \n
-\nЯкщо ви намагаєтеся транслювати через Інтернет, встановіть на своєму пристрої Moonlight Internet Hosting Tool, та запустіть випробування мережі щоб перевірити ваше з\'єднання до Інтернету.</string>
+\nЯкщо ви намагаєтеся транслювати через Інтернет, встановіть на своєму пристрої Nova Internet Hosting Tool, та запустіть випробування мережі щоб перевірити ваше з\'єднання до Інтернету.</string>
     <string name="resolution_prefix_native_fullscreen">Рідний повноекранний</string>
     <string name="resolution_prefix_native">Рідна</string>
     <string name="suffix_seekbar_bitrate_mbps">Мб/с</string>
@@ -199,14 +199,14 @@
     <string name="no_frame_received_error">Здається, ваше мережеве з\'єднання човпає. Спробуйте зменшити швидкість потоку (бітрейт) чи переключіть пристрій на швидшу мережу.</string>
     <string name="no_video_received_error">Не отримано відео від хоста.</string>
     <string name="video_decoder_init_failed">Не вдалося запустити відео розцифрувач. Ваш пристрій може не підтримувати розмір екрану чи частоту кадрів.</string>
-    <string name="nettest_text_blocked">Поточне мережеве з’єднання вашого пристрою блокує Moonlight. Трансляції через Інтернет можуть не працювати на цієї мережі.</string>
-    <string name="nettest_text_failure">Поточне мережеве з’єднання вашого пристрою блокує Moonlight. Трансляції через Інтернет можуть не працювати на цієї мережі.
+    <string name="nettest_text_blocked">Поточне мережеве з’єднання вашого пристрою блокує Nova. Трансляції через Інтернет можуть не працювати на цієї мережі.</string>
+    <string name="nettest_text_failure">Поточне мережеве з’єднання вашого пристрою блокує Nova. Трансляції через Інтернет можуть не працювати на цієї мережі.
 \n
 \nНаступні мережеві порти були заблоковані:
 \n</string>
-    <string name="nettest_text_inconclusive">Не вдалося перевірити мережу, тому що усі мережо-перевірочні сервери Moonlight недосяжні. Перевірте ваше з\'єднання з інтернетом та спробуйте знову.</string>
+    <string name="nettest_text_inconclusive">Не вдалося перевірити мережу, тому що усі мережо-перевірочні сервери Nova недосяжні. Перевірте ваше з\'єднання з інтернетом та спробуйте знову.</string>
     <string name="nettest_title_done">Перевірка мережі завершена</string>
-    <string name="nettest_text_waiting">Moonlight перевіряє ваше мережеве з’єднання, щоб визначити, чи заблоковані необхідні порти.
+    <string name="nettest_text_waiting">Nova перевіряє ваше мережеве з’єднання, щоб визначити, чи заблоковані необхідні порти.
 \n
 \nЦе може зайняти кілька секунд…</string>
     <string name="nettest_title_waiting">Перевіряємо з\'єднання</string>
@@ -240,7 +240,7 @@
     <string name="title_privacy_policy">Політика конфіденційності</string>
     <string name="summary_troubleshooting">Переглянути поради щодо діагностики та усунення поширених проблем з потоковою передачею</string>
     <string name="summary_checkbox_reduce_refresh_rate">Більш низька частота оновлення дисплея може заощадити енергію за рахунок деякої додаткової затримки відео</string>
-    <string name="summary_seekbar_deadzone">Примітка: Деякі ігри можуть встановлювати більшу мертву зону, ніж та, на яку налаштовано Moonlight.</string>
+    <string name="summary_seekbar_deadzone">Примітка: Деякі ігри можуть встановлювати більшу мертву зону, ніж та, на яку налаштовано Nova.</string>
     <string name="title_checkbox_absolute_mouse_mode">Режим миші віддаленого робочого столу</string>
     <string name="title_setup_guide">Гайд по налаштуванню</string>
     <string name="summary_setup_guide">Переглянути інструкцію, як налаштувати ігровий ПК для стрімінгу</string>
@@ -251,7 +251,7 @@
     <string name="summary_checkbox_absolute_mouse_mode">Це може зробити прискорення миші більш природним під час використання віддаленого робочого столу, але воно несумісне з багатьма іграми.</string>
     <string name="title_checkbox_reduce_refresh_rate">Дозволити зниження частоти оновлення</string>
     <string name="category_help">Допомога</string>
-    <string name="summary_privacy_policy">Переглянути політику конфіденційності Moonlight</string>
+    <string name="summary_privacy_policy">Переглянути політику конфіденційності Nova</string>
     <string name="frame_conversion_error">Головний комп\'ютер повідомив про фатальну помилку кодування відео.
 \n
 \nСпробуйте вимкнути режим HDR, змінити роздільну здатність потокового відео або змінити роздільну здатність дисплея головного комп\'ютера.</string>

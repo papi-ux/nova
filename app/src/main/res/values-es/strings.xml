@@ -97,7 +97,7 @@
     <string name="summary_only_l3r3">Ocultar todo excepto L3 y R3</string>
     <string name="category_ui_settings">Configuración de la interfaz</string>
     <string name="title_language_list">Idioma</string>
-    <string name="summary_language_list">Idioma a usar por Moonlight</string>
+    <string name="summary_language_list">Idioma a usar por Nova</string>
     <string name="title_checkbox_small_icon_mode">Usar iconos pequeños</string>
     <string name="summary_checkbox_small_icon_mode">Usar iconos pequeños en las entradas de cuadrículas para permitir más entradas en la pantalla</string>
     <string name="category_host_settings">Configuración de servidor</string>
@@ -121,11 +121,11 @@
     <string name="pcview_menu_test_network">Probar Conexión de Red</string>
     <string name="pcview_menu_details">Ver Detalles</string>
     <string name="nettest_title_waiting">Probando Conexión de Red</string>
-    <string name="nettest_text_waiting">Moonlight está probando tu conexión a la red para determinar si algún puerto necesario está bloqueado.
+    <string name="nettest_text_waiting">Nova está probando tu conexión a la red para determinar si algún puerto necesario está bloqueado.
 \n
 \nEsto puede tardar unos segundos…</string>
-    <string name="nettest_text_inconclusive">La prueba de red no pudo ejecutarse debido a que no se pudo alcanzar ningún servidor de prueba de conexión de Moonlight. Revisa tu conexión a internet o prueba nuevamente mas tarde.</string>
-    <string name="nettest_text_failure">La actual conexión de red de tu dispositivo parece estar bloqueando Moonlight. La Transmisión mediante Internet puede no funcionar mientras estes conectado a esta red.
+    <string name="nettest_text_inconclusive">La prueba de red no pudo ejecutarse debido a que no se pudo alcanzar ningún servidor de prueba de conexión de Nova. Revisa tu conexión a internet o prueba nuevamente mas tarde.</string>
+    <string name="nettest_text_failure">La actual conexión de red de tu dispositivo parece estar bloqueando Nova. La Transmisión mediante Internet puede no funcionar mientras estes conectado a esta red.
 \n
 \nSe han bloqueado los siguientes puertos de red:
 \n</string>
@@ -134,10 +134,10 @@
     <string name="scut_pc_not_found">PC no encontrado</string>
     <string name="help_loading_msg">Cargando página de ayuda…</string>
     <string name="pcview_menu_header_offline">Fuera de línea</string>
-    <string name="nettest_text_success">Tu red parece no estar bloqueando Moonlight. Si aun tienes problemas de conexión, comprueba la configuración del firewall de tu PC.
+    <string name="nettest_text_success">Tu red parece no estar bloqueando Nova. Si aun tienes problemas de conexión, comprueba la configuración del firewall de tu PC.
 \n
-\nSi estas intentado transmitir mediante Internet, instala en tu pc la Moonlight Internet Hosting Tool y ejecuta el Internet Streaming Tester incluido para comprobar la conexión de tu PC a internet.</string>
-    <string name="nettest_text_blocked">La conexión de red actual de tu dispositivo esta bloqueando Moonlight. La Transmisión mediante Internet puede no funcionar mientras estés conectado a esta red.</string>
+\nSi estas intentado transmitir mediante Internet, instala en tu pc la Nova Internet Hosting Tool y ejecuta el Internet Streaming Tester incluido para comprobar la conexión de tu PC a internet.</string>
+    <string name="nettest_text_blocked">La conexión de red actual de tu dispositivo esta bloqueando Nova. La Transmisión mediante Internet puede no funcionar mientras estés conectado a esta red.</string>
     <string name="pair_already_in_progress">Emparejamiento ya en progreso</string>
     <string name="resolution_prefix_native_fullscreen">Pantalla Completa Nativa</string>
     <string name="title_audio_config_list">Configuración de Sonido Envolvente</string>
@@ -176,7 +176,7 @@
     <string name="audioconf_stereo">Estéreo</string>
     <string name="check_ports_msg">Revisa la configuración de tu firewall, así como, las reglas de redireccionamiento para él(los) puerto(s):</string>
     <string name="error_usb_prohibited">El acceso a USB está restringido en tu dispositivo por el administrador. Revisar tus ajustes en MDM o Knox.</string>
-    <string name="message_decoding_error">Moonlight se ha bloqueado debido a una incompatibilidad con el descodificador de vídeo de este dispositivo. Intenta ajustar la configuración de streaming si los bloqueos continúan.</string>
+    <string name="message_decoding_error">Nova se ha bloqueado debido a una incompatibilidad con el descodificador de vídeo de este dispositivo. Intenta ajustar la configuración de streaming si los bloqueos continúan.</string>
     <string name="message_decoding_reset">La decodificación de video de tu equipo sigue fallando con las opciones elegidas. Las opciones de la transmisión han sido revertidas a las predeterminadas.</string>
     <string name="video_decoder_init_failed">El descodificador de video no pudo ser iniciado. Tu dispositivo puede no soportar la resolución elegida o la tasa de cuadros por segundo.</string>
     <string name="no_frame_received_error">La conexión de red no está teniendo un buen desempeño. Reduce la tasa de bits de video o prueba con una conexión de mayor velocidad.</string>
@@ -203,7 +203,7 @@
     <string name="summary_audio_config_list">Activar sonido envolvente de 5.1 o 7.1 canales para sistemas de teatro en casa</string>
     <string name="title_checkbox_vibrate_fallback">Emular la vibración del mando con vibración del equipo</string>
     <string name="summary_checkbox_enable_audiofx">Permitir funcionar efectos de sonido durante la transmisión, pero podría incrementar la latencia del sonido</string>
-    <string name="summary_checkbox_usb_bind_all">Usar el controlador de USB de Moonlight para todos los mandos soportados, incluso si el control de Xbox se encuentra presente</string>
+    <string name="summary_checkbox_usb_bind_all">Usar el controlador de USB de Nova para todos los mandos soportados, incluso si el control de Xbox se encuentra presente</string>
     <string name="summary_checkbox_mouse_emulation">Presionar por un periodo largo el botón de inicio hará cambiar el mando a modo de ratón</string>
     <string name="title_checkbox_mouse_nav_buttons">Activar los botones atrás y adelante del ratón</string>
     <string name="title_unlock_fps">Desbloquear todas las opciones de tasa de cuadros disponibles</string>
@@ -220,7 +220,7 @@
     <string name="category_input_settings">Opciones de Entrada</string>
     <string name="title_checkbox_touchscreen_trackpad">Usa la pantalla táctil como panel táctil</string>
     <string name="summary_checkbox_touchscreen_trackpad">Si está activo, la pantalla táctil funcionará como panel táctil. Si está desactivado, la pantalla táctil directamente controlará el cursor del ratón.</string>
-    <string name="summary_seekbar_deadzone">Nota: Algunos juegos pueden forzar una zona muerta mayor a la que Moonlight esta configurada a usar.</string>
+    <string name="summary_seekbar_deadzone">Nota: Algunos juegos pueden forzar una zona muerta mayor a la que Nova esta configurada a usar.</string>
     <string name="title_checkbox_flip_face_buttons">Invertir botones frontales</string>
     <string name="summary_checkbox_absolute_mouse_mode">Esto puede hacer que la aceleración de mouse se comporte mas natural para uso de escritorio remoto, pero es incompatible con muchos juegos.</string>
     <string name="title_checkbox_enable_audiofx">Activar el soporte para ecualizador de sistema</string>
@@ -247,7 +247,7 @@
     <string name="category_help">Ayuda</string>
     <string name="title_setup_guide">Guía para la Configuración</string>
     <string name="summary_setup_guide">Mostrar instrucciones para como configurar tu PC para juegos para la transmisión</string>
-    <string name="summary_privacy_policy">Mostrar la política de privacidad de Moonlight</string>
+    <string name="summary_privacy_policy">Mostrar la política de privacidad de Nova</string>
     <string name="resolution_480p">480p</string>
     <string name="fps_30">30 FPS</string>
     <string name="fps_60">60 FPS</string>

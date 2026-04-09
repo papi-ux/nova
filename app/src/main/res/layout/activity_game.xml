@@ -11,7 +11,7 @@
         android:layout_height="match_parent"
         android:layout_gravity="center" />
     
-    <com.limelight.ui.StreamContainer
+    <com.papi.nova.ui.StreamContainer
         android:id="@+id/streamContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -21,9 +21,9 @@
         android:focusableInTouchMode="true"
         android:focusedByDefault="true">
     <requestFocus />
-    </com.limelight.ui.StreamContainer>
+    </com.papi.nova.ui.StreamContainer>
 
-<!--    <com.limelight.ui.ApertureViewGroup-->
+<!--    <com.papi.nova.ui.ApertureViewGroup-->
 <!--        android:layout_width="match_parent"-->
 <!--        android:layout_height="match_parent"-->
 <!--        app:aperture_color1="#5CF950"-->
@@ -34,7 +34,7 @@
 <!--        app:aperture_border_angle="24dp"-->
 <!--        app:aperture_duration="6000"-->
 <!--        app:aperture_middle_color="#6CD2F8">-->
-<!--    </com.limelight.ui.ApertureViewGroup>-->
+<!--    </com.papi.nova.ui.ApertureViewGroup>-->
 
     <TextView
         android:id="@+id/notificationOverlay"
@@ -46,7 +46,7 @@
         android:layout_gravity="right"
         android:textAppearance="?android:attr/textAppearanceLarge"
         android:gravity="right"
-        android:background="#80000000"
+        android:background="@color/nova_overlay_dark"
         android:preferKeepClear="true"
         android:visibility="gone" />
 
@@ -66,7 +66,7 @@
             android:layout_gravity="left"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:gravity="left"
-            android:background="#80000000"
+            android:background="@color/nova_overlay_dark"
             android:preferKeepClear="true"
             android:visibility="gone" />
 

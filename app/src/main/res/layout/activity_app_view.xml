@@ -1,47 +1,152 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?android:colorBackground"
     tools:context=".AppView">
 
-    <FrameLayout
-        android:id="@+id/appFragmentContainer"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/appListText"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentBottom="true"
-        android:gravity="center" >
-    </FrameLayout>
+    <!-- Space particles -->
+    <com.papi.nova.ui.SpaceParticleView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
-    <TextView
-        android:id="@+id/appListText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:layout_centerHorizontal="true"
-        android:gravity="center"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp"
-        android:preferKeepClear="true"
-        android:textSize="28sp" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
+        <!-- Header -->
+        <LinearLayout
+            android:id="@+id/appListHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="24dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:id="@+id/appListText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="26sp"
+                android:textColor="@color/nova_ice"
+                android:fontFamily="sans-serif-light"
+                android:letterSpacing="0.02" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Games"
+                android:textSize="11sp"
+                android:textColor="@color/nova_text_muted"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.12"
+                android:textAllCaps="true"
+                android:paddingTop="4dp" />
+
+        </LinearLayout>
+
+        <!-- Search bar -->
+        <EditText
+            android:id="@+id/app_search"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="12dp"
+            android:hint="Search games\u2026"
+            android:textColorHint="@color/nova_text_muted"
+            android:textColor="@color/nova_text_primary"
+            android:textSize="14sp"
+            android:background="@drawable/nova_search_bg"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:singleLine="true"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:visibility="gone" />
+
+        <!-- Recently played hero card -->
+        <LinearLayout
+            android:id="@+id/recently_played_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/nova_card_bg"
+            android:padding="14dp"
+            android:foreground="?attr/selectableItemBackground"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/recently_played_art"
+                android:layout_width="56dp"
+                android:layout_height="72dp"
+                android:scaleType="centerCrop"
+                android:background="@color/nova_deep" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="CONTINUE"
+                    android:textSize="10sp"
+                    android:textColor="@color/nova_accent"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.1" />
+
+                <TextView
+                    android:id="@+id/recently_played_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textColor="@color/nova_ice"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:paddingTop="2dp" />
+            </LinearLayout>
+
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_play"
+                android:tint="@color/nova_accent"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- App grid -->
+        <FrameLayout
+            android:id="@+id/appFragmentContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+    </LinearLayout>
+
+    <!-- Profiles FAB -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/profilesButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentRight="true"
+        android:layout_gravity="end|bottom"
         android:layout_marginBottom="24dp"
         android:layout_marginEnd="24dp"
-        android:layout_marginRight="24dp"
         android:contentDescription="@string/profile_manager_choose_profile"
-        android:layout_margin="16dp"
-        app:icon="@drawable/ic_profiles" />
+        app:icon="@drawable/ic_profiles"
+        app:backgroundTint="@color/nova_accent"
+        app:iconTint="@color/nova_ice" />
 
-</RelativeLayout>
+</FrameLayout>

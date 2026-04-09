@@ -1,2 +1,0 @@
-- Fixed typing upper-case letters with the software keyboard
-- Improved device compatibility with the built-in USB Xbox gamepad driver

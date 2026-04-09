@@ -10,13 +10,13 @@
     <!-- Network test strings -->
     <string name="pcview_error_no_management_url">Невозможно открыть страницу настроек сервера - адрес не найден.</string>
     <string name="nettest_title_waiting">Тестирование сетевого подключения</string>
-    <string name="nettest_text_waiting">Artemis тестирует ваше сетевое подключение, чтобы определить, заблокированы ли нужные порты.
+    <string name="nettest_text_waiting">Nova тестирует ваше сетевое подключение, чтобы определить, заблокированы ли нужные порты.
 \n
 \nЭто может занять некоторое время…</string>
     <string name="nettest_title_done">Тестирование подключения завершено</string>
-    <string name="nettest_text_success">Ваша сеть не блокирует Artemis. Если у вас всё ещё есть проблемы с соединением, проверьте настройки брандмауэра на компьютере.\n\nЕсли вы пытаетесь транслировать через интернет, установите Artemis Internet Hosting Tool на ваш компьютер и запустите установленный Internet Streaming Tester, чтобы проверить Интернет-соединение на вашем компьютере.</string>
-    <string name="nettest_text_inconclusive">Тестирование подключения не может быть выполнено, потому что сервера тестирования подключения Artemis не доступны. Проверьте ваше Интернет-соединение или повторите попытку позже.</string>
-    <string name="nettest_text_failure">Похоже, что текущее сетевое подключение вашего устройства блокирует Artemis. Трансляция через Интернет может не работать при подключении к этой сети.\n\nСледующие сетевые порты были заблокированы:\n</string>
+    <string name="nettest_text_success">Ваша сеть не блокирует Nova. Если у вас всё ещё есть проблемы с соединением, проверьте настройки брандмауэра на компьютере.\n\nЕсли вы пытаетесь транслировать через интернет, установите Nova Internet Hosting Tool на ваш компьютер и запустите установленный Internet Streaming Tester, чтобы проверить Интернет-соединение на вашем компьютере.</string>
+    <string name="nettest_text_inconclusive">Тестирование подключения не может быть выполнено, потому что сервера тестирования подключения Nova не доступны. Проверьте ваше Интернет-соединение или повторите попытку позже.</string>
+    <string name="nettest_text_failure">Похоже, что текущее сетевое подключение вашего устройства блокирует Nova. Трансляция через Интернет может не работать при подключении к этой сети.\n\nСледующие сетевые порты были заблокированы:\n</string>
     <!-- Pair messages -->
     <string name="pairing">Сопряжение…</string>
     <string name="pair_pc_confirm_message">Вы действительно хотите выполнить сопряжение с %s? Не выполняйте сопряжение с незнакомыми компьютерами.</string>
@@ -114,7 +114,7 @@
     <string name="summary_checkbox_flip_face_buttons">Меняет местами кнопки A/B и X/Y на геймпадах и экранных кнопках</string>
     <string name="category_ui_settings">Настройки интерфейса</string>
     <string name="title_language_list">Язык</string>
-    <string name="summary_language_list">Язык, который будет использоваться в Artemis</string>
+    <string name="summary_language_list">Язык, который будет использоваться в Nova</string>
     <string name="title_checkbox_small_icon_mode">Использовать маленькие иконки</string>
     <string name="summary_checkbox_small_icon_mode">Использовать маленькие иконки в сетке для отображения большего числа элементов на экране</string>
     <string name="category_host_settings">Настройки хоста</string>
@@ -142,7 +142,7 @@
     <string name="toast_no_logs">Данные о производительности отсутствуют.</string>
     <string name="applist_connect_msg">Подключение к ПК…</string>
     <string name="title_decoding_error">Сбой декодирования видео</string>
-    <string name="message_decoding_error">Artemis произошел сбой из-за несовместимости с видеодекодером этого устройства. Попробуйте изменить настройки потоковой передачи, если сбои продолжаются.</string>
+    <string name="message_decoding_error">Nova произошел сбой из-за несовместимости с видеодекодером этого устройства. Попробуйте изменить настройки потоковой передачи, если сбои продолжаются.</string>
     <string name="title_decoding_reset">Настройки видео были сброшены</string>
     <string name="message_decoding_reset">Видео декодер Вашего устройства давал сбои с выбранными настройками. Настройки трансляции были сброшены до значений по умолчанию.</string>
     <string name="error_usb_prohibited">USB доступ запрещён администратором устройства. Проверьте настройки Knox или MDM.</string>
@@ -150,7 +150,7 @@
     <string name="title_checkbox_enable_pip">Включить просмотр в режиме \"Картинка в картинке\"</string>
     <string name="summary_checkbox_enable_pip">Позволяет просматривать трансляцию (но не управлять ей) во время работы в других приложениях</string>
     <string name="title_checkbox_usb_bind_all">Переопределить поддержку контроллеров Android</string>
-    <string name="summary_checkbox_usb_bind_all">Заставляет USB драйвер Artemis взять на себя работу со всеми поддерживаемыми Xbox геймпадами</string>
+    <string name="summary_checkbox_usb_bind_all">Заставляет USB драйвер Nova взять на себя работу со всеми поддерживаемыми Xbox геймпадами</string>
     <string name="title_checkbox_mouse_emulation">Эмуляция мыши на геймпаде</string>
     <string name="summary_checkbox_mouse_emulation">Долгое нажатие кнопки Start переключит геймпад в режим мыши</string>
     <string name="summary_show_guide_button">Отобразить кнопку Guide на экране</string>
@@ -218,7 +218,7 @@
 \nУбедитесь, что на вашем хост-ПК не открыт контент, защищенный DRM. Вы также можете попробовать перезагрузить хост-компьютер.</string>
     <string name="no_frame_received_error">Ваше сетевое подключение не справляется с заданными настройками. Попробуйте изменить битрейт или использовать более быстрое подключение.</string>
     <string name="no_video_received_error">Видео от хоста не получено.</string>
-    <string name="nettest_text_blocked">Текущее сетевое соединение вашего устройства блокирует Artemis. Потоковая передача через Интернет может не работать при подключении к этой сети.</string>
+    <string name="nettest_text_blocked">Текущее сетевое соединение вашего устройства блокирует Nova. Потоковая передача через Интернет может не работать при подключении к этой сети.</string>
     <string name="summary_resolution_scale_factor">Запрашиваемое на сервере виртуальное разрешение экрана будет умножено на этот коэффициент. Разрешение стрима не изменяется.\nПример: 120% превратит 2000×1000 в 2400×1200.\nПовышение коэффициента может улучшить качество изображения в некоторых играх.\nТребуется Apollo для применения.</string>
     <string name="resolution_prefix_native">Нативное</string>
     <string name="text_native_res_dialog">Режимы родного разрешения официально не поддерживаются GeForce Experience, поэтому он не будет устанавливать разрешение экрана вашего хоста самостоятельно. Вам нужно будет установить его вручную.
@@ -258,7 +258,7 @@
     <string name="summary_setup_guide">Посмотреть инструкцию о том как настроить ваш ПК для стриминга</string>
     <string name="title_troubleshooting">Руководство по устранению неполадок</string>
     <string name="summary_frame_pacing">Укажите, как сбалансировать задержку и плавность видеосигнала</string>
-    <string name="summary_privacy_policy">Посмотреть политику конфиденциальности Artemis</string>
+    <string name="summary_privacy_policy">Посмотреть политику конфиденциальности Nova</string>
     <string name="title_privacy_policy">Политика конфиденциальности</string>
     <string name="resolution_360p">360p</string>
     <string name="resolution_1080p">1080p</string>
@@ -267,7 +267,7 @@
     <string name="category_help">Помощь</string>
     <string name="resolution_720p">720p</string>
     <string name="resolution_prefix_native_portrait">(Портретный)</string>
-    <string name="summary_seekbar_deadzone">Некоторые игры могут принудительно увеличить мёртвую зону вместо указанной в Artemis.</string>
+    <string name="summary_seekbar_deadzone">Некоторые игры могут принудительно увеличить мёртвую зону вместо указанной в Nova.</string>
     <string name="title_checkbox_absolute_mouse_mode">Режим удалённого рабочего стола для мыши</string>
     <string name="title_checkbox_reduce_refresh_rate">Разрешить снижение частоты обновления</string>
     <string name="resolution_4k">4K</string>
@@ -320,7 +320,7 @@
     <string name="pair_otp_pairing_msg">Сопряжение, подождите…</string>
     <string name="pair_passphrase_hint">Пароль</string>
     <string name="pair_pin_length_msg">PIN должен состоять из 4 цифр</string>
-    <string name="email_subject">Artemistics - журнал производительности</string>
+    <string name="email_subject">Novatics - журнал производительности</string>
     <string name="email_chooser_title">Отправить журнал производительности...</string>
     <string name="toast_no_email_clients">Почтовые клиенты не установлены.</string>
     <string name="applist_menu_start_vdisplay">Запустить в виртуальном дисплее</string>
@@ -339,10 +339,10 @@
     <string name="title_show_guide_button">Показать кнопку Guide</string>
     <string name="title_special_key_help">Помощь по пользовательским клавишам</string>
     <string name="summary_special_key_help">Инструкция по настройке пользовательских спец-клавиш</string>
-    <string name="summary_performance_link">Просмотреть производительность других устройств.\nОбратите внимание, эти данные поддерживаются сообществом, они не поддерживаются Artemis и не представляют Artemis официально.</string>
+    <string name="summary_performance_link">Просмотреть производительность других устройств.\nОбратите внимание, эти данные поддерживаются сообществом, они не поддерживаются Nova и не представляют Nova официально.</string>
     <string name="pacing_warp">Warp Drive (экспериментально)</string>
-    <string name="keyboard_service_label">Физическая клавиатура Artemis</string>
-    <string name="accessibility_description_text">Используется, если системные сочетания физической клавиатуры перехватываются Android. В таких случаях некоторые сочетания не проходят на хост-ПК. Artemis не просматривает ваш ввод и не собирает пароли, номера карт или другую личную информацию.</string>
+    <string name="keyboard_service_label">Физическая клавиатура Nova</string>
+    <string name="accessibility_description_text">Используется, если системные сочетания физической клавиатуры перехватываются Android. В таких случаях некоторые сочетания не проходят на хост-ПК. Nova не просматривает ваш ввод и не собирает пароли, номера карт или другую личную информацию.</string>
     <string name="game_menu_toggle_keyboard">Показать экранную клавиатуру</string>
     <string name="game_menu_toggle_hud">Вкл./выкл. панель производительности</string>
     <string name="game_menu_toggle_floating_button">Вкл./выкл. плавающую кнопку</string>
@@ -413,9 +413,9 @@
     <string name="summary_share_performance_logs">Поделиться данными о производительности с друзьями/сообществом</string>
     <string name="title_share_performance_logs_button">Поделиться логами производительности</string>
     <string name="title_software_update">Обновление ПО</string>
-    <string name="summary_software_update">Artemis Nior от ClassicOldSong — смотрите релизы на GitHub для последней версии</string>
+    <string name="summary_software_update">Nova Nior от ClassicOldSong — смотрите релизы на GitHub для последней версии</string>
     <string name="title_follow_update">Следить за обновлениями</string>
-    <string name="summary_follow_update">Следите за обновлениями Artemis через Obtainium</string>
+    <string name="summary_follow_update">Следите за обновлениями Nova через Obtainium</string>
     <string name="title_special_key_layout">Раскладка спец-клавиш</string>
     <string name="title_show_virtual_key">Показать виртуальные клавиши на экране</string>
     <string name="summary_show_virtual_key">Отобразить слой виртуальных спец-клавиш на тачскрине.\nНепрозрачность клавиш общая с виртуальным геймпадом.</string>
@@ -464,7 +464,7 @@
     <string name="title_touchpad_sensitivity_y">Чувствительность трекпада по Y</string>
     <string name="summary_touchpad_sensitivity_y">Для режима мыши/тачпада и управления виртуальными специальными кнопками через тачпад.</string>
     <string name="title_device_rumble">Принудительно включить вибрацию устройства</string>
-    <string name="summary_device_rumble">Если вас не устраивает вибрация подключённого геймпада, вы можете включить эту опцию.\nНедоступно при принудительном использовании встроенного USB-драйвера Artemis</string>
+    <string name="summary_device_rumble">Если вас не устраивает вибрация подключённого геймпада, вы можете включить эту опцию.\nНедоступно при принудительном использовании встроенного USB-драйвера Nova</string>
     <string name="title_clear_default_special_button">Отключить стандартные спец-клавиши</string>
     <string name="summary_clear_default_special_button">Если встроенные команды в меню Back не нужны отключите их и используйте импортированные</string>
     <string name="title_trackpad_sensitivity_x">Чувствительность трекпада по X</string>

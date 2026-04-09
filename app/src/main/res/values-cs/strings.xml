@@ -13,11 +13,11 @@
 \n
 \nPokud problém přetrvává, zkuste přeinstalovat ovladače GPU a GeForce Experience.</string>
     <string name="wol_waking_pc">Probouzení PC…</string>
-    <string name="nettest_text_success">Vypadá to, že vaše síť Moonlight neblokuje. Pokud máte i tak potíže s připojením, zkontrolujte nastavení firewallu vašeho PC.
+    <string name="nettest_text_success">Vypadá to, že vaše síť Nova neblokuje. Pokud máte i tak potíže s připojením, zkontrolujte nastavení firewallu vašeho PC.
 \n
-\nPokud se pokoušíte streamovat po internetu, nainstalujte si na svůj počítač Moonlight Internet Hosting Tool a spusťte přiložený program Internet Streaming Tester pro kontrolu vašeho připojení k Internetu.</string>
+\nPokud se pokoušíte streamovat po internetu, nainstalujte si na svůj počítač Nova Internet Hosting Tool a spusťte přiložený program Internet Streaming Tester pro kontrolu vašeho připojení k Internetu.</string>
     <string name="error_unknown_host">Nezdařilo se zjistit hostitele</string>
-    <string name="nettest_text_waiting">Moonlight testuje vaše síťové připojení, aby zjistil, jestli je NVIDIA GameStream zablokován.
+    <string name="nettest_text_waiting">Nova testuje vaše síťové připojení, aby zjistil, jestli je NVIDIA GameStream zablokován.
 \n
 \nTo může chvilku zabrat…</string>
     <string name="nettest_title_waiting">Testování připojení k síti</string>
@@ -32,7 +32,7 @@
     <string name="error_404">GFE vrátilo HTTP chybu 404. Ujistěte se, že vaše PC má podporované GPU. Tato chyba může být způsobena i použitím softwaru pro vzdálenou plochu. Zkuste restartovat počítač, nebo přeinstalujte GFE.</string>
     <string name="title_decoding_error">Dekodér videa spadnul</string>
     <string name="error_usb_prohibited">Správce zařízení neumožňuje přístup k USB. Zkontrolujte nastavení Knoxu nebo MDM.</string>
-    <string name="message_decoding_error">Moonlight spadnul kvůli nekompatibilnímu video dekodéru na tomto zařízení. Ujistěte se, že je GeForce Experience na vašem PC aktualizováno na nejnovější verzi. Zkuste upravit nastavení streamování, pokud aplikace padá opakovaně.</string>
+    <string name="message_decoding_error">Nova spadnul kvůli nekompatibilnímu video dekodéru na tomto zařízení. Ujistěte se, že je GeForce Experience na vašem PC aktualizováno na nejnovější verzi. Zkuste upravit nastavení streamování, pokud aplikace padá opakovaně.</string>
     <string name="message_decoding_reset">Video dekodér vašeho zařízení při současných nastaveních streamování padá. Vaše nastavení streamování byla resetována na výchozí.</string>
     <string name="video_decoder_init_failed">Nezdařilo se spustit video dekodér. Vaše zařízení nemusí podporovat zvolené rozlišení nebo snímkovou frekvenci.</string>
     <string name="no_video_received_error">Od hostitele nebylo přijato žádné video.</string>
@@ -72,11 +72,11 @@
     <string name="summary_checkbox_xb1_driver">Povolí zabudovaný USB ovladač pro zařízení bez nativní podpory pro Xbox ovladač</string>
     <string name="summary_checkbox_vibrate_fallback">Rozvibruje vaše zařízení pro emulaci vibrací ovladače, pokud je váš herní ovladač nepodporuje</string>
     <string name="suffix_seekbar_deadzone">%</string>
-    <string name="summary_seekbar_deadzone">Poznámka: Některé hry mohou vynutit větší deadzone, než jaká je nastavena v Moonlightu.</string>
+    <string name="summary_seekbar_deadzone">Poznámka: Některé hry mohou vynutit větší deadzone, než jaká je nastavena v Novau.</string>
     <string name="title_checkbox_xb1_driver">Xbox 360/One USB gamepad ovladač</string>
     <string name="title_checkbox_usb_bind_all">Vynutit nativní podporu herního ovladače Xbox</string>
     <string name="summary_checkbox_mouse_emulation">Dlouhým podržením tlačítka Start přepnete herní ovladač do režimu myši</string>
-    <string name="summary_checkbox_usb_bind_all">Použít USB ovladač Moonlightu pro všechny podporované gamepady, i když existuje nativní podpora pro Xbox ovladač</string>
+    <string name="summary_checkbox_usb_bind_all">Použít USB ovladač Novau pro všechny podporované gamepady, i když existuje nativní podpora pro Xbox ovladač</string>
     <string name="title_checkbox_mouse_emulation">Emulace myši pomocí herního ovladače</string>
     <string name="title_checkbox_flip_face_buttons">Přehodit tlačítka A/B, X/Y</string>
     <string name="title_checkbox_absolute_mouse_mode">Režim myši pro vzdálenou plochu</string>
@@ -127,12 +127,12 @@
     <string name="pcview_menu_test_network">Otestovat připojení k síti</string>
     <string name="pcview_menu_details">Zobrazit detaily</string>
     <string name="nettest_title_done">Test sítě dokončen</string>
-    <string name="nettest_text_inconclusive">Test sítě nemohl být proveden, protože se nezdařilo připoojení k žádným z testovacíh serverů Moonlight. Zkontrolujte své připojení k Internetu, nebo to zkuste znovu později.</string>
-    <string name="nettest_text_failure">Současná síť vašeho počítače nejspíš blokuje Moonlight. Streamování přes Internet nemusí během připojení k této síti fungovat.
+    <string name="nettest_text_inconclusive">Test sítě nemohl být proveden, protože se nezdařilo připoojení k žádným z testovacíh serverů Nova. Zkontrolujte své připojení k Internetu, nebo to zkuste znovu později.</string>
+    <string name="nettest_text_failure">Současná síť vašeho počítače nejspíš blokuje Nova. Streamování přes Internet nemusí během připojení k této síti fungovat.
 \n
 \nNásledující porty byly zablokovány:
 \n</string>
-    <string name="nettest_text_blocked">Vaše současné připojení k síti blokuje Moonlight. Streamování přes Internet nemusí fungovat, dokud jste připojeni k této síti.</string>
+    <string name="nettest_text_blocked">Vaše současné připojení k síti blokuje Nova. Streamování přes Internet nemusí fungovat, dokud jste připojeni k této síti.</string>
     <string name="pair_pc_ingame">Na počítači momentálně běží hra. Před párováním musíte hru zavřít.</string>
     <string name="pair_pairing_title">Párování</string>
     <string name="pair_pairing_msg">Vložte prosím následující PIN na cílovém PC:</string>
@@ -191,7 +191,7 @@
     <string name="title_enable_post_stream_toast">Zobrazit informace o zpoždění po streamování</string>
     <string name="summary_enable_post_stream_toast">Zobrazit informace o zpoždění po skončení streamování</string>
     <string name="title_privacy_policy">Zásady ochrany osobních údajů</string>
-    <string name="summary_privacy_policy">Zobrazit zásady ochrany osobních údajů Moonlightu</string>
+    <string name="summary_privacy_policy">Zobrazit zásady ochrany osobních údajů Novau</string>
     <string name="resolution_360p">360p</string>
     <string name="resolution_480p">480p</string>
     <string name="pacing_balanced_alt">Vyvážené s limitem FPS</string>
@@ -232,7 +232,7 @@
     <string name="title_only_l3r3">Zobrazit pouze L3 a R3</string>
     <string name="summary_checkbox_enable_pip">Umožní, aby byl stream sledován (ale ne ovládá) během multitaskingu</string>
     <string name="title_language_list">Jazyk</string>
-    <string name="summary_language_list">Jazyk, který bude Moonlight používat</string>
+    <string name="summary_language_list">Jazyk, který bude Nova používat</string>
     <string name="title_checkbox_small_icon_mode">Použít malý box art</string>
     <string name="summary_checkbox_small_icon_mode">Díky menšímu box artu v seznamu aplikací uvidíte na obrazovce více aplikací naráz</string>
     <string name="category_host_settings">Nastavení hostitele</string>

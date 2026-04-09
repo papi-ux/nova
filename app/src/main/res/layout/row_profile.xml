@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
@@ -17,9 +18,9 @@
             android:id="@+id/profileName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/nova_text_primary"
             android:textSize="16sp"
-            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
             android:singleLine="true"
             android:ellipsize="end" />
 
@@ -28,8 +29,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textColor="#CCCCCC"
-            android:textSize="12sp" />
+            android:textColor="@color/nova_text_secondary"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif" />
 
     </LinearLayout>
 
@@ -48,7 +50,8 @@
         android:layout_height="48dp"
         android:background="?android:attr/selectableItemBackgroundBorderless"
         android:contentDescription="Edit profile"
-        android:src="@drawable/ic_edit" />
+        app:srcCompat="@drawable/ic_edit"
+        app:tint="@color/nova_silver" />
 
     <ImageButton
         android:id="@+id/deleteProfile"
@@ -56,6 +59,7 @@
         android:layout_height="48dp"
         android:background="?android:attr/selectableItemBackgroundBorderless"
         android:contentDescription="Delete profile"
-        android:src="@drawable/ic_delete" />
+        app:srcCompat="@drawable/ic_delete"
+        app:tint="@color/nova_silver" />
 
 </LinearLayout>

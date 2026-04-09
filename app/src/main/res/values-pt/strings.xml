@@ -20,25 +20,25 @@
     <string name="pcview_menu_send_wol">Enviar requisição Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Deletar PC</string>
     <string name="pcview_menu_test_network">Testar Conexão com a Internet</string>
-    <string name="nettest_text_waiting">Moonlight está testando sua conexão com a rede para determinar se o NVIDIA GameStream está bloqueado.
+    <string name="nettest_text_waiting">Nova está testando sua conexão com a rede para determinar se o NVIDIA GameStream está bloqueado.
 \n
 \nEste processo pode demorar alguns segundos…</string>
     <string name="pacing_balanced">Balanceado</string>
-    <string name="nettest_text_success">A sua rede não parece estar a bloquear o Moonlight. Se ainda tiver problemas a se conectar, verifique as configurações de firewall do seu PC.
+    <string name="nettest_text_success">A sua rede não parece estar a bloquear o Nova. Se ainda tiver problemas a se conectar, verifique as configurações de firewall do seu PC.
 \n
-\nSe estiver a tentar transmitir pela Internet, instale o Moonlight Internet Hosting Tool no seu PC e execute o Internet Streaming Tester para verificar a conexão com a Internet do seu PC.</string>
-    <string name="nettest_text_failure">A conexão de rede atual do seu aparelho parece estar a bloquear o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.
+\nSe estiver a tentar transmitir pela Internet, instale o Nova Internet Hosting Tool no seu PC e execute o Internet Streaming Tester para verificar a conexão com a Internet do seu PC.</string>
+    <string name="nettest_text_failure">A conexão de rede atual do seu aparelho parece estar a bloquear o Nova. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.
 \n
 \nAs seguintes portas de rede estão bloqueadas:
 \n</string>
-    <string name="nettest_text_blocked">A conexão de rede atual do seu aparelho está a bloquear o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
+    <string name="nettest_text_blocked">A conexão de rede atual do seu aparelho está a bloquear o Nova. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
     <string name="wol_waking_msg">Pode levar alguns segundos até o seu PC acordar. Se isso não acontecer, verifique se ele está configurado corretamente para Wake-On-LAN.</string>
     <string name="wol_fail">Falha ao enviar pacotes Wake-On-LAN</string>
     <string name="unpair_success">Despareado com sucesso</string>
     <string name="unpair_fail">Falha ao desparear</string>
     <string name="title_decoding_error">Decodificador de Vídeo Crashou</string>
     <string name="title_decoding_reset">Resetar Configurações de Vídeo</string>
-    <string name="message_decoding_error">Moonlight crashou devido a uma incompatibilidade com o decodificador de vídeo deste aparelho. Certifique-se de que o GeForce Experience esteja atualizado à versão mais recente no seu PC. Tente ajustar as configurações de transmissão se as falhas continuarem.</string>
+    <string name="message_decoding_error">Nova crashou devido a uma incompatibilidade com o decodificador de vídeo deste aparelho. Certifique-se de que o GeForce Experience esteja atualizado à versão mais recente no seu PC. Tente ajustar as configurações de transmissão se as falhas continuarem.</string>
     <string name="unable_to_pin_shortcut">O seu launcher atual não permite a criação de atalhos fixados.</string>
     <string name="video_decoder_init_failed">Falha ao iniciar o decodificador de vídeo. O seu aparelho pode não suportar a resolução ou taxa de quadros selecionada.</string>
     <string name="frame_conversion_error">O PC host relatou um erro fatal de codificação de vídeo.
@@ -86,7 +86,7 @@
     <string name="summary_checkbox_enable_audiofx">Permitir que efeitos de audio funcionem durante o streaming, pode acrescentar latência de audio</string>
     <string name="summary_checkbox_xb1_driver">Ativa um driver USB integrado para aparelhos sem suporte nativo aos controles Xbox</string>
     <string name="title_checkbox_usb_bind_all">Substituir o suporte nativo ao gamepad do Xbox</string>
-    <string name="summary_checkbox_usb_bind_all">Use o driver USB do Moonlight para todos os gamepads suportados, mesmo se houver suporte nativo ao controle Xbox</string>
+    <string name="summary_checkbox_usb_bind_all">Use o driver USB do Nova para todos os gamepads suportados, mesmo se houver suporte nativo ao controle Xbox</string>
     <string name="title_checkbox_mouse_emulation">Emulação de rato pelo gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Segure o botão Start para mudar o gamepad ao modo de rato</string>
     <string name="summary_checkbox_flip_face_buttons">Inverte os botões A/B e X/Y dos gamepads e controles de ecrã</string>
@@ -131,7 +131,7 @@
     <string name="videoformat_auto">Automático (recomendado)</string>
     <string name="title_frame_pacing">Ritmo de quadros</string>
     <string name="pacing_smoothness">Preferir vídeo mais suave (pode aumentar significativamente a latência)</string>
-    <string name="summary_seekbar_deadzone">Nota: Alguns jogos podem impor uma zona morta maior do que o Moonlight está configurado para usar.</string>
+    <string name="summary_seekbar_deadzone">Nota: Alguns jogos podem impor uma zona morta maior do que o Nova está configurado para usar.</string>
     <string name="dialog_text_reset_osc">Tem certeza de que deseja apagar o layout salvo dos controles de ecrã\?</string>
     <string name="category_host_settings">Configurações de Host</string>
     <string name="pacing_balanced_alt">Equilibrado com limite de FPS</string>
@@ -200,7 +200,7 @@
     <string name="summary_reset_osc">Redefine todos os controles no ecrã para tamanho e posição padrão dele</string>
     <string name="summary_osc_opacity">Deixe os controles de ecrã mais/menos transparentes</string>
     <string name="title_language_list">Idioma</string>
-    <string name="summary_language_list">Idioma para ser usado no Moonlight</string>
+    <string name="summary_language_list">Idioma para ser usado no Nova</string>
     <string name="title_checkbox_small_icon_mode">Mostrar ícones menores</string>
     <string name="summary_checkbox_enable_sops">Permitir que o GFE modifique as configurações do jogo para otimizar a transmissão</string>
     <string name="title_checkbox_host_audio">Reproduzir áudio no PC</string>
@@ -209,7 +209,7 @@
     <string name="summary_enable_hdr">Transmita HDR quando o jogo e a GPU do PC suportarem. O HDR requer uma GPU da série GTX 1000 ou posterior.</string>
     <string name="title_enable_perf_overlay">Mostrar status de performance durante a transmissão</string>
     <string name="nettest_title_done">Teste de Internet Completo</string>
-    <string name="nettest_text_inconclusive">O teste de rede não pôde ser executado porque nenhum dos servidores de teste de conexão do Moonlight estava acessível. Verifique a sua conexão com a Internet ou tente novamente mais tarde.</string>
+    <string name="nettest_text_inconclusive">O teste de rede não pôde ser executado porque nenhum dos servidores de teste de conexão do Nova estava acessível. Verifique a sua conexão com a Internet ou tente novamente mais tarde.</string>
     <string name="pairing">A parear…</string>
     <string name="pair_pc_offline">Esse computador está offline</string>
     <string name="pair_pc_ingame">Esse computador está atualmente num jogo. Deve fechar o jogo antes de parear.</string>
@@ -244,7 +244,7 @@
     <string name="summary_checkbox_mouse_nav_buttons">Ativar esta opção pode bugar o clique com o botão direito em alguns aparelhos com bugs</string>
     <string name="title_checkbox_flip_face_buttons">Inverter botões</string>
     <string name="title_privacy_policy">Política de privacidade</string>
-    <string name="summary_privacy_policy">Veja a política de privacidade do Moonlight</string>
+    <string name="summary_privacy_policy">Veja a política de privacidade do Nova</string>
     <string name="resolution_480p">480p</string>
     <string name="resolution_720p">720p</string>
     <string name="summary_frame_pacing">Especifique o equilíbrio entre latência e suavidade do vídeo</string>

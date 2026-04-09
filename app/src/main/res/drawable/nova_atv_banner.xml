@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <!-- Navy background -->
+    <path
+        android:fillColor="#1a1a2e"
+        android:pathData="M0,0h320v180H0z" />
+
+    <!-- Nova star (centered, scaled) -->
+    <group
+        android:translateX="100"
+        android:translateY="30">
+        <!-- Main star -->
+        <path
+            android:fillColor="#d4dde8"
+            android:pathData="M60,10 Q63,52 100,60 Q63,68 60,110 Q57,68 20,60 Q57,52 60,10 Z" />
+        <!-- Inner accent -->
+        <path
+            android:fillColor="#7c73ff"
+            android:pathData="M60,40 Q62,57 75,60 Q62,63 60,80 Q58,63 45,60 Q58,57 60,40 Z" />
+        <!-- Center dot -->
+        <path
+            android:fillColor="#d4dde8"
+            android:pathData="M60,56 A4,4 0 1,1 60,64 A4,4 0 1,1 60,56 Z" />
+    </group>
+
+    <!-- "Nova" text -->
+    <group
+        android:translateX="90"
+        android:translateY="148">
+        <path
+            android:fillColor="#d4dde8"
+            android:pathData="M0,0 L0,16 L3,16 L3,4 L12,16 L15,16 L15,0 L12,0 L12,12 L3,0 Z" />
+        <path
+            android:fillColor="#d4dde8"
+            android:pathData="M20,0 C20,0 18,0 18,4 L18,12 C18,16 20,16 20,16 L28,16 C28,16 30,16 30,12 L30,4 C30,0 28,0 28,0 Z M21,4 C21,2 22,2 22,2 L26,2 C26,2 27,2 27,4 L27,12 C27,14 26,14 26,14 L22,14 C22,14 21,14 21,12 Z" />
+        <path
+            android:fillColor="#d4dde8"
+            android:pathData="M34,0 L40,16 L43,16 L49,0 L46,0 L41.5,13 L37,0 Z" />
+        <path
+            android:fillColor="#d4dde8"
+            android:pathData="M52,0 L52,16 L55,16 L55,10 L62,10 L62,16 L65,16 L65,0 L62,0 L62,8 L55,8 L55,0 Z M52,16 L65,16 L65,14 L52,14 Z" />
+    </group>
+</vector>

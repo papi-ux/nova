@@ -1,19 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="?android:colorBackground">
 
     <TextView
         android:id="@+id/profilesDescription"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="20dp"
         android:layout_marginBottom="8dp"
         android:text="@string/profile_manager_profiles_description"
-        android:textColor="#CCCCCC"
-        android:textSize="14sp" />
+        android:textColor="@color/nova_text_secondary"
+        android:textSize="14sp"
+        android:fontFamily="sans-serif" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/profilesRecyclerView"
@@ -38,17 +40,18 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/profile_manager_no_profiles_yet"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/nova_text_primary"
             android:textSize="18sp"
-            android:textStyle="bold" />
+            android:fontFamily="sans-serif-medium" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/profile_manager_tap_create_profile"
-            android:textColor="#CCCCCC"
-            android:textSize="14sp" />
+            android:textColor="@color/nova_text_secondary"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif" />
 
     </LinearLayout>
 
@@ -62,6 +65,8 @@
         android:layout_marginEnd="24dp"
         android:layout_marginBottom="24dp"
         android:contentDescription="@string/profile_manager_new_profile"
-        android:src="@drawable/ic_add_base" />
+        android:src="@drawable/ic_add_base"
+        app:backgroundTint="@color/nova_accent"
+        xmlns:app="http://schemas.android.com/apk/res-auto" />
 
 </RelativeLayout>

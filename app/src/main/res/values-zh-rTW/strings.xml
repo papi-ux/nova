@@ -39,12 +39,12 @@
 
 	<!-- Network test strings -->
 	<string name="nettest_title_waiting">正在測試網路連線</string>
-	<string name="nettest_text_waiting">Artemis 正在測試您的網路連線，以判斷是否有必要的連接埠被阻擋。\n\n這可能需要幾秒鐘…</string>
+	<string name="nettest_text_waiting">Nova 正在測試您的網路連線，以判斷是否有必要的連接埠被阻擋。\n\n這可能需要幾秒鐘…</string>
 	<string name="nettest_title_done">網路測試完成</string>
-	<string name="nettest_text_success">您的網路似乎沒有阻擋 Artemis。如果您仍然無法連線，請檢查您電腦的防火牆設定。\n\n如果您嘗試透過網際網路進行串流，請在電腦上安裝 Artemis Internet Hosting Tool，並執行內建的 Internet Streaming Tester 以檢查網際網路連線。</string>
-	<string name="nettest_text_inconclusive">無法執行網路測試，因為無法連線至 Artemis 的測試伺服器。請檢查您的網際網路連線，或稍後再試。</string>
-	<string name="nettest_text_failure">您目前的網路連線似乎正在阻擋 Artemis。在此網路下，透過網際網路串流可能無法正常運作。\n\n以下連接埠被阻擋：\n</string>
-	<string name="nettest_text_blocked">您目前的網路連線正在阻擋 Artemis。在此網路下，透過網際網路串流可能無法正常運作。</string>
+	<string name="nettest_text_success">您的網路似乎沒有阻擋 Nova。如果您仍然無法連線，請檢查您電腦的防火牆設定。\n\n如果您嘗試透過網際網路進行串流，請在電腦上安裝 Nova Internet Hosting Tool，並執行內建的 Internet Streaming Tester 以檢查網際網路連線。</string>
+	<string name="nettest_text_inconclusive">無法執行網路測試，因為無法連線至 Nova 的測試伺服器。請檢查您的網際網路連線，或稍後再試。</string>
+	<string name="nettest_text_failure">您目前的網路連線似乎正在阻擋 Nova。在此網路下，透過網際網路串流可能無法正常運作。\n\n以下連接埠被阻擋：\n</string>
+	<string name="nettest_text_blocked">您目前的網路連線正在阻擋 Nova。在此網路下，透過網際網路串流可能無法正常運作。</string>
 
 	<!-- Pair messages -->
 	<string name="pairing">正在配對…</string>
@@ -87,7 +87,7 @@
 		使用遠端桌面軟體也可能導致此錯誤。請嘗試重新啟動電腦或重新安裝 GFE。
 	</string>
 	<string name="title_decoding_error">影片解碼器當機</string>
-	<string name="message_decoding_error">Artemis 因與此裝置的影片解碼器不相容而當機。如果當機持續發生，請嘗試調整串流設定。</string>
+	<string name="message_decoding_error">Nova 因與此裝置的影片解碼器不相容而當機。如果當機持續發生，請嘗試調整串流設定。</string>
 	<string name="title_decoding_reset">影片設定已重設</string>
 	<string name="message_decoding_reset">您的裝置影片解碼器在目前的串流設定下持續當機，串流設定已重設為預設值。</string>
 	<string name="error_usb_prohibited">您的裝置管理員禁止存取 USB。請檢查 Knox 或 MDM 設定。</string>
@@ -143,7 +143,7 @@
 	</string>
 
 	<string name="email_recipient">artemistics.logs@gmail.com</string>
-	<string name="email_subject">Artemistics - 效能日誌</string>
+	<string name="email_subject">Novatics - 效能日誌</string>
 	<string name="email_chooser_title">傳送效能日誌...</string>
 	<string name="toast_no_email_clients">未安裝電子郵件用戶端。</string>
 	<string name="toast_no_logs">尚未儲存任何效能數據。</string>
@@ -233,7 +233,7 @@
 	<string name="title_checkbox_xb1_driver">Xbox 360/One/Nintendo Pro USB 手把驅動程式</string>
 	<string name="summary_checkbox_xb1_driver">為不具原生 Xbox/Nintendo Pro 支援的裝置啟用內建 USB 驅動程式</string>
 	<string name="title_checkbox_usb_bind_all">覆寫原生 Xbox 手把支援</string>
-	<string name="summary_checkbox_usb_bind_all">即使裝置具備原生 Xbox/Nintendo Pro 支援，也對所有支援的手把使用 Artemis 的 USB 驅動程式</string>
+	<string name="summary_checkbox_usb_bind_all">即使裝置具備原生 Xbox/Nintendo Pro 支援，也對所有支援的手把使用 Nova 的 USB 驅動程式</string>
 	<string name="title_checkbox_mouse_emulation">以手把模擬滑鼠</string>
 	<string name="summary_checkbox_mouse_emulation">長按 Start 鍵可在手把模式與滑鼠模式間切換</string>
 	<string name="title_checkbox_remember_mouse_mode">記住滑鼠模式</string>
@@ -283,7 +283,7 @@
 	<string name="title_checkbox_enable_pip">啟用子母畫面旁觀模式</string>
 	<string name="summary_checkbox_enable_pip">允許在多工時觀看串流（不可控制）</string>
 	<string name="title_language_list">語言</string>
-	<string name="summary_language_list">Artemis 使用的語言</string>
+	<string name="summary_language_list">Nova 使用的語言</string>
 	<string name="title_checkbox_small_icon_mode">使用小型封面圖</string>
 	<string name="summary_checkbox_small_icon_mode">在應用程式格狀檢視中使用較小封面圖，可在同一畫面顯示更多應用程式</string>
 
@@ -321,10 +321,10 @@
 	<string name="title_troubleshooting">疑難排解指南</string>
 	<string name="summary_troubleshooting">檢視診斷與修復常見串流問題的提示</string>
 	<string name="title_privacy_policy">隱私權政策</string>
-	<string name="summary_privacy_policy">檢視 Artemis 的隱私權政策</string>
+	<string name="summary_privacy_policy">檢視 Nova 的隱私權政策</string>
 	<string name="title_special_key_help">自訂按鍵說明</string>
 	<string name="summary_special_key_help">有關如何設定自訂特殊按鍵的指引</string>
-	<string name="summary_performance_link">查看其他裝置的效能。\n請注意，這些資料由社群管理，非由 Artemis 官方管理，也不代表 Artemis 的官方立場。</string>
+	<string name="summary_performance_link">查看其他裝置的效能。\n請注意，這些資料由社群管理，非由 Nova 官方管理，也不代表 Nova 的官方立場。</string>
 	<string name="title_performance_link">效能儀表板</string>
 
 	<!-- Toasts -->
@@ -362,8 +362,8 @@
 	<string name="pacing_smoothness">優先最流暢影片（可能大幅增加延遲）</string>
 
 
-	<string name="keyboard_service_label">Artemis 實體鍵盤</string>
-	<string name="accessibility_description_text">僅在系統攔截實體鍵盤快捷鍵時使用。在某些系統中，部分快捷鍵已被 Android 系統定義並使用，導致無法傳遞至主機電腦。Artemis 不會檢視您的輸入，也不會收集您的密碼、信用卡號或任何其他私人資訊。</string>
+	<string name="keyboard_service_label">Nova 實體鍵盤</string>
+	<string name="accessibility_description_text">僅在系統攔截實體鍵盤快捷鍵時使用。在某些系統中，部分快捷鍵已被 Android 系統定義並使用，導致無法傳遞至主機電腦。Nova 不會檢視您的輸入，也不會收集您的密碼、信用卡號或任何其他私人資訊。</string>
 
 
 	<!-- In Game menu -->
@@ -491,10 +491,10 @@
 	<string name="title_share_performance_logs_button">分享效能日誌</string>
 
 	<string name="title_software_update">軟體更新</string>
-	<string name="summary_software_update">Artemis Nior 版本（ClassicOldSong）－前往 GitHub Releases 取得最新版本</string>
+	<string name="summary_software_update">Nova Nior 版本（ClassicOldSong）－前往 GitHub Releases 取得最新版本</string>
 
 	<string name="title_follow_update">追蹤更新</string>
-	<string name="summary_follow_update">使用 Obtainium 追蹤 Artemis 更新</string>
+	<string name="summary_follow_update">使用 Obtainium 追蹤 Nova 更新</string>
 
 	<string name="title_special_key_layout">特殊按鍵佈局</string>
 	<string name="title_show_virtual_key">在螢幕上顯示虛擬按鍵</string>
@@ -556,7 +556,7 @@
 	<string name="summary_touchpad_sensitivity_y">適用於滑鼠觸控板模式與虛擬特殊按鍵的觸控板控制；\n兩者共享一個靈敏度值，但實際表現可能不同。\n有人會同時用兩者嗎？</string>
 
 	<string name="title_device_rumble">強制使用裝置震動</string>
-	<string name="summary_device_rumble">若您對連接手把的震動不滿意，可啟用此選項。\n若強制使用 Artemis 內建 USB 驅動程式則無效</string>
+	<string name="summary_device_rumble">若您對連接手把的震動不滿意，可啟用此選項。\n若強制使用 Nova 內建 USB 驅動程式則無效</string>
 
 	<string name="title_clear_default_special_button">停用預設特殊按鍵</string>
 	<string name="summary_clear_default_special_button">若覺得返回選單中的內建指令無用，可停用並改用您匯入的指令。</string>
