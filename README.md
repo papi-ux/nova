@@ -184,7 +184,7 @@ All new code lives in the Kotlin layer. The Java core is battle-tested Moonlight
 git clone --recursive https://github.com/papi-ux/nova.git
 cd nova
 
-# Release APK (signed with debug key)
+# Release APK (arm64-only by default, signed with debug key)
 ./gradlew assembleNonRoot_gameRelease
 
 # Debug APK (separate package ID, can install alongside release)
@@ -192,6 +192,12 @@ cd nova
 ```
 
 Output: `app/build/outputs/apk/nonRoot_game/release/app-nonRoot_game-arm64-v8a-release.apk`
+
+> [!TIP]
+> Nova now defaults to an `arm64-v8a` deliverable to keep the shipped APK smaller and the release path simpler for modern Android handhelds and phones.
+>
+> Need extra ABIs for emulator or legacy-device testing?
+> `./gradlew assembleNonRoot_gameDebug -PnovaAbis=arm64-v8a,armeabi-v7a,x86,x86_64`
 
 ### Install on device
 

@@ -21,7 +21,7 @@ fi
 
 # Build
 echo "Building..."
-./gradlew assembleNonRoot_gameRelease -q
+./gradlew assembleNonRoot_gameRelease -PnovaAbis=arm64-v8a -q
 
 APK="app/build/outputs/apk/nonRoot_game/release/app-nonRoot_game-arm64-v8a-release.apk"
 if [ ! -f "$APK" ]; then

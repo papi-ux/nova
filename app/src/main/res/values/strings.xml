@@ -420,8 +420,6 @@
     <string name="perf_overlay_lite_streamdetails">%1$s</string>
     <string name="perf_overlay_lite_fps">%1$.2f</string>
     <string name="perf_overlay_drawn_fps">GpuFPS:</string>
-    <string name="perf_overlay_ai_fps">3DFPS:</string>
-    <string name="perf_overlay_ai_delegate">Delegate:</string>
     <string name="perf_overlay_lite_decoder">Decoder: %1$s</string>
     <string name="title_import_keyboard_layout">Import keyboard layout</string>
     <string name="title_export_keyboard_layout">Export keyboard layout</string>
@@ -433,15 +431,7 @@
     <string name="title_custom_refresh_rate">Custom refresh rate</string>
     <string name="summary_custom_refresh_rate">Enter refresh rate manually. Only supports Apollo.</string>
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
-    <string name="title_render_mode">Render Mode</string>
-    <string name="title_render_mode_convergence_title">3D Convergence</string>
-    <string name="title_render_mode_convergence_description">Reference: 50 - Balanced / 0: InFrontOfScreen /  100 - BehindOfScreen</string>
-    <string name="title_render_mode_balance_shift_title">3D Eye Balance</string>
-    <string name="title_render_mode_balance_shift_description">Reference: 50 - Both eyes share 50% depth far/pop depth effect / 0: Left (100% Pop) - Right (100% Far) /  100 - Left Far - Right Pop // 100 or 0 provide best sharpness as one pixel always exist unshifted on the other eye </string>
-    <string name="title_render_mode_strength_title">3D Effect Strength</string>
-    <string name="title_render_mode_strength_description">Reference: 50 - Higher more effect, but maybe strain on eyes and unnatural. Lower, easier on eyes and smoother expierence.</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
-    <string name="summary_render_mode">Default 2D or SBS 3D. 3D will simply double your width and add the effect automatically, no setup required. AI 2D to 3D conversion </string>
     <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
@@ -571,9 +561,6 @@
     <string name="summary_checkbox_enable_sticky_modifier_key_virtual_keyboard">Use sticky modifier keys on virtual full keyboard and custom onscreen keyboard.</string>
     <string name="virtual_keyboard_hide">Hide\nKBD</string>
     <string name="mouse_mode_multi_touch">Multi touch</string>
-    <string name="render_mode_2d">Default 2D</string>
-    <string name="render_mode_3d_sbs">AI SBS 3D</string>
-    <string name="render_mode_3d_sbs_movie">AI SBS 3D Movie (Synced)</string>
     <string name="mouse_mode_absolute_touch">Absolute touch</string>
     <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
     <string name="mouse_mode_track_pad_gaming">Track pad(Gaming/Long press to drag)</string>

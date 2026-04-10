@@ -47,6 +47,8 @@ app/.externalNativeBuild/
 
 # agent files
 AGENTS.md
+.codex
+.codex/
 # Nova signing
 *.keystore
 signing.properties

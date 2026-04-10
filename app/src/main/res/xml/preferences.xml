@@ -787,16 +787,6 @@
             android:title="@string/title_fullexdisplay_mode"
             app:iconSpaceReserved="false" />
 
-        <!-- 3D rendering (niche) -->
-        <ListPreference
-            android:defaultValue="0"
-            android:entries="@array/render_mode_names"
-            android:entryValues="@array/render_mode_values"
-            android:key="render_mode_list"
-            android:summary="@string/summary_render_mode"
-            android:title="@string/title_render_mode"
-            app:iconSpaceReserved="false" />
-
         <!-- Device fixes -->
         <CheckBoxPreference
             android:defaultValue="false"
