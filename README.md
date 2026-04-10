@@ -11,7 +11,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with any Moo
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Install](#install) · [Features](#features) · [Screenshots](#screenshots) · [Building](#building)
+[Install](#install) · [Why Nova](#why-nova) · [Screenshots](#screenshots) · [Build](#build-from-source) · [FAQ](#faq)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · **Donate**: [Ko-fi](https://ko-fi.com/papiux) · [PayPal](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
 
@@ -44,21 +44,26 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with any Moo
 
 ---
 
-## What Makes Nova Different
+## Why Nova
 
-Nova speaks the same Moonlight protocol as every other client — but when connected to a Polaris server, it unlocks features no other client has.
+Nova is a Moonlight-compatible Android client with a UI and feature set tuned for handhelds, phones, and Polaris-powered setups.
 
-**TOFU Pairing** — Walk into your house, open Nova, you're connected. No PINs, no codes. Devices on your trusted LAN pair automatically.
+- **Fast pairing**: TOFU on trusted LANs, plus QR and manual PIN pairing.
+- **Handheld-first UI**: game grid, quick menu, drag-and-tap HUD, and theme support that feel native on Android.
+- **Polaris-aware features**: richer library metadata, live session state, quality recommendations, and session reporting.
+- **Connection resilience**: reconnect overlay with backoff instead of dropping the session immediately.
+- **Input depth**: gyro aim, audio haptics, multiple mouse modes, and broad controller support.
 
-**Interactive HUD** — Three modes you cycle through with a tap: full panel with FPS sparkline and 1% low metric, a MangoHud-style one-line banner, or a tiny floating FPS pill. Drag it anywhere on screen.
+## At A Glance
 
-**Quick Menu** — ESC, Alt+Enter, Alt+F4, Super, F11, Ctrl+V — all one tap away. Three-column layout with overlay toggles, input controls, and session actions. MangoHud toggles the server-side overlay for next launch.
-
-**AI Quality** — Nova queries Polaris for Claude-recommended encoding settings per device, per game. Sends session quality reports back at disconnect so the server learns over time.
-
-**Connection Resilience** — Network drops don't kill your session. Nova auto-reconnects with exponential backoff (0s → 1s → 3s → 7s) while showing a visual progress overlay.
-
-**Material You** — Three themes: Space Whale (navy), OLED Dark Galaxy (pure black), or Material You (pulls your Android 12+ system accent color).
+| Area | What You Get |
+|---|---|
+| Pairing | TOFU, QR code, manual PIN |
+| Streaming | H.264, HEVC, AV1 decode |
+| HUD | Full, banner, FPS-only modes |
+| Input | Gyro aim, audio haptics, gamepads, mouse modes |
+| Polaris | REST + SSE integration, cover art, recommendations, session reports |
+| Background | Quick Settings tile, keep-alive service, lock screen overlay |
 
 ---
 
@@ -167,7 +172,7 @@ All new code lives in the Kotlin layer. The Java core is battle-tested Moonlight
 
 ---
 
-## Building from Source
+## Build From Source
 
 ### Requirements
 
@@ -226,7 +231,7 @@ adb install -r app/build/outputs/apk/nonRoot_game/release/app-nonRoot_game-arm64
 <details>
 <summary><b>Does Nova work with Sunshine / Apollo, not just Polaris?</b></summary>
 
-Yes. Nova is a standard Moonlight client — it connects to any Moonlight-compatible server. Polaris-specific features (TOFU pairing, AI optimization, session reports, MangoHud toggle) activate automatically when a Polaris server is detected. Everything else works with Sunshine and Apollo.
+Yes. Nova is a standard Moonlight client and works with Moonlight-compatible servers. Polaris-specific features activate automatically when a Polaris server is detected.
 
 </details>
 
@@ -240,7 +245,7 @@ Nova is distributed via GitHub Releases and Obtainium. It's a private repo — O
 <details>
 <summary><b>My server shows "Online · Not Paired"</b></summary>
 
-Your server was discovered but pairing hasn't completed. Three options: **TOFU** (configure `trusted_subnets` on the server — Nova auto-pairs on your LAN), **QR Code** (generate in the Polaris web UI PIN tab, tap the QR icon in Nova), or **Manual PIN** (enter the 4-digit code shown in the server web UI).
+Your server was discovered but pairing has not completed. Use one of three paths: **TOFU** on a trusted LAN, **QR code** from the Polaris web UI, or a **manual PIN** from the server UI.
 
 </details>
 
@@ -269,37 +274,6 @@ Gyro aiming maps your device's gyroscope to mouse movement. It works with any ga
 <summary><b>What's the difference between the three themes?</b></summary>
 
 **Space Whale** (default) — Deep navy backgrounds with ice-blue text and purple accents. **OLED Dark Galaxy** — Pure black backgrounds for OLED screens (saves battery, looks stunning). **Material You** — Pulls your Android 12+ system accent color for a personalized look (falls back to Space Whale on older devices).
-
-</details>
-
----
-
-<details>
-<summary><b>Color Palettes</b></summary>
-
-**Space Whale** (default)
-
-| Swatch | Name | Hex | Role |
-|--------|------|-----|------|
-| ![#d4dde8](https://readme-swatches.vercel.app/d4dde8?style=circle&size=12) | Ice | `#d4dde8` | Primary text |
-| ![#a8b0b8](https://readme-swatches.vercel.app/a8b0b8?style=circle&size=12) | Silver | `#a8b0b8` | Secondary text |
-| ![#687b81](https://readme-swatches.vercel.app/687b81?style=circle&size=12) | Storm | `#687b81` | Muted |
-| ![#4c5265](https://readme-swatches.vercel.app/4c5265?style=circle&size=12) | Twilight | `#4c5265` | Cards |
-| ![#2a2840](https://readme-swatches.vercel.app/2a2840?style=circle&size=12) | Void | `#2a2840` | Backgrounds |
-| ![#1a1a2e](https://readme-swatches.vercel.app/1a1a2e?style=circle&size=12) | Navy | `#1a1a2e` | Window |
-| ![#7c73ff](https://readme-swatches.vercel.app/7c73ff?style=circle&size=12) | Accent | `#7c73ff` | Buttons, links |
-
-**OLED Dark Galaxy**
-
-| Swatch | Name | Hex | Role |
-|--------|------|-----|------|
-| ![#e0e6ed](https://readme-swatches.vercel.app/e0e6ed?style=circle&size=12) | Ice | `#e0e6ed` | Primary text |
-| ![#a8b0b8](https://readme-swatches.vercel.app/a8b0b8?style=circle&size=12) | Silver | `#a8b0b8` | Secondary text |
-| ![#555e66](https://readme-swatches.vercel.app/555e66?style=circle&size=12) | Storm | `#555e66` | Muted |
-| ![#1a1a22](https://readme-swatches.vercel.app/1a1a22?style=circle&size=12) | Divider | `#1a1a22` | Dividers |
-| ![#0a0a0e](https://readme-swatches.vercel.app/0a0a0e?style=circle&size=12) | Abyss | `#0a0a0e` | Cards |
-| ![#000000](https://readme-swatches.vercel.app/000000?style=circle&size=12) | Black | `#000000` | Window |
-| ![#8b80ff](https://readme-swatches.vercel.app/8b80ff?style=circle&size=12) | Accent | `#8b80ff` | Buttons, links |
 
 </details>
 
