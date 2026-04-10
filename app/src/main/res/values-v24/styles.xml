@@ -1,12 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="AppBaseTheme" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="colorPrimary">@color/nova_accent</item>
+        <item name="colorPrimaryDark">@android:color/transparent</item>
+        <item name="colorAccent">@color/nova_accent</item>
+        <item name="colorSurface">@color/nova_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_text_secondary</item>
 
-    <!--
-      Use a black background to avoid the transparent background when switching apps.
-      android:windowBackgroundFallback is supposed to do this, but it wasn't working for
-      me as of Android 7.1
-    -->
-    <style name="StreamBaseTheme" parent="AppBaseTheme">
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog</item>
+
+        <item name="android:contextPopupMenuStyle">@style/NovaPopupMenu</item>
     </style>
-
 </resources>

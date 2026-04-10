@@ -506,7 +506,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 boolean updated = false;
 
                     // Look through our current app list to tag the running app
-                for (int i = 0; i < appGridAdapter.getCount(); i++) {
+                for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
                     AppObject existingApp = (AppObject) appGridAdapter.getItem(i);
 
                     // There can only be one or zero apps running.
@@ -558,7 +558,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
         // Find the app in the adapter
         AppObject targetApp = null;
-        for (int i = 0; i < appGridAdapter.getCount(); i++) {
+        for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
             AppObject a = (AppObject) appGridAdapter.getItem(i);
             if (a.app.getAppId() == targetAppId) {
                 targetApp = a;
@@ -599,8 +599,8 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 }
 
                 // Build a map of existing apps by ID
-                java.util.HashMap<Integer, AppObject> existingMap = new java.util.HashMap<>(appGridAdapter.getCount());
-                for (int i = 0; i < appGridAdapter.getCount(); i++) {
+                java.util.HashMap<Integer, AppObject> existingMap = new java.util.HashMap<>(appGridAdapter.getItemCount());
+                for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
                     AppObject existingApp = (AppObject) appGridAdapter.getItem(i);
                     existingMap.put(existingApp.app.getAppId(), existingApp);
                 }
@@ -778,21 +778,18 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     }
 
     @Override
-    public void receiveAbsListView(AbsListView listView) {
-        listView.setAdapter(appGridAdapter);
-        listView.setOnItemClickListener(new OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> arg0, View arg1, int pos,
-                                    long id) {
-                arg1.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
-                AppObject app = (AppObject) appGridAdapter.getItem(pos);
-
-                // Only open the context menu if something is running, otherwise start it
+    public void receiveAbsListView(View gridView) {
+        if (gridView instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) gridView;
+            int spanCount = Math.max(1, getResources().getDisplayMetrics().widthPixels / (int)(170 * getResources().getDisplayMetrics().density));
+            rv.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, spanCount));
+            rv.setAdapter(appGridAdapter);
+            appGridAdapter.setOnItemClickListener(app -> {
                 if (lastRunningAppId != 0) {
                     if (prefConfig.resumeWithoutConfirm && lastRunningAppId == app.app.getAppId()) {
                         ServerHelper.doStart(AppView.this, app.app, computer, managerBinder, prefConfig.useVirtualDisplay);
                     } else {
-                        showAppBottomSheet(app, pos);
+                        showAppBottomSheet(app, appGridAdapter.itemList.indexOf(app));
                     }
                 } else {
                     if (prefConfig.useVirtualDisplay && !(computer.vDisplaySupported && computer.vDisplayDriverReady)) {
@@ -806,18 +803,20 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                         ServerHelper.doStart(AppView.this, app.app, computer, managerBinder, prefConfig.useVirtualDisplay);
                     }
                 }
-            }
-        });
-        UiHelper.applyStatusBarPadding(listView);
-
-        // Use Nova bottom sheet instead of stock context menu
-        listView.setOnItemLongClickListener((parent, view, position, id) -> {
-            AppObject app = (AppObject) appGridAdapter.getItem(position);
-            showAppBottomSheet(app, position);
-            return true;
-        });
-
-        listView.requestFocus();
+            });
+            rv.addOnItemTouchListener(new com.papi.nova.grid.RecyclerItemClickListener(this, rv, new com.papi.nova.grid.RecyclerItemClickListener.OnItemClickListener() {
+                @Override
+                public void onItemClick(View view, int position) {}
+                
+                @Override
+                public void onLongItemClick(View view, int position) {
+                    AppObject app = (AppObject) appGridAdapter.getItem(position);
+                    showAppBottomSheet(app, position);
+                }
+            }));
+            UiHelper.applyStatusBarPadding(rv);
+            rv.requestFocus();
+        }
     }
 
     public static class AppObject {

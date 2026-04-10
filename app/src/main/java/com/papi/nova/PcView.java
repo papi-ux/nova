@@ -24,6 +24,7 @@ import com.papi.nova.preferences.PreferenceConfiguration;
 import com.papi.nova.preferences.StreamSettings;
 import com.papi.nova.profiles.ProfilesManager;
 import com.papi.nova.ui.AdapterFragment;
+import com.papi.nova.ui.SpaceParticleView;
 import com.papi.nova.ui.AdapterFragmentCallbacks;
 import com.papi.nova.utils.Dialog;
 import com.papi.nova.utils.HelpLauncher;
@@ -181,6 +182,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
 
         // Pull-to-refresh for server discovery
+        spaceParticleView = findViewById(R.id.space_particles);
         androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh = findViewById(R.id.swipe_refresh);
         if (swipeRefresh != null) {
             swipeRefresh.setColorSchemeColors(getColor(R.color.nova_accent));
@@ -369,7 +371,11 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     private void updateModeTabs() {
-        updateChipSelection(new int[] { R.id.modeServers, R.id.modeLibrary }, R.id.modeServers);
+        // Material chips handle their own background states via selector now
+        com.google.android.material.chip.ChipGroup group = findViewById(R.id.pcModeTabs);
+        if (group != null) {
+            group.check(R.id.modeServers);
+        }
     }
 
     private void updateServerFilterTabs() {
@@ -390,33 +396,15 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 break;
         }
 
-        updateChipSelection(new int[] {
-                R.id.filterAllServers,
-                R.id.filterOnlineServers,
-                R.id.filterStreamingServers,
-                R.id.filterNeedsPairingServers
-        }, selectedId);
+        com.google.android.material.chip.ChipGroup group = findViewById(R.id.serverFilterTabs);
+        if (group != null) {
+            group.check(selectedId);
+        }
     }
 
     private void updateChipSelection(int[] ids, int selectedId) {
-        int accent = com.papi.nova.ui.NovaThemeManager.INSTANCE.getAccentColor(this);
-        int textPrimary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextPrimaryColor(this);
-
-        for (int id : ids) {
-            TextView chip = findViewById(id);
-            if (chip == null) {
-                continue;
-            }
-
-            if (id == selectedId) {
-                chip.setBackgroundResource(R.drawable.nova_chip_selected);
-                chip.setTextColor(accent);
-            }
-            else {
-                chip.setBackgroundResource(R.drawable.nova_badge_bg);
-                chip.setTextColor(textPrimary);
-            }
-        }
+        // Obsolete for PcView, handled by Material Chips XML
+        // Left intact if other activities (like NovaLibraryActivity) still call it
     }
 
     private void setServerFilter(int filter) {
@@ -485,7 +473,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             return;
         }
 
-        if (pcGridAdapter.getCount() > 0) {
+        if (pcGridAdapter.getItemCount() > 0) {
             noPcFoundLayout.setVisibility(View.INVISIBLE);
             return;
         }
@@ -549,6 +537,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     private String appliedTheme;
+
+    private SpaceParticleView spaceParticleView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -673,7 +663,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 }
             });
             runningPolling = true;
-            updateEmptyState();
+            PcView.this.runOnUiThread(this::updateEmptyState);
         }
     }
 
@@ -741,6 +731,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         refreshProfileButton();
 
         inForeground = true;
+        if (spaceParticleView != null) spaceParticleView.resume();
         startComputerUpdates();
     }
 
@@ -749,6 +740,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         super.onPause();
 
         inForeground = false;
+        if (spaceParticleView != null) spaceParticleView.pause();
         stopComputerUpdates(false);
     }
 
@@ -1334,34 +1326,34 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     @Override
-    public void receiveAbsListView(AbsListView listView) {
-        listView.setAdapter(pcGridAdapter);
-        listView.setOnItemClickListener(new OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> arg0, View arg1, int pos,
-                                    long id) {
-                arg1.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
-                ComputerObject computer = (ComputerObject) pcGridAdapter.getItem(pos);
+    public void receiveAbsListView(View gridView) {
+        if (gridView instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) gridView;
+            rv.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 1));
+            rv.setAdapter(pcGridAdapter);
+            pcGridAdapter.setOnItemClickListener(computer -> {
                 if (computer.details.state == ComputerDetails.State.UNKNOWN ||
                     computer.details.state == ComputerDetails.State.OFFLINE) {
-                    // Show bottom sheet if a PC is offline or refreshing
                     showServerBottomSheet(computer);
                 } else if (computer.details.pairState != PairState.PAIRED) {
-                    // Show pairing options bottom sheet
                     showServerBottomSheet(computer);
                 } else {
                     doAppList(computer.details, false, false);
                 }
-            }
-        });
-        UiHelper.applyStatusBarPadding(listView);
-
-        // Use Nova bottom sheet instead of stock context menu
-        listView.setOnItemLongClickListener((parent, view, position, id) -> {
-            ComputerObject computer = (ComputerObject) pcGridAdapter.getItem(position);
-            showServerBottomSheet(computer);
-            return true;
-        });
+            });
+            // Long click handler
+            rv.addOnItemTouchListener(new com.papi.nova.grid.RecyclerItemClickListener(this, rv, new com.papi.nova.grid.RecyclerItemClickListener.OnItemClickListener() {
+                @Override
+                public void onItemClick(View view, int position) {}
+                
+                @Override
+                public void onLongItemClick(View view, int position) {
+                    ComputerObject computer = (ComputerObject) pcGridAdapter.getItem(position);
+                    showServerBottomSheet(computer);
+                }
+            }));
+            UiHelper.applyStatusBarPadding(rv);
+        }
     }
 
     public static class ComputerObject {

@@ -4,29 +4,48 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import androidx.recyclerview.widget.RecyclerView;
+
 import com.papi.nova.R;
 
 import java.util.ArrayList;
 
-public abstract class GenericGridAdapter<T> extends BaseAdapter {
+public abstract class GenericGridAdapter<T> extends RecyclerView.Adapter<GenericGridAdapter.ViewHolder> {
     protected final Context context;
     private int layoutId;
-    final ArrayList<T> itemList = new ArrayList<>();
+    public final ArrayList<T> itemList = new ArrayList<>();
     private final LayoutInflater inflater;
 
-    /** Cached view references to avoid findViewById() on every bind. */
-    static class ViewHolder {
-        ImageView imgView;
-        RelativeLayout gridMask;
-        ImageView overlayView;
-        TextView txtView;
-        ProgressBar prgView;
+    public interface OnItemClickListener<T> {
+        void onItemClick(T item);
+    }
+    
+    private OnItemClickListener<T> clickListener;
+
+    public void setOnItemClickListener(OnItemClickListener<T> listener) {
+        this.clickListener = listener;
+    }
+
+    public static class ViewHolder extends RecyclerView.ViewHolder {
+        public ImageView imgView;
+        public RelativeLayout gridMask;
+        public ImageView overlayView;
+        public TextView txtView;
+        public ProgressBar prgView;
+
+        public ViewHolder(View itemView) {
+            super(itemView);
+            imgView = itemView.findViewById(R.id.grid_image);
+            gridMask = itemView.findViewById(R.id.grid_mask);
+            overlayView = itemView.findViewById(R.id.grid_overlay);
+            txtView = itemView.findViewById(R.id.grid_text);
+            prgView = itemView.findViewById(R.id.grid_spinner);
+        }
     }
 
     GenericGridAdapter(Context context, int layoutId) {
@@ -50,12 +69,11 @@ public abstract class GenericGridAdapter<T> extends BaseAdapter {
     }
 
     @Override
-    public int getCount() {
+    public int getItemCount() {
         return itemList.size();
     }
 
-    @Override
-    public Object getItem(int i) {
+    public T getItem(int i) {
         return itemList.get(i);
     }
 
@@ -67,24 +85,20 @@ public abstract class GenericGridAdapter<T> extends BaseAdapter {
     public abstract void populateView(View parentView, ImageView imgView, RelativeLayout gridMask, ProgressBar prgView, TextView txtView, ImageView overlayView, T obj);
 
     @Override
-    public View getView(int i, View convertView, ViewGroup viewGroup) {
-        ViewHolder holder;
+    public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+        View view = inflater.inflate(layoutId, parent, false);
+        return new ViewHolder(view);
+    }
 
-        if (convertView == null) {
-            convertView = inflater.inflate(layoutId, viewGroup, false);
-            holder = new ViewHolder();
-            holder.imgView = convertView.findViewById(R.id.grid_image);
-            holder.gridMask = convertView.findViewById(R.id.grid_mask);
-            holder.overlayView = convertView.findViewById(R.id.grid_overlay);
-            holder.txtView = convertView.findViewById(R.id.grid_text);
-            holder.prgView = convertView.findViewById(R.id.grid_spinner);
-            convertView.setTag(holder);
-        } else {
-            holder = (ViewHolder) convertView.getTag();
-        }
-
-        populateView(convertView, holder.imgView, holder.gridMask, holder.prgView, holder.txtView, holder.overlayView, itemList.get(i));
-
-        return convertView;
+    @Override
+    public void onBindViewHolder(ViewHolder holder, int position) {
+        T item = itemList.get(position);
+        populateView(holder.itemView, holder.imgView, holder.gridMask, holder.prgView, holder.txtView, holder.overlayView, item);
+        
+        holder.itemView.setOnClickListener(v -> {
+            if (clickListener != null) {
+                clickListener.onItemClick(item);
+            }
+        });
     }
 }

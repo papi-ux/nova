@@ -15,6 +15,8 @@
     <color name="nova_bg_input">#FF232340</color>
     <color name="nova_bg_window">#FF1a1a2e</color>
 
+    <color name="nova_badge_bg">#33687b81</color>
+
     <!-- OLED Dark Galaxy theme overrides -->
     <color name="nova_oled_bg_primary">#FF000000</color>
     <color name="nova_oled_bg_card">#CC0a0a0e</color>

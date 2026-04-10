@@ -218,11 +218,22 @@ class SpaceParticleView @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        running = true
+        resume()
     }
 
     override fun onDetachedFromWindow() {
-        running = false
+        pause()
         super.onDetachedFromWindow()
+    }
+
+    fun pause() {
+        running = false
+    }
+
+    fun resume() {
+        if (!running) {
+            running = true
+            postInvalidateOnAnimation()
+        }
     }
 }

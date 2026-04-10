@@ -230,11 +230,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:text="Get Started"
-                android:textSize="14sp"
-                android:textColor="@color/nova_ice"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
                 android:textAllCaps="false"
                 app:backgroundTint="@color/nova_accent"
-                app:cornerRadius="12dp" />
+                app:cornerRadius="24dp" />
 
         </LinearLayout>
     </LinearLayout>
