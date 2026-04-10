@@ -38,11 +38,6 @@ android {
         versionName "1.3.0"
         versionCode = 9
 
-        ndk {
-            // Keep the native build graph aligned with the packaged ABI set.
-            abiFilters.addAll(targetAbis)
-        }
-
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes
         ndk.debugSymbolLevel = 'FULL'
     }
