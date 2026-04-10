@@ -37,6 +37,7 @@
                 android:paddingBottom="2dp">
 
                 <TextView
+                    android:id="@+id/pcViewTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -56,10 +57,30 @@
                     android:contentDescription="Settings" />
 
                 <ImageButton
-                    android:id="@+id/helpButton"
+                    android:id="@+id/themeButton"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:layout_marginStart="4dp"
+                    app:srcCompat="@drawable/ic_theme_cycle"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    app:tint="@color/nova_text_secondary"
+                    android:contentDescription="@string/nova_theme_cycle" />
+
+                <ImageButton
+                    android:id="@+id/libraryButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="2dp"
+                    app:srcCompat="@drawable/ic_channel"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    app:tint="@color/nova_text_secondary"
+                    android:contentDescription="@string/pcview_quick_library" />
+
+                <ImageButton
+                    android:id="@+id/helpButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="2dp"
                     app:srcCompat="@drawable/ic_help"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     app:tint="@color/nova_text_secondary"
@@ -88,6 +109,7 @@
 
             <!-- Section label -->
             <TextView
+                android:id="@+id/pcViewSectionLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Servers"
@@ -139,6 +161,7 @@
                         android:indeterminateTint="@color/nova_accent" />
 
                     <TextView
+                        android:id="@+id/pcViewEmptyTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
@@ -148,6 +171,7 @@
                         android:text="@string/searching_pc" />
 
                     <TextView
+                        android:id="@+id/pcViewEmptyHint"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"

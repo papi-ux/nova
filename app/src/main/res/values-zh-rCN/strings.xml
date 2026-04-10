@@ -699,19 +699,6 @@
     <string name="perf_overlay_drawdelay">延迟：%1$.2f ms</string>
     <string name="game_menu_select_steam_mode">选择串流模式</string>
     <string name="perf_overlay_drawn_fps">GPU 帧率：</string>
-    <string name="perf_overlay_ai_fps">3D 帧率：</string>
-    <string name="perf_overlay_ai_delegate">AI 后端：</string>
-    <string name="title_render_mode">渲染模式</string>
-    <string name="title_render_mode_convergence_title">3D 会聚</string>
-    <string name="title_render_mode_convergence_description">参考值：50 - 平衡 / 0：屏幕前 / 100：屏幕后</string>
-    <string name="title_render_mode_balance_shift_title">3D 视觉平衡</string>
-    <string name="title_render_mode_balance_shift_description">参考值：50 - 双眼各分担 50% 的深度效果；0：左眼（100% 凸出）- 右眼（100% 不变）；100：左眼不变 - 右眼凸出。将数值设为 0 或 100 可获得更清晰的成像，因为中总有一侧像素保持未偏移。</string>
-    <string name="title_render_mode_strength_title">3D 效果强度</string>
-    <string name="title_render_mode_strength_description">参考值 50。数值越高效果越强，但可能更累眼且不自然；数值越低更护眼，体验更柔和。</string>
-    <string name="summary_render_mode">2D（默认） 或 SBS 3D。3D 会将画面宽度加倍并使用 AI 自动 2D 转 3D。</string>
-    <string name="render_mode_2d">2D</string>
-    <string name="render_mode_3d_sbs">AI SBS 3D</string>
-    <string name="render_mode_3d_sbs_movie">AI SBS 3D 电影模式（同步）</string>
 
     <string name="title_checkbox_full_screen">启用全屏</string>
     <string name="summary_checkbox_full_screen">使用沉浸模式隐藏系统状态栏</string>

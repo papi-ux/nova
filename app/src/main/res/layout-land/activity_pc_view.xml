@@ -38,6 +38,26 @@
                 android:contentDescription="Settings" />
 
             <ImageButton
+                android:id="@+id/themeButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginBottom="4dp"
+                app:srcCompat="@drawable/ic_theme_cycle"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="@color/nova_text_secondary"
+                android:contentDescription="@string/nova_theme_cycle" />
+
+            <ImageButton
+                android:id="@+id/libraryButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginBottom="4dp"
+                app:srcCompat="@drawable/ic_channel"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="@color/nova_text_secondary"
+                android:contentDescription="@string/pcview_quick_library" />
+
+            <ImageButton
                 android:id="@+id/helpButton"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
@@ -88,6 +108,7 @@
                 android:paddingBottom="4dp">
 
                 <TextView
+                    android:id="@+id/pcViewTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -98,6 +119,7 @@
                     android:letterSpacing="0.04" />
 
                 <TextView
+                    android:id="@+id/pcViewSectionLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="SERVERS"
@@ -138,6 +160,7 @@
                             android:indeterminateTint="@color/nova_accent" />
 
                         <TextView
+                            android:id="@+id/pcViewEmptyTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="16dp"

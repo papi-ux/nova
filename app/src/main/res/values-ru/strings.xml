@@ -368,7 +368,6 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (смена монитора)</string>
     <string name="toggle_pan_zoom_mode">Переключить режим прокрутки/масш.</string>
     <string name="pan_zoom_mode_enabled">Режим прокрутки/масш. включён</string>
-    <string name="perf_overlay_ai_delegate">Делегат:</string>
     <string name="perf_overlay_lite_decoder">Декодер: %1$s</string>
     <string name="title_import_keyboard_layout">Импорт раскладки клавиатуры</string>
     <string name="title_export_keyboard_layout">Экспорт раскладки клавиатуры</string>
@@ -380,9 +379,7 @@
     <string name="title_custom_refresh_rate">Пользовательская частота обновления</string>
     <string name="summary_custom_refresh_rate">Введите частоту вручную. Поддерживается только Apollo.</string>
     <string name="dialog_custom_refresh_rate">Введите частоту в Гц. Может быть дробной.</string>
-    <string name="title_render_mode_strength_description">Справка: 50 - Выше значение: эффект выраженнее, но возможна нагрузка на глаза и неестественное изображение. Ниже значение: комфорт для глаз и более плавное восприятие.</string>
     <string name="title_touchscreen_mode">Режим сенсора</string>
-    <string name="summary_render_mode">По умолчанию 2D или SBS 3D. В режиме 3D ширина изображения будет автоматически удвоена с добавлением эффекта, настройка не требуется. Преобразование 2D в 3D с помощью ИИ.</string>
     <string name="summary_touchscreen_mode">Выберите режим Мультитач / Одиночное касание / Трекпад / Выключено.\nПеро/стилус остаются работоспособны при Выключено.\nНа внешнем дисплее принудительно Трекпад (Natural).</string>
     <string name="title_checkbox_mouse_local_cursor">Использовать локальный курсор мыши</string>
     <string name="summary_checkbox_mouse_local_cursor">Захватывается внешний курсор физической мыши. Данная опция позволяет отображать системный курсор Android.</string>
@@ -511,7 +508,6 @@
     <string name="summary_checkbox_enable_sticky_modifier_key_virtual_keyboard">Использовать фиксированные модификаторы на полноэкранной и пользовательской клавиатурах.</string>
     <string name="virtual_keyboard_hide">Скрыть\nКЛАВ</string>
     <string name="mouse_mode_multi_touch">Мультитач</string>
-    <string name="render_mode_3d_sbs_movie">AI SBS 3D Фильм (Синхронизированно)</string>
     <string name="mouse_mode_absolute_touch">Абсолютный ввод</string>
     <string name="mouse_mode_track_pad_natural">Трекпад (Natural/Двойной тап для перетаскивания)</string>
     <string name="mouse_mode_track_pad_gaming">Трекпад (Gaming/Долгое нажатие для перетаскивания)</string>
@@ -652,28 +648,9 @@
     <string name="perf_overlay_lite_net">%1$dмс</string>
     <string name="perf_overlay_lite_dectime">%1$.2fмс</string>
     <string name="summary_low_latency_frame_balance">Уменьшает задержку за счёт пропуска кадров в очереди</string>
-    <string name="category_perf_charts">Графики производительности</string>
-    <string name="desc_chart_latency">График задержки сети</string>
-    <string name="desc_chart_decode">График времени декодирования</string>
-    <string name="desc_chart_fps">График FPS</string>
-    <string name="title_enable_perf_charts">Включить графики производительности</string>
-    <string name="summary_enable_perf_charts">Вывод графиков производительности в игровой панели</string>
-    <string name="title_perf_chart_latency">График: задержка сети</string>
-    <string name="summary_perf_chart_latency">График средней задержки сети (мс)</string>
-    <string name="title_perf_chart_decode">График: время декодирования</string>
-    <string name="summary_perf_chart_decode">График времени декодирования кадра (мс)</string>
-    <string name="title_perf_chart_fps">График: FPS</string>
-    <string name="summary_perf_chart_fps">График входящих/отрендереных кадров в секунду</string>
     <string name="category_perf_monitor_settings">Монитор производительности</string>
     <string name="title_low_latency_frame_balance">LFR (эксперементально)</string>
     <string name="title_checkbox_forceTightThresholds">Агрессивная вертикальная синхронизация (эксперементально)</string>
-    <string name="title_render_mode">Режим рендеринга</string>
-    <string name="title_render_mode_convergence_title">3D конвергенция</string>
-    <string name="title_render_mode_convergence_description">Справка: 50 - Сбалансировано / 0: Перед экраном / 100 - За экраном</string>
-    <string name="title_render_mode_balance_shift_title">Баланс глаз 3D</string>
-    <string name="title_render_mode_balance_shift_description">Справка: 50 - Оба глаза делят эффект глубины 50/50 (объём/удаление) / 0: Левый (100% Объём) - Правый (100% Удаление) / 100: Левый Удаление - Правый Объём // Значения 100 или 0 обеспечивают максимальную чёткость, так как один пиксель остаётся неизменным для другого глаза</string>
-    <string name="title_render_mode_strength_title">Сила 3D-эффекта</string>
-    <string name="render_mode_2d">По умолчанию 2D</string>
     <string name="title_checkbox_full_screen">Включить полноэкранный режим</string>
     <string name="summary_checkbox_full_screen">Скрывать системные панели в режиме погружения</string>
 </resources>

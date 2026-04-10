@@ -1,6 +1,8 @@
 package com.papi.nova.grid;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -12,6 +14,7 @@ import com.papi.nova.R;
 import com.papi.nova.nvstream.http.ComputerDetails;
 import com.papi.nova.nvstream.http.PairingManager;
 import com.papi.nova.preferences.PreferenceConfiguration;
+import com.papi.nova.ui.NovaThemeManager;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -73,8 +76,10 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
 
     @Override
     public void populateView(View parentView, ImageView imgView, RelativeLayout gridMask, ProgressBar prgView, TextView txtView, ImageView overlayView, PcView.ComputerObject obj) {
+        applyCardTheme(parentView, imgView, prgView, txtView);
+
         imgView.setImageResource(R.drawable.ic_computer);
-        imgView.setColorFilter(ContextCompat.getColor(context, R.color.nova_silver));
+        imgView.setColorFilter(NovaThemeManager.INSTANCE.getTextSecondaryColor(context));
 
         // Status indicator (cached via PcViewHolder)
         PcViewHolder pcHolder = getPcHolder(parentView);
@@ -96,7 +101,7 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
                 } else {
                     String addr = obj.details.activeAddress != null ? obj.details.activeAddress.address : "";
                     statusText.setText("Ready \u00b7 " + addr);
-                    statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_text_muted));
+                    statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
                 }
             }
         }
@@ -107,7 +112,7 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
             }
             if (statusText != null) {
                 statusText.setText("Offline");
-                statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_text_muted));
+                statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
             }
         }
         else {
@@ -117,7 +122,7 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
             }
             if (statusText != null) {
                 statusText.setText("Connecting\u2026");
-                statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_text_muted));
+                statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
             }
         }
 
@@ -145,5 +150,22 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
         else {
             overlayView.setVisibility(View.GONE);
         }
+    }
+
+    private void applyCardTheme(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView) {
+        View card = parentView instanceof android.view.ViewGroup && ((android.view.ViewGroup) parentView).getChildCount() > 0
+                ? ((android.view.ViewGroup) parentView).getChildAt(0)
+                : parentView;
+
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setCornerRadius(context.getResources().getDisplayMetrics().density * 16f);
+        background.setColor(NovaThemeManager.INSTANCE.getCardBackgroundColor(context));
+        background.setStroke((int) (context.getResources().getDisplayMetrics().density), NovaThemeManager.INSTANCE.getDividerColor(context));
+        card.setBackground(background);
+
+        txtView.setTextColor(NovaThemeManager.INSTANCE.getTextPrimaryColor(context));
+        prgView.setIndeterminateTintList(ColorStateList.valueOf(NovaThemeManager.INSTANCE.getAccentColor(context)));
+        imgView.setImageTintList(ColorStateList.valueOf(NovaThemeManager.INSTANCE.getTextSecondaryColor(context)));
     }
 }

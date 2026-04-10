@@ -49,6 +49,7 @@ import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.widget.TextView;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -57,6 +58,7 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
+import android.content.res.ColorStateList;
 
 import android.util.TypedValue;
 import android.widget.LinearLayout.LayoutParams;
@@ -201,6 +203,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         // Setup the list view (null-safe for alternate layouts)
         ImageButton settingsButton = findViewById(R.id.settingsButton);
+        ImageButton themeButton = findViewById(R.id.themeButton);
+        ImageButton libraryButton = findViewById(R.id.libraryButton);
         ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
         ImageButton helpButton = findViewById(R.id.helpButton);
         ExtendedFloatingActionButton profilesButton = findViewById(R.id.profilesButton);
@@ -210,6 +214,21 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 startActivity(new Intent(PcView.this, StreamSettings.class));
                 com.papi.nova.ui.NovaThemeManager.INSTANCE.applyFadeTransition(PcView.this);
             });
+        }
+        if (themeButton != null) {
+            themeButton.setOnClickListener(v -> {
+                String nextTheme = com.papi.nova.ui.NovaThemeManager.INSTANCE.cycleTheme(PcView.this);
+                Toast.makeText(
+                        PcView.this,
+                        getString(R.string.nova_theme_switched_to, com.papi.nova.ui.NovaThemeManager.INSTANCE.getThemeLabel(PcView.this, nextTheme)),
+                        Toast.LENGTH_SHORT
+                ).show();
+                recreate();
+                com.papi.nova.ui.NovaThemeManager.INSTANCE.applyFadeTransition(PcView.this);
+            });
+        }
+        if (libraryButton != null) {
+            libraryButton.setOnClickListener(v -> launchQuickLibrary());
         }
         if (addComputerButton != null) {
             addComputerButton.setOnClickListener(v -> {
@@ -234,6 +253,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             helpButton.setVisibility(View.GONE);
         }
 
+        applyThemeToServerBrowser(settingsButton, themeButton, libraryButton, helpButton, addComputerButton, scanQrButton, profilesButton);
+
         getFragmentManager().beginTransaction()
             .replace(R.id.pcFragmentContainer, new AdapterFragment())
             .commitAllowingStateLoss();
@@ -246,6 +267,98 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             noPcFoundLayout.setVisibility(View.INVISIBLE);
         }
         pcGridAdapter.notifyDataSetChanged();
+    }
+
+    private void applyThemeToServerBrowser(ImageButton settingsButton,
+                                           ImageButton themeButton,
+                                           ImageButton libraryButton,
+                                           ImageButton helpButton,
+                                           ImageButton addComputerButton,
+                                           ImageButton scanQrButton,
+                                           ExtendedFloatingActionButton profilesButton) {
+        int accent = com.papi.nova.ui.NovaThemeManager.INSTANCE.getAccentColor(this);
+        int textPrimary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextPrimaryColor(this);
+        int textSecondary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextSecondaryColor(this);
+        int textMuted = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextMutedColor(this);
+        int surface = com.papi.nova.ui.NovaThemeManager.INSTANCE.getCardBackgroundColor(this);
+
+        androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh = findViewById(R.id.swipe_refresh);
+        if (swipeRefresh != null) {
+            swipeRefresh.setColorSchemeColors(accent);
+            swipeRefresh.setProgressBackgroundColorSchemeColor(surface);
+        }
+
+        tintActionButton(settingsButton, textSecondary);
+        tintActionButton(themeButton, accent);
+        tintActionButton(libraryButton, accent);
+        tintActionButton(helpButton, textSecondary);
+        tintActionButton(addComputerButton, textSecondary);
+        tintActionButton(scanQrButton, textSecondary);
+
+        TextView titleView = findViewById(R.id.pcViewTitle);
+        if (titleView != null) {
+            titleView.setTextColor(textPrimary);
+        }
+
+        TextView sectionView = findViewById(R.id.pcViewSectionLabel);
+        if (sectionView != null) {
+            sectionView.setTextColor(textMuted);
+        }
+
+        TextView emptyTitle = findViewById(R.id.pcViewEmptyTitle);
+        if (emptyTitle != null) {
+            emptyTitle.setTextColor(textMuted);
+        }
+
+        TextView emptyHint = findViewById(R.id.pcViewEmptyHint);
+        if (emptyHint != null) {
+            emptyHint.setTextColor(textMuted);
+        }
+
+        if (profilesButton != null) {
+            profilesButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+            profilesButton.setIconTint(ColorStateList.valueOf(textPrimary));
+            profilesButton.setTextColor(textPrimary);
+        }
+    }
+
+    private void tintActionButton(ImageButton button, int color) {
+        if (button != null) {
+            button.setImageTintList(ColorStateList.valueOf(color));
+        }
+    }
+
+    private void launchQuickLibrary() {
+        java.util.ArrayList<ComputerObject> candidates = new java.util.ArrayList<>();
+        for (int i = 0; i < pcGridAdapter.getCount(); i++) {
+            ComputerObject candidate = (ComputerObject) pcGridAdapter.getItem(i);
+            if (candidate.details.state == ComputerDetails.State.ONLINE &&
+                    candidate.details.pairState == PairState.PAIRED &&
+                    candidate.details.activeAddress != null) {
+                candidates.add(candidate);
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            Toast.makeText(this, R.string.pcview_library_no_server, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (candidates.size() == 1) {
+            doNovaLibrary(candidates.get(0).details);
+            return;
+        }
+
+        CharSequence[] names = new CharSequence[candidates.size()];
+        for (int i = 0; i < candidates.size(); i++) {
+            names[i] = candidates.get(i).details.name;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.pcview_library_choose_server)
+                .setItems(names, (dialog, which) -> doNovaLibrary(candidates.get(which).details))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private String appliedTheme;
@@ -541,7 +654,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 sheet.dismiss();
                 doAppList(computer.details, false, false);
             });
-            addPcSheetAction(actions, "Nova Library", () -> {
+            addPcSheetAction(actions, getString(R.string.pcview_menu_nova_library), () -> {
                 sheet.dismiss();
                 doNovaLibrary(computer.details);
             });

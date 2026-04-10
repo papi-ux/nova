@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
+import android.util.TypedValue
 import android.os.Build
 import android.view.Window
 import androidx.core.view.WindowCompat
@@ -25,11 +26,6 @@ object NovaThemeManager {
         val theme = getTheme(activity)
         val isSettings = activity is com.papi.nova.preferences.StreamSettings
 
-        // Apply Material You dynamic colors on Android 12+ if selected
-        if (theme == THEME_MATERIAL_YOU && isMaterialYouAvailable()) {
-            com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(activity)
-        }
-
         when {
             theme == THEME_OLED && isSettings -> activity.setTheme(R.style.SettingsTheme_OLED)
             theme == THEME_OLED -> activity.setTheme(R.style.AppTheme_OLED)
@@ -37,6 +33,10 @@ object NovaThemeManager {
             theme == THEME_MATERIAL_YOU -> activity.setTheme(R.style.AppTheme_MaterialYou)
             isSettings -> activity.setTheme(R.style.SettingsTheme)
             else -> activity.setTheme(R.style.AppTheme)
+        }
+
+        if (theme == THEME_MATERIAL_YOU && isMaterialYouAvailable()) {
+            com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(activity)
         }
         applyEdgeToEdge(activity.window)
     }
@@ -68,13 +68,46 @@ object NovaThemeManager {
     }
 
     fun isOled(context: Context): Boolean = getTheme(context) == THEME_OLED
+    fun isMaterialYou(context: Context): Boolean = getTheme(context) == THEME_MATERIAL_YOU
+
+    fun cycleTheme(context: Context): String {
+        val next = when (getTheme(context)) {
+            THEME_POLARIS -> if (isMaterialYouAvailable()) THEME_MATERIAL_YOU else THEME_OLED
+            THEME_MATERIAL_YOU -> THEME_OLED
+            else -> THEME_POLARIS
+        }
+        setTheme(context, next)
+        return next
+    }
+
+    fun getThemeLabel(context: Context, theme: String = getTheme(context)): String {
+        return when (theme) {
+            THEME_OLED -> context.getString(R.string.nova_theme_oled_label)
+            THEME_MATERIAL_YOU -> context.getString(R.string.nova_theme_material_you_label)
+            else -> context.getString(R.string.nova_theme_polaris_label)
+        }
+    }
+
+    private fun resolveThemeColor(context: Context, attr: Int, fallback: Int): Int {
+        val typedValue = TypedValue()
+        if (!context.theme.resolveAttribute(attr, typedValue, true)) {
+            return fallback
+        }
+
+        return when {
+            typedValue.resourceId != 0 -> context.getColor(typedValue.resourceId)
+            typedValue.type in TypedValue.TYPE_FIRST_COLOR_INT..TypedValue.TYPE_LAST_COLOR_INT -> typedValue.data
+            else -> fallback
+        }
+    }
 
     /** Returns the correct window background color for the current theme */
     fun getWindowBackgroundColor(context: Context): Int {
-        return if (isOled(context)) {
-            Color.BLACK
-        } else {
-            context.getColor(R.color.nova_bg_window)
+        return when {
+            isOled(context) -> Color.BLACK
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                resolveThemeColor(context, android.R.attr.colorBackground, context.getColor(R.color.nova_bg_window))
+            else -> context.getColor(R.color.nova_bg_window)
         }
     }
 
@@ -98,19 +131,21 @@ object NovaThemeManager {
 
     /** Returns the correct card background color for the current theme */
     fun getCardBackgroundColor(context: Context): Int {
-        return if (isOled(context)) {
-            context.getColor(R.color.nova_oled_bg_card)
-        } else {
-            context.getColor(R.color.nova_bg_card)
+        return when {
+            isOled(context) -> context.getColor(R.color.nova_oled_bg_card)
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                resolveThemeColor(context, com.google.android.material.R.attr.colorSurface, context.getColor(R.color.nova_bg_card))
+            else -> context.getColor(R.color.nova_bg_card)
         }
     }
 
     /** Returns the correct dialog background color for the current theme */
     fun getDialogBackgroundColor(context: Context): Int {
-        return if (isOled(context)) {
-            context.getColor(R.color.nova_oled_dialog_bg)
-        } else {
-            context.getColor(R.color.nova_dialog_bg)
+        return when {
+            isOled(context) -> context.getColor(R.color.nova_oled_dialog_bg)
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                resolveThemeColor(context, com.google.android.material.R.attr.colorSurface, context.getColor(R.color.nova_dialog_bg))
+            else -> context.getColor(R.color.nova_dialog_bg)
         }
     }
 
@@ -135,41 +170,43 @@ object NovaThemeManager {
         }
     }
 
-    fun isMaterialYou(context: Context): Boolean = getTheme(context) == THEME_MATERIAL_YOU
-
     /** Returns the correct divider color for the current theme */
     fun getDividerColor(context: Context): Int {
-        return if (isOled(context)) {
-            context.getColor(R.color.nova_oled_divider)
-        } else {
-            context.getColor(R.color.nova_divider)
+        return when {
+            isOled(context) -> context.getColor(R.color.nova_oled_divider)
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                resolveThemeColor(context, com.google.android.material.R.attr.colorOutline, context.getColor(R.color.nova_divider))
+            else -> context.getColor(R.color.nova_divider)
         }
     }
 
     /** Returns the correct text primary color for the current theme */
     fun getTextPrimaryColor(context: Context): Int {
-        return if (isOled(context)) {
-            context.getColor(R.color.nova_oled_text_primary)
-        } else {
-            context.getColor(R.color.nova_text_primary)
+        return when {
+            isOled(context) -> context.getColor(R.color.nova_oled_text_primary)
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                resolveThemeColor(context, android.R.attr.textColorPrimary, context.getColor(R.color.nova_text_primary))
+            else -> context.getColor(R.color.nova_text_primary)
         }
     }
 
     /** Returns the correct text secondary color for the current theme */
     fun getTextSecondaryColor(context: Context): Int {
-        return if (isOled(context)) {
-            context.getColor(R.color.nova_oled_text_secondary)
-        } else {
-            context.getColor(R.color.nova_text_secondary)
+        return when {
+            isOled(context) -> context.getColor(R.color.nova_oled_text_secondary)
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                resolveThemeColor(context, android.R.attr.textColorSecondary, context.getColor(R.color.nova_text_secondary))
+            else -> context.getColor(R.color.nova_text_secondary)
         }
     }
 
     /** Returns the correct text muted color for the current theme */
     fun getTextMutedColor(context: Context): Int {
-        return if (isOled(context)) {
-            context.getColor(R.color.nova_oled_text_muted)
-        } else {
-            context.getColor(R.color.nova_text_muted)
+        return when {
+            isOled(context) -> context.getColor(R.color.nova_oled_text_muted)
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                resolveThemeColor(context, android.R.attr.textColorSecondary, context.getColor(R.color.nova_text_muted))
+            else -> context.getColor(R.color.nova_text_muted)
         }
     }
 }
