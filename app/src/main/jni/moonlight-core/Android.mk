@@ -37,7 +37,6 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/enet/peer.c \
                    moonlight-common-c/enet/protocol.c \
                    moonlight-common-c/enet/unix.c \
-                   moonlight-common-c/enet/win32.c \
                    simplejni.c \
                    callbacks.c \
                    minisdl.c \
@@ -47,7 +46,8 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/moonlight-common-c/enet/include \
                     $(LOCAL_PATH)/moonlight-common-c/reedsolomon \
                     $(LOCAL_PATH)/moonlight-common-c/src \
 
-LOCAL_CFLAGS := -DHAS_SOCKLEN_T=1 -DLC_ANDROID -DHAVE_CLOCK_GETTIME=1
+LOCAL_CFLAGS := -DHAS_SOCKLEN_T=1 -DLC_ANDROID -DHAVE_CLOCK_GETTIME=1 \
+                -ffunction-sections -fdata-sections
 
 ifeq ($(NDK_DEBUG),1)
 LOCAL_CFLAGS += -DLC_DEBUG
@@ -56,7 +56,7 @@ endif
 LOCAL_LDLIBS := -llog
 
 LOCAL_STATIC_LIBRARIES := libopus libssl libcrypto cpufeatures
-LOCAL_LDFLAGS += -Wl,--exclude-libs,ALL
+LOCAL_LDFLAGS += -Wl,--exclude-libs,ALL -Wl,--gc-sections
 
 LOCAL_BRANCH_PROTECTION := standard
 
