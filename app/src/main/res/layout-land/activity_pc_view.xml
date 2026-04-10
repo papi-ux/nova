@@ -16,164 +16,221 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="horizontal">
+        android:orientation="vertical">
 
-        <!-- Left sidebar — actions -->
         <LinearLayout
-            android:layout_width="64dp"
-            android:layout_height="match_parent"
+            android:id="@+id/pcViewHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:gravity="top|center_horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
             android:paddingTop="12dp"
-            android:paddingBottom="12dp">
+            android:paddingBottom="4dp">
 
-            <ImageButton
-                android:id="@+id/settingsButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginBottom="4dp"
-                app:srcCompat="@drawable/ic_settings"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="@color/nova_text_secondary"
-                android:contentDescription="Settings" />
+            <TextView
+                android:id="@+id/pcViewTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Nova"
+                android:textSize="24sp"
+                android:textColor="@color/nova_ice"
+                android:fontFamily="sans-serif-light"
+                android:letterSpacing="0.04" />
 
-            <ImageButton
-                android:id="@+id/themeButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginBottom="4dp"
-                app:srcCompat="@drawable/ic_theme_cycle"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="@color/nova_text_secondary"
-                android:contentDescription="@string/nova_theme_cycle" />
-
-            <ImageButton
-                android:id="@+id/libraryButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginBottom="4dp"
-                app:srcCompat="@drawable/ic_channel"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="@color/nova_text_secondary"
-                android:contentDescription="@string/pcview_quick_library" />
-
-            <ImageButton
-                android:id="@+id/helpButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginBottom="4dp"
-                app:srcCompat="@drawable/ic_help"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="@color/nova_text_secondary"
-                android:contentDescription="Help" />
-
-            <ImageButton
-                android:id="@+id/scanQrButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginBottom="4dp"
-                app:srcCompat="@drawable/ic_qr_scan"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="@color/nova_text_secondary"
-                android:contentDescription="Scan QR to pair" />
-
-            <ImageButton
-                android:id="@+id/manuallyAddPc"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                app:srcCompat="@drawable/ic_add"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="@color/nova_text_secondary"
-                android:contentDescription="Add computer" />
-
-        </LinearLayout>
-
-        <!-- Main content -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <!-- Header -->
-            <LinearLayout
-                android:id="@+id/pcViewHeader"
+            <TextView
+                android:id="@+id/pcViewSectionLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:paddingTop="12dp"
-                android:paddingBottom="4dp">
+                android:text="@string/pcview_home_subtitle"
+                android:textSize="11sp"
+                android:textColor="@color/nova_text_muted"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.04"
+                android:paddingTop="4dp"
+                android:paddingBottom="12dp" />
 
-                <TextView
-                    android:id="@+id/pcViewTitle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Nova"
-                    android:textSize="24sp"
-                    android:textColor="@color/nova_ice"
-                    android:fontFamily="sans-serif-light"
-                    android:letterSpacing="0.04" />
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:paddingBottom="10dp">
 
-                <TextView
-                    android:id="@+id/pcViewSectionLabel"
+                <LinearLayout
+                    android:id="@+id/pcModeTabs"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="SERVERS"
-                    android:textSize="10sp"
-                    android:textColor="@color/nova_text_muted"
-                    android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.12" />
-            </LinearLayout>
+                    android:orientation="horizontal">
 
-            <!-- Server list with pull-to-refresh -->
-            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-                android:id="@+id/swipe_refresh"
+                    <TextView
+                        android:id="@+id/modeServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_mode_servers"
+                        android:background="@drawable/nova_chip_selected" />
+
+                    <TextView
+                        android:id="@+id/modeLibrary"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_mode_library" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <HorizontalScrollView
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1">
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:paddingBottom="10dp">
 
-                <RelativeLayout
-                    android:id="@+id/pcFragmentContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp">
+                <LinearLayout
+                    android:id="@+id/pcQuickActions"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
 
-                    <!-- Empty / searching state -->
-                    <LinearLayout
-                        android:id="@+id/no_pc_found_layout"
+                    <TextView
+                        android:id="@+id/actionAddServer"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_quick_add_server" />
+
+                    <TextView
+                        android:id="@+id/actionScanPair"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_quick_scan_pair" />
+
+                    <TextView
+                        android:id="@+id/actionTheme"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_quick_theme" />
+
+                    <TextView
+                        android:id="@+id/actionSettings"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_quick_settings" />
+
+                    <TextView
+                        android:id="@+id/actionHelp"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/help" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:id="@+id/serverFilterTabs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/filterAllServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_filter_all"
+                        android:background="@drawable/nova_chip_selected" />
+
+                    <TextView
+                        android:id="@+id/filterOnlineServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_filter_online" />
+
+                    <TextView
+                        android:id="@+id/filterStreamingServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_filter_streaming" />
+
+                    <TextView
+                        android:id="@+id/filterNeedsPairingServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_filter_needs_pairing" />
+                </LinearLayout>
+            </HorizontalScrollView>
+        </LinearLayout>
+
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <RelativeLayout
+                android:id="@+id/pcFragmentContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp">
+
+                <LinearLayout
+                    android:id="@+id/no_pc_found_layout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ProgressBar
+                        android:id="@+id/pcs_loading"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:indeterminate="true"
+                        android:indeterminateTint="@color/nova_accent" />
+
+                    <TextView
+                        android:id="@+id/pcViewEmptyTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_centerInParent="true"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
+                        android:layout_marginTop="14dp"
+                        android:textSize="14sp"
+                        android:textColor="@color/nova_text_muted"
+                        android:fontFamily="sans-serif"
+                        android:text="@string/pcview_empty_title_searching" />
 
-                        <ProgressBar
-                            android:id="@+id/pcs_loading"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:indeterminate="true"
-                            android:indeterminateTint="@color/nova_accent" />
+                    <TextView
+                        android:id="@+id/pcViewEmptyHint"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:textSize="12sp"
+                        android:textColor="@color/nova_text_muted"
+                        android:fontFamily="sans-serif"
+                        android:alpha="0.6"
+                        android:text="@string/pcview_empty_hint_searching" />
 
-                        <TextView
-                            android:id="@+id/pcViewEmptyTitle"
+                    <HorizontalScrollView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:scrollbars="none">
+
+                        <LinearLayout
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="16dp"
-                            android:textSize="14sp"
-                            android:textColor="@color/nova_text_muted"
-                            android:fontFamily="sans-serif"
-                            android:text="@string/searching_pc" />
-                    </LinearLayout>
-                </RelativeLayout>
+                            android:orientation="horizontal">
 
-            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+                            <TextView
+                                android:id="@+id/emptyAddServer"
+                                style="@style/NovaFilterChip"
+                                android:text="@string/pcview_quick_add_server" />
 
-        </LinearLayout>
+                            <TextView
+                                android:id="@+id/emptyScanPair"
+                                style="@style/NovaFilterChip"
+                                android:text="@string/pcview_quick_scan_pair" />
+
+                            <TextView
+                                android:id="@+id/emptyHelp"
+                                style="@style/NovaFilterChip"
+                                android:text="@string/help" />
+                        </LinearLayout>
+                    </HorizontalScrollView>
+                </LinearLayout>
+            </RelativeLayout>
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     </LinearLayout>
 

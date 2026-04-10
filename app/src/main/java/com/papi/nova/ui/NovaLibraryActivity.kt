@@ -30,12 +30,16 @@ class NovaLibraryActivity : AppCompatActivity() {
     private lateinit var searchBar: EditText
     private lateinit var gameGrid: RecyclerView
     private lateinit var emptyText: View
+    private lateinit var emptyTitle: TextView
+    private lateinit var emptyHint: TextView
+    private lateinit var serverContext: TextView
 
     private var allGames = listOf<PolarisGame>()
     private var currentFilter = ""
 
     companion object {
         const val EXTRA_HOST = "host"
+        const val EXTRA_SERVER_NAME = "server_name"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,6 +51,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             finish()
             return
         }
+        val serverName = intent.getStringExtra(EXTRA_SERVER_NAME)
 
         apiClient = PolarisApiClient(this, host)
 
@@ -56,6 +61,14 @@ class NovaLibraryActivity : AppCompatActivity() {
         searchBar = findViewById(R.id.nova_search)
         gameGrid = findViewById(R.id.nova_game_grid)
         emptyText = findViewById(R.id.nova_empty_text)
+        emptyTitle = findViewById(R.id.nova_empty_title)
+        emptyHint = findViewById(R.id.nova_empty_hint)
+        serverContext = findViewById(R.id.nova_library_context)
+        serverContext.text = if (serverName.isNullOrBlank()) {
+            getString(R.string.nova_library_server_context_fallback)
+        } else {
+            getString(R.string.nova_library_server_context, serverName)
+        }
 
         // Grid layout — 2 columns on phone, 3 on tablet/RP6
         val columns = if (resources.configuration.screenWidthDp >= 600) 3 else 2
@@ -109,6 +122,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             allGames = apiClient.getGames(limit = 100)
             runOnUiThread {
                 if (allGames.isEmpty()) {
+                    updateEmptyState("")
                     emptyText.visibility = View.VISIBLE
                     gameGrid.visibility = View.GONE
                 } else {
@@ -142,8 +156,26 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
 
         adapter.updateGames(filtered)
+        updateEmptyState(search)
         emptyText.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
         gameGrid.visibility = if (filtered.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun updateEmptyState(search: String) {
+        when {
+            currentFilter == "recent" -> {
+                emptyTitle.setText(R.string.nova_library_empty_title_recent)
+                emptyHint.setText(R.string.nova_library_empty_hint_recent)
+            }
+            search.isNotBlank() || currentFilter.isNotEmpty() -> {
+                emptyTitle.setText(R.string.nova_library_empty_title_filtered)
+                emptyHint.setText(R.string.nova_library_empty_hint_filtered)
+            }
+            else -> {
+                emptyTitle.setText(R.string.nova_library_empty_title_default)
+                emptyHint.setText(R.string.nova_library_empty_hint_default)
+            }
+        }
     }
 
     // Filter tab IDs in order for bumper switching

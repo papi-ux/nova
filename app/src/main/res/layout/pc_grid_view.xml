@@ -7,7 +7,7 @@
     android:stretchMode="columnWidth"
     android:focusable="true"
     android:focusableInTouchMode="true"
-    android:nextFocusLeft="@id/settingsButton"
+    android:nextFocusLeft="@id/modeServers"
     android:clipToPadding="false"
     android:gravity="top|center_horizontal"
     android:verticalSpacing="2dp" />

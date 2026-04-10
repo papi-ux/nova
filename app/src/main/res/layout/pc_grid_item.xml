@@ -93,5 +93,20 @@
             </LinearLayout>
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/primary_action_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/nova_badge_bg"
+            android:fontFamily="sans-serif-medium"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:text="Open Apps"
+            android:textColor="@color/nova_text_primary"
+            android:textSize="12sp" />
+
     </LinearLayout>
 </FrameLayout>

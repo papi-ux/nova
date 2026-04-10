@@ -26,21 +26,31 @@
         android:paddingTop="16dp">
 
         <TextView
+            android:id="@+id/nova_library_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Library"
+            android:text="@string/nova_library_title"
             android:textSize="26sp"
             android:textColor="@color/nova_ice"
             android:fontFamily="sans-serif-medium"
             android:letterSpacing="0.02" />
 
-        <!-- Search bar -->
+        <TextView
+            android:id="@+id/nova_library_context"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/nova_library_server_context_fallback"
+            android:textColor="@color/nova_text_muted"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium" />
+
         <EditText
             android:id="@+id/nova_search"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_marginTop="12dp"
-            android:hint="Search games..."
+            android:hint="@string/nova_library_search_hint"
             android:textColorHint="@color/nova_text_muted"
             android:textColor="@color/nova_text_primary"
             android:background="@drawable/nova_search_bg"
@@ -118,16 +128,18 @@
         android:visibility="gone">
 
         <TextView
+            android:id="@+id/nova_empty_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="No games found"
+            android:text="@string/nova_library_empty_title_default"
             android:textColor="@color/nova_text_muted"
             android:textSize="18sp" />
 
         <TextView
+            android:id="@+id/nova_empty_hint"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Import games from Steam in Polaris settings"
+            android:text="@string/nova_library_empty_hint_default"
             android:textColor="@color/nova_text_muted"
             android:textSize="13sp"
             android:paddingTop="8dp" />

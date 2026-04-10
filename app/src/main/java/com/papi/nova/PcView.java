@@ -54,9 +54,7 @@ import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.EditText;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.Toast;
 import android.content.res.ColorStateList;
 
@@ -80,6 +78,11 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class PcView extends AppCompatActivity implements AdapterFragmentCallbacks {
+    private static final int FILTER_ALL = 0;
+    private static final int FILTER_ONLINE = 1;
+    private static final int FILTER_STREAMING = 2;
+    private static final int FILTER_NEEDS_PAIRING = 3;
+
     private View noPcFoundLayout;
     private PcGridAdapter pcGridAdapter;
     private ShortcutHelper shortcutHelper;
@@ -87,6 +90,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled, autoNavigated;
     private ComputerDetails.AddressTuple pendingPairingAddress;
     private String pendingPairingPin, pendingPairingPassphrase;
+    private int currentServerFilter = FILTER_ALL;
 
     private final ActivityResultLauncher<ScanOptions> qrScanLauncher = registerForActivityResult(
             new ScanContract(), result -> {
@@ -201,84 +205,101 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         // Set the correct layout for the PC grid
         pcGridAdapter.updateLayoutWithPreferences(this, PreferenceConfiguration.readPreferences(this));
 
-        // Setup the list view (null-safe for alternate layouts)
-        ImageButton settingsButton = findViewById(R.id.settingsButton);
-        ImageButton themeButton = findViewById(R.id.themeButton);
-        ImageButton libraryButton = findViewById(R.id.libraryButton);
-        ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
-        ImageButton helpButton = findViewById(R.id.helpButton);
+        // Setup the main actions (null-safe for alternate layouts)
+        TextView modeServers = findViewById(R.id.modeServers);
+        TextView modeLibrary = findViewById(R.id.modeLibrary);
+        TextView addServerAction = findViewById(R.id.actionAddServer);
+        TextView scanPairAction = findViewById(R.id.actionScanPair);
+        TextView themeAction = findViewById(R.id.actionTheme);
+        TextView settingsAction = findViewById(R.id.actionSettings);
+        TextView helpAction = findViewById(R.id.actionHelp);
+        TextView emptyAddServer = findViewById(R.id.emptyAddServer);
+        TextView emptyScanPair = findViewById(R.id.emptyScanPair);
+        TextView emptyHelp = findViewById(R.id.emptyHelp);
+        TextView filterAllServers = findViewById(R.id.filterAllServers);
+        TextView filterOnlineServers = findViewById(R.id.filterOnlineServers);
+        TextView filterStreamingServers = findViewById(R.id.filterStreamingServers);
+        TextView filterNeedsPairingServers = findViewById(R.id.filterNeedsPairingServers);
         ExtendedFloatingActionButton profilesButton = findViewById(R.id.profilesButton);
 
-        if (settingsButton != null) {
-            settingsButton.setOnClickListener(v -> {
+        if (modeServers != null) {
+            modeServers.setOnClickListener(v -> updateModeTabs());
+        }
+        if (modeLibrary != null) {
+            modeLibrary.setOnClickListener(v -> launchQuickLibrary());
+        }
+        if (addServerAction != null) {
+            addServerAction.setOnClickListener(v -> startActivity(new Intent(PcView.this, AddComputerManually.class)));
+        }
+        if (scanPairAction != null) {
+            scanPairAction.setOnClickListener(v -> launchQrScanner());
+        }
+        if (themeAction != null) {
+            themeAction.setOnClickListener(v -> cycleTheme());
+        }
+        if (settingsAction != null) {
+            settingsAction.setOnClickListener(v -> {
                 startActivity(new Intent(PcView.this, StreamSettings.class));
                 com.papi.nova.ui.NovaThemeManager.INSTANCE.applyFadeTransition(PcView.this);
             });
         }
-        if (themeButton != null) {
-            themeButton.setOnClickListener(v -> {
-                String nextTheme = com.papi.nova.ui.NovaThemeManager.INSTANCE.cycleTheme(PcView.this);
-                Toast.makeText(
-                        PcView.this,
-                        getString(R.string.nova_theme_switched_to, com.papi.nova.ui.NovaThemeManager.INSTANCE.getThemeLabel(PcView.this, nextTheme)),
-                        Toast.LENGTH_SHORT
-                ).show();
-                recreate();
-                com.papi.nova.ui.NovaThemeManager.INSTANCE.applyFadeTransition(PcView.this);
-            });
+        if (helpAction != null) {
+            helpAction.setOnClickListener(v -> HelpLauncher.launchSetupGuide(PcView.this));
         }
-        if (libraryButton != null) {
-            libraryButton.setOnClickListener(v -> launchQuickLibrary());
+        if (emptyAddServer != null) {
+            emptyAddServer.setOnClickListener(v -> startActivity(new Intent(PcView.this, AddComputerManually.class)));
         }
-        if (addComputerButton != null) {
-            addComputerButton.setOnClickListener(v -> {
-                startActivity(new Intent(PcView.this, AddComputerManually.class));
-            });
+        if (emptyScanPair != null) {
+            emptyScanPair.setOnClickListener(v -> launchQrScanner());
         }
-        ImageButton scanQrButton = findViewById(R.id.scanQrButton);
-        if (scanQrButton != null) {
-            scanQrButton.setOnClickListener(v -> launchQrScanner());
-        }
-        if (helpButton != null) {
-            helpButton.setOnClickListener(v -> HelpLauncher.launchSetupGuide(PcView.this));
+        if (emptyHelp != null) {
+            emptyHelp.setOnClickListener(v -> HelpLauncher.launchSetupGuide(PcView.this));
         }
         if (profilesButton != null) {
             profilesButton.setOnClickListener(v -> startActivity(new Intent(PcView.this, ProfilesActivity.class)));
         }
 
+        if (filterAllServers != null) {
+            filterAllServers.setOnClickListener(v -> setServerFilter(FILTER_ALL));
+        }
+        if (filterOnlineServers != null) {
+            filterOnlineServers.setOnClickListener(v -> setServerFilter(FILTER_ONLINE));
+        }
+        if (filterStreamingServers != null) {
+            filterStreamingServers.setOnClickListener(v -> setServerFilter(FILTER_STREAMING));
+        }
+        if (filterNeedsPairingServers != null) {
+            filterNeedsPairingServers.setOnClickListener(v -> setServerFilter(FILTER_NEEDS_PAIRING));
+        }
+
         // Amazon review didn't like the help button because the wiki was not entirely
         // navigable via the Fire TV remote (though the relevant parts were). Let's hide
         // it on Fire TV.
-        if (helpButton != null && getPackageManager().hasSystemFeature("amazon.hardware.fire_tv")) {
-            helpButton.setVisibility(View.GONE);
+        if (getPackageManager().hasSystemFeature("amazon.hardware.fire_tv")) {
+            if (helpAction != null) {
+                helpAction.setVisibility(View.GONE);
+            }
+            if (emptyHelp != null) {
+                emptyHelp.setVisibility(View.GONE);
+            }
         }
 
-        applyThemeToServerBrowser(settingsButton, themeButton, libraryButton, helpButton, addComputerButton, scanQrButton, profilesButton);
+        applyThemeToServerBrowser();
+        updateModeTabs();
+        updateServerFilterTabs();
+        syncComputerList();
 
         getFragmentManager().beginTransaction()
             .replace(R.id.pcFragmentContainer, new AdapterFragment())
             .commitAllowingStateLoss();
 
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout);
-        if (pcGridAdapter.getCount() == 0) {
-            noPcFoundLayout.setVisibility(View.VISIBLE);
-        }
-        else {
-            noPcFoundLayout.setVisibility(View.INVISIBLE);
-        }
-        pcGridAdapter.notifyDataSetChanged();
+        updateEmptyState();
     }
 
-    private void applyThemeToServerBrowser(ImageButton settingsButton,
-                                           ImageButton themeButton,
-                                           ImageButton libraryButton,
-                                           ImageButton helpButton,
-                                           ImageButton addComputerButton,
-                                           ImageButton scanQrButton,
-                                           ExtendedFloatingActionButton profilesButton) {
+    private void applyThemeToServerBrowser() {
         int accent = com.papi.nova.ui.NovaThemeManager.INSTANCE.getAccentColor(this);
         int textPrimary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextPrimaryColor(this);
-        int textSecondary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextSecondaryColor(this);
         int textMuted = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextMutedColor(this);
         int surface = com.papi.nova.ui.NovaThemeManager.INSTANCE.getCardBackgroundColor(this);
 
@@ -287,13 +308,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             swipeRefresh.setColorSchemeColors(accent);
             swipeRefresh.setProgressBackgroundColorSchemeColor(surface);
         }
-
-        tintActionButton(settingsButton, textSecondary);
-        tintActionButton(themeButton, accent);
-        tintActionButton(libraryButton, accent);
-        tintActionButton(helpButton, textSecondary);
-        tintActionButton(addComputerButton, textSecondary);
-        tintActionButton(scanQrButton, textSecondary);
 
         TextView titleView = findViewById(R.id.pcViewTitle);
         if (titleView != null) {
@@ -315,6 +329,18 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             emptyHint.setTextColor(textMuted);
         }
 
+        tintChipRow(new int[] {
+                R.id.actionAddServer,
+                R.id.actionScanPair,
+                R.id.actionTheme,
+                R.id.actionSettings,
+                R.id.actionHelp,
+                R.id.emptyAddServer,
+                R.id.emptyScanPair,
+                R.id.emptyHelp
+        }, textPrimary);
+
+        ExtendedFloatingActionButton profilesButton = findViewById(R.id.profilesButton);
         if (profilesButton != null) {
             profilesButton.setBackgroundTintList(ColorStateList.valueOf(accent));
             profilesButton.setIconTint(ColorStateList.valueOf(textPrimary));
@@ -322,16 +348,177 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
     }
 
-    private void tintActionButton(ImageButton button, int color) {
-        if (button != null) {
-            button.setImageTintList(ColorStateList.valueOf(color));
+    private void tintChipRow(int[] ids, int color) {
+        for (int id : ids) {
+            TextView chip = findViewById(id);
+            if (chip != null) {
+                chip.setTextColor(color);
+            }
+        }
+    }
+
+    private void cycleTheme() {
+        String nextTheme = com.papi.nova.ui.NovaThemeManager.INSTANCE.cycleTheme(PcView.this);
+        Toast.makeText(
+                PcView.this,
+                getString(R.string.nova_theme_switched_to, com.papi.nova.ui.NovaThemeManager.INSTANCE.getThemeLabel(PcView.this, nextTheme)),
+                Toast.LENGTH_SHORT
+        ).show();
+        recreate();
+        com.papi.nova.ui.NovaThemeManager.INSTANCE.applyFadeTransition(PcView.this);
+    }
+
+    private void updateModeTabs() {
+        updateChipSelection(new int[] { R.id.modeServers, R.id.modeLibrary }, R.id.modeServers);
+    }
+
+    private void updateServerFilterTabs() {
+        int selectedId;
+        switch (currentServerFilter) {
+            case FILTER_ONLINE:
+                selectedId = R.id.filterOnlineServers;
+                break;
+            case FILTER_STREAMING:
+                selectedId = R.id.filterStreamingServers;
+                break;
+            case FILTER_NEEDS_PAIRING:
+                selectedId = R.id.filterNeedsPairingServers;
+                break;
+            case FILTER_ALL:
+            default:
+                selectedId = R.id.filterAllServers;
+                break;
+        }
+
+        updateChipSelection(new int[] {
+                R.id.filterAllServers,
+                R.id.filterOnlineServers,
+                R.id.filterStreamingServers,
+                R.id.filterNeedsPairingServers
+        }, selectedId);
+    }
+
+    private void updateChipSelection(int[] ids, int selectedId) {
+        int accent = com.papi.nova.ui.NovaThemeManager.INSTANCE.getAccentColor(this);
+        int textPrimary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextPrimaryColor(this);
+
+        for (int id : ids) {
+            TextView chip = findViewById(id);
+            if (chip == null) {
+                continue;
+            }
+
+            if (id == selectedId) {
+                chip.setBackgroundResource(R.drawable.nova_chip_selected);
+                chip.setTextColor(accent);
+            }
+            else {
+                chip.setBackgroundResource(R.drawable.nova_badge_bg);
+                chip.setTextColor(textPrimary);
+            }
+        }
+    }
+
+    private void setServerFilter(int filter) {
+        if (currentServerFilter == filter) {
+            return;
+        }
+
+        currentServerFilter = filter;
+        updateServerFilterTabs();
+        syncComputerList();
+    }
+
+    private boolean matchesCurrentFilter(ComputerObject computer) {
+        switch (currentServerFilter) {
+            case FILTER_ONLINE:
+                return computer.details.state == ComputerDetails.State.ONLINE;
+            case FILTER_STREAMING:
+                return computer.details.state == ComputerDetails.State.ONLINE &&
+                        computer.details.runningGameId != 0;
+            case FILTER_NEEDS_PAIRING:
+                return computer.details.state == ComputerDetails.State.ONLINE &&
+                        computer.details.pairState != PairState.PAIRED;
+            case FILTER_ALL:
+            default:
+                return true;
+        }
+    }
+
+    private void syncComputerList() {
+        if (pcGridAdapter == null) {
+            return;
+        }
+
+        java.util.ArrayList<ComputerObject> visibleComputers = new java.util.ArrayList<>();
+        for (ComputerObject computer : computerMap.values()) {
+            if (matchesCurrentFilter(computer)) {
+                visibleComputers.add(computer);
+            }
+        }
+
+        pcGridAdapter.clear();
+        for (ComputerObject computer : visibleComputers) {
+            pcGridAdapter.addComputer(computer);
+        }
+        pcGridAdapter.notifyDataSetChanged();
+
+        updateEmptyState();
+    }
+
+    private void updateEmptyState() {
+        if (noPcFoundLayout == null) {
+            return;
+        }
+
+        TextView emptyTitle = findViewById(R.id.pcViewEmptyTitle);
+        TextView emptyHint = findViewById(R.id.pcViewEmptyHint);
+
+        if (computerMap.isEmpty()) {
+            noPcFoundLayout.setVisibility(View.VISIBLE);
+            if (emptyTitle != null) {
+                emptyTitle.setText(runningPolling ? R.string.pcview_empty_title_searching : R.string.pcview_empty_title_no_servers);
+            }
+            if (emptyHint != null) {
+                emptyHint.setText(runningPolling ? R.string.pcview_empty_hint_searching : R.string.pcview_empty_hint_no_servers);
+            }
+            return;
+        }
+
+        if (pcGridAdapter.getCount() > 0) {
+            noPcFoundLayout.setVisibility(View.INVISIBLE);
+            return;
+        }
+
+        noPcFoundLayout.setVisibility(View.VISIBLE);
+        if (emptyTitle == null || emptyHint == null) {
+            return;
+        }
+
+        switch (currentServerFilter) {
+            case FILTER_ONLINE:
+                emptyTitle.setText(R.string.pcview_empty_title_no_online);
+                emptyHint.setText(R.string.pcview_empty_hint_no_online);
+                break;
+            case FILTER_STREAMING:
+                emptyTitle.setText(R.string.pcview_empty_title_no_streaming);
+                emptyHint.setText(R.string.pcview_empty_hint_no_streaming);
+                break;
+            case FILTER_NEEDS_PAIRING:
+                emptyTitle.setText(R.string.pcview_empty_title_no_pairing);
+                emptyHint.setText(R.string.pcview_empty_hint_no_pairing);
+                break;
+            case FILTER_ALL:
+            default:
+                emptyTitle.setText(R.string.pcview_empty_title_no_servers);
+                emptyHint.setText(R.string.pcview_empty_hint_no_servers);
+                break;
         }
     }
 
     private void launchQuickLibrary() {
         java.util.ArrayList<ComputerObject> candidates = new java.util.ArrayList<>();
-        for (int i = 0; i < pcGridAdapter.getCount(); i++) {
-            ComputerObject candidate = (ComputerObject) pcGridAdapter.getItem(i);
+        for (ComputerObject candidate : computerMap.values()) {
             if (candidate.details.state == ComputerDetails.State.ONLINE &&
                     candidate.details.pairState == PairState.PAIRED &&
                     candidate.details.activeAddress != null) {
@@ -486,6 +673,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 }
             });
             runningPolling = true;
+            updateEmptyState();
         }
     }
 
@@ -504,6 +692,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             }
 
             runningPolling = false;
+            updateEmptyState();
         }
     }
 
@@ -1070,6 +1259,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         Intent i = new Intent(this, com.papi.nova.ui.NovaLibraryActivity.class);
         i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_HOST, computer.activeAddress.address);
+        i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_SERVER_NAME, computer.name);
         startActivity(i);
     }
 
@@ -1091,12 +1281,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             shortcutHelper.disableComputerShortcut(details,
                     getResources().getString(R.string.scut_deleted_pc));
 
-            pcGridAdapter.removeComputer(computer);
-            pcGridAdapter.notifyDataSetChanged();
-
-            if (pcGridAdapter.getCount() == 0) {
-                noPcFoundLayout.setVisibility(View.VISIBLE);
-            }
+            syncComputerList();
         }
     }
 
@@ -1112,16 +1297,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
         else {
             // Add a new entry
-            ComputerObject newObj = new ComputerObject(details);
-            pcGridAdapter.addComputer(newObj);
-            computerMap.put(details.uuid, newObj);
-
-            // Remove the "Discovery in progress" view
-            noPcFoundLayout.setVisibility(View.INVISIBLE);
+            computerMap.put(details.uuid, new ComputerObject(details));
         }
 
-        // Notify the view that the data has changed
-        pcGridAdapter.notifyDataSetChanged();
+        syncComputerList();
 
         // Auto-navigate: if exactly 1 paired online server, go straight to app list
         boolean autoConnectEnabled = androidx.preference.PreferenceManager
@@ -1129,8 +1308,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         if (autoConnectEnabled && !autoNavigated && pendingPairingAddress == null) {
             int pairedOnlineCount = 0;
             ComputerObject singleServer = null;
-            for (int i = 0; i < pcGridAdapter.getCount(); i++) {
-                ComputerObject c = (ComputerObject) pcGridAdapter.getItem(i);
+            for (ComputerObject c : computerMap.values()) {
                 if (c.details.state == ComputerDetails.State.ONLINE &&
                     c.details.pairState == PairState.PAIRED) {
                     pairedOnlineCount++;

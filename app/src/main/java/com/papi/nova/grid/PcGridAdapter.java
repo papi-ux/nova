@@ -58,6 +58,7 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
     private static class PcViewHolder {
         View statusDot;
         TextView statusText;
+        TextView primaryAction;
     }
 
     private static final int TAG_PC_HOLDER = R.id.status_dot; // reuse an existing ID as tag key
@@ -70,6 +71,7 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
         PcViewHolder holder = new PcViewHolder();
         holder.statusDot = parentView.findViewById(R.id.status_dot);
         holder.statusText = parentView.findViewById(R.id.status_text);
+        holder.primaryAction = parentView.findViewById(R.id.primary_action_text);
         parentView.setTag(TAG_PC_HOLDER, holder);
         return holder;
     }
@@ -85,6 +87,7 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
         PcViewHolder pcHolder = getPcHolder(parentView);
         View statusDot = pcHolder.statusDot;
         TextView statusText = pcHolder.statusText;
+        TextView primaryAction = pcHolder.primaryAction;
 
         if (obj.details.state == ComputerDetails.State.ONLINE) {
             imgView.setAlpha(1.0f);
@@ -95,13 +98,22 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
                 if (obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
                     statusText.setText("Online \u00b7 Not Paired");
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_warning));
+                    if (primaryAction != null) {
+                        primaryAction.setText(R.string.pcview_card_action_pair);
+                    }
                 } else if (obj.details.runningGameId != 0) {
                     statusText.setText("Streaming");
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_success));
+                    if (primaryAction != null) {
+                        primaryAction.setText(R.string.pcview_card_action_resume);
+                    }
                 } else {
                     String addr = obj.details.activeAddress != null ? obj.details.activeAddress.address : "";
                     statusText.setText("Ready \u00b7 " + addr);
                     statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
+                    if (primaryAction != null) {
+                        primaryAction.setText(R.string.pcview_card_action_open_apps);
+                    }
                 }
             }
         }
@@ -114,6 +126,9 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
                 statusText.setText("Offline");
                 statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
             }
+            if (primaryAction != null) {
+                primaryAction.setText(R.string.pcview_card_action_wake);
+            }
         }
         else {
             imgView.setAlpha(0.6f);
@@ -123,6 +138,9 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
             if (statusText != null) {
                 statusText.setText("Connecting\u2026");
                 statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
+            }
+            if (primaryAction != null) {
+                primaryAction.setText(R.string.pcview_card_action_refreshing);
             }
         }
 
@@ -167,5 +185,10 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
         txtView.setTextColor(NovaThemeManager.INSTANCE.getTextPrimaryColor(context));
         prgView.setIndeterminateTintList(ColorStateList.valueOf(NovaThemeManager.INSTANCE.getAccentColor(context)));
         imgView.setImageTintList(ColorStateList.valueOf(NovaThemeManager.INSTANCE.getTextSecondaryColor(context)));
+
+        TextView primaryAction = parentView.findViewById(R.id.primary_action_text);
+        if (primaryAction != null) {
+            primaryAction.setTextColor(NovaThemeManager.INSTANCE.getAccentColor(context));
+        }
     }
 }
