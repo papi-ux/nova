@@ -217,7 +217,6 @@ class NovaStreamHud(private val activity: Activity) {
                 .getBoolean("nova_polaris_hud", false)
         }
     }
-    }
 
     /**
      * Parse key metrics from Moonlight's performance overlay text.
