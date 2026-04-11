@@ -91,34 +91,34 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
     fun getCapabilities(): PolarisCapabilities? {
         return try {
             val request = Request.Builder().url("$baseUrl/capabilities").build()
-            val response = client.newCall(request).execute()
+            client.newCall(request).execute().use { response ->
+                if (response.code != 200) return null
 
-            if (response.code != 200) return null
+                val json = JSONObject(response.body?.string() ?: return null)
+                val features = json.optJSONObject("features")
+                val capture = json.optJSONObject("capture")
 
-            val json = JSONObject(response.body?.string() ?: return null)
-            val features = json.optJSONObject("features")
-            val capture = json.optJSONObject("capture")
-
-            PolarisCapabilities(
-                server = json.optString("server", ""),
-                version = json.optString("version", ""),
-                features = PolarisCapabilities.Features(
-                    aiOptimizer = features?.optBoolean("ai_optimizer") ?: false,
-                    gameLibrary = features?.optBoolean("game_library") ?: false,
-                    sessionLifecycle = features?.optBoolean("session_lifecycle") ?: false,
-                    deviceProfiles = features?.optBoolean("device_profiles") ?: false,
-                    lockScreenControl = features?.optBoolean("lock_screen_control") ?: false
-                ),
-                capture = PolarisCapabilities.CaptureInfo(
-                    backend = capture?.optString("backend", "") ?: "",
-                    compositor = capture?.optString("compositor", "") ?: "",
-                    maxResolution = capture?.optString("max_resolution", "") ?: "",
-                    maxFps = capture?.optInt("max_fps", 0) ?: 0,
-                    codecs = capture?.optJSONArray("codecs")?.let { arr ->
-                        (0 until arr.length()).map { arr.getString(it) }
-                    } ?: emptyList()
+                PolarisCapabilities(
+                    server = json.optString("server", ""),
+                    version = json.optString("version", ""),
+                    features = PolarisCapabilities.Features(
+                        aiOptimizer = features?.optBoolean("ai_optimizer") ?: false,
+                        gameLibrary = features?.optBoolean("game_library") ?: false,
+                        sessionLifecycle = features?.optBoolean("session_lifecycle") ?: false,
+                        deviceProfiles = features?.optBoolean("device_profiles") ?: false,
+                        lockScreenControl = features?.optBoolean("lock_screen_control") ?: false
+                    ),
+                    capture = PolarisCapabilities.CaptureInfo(
+                        backend = capture?.optString("backend", "") ?: "",
+                        compositor = capture?.optString("compositor", "") ?: "",
+                        maxResolution = capture?.optString("max_resolution", "") ?: "",
+                        maxFps = capture?.optInt("max_fps", 0) ?: 0,
+                        codecs = capture?.optJSONArray("codecs")?.let { arr ->
+                            (0 until arr.length()).map { arr.getString(it) }
+                        } ?: emptyList()
+                    )
                 )
-            )
+            }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Capabilities probe failed: ${e.message}")
             null
@@ -132,29 +132,29 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
     fun getSessionStatus(): PolarisSessionStatus? {
         return try {
             val request = Request.Builder().url("$baseUrl/session/status").build()
-            val response = client.newCall(request).execute()
+            client.newCall(request).execute().use { response ->
+                if (response.code != 200) return null
 
-            if (response.code != 200) return null
+                val json = JSONObject(response.body?.string() ?: return null)
+                val capture = json.optJSONObject("capture")
+                val encoder = json.optJSONObject("encoder")
 
-            val json = JSONObject(response.body?.string() ?: return null)
-            val capture = json.optJSONObject("capture")
-            val encoder = json.optJSONObject("encoder")
-
-            PolarisSessionStatus(
-                state = json.optString("state", "unknown"),
-                game = json.optString("game", ""),
-                cagePid = json.optInt("cage_pid", 0),
-                screenLocked = json.optBoolean("screen_locked", false),
-                capture = PolarisSessionStatus.CaptureStatus(
-                    backend = capture?.optString("backend", "") ?: "",
-                    resolution = capture?.optString("resolution", "") ?: ""
-                ),
-                encoder = PolarisSessionStatus.EncoderStatus(
-                    codec = encoder?.optString("codec", "") ?: "",
-                    bitrateKbps = encoder?.optInt("bitrate_kbps", 0) ?: 0,
-                    fps = encoder?.optDouble("fps", 0.0) ?: 0.0
+                PolarisSessionStatus(
+                    state = json.optString("state", "unknown"),
+                    game = json.optString("game", ""),
+                    cagePid = json.optInt("cage_pid", 0),
+                    screenLocked = json.optBoolean("screen_locked", false),
+                    capture = PolarisSessionStatus.CaptureStatus(
+                        backend = capture?.optString("backend", "") ?: "",
+                        resolution = capture?.optString("resolution", "") ?: ""
+                    ),
+                    encoder = PolarisSessionStatus.EncoderStatus(
+                        codec = encoder?.optString("codec", "") ?: "",
+                        bitrateKbps = encoder?.optInt("bitrate_kbps", 0) ?: 0,
+                        fps = encoder?.optDouble("fps", 0.0) ?: 0.0
+                    )
                 )
-            )
+            }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Session status query failed: ${e.message}")
             null
@@ -171,14 +171,14 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             if (source.isNotEmpty()) url += "&source=$source"
 
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
+            client.newCall(request).execute().use { response ->
+                if (response.code != 200) return emptyList()
 
-            if (response.code != 200) return emptyList()
+                val json = org.json.JSONObject(response.body?.string() ?: return emptyList())
+                val gamesArray = json.optJSONArray("games") ?: return emptyList()
 
-            val json = org.json.JSONObject(response.body?.string() ?: return emptyList())
-            val gamesArray = json.optJSONArray("games") ?: return emptyList()
-
-            (0 until gamesArray.length()).map { PolarisGame.fromJson(gamesArray.getJSONObject(it)) }
+                (0 until gamesArray.length()).map { PolarisGame.fromJson(gamesArray.getJSONObject(it)) }
+            }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Game library fetch failed: ${e.message}")
             emptyList()
@@ -208,8 +208,7 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                     body.toString()
                 ))
                 .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            client.newCall(request).execute().use { it.code == 200 }
         } catch (e: Exception) {
             LimeLog.warning("Nova: MangoHud toggle failed: ${e.message}")
             false
@@ -229,8 +228,7 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                     body.toString()
                 ))
                 .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            client.newCall(request).execute().use { it.code == 200 }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Bitrate change failed: ${e.message}")
             false
@@ -262,8 +260,7 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                     body.toString()
                 ))
                 .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            client.newCall(request).execute().use { it.code == 200 }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Session report failed: ${e.message}")
             false
@@ -278,10 +275,11 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             val url = "$baseUrl/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
                       "&game=${java.net.URLEncoder.encode(game, "UTF-8")}"
             val request = Request.Builder().url(url).get().build()
-            val response = client.newCall(request).execute()
-            if (response.code == 200) {
-                org.json.JSONObject(response.body?.string() ?: "{}")
-            } else null
+            client.newCall(request).execute().use { response ->
+                if (response.code == 200) {
+                    org.json.JSONObject(response.body?.string() ?: "{}")
+                } else null
+            }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Optimization query failed: ${e.message}")
             null
@@ -308,8 +306,7 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                     body.toString()
                 ))
                 .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            client.newCall(request).execute().use { it.code == 200 }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Game launch failed: ${e.message}")
             false

@@ -86,7 +86,7 @@ public class GameMenu implements Game.GameMenuCallbacks {
         }
         // Check if the game window has focus again, if not try again after delay
         if (!game.hasWindowFocus() && dialogScreenContext instanceof Game) {
-            new Handler().postDelayed(() -> runWithGameFocus(runnable), TEST_GAME_FOCUS_DELAY);
+            new Handler(Looper.getMainLooper()).postDelayed(() -> runWithGameFocus(runnable), TEST_GAME_FOCUS_DELAY);
             return;
         }
         // Game Activity has focus, run runnable

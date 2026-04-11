@@ -2288,7 +2288,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             modifier[0] |= getModifier(key);
         }
 
-        new Handler().postDelayed((() -> {
+        new Handler(Looper.getMainLooper()).postDelayed((() -> {
             for (int pos = keys.length - 1; pos >= 0; pos--) {
                 short key = keys[pos];
 
@@ -3644,7 +3644,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private void finishSecondScreen() {
         // Otherwise screen stays connected but not working with no way of quitting it
         if (prefConfig.enableFullExDisplay) {
-            Handler h = new Handler();
+            Handler h = new Handler(Looper.getMainLooper());
             h.postDelayed(new Runnable() {
                 @Override
                 public void run() {

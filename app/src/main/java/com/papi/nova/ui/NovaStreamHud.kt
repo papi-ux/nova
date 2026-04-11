@@ -71,8 +71,10 @@ class NovaStreamHud(private val activity: Activity) {
     private var isDragging = false
     private val DRAG_THRESHOLD = 12f  // px — distinguish tap from drag
 
-    // Sparkline data persists across mode switches
-    private val sparklineData = mutableListOf<Float>()
+    // Sparkline data persists across mode switches (ring buffer avoids array copies)
+    private val sparklineData = FloatArray(60)
+    private var sparklineHead = 0
+    private var sparklineSize = 0
 
     private val currentMode get() = modes[currentModeIndex]
 
@@ -124,7 +126,9 @@ class NovaStreamHud(private val activity: Activity) {
 
         // Restore sparkline data if switching modes
         sparkline?.let { sv ->
-            for (v in sparklineData) sv.push(v)
+            for (i in 0 until sparklineSize) {
+                sv.push(sparklineData[(sparklineHead - sparklineSize + i + sparklineData.size) % sparklineData.size])
+            }
         }
 
         // Set up touch: drag + tap-to-cycle
@@ -197,6 +201,18 @@ class NovaStreamHud(private val activity: Activity) {
         }
     }
 
+    companion object {
+        // Pre-compiled regex patterns — avoid re-compilation on every HUD update
+        private val RE_FPS1 = Regex("""(\d+(?:\.\d+)?)\s*(?:fps|FPS)""", RegexOption.IGNORE_CASE)
+        private val RE_FPS2 = Regex("""FPS[:\s]+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
+        private val RE_FPS3 = Regex("""(\d+\.\d)\s*$""", RegexOption.MULTILINE)
+        private val RE_RES = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""")
+        private val RE_LAT = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE)
+        private val RE_CODEC = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE)
+        private val RE_BR1 = Regex("""(\d+(?:\.\d+)?)\s*(?:Mbps|mbps)""", RegexOption.IGNORE_CASE)
+        private val RE_BR2 = Regex("""bitrate[:\s]+(\d+)""", RegexOption.IGNORE_CASE)
+    }
+
     /**
      * Parse key metrics from Moonlight's performance overlay text.
      */
@@ -205,16 +221,16 @@ class NovaStreamHud(private val activity: Activity) {
             if (hudView == null) return@runOnUiThread
 
             // FPS
-            val fpsMatch = Regex("""(\d+(?:\.\d+)?)\s*(?:fps|FPS)""", RegexOption.IGNORE_CASE).find(text)
-                ?: Regex("""FPS[:\s]+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE).find(text)
-                ?: Regex("""(\d+\.\d)\s*$""", RegexOption.MULTILINE).find(text.lines().firstOrNull() ?: "")
+            val fpsMatch = RE_FPS1.find(text)
+                ?: RE_FPS2.find(text)
+                ?: RE_FPS3.find(text.lines().firstOrNull() ?: "")
             if (fpsMatch != null) {
                 updateFps(fpsMatch.groupValues[1].toDoubleOrNull() ?: 0.0)
             }
 
             // Resolution (not in fps_only mode)
             if (currentMode != "fps_only") {
-                val resMatch = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""").find(text)
+                val resMatch = RE_RES.find(text)
                 if (resMatch != null) {
                     resolutionText?.text = if (currentMode == "banner") "  ${resMatch.groupValues[2]}p"
                         else "${resMatch.groupValues[1]}×${resMatch.groupValues[2]}"
@@ -223,7 +239,7 @@ class NovaStreamHud(private val activity: Activity) {
 
             // Latency
             if (currentMode != "fps_only") {
-                val latMatch = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE).find(text)
+                val latMatch = RE_LAT.find(text)
                 if (latMatch != null) {
                     updateLatency(latMatch.groupValues[1].toIntOrNull() ?: 0)
                 }
@@ -231,7 +247,7 @@ class NovaStreamHud(private val activity: Activity) {
 
             // Codec
             if (currentMode != "fps_only") {
-                val codecMatch = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE).find(text)
+                val codecMatch = RE_CODEC.find(text)
                 if (codecMatch != null) {
                     val codec = codecMatch.groupValues[1].uppercase()
                     if (currentMode == "banner") codecLabel?.text = codec else codecText?.text = codec
@@ -240,8 +256,8 @@ class NovaStreamHud(private val activity: Activity) {
 
             // Bitrate
             if (currentMode != "fps_only") {
-                val brMatch = Regex("""(\d+(?:\.\d+)?)\s*(?:Mbps|mbps)""", RegexOption.IGNORE_CASE).find(text)
-                    ?: Regex("""bitrate[:\s]+(\d+)""", RegexOption.IGNORE_CASE).find(text)
+                val brMatch = RE_BR1.find(text)
+                    ?: RE_BR2.find(text)
                 if (brMatch != null) {
                     bitrateText?.text = if (currentMode == "banner") "  ${brMatch.groupValues[1]}Mbps"
                         else "${brMatch.groupValues[1]} Mbps"
@@ -278,8 +294,9 @@ class NovaStreamHud(private val activity: Activity) {
         // Feed sparkline and persist data
         sparkline?.lineColor = color
         sparkline?.push(fps.toFloat())
-        sparklineData.add(fps.toFloat())
-        if (sparklineData.size > 60) sparklineData.removeAt(0)
+        sparklineData[sparklineHead] = fps.toFloat()
+        sparklineHead = (sparklineHead + 1) % sparklineData.size
+        if (sparklineSize < sparklineData.size) sparklineSize++
 
         // Update 1% low metric (stutter detection)
         val low1 = sparkline?.get1PercentLow()?.toInt() ?: 0
@@ -335,7 +352,8 @@ class NovaStreamHud(private val activity: Activity) {
                 rootView.removeView(view)
             }
             hudView = null
-            sparklineData.clear()
+            sparklineHead = 0
+            sparklineSize = 0
         }
     }
 

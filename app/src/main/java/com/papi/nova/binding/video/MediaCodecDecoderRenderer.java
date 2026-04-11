@@ -105,9 +105,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             enqueueNsByPtsUs.delete(presentationTimeUs);
             long decMs = (System.nanoTime() - enqNs) / 1_000_000L;
             if (decMs >= 0 && decMs < 1000) {
-                activeWindowVideoStats.decoderTimeMs += decMs;
-                if (!USE_FRAME_RENDER_TIME) {
-                    activeWindowVideoStats.totalTimeMs += decMs;
+                synchronized (statsLock) {
+                    activeWindowVideoStats.decoderTimeMs += decMs;
+                    if (!USE_FRAME_RENDER_TIME) {
+                        activeWindowVideoStats.totalTimeMs += decMs;
+                    }
                 }
             }
         }
@@ -187,6 +189,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private VideoStats activeWindowVideoStats;
     private VideoStats lastWindowVideoStats;
     private VideoStats globalVideoStats;
+    private final Object statsLock = new Object();
 
     private long lastTimestampUs;
     private int lastFrameNumber;
@@ -1765,10 +1768,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     minDecodeTimeFullLog = fullLog;
                 }
             }
-            globalVideoStats.add(activeWindowVideoStats);
-            lastWindowVideoStats.copy(activeWindowVideoStats);
-            activeWindowVideoStats.clear();
-            activeWindowVideoStats.measurementStartTimestamp = SystemClock.uptimeMillis();
+            synchronized (statsLock) {
+                globalVideoStats.add(activeWindowVideoStats);
+                lastWindowVideoStats.copy(activeWindowVideoStats);
+                activeWindowVideoStats.clear();
+                activeWindowVideoStats.measurementStartTimestamp = SystemClock.uptimeMillis();
+            }
         }
 
         boolean csdSubmittedForThisFrame = false;

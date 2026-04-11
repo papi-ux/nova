@@ -30,10 +30,11 @@ class PolarisEventSource(
     private var thread: Thread? = null
 
     // Derive from shared client to reuse connection pool and TLS config,
-    // but override read timeout for SSE long-polling
+    // but override read timeout for SSE long-polling.
+    // 90s timeout detects stalled connections; Polaris sends heartbeats more frequently.
     private val client = (sharedClient?.newBuilder() ?: OkHttpClient.Builder())
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS) // No read timeout for SSE
+        .readTimeout(90, TimeUnit.SECONDS)
         .build()
 
     fun start() {

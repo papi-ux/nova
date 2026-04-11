@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.app.Activity;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Vibrator;
 
 import androidx.annotation.NonNull;
@@ -1021,7 +1022,7 @@ public class StreamSettings extends AppCompatActivity {
         protected void reloadSettings() {
             // HACK: We need to let the preference change succeed before reinitializing to ensure
             // it's reflected in the new layout.
-            final Handler h = new Handler();
+            final Handler h = new Handler(Looper.getMainLooper());
             h.postDelayed(new Runnable() {
                 @Override
                 public void run() {
