@@ -749,7 +749,7 @@ public class NvHTTP {
                 } else if (currentTag.peek().equals("UUID")) {
                     app.setAppUUID(xpp.getText());
                 } else if (currentTag.peek().equals("IDX")) {
-                    app.setAppIndex(Integer.parseInt(xpp.getText()));
+                    app.setAppIndex(xpp.getText());
                 } else if (currentTag.peek().equals("ID")) {
                     app.setAppId(xpp.getText());
                 } else if (currentTag.peek().equals("IsHdrSupported")) {

@@ -58,6 +58,7 @@ public class NvApp {
 
     public void setAppIndex(int appIndex) {
         this.appIndex = appIndex;
+        this.initialized = true;
     }
 
     public void setHdrSupported(boolean hdrSupported) {
