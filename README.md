@@ -226,6 +226,16 @@ adb install -r app/build/outputs/apk/nonRoot_game/release/app-nonRoot_game-arm64
 
 ---
 
+## What's New
+
+### v1.5.1 — Game Grid & Parser Fixes
+
+- **Fixed: Empty game grid on phones and handhelds** — The GridView-to-RecyclerView migration missed the small icon layout (`app_grid_view_small.xml`), which is the default on devices with `smallestScreenWidthDp < 500` (most phones and handhelds including the Retroid Pocket 6). The adapter was never connected to the view, leaving the grid empty despite games being loaded.
+- **Fixed: App list parser resilience** — `NvApp.setAppIndex(int)` was the only setter that didn't mark the app as initialized, causing apps to be silently filtered when the server returned `<IDX>` without `<ID>`. The parser now also treats a non-empty `<AppTitle>` as sufficient for initialization, falls back to using `<IDX>` as the app ID when `<ID>` is absent, and guards against a crash when XML whitespace appears before `<App>` elements.
+- **CI: Node.js 24** — GitHub Actions workflow opts into Node.js 24 to silence deprecation warnings ahead of the June 2026 deadline.
+
+---
+
 ## FAQ
 
 <details>
@@ -246,6 +256,13 @@ Nova is distributed via GitHub Releases and Obtainium. It's a private repo — O
 <summary><b>My server shows "Online · Not Paired"</b></summary>
 
 Your server was discovered but pairing has not completed. Use one of three paths: **TOFU** on a trusted LAN, **QR code** from the Polaris web UI, or a **manual PIN** from the server UI.
+
+</details>
+
+<details>
+<summary><b>The game grid is empty after connecting to my server</b></summary>
+
+This was fixed in v1.5.1. The issue had two causes: the small-icon grid layout was still using a legacy `GridView` after the RecyclerView migration, and the XML app list parser could silently drop all games if the server didn't return certain ID fields. Update to the latest version.
 
 </details>
 
