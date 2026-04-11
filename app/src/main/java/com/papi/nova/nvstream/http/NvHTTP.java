@@ -743,6 +743,9 @@ public class NvHTTP {
                 }
                 break;
             case (XmlPullParser.TEXT):
+                if (appList.isEmpty()) {
+                    break;
+                }
                 NvApp app = appList.getLast();
                 if (currentTag.peek().equals("AppTitle")) {
                     app.setAppName(xpp.getText());
@@ -765,6 +768,13 @@ public class NvHTTP {
             throw new XmlPullParserException("Malformed XML: Root tag was not terminated");
         }
         
+        // Use app index as fallback ID when no explicit ID was provided
+        for (NvApp a : appList) {
+            if (a.getAppId() == 0 && a.getAppIndex() != 0) {
+                a.setAppId(a.getAppIndex());
+            }
+        }
+
         // Ensure that all apps in the list are initialized
         ListIterator<NvApp> i = appList.listIterator();
         while (i.hasNext()) {

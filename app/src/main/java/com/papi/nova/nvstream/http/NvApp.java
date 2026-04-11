@@ -27,6 +27,9 @@ public class NvApp {
     
     public void setAppName(String appName) {
         this.appName = appName;
+        if (appName != null && !appName.isEmpty()) {
+            this.initialized = true;
+        }
     }
 
     public void setAppUUID(String appUUID) {
