@@ -40,6 +40,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_HOST = "host"
         const val EXTRA_SERVER_NAME = "server_name"
+        const val EXTRA_HTTPS_PORT = "https_port"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,8 +53,9 @@ class NovaLibraryActivity : AppCompatActivity() {
             return
         }
         val serverName = intent.getStringExtra(EXTRA_SERVER_NAME)
+        val httpsPort = intent.getIntExtra(EXTRA_HTTPS_PORT, 47984)
 
-        apiClient = PolarisApiClient(this, host)
+        apiClient = PolarisApiClient(this, host, httpsPort)
 
         // Enable dense particles (nebulae + shooting stars) for library
         findViewById<SpaceParticleView>(R.id.space_particles_dense)?.dense = true

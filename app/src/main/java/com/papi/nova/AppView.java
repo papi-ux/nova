@@ -159,7 +159,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                             // cause the activity to be destroyed when we try to commit
                             // I haven't been able to, so we have this try-catch block.
                             try {
-                                getFragmentManager().beginTransaction()
+                                getSupportFragmentManager().beginTransaction()
                                         .replace(R.id.appFragmentContainer, new AdapterFragment())
                                         .commitAllowingStateLoss();
                             } catch (IllegalStateException e) {
@@ -190,7 +190,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
             try {
                 // Reinflate the app grid itself to pick up the layout change
-                getFragmentManager().beginTransaction()
+                getSupportFragmentManager().beginTransaction()
                         .replace(R.id.appFragmentContainer, new AdapterFragment())
                         .commitAllowingStateLoss();
             } catch (IllegalStateException e) {

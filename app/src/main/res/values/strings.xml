@@ -25,6 +25,7 @@
     <string name="pcview_menu_header_online">Online</string>
     <string name="pcview_menu_header_offline">Offline</string>
     <string name="pcview_menu_header_unknown">Refreshing</string>
+    <string name="pcview_menu_header_format">%1$s · %2$s</string>
     <string name="pcview_menu_app_list">Browse This Server</string>
     <string name="pcview_menu_nova_library">Open Nova Library</string>
     <string name="pcview_menu_pair_pc">Legacy Pair</string>

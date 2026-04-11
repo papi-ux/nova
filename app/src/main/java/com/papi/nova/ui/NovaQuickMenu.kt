@@ -142,7 +142,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
                 Thread {
                     try {
-                        val client = PolarisApiClient(game.applicationContext, mangoHost)
+                        val client = PolarisApiClient(game.applicationContext, mangoHost, getHttpsPort())
                         client.setMangoHud(mangoGameUuid, mangoHudEnabled)
                     } catch (e: Exception) {
                         com.papi.nova.LimeLog.warning("MangoHud toggle failed: ${e.message}")
@@ -286,6 +286,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             game.intent?.getStringExtra("Host")
                 ?: game.intent?.getStringExtra("host")
         } catch (_: Exception) { null }
+    }
+
+    /** Get the HTTPS port from the Game activity. */
+    private fun getHttpsPort(): Int {
+        return game.intent?.getIntExtra("HttpsPort", 47984) ?: 47984
     }
 
     companion object {

@@ -1,8 +1,10 @@
 package com.papi.nova.ui;
 
 
-import android.app.Activity;
-import android.app.Fragment;
+import android.content.Context;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,21 +16,21 @@ public class AdapterFragment extends Fragment {
     private AdapterFragmentCallbacks callbacks;
 
     @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
+    public void onAttach(@NonNull Context context) {
+        super.onAttach(context);
 
-        callbacks = (AdapterFragmentCallbacks) activity;
+        callbacks = (AdapterFragmentCallbacks) context;
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         return inflater.inflate(callbacks.getAdapterFragmentLayoutId(), container, false);
     }
 
     @Override
-    public void onActivityCreated(Bundle savedInstanceState) {
-        super.onActivityCreated(savedInstanceState);
-        callbacks.receiveAbsListView(getView().findViewById(R.id.fragmentView));
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        callbacks.receiveAbsListView(view.findViewById(R.id.fragmentView));
     }
 }
