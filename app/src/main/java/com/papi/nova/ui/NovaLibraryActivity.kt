@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
@@ -30,6 +31,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     private lateinit var searchBar: EditText
     private lateinit var gameGrid: RecyclerView
     private lateinit var emptyText: View
+    private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var emptyTitle: TextView
     private lateinit var emptyHint: TextView
     private lateinit var serverContext: TextView
@@ -62,6 +64,7 @@ class NovaLibraryActivity : AppCompatActivity() {
 
         searchBar = findViewById(R.id.nova_search)
         gameGrid = findViewById(R.id.nova_game_grid)
+        swipeRefresh = findViewById(R.id.nova_swipe_refresh)
         emptyText = findViewById(R.id.nova_empty_text)
         emptyTitle = findViewById(R.id.nova_empty_title)
         emptyHint = findViewById(R.id.nova_empty_hint)
@@ -81,6 +84,11 @@ class NovaLibraryActivity : AppCompatActivity() {
             onGameLongClick = { game -> showGameDetail(game) }
         )
         gameGrid.adapter = adapter
+
+        // Pull-to-refresh
+        swipeRefresh.setColorSchemeColors(0xFF7c73ff.toInt())
+        swipeRefresh.setProgressBackgroundColorSchemeColor(0xFF232340.toInt())
+        swipeRefresh.setOnRefreshListener { loadGames() }
 
         // Search
         searchBar.addTextChangedListener(object : TextWatcher {
@@ -123,6 +131,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         Thread {
             allGames = apiClient.getGames(limit = 100)
             runOnUiThread {
+                swipeRefresh.isRefreshing = false
                 if (allGames.isEmpty()) {
                     updateEmptyState("")
                     emptyText.visibility = View.VISIBLE
@@ -130,7 +139,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 } else {
                     emptyText.visibility = View.GONE
                     gameGrid.visibility = View.VISIBLE
-                    adapter.updateGames(allGames)
+                    filterGames(searchBar.text.toString())
                 }
                 LimeLog.info("Nova: Loaded ${allGames.size} games")
             }
