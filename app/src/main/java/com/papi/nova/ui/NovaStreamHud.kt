@@ -211,6 +211,12 @@ class NovaStreamHud(private val activity: Activity) {
         private val RE_CODEC = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE)
         private val RE_BR1 = Regex("""(\d+(?:\.\d+)?)\s*(?:Mbps|mbps)""", RegexOption.IGNORE_CASE)
         private val RE_BR2 = Regex("""bitrate[:\s]+(\d+)""", RegexOption.IGNORE_CASE)
+
+        fun isEnabled(activity: Activity): Boolean {
+            return PreferenceManager.getDefaultSharedPreferences(activity)
+                .getBoolean("nova_polaris_hud", false)
+        }
+    }
     }
 
     /**
@@ -373,10 +379,4 @@ class NovaStreamHud(private val activity: Activity) {
 
     val isShowing get() = hudView != null
 
-    companion object {
-        fun isEnabled(activity: Activity): Boolean {
-            return PreferenceManager.getDefaultSharedPreferences(activity)
-                .getBoolean("nova_polaris_hud", false)
-        }
-    }
 }
