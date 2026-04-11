@@ -781,7 +781,8 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     public void receiveAbsListView(View gridView) {
         if (gridView instanceof androidx.recyclerview.widget.RecyclerView) {
             androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) gridView;
-            int spanCount = Math.max(1, getResources().getDisplayMetrics().widthPixels / (int)(170 * getResources().getDisplayMetrics().density));
+            int columnWidthDp = prefConfig.smallIconMode ? 110 : 170;
+            int spanCount = Math.max(1, getResources().getDisplayMetrics().widthPixels / (int)(columnWidthDp * getResources().getDisplayMetrics().density));
             rv.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, spanCount));
             rv.setAdapter(appGridAdapter);
             appGridAdapter.setOnItemClickListener(app -> {
