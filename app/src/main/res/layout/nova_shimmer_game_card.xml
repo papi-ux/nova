@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Skeleton placeholder matching nova_game_card dimensions -->
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="@color/nova_bg_card">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Cover art placeholder -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="@color/nova_deep" />
+
+        <!-- Info placeholder -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!-- Title line -->
+            <View
+                android:layout_width="120dp"
+                android:layout_height="14dp"
+                android:background="@color/nova_deep" />
+
+            <!-- Badge line -->
+            <View
+                android:layout_width="60dp"
+                android:layout_height="10dp"
+                android:layout_marginTop="8dp"
+                android:background="@color/nova_deep" />
+        </LinearLayout>
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

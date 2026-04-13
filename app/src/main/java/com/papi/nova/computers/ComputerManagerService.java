@@ -1,6 +1,7 @@
 package com.papi.nova.computers;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.Inet4Address;
@@ -294,6 +295,14 @@ public class ComputerManagerService extends Service {
             return tuple != null ? tuple.computer : null;
         }
 
+        public void persistComputer(ComputerDetails computer) {
+            ComputerManagerService.this.persistComputer(computer);
+        }
+
+        public void persistComputerState(String uuid) {
+            ComputerManagerService.this.persistComputerState(uuid);
+        }
+
         public void invalidateStateForComputer(String uuid) {
             PollingTuple tuple = pollingTuples.get(uuid);
             if (tuple != null) {
@@ -504,6 +513,37 @@ public class ComputerManagerService extends Service {
         releaseLocalDatabaseReference();
     }
 
+    private void persistComputerState(String uuid) {
+        if (!getLocalDatabaseReference()) {
+            return;
+        }
+
+        try {
+            PollingTuple tuple = pollingTuples.get(uuid);
+            if (tuple == null) {
+                return;
+            }
+
+            synchronized (tuple.networkLock) {
+                dbManager.updateComputer(tuple.computer);
+            }
+        } finally {
+            releaseLocalDatabaseReference();
+        }
+    }
+
+    private void persistComputer(ComputerDetails computer) {
+        if (computer == null || !getLocalDatabaseReference()) {
+            return;
+        }
+
+        try {
+            dbManager.updateComputer(computer);
+        } finally {
+            releaseLocalDatabaseReference();
+        }
+    }
+
     private boolean getLocalDatabaseReference() {
         if (dbRefCount.get() == 0) {
             return false;
@@ -552,6 +592,17 @@ public class ComputerManagerService extends Service {
             e.printStackTrace();
             return null;
         } catch (IOException e) {
+            if (e instanceof InterruptedIOException) {
+                Thread.currentThread().interrupt();
+            }
+            return null;
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+
+            LimeLog.warning("Parallel poll failed for " + address + ": " + e);
             return null;
         }
     }

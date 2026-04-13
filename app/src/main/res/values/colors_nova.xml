@@ -33,7 +33,7 @@
 
     <color name="nova_text_primary">#FFd4dde8</color>
     <color name="nova_text_secondary">#FFa8b0b8</color>
-    <color name="nova_text_muted">#FF687b81</color>
+    <color name="nova_text_muted">#FF7a8e95</color>
 
     <color name="nova_accent">#FF7c73ff</color>
     <color name="nova_accent_glow">#336c63ff</color>

@@ -6,4 +6,36 @@
     <dimen name="tv_channel_logo_width">80dp</dimen>
     <dimen name="tv_channel_logo_height">80dp</dimen>
 
+    <!-- Nova spacing scale -->
+    <dimen name="nova_spacing_xs">4dp</dimen>
+    <dimen name="nova_spacing_sm">8dp</dimen>
+    <dimen name="nova_spacing_md">12dp</dimen>
+    <dimen name="nova_spacing_lg">16dp</dimen>
+    <dimen name="nova_spacing_xl">20dp</dimen>
+    <dimen name="nova_spacing_xxl">24dp</dimen>
+    <dimen name="nova_spacing_xxxl">32dp</dimen>
+    <dimen name="nova_spacing_huge">48dp</dimen>
+
+    <!-- Nova text sizes -->
+    <dimen name="nova_text_display">30sp</dimen>
+    <dimen name="nova_text_header">26sp</dimen>
+    <dimen name="nova_text_title">18sp</dimen>
+    <dimen name="nova_text_body">14sp</dimen>
+    <dimen name="nova_text_label">12sp</dimen>
+    <dimen name="nova_text_caption">11sp</dimen>
+    <dimen name="nova_text_badge">10sp</dimen>
+    <dimen name="nova_text_tiny">9sp</dimen>
+
+    <!-- Nova card dimensions -->
+    <dimen name="nova_game_card_cover_height">200dp</dimen>
+    <dimen name="nova_card_corner_radius">14dp</dimen>
+    <dimen name="nova_card_corner_radius_lg">16dp</dimen>
+    <dimen name="nova_search_height">48dp</dimen>
+
+    <!-- Nova icon sizes -->
+    <dimen name="nova_icon_server">40dp</dimen>
+    <dimen name="nova_icon_server_container">48dp</dimen>
+    <dimen name="nova_icon_overlay">22dp</dimen>
+    <dimen name="nova_icon_status_dot">8dp</dimen>
+
 </resources>

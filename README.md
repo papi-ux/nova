@@ -38,7 +38,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with any Moo
 </div>
 
 > [!NOTE]
-> Private repo — Obtainium requires a GitHub Personal Access Token with `repo` scope.
+> If you distribute Nova from a private GitHub repo, Obtainium requires a Personal Access Token with `repo` scope. Public release repos do not.
 
 **Target devices:** Retroid Pocket 6 (primary), Pixel 10
 
@@ -106,7 +106,7 @@ Nova is a Moonlight-compatible Android client with a UI and feature set tuned fo
 
 **Quick Menu** — Bottom sheet with 6 hotkeys (ESC, Alt+Enter, Alt+F4, F11, Super, Ctrl+V), three columns of toggles (Nova HUD, MangoHud, Perf Stats / Mouse, Controller, Keyboard / Paste, Rotate, Special Keys), Disconnect and End buttons.
 
-**Polaris Integration** — Capabilities probing on connect. Live session state via SSE. Game library with cover art, genres, and AI recommendations. Smart launch sends display dimensions for resolution matching. Session reports feed the AI learning loop.
+**Polaris Integration** — Capabilities probing on connect. Live session state via SSE. Game library with cover art, genres, and optimization recommendations. Smart launch sends display dimensions for resolution matching. Session reports feed the recommendation loop.
 
 **Background** — Quick Settings tile starts streaming from your notification shade. Keep-alive foreground service on app-switch (5-min auto-stop). Lock screen overlay.
 
@@ -120,7 +120,7 @@ Nova is a Moonlight-compatible Android client with a UI and feature set tuned fo
 | **Performance HUD** | 3 modes, sparkline, drag-to-reposition, proactive bitrate | Static overlay |
 | **Reconnection** | 4-attempt auto-reconnect with backoff | — |
 | **Input** | Gyro aiming, audio haptics | Standard gamepad/touch |
-| **Game library** | Cover art grid, genres, AI recommendations, search | Text list |
+| **Game library** | Cover art grid, genres, recommendations, search | Text list |
 | **Settings** | 6 categories, streaming presets | 15+ categories |
 | **Themes** | Space Whale + OLED Galaxy + Material You | Single dark |
 | **Server integration** | REST API, SSE events, session reports | NVHTTP only |
@@ -238,7 +238,7 @@ Yes. Nova is a standard Moonlight client and works with Moonlight-compatible ser
 <details>
 <summary><b>Why can't I find Nova on the Play Store?</b></summary>
 
-Nova is distributed via GitHub Releases and Obtainium. It's a private repo — Obtainium requires a GitHub Personal Access Token with `repo` scope to check for updates.
+Nova is distributed via GitHub Releases and Obtainium. If you keep your own fork private, Obtainium will require a GitHub Personal Access Token with `repo` scope to check for updates.
 
 </details>
 

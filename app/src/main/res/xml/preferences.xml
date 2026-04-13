@@ -11,13 +11,14 @@
     <PreferenceCategory
         android:key="category_stream_quality"
         android:title="Stream Quality"
+        android:summary="Resolution, FPS, codec, and bitrate"
         app:iconSpaceReserved="false">
 
         <!-- Preset quick-switch -->
         <ListPreference
             android:key="nova_stream_preset"
             android:title="Quality Preset"
-            android:summary="Quick-switch between Performance, Balanced, and Quality"
+            android:summary="Performance (720p 10Mbps) · Balanced (1080p 30Mbps) · Quality (1080p+ 60Mbps)"
             android:entries="@array/nova_preset_names"
             android:entryValues="@array/nova_preset_values"
             android:defaultValue="balanced"
@@ -103,6 +104,7 @@
     <PreferenceCategory
         android:key="category_display_audio"
         android:title="Display &amp; Audio"
+        android:summary="Scale mode, orientation, and audio routing"
         app:initialExpandedChildrenCount="4"
         app:iconSpaceReserved="false">
 
@@ -171,6 +173,7 @@
     <PreferenceCategory
         android:key="category_input"
         android:title="Input &amp; Controllers"
+        android:summary="Gamepad, touch, mouse, and gyro"
         app:initialExpandedChildrenCount="3"
         app:iconSpaceReserved="false">
 
@@ -384,6 +387,7 @@
     <PreferenceCategory
         android:key="category_overlays"
         android:title="Overlays &amp; Controls"
+        android:summary="HUD, on-screen controller, haptics"
         app:initialExpandedChildrenCount="4"
         app:iconSpaceReserved="false">
 
@@ -585,6 +589,7 @@
     <PreferenceCategory
         android:key="category_nova"
         android:title="Nova"
+        android:summary="Theme, auto-connect, Polaris integration"
         app:iconSpaceReserved="false">
         <ListPreference
             android:key="nova_theme"

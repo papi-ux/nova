@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- Moonlight-compatible discovery and initial pairing still require local-network HTTP
+         before a pinned certificate is established. -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />

@@ -20,5 +20,5 @@ data class PolarisSessionStatus(
     )
 
     val isStreaming get() = state == "streaming"
-    val isSessionAlive get() = state in listOf("streaming", "cage_ready", "game_launching")
+    val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming")
 }

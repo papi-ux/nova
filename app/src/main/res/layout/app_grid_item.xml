@@ -23,7 +23,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:scaleType="centerCrop"
-                android:transitionName="game_cover_art" />
+                android:transitionName="game_cover_art"
+                android:contentDescription="@string/nova_a11y_game_cover" />
 
             <!-- Running overlay + play icon -->
             <RelativeLayout

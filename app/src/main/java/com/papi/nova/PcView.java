@@ -190,13 +190,13 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         // in the main thread.
         if (completeOnCreateCalled) {
             // Reinitialize views just in case orientation changed
-            initializeViews();
+            initializeViews(PreferenceConfiguration.readPreferences(this));
         }
 
         refreshProfileButton();
     }
 
-    private void initializeViews() {
+    private void initializeViews(PreferenceConfiguration prefs) {
         setContentView(R.layout.activity_pc_view);
 
         UiHelper.notifyNewRootView(this);
@@ -241,8 +241,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         // Set default preferences if we've never been run
         PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
 
-        // Set the correct layout for the PC grid
-        pcGridAdapter.updateLayoutWithPreferences(this, PreferenceConfiguration.readPreferences(this));
+        // Set the correct layout for the PC grid (reuse cached prefs)
+        pcGridAdapter.updateLayoutWithPreferences(this, prefs);
 
         // Setup the main actions (null-safe for alternate layouts)
         TextView modeServers = findViewById(R.id.modeServers);
@@ -252,6 +252,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         TextView themeAction = findViewById(R.id.actionTheme);
         TextView settingsAction = findViewById(R.id.actionSettings);
         TextView helpAction = findViewById(R.id.actionHelp);
+        TextView emptyRefresh = findViewById(R.id.emptyRefresh);
         TextView emptyAddServer = findViewById(R.id.emptyAddServer);
         TextView emptyScanPair = findViewById(R.id.emptyScanPair);
         TextView emptyHelp = findViewById(R.id.emptyHelp);
@@ -274,7 +275,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             scanPairAction.setOnClickListener(v -> launchQrScanner());
         }
         if (themeAction != null) {
-            themeAction.setOnClickListener(v -> cycleTheme());
+            themeAction.setOnClickListener(v -> {
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM);
+                cycleTheme();
+            });
         }
         if (settingsAction != null) {
             settingsAction.setOnClickListener(v -> {
@@ -284,6 +288,12 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
         if (helpAction != null) {
             helpAction.setOnClickListener(v -> HelpLauncher.launchSetupGuide(PcView.this));
+        }
+        if (emptyRefresh != null) {
+            emptyRefresh.setOnClickListener(v -> {
+                stopComputerUpdates(false);
+                startComputerUpdates();
+            });
         }
         if (emptyAddServer != null) {
             emptyAddServer.setOnClickListener(v -> startActivity(new Intent(PcView.this, AddComputerManually.class)));
@@ -374,6 +384,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 R.id.actionTheme,
                 R.id.actionSettings,
                 R.id.actionHelp,
+                R.id.emptyRefresh,
                 R.id.emptyAddServer,
                 R.id.emptyScanPair,
                 R.id.emptyHelp
@@ -650,7 +661,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         bindService(new Intent(PcView.this, ComputerManagerService.class), serviceConnection,
                 Service.BIND_AUTO_CREATE);
 
-        pcGridAdapter = new PcGridAdapter(this, PreferenceConfiguration.readPreferences(this));
+        PreferenceConfiguration prefs = PreferenceConfiguration.readPreferences(this);
+        pcGridAdapter = new PcGridAdapter(this, prefs);
 
         viewModel = new ViewModelProvider(this).get(PcViewModel.class);
         viewModel.getComputersLiveData().observe(this, newList -> {
@@ -664,7 +676,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             }
         });
 
-        initializeViews();
+        initializeViews(prefs);
     }
 
     private void startComputerUpdates() {
@@ -726,12 +738,12 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     protected void onResume() {
         super.onResume();
 
-        // Restart if theme changed while in settings
+        // Re-apply theme colors in-place if theme changed while away (avoids expensive recreate)
         String currentTheme = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTheme(this);
         if (appliedTheme != null && !appliedTheme.equals(currentTheme)) {
             appliedTheme = currentTheme;
-            recreate();
-            return;
+            com.papi.nova.ui.NovaThemeManager.INSTANCE.applyTheme(this);
+            applyThemeToServerBrowser();
         }
 
         // Display a decoder crash notification if we've returned after a crash
@@ -964,6 +976,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 NvHTTP httpConn;
                 String message;
                 boolean success = false;
+                ComputerDetails pairedComputer = computer;
                 try {
                     // Stop updates and wait while pairing
                     stopComputerUpdates(true);
@@ -989,15 +1002,14 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                                 if (tofuState == PairState.PAIRED) {
                                     message = null;
                                     success = true;
-
-                                    managerBinder.getComputer(computer.uuid).serverCert = pm.getPairedCert();
-                                    managerBinder.invalidateStateForComputer(computer.uuid);
+                                    pairedComputer = applyPairedCertificate(computer, pm);
 
                                     Dialog.closeDialogs();
+                                    final ComputerDetails launchedComputer = pairedComputer;
                                     runOnUiThread(() -> {
                                         com.papi.nova.ui.NovaSnackbar.INSTANCE.showSuccess(
                                                 PcView.this, "Paired successfully via TOFU");
-                                        doAppList(computer, true, false);
+                                        doAppList(launchedComputer, true, false);
                                     });
                                     return;
                                 }
@@ -1048,13 +1060,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                             // Just navigate to the app view without displaying a toast
                             message = null;
                             success = true;
-
-                            // Pin this certificate for later HTTPS use
-                            managerBinder.getComputer(computer.uuid).serverCert = pm.getPairedCert();
-
-                            // Invalidate reachability information after pairing to force
-                            // a refresh before reading pair state again
-                            managerBinder.invalidateStateForComputer(computer.uuid);
+                            pairedComputer = applyPairedCertificate(computer, pm);
                         }
                         else {
                             // Should be no other values
@@ -1074,6 +1080,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
                 final String toastMessage = message;
                 final boolean toastSuccess = success;
+                final ComputerDetails launchedComputer = pairedComputer;
                 runOnUiThread(() -> {
                     if (toastMessage != null) {
                         Toast.makeText(PcView.this, toastMessage, Toast.LENGTH_LONG).show();
@@ -1081,7 +1088,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
                     if (toastSuccess) {
                         // Open the app list after a successful pairing attempt
-                        doAppList(computer, true, false);
+                        doAppList(launchedComputer, true, false);
                     }
                     else {
                         // Start polling again if we're still in the foreground
@@ -1089,6 +1096,26 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                     }
                 });
         }).start();
+    }
+
+    private ComputerDetails applyPairedCertificate(ComputerDetails computer, PairingManager pm) {
+        java.security.cert.X509Certificate pairedCert = pm.getPairedCert();
+        ComputerDetails managedComputer = managerBinder.getComputer(computer.uuid);
+
+        computer.serverCert = pairedCert;
+        computer.pairState = PairState.PAIRED;
+
+        if (managedComputer != null) {
+            managedComputer.serverCert = pairedCert;
+            managedComputer.pairState = PairState.PAIRED;
+        }
+
+        managerBinder.persistComputer(managedComputer != null ? managedComputer : computer);
+
+        // Force the next poll to reload pair state using the newly pinned cert.
+        managerBinder.invalidateStateForComputer(computer.uuid);
+
+        return managedComputer != null ? managedComputer : computer;
     }
 
     private void doOTPPair(final ComputerDetails computer) {
@@ -1186,11 +1213,31 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             Toast.makeText(PcView.this, getResources().getString(R.string.error_pc_offline), Toast.LENGTH_SHORT).show();
             return;
         }
+        if (managerBinder == null) {
+            Toast.makeText(PcView.this, getResources().getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show();
+            return;
+        }
 
         Intent i = new Intent(this, com.papi.nova.ui.NovaLibraryActivity.class);
         i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_HOST, computer.activeAddress.address);
         i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_SERVER_NAME, computer.name);
+        i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_HTTP_PORT, computer.activeAddress.port);
         i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_HTTPS_PORT, computer.httpsPort);
+        i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_UNIQUE_ID, managerBinder.getUniqueId());
+        i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_PC_UUID, computer.uuid);
+        if (computer.serverCommands != null) {
+            i.putStringArrayListExtra(
+                    com.papi.nova.ui.NovaLibraryActivity.EXTRA_SERVER_COMMANDS,
+                    new ArrayList<>(computer.serverCommands)
+            );
+        }
+        try {
+            if (computer.serverCert != null) {
+                i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_SERVER_CERT, computer.serverCert.getEncoded());
+            }
+        } catch (java.security.cert.CertificateEncodingException e) {
+            LimeLog.warning("Nova: Failed to encode server cert for library launch: " + e.getMessage());
+        }
         startActivity(i);
     }
 

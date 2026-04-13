@@ -2,6 +2,7 @@ package com.papi.nova.api
 
 data class PolarisGame(
     val id: String,
+    val appId: Int = 0,
     val name: String,
     val source: String = "other",
     val steamAppid: String = "",
@@ -10,7 +11,8 @@ data class PolarisGame(
     val coverUrl: String = "",
     val genres: List<String> = emptyList(),
     val lastLaunched: Long = 0,
-    val mangohud: Boolean = false
+    val mangohud: Boolean = false,
+    val hdrSupported: Boolean = false
 ) {
     companion object {
         fun fromJson(json: org.json.JSONObject): PolarisGame {
@@ -23,6 +25,7 @@ data class PolarisGame(
             }
             return PolarisGame(
                 id = json.optString("id", ""),
+                appId = json.optString("app_id", "").toIntOrNull() ?: json.optInt("app_id", 0),
                 name = json.optString("name", ""),
                 source = json.optString("source", "other"),
                 steamAppid = json.optString("steam_appid", ""),
@@ -31,7 +34,8 @@ data class PolarisGame(
                 coverUrl = json.optString("cover_url", ""),
                 genres = genreList,
                 lastLaunched = json.optLong("last_launched", 0),
-                mangohud = json.optBoolean("mangohud", false)
+                mangohud = json.optBoolean("mangohud", false),
+                hdrSupported = json.optBoolean("hdr_supported", false)
             )
         }
     }

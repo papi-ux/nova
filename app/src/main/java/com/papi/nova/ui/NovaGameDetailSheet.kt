@@ -1,6 +1,5 @@
 package com.papi.nova.ui
 
-import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -9,7 +8,12 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.lifecycle.lifecycleScope
+import coil.load
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.papi.nova.R
@@ -109,20 +113,12 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             lastPlayed.visibility = View.VISIBLE
         }
 
-        // Cover art (via shared OkHttp client)
+        // Cover art via Coil
         val coverArt = view.findViewById<ImageView>(R.id.detail_cover)
-        Thread {
-            try {
-                val url = apiClient.getCoverUrl(game.id)
-                val request = okhttp3.Request.Builder().url(url).build()
-                val response = apiClient.client.newCall(request).execute()
-                val bitmap = BitmapFactory.decodeStream(response.body?.byteStream())
-                response.close()
-                if (bitmap != null) {
-                    coverArt.post { coverArt.setImageBitmap(bitmap) }
-                }
-            } catch (_: Exception) {}
-        }.start()
+        coverArt.load(apiClient.getCoverUrl(game.id)) {
+            crossfade(200)
+            error(R.color.nova_deep)
+        }
 
         // AI optimization recommendation
         val aiCard = view.findViewById<View>(R.id.detail_ai_card)
@@ -130,10 +126,10 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         val aiReasoning = view.findViewById<TextView>(R.id.detail_ai_reasoning)
         val aiSource = view.findViewById<TextView>(R.id.detail_ai_source)
 
-        Thread {
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val deviceName = android.os.Build.MODEL
-                val opt = apiClient.getOptimization(deviceName, game.name)
+                val opt = withContext(Dispatchers.IO) { apiClient.getOptimization(deviceName, game.name) }
                 if (opt != null) {
                     val source = opt.optString("source", "")
                     val displayMode = opt.optString("display_mode", "")
@@ -155,27 +151,25 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             else -> source
                         }
 
-                        view.post {
-                            aiSettings.text = settingsText
-                            aiSource.text = sourceLabel
-                            if (reasoning.isNotEmpty()) {
-                                aiReasoning.text = reasoning
-                                aiReasoning.visibility = View.VISIBLE
-                            }
-                            aiCard.visibility = View.VISIBLE
+                        aiSettings.text = settingsText
+                        aiSource.text = sourceLabel
+                        if (reasoning.isNotEmpty()) {
+                            aiReasoning.text = reasoning
+                            aiReasoning.visibility = View.VISIBLE
                         }
+                        aiCard.visibility = View.VISIBLE
                     }
                 }
             } catch (_: Exception) {}
-        }.start()
+        }
 
         // MangoHud toggle
         val mangoToggle = view.findViewById<SwitchMaterial>(R.id.detail_mangohud_toggle)
         mangoToggle.isChecked = game.mangohud
         mangoToggle.setOnCheckedChangeListener { _, isChecked ->
-            Thread {
+            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
                 apiClient.setMangoHud(game.id, isChecked)
-            }.start()
+            }
         }
 
         // Play button

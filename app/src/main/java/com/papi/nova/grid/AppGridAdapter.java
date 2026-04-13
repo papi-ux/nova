@@ -7,7 +7,9 @@ import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.DiffUtil;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
@@ -63,16 +65,19 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     }
 
     private void rebuildFilteredList() {
-        itemList.clear();
+        ArrayList<AppView.AppObject> newList = new ArrayList<>();
         for (AppView.AppObject app : allApps) {
             app.isHidden = hiddenAppIds.contains(app.app.getAppId());
             if (app.isHidden && !showHiddenApps) continue;
             if (!searchFilter.isEmpty() &&
                 !app.app.getAppName().toLowerCase().contains(searchFilter)) continue;
-            itemList.add(app);
+            newList.add(app);
         }
-        sortList(itemList);
-        notifyDataSetChanged();
+        sortList(newList);
+        DiffUtil.DiffResult result = DiffUtil.calculateDiff(new AppDiffCallback(itemList, newList));
+        itemList.clear();
+        itemList.addAll(newList);
+        result.dispatchUpdatesTo(this);
     }
 
     public int getTotalAppCount() {
@@ -85,23 +90,25 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
 
         if (hideImmediately) {
             // Reconstruct the itemList with the new hidden app set
-            itemList.clear();
+            ArrayList<AppView.AppObject> newList = new ArrayList<>();
             for (AppView.AppObject app : allApps) {
                 app.isHidden = hiddenAppIds.contains(app.app.getAppId());
-
                 if (!app.isHidden || showHiddenApps) {
-                    itemList.add(app);
+                    newList.add(app);
                 }
             }
+            DiffUtil.DiffResult result = DiffUtil.calculateDiff(new AppDiffCallback(itemList, newList));
+            itemList.clear();
+            itemList.addAll(newList);
+            result.dispatchUpdatesTo(this);
         }
         else {
             // Just update the isHidden state to show the correct UI indication
             for (AppView.AppObject app : allApps) {
                 app.isHidden = hiddenAppIds.contains(app.app.getAppId());
             }
+            notifyDataSetChanged();
         }
-
-        notifyDataSetChanged();
     }
 
     private static int getLayoutIdForPreferences(PreferenceConfiguration prefs) {
@@ -229,6 +236,35 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     public void clear() {
         super.clear();
         allApps.clear();
+    }
+
+    private static class AppDiffCallback extends DiffUtil.Callback {
+        private final List<AppView.AppObject> oldList;
+        private final List<AppView.AppObject> newList;
+
+        AppDiffCallback(List<AppView.AppObject> oldList, List<AppView.AppObject> newList) {
+            this.oldList = oldList;
+            this.newList = newList;
+        }
+
+        @Override public int getOldListSize() { return oldList.size(); }
+        @Override public int getNewListSize() { return newList.size(); }
+
+        @Override
+        public boolean areItemsTheSame(int oldPos, int newPos) {
+            return oldList.get(oldPos).app.getAppId() == newList.get(newPos).app.getAppId();
+        }
+
+        @Override
+        public boolean areContentsTheSame(int oldPos, int newPos) {
+            AppView.AppObject a = oldList.get(oldPos);
+            AppView.AppObject b = newList.get(newPos);
+            return a.app.getAppId() == b.app.getAppId()
+                && a.isRunning == b.isRunning
+                && a.isHidden == b.isHidden
+                && a.isPinned == b.isPinned
+                && a.app.getAppName().equals(b.app.getAppName());
+        }
     }
 
     @Override

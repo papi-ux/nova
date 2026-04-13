@@ -825,7 +825,7 @@ public class StreamSettings extends AppCompatActivity {
                         }
 
                         String prefixMessage = context.getString(R.string.email_prefix_message);
-                        String emailRecipient = context.getString(R.string.email_recipient);
+                        String emailRecipient = context.getString(R.string.email_recipient).trim();
                         String emailSubject = context.getString(R.string.email_subject);
                         String chooserTitle = context.getString(R.string.email_chooser_title);
                         String noEmailClientsMsg = context.getString(R.string.toast_no_email_clients);
@@ -841,16 +841,18 @@ public class StreamSettings extends AppCompatActivity {
                                     context.getPackageName() + ".fileprovider",
                                     logFile);
 
-                            Intent emailIntent = new Intent(Intent.ACTION_SEND);
-                            emailIntent.setType("text/plain");
-                            emailIntent.putExtra(Intent.EXTRA_EMAIL, new String[]{emailRecipient});
-                            emailIntent.putExtra(Intent.EXTRA_SUBJECT, emailSubject);
-                            emailIntent.putExtra(Intent.EXTRA_TEXT, prefixMessage);
-                            emailIntent.putExtra(Intent.EXTRA_STREAM, logFileUri);
+                            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                            shareIntent.setType("text/plain");
+                            if (!emailRecipient.isEmpty()) {
+                                shareIntent.putExtra(Intent.EXTRA_EMAIL, new String[]{emailRecipient});
+                            }
+                            shareIntent.putExtra(Intent.EXTRA_SUBJECT, emailSubject);
+                            shareIntent.putExtra(Intent.EXTRA_TEXT, prefixMessage);
+                            shareIntent.putExtra(Intent.EXTRA_STREAM, logFileUri);
 
-                            emailIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-                            context.startActivity(Intent.createChooser(emailIntent, chooserTitle));
+                            context.startActivity(Intent.createChooser(shareIntent, chooserTitle));
                         } catch (IOException e) {
                             Log.d("PerformanceDataTracker", "Error creating log file");
                         } catch (android.content.ActivityNotFoundException ex) {

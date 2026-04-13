@@ -3,10 +3,11 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    app:cardCornerRadius="14dp"
+    android:layout_margin="@dimen/nova_spacing_sm"
+    app:cardCornerRadius="@dimen/nova_card_corner_radius"
     app:cardElevation="2dp"
-    app:cardBackgroundColor="@color/nova_bg_card">
+    app:cardBackgroundColor="@color/nova_bg_card"
+    android:foreground="@drawable/nova_ripple_accent">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -17,16 +18,18 @@
         <ImageView
             android:id="@+id/nova_cover_art"
             android:layout_width="match_parent"
-            android:layout_height="200dp"
+            android:layout_height="@dimen/nova_game_card_cover_height"
             android:scaleType="centerCrop"
-            android:background="@color/nova_deep" />
+            android:background="@color/nova_deep"
+            android:transitionName="game_cover_art"
+            android:contentDescription="@string/nova_a11y_game_cover" />
 
         <!-- Game info -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="12dp">
+            android:padding="@dimen/nova_spacing_md">
 
             <TextView
                 android:id="@+id/nova_game_name"

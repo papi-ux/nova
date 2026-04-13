@@ -27,6 +27,11 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
 
     @JvmField val client: OkHttpClient
     private val baseUrl = "https://$serverAddress:$httpsPort/polaris/v1"
+    private val webBaseUrl = "https://$serverAddress:$WEB_UI_HTTPS_PORT"
+
+    companion object {
+        const val WEB_UI_HTTPS_PORT = 47990
+    }
 
     init {
         val dataPath = context.filesDir.absolutePath
@@ -312,6 +317,29 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             response.code == 200
         } catch (e: Exception) {
             LimeLog.warning("Nova: Game launch failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Request that Polaris unlock the current desktop session.
+     */
+    fun unlockScreen(): Boolean {
+        return try {
+            val request = Request.Builder()
+                .url("$webBaseUrl/api/polaris/unlock")
+                .post(okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    "{}"
+                ))
+                .build()
+            val response = client.newCall(request).execute()
+            if (response.code != 200) return false
+
+            val json = JSONObject(response.body?.string() ?: "{}")
+            json.optBoolean("success", false)
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Unlock request failed: ${e.message}")
             false
         }
     }

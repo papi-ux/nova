@@ -47,8 +47,13 @@ app/.externalNativeBuild/
 
 # agent files
 AGENTS.md
+CLAUDE.md
 .codex
 .codex/
+.private/
 # Nova signing
 *.keystore
 signing.properties
+.kotlin/
+.env
+.env.*

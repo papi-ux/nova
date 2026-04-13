@@ -2,8 +2,10 @@ package com.papi.nova;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.window.OnBackInvokedCallback;
@@ -50,10 +52,32 @@ public class HelpActivity extends AppCompatActivity {
         webView.getSettings().setUseWideViewPort(true);
         webView.getSettings().setLoadWithOverviewMode(true);
 
-        // This allows the links to places on the same page to work
+        // GitHub docs rely on basic JS for navigation, but keep the rest of the
+        // WebView surface as locked down as possible.
         webView.getSettings().setJavaScriptEnabled(true);
+        webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(false);
+        webView.getSettings().setAllowFileAccess(false);
+        webView.getSettings().setAllowContentAccess(false);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            webView.getSettings().setAllowFileAccessFromFileURLs(false);
+            webView.getSettings().setAllowUniversalAccessFromFileURLs(false);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.getSettings().setSafeBrowsingEnabled(true);
+        }
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return !isSafeUrl(request.getUrl().toString());
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return !isSafeUrl(url);
+            }
+
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 if (loadingDialog == null) {
@@ -76,7 +100,19 @@ public class HelpActivity extends AppCompatActivity {
             }
         });
 
-        webView.loadUrl(getIntent().getData().toString());
+        String initialUrl = getIntent().getDataString();
+        if (initialUrl == null || !isSafeUrl(initialUrl)) {
+            finish();
+            return;
+        }
+
+        webView.loadUrl(initialUrl);
+    }
+
+    private boolean isSafeUrl(String url) {
+        Uri uri = Uri.parse(url);
+        String scheme = uri.getScheme();
+        return scheme != null && scheme.equalsIgnoreCase("https");
     }
 
     private void refreshBackDispatchState() {

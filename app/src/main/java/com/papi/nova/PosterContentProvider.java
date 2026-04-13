@@ -29,17 +29,15 @@ public class PosterContentProvider extends ContentProvider {
 
     static {
         sUriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
-        sUriMatcher.addURI(AUTHORITY, BOXART_PATH, BOXART_URI_ID);
+        sUriMatcher.addURI(AUTHORITY, BOXART_PATH + "/*/*", BOXART_URI_ID);
     }
 
     @Override
     public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-        int match = sUriMatcher.match(uri);
-        if (match == BOXART_URI_ID) {
-            return openBoxArtFile(uri, mode);
+        if (sUriMatcher.match(uri) != BOXART_URI_ID) {
+            throw new FileNotFoundException();
         }
         return openBoxArtFile(uri, mode);
-
     }
 
     public ParcelFileDescriptor openBoxArtFile(Uri uri, String mode) throws FileNotFoundException {
@@ -53,7 +51,14 @@ public class PosterContentProvider extends ContentProvider {
         }
         String appId = segments.get(APP_ID_PATH_INDEX);
         String uuid = segments.get(COMPUTER_UUID_PATH_INDEX);
-        File file = mDiskAssetLoader.getFile(uuid, Integer.parseInt(appId));
+        final int parsedAppId;
+        try {
+            parsedAppId = Integer.parseInt(appId);
+        } catch (NumberFormatException e) {
+            throw new FileNotFoundException();
+        }
+
+        File file = mDiskAssetLoader.getFile(uuid, parsedAppId);
         if (file.exists()) {
             return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
         }

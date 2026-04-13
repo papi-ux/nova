@@ -90,37 +90,43 @@ public class ServerHelper {
         return display;
     }
 
-    public static Intent createStartIntent(Activity parent, NvApp app, ComputerDetails computer,
-                                           ComputerManagerService.ComputerManagerBinder managerBinder,
-                                           boolean withVDisplay) {
+    private static Intent createStartIntent(Activity parent,
+                                            NvApp app,
+                                            String host,
+                                            int port,
+                                            int httpsPort,
+                                            String uniqueId,
+                                            String pcUuid,
+                                            String pcName,
+                                            boolean withVDisplay,
+                                            ArrayList<String> serverCommands,
+                                            byte[] serverCert) {
         Intent gameIntent = null;
         PreferenceConfiguration prefConfig = PreferenceConfiguration.readPreferences(parent);
-        // Try to add secondary DisplayContext if supported and connected
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && prefConfig.enableFullExDisplay && getSecondaryDisplay(parent) != null) {
-            Context displayContext = parent.createDisplayContext(getSecondaryDisplay(parent)); // use secondary display
+            Context displayContext = parent.createDisplayContext(getSecondaryDisplay(parent));
             gameIntent = new Intent(displayContext, Game.class);
             gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         }
-        if(gameIntent == null) gameIntent = new Intent(parent, Game.class);
-        gameIntent.putExtra(Game.EXTRA_HOST, computer.activeAddress.address);
-        gameIntent.putExtra(Game.EXTRA_PORT, computer.activeAddress.port);
-        gameIntent.putExtra(Game.EXTRA_HTTPS_PORT, computer.httpsPort);
+        if (gameIntent == null) gameIntent = new Intent(parent, Game.class);
+
+        gameIntent.putExtra(Game.EXTRA_HOST, host);
+        gameIntent.putExtra(Game.EXTRA_PORT, port);
+        gameIntent.putExtra(Game.EXTRA_HTTPS_PORT, httpsPort);
         gameIntent.putExtra(Game.EXTRA_APP_NAME, app.getAppName());
         gameIntent.putExtra(Game.EXTRA_APP_UUID, app.getAppUUID());
         gameIntent.putExtra(Game.EXTRA_APP_ID, app.getAppId());
         gameIntent.putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported());
-        gameIntent.putExtra(Game.EXTRA_UNIQUEID, managerBinder.getUniqueId());
-        gameIntent.putExtra(Game.EXTRA_PC_UUID, computer.uuid);
-        gameIntent.putExtra(Game.EXTRA_PC_NAME, computer.name);
+        gameIntent.putExtra(Game.EXTRA_UNIQUEID, uniqueId);
+        gameIntent.putExtra(Game.EXTRA_PC_UUID, pcUuid);
+        gameIntent.putExtra(Game.EXTRA_PC_NAME, pcName);
         gameIntent.putExtra(Game.EXTRA_VDISPLAY, withVDisplay);
-        gameIntent.putExtra(Game.EXTRA_SERVER_COMMANDS, (ArrayList<String>) computer.serverCommands);
-
-        try {
-            if (computer.serverCert != null) {
-                gameIntent.putExtra(Game.EXTRA_SERVER_CERT, computer.serverCert.getEncoded());
-            }
-        } catch (CertificateEncodingException e) {
-            e.printStackTrace();
+        if (serverCommands != null) {
+            gameIntent.putStringArrayListExtra(Game.EXTRA_SERVER_COMMANDS, serverCommands);
+        }
+        if (serverCert != null) {
+            gameIntent.putExtra(Game.EXTRA_SERVER_CERT, serverCert);
         }
 
         if (prefConfig.enableFullExDisplay) {
@@ -135,6 +141,37 @@ public class ServerHelper {
         }
 
         return gameIntent;
+    }
+
+    public static Intent createStartIntent(Activity parent, NvApp app, ComputerDetails computer,
+                                           ComputerManagerService.ComputerManagerBinder managerBinder,
+                                           boolean withVDisplay) {
+        byte[] serverCert = null;
+        try {
+            if (computer.serverCert != null) {
+                serverCert = computer.serverCert.getEncoded();
+            }
+        } catch (CertificateEncodingException e) {
+            e.printStackTrace();
+        }
+
+        ArrayList<String> serverCommands = computer.serverCommands != null
+                ? new ArrayList<>(computer.serverCommands)
+                : null;
+
+        return createStartIntent(
+                parent,
+                app,
+                computer.activeAddress.address,
+                computer.activeAddress.port,
+                computer.httpsPort,
+                managerBinder.getUniqueId(),
+                computer.uuid,
+                computer.name,
+                withVDisplay,
+                serverCommands,
+                serverCert
+        );
     }
 
     public static void doStart(
@@ -155,6 +192,38 @@ public class ServerHelper {
                 .apply();
 
         Intent intent = createStartIntent(parent, app, computer, managerBinder, withVDisplay);
+        parent.startActivity(intent);
+        com.papi.nova.ui.NovaThemeManager.INSTANCE.applyFadeTransition(parent);
+    }
+
+    public static void doStart(Activity parent,
+                               NvApp app,
+                               String host,
+                               int port,
+                               int httpsPort,
+                               String uniqueId,
+                               String pcUuid,
+                               String pcName,
+                               ArrayList<String> serverCommands,
+                               boolean withVDisplay,
+                               byte[] serverCert) {
+        parent.getSharedPreferences("nova_prefs", android.content.Context.MODE_PRIVATE).edit()
+                .putInt("last_played_" + pcUuid, app.getAppId())
+                .apply();
+
+        Intent intent = createStartIntent(
+                parent,
+                app,
+                host,
+                port,
+                httpsPort,
+                uniqueId,
+                pcUuid,
+                pcName,
+                withVDisplay,
+                serverCommands,
+                serverCert
+        );
         parent.startActivity(intent);
         com.papi.nova.ui.NovaThemeManager.INSTANCE.applyFadeTransition(parent);
     }

@@ -232,6 +232,11 @@
                             android:orientation="horizontal">
 
                             <TextView
+                                android:id="@+id/emptyRefresh"
+                                style="@style/NovaFilterChip"
+                                android:text="@string/nova_refresh" />
+
+                            <TextView
                                 android:id="@+id/emptyAddServer"
                                 style="@style/NovaFilterChip"
                                 android:text="@string/pcview_quick_add_server" />

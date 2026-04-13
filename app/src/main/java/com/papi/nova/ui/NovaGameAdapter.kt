@@ -1,21 +1,23 @@
 package com.papi.nova.ui
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.graphics.drawable.GradientDrawable
-import android.util.LruCache
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import coil.load
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGame
-import okhttp3.Request
-import java.util.concurrent.Executors
 
 class NovaGameAdapter(
     private val apiClient: PolarisApiClient,
@@ -25,19 +27,20 @@ class NovaGameAdapter(
 
     private var games = listOf<PolarisGame>()
 
-    // Shared image loader: 3 threads + LRU bitmap cache (8MB)
-    private val imageExecutor = Executors.newFixedThreadPool(3) { r ->
-        Thread(r, "Nova-Cover").apply { isDaemon = true }
-    }
-    private val coverCache = object : LruCache<String, Bitmap>(
-        (Runtime.getRuntime().maxMemory() / 1024 / 8).toInt() // 1/8 max heap in KB
-    ) {
-        override fun sizeOf(key: String, value: Bitmap) = value.byteCount / 1024
+    fun updateGames(newGames: List<PolarisGame>) {
+        val diffResult = DiffUtil.calculateDiff(GameDiffCallback(games, newGames))
+        games = newGames
+        diffResult.dispatchUpdatesTo(this)
     }
 
-    fun updateGames(newGames: List<PolarisGame>) {
-        games = newGames
-        notifyDataSetChanged()
+    private class GameDiffCallback(
+        private val old: List<PolarisGame>,
+        private val new: List<PolarisGame>
+    ) : DiffUtil.Callback() {
+        override fun getOldListSize() = old.size
+        override fun getNewListSize() = new.size
+        override fun areItemsTheSame(oldPos: Int, newPos: Int) = old[oldPos].id == new[newPos].id
+        override fun areContentsTheSame(oldPos: Int, newPos: Int) = old[oldPos] == new[newPos]
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -62,6 +65,8 @@ class NovaGameAdapter(
 
         fun bind(game: PolarisGame) {
             gameName.text = game.name
+            itemView.contentDescription = game.name
+            coverArt.contentDescription = "${game.name} cover art"
 
             // Source badge (Steam, Lutris, Heroic)
             val srcLabel = game.sourceLabel
@@ -126,49 +131,53 @@ class NovaGameAdapter(
                 genreChips.visibility = View.GONE
             }
 
-            // Load cover art via shared OkHttp client + LRU cache
-            coverArt.setImageDrawable(null)
-            coverArt.setBackgroundColor(0xFF393c51.toInt())
-            coverArt.tag = game.id  // tag to detect recycled views
-
-            val cached = coverCache.get(game.id)
-            if (cached != null) {
-                coverArt.setImageBitmap(cached)
-            } else {
-                imageExecutor.execute {
-                    try {
-                        val url = apiClient.getCoverUrl(game.id)
-                        val request = Request.Builder().url(url).build()
-                        val response = apiClient.client.newCall(request).execute()
-                        if (response.isSuccessful) {
-                            val bytes = response.body?.bytes()
-                            val bitmap = if (bytes != null) BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
-                            response.close()
-                            if (bitmap != null) {
-                                coverCache.put(game.id, bitmap)
-                                itemView.post {
-                                    // Only update if the view hasn't been recycled for a different game
-                                    if (coverArt.tag == game.id) {
-                                        coverArt.setImageBitmap(bitmap)
-                                    }
-                                }
-                            }
-                        } else {
-                            response.close()
-                        }
-                    } catch (e: Exception) {
-                        com.papi.nova.LimeLog.warning("Nova: Failed to load cover for ${game.name}: ${e.message}")
-                    }
-                }
+            // Load cover art via Coil (lifecycle-aware, auto-caching, crossfade)
+            coverArt.load(apiClient.getCoverUrl(game.id)) {
+                crossfade(200)
+                placeholder(android.R.color.transparent)
+                error(R.color.nova_deep)
             }
 
             // Click to launch
-            itemView.setOnClickListener { onGameClick(game) }
+            itemView.setOnClickListener { v ->
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                onGameClick(game)
+            }
 
             // Long-press for detail sheet
-            itemView.setOnLongClickListener {
+            itemView.setOnLongClickListener { v ->
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 onGameLongClick?.invoke(game)
                 true
+            }
+
+            // Touch response animation — scale down on press, overshoot back on release
+            itemView.setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        AnimatorSet().apply {
+                            playTogether(
+                                ObjectAnimator.ofFloat(v, "scaleX", 0.96f),
+                                ObjectAnimator.ofFloat(v, "scaleY", 0.96f)
+                            )
+                            duration = 100
+                            interpolator = DecelerateInterpolator()
+                            start()
+                        }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        AnimatorSet().apply {
+                            playTogether(
+                                ObjectAnimator.ofFloat(v, "scaleX", 1.0f),
+                                ObjectAnimator.ofFloat(v, "scaleY", 1.0f)
+                            )
+                            duration = 200
+                            interpolator = OvershootInterpolator(2f)
+                            start()
+                        }
+                    }
+                }
+                false // don't consume — let click/long-click still fire
             }
 
             // D-pad focus styling — glow border on focused card
@@ -179,7 +188,6 @@ class NovaGameAdapter(
                 if (hasFocus) {
                     card.cardElevation = 8f
                     card.setCardBackgroundColor(0xFF4c5265.toInt())
-                    // Accent glow border
                     v.scaleX = 1.03f
                     v.scaleY = 1.03f
                 } else {

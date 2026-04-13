@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shimmer skeleton for game grid — shows 4 placeholder cards in a 2-column grid -->
+<com.facebook.shimmer.ShimmerFrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nova_shimmer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    app:shimmer_base_color="@color/nova_deep"
+    app:shimmer_highlight_color="@color/nova_twilight"
+    app:shimmer_duration="1200"
+    app:shimmer_auto_start="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <!-- Row 1 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:baselineAligned="false">
+
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
+                <include layout="@layout/nova_shimmer_game_card" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
+                <include layout="@layout/nova_shimmer_game_card" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- Row 2 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:baselineAligned="false">
+
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
+                <include layout="@layout/nova_shimmer_game_card" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
+                <include layout="@layout/nova_shimmer_game_card" />
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+</com.facebook.shimmer.ShimmerFrameLayout>

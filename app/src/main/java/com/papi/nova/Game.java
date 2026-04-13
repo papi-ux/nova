@@ -195,6 +195,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private com.papi.nova.manager.ConnectionResilienceManager novaResilienceManager;
     private com.papi.nova.api.PolarisEventSource novaEventSource;
     private com.papi.nova.ui.SessionProgressOverlay novaProgressOverlay;
+    private com.papi.nova.ui.LockScreenOverlay novaLockScreenOverlay;
     private com.papi.nova.ui.ReconnectOverlay novaReconnectOverlay;
     private SpinnerDialog spinner;
     private boolean displayedFailureDialog = false;
@@ -597,6 +598,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         novaApiClient = new com.papi.nova.api.PolarisApiClient(this, host, httpsPort);
         com.papi.nova.manager.FeatureFlagManager.INSTANCE.probe(novaApiClient);
         novaProgressOverlay = new com.papi.nova.ui.SessionProgressOverlay(this);
+        novaLockScreenOverlay = new com.papi.nova.ui.LockScreenOverlay(this, novaApiClient);
         novaReconnectOverlay = new com.papi.nova.ui.ReconnectOverlay(this);
         novaResilienceManager = new com.papi.nova.manager.ConnectionResilienceManager(
             novaApiClient, () -> {
@@ -618,6 +620,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     @Override
                     public void onStateUpdate(String sessionState, boolean cageRunning, boolean screenLocked) {
                         novaProgressOverlay.updateState(sessionState, "");
+                        if (com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasLockScreenControl()) {
+                            if (screenLocked) {
+                                novaLockScreenOverlay.show();
+                            } else {
+                                novaLockScreenOverlay.dismiss();
+                            }
+                        }
                     }
                     @Override
                     public void onConnectionLost() {
@@ -1764,6 +1773,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // Nova: clean up Polaris integration
         if (novaEventSource != null) novaEventSource.stop();
         if (novaProgressOverlay != null) novaProgressOverlay.dismiss();
+        if (novaLockScreenOverlay != null) novaLockScreenOverlay.dismiss();
         if (novaReconnectOverlay != null) novaReconnectOverlay.dismiss();
         com.papi.nova.jni.PolarisNativeHook.INSTANCE.unregister();
         com.papi.nova.manager.FeatureFlagManager.INSTANCE.reset();
@@ -3525,7 +3535,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                             ((Number) summary.getOrDefault("avg_fps", 0.0)).doubleValue(),
                             ((Number) summary.getOrDefault("avg_latency_ms", 0.0)).doubleValue(),
                             ((Number) summary.getOrDefault("avg_bitrate_kbps", 0)).intValue(),
-                            0.0, // packet loss (not tracked client-side yet)
+                            ((Number) summary.getOrDefault("packet_loss_pct", 0.0)).doubleValue(),
                             (String) summary.getOrDefault("codec", ""),
                             ((Number) summary.getOrDefault("duration_s", 0)).intValue(),
                             "disconnect"
@@ -3786,6 +3796,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 if (com.papi.nova.ui.NovaStreamHud.Companion.isEnabled(Game.this)) {
                     novaHud = new com.papi.nova.ui.NovaStreamHud(Game.this);
                     novaHud.show();
+                    ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                    boolean isMeteredConnection = connMgr != null && connMgr.isActiveNetworkMetered();
+                    novaHud.setTargetBitrateKbps(isMeteredConnection ? prefConfig.meteredBitrate : prefConfig.bitrate);
 
                     // Wire proactive bitrate adjustment — HUD monitors quality and auto-adjusts
                     final String streamHost = host;

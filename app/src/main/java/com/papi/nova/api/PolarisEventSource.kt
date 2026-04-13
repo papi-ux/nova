@@ -67,7 +67,7 @@ class PolarisEventSource(
 
     private fun connect() {
         // Use the web UI port (47990) for SSE, not nvhttp
-        val url = "https://$baseUrl:47990/api/polaris/events"
+        val url = "https://$baseUrl:${PolarisApiClient.WEB_UI_HTTPS_PORT}/api/polaris/events"
         val request = Request.Builder()
             .url(url)
             .header("Accept", "text/event-stream")

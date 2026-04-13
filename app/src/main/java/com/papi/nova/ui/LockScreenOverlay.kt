@@ -8,6 +8,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import com.papi.nova.LimeLog
 import com.papi.nova.api.PolarisApiClient
 
@@ -46,14 +47,20 @@ class LockScreenOverlay(
                 textSize = 18f
                 setOnClickListener {
                     Thread {
-                        val status = apiClient.getSessionStatus()
-                        if (status?.screenLocked == true) {
-                            // Call unlock endpoint via the web UI port
+                        val unlocked = try {
                             LimeLog.info("Nova: Requesting unlock...")
-                            // The unlock is via the session_manager D-Bus call on the server
-                            // For now, just dismiss — the SSE event will confirm unlock
+                            apiClient.unlockScreen()
+                        } catch (e: Exception) {
+                            LimeLog.warning("Nova: Unlock failed: ${e.message}")
+                            false
                         }
-                        activity.runOnUiThread { dismiss() }
+
+                        activity.runOnUiThread {
+                            if (!unlocked) {
+                                Toast.makeText(activity, "Unlock request failed", Toast.LENGTH_SHORT).show()
+                            }
+                            // The SSE/session poll path will dismiss this when the server reports unlocked.
+                        }
                     }.start()
                 }
             }

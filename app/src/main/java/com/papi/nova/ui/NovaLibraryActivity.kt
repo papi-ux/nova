@@ -1,8 +1,11 @@
 package com.papi.nova.ui
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
 import android.widget.EditText
@@ -10,6 +13,12 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.facebook.shimmer.ShimmerFrameLayout
+import com.google.android.material.button.MaterialButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -18,7 +27,9 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGame
-import com.papi.nova.manager.FeatureFlagManager
+import com.papi.nova.nvstream.http.NvApp
+import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.utils.ServerHelper
 
 /**
  * Nova Game Library — browse and launch games from the Polaris server.
@@ -36,14 +47,30 @@ class NovaLibraryActivity : AppCompatActivity() {
     private lateinit var emptyTitle: TextView
     private lateinit var emptyHint: TextView
     private lateinit var serverContext: TextView
+    private lateinit var shimmer: ShimmerFrameLayout
 
     private var allGames = listOf<PolarisGame>()
     private var currentFilter = ""
+    private val searchHandler = Handler(Looper.getMainLooper())
+    private var searchRunnable: Runnable? = null
+    private lateinit var streamHost: String
+    private var streamHttpPort: Int = 47989
+    private var streamHttpsPort: Int = 47984
+    private var streamUniqueId: String? = null
+    private var streamPcUuid: String? = null
+    private var streamPcName: String = ""
+    private var streamServerCommands: ArrayList<String>? = null
+    private var streamServerCert: ByteArray? = null
 
     companion object {
         const val EXTRA_HOST = "host"
         const val EXTRA_SERVER_NAME = "server_name"
         const val EXTRA_HTTPS_PORT = "https_port"
+        const val EXTRA_HTTP_PORT = "http_port"
+        const val EXTRA_UNIQUE_ID = "unique_id"
+        const val EXTRA_PC_UUID = "pc_uuid"
+        const val EXTRA_SERVER_COMMANDS = "server_commands"
+        const val EXTRA_SERVER_CERT = "server_cert"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +84,14 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
         val serverName = intent.getStringExtra(EXTRA_SERVER_NAME)
         val httpsPort = intent.getIntExtra(EXTRA_HTTPS_PORT, 47984)
+        streamHost = host
+        streamHttpPort = intent.getIntExtra(EXTRA_HTTP_PORT, 47989)
+        streamHttpsPort = httpsPort
+        streamUniqueId = intent.getStringExtra(EXTRA_UNIQUE_ID)
+        streamPcUuid = intent.getStringExtra(EXTRA_PC_UUID)
+        streamPcName = serverName ?: ""
+        streamServerCommands = intent.getStringArrayListExtra(EXTRA_SERVER_COMMANDS)
+        streamServerCert = intent.getByteArrayExtra(EXTRA_SERVER_CERT)
 
         apiClient = PolarisApiClient(this, host, httpsPort)
 
@@ -69,6 +104,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         emptyText = findViewById(R.id.nova_empty_text)
         emptyTitle = findViewById(R.id.nova_empty_title)
         emptyHint = findViewById(R.id.nova_empty_hint)
+        shimmer = findViewById(R.id.nova_shimmer_container)
         serverContext = findViewById(R.id.nova_library_context)
         serverContext.text = if (serverName.isNullOrBlank()) {
             getString(R.string.nova_library_server_context_fallback)
@@ -90,6 +126,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.nova_accent))
         swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.nova_bg_elevated))
         swipeRefresh.setOnRefreshListener {
+            swipeRefresh.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             loadGames()
         }
 
@@ -98,7 +135,10 @@ class NovaLibraryActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                filterGames(s?.toString() ?: "")
+                searchRunnable?.let { searchHandler.removeCallbacks(it) }
+                val query = s?.toString() ?: ""
+                searchRunnable = Runnable { filterGames(query) }
+                searchHandler.postDelayed(searchRunnable!!, 150)
             }
         })
 
@@ -109,12 +149,16 @@ class NovaLibraryActivity : AppCompatActivity() {
         setupFilterTab(R.id.filter_action, "fast_action")
         setupFilterTab(R.id.filter_cinematic, "cinematic")
 
+        // Retry button
+        findViewById<MaterialButton>(R.id.nova_empty_retry).setOnClickListener { loadGames() }
+
         // Load games
         loadGames()
     }
 
     private fun setupFilterTab(id: Int, filter: String) {
-        findViewById<TextView>(id).setOnClickListener {
+        findViewById<TextView>(id).setOnClickListener { v ->
+            v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
             currentFilter = filter
             activeTabIndex = filterTabIds.indexOf(id).coerceAtLeast(0)
             // Update visual state — selected chip gets accent background
@@ -130,23 +174,37 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
     }
 
+    private var isInitialLoad = true
+
     private fun loadGames() {
-        swipeRefresh.isRefreshing = true
-        Thread {
-            val games = apiClient.getGames(limit = 100)
-            runOnUiThread {
-                allGames = games
-                if (allGames.isEmpty()) {
-                    updateEmptyState("")
-                    emptyText.visibility = View.VISIBLE
-                } else {
-                    emptyText.visibility = View.GONE
-                    filterGames(searchBar.text.toString())
-                }
-                swipeRefresh.isRefreshing = false
-                LimeLog.info("Nova: Loaded ${allGames.size} games")
+        if (isInitialLoad) {
+            shimmer.visibility = View.VISIBLE
+            shimmer.startShimmer()
+            swipeRefresh.visibility = View.GONE
+        } else {
+            swipeRefresh.isRefreshing = true
+        }
+        lifecycleScope.launch {
+            val games = withContext(Dispatchers.IO) { apiClient.getGames(limit = 100) }
+            allGames = games
+            // Hide shimmer, show content
+            if (shimmer.visibility == View.VISIBLE) {
+                shimmer.stopShimmer()
+                shimmer.visibility = View.GONE
+                swipeRefresh.visibility = View.VISIBLE
             }
-        }.start()
+            isInitialLoad = false
+
+            if (allGames.isEmpty()) {
+                updateEmptyState("")
+                emptyText.visibility = View.VISIBLE
+            } else {
+                emptyText.visibility = View.GONE
+                filterGames(searchBar.text.toString())
+            }
+            swipeRefresh.isRefreshing = false
+            LimeLog.info("Nova: Loaded ${allGames.size} games")
+        }
     }
 
     private fun filterGames(search: String) {
@@ -223,26 +281,34 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     private fun launchGame(game: PolarisGame) {
+        if (game.appId <= 0) {
+            Toast.makeText(this, "This game entry is missing a launch ID", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (streamUniqueId.isNullOrBlank() || streamPcUuid.isNullOrBlank() || streamServerCert == null) {
+            Toast.makeText(this, "Missing Polaris session details for launch", Toast.LENGTH_SHORT).show()
+            LimeLog.warning("Nova: Cannot launch from library; missing uniqueId, pcUuid, or server cert")
+            return
+        }
+
         Toast.makeText(this, "Launching ${game.name}...", Toast.LENGTH_SHORT).show()
-        LimeLog.info("Nova: Launching game ${game.name} (${game.id})")
+        LimeLog.info("Nova: Launching game ${game.name} (${game.id}/${game.appId})")
 
-        // Send device display info for smart launch resolution matching
-        val dm = resources.displayMetrics
-        val displayWidth = dm.widthPixels
-        val displayHeight = dm.heightPixels
-        val displayFps = windowManager.defaultDisplay?.let { display ->
-            display.refreshRate.toInt()
-        } ?: 60
+        val app = NvApp(game.name, game.id, game.appId, game.hdrSupported)
+        val prefConfig = PreferenceConfiguration.readPreferences(this)
 
-        Thread {
-            val success = apiClient.launchGame(game.id, displayWidth, displayHeight, displayFps)
-            runOnUiThread {
-                if (success) {
-                    Toast.makeText(this, "Starting ${game.name}", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Failed to launch ${game.name}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }.start()
+        ServerHelper.doStart(
+            this,
+            app,
+            streamHost,
+            streamHttpPort,
+            streamHttpsPort,
+            streamUniqueId!!,
+            streamPcUuid!!,
+            streamPcName,
+            streamServerCommands,
+            prefConfig.useVirtualDisplay,
+            streamServerCert
+        )
     }
 }

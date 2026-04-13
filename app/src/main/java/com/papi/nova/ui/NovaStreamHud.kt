@@ -58,6 +58,8 @@ class NovaStreamHud(private val activity: Activity) {
     // Session stats accumulator for end-of-session report
     private var sessionFpsSum = 0.0
     private var sessionLatencySum = 0.0
+    private var sessionPacketLossSum = 0.0
+    private var sessionPacketLossSamples = 0
     private var sessionSamples = 0
     private var sessionStartTime = 0L
     var lastCodec = ""
@@ -234,20 +236,28 @@ class NovaStreamHud(private val activity: Activity) {
                 val codecMatch = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE).find(text)
                 if (codecMatch != null) {
                     val codec = codecMatch.groupValues[1].uppercase()
+                    lastCodec = codec
                     if (currentMode == "banner") codecLabel?.text = codec else codecText?.text = codec
                 }
             }
 
-            // Bitrate
-            if (currentMode != "fps_only") {
-                val brMatch = Regex("""(\d+(?:\.\d+)?)\s*(?:Mbps|mbps)""", RegexOption.IGNORE_CASE).find(text)
-                    ?: Regex("""bitrate[:\s]+(\d+)""", RegexOption.IGNORE_CASE).find(text)
-                if (brMatch != null) {
-                    bitrateText?.text = if (currentMode == "banner") "  ${brMatch.groupValues[1]}Mbps"
-                        else "${brMatch.groupValues[1]} Mbps"
-                }
+            // Packet loss / net drops
+            val packetLossMatch = Regex(
+                """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*(\d+(?:\.\d+)?)\s*%""",
+                RegexOption.IGNORE_CASE
+            ).find(text)
+                ?: Regex("""(\d+(?:\.\d+)?)\s*%\s*(?:packet loss|netdrops)""", RegexOption.IGNORE_CASE).find(text)
+            if (packetLossMatch != null) {
+                val packetLossPct = packetLossMatch.groupValues[1].toDoubleOrNull() ?: 0.0
+                sessionPacketLossSum += packetLossPct
+                sessionPacketLossSamples++
             }
         }
+    }
+
+    fun setTargetBitrateKbps(bitrateKbps: Int) {
+        currentBitrateKbps = bitrateKbps
+        lastBitrateKbps = bitrateKbps
     }
 
     fun update(fps: Double, codec: String, bitrateKbps: Int, width: Int, height: Int, latencyMs: Double) {
@@ -346,6 +356,7 @@ class NovaStreamHud(private val activity: Activity) {
         return mapOf(
             "avg_fps" to if (sessionSamples > 0) sessionFpsSum / sessionSamples else 0.0,
             "avg_latency_ms" to if (sessionSamples > 0) sessionLatencySum / sessionSamples else 0.0,
+            "packet_loss_pct" to if (sessionPacketLossSamples > 0) sessionPacketLossSum / sessionPacketLossSamples else 0.0,
             "avg_bitrate_kbps" to lastBitrateKbps,
             "codec" to lastCodec,
             "duration_s" to durationS,
