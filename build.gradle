@@ -1,4 +1,39 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+    dependencies {
+        constraints {
+            // These pins only affect the Gradle/AGP build toolchain, not the app's runtime graph.
+            classpath('io.netty:netty-codec:4.1.132.Final') {
+                because 'Keep any settings/build-tool Netty transitives on a patched line'
+            }
+            classpath('io.netty:netty-codec-http:4.1.132.Final') {
+                because 'Keep any settings/build-tool Netty transitives on a patched line'
+            }
+            classpath('io.netty:netty-codec-http2:4.1.132.Final') {
+                because 'Keep any settings/build-tool Netty transitives on a patched line'
+            }
+            classpath('io.netty:netty-common:4.1.132.Final') {
+                because 'Keep any settings/build-tool Netty transitives on a patched line'
+            }
+            classpath('io.netty:netty-handler:4.1.132.Final') {
+                because 'Keep any settings/build-tool Netty transitives on a patched line'
+            }
+            classpath('org.apache.commons:commons-lang3:3.18.0') {
+                because 'Dependabot flags the AGP toolchain transitive version'
+            }
+            classpath('org.apache.httpcomponents:httpclient:4.5.14') {
+                because 'Keep the AGP toolchain on a patched 4.5.x line'
+            }
+            classpath('org.bitbucket.b_c:jose4j:0.9.6') {
+                because 'Dependabot flags the bundletool transitive version'
+            }
+            classpath('org.jdom:jdom2:2.0.6.1') {
+                because 'Dependabot flags the jetifier transitive version'
+            }
+        }
+    }
+}
+
 plugins {
     id 'com.android.application' version '9.1.0' apply false
 }
