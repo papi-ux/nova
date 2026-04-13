@@ -1,0 +1,7 @@
+# Baseline profile rules for Nova startup and pairing flows
+HSPLcom/papi/nova/NovaApplication;->**(**)**
+HSPLcom/papi/nova/PcView;->**(**)**
+HSPLcom/papi/nova/AppView;->**(**)**
+HSPLcom/papi/nova/preferences/AddComputerManually;->**(**)**
+HSPLcom/papi/nova/computers/ComputerManagerService;->**(**)**
+Lcom/papi/nova/profiles/*;
