@@ -1,8 +1,8 @@
 package com.papi.nova.ui;
 
-import android.widget.AbsListView;
+import android.view.View;
 
 public interface AdapterFragmentCallbacks {
     int getAdapterFragmentLayoutId();
-    void receiveAbsListView(AbsListView gridView);
+    void receiveAbsListView(View gridView);
 }

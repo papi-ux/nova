@@ -16,7 +16,6 @@
         <!-- Dialog styling -->
         <item name="alertDialogTheme">@style/NovaAlertDialog</item>
         <item name="android:alertDialogTheme">@style/NovaAlertDialog</item>
-        <item name="android:contextPopupMenuStyle">@style/NovaPopupMenu</item>
     </style>
 
     <!-- Nova Application Theme — Polaris (default: deep navy) -->
@@ -166,6 +165,32 @@
         <item name="android:focusable">true</item>
     </style>
 
+    <style name="NovaMaterialChip" parent="Widget.MaterialComponents.Chip.Choice">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="chipBackgroundColor">@color/nova_chip_bg_selector</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipCornerRadius">12dp</item>
+        <item name="android:checkable">true</item>
+        <item name="android:layout_marginEnd">4dp</item>
+    </style>
+
+    <style name="NovaMaterialChip.Action" parent="Widget.MaterialComponents.Chip.Action">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="chipBackgroundColor">@color/nova_badge_bg</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipCornerRadius">12dp</item>
+        <item name="android:checkable">false</item>
+        <item name="android:layout_marginEnd">4dp</item>
+    </style>
+
     <!-- Nova bottom sheet -->
     <style name="NovaBottomSheet" parent="Theme.MaterialComponents.BottomSheetDialog">
         <item name="bottomSheetStyle">@style/NovaBottomSheetStyle</item>
@@ -204,4 +229,9 @@
         <item name="rippleColor">@color/nova_accent_glow</item>
     </style>
 
+
+    <!-- <style name="NovaMaterialChip" parent="Widget.MaterialComponents.Chip.Choice">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+    </style> -->
 </resources>

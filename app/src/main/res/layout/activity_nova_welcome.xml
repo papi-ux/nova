@@ -233,11 +233,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:text="Get Started"
-                android:textSize="15sp"
-                android:textColor="@color/nova_ice"
+                android:textSize="18sp"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
                 android:textAllCaps="false"
                 app:backgroundTint="@color/nova_accent"
-                app:cornerRadius="14dp" />
+                app:cornerRadius="26dp" />
 
         </LinearLayout>
     </ScrollView>
