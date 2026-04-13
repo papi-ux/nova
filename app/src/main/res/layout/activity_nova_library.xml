@@ -108,42 +108,54 @@
         </LinearLayout>
     </HorizontalScrollView>
 
-    <!-- Game grid -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/nova_game_grid"
+    <!-- Content Area (Grid + Empty State) -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:padding="8dp" />
+        android:layout_weight="1">
 
-    <!-- Empty state -->
-    <LinearLayout
-        android:id="@+id/nova_empty_text"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone">
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/nova_swipe_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
-        <TextView
-            android:id="@+id/nova_empty_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/nova_library_empty_title_default"
-            android:textColor="@color/nova_text_muted"
-            android:textSize="18sp" />
+            <!-- Game grid -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/nova_game_grid"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:padding="8dp" />
 
-        <TextView
-            android:id="@+id/nova_empty_hint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/nova_library_empty_hint_default"
-            android:textColor="@color/nova_text_muted"
-            android:textSize="13sp"
-            android:paddingTop="8dp" />
-    </LinearLayout>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <!-- Empty state -->
+        <LinearLayout
+            android:id="@+id/nova_empty_text"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/nova_empty_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/nova_library_empty_title_default"
+                android:textColor="@color/nova_text_muted"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/nova_empty_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/nova_library_empty_hint_default"
+                android:textColor="@color/nova_text_muted"
+                android:textSize="13sp"
+                android:paddingTop="8dp" />
+        </LinearLayout>
+    </FrameLayout>
 
 </LinearLayout>
 </FrameLayout>

@@ -23,10 +23,10 @@ import javax.net.ssl.X509TrustManager
  * HTTP client for Polaris REST API on the nvhttp port (47984).
  * Uses the same client certificate as Moonlight pairing.
  */
-class PolarisApiClient(context: Context, private val serverAddress: String) {
+class PolarisApiClient(context: Context, private val serverAddress: String, private val httpsPort: Int = 47984) {
 
     @JvmField val client: OkHttpClient
-    private val baseUrl = "https://$serverAddress:47984/polaris/v1"
+    private val baseUrl = "https://$serverAddress:$httpsPort/polaris/v1"
 
     init {
         val dataPath = context.filesDir.absolutePath
@@ -189,7 +189,7 @@ class PolarisApiClient(context: Context, private val serverAddress: String) {
      * Get the cover art URL for a game (full HTTPS URL).
      */
     fun getCoverUrl(gameId: String): String {
-        return "https://$serverAddress:47984/polaris/v1/games/$gameId/cover"
+        return "https://$serverAddress:$httpsPort/polaris/v1/games/$gameId/cover"
     }
 
     /**

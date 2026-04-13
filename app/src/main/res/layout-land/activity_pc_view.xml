@@ -56,23 +56,25 @@
                 android:scrollbars="none"
                 android:paddingBottom="10dp">
 
-                <LinearLayout
+                <com.google.android.material.chip.ChipGroup
                     android:id="@+id/pcModeTabs"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    app:singleSelection="true"
+                    app:selectionRequired="true"
+                    app:singleLine="true">
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/modeServers"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip"
                         android:text="@string/pcview_mode_servers"
-                        android:background="@drawable/nova_chip_selected" />
+                        android:checked="true" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/modeLibrary"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip"
                         android:text="@string/pcview_mode_library" />
-                </LinearLayout>
+                </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
 
             <HorizontalScrollView
@@ -81,37 +83,37 @@
                 android:scrollbars="none"
                 android:paddingBottom="10dp">
 
-                <LinearLayout
+                <com.google.android.material.chip.ChipGroup
                     android:id="@+id/pcQuickActions"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    app:singleLine="true">
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/actionAddServer"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip.Action"
                         android:text="@string/pcview_quick_add_server" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/actionScanPair"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip.Action"
                         android:text="@string/pcview_quick_scan_pair" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/actionTheme"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip.Action"
                         android:text="@string/pcview_quick_theme" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/actionSettings"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip.Action"
                         android:text="@string/pcview_quick_settings" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/actionHelp"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip.Action"
                         android:text="@string/help" />
-                </LinearLayout>
+                </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
 
             <HorizontalScrollView
@@ -120,33 +122,35 @@
                 android:scrollbars="none"
                 android:paddingBottom="10dp">
 
-                <LinearLayout
+                <com.google.android.material.chip.ChipGroup
                     android:id="@+id/serverFilterTabs"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    app:singleSelection="true"
+                    app:selectionRequired="true"
+                    app:singleLine="true">
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/filterAllServers"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip"
                         android:text="@string/pcview_filter_all"
-                        android:background="@drawable/nova_chip_selected" />
+                        android:checked="true" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/filterOnlineServers"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip"
                         android:text="@string/pcview_filter_online" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/filterStreamingServers"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip"
                         android:text="@string/pcview_filter_streaming" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/filterNeedsPairingServers"
-                        style="@style/NovaFilterChip"
+                        style="@style/NovaMaterialChip"
                         android:text="@string/pcview_filter_needs_pairing" />
-                </LinearLayout>
+                </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
         </LinearLayout>
 

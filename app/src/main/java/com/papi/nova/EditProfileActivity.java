@@ -380,6 +380,7 @@ public class EditProfileActivity extends AppCompatActivity {
             return value instanceof Boolean ? (Boolean) value : defValue;
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public java.util.Set<String> getStringSet(String key, java.util.Set<String> defValues) {
             Object value = values.get(key);

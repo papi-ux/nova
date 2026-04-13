@@ -127,7 +127,7 @@ class NovaGameAdapter(
             }
 
             // Load cover art via shared OkHttp client + LRU cache
-            coverArt.setImageResource(0)
+            coverArt.setImageDrawable(null)
             coverArt.setBackgroundColor(0xFF393c51.toInt())
             coverArt.tag = game.id  // tag to detect recycled views
 
@@ -140,18 +140,25 @@ class NovaGameAdapter(
                         val url = apiClient.getCoverUrl(game.id)
                         val request = Request.Builder().url(url).build()
                         val response = apiClient.client.newCall(request).execute()
-                        val bitmap = BitmapFactory.decodeStream(response.body?.byteStream())
-                        response.close()
-                        if (bitmap != null) {
-                            coverCache.put(game.id, bitmap)
-                            itemView.post {
-                                // Only update if the view hasn't been recycled for a different game
-                                if (coverArt.tag == game.id) {
-                                    coverArt.setImageBitmap(bitmap)
+                        if (response.isSuccessful) {
+                            val bytes = response.body?.bytes()
+                            val bitmap = if (bytes != null) BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
+                            response.close()
+                            if (bitmap != null) {
+                                coverCache.put(game.id, bitmap)
+                                itemView.post {
+                                    // Only update if the view hasn't been recycled for a different game
+                                    if (coverArt.tag == game.id) {
+                                        coverArt.setImageBitmap(bitmap)
+                                    }
                                 }
                             }
+                        } else {
+                            response.close()
                         }
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {
+                        com.papi.nova.LimeLog.warning("Nova: Failed to load cover for ${game.name}: ${e.message}")
+                    }
                 }
             }
 

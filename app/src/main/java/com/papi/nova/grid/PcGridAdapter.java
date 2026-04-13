@@ -9,7 +9,7 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.papi.nova.PcView;
+import com.papi.nova.PcViewModel;
 import com.papi.nova.R;
 import com.papi.nova.nvstream.http.ComputerDetails;
 import com.papi.nova.nvstream.http.PairingManager;
@@ -21,7 +21,7 @@ import java.util.Comparator;
 
 import androidx.core.content.ContextCompat;
 
-public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
+public class PcGridAdapter extends GenericGridAdapter<PcViewModel.ComputerObject> {
 
     public PcGridAdapter(Context context, PreferenceConfiguration prefs) {
         super(context, getLayoutIdForPreferences(prefs));
@@ -36,21 +36,21 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
         setLayoutId(getLayoutIdForPreferences(prefs));
     }
 
-    public void addComputer(PcView.ComputerObject computer) {
+    public void addComputer(PcViewModel.ComputerObject computer) {
         itemList.add(computer);
         sortList();
     }
 
     private void sortList() {
-        Collections.sort(itemList, new Comparator<PcView.ComputerObject>() {
+        Collections.sort(itemList, new Comparator<PcViewModel.ComputerObject>() {
             @Override
-            public int compare(PcView.ComputerObject lhs, PcView.ComputerObject rhs) {
+            public int compare(PcViewModel.ComputerObject lhs, PcViewModel.ComputerObject rhs) {
                 return lhs.details.name.toLowerCase().compareTo(rhs.details.name.toLowerCase());
             }
         });
     }
 
-    public boolean removeComputer(PcView.ComputerObject computer) {
+    public boolean removeComputer(PcViewModel.ComputerObject computer) {
         return itemList.remove(computer);
     }
 
@@ -77,7 +77,7 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
     }
 
     @Override
-    public void populateView(View parentView, ImageView imgView, RelativeLayout gridMask, ProgressBar prgView, TextView txtView, ImageView overlayView, PcView.ComputerObject obj) {
+    public void populateView(View parentView, ImageView imgView, RelativeLayout gridMask, ProgressBar prgView, TextView txtView, ImageView overlayView, PcViewModel.ComputerObject obj) {
         applyCardTheme(parentView, imgView, prgView, txtView);
 
         imgView.setImageResource(R.drawable.ic_computer);

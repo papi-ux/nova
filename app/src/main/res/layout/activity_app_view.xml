@@ -128,11 +128,16 @@
         </LinearLayout>
 
         <!-- App grid -->
-        <FrameLayout
-            android:id="@+id/appFragmentContainer"
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/appSwipeRefresh"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_weight="1">
+            <FrameLayout
+                android:id="@+id/appFragmentContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     </LinearLayout>
 

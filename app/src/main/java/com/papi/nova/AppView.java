@@ -32,16 +32,11 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.view.View;
-import android.widget.AbsListView;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -63,24 +58,14 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     private ComputerDetails computer;
     private ComputerManagerService.ApplistPoller poller;
     private SpinnerDialog blockingLoadSpinner;
-    private String lastRawApplist;
+    private String lastRawAppList;
     private int lastRunningAppId;
     private boolean suspendGridUpdates;
     private boolean inForeground;
     private boolean showHiddenApps;
-    private HashSet<Integer> hiddenAppIds = new HashSet<>();
+    private final HashSet<Integer> hiddenAppIds = new HashSet<>();
 
     private PreferenceConfiguration prefConfig;
-
-    private final static int START_OR_RESUME_ID = 1;
-    private final static int QUIT_ID = 2;
-    private final static int START_WITH_QUIT = 4;
-    private final static int VIEW_DETAILS_ID = 5;
-    private final static int CREATE_SHORTCUT_ID = 6;
-    private final static int EXPORT_LAUNCHER_FILE_ID = 7;
-    private final static int HIDE_APP_ID = 8;
-    private final static int START_WITH_VDISPLAY = 20;
-    private final static int START_WITH_QUIT_VDISPLAY = 21;
 
     public final static String HIDDEN_APPS_PREF_FILENAME = "HiddenApps";
 
@@ -119,7 +104,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                                 computer, localBinder.getUniqueId(),
                                 showHiddenApps);
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        LimeLog.warning(android.util.Log.getStackTraceString(e));
                         finish();
                         return;
                     }
@@ -148,23 +133,20 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     // Start updates
                     startComputerUpdates();
 
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (isFinishing() || isChangingConfigurations()) {
-                                return;
-                            }
+                    runOnUiThread(() -> {
+                        if (isFinishing() || isChangingConfigurations()) {
+                            return;
+                        }
 
-                            // Despite my best efforts to catch all conditions that could
-                            // cause the activity to be destroyed when we try to commit
-                            // I haven't been able to, so we have this try-catch block.
-                            try {
-                                getFragmentManager().beginTransaction()
-                                        .replace(R.id.appFragmentContainer, new AdapterFragment())
-                                        .commitAllowingStateLoss();
-                            } catch (IllegalStateException e) {
-                                e.printStackTrace();
-                            }
+                        // Despite my best efforts to catch all conditions that could
+                        // cause the activity to be destroyed when we try to commit
+                        // I haven't been able to, so we have this try-catch block.
+                        try {
+                            getSupportFragmentManager().beginTransaction()
+                                    .replace(R.id.appFragmentContainer, new AdapterFragment())
+                                    .commitAllowingStateLoss();
+                        } catch (IllegalStateException e) {
+                            LimeLog.warning(android.util.Log.getStackTraceString(e));
                         }
                     });
                 }
@@ -177,7 +159,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     };
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
+    public void onConfigurationChanged(@androidx.annotation.NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
         this.prefConfig = PreferenceConfiguration.readPreferences(this);
@@ -190,11 +172,11 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
             try {
                 // Reinflate the app grid itself to pick up the layout change
-                getFragmentManager().beginTransaction()
+                getSupportFragmentManager().beginTransaction()
                         .replace(R.id.appFragmentContainer, new AdapterFragment())
                         .commitAllowingStateLoss();
             } catch (IllegalStateException e) {
-                e.printStackTrace();
+                LimeLog.warning(android.util.Log.getStackTraceString(e));
             }
         }
     }
@@ -205,78 +187,69 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             return;
         }
 
-        managerBinder.startPolling(new ComputerManagerListener() {
-            @Override
-            public void notifyComputerUpdated(final ComputerDetails details) {
-                // Do nothing if updates are suspended
-                if (suspendGridUpdates) {
-                    return;
+        managerBinder.startPolling(details -> {
+            // Do nothing if updates are suspended
+            if (suspendGridUpdates) {
+                return;
+            }
+
+            // Don't care about other computers
+            if (!details.uuid.equalsIgnoreCase(uuidString)) {
+                return;
+            }
+
+            if (details.state == ComputerDetails.State.OFFLINE) {
+                // The PC is unreachable now
+                AppView.this.runOnUiThread(() -> {
+                    // Display a toast to the user and quit the activity
+                    Toast.makeText(AppView.this, R.string.lost_connection, Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+
+                return;
+            }
+
+            // Close immediately if the PC is no longer paired
+            if (details.state == ComputerDetails.State.ONLINE && details.pairState != PairingManager.PairState.PAIRED) {
+                AppView.this.runOnUiThread(() -> {
+                    // Disable shortcuts referencing this PC for now
+                    shortcutHelper.disableComputerShortcut(details,
+                            getResources().getString(R.string.scut_not_paired));
+
+                    // Display a toast to the user and quit the activity
+                    Toast.makeText(AppView.this, R.string.scut_not_paired, Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+
+                return;
+            }
+
+            // App list is the same or empty
+            if (details.rawAppList == null || details.rawAppList.equals(lastRawAppList)) {
+
+                // Let's check if the running app ID changed
+                if (details.runningGameId != lastRunningAppId) {
+                    // Update the currently running game using the app ID
+                    lastRunningAppId = details.runningGameId;
+                    updateUiWithServerInfo(details);
                 }
 
-                // Don't care about other computers
-                if (!details.uuid.equalsIgnoreCase(uuidString)) {
-                    return;
+                return;
+            }
+
+            lastRunningAppId = details.runningGameId;
+            lastRawAppList = details.rawAppList;
+
+            try {
+                updateUiWithAppList(NvHTTP.getAppListByReader(new StringReader(details.rawAppList)));
+                updateUiWithServerInfo(details);
+
+                if (blockingLoadSpinner != null) {
+                    blockingLoadSpinner.dismiss();
+                    blockingLoadSpinner = null;
                 }
-
-                if (details.state == ComputerDetails.State.OFFLINE) {
-                    // The PC is unreachable now
-                    AppView.this.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            // Display a toast to the user and quit the activity
-                            Toast.makeText(AppView.this, R.string.lost_connection, Toast.LENGTH_SHORT).show();
-                            finish();
-                        }
-                    });
-
-                    return;
-                }
-
-                // Close immediately if the PC is no longer paired
-                if (details.state == ComputerDetails.State.ONLINE && details.pairState != PairingManager.PairState.PAIRED) {
-                    AppView.this.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            // Disable shortcuts referencing this PC for now
-                            shortcutHelper.disableComputerShortcut(details,
-                                    getResources().getString(R.string.scut_not_paired));
-
-                            // Display a toast to the user and quit the activity
-                            Toast.makeText(AppView.this, R.string.scut_not_paired, Toast.LENGTH_SHORT).show();
-                            finish();
-                        }
-                    });
-
-                    return;
-                }
-
-                // App list is the same or empty
-                if (details.rawAppList == null || details.rawAppList.equals(lastRawApplist)) {
-
-                    // Let's check if the running app ID changed
-                    if (details.runningGameId != lastRunningAppId) {
-                        // Update the currently running game using the app ID
-                        lastRunningAppId = details.runningGameId;
-                        updateUiWithServerinfo(details);
-                    }
-
-                    return;
-                }
-
-                lastRunningAppId = details.runningGameId;
-                lastRawApplist = details.rawAppList;
-
-                try {
-                    updateUiWithAppList(NvHTTP.getAppListByReader(new StringReader(details.rawAppList)));
-                    updateUiWithServerinfo(details);
-
-                    if (blockingLoadSpinner != null) {
-                        blockingLoadSpinner.dismiss();
-                        blockingLoadSpinner = null;
-                    }
-                } catch (XmlPullParserException | IOException e) {
-                    e.printStackTrace();
-                }
+            } catch (XmlPullParserException | IOException e) {
+                LimeLog.warning(android.util.Log.getStackTraceString(e));
             }
         });
 
@@ -321,16 +294,30 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             setShouldDockBigOverlays(false);
         }
 
+        androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh = findViewById(R.id.appSwipeRefresh);
+        if (swipeRefresh != null) {
+            swipeRefresh.setColorSchemeColors(androidx.core.content.ContextCompat.getColor(this, R.color.nova_accent));
+            swipeRefresh.setProgressBackgroundColorSchemeColor(androidx.core.content.ContextCompat.getColor(this, R.color.nova_bg_elevated));
+            swipeRefresh.setOnRefreshListener(() -> {
+                // Trigger a refresh
+                if (poller != null) {
+                    poller.pollNow();
+                }
+                // Auto-dismiss after a short delay
+                swipeRefresh.postDelayed(() -> swipeRefresh.setRefreshing(false), 2000);
+            });
+        }
+
         UiHelper.notifyNewRootView(this);
 
         // Apply edge-to-edge insets to header (null-safe for landscape layouts)
         View header = findViewById(R.id.appListHeader);
-        if (header != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+        if (header != null) {
             header.setOnApplyWindowInsetsListener((v, insets) -> {
                 int topInset = 0;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     topInset = insets.getInsets(android.view.WindowInsets.Type.statusBars()).top;
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                } else {
                     topInset = insets.getSystemWindowInsetTop();
                 }
                 v.setPadding(v.getPaddingLeft(), topInset + (int) UiHelper.dpToPx(this, 16),
@@ -348,7 +335,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         uuidString = getIntent().getStringExtra(UUID_EXTRA);
 
         SharedPreferences hiddenAppsPrefs = getSharedPreferences(HIDDEN_APPS_PREF_FILENAME, MODE_PRIVATE);
-        for (String hiddenAppIdStr : hiddenAppsPrefs.getStringSet(uuidString, new HashSet<String>())) {
+        for (String hiddenAppIdStr : hiddenAppsPrefs.getStringSet(uuidString, new HashSet<>())) {
             hiddenAppIds.add(Integer.parseInt(hiddenAppIdStr));
         }
 
@@ -389,7 +376,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 Service.BIND_AUTO_CREATE);
     }
 
-    private void updateHiddenApps(boolean hideImmediately) {
+    private void updateHiddenApps() {
         HashSet<String> hiddenAppIdStringSet = new HashSet<>();
 
         for (Integer hiddenAppId : hiddenAppIds) {
@@ -401,20 +388,20 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 .putStringSet(uuidString, hiddenAppIdStringSet)
                 .apply();
 
-        appGridAdapter.updateHiddenApps(hiddenAppIds, hideImmediately);
+        appGridAdapter.updateHiddenApps(hiddenAppIds, false);
     }
 
     private void populateAppGridWithCache() {
         try {
             // Try to load from cache
-            lastRawApplist = CacheHelper.readInputStreamToString(CacheHelper.openCacheFileForInput(getCacheDir(), "applist", uuidString));
-            List<NvApp> applist = NvHTTP.getAppListByReader(new StringReader(lastRawApplist));
-            updateUiWithAppList(applist);
+            lastRawAppList = CacheHelper.readInputStreamToString(CacheHelper.openCacheFileForInput(getCacheDir(), "applist", uuidString));
+            List<NvApp> appList = NvHTTP.getAppListByReader(new StringReader(lastRawAppList));
+            updateUiWithAppList(appList);
             LimeLog.info("Loaded applist from cache");
         } catch (IOException | XmlPullParserException e) {
-            if (lastRawApplist != null) {
-                LimeLog.warning("Saved applist corrupted: "+lastRawApplist);
-                e.printStackTrace();
+            if (lastRawAppList != null) {
+                LimeLog.warning("Saved applist corrupted: "+lastRawAppList);
+                LimeLog.warning(android.util.Log.getStackTraceString(e));
             }
             LimeLog.info("Loading applist from the network");
             // We'll need to load from the network
@@ -499,44 +486,45 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
     // Context menu replaced by showAppBottomSheet() — see bottom sheet implementation below
 
-    private void updateUiWithServerinfo(final ComputerDetails details) {
-        AppView.this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                boolean updated = false;
+    private void updateUiWithServerInfo(final ComputerDetails details) {
+        AppView.this.runOnUiThread(() -> {
+            boolean updated = false;
 
-                    // Look through our current app list to tag the running app
-                for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
-                    AppObject existingApp = (AppObject) appGridAdapter.getItem(i);
-
-                    // There can only be one or zero apps running.
-                    if (existingApp.isRunning &&
-                            existingApp.app.getAppId() == details.runningGameId) {
-                        // This app was running and still is, so we're done now
-                        return;
-                    }
-                    else if (existingApp.app.getAppId() == details.runningGameId) {
-                        // This app wasn't running but now is
-                        existingApp.isRunning = true;
-                        updated = true;
-                    }
-                    else if (existingApp.isRunning) {
-                        // This app was running but now isn't
-                        existingApp.isRunning = false;
-                        updated = true;
-                    }
-                    else {
-                        // This app wasn't running and still isn't
-                    }
+            // Look through our current app list to tag the running app
+            for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
+                Object item = appGridAdapter.getItem(i);
+                if (!(item instanceof AppObject)) {
+                    continue;
                 }
+                AppObject existingApp = (AppObject) item;
 
-                if (updated) {
-                    appGridAdapter.notifyDataSetChanged();
+                // There can only be one or zero apps running.
+                if (existingApp.isRunning &&
+                        existingApp.app.getAppId() == details.runningGameId) {
+                    // This app was running and still is, so we're done now
+                    return;
                 }
-
-                // Update recently played hero card
-                updateRecentlyPlayedCard();
+                else if (existingApp.app.getAppId() == details.runningGameId) {
+                    // This app wasn't running but now is
+                    existingApp.isRunning = true;
+                    updated = true;
+                }
+                else if (existingApp.isRunning) {
+                    // This app was running but now isn't
+                    existingApp.isRunning = false;
+                    updated = true;
+                }
             }
+
+            if (updated) {
+                // Suppress warning about generic refresh, as we want to update the entire grid's running state indicators
+                @SuppressWarnings("NotifyDataSetChanged")
+                Runnable r = () -> appGridAdapter.notifyDataSetChanged();
+                r.run();
+            }
+
+            // Update recently played hero card
+            updateRecentlyPlayedCard();
         });
     }
 
@@ -559,10 +547,13 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         // Find the app in the adapter
         AppObject targetApp = null;
         for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
-            AppObject a = (AppObject) appGridAdapter.getItem(i);
-            if (a.app.getAppId() == targetAppId) {
-                targetApp = a;
-                break;
+            Object item = appGridAdapter.getItem(i);
+            if (item instanceof AppObject) {
+                AppObject a = (AppObject) item;
+                if (a.app.getAppId() == targetAppId) {
+                    targetApp = a;
+                    break;
+                }
             }
         }
 
@@ -577,7 +568,11 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
         final AppObject finalApp = targetApp;
         card.setOnClickListener(v -> {
-            v.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
+            } else {
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+            }
             // Save as last played
             getSharedPreferences("nova_prefs", MODE_PRIVATE).edit()
                     .putInt("last_played_" + uuidString, finalApp.app.getAppId())
@@ -587,64 +582,66 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     }
 
     private void updateUiWithAppList(final List<NvApp> appList) {
-        AppView.this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                boolean updated = false;
+        AppView.this.runOnUiThread(() -> {
+            boolean updated = false;
 
-                // Build a map of incoming apps by ID for O(1) lookup
-                java.util.HashMap<Integer, NvApp> incomingMap = new java.util.HashMap<>(appList.size());
-                for (NvApp app : appList) {
-                    incomingMap.put(app.getAppId(), app);
-                }
+            // Build a map of incoming apps by ID for O(1) lookup
+            java.util.HashMap<Integer, NvApp> incomingMap = new java.util.HashMap<>(appList.size());
+            for (NvApp app : appList) {
+                incomingMap.put(app.getAppId(), app);
+            }
 
-                // Build a map of existing apps by ID
-                java.util.HashMap<Integer, AppObject> existingMap = new java.util.HashMap<>(appGridAdapter.getItemCount());
-                for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
-                    AppObject existingApp = (AppObject) appGridAdapter.getItem(i);
+            // Build a map of existing apps by ID
+            java.util.HashMap<Integer, AppObject> existingMap = new java.util.HashMap<>(appGridAdapter.getItemCount());
+            for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
+                Object item = appGridAdapter.getItem(i);
+                if (item instanceof AppObject) {
+                    AppObject existingApp = (AppObject) item;
                     existingMap.put(existingApp.app.getAppId(), existingApp);
                 }
+            }
 
-                // Handle updates and additions (single pass over incoming list)
-                for (NvApp app : appList) {
-                    AppObject existing = existingMap.get(app.getAppId());
-                    if (existing != null) {
-                        // Update name if changed
-                        if (!existing.app.getAppName().equals(app.getAppName())) {
-                            existing.app.setAppName(app.getAppName());
-                            updated = true;
-                        }
-                    } else {
-                        // New app
-                        appGridAdapter.addApp(new AppObject(app));
-                        shortcutHelper.enableAppShortcut(computer, app);
+            // Handle updates and additions (single pass over incoming list)
+            for (NvApp app : appList) {
+                AppObject existing = existingMap.get(app.getAppId());
+                if (existing != null) {
+                    // Update name if changed
+                    if (!existing.app.getAppName().equals(app.getAppName())) {
+                        existing.app.setAppName(app.getAppName());
                         updated = true;
                     }
+                } else {
+                    // New app
+                    appGridAdapter.addApp(new AppObject(app));
+                    shortcutHelper.enableAppShortcut(computer, app);
+                    updated = true;
                 }
+            }
 
-                // Handle removals (single pass over existing list)
-                for (java.util.Map.Entry<Integer, AppObject> entry : existingMap.entrySet()) {
-                    if (!incomingMap.containsKey(entry.getKey())) {
-                        shortcutHelper.disableAppShortcut(computer, entry.getValue().app, getString(R.string.app_removed_from_pc));
-                        appGridAdapter.removeApp(entry.getValue());
-                        updated = true;
-                    }
+            // Handle removals (single pass over existing list)
+            for (java.util.Map.Entry<Integer, AppObject> entry : existingMap.entrySet()) {
+                if (!incomingMap.containsKey(entry.getKey())) {
+                    shortcutHelper.disableAppShortcut(computer, entry.getValue().app, getString(R.string.app_removed_from_pc));
+                    appGridAdapter.removeApp(entry.getValue());
+                    updated = true;
                 }
+            }
 
-                if (updated) {
-                    appGridAdapter.notifyDataSetChanged();
+            if (updated) {
+                @SuppressWarnings("NotifyDataSetChanged")
+                Runnable r = () -> appGridAdapter.notifyDataSetChanged();
+                r.run();
 
-                    // Show search bar when there are enough games
-                    android.widget.EditText searchView = findViewById(R.id.app_search);
-                    if (searchView != null && appGridAdapter.getTotalAppCount() > 6) {
-                        searchView.setVisibility(View.VISIBLE);
-                    }
+                // Show search bar when there are enough games
+                android.widget.EditText searchView = findViewById(R.id.app_search);
+                if (searchView != null && appGridAdapter.getTotalAppCount() > 6) {
+                    searchView.setVisibility(View.VISIBLE);
                 }
             }
         });
     }
 
-    private void showAppBottomSheet(AppObject selectedApp, int position) {
+    private void showAppBottomSheet(AppObject selectedApp) {
         BottomSheetDialog sheet = new BottomSheetDialog(this, R.style.NovaBottomSheet);
         sheet.setContentView(R.layout.nova_app_context_sheet);
         sheet.getBehavior().setState(BottomSheetBehavior.STATE_EXPANDED);
@@ -710,7 +707,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 } else {
                     hiddenAppIds.add(selectedApp.app.getAppId());
                 }
-                updateHiddenApps(false);
+                updateHiddenApps();
             });
         }
 
@@ -755,12 +752,11 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         TextView item = new TextView(this);
         item.setText(label);
         item.setTextSize(15);
-        item.setTextColor(getColor(R.color.nova_text_primary));
+        item.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.nova_text_primary));
         item.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL));
         int pad = (int) UiHelper.dpToPx(this, 24);
         int padV = (int) UiHelper.dpToPx(this, 14);
         item.setPadding(pad, padV, pad, padV);
-        item.setBackground(getDrawable(android.R.attr.selectableItemBackground));
 
         // Use selectableItemBackground properly
         android.util.TypedValue outValue = new android.util.TypedValue();
@@ -773,15 +769,14 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
     @Override
     public int getAdapterFragmentLayoutId() {
-        return PreferenceConfiguration.readPreferences(AppView.this).smallIconMode ?
-                    R.layout.app_grid_view_small : R.layout.app_grid_view;
+        return R.layout.app_grid_view;
     }
 
     @Override
     public void receiveAbsListView(View gridView) {
-        if (gridView instanceof androidx.recyclerview.widget.RecyclerView) {
-            androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) gridView;
-            int spanCount = Math.max(1, getResources().getDisplayMetrics().widthPixels / (int)(170 * getResources().getDisplayMetrics().density));
+        if (gridView instanceof androidx.recyclerview.widget.RecyclerView rv) {
+            int widthDp = prefConfig.smallIconMode ? 110 : 170;
+            int spanCount = Math.max(1, getResources().getDisplayMetrics().widthPixels / (int)(widthDp * getResources().getDisplayMetrics().density));
             rv.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, spanCount));
             rv.setAdapter(appGridAdapter);
             appGridAdapter.setOnItemClickListener(app -> {
@@ -789,7 +784,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     if (prefConfig.resumeWithoutConfirm && lastRunningAppId == app.app.getAppId()) {
                         ServerHelper.doStart(AppView.this, app.app, computer, managerBinder, prefConfig.useVirtualDisplay);
                     } else {
-                        showAppBottomSheet(app, appGridAdapter.itemList.indexOf(app));
+                        showAppBottomSheet(app);
                     }
                 } else {
                     if (prefConfig.useVirtualDisplay && !(computer.vDisplaySupported && computer.vDisplayDriverReady)) {
@@ -810,8 +805,11 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 
                 @Override
                 public void onLongItemClick(View view, int position) {
-                    AppObject app = (AppObject) appGridAdapter.getItem(position);
-                    showAppBottomSheet(app, position);
+                    Object item = appGridAdapter.getItem(position);
+                    if (item instanceof AppObject) {
+                        AppObject app = (AppObject) item;
+                        showAppBottomSheet(app);
+                    }
                 }
             }));
             UiHelper.applyStatusBarPadding(rv);
@@ -832,6 +830,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             this.app = app;
         }
 
+        @androidx.annotation.NonNull
         @Override
         public String toString() {
             return app.getAppName();

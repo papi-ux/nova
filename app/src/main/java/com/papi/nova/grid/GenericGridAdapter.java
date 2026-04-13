@@ -15,6 +15,8 @@ import com.papi.nova.R;
 
 import java.util.ArrayList;
 
+import java.util.List;
+
 public abstract class GenericGridAdapter<T> extends RecyclerView.Adapter<GenericGridAdapter.ViewHolder> {
     protected final Context context;
     private int layoutId;
@@ -53,6 +55,14 @@ public abstract class GenericGridAdapter<T> extends RecyclerView.Adapter<Generic
         this.layoutId = layoutId;
 
         this.inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+    }
+
+    public void setItems(List<T> items) {
+        itemList.clear();
+        if (items != null) {
+            itemList.addAll(items);
+        }
+        notifyDataSetChanged();
     }
 
     void setLayoutId(int layoutId) {

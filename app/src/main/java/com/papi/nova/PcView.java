@@ -1,14 +1,15 @@
 package com.papi.nova;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
 
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
-import com.papi.nova.LimeLog;
 import com.papi.nova.binding.PlatformBinding;
 import com.papi.nova.binding.crypto.AndroidCryptoProvider;
-import com.papi.nova.computers.ComputerManagerListener;
 import com.papi.nova.computers.ComputerManagerService;
 import com.papi.nova.grid.PcGridAdapter;
 import com.papi.nova.grid.assets.DiskAssetLoader;
@@ -16,7 +17,11 @@ import com.papi.nova.nvstream.http.ComputerDetails;
 import com.papi.nova.nvstream.http.NvApp;
 import com.papi.nova.nvstream.http.NvHTTP;
 import com.papi.nova.nvstream.http.PairingManager;
+import java.util.List;
+import java.util.ArrayList;
 import com.papi.nova.nvstream.http.PairingManager.PairState;
+
+import androidx.lifecycle.ViewModelProvider;
 import com.papi.nova.nvstream.wol.WakeOnLanSender;
 import com.papi.nova.preferences.AddComputerManually;
 import com.papi.nova.preferences.GlPreferences;
@@ -32,7 +37,6 @@ import com.papi.nova.utils.ServerHelper;
 import com.papi.nova.utils.ShortcutHelper;
 import com.papi.nova.utils.UiHelper;
 
-import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.Service;
 import android.content.ComponentName;
@@ -45,22 +49,16 @@ import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.provider.Settings;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.widget.TextView;
-import android.widget.AbsListView;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 import android.content.res.ColorStateList;
 
 import android.util.TypedValue;
-import android.widget.LinearLayout.LayoutParams;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -78,6 +76,10 @@ import androidx.activity.result.ActivityResultLauncher;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
+import com.papi.nova.PcViewModel.ComputerObject;
+
+import androidx.core.content.ContextCompat;
+
 public class PcView extends AppCompatActivity implements AdapterFragmentCallbacks {
     private static final int FILTER_ALL = 0;
     private static final int FILTER_ONLINE = 1;
@@ -87,11 +89,60 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private View noPcFoundLayout;
     private PcGridAdapter pcGridAdapter;
     private ShortcutHelper shortcutHelper;
+    private PcViewModel viewModel;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled, autoNavigated;
     private ComputerDetails.AddressTuple pendingPairingAddress;
     private String pendingPairingPin, pendingPairingPassphrase;
     private int currentServerFilter = FILTER_ALL;
+
+    private void clearPendingPairing() {
+        pendingPairingAddress = null;
+        pendingPairingPin = null;
+        pendingPairingPassphrase = null;
+    }
+
+    private boolean matchesPendingPairingAddress(ComputerDetails.AddressTuple address) {
+        return address != null &&
+                pendingPairingAddress != null &&
+                address.port == pendingPairingAddress.port &&
+                address.address.equalsIgnoreCase(pendingPairingAddress.address);
+    }
+
+    private void maybeRunPendingQrPairing(List<ComputerObject> computers) {
+        if (pendingPairingAddress == null || pendingPairingPin == null || pendingPairingPassphrase == null) {
+            return;
+        }
+
+        for (ComputerObject computer : computers) {
+            ComputerDetails details = computer.details;
+            if (details.state != ComputerDetails.State.ONLINE) {
+                continue;
+            }
+
+            boolean matchesPendingHost =
+                    matchesPendingPairingAddress(details.manualAddress) ||
+                    matchesPendingPairingAddress(details.activeAddress) ||
+                    matchesPendingPairingAddress(details.localAddress) ||
+                    matchesPendingPairingAddress(details.remoteAddress) ||
+                    matchesPendingPairingAddress(details.ipv6Address);
+
+            if (!matchesPendingHost) {
+                continue;
+            }
+
+            if (details.pairState == PairState.PAIRED) {
+                clearPendingPairing();
+                return;
+            }
+
+            String otp = pendingPairingPin;
+            String passphrase = pendingPairingPassphrase;
+            clearPendingPairing();
+            doPair(details, otp, passphrase);
+            return;
+        }
+    }
 
     private final ActivityResultLauncher<ScanOptions> qrScanLauncher = registerForActivityResult(
             new ScanContract(), result -> {
@@ -115,7 +166,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                     managerBinder = localBinder;
 
                     // Start updates
-                    startComputerUpdates();
+                    viewModel.startPolling(localBinder);
 
                     // Force a keypair to be generated early to avoid discovery delays
                     new AndroidCryptoProvider(PcView.this).getClientCertificate();
@@ -129,7 +180,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     };
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
         // Only reinitialize views if completeOnCreate() was called
@@ -145,20 +196,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         refreshProfileButton();
     }
 
-    private final static int PAIR_ID = 2;
-    private final static int UNPAIR_ID = 3;
-    private final static int WOL_ID = 4;
-    private final static int DELETE_ID = 5;
-    private final static int RESUME_ID = 6;
-    private final static int QUIT_ID = 7;
-    private final static int VIEW_DETAILS_ID = 8;
-    private final static int FULL_APP_LIST_ID = 9;
-    private final static int TEST_NETWORK_ID = 10;
-    private final static int GAMESTREAM_EOL_ID = 11;
-    private final static int OPEN_MANAGEMENT_PAGE_ID = 20;
-    private final static int PAIR_ID_OTP = 21;
-    private final static int NOVA_LIBRARY_ID = 22;
-
     private void initializeViews() {
         setContentView(R.layout.activity_pc_view);
 
@@ -166,12 +203,12 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         // Apply edge-to-edge insets to header (null-safe for landscape layouts)
         View header = findViewById(R.id.pcViewHeader);
-        if (header != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+        if (header != null) {
             header.setOnApplyWindowInsetsListener((v, insets) -> {
                 int topInset = 0;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     topInset = insets.getInsets(android.view.WindowInsets.Type.statusBars()).top;
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
                     topInset = insets.getSystemWindowInsetTop();
                 }
                 v.setPadding(v.getPaddingLeft(), topInset + (int) UiHelper.dpToPx(this, 16),
@@ -185,8 +222,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         spaceParticleView = findViewById(R.id.space_particles);
         androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh = findViewById(R.id.swipe_refresh);
         if (swipeRefresh != null) {
-            swipeRefresh.setColorSchemeColors(getColor(R.color.nova_accent));
-            swipeRefresh.setProgressBackgroundColorSchemeColor(getColor(R.color.nova_bg_elevated));
+            swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.nova_accent));
+            swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.nova_bg_elevated));
             swipeRefresh.setOnRefreshListener(() -> {
                 // Restart computer polling to force a fresh discovery
                 stopComputerUpdates(false);
@@ -291,7 +328,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         updateServerFilterTabs();
         syncComputerList();
 
-        getFragmentManager().beginTransaction()
+        getSupportFragmentManager().beginTransaction()
             .replace(R.id.pcFragmentContainer, new AdapterFragment())
             .commitAllowingStateLoss();
 
@@ -379,32 +416,17 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     private void updateServerFilterTabs() {
-        int selectedId;
-        switch (currentServerFilter) {
-            case FILTER_ONLINE:
-                selectedId = R.id.filterOnlineServers;
-                break;
-            case FILTER_STREAMING:
-                selectedId = R.id.filterStreamingServers;
-                break;
-            case FILTER_NEEDS_PAIRING:
-                selectedId = R.id.filterNeedsPairingServers;
-                break;
-            case FILTER_ALL:
-            default:
-                selectedId = R.id.filterAllServers;
-                break;
-        }
+        int selectedId = switch (currentServerFilter) {
+            case FILTER_ONLINE -> R.id.filterOnlineServers;
+            case FILTER_STREAMING -> R.id.filterStreamingServers;
+            case FILTER_NEEDS_PAIRING -> R.id.filterNeedsPairingServers;
+            default -> R.id.filterAllServers;
+        };
 
         com.google.android.material.chip.ChipGroup group = findViewById(R.id.serverFilterTabs);
         if (group != null) {
             group.check(selectedId);
         }
-    }
-
-    private void updateChipSelection(int[] ids, int selectedId) {
-        // Obsolete for PcView, handled by Material Chips XML
-        // Left intact if other activities (like NovaLibraryActivity) still call it
     }
 
     private void setServerFilter(int filter) {
@@ -418,51 +440,57 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     private boolean matchesCurrentFilter(ComputerObject computer) {
-        switch (currentServerFilter) {
-            case FILTER_ONLINE:
-                return computer.details.state == ComputerDetails.State.ONLINE;
-            case FILTER_STREAMING:
-                return computer.details.state == ComputerDetails.State.ONLINE &&
-                        computer.details.runningGameId != 0;
-            case FILTER_NEEDS_PAIRING:
-                return computer.details.state == ComputerDetails.State.ONLINE &&
-                        computer.details.pairState != PairState.PAIRED;
-            case FILTER_ALL:
-            default:
-                return true;
-        }
+        return switch (currentServerFilter) {
+            case FILTER_ONLINE -> computer.details.state != ComputerDetails.State.OFFLINE;
+            case FILTER_STREAMING -> computer.details.runningGameId != 0;
+            case FILTER_NEEDS_PAIRING -> computer.details.pairState != PairState.PAIRED;
+            default -> true;
+        };
     }
 
     private void syncComputerList() {
-        if (pcGridAdapter == null) {
+        if (pcGridAdapter == null || viewModel == null) {
             return;
         }
 
-        java.util.ArrayList<ComputerObject> visibleComputers = new java.util.ArrayList<>();
-        for (ComputerObject computer : computerMap.values()) {
+        List<ComputerObject> allComputers = viewModel.getComputersLiveData().getValue();
+        if (allComputers == null) {
+            return;
+        }
+
+        ArrayList<ComputerObject> visibleComputers = new ArrayList<>();
+        int pairedOnlineCount = 0;
+        ComputerObject singleServer = null;
+
+        for (ComputerObject computer : allComputers) {
             if (matchesCurrentFilter(computer)) {
                 visibleComputers.add(computer);
+                if (computer.details.state != ComputerDetails.State.OFFLINE && computer.details.pairState == PairState.PAIRED) {
+                    pairedOnlineCount++;
+                    singleServer = computer;
+                }
             }
         }
 
-        pcGridAdapter.clear();
-        for (ComputerObject computer : visibleComputers) {
-            pcGridAdapter.addComputer(computer);
-        }
-        pcGridAdapter.notifyDataSetChanged();
-
+        pcGridAdapter.setItems(visibleComputers);
         updateEmptyState();
+
+        if (!autoNavigated && pairedOnlineCount == 1) {
+            autoNavigated = true;
+            doAppList(singleServer.details, false, false);
+        }
     }
 
     private void updateEmptyState() {
-        if (noPcFoundLayout == null) {
+        if (noPcFoundLayout == null || viewModel == null) {
             return;
         }
 
         TextView emptyTitle = findViewById(R.id.pcViewEmptyTitle);
         TextView emptyHint = findViewById(R.id.pcViewEmptyHint);
 
-        if (computerMap.isEmpty()) {
+        List<ComputerObject> computers = viewModel.getComputersLiveData().getValue();
+        if (computers == null || computers.isEmpty()) {
             noPcFoundLayout.setVisibility(View.VISIBLE);
             if (emptyTitle != null) {
                 emptyTitle.setText(runningPolling ? R.string.pcview_empty_title_searching : R.string.pcview_empty_title_no_servers);
@@ -484,33 +512,35 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
 
         switch (currentServerFilter) {
-            case FILTER_ONLINE:
+            case FILTER_ONLINE -> {
                 emptyTitle.setText(R.string.pcview_empty_title_no_online);
                 emptyHint.setText(R.string.pcview_empty_hint_no_online);
-                break;
-            case FILTER_STREAMING:
+            }
+            case FILTER_STREAMING -> {
                 emptyTitle.setText(R.string.pcview_empty_title_no_streaming);
                 emptyHint.setText(R.string.pcview_empty_hint_no_streaming);
-                break;
-            case FILTER_NEEDS_PAIRING:
+            }
+            case FILTER_NEEDS_PAIRING -> {
                 emptyTitle.setText(R.string.pcview_empty_title_no_pairing);
                 emptyHint.setText(R.string.pcview_empty_hint_no_pairing);
-                break;
-            case FILTER_ALL:
-            default:
+            }
+            default -> {
                 emptyTitle.setText(R.string.pcview_empty_title_no_servers);
                 emptyHint.setText(R.string.pcview_empty_hint_no_servers);
-                break;
+            }
         }
     }
 
     private void launchQuickLibrary() {
         java.util.ArrayList<ComputerObject> candidates = new java.util.ArrayList<>();
-        for (ComputerObject candidate : computerMap.values()) {
-            if (candidate.details.state == ComputerDetails.State.ONLINE &&
-                    candidate.details.pairState == PairState.PAIRED &&
-                    candidate.details.activeAddress != null) {
-                candidates.add(candidate);
+        List<ComputerObject> allComputers = viewModel.getComputersLiveData().getValue();
+        if (allComputers != null) {
+            for (ComputerObject candidate : allComputers) {
+                if (candidate.details.state == ComputerDetails.State.ONLINE &&
+                        candidate.details.pairState == PairState.PAIRED &&
+                        candidate.details.activeAddress != null) {
+                    candidates.add(candidate);
+                }
             }
         }
 
@@ -540,8 +570,35 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
     private SpaceParticleView spaceParticleView;
 
+    @NonNull
+    private GLSurfaceView getGlSurfaceView(GlPreferences glPrefs) {
+        GLSurfaceView surfaceView = new GLSurfaceView(this);
+        surfaceView.setRenderer(new GLSurfaceView.Renderer() {
+            @Override
+            public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
+                // Save the GLRenderer string so we don't need to do this next time
+                glPrefs.glRenderer = gl10.glGetString(GL10.GL_RENDERER);
+                glPrefs.savedFingerprint = Build.FINGERPRINT;
+                glPrefs.writePreferences();
+
+                LimeLog.info("Fetched GL Renderer: " + glPrefs.glRenderer);
+
+                runOnUiThread(PcView.this::completeOnCreate);
+            }
+
+            @Override
+            public void onSurfaceChanged(GL10 gl10, int i, int i1) {
+            }
+
+            @Override
+            public void onDrawFrame(GL10 gl10) {
+            }
+        });
+        return surfaceView;
+    }
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
         // Apply Nova theme before inflating views
         com.papi.nova.ui.NovaThemeManager.INSTANCE.applyTheme(this);
         appliedTheme = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTheme(this);
@@ -555,33 +612,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         // a cached result already.
         final GlPreferences glPrefs = GlPreferences.readPreferences(this);
         if (!glPrefs.savedFingerprint.equals(Build.FINGERPRINT) || glPrefs.glRenderer.isEmpty()) {
-            GLSurfaceView surfaceView = new GLSurfaceView(this);
-            surfaceView.setRenderer(new GLSurfaceView.Renderer() {
-                @Override
-                public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
-                    // Save the GLRenderer string so we don't need to do this next time
-                    glPrefs.glRenderer = gl10.glGetString(GL10.GL_RENDERER);
-                    glPrefs.savedFingerprint = Build.FINGERPRINT;
-                    glPrefs.writePreferences();
-
-                    LimeLog.info("Fetched GL Renderer: " + glPrefs.glRenderer);
-
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            completeOnCreate();
-                        }
-                    });
-                }
-
-                @Override
-                public void onSurfaceChanged(GL10 gl10, int i, int i1) {
-                }
-
-                @Override
-                public void onDrawFrame(GL10 gl10) {
-                }
-            });
+            GLSurfaceView surfaceView = getGlSurfaceView(glPrefs);
             setContentView(surfaceView);
         }
         else {
@@ -599,8 +630,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         if (hostname != null && pendingPairingPin != null && pendingPairingPassphrase != null) {
             pendingPairingAddress = new ComputerDetails.AddressTuple(hostname, port);
         } else {
-            pendingPairingPin = null;
-            pendingPairingPassphrase = null;
+            clearPendingPairing();
         }
     }
 
@@ -622,6 +652,18 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         pcGridAdapter = new PcGridAdapter(this, PreferenceConfiguration.readPreferences(this));
 
+        viewModel = new ViewModelProvider(this).get(PcViewModel.class);
+        viewModel.getComputersLiveData().observe(this, newList -> {
+            if (!freezeUpdates) {
+                pcGridAdapter.setItems(newList);
+                updateEmptyState();
+                maybeRunPendingQrPairing(newList);
+
+                // Auto-navigate logic
+                checkAutoNavigation(newList);
+            }
+        });
+
         initializeViews();
     }
 
@@ -630,40 +672,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         // and our activity is in the foreground.
         if (managerBinder != null && !runningPolling && inForeground) {
             freezeUpdates = false;
-            managerBinder.startPolling(new ComputerManagerListener() {
-                @Override
-                public void notifyComputerUpdated(final ComputerDetails details) {
-                    if (!freezeUpdates) {
-                        PcView.this.runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                updateComputer(details);
-                            }
-                        });
+            viewModel.startPolling(managerBinder);
 
-                        // Add a launcher shortcut for this PC (off the main thread to prevent ANRs)
-                        if (details.pairState == PairState.PAIRED) {
-                            shortcutHelper.createAppViewShortcutForOnlineHost(details);
-//                        } else
-                        }
-                            if (pendingPairingAddress != null) {
-                            if (
-                                details.state == ComputerDetails.State.ONLINE &&
-                                details.activeAddress.equals(pendingPairingAddress)
-                            ) {
-                                PcView.this.runOnUiThread(() -> {
-                                    doPair(details, pendingPairingPin, pendingPairingPassphrase);
-                                    pendingPairingAddress = null;
-                                    pendingPairingPin = null;
-                                    pendingPairingPassphrase = null;
-                                });
-                            }
-                        }
-                    }
-                }
-            });
             runningPolling = true;
-            PcView.this.runOnUiThread(this::updateEmptyState);
+            updateEmptyState();
         }
     }
 
@@ -674,8 +686,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             }
 
             freezeUpdates = true;
-
-            managerBinder.stopPolling();
+            viewModel.stopPolling(managerBinder);
 
             if (wait) {
                 managerBinder.waitForPollingStopped();
@@ -719,9 +730,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         String currentTheme = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTheme(this);
         if (appliedTheme != null && !appliedTheme.equals(currentTheme)) {
             appliedTheme = currentTheme;
-            android.content.Intent intent = getIntent();
-            finish();
-            startActivity(intent);
+            recreate();
             return;
         }
 
@@ -763,13 +772,12 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         android.widget.TextView titleView = sheet.findViewById(R.id.sheet_app_name);
         if (titleView != null) {
-            String status;
-            switch (computer.details.state) {
-                case ONLINE: status = getString(R.string.pcview_menu_header_online); break;
-                case OFFLINE: status = getString(R.string.pcview_menu_header_offline); break;
-                default: status = getString(R.string.pcview_menu_header_unknown); break;
-            }
-            titleView.setText(computer.details.name + " \u00b7 " + status);
+            String status = switch (computer.details.state) {
+                case ONLINE -> getString(R.string.pcview_menu_header_online);
+                case OFFLINE -> getString(R.string.pcview_menu_header_offline);
+                default -> getString(R.string.pcview_menu_header_unknown);
+            };
+            titleView.setText(getString(R.string.pcview_menu_header_format, computer.details.name, status));
         }
 
         android.widget.LinearLayout actions = sheet.findViewById(R.id.sheet_actions);
@@ -783,24 +791,18 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             });
         }
         else if (computer.details.pairState != PairState.PAIRED) {
-            // TOFU: auto-pair via trusted subnet — doPair(null,null) triggers TOFU detection
-            addPcSheetAction(actions, "Pair (Auto / TOFU)", () -> {
+            // "Pair PC" attempts TOFU first if supported, then falls back to PIN pairing
+            addPcSheetAction(actions, getString(R.string.pcview_menu_pair_pc), () -> {
                 sheet.dismiss();
-                com.papi.nova.ui.NovaSnackbar.INSTANCE.show(this,
-                        "Attempting auto-pair via trusted subnet\u2026");
                 doPair(computer.details, null, null);
             });
             addPcSheetAction(actions, getString(R.string.pcview_menu_pair_pc_otp), () -> {
                 sheet.dismiss();
                 doOTPPair(computer.details);
             });
-            addPcSheetAction(actions, "Pair via QR Code", () -> {
+            addPcSheetAction(actions, getString(R.string.pcview_menu_scan_qr), () -> {
                 sheet.dismiss();
                 launchQrScanner();
-            });
-            addPcSheetAction(actions, getString(R.string.pcview_menu_pair_pc), () -> {
-                sheet.dismiss();
-                doPair(computer.details, null, null);
             });
             if (!computer.details.nvidiaServer) {
                 addPcSheetAction(actions, getString(R.string.pcview_menu_open_management_page), () -> {
@@ -826,9 +828,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                     sheet.dismiss();
                     NvApp runningApp = new NvApp();
                     runningApp.setAppId(computer.details.runningGameId);
-                    UiHelper.displayQuitConfirmationDialog(this, () -> {
-                        ServerHelper.doQuit(this, computer.details, runningApp, managerBinder, null);
-                    }, null);
+                    UiHelper.displayQuitConfirmationDialog(this, () -> ServerHelper.doQuit(this, computer.details, runningApp, managerBinder, null), null);
                 });
             }
             addPcSheetAction(actions, getString(R.string.pcview_menu_app_list), () -> {
@@ -865,7 +865,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         android.widget.TextView deleteItem = new android.widget.TextView(this);
         deleteItem.setText(getString(R.string.pcview_menu_delete_pc));
         deleteItem.setTextSize(15);
-        deleteItem.setTextColor(getColor(R.color.nova_error));
+        deleteItem.setTextColor(ContextCompat.getColor(this, R.color.nova_error));
         int pad = (int) UiHelper.dpToPx(this, 24);
         int padV = (int) UiHelper.dpToPx(this, 14);
         deleteItem.setPadding(pad, padV, pad, padV);
@@ -874,9 +874,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         deleteItem.setBackgroundResource(outValue.resourceId);
         deleteItem.setOnClickListener(v -> {
             sheet.dismiss();
-            UiHelper.displayDeletePcConfirmationDialog(this, computer.details, () -> {
-                removeComputer(computer.details);
-            }, null);
+            UiHelper.displayDeletePcConfirmationDialog(this, computer.details, () -> removeComputer(computer.details), null);
         });
         actions.addView(deleteItem);
 
@@ -887,7 +885,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         android.widget.TextView item = new android.widget.TextView(this);
         item.setText(label);
         item.setTextSize(15);
-        item.setTextColor(getColor(R.color.nova_text_primary));
+        item.setTextColor(ContextCompat.getColor(this, R.color.nova_text_primary));
         int pad = (int) UiHelper.dpToPx(this, 24);
         int padV = (int) UiHelper.dpToPx(this, 14);
         item.setPadding(pad, padV, pad, padV);
@@ -962,9 +960,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
 
         com.papi.nova.ui.NovaSnackbar.INSTANCE.show(PcView.this, getResources().getString(R.string.pairing));
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
+        new Thread(() -> {
                 NvHTTP httpConn;
                 String message;
                 boolean success = false;
@@ -1013,7 +1009,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                             } else {
                                 LimeLog.info("TOFU: Server does not advertise TofuEnabled — rebuild Polaris to enable");
                                 runOnUiThread(() -> com.papi.nova.ui.NovaSnackbar.INSTANCE.showError(
-                                        PcView.this, "Server doesn\u2019t support TOFU — update Polaris or use OTP/PIN"));
+                                        PcView.this, "Server doesn’t support TOFU — update Polaris or use OTP/PIN"));
                             }
                         }
 
@@ -1070,7 +1066,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 } catch (FileNotFoundException e) {
                     message = getResources().getString(R.string.error_404);
                 } catch (XmlPullParserException | IOException e) {
-                    e.printStackTrace();
+                    LimeLog.warning(e.toString());
                     message = e.getMessage();
                 }
 
@@ -1078,24 +1074,20 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
                 final String toastMessage = message;
                 final boolean toastSuccess = success;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (toastMessage != null) {
-                            Toast.makeText(PcView.this, toastMessage, Toast.LENGTH_LONG).show();
-                        }
+                runOnUiThread(() -> {
+                    if (toastMessage != null) {
+                        Toast.makeText(PcView.this, toastMessage, Toast.LENGTH_LONG).show();
+                    }
 
-                        if (toastSuccess) {
-                            // Open the app list after a successful pairing attempt
-                            doAppList(computer, true, false);
-                        }
-                        else {
-                            // Start polling again if we're still in the foreground
-                            startComputerUpdates();
-                        }
+                    if (toastSuccess) {
+                        // Open the app list after a successful pairing attempt
+                        doAppList(computer, true, false);
+                    }
+                    else {
+                        // Start polling again if we're still in the foreground
+                        startComputerUpdates();
                     }
                 });
-            }
         }).start();
     }
 
@@ -1155,9 +1147,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             return;
         }
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
+        new Thread(() -> {
                 String message;
                 try {
                     WakeOnLanSender.sendWolPacket(computer);
@@ -1168,61 +1158,9 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
                 final String snackMessage = message;
                 runOnUiThread(() -> com.papi.nova.ui.NovaSnackbar.INSTANCE.show(PcView.this, snackMessage));
-            }
         }).start();
     }
 
-    private void doUnpair(final ComputerDetails computer) {
-        if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
-            Toast.makeText(PcView.this, getResources().getString(R.string.error_pc_offline), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (managerBinder == null) {
-            Toast.makeText(PcView.this, getResources().getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        Toast.makeText(PcView.this, getResources().getString(R.string.unpairing), Toast.LENGTH_SHORT).show();
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                NvHTTP httpConn;
-                String message;
-                try {
-                    httpConn = new NvHTTP(ServerHelper.getCurrentAddressFromComputer(computer),
-                            computer.httpsPort, managerBinder.getUniqueId(), computer.serverCert,
-                            PlatformBinding.getCryptoProvider(PcView.this));
-                    if (httpConn.getPairState() == PairState.PAIRED) {
-                        httpConn.unpair();
-                        if (httpConn.getPairState() == PairState.NOT_PAIRED) {
-                            message = getResources().getString(R.string.unpair_success);
-                        }
-                        else {
-                            message = getResources().getString(R.string.unpair_fail);
-                        }
-                    }
-                    else {
-                        message = getResources().getString(R.string.unpair_error);
-                    }
-                } catch (UnknownHostException e) {
-                    message = getResources().getString(R.string.error_unknown_host);
-                } catch (FileNotFoundException e) {
-                    message = getResources().getString(R.string.error_404);
-                } catch (XmlPullParserException | IOException e) {
-                    message = e.getMessage();
-                    e.printStackTrace();
-                }
-
-                final String toastMessage = message;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(PcView.this, toastMessage, Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-        }).start();
-    }
 
     private void doAppList(ComputerDetails computer, boolean newlyPaired, boolean showHiddenGames) {
         if (computer.state == ComputerDetails.State.OFFLINE) {
@@ -1252,6 +1190,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         Intent i = new Intent(this, com.papi.nova.ui.NovaLibraryActivity.class);
         i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_HOST, computer.activeAddress.address);
         i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_SERVER_NAME, computer.name);
+        i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_HTTPS_PORT, computer.httpsPort);
         startActivity(i);
     }
 
@@ -1268,49 +1207,31 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 .remove(details.uuid)
                 .apply();
 
-        ComputerObject computer = computerMap.remove(details.uuid);
-        if (computer != null) {
-            shortcutHelper.disableComputerShortcut(details,
-                    getResources().getString(R.string.scut_deleted_pc));
-
-            syncComputerList();
-        }
-    }
-
-    // UUID-keyed map for O(1) computer lookups (mirrors adapter list)
-    private final java.util.HashMap<String, ComputerObject> computerMap = new java.util.HashMap<>();
-
-    private void updateComputer(ComputerDetails details) {
-        ComputerObject existingEntry = computerMap.get(details.uuid);
-
-        if (existingEntry != null) {
-            // Replace the information in the existing entry
-            existingEntry.details = details;
-        }
-        else {
-            // Add a new entry
-            computerMap.put(details.uuid, new ComputerObject(details));
-        }
+        shortcutHelper.disableComputerShortcut(details,
+                getResources().getString(R.string.scut_deleted_pc));
 
         syncComputerList();
+    }
 
-        // Auto-navigate: if exactly 1 paired online server, go straight to app list
+    // Obsolete UUID-keyed map removed (now managed by ViewModel)
+    // private final java.util.HashMap<String, ComputerObject> computerMap = ...;
+
+    private void checkAutoNavigation(List<ComputerObject> computers) {
         boolean autoConnectEnabled = androidx.preference.PreferenceManager
                 .getDefaultSharedPreferences(this).getBoolean("nova_auto_connect", true);
         if (autoConnectEnabled && !autoNavigated && pendingPairingAddress == null) {
             int pairedOnlineCount = 0;
             ComputerObject singleServer = null;
-            for (ComputerObject c : computerMap.values()) {
+            for (ComputerObject c : computers) {
                 if (c.details.state == ComputerDetails.State.ONLINE &&
                     c.details.pairState == PairState.PAIRED) {
                     pairedOnlineCount++;
                     singleServer = c;
                 }
             }
-            if (pairedOnlineCount == 1 && singleServer != null) {
+            if (pairedOnlineCount == 1) {
                 autoNavigated = true;
                 final ComputerObject target = singleServer;
-                // Brief delay so the UI renders before navigating
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                     if (inForeground && !isFinishing()) {
                         doAppList(target.details, false, false);
@@ -1327,8 +1248,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
     @Override
     public void receiveAbsListView(View gridView) {
-        if (gridView instanceof androidx.recyclerview.widget.RecyclerView) {
-            androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) gridView;
+        if (gridView instanceof androidx.recyclerview.widget.RecyclerView rv) {
             rv.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 1));
             rv.setAdapter(pcGridAdapter);
             pcGridAdapter.setOnItemClickListener(computer -> {
@@ -1348,31 +1268,11 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 
                 @Override
                 public void onLongItemClick(View view, int position) {
-                    ComputerObject computer = (ComputerObject) pcGridAdapter.getItem(position);
+                    ComputerObject computer = pcGridAdapter.getItem(position);
                     showServerBottomSheet(computer);
                 }
             }));
             UiHelper.applyStatusBarPadding(rv);
-        }
-    }
-
-    public static class ComputerObject {
-        public ComputerDetails details;
-
-        public ComputerObject(ComputerDetails details) {
-            if (details == null) {
-                throw new IllegalArgumentException("details must not be null");
-            }
-            this.details = details;
-        }
-
-        @Override
-        public String toString() {
-            return details.name;
-        }
-        public String guessManagementUrl() {
-            if (details.activeAddress == null) return null;
-            return "https://" + details.activeAddress.address + ":" + (details.guessExternalPort() + 1);
         }
     }
 }

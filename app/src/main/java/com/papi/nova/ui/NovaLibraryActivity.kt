@@ -10,8 +10,10 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
@@ -29,6 +31,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     private lateinit var adapter: NovaGameAdapter
     private lateinit var searchBar: EditText
     private lateinit var gameGrid: RecyclerView
+    private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var emptyText: View
     private lateinit var emptyTitle: TextView
     private lateinit var emptyHint: TextView
@@ -40,6 +43,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_HOST = "host"
         const val EXTRA_SERVER_NAME = "server_name"
+        const val EXTRA_HTTPS_PORT = "https_port"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,14 +56,16 @@ class NovaLibraryActivity : AppCompatActivity() {
             return
         }
         val serverName = intent.getStringExtra(EXTRA_SERVER_NAME)
+        val httpsPort = intent.getIntExtra(EXTRA_HTTPS_PORT, 47984)
 
-        apiClient = PolarisApiClient(this, host)
+        apiClient = PolarisApiClient(this, host, httpsPort)
 
         // Enable dense particles (nebulae + shooting stars) for library
         findViewById<SpaceParticleView>(R.id.space_particles_dense)?.dense = true
 
         searchBar = findViewById(R.id.nova_search)
         gameGrid = findViewById(R.id.nova_game_grid)
+        swipeRefresh = findViewById(R.id.nova_swipe_refresh)
         emptyText = findViewById(R.id.nova_empty_text)
         emptyTitle = findViewById(R.id.nova_empty_title)
         emptyHint = findViewById(R.id.nova_empty_hint)
@@ -79,6 +85,13 @@ class NovaLibraryActivity : AppCompatActivity() {
             onGameLongClick = { game -> showGameDetail(game) }
         )
         gameGrid.adapter = adapter
+
+        // Swipe to refresh
+        swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.nova_accent))
+        swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.nova_bg_elevated))
+        swipeRefresh.setOnRefreshListener {
+            loadGames()
+        }
 
         // Search
         searchBar.addTextChangedListener(object : TextWatcher {
@@ -118,18 +131,19 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     private fun loadGames() {
+        swipeRefresh.isRefreshing = true
         Thread {
-            allGames = apiClient.getGames(limit = 100)
+            val games = apiClient.getGames(limit = 100)
             runOnUiThread {
+                allGames = games
                 if (allGames.isEmpty()) {
                     updateEmptyState("")
                     emptyText.visibility = View.VISIBLE
-                    gameGrid.visibility = View.GONE
                 } else {
                     emptyText.visibility = View.GONE
-                    gameGrid.visibility = View.VISIBLE
-                    adapter.updateGames(allGames)
+                    filterGames(searchBar.text.toString())
                 }
+                swipeRefresh.isRefreshing = false
                 LimeLog.info("Nova: Loaded ${allGames.size} games")
             }
         }.start()
@@ -158,7 +172,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         adapter.updateGames(filtered)
         updateEmptyState(search)
         emptyText.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
-        gameGrid.visibility = if (filtered.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun updateEmptyState(search: String) {

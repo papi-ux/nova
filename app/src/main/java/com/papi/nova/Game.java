@@ -594,7 +594,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         // Nova: probe Polaris capabilities and set up resilience + overlays
-        novaApiClient = new com.papi.nova.api.PolarisApiClient(this, host);
+        novaApiClient = new com.papi.nova.api.PolarisApiClient(this, host, httpsPort);
         com.papi.nova.manager.FeatureFlagManager.INSTANCE.probe(novaApiClient);
         novaProgressOverlay = new com.papi.nova.ui.SessionProgressOverlay(this);
         novaReconnectOverlay = new com.papi.nova.ui.ReconnectOverlay(this);
@@ -3519,7 +3519,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 new Thread(() -> {
                     try {
                         com.papi.nova.api.PolarisApiClient client =
-                            new com.papi.nova.api.PolarisApiClient(Game.this, reportHost);
+                            new com.papi.nova.api.PolarisApiClient(Game.this, reportHost, httpsPort);
                         client.sendSessionReport(
                             reportDevice, reportGame,
                             ((Number) summary.getOrDefault("avg_fps", 0.0)).doubleValue(),
@@ -3793,7 +3793,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         new Thread(() -> {
                             try {
                                 com.papi.nova.api.PolarisApiClient client =
-                                    new com.papi.nova.api.PolarisApiClient(Game.this, streamHost);
+                                    new com.papi.nova.api.PolarisApiClient(Game.this, streamHost, httpsPort);
                                 client.setBitrate(newBitrate);
                                 com.papi.nova.LimeLog.info("Nova: Proactive bitrate adjust → " + newBitrate + " kbps");
                             } catch (Exception e) {

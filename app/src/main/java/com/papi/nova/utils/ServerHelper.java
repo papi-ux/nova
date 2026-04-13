@@ -137,7 +137,6 @@ public class ServerHelper {
         return gameIntent;
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.O)
     public static void doStart(
             Activity parent,
             NvApp app,
