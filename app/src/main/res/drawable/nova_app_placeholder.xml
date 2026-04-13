@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="266dp"
+    android:viewportWidth="200"
+    android:viewportHeight="266">
+
+    <!-- Dark card background -->
+    <path
+        android:fillColor="#232340"
+        android:pathData="M0,0h200v266H0z" />
+
+    <!-- Subtle star (centered) -->
+    <group
+        android:translateX="65"
+        android:translateY="85">
+        <path
+            android:fillColor="#2a2a50"
+            android:pathData="M35,5 Q37,30 60,35 Q37,40 35,65 Q33,40 10,35 Q33,30 35,5 Z" />
+    </group>
+
+    <!-- "No Art" text -->
+    <group
+        android:translateX="55"
+        android:translateY="175">
+        <path
+            android:fillColor="#4c5265"
+            android:pathData="M0,0 A45,12 0 1,1 90,0 A45,12 0 1,1 0,0 Z" />
+    </group>
+</vector>

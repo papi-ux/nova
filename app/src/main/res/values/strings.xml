@@ -1,0 +1,775 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shortcut strings -->
+    <string name="scut_deleted_pc">PC deleted</string>
+    <string name="scut_not_paired">PC not paired</string>
+    <string name="scut_pc_not_found">PC not found</string>
+    <string name="scut_invalid_uuid">Provided PC is not valid</string>
+    <string name="scut_invalid_app_id">Provided App is not valid</string>
+
+    <string name="menu_button">Menu</string>
+    <string name="quick_menu_title">Quick Menu</string>
+    <string name="configuration_mode_move_buttons">Move buttons mode</string>
+    <string name="configuration_mode_resize_buttons">Resize buttons mode</string>
+    <string name="configuration_mode_disable_enable_buttons">Enable/Disable buttons mode</string>
+    <string name="configuration_mode_exiting">Exiting configuration mode</string>
+    <string name="help_loading_title">Help Viewer</string>
+    <string name="help_loading_msg">Loading help page…</string>
+
+    <!-- Alignments -->
+    <string name="align_left">Align Left</string>
+    <string name="align_center">Align Center</string>
+    <string name="align_right">Align Right</string>
+
+    <!-- PC view menu entries -->
+    <string name="pcview_menu_header_online">Online</string>
+    <string name="pcview_menu_header_offline">Offline</string>
+    <string name="pcview_menu_header_unknown">Refreshing</string>
+    <string name="pcview_menu_header_format">%1$s · %2$s</string>
+    <string name="pcview_menu_app_list">Browse This Server</string>
+    <string name="pcview_menu_nova_library">Open Nova Library</string>
+    <string name="pcview_menu_pair_pc">Legacy Pair</string>
+    <string name="pcview_menu_pair_pc_otp">OTP Pair</string>
+    <string name="pcview_menu_scan_qr">Scan QR to Pair</string>
+    <string name="nova_theme_cycle">Cycle theme</string>
+    <string name="nova_theme_switched_to">Theme: %1$s</string>
+    <string name="nova_theme_polaris_label">Polaris</string>
+    <string name="nova_theme_oled_label">OLED</string>
+    <string name="nova_theme_material_you_label">Material You</string>
+    <string name="pcview_quick_library">Open Nova Library</string>
+    <string name="pcview_home_subtitle">Fast paths for servers, apps, and streaming</string>
+    <string name="pcview_mode_servers">Servers</string>
+    <string name="pcview_mode_library">Library</string>
+    <string name="pcview_quick_add_server">Add Server</string>
+    <string name="pcview_quick_scan_pair">Scan Pair</string>
+    <string name="pcview_quick_theme">Theme</string>
+    <string name="pcview_quick_settings">Settings</string>
+    <string name="pcview_filter_all">All</string>
+    <string name="pcview_filter_online">Online</string>
+    <string name="pcview_filter_streaming">Streaming</string>
+    <string name="pcview_filter_needs_pairing">Needs Pairing</string>
+    <string name="pcview_empty_title_searching">Looking for servers</string>
+    <string name="pcview_empty_hint_searching">Add one manually, scan a pairing code, or keep discovery running.</string>
+    <string name="pcview_empty_title_no_servers">No servers yet</string>
+    <string name="pcview_empty_hint_no_servers">Add a server manually or scan a pairing code to get started.</string>
+    <string name="pcview_empty_title_no_online">No online servers</string>
+    <string name="pcview_empty_hint_no_online">Wake a server or clear the filter to see everything.</string>
+    <string name="pcview_empty_title_no_streaming">Nothing is streaming</string>
+    <string name="pcview_empty_hint_no_streaming">Start a session from a server to see it here.</string>
+    <string name="pcview_empty_title_no_pairing">Nothing needs pairing</string>
+    <string name="pcview_empty_hint_no_pairing">All discovered servers are already paired or offline.</string>
+    <string name="pcview_card_action_open_apps">Open Apps</string>
+    <string name="pcview_card_action_resume">Resume</string>
+    <string name="pcview_card_action_pair">Pair</string>
+    <string name="pcview_card_action_wake">Wake</string>
+    <string name="pcview_card_action_refreshing">Refreshing</string>
+    <string name="pcview_library_choose_server">Choose a server for Nova Library</string>
+    <string name="pcview_library_no_server">No paired online server available for Nova Library</string>
+    <string name="pcview_menu_unpair_pc">Unpair</string>
+    <string name="pcview_menu_send_wol">Send Wake-On-LAN request</string>
+    <string name="pcview_menu_delete_pc">Delete PC</string>
+    <string name="pcview_menu_test_network">Test Network Connection</string>
+    <string name="pcview_menu_details">View Details</string>
+    <string name="pcview_menu_eol">NVIDIA GameStream End-of-Service</string>
+    <string name="pcview_menu_open_management_page">Go to Server Config</string>
+    <string name="pcview_error_no_management_url">Cannot open server config page, cannot find server address.</string>
+    <string name="nova_library_title">Nova Library</string>
+    <string name="nova_library_server_context">Connected to %1$s</string>
+    <string name="nova_library_server_context_fallback">Choose from your Polaris library</string>
+    <string name="nova_library_search_hint">Search Nova Library</string>
+    <string name="nova_library_empty_title_default">No games found</string>
+    <string name="nova_library_empty_hint_default">Import games in Polaris, then refresh this library.</string>
+    <string name="nova_library_empty_title_recent">No recent games</string>
+    <string name="nova_library_empty_hint_recent">Launch something once and it will appear here.</string>
+    <string name="nova_library_empty_title_filtered">No matches</string>
+    <string name="nova_library_empty_hint_filtered">Try a different filter or search term.</string>
+
+    <!-- Actions -->
+    <string name="nova_retry">Retry</string>
+    <string name="nova_refresh">Refresh</string>
+
+    <!-- Accessibility -->
+    <string name="nova_a11y_game_cover">Game cover art</string>
+    <string name="nova_a11y_server_icon">Server icon</string>
+    <string name="nova_a11y_server_status">Server connection status</string>
+
+    <!-- Network test strings -->
+    <string name="nettest_title_waiting">Testing Network Connection</string>
+    <string name="nettest_text_waiting">Nova is testing your network connection to determine if any required ports are blocked.\n\nThis may take a few seconds…</string>
+    <string name="nettest_title_done">Network Test Complete</string>
+    <string name="nettest_text_success">Your network does not appear to be blocking Nova. If you still have trouble connecting, check your PC\'s firewall settings.\n\nIf you are trying to stream over the Internet, install the Nova Internet Hosting Tool on your PC and run the included Internet Streaming Tester to check your PC\'s Internet connection.</string>
+    <string name="nettest_text_inconclusive">The network test could not be performed because none of Nova\'s connection testing servers were reachable. Check your Internet connection or try again later.</string>
+    <string name="nettest_text_failure">Your device\'s current network connection seems to be blocking Nova. Streaming over the Internet may not work while connected to this network.\n\nThe following network ports were blocked:\n</string>
+    <string name="nettest_text_blocked">Your device\'s current network connection is blocking Nova. Streaming over the Internet may not work while connected to this network.</string>
+
+    <!-- Pair messages -->
+    <string name="pairing">Pairing…</string>
+    <string name="pair_pc_confirm_title">Pair PC</string>
+    <string name="pair_pc_confirm_message">Do you really want to pair with %s? Please do not pair with any unfamiliar computers.</string>
+    <string name="pair_pc_offline">Computer is offline</string>
+    <string name="pair_pc_ingame">Computer is currently in a game. You must close the game before pairing.</string>
+    <string name="pair_pairing_title">Pairing</string>
+    <string name="pair_pairing_msg">Please enter the following PIN on the target PC:</string>
+    <string name="pair_pairing_help">If your host PC is running Sunshine, navigate to the Sunshine web UI to enter the PIN.</string>
+    <string name="pair_otp_pairing_msg">Pairing, please wait…</string>
+    <string name="pair_otp_pairing_help">OTP pairing is only available with Apollo, enter the PIN you just provided on the web UI manually if you\'re using other host software.</string>
+    <string name="pair_incorrect_pin">Incorrect PIN or Passphrase</string>
+    <string name="pair_fail">Pairing failed</string>
+    <string name="pair_already_in_progress">Pairing already in progress</string>
+    <string name="pair_passphrase_hint">Passphrase</string>
+    <string name="pair_pin_length_msg">Pin must be 4 digits long</string>
+    <string name="pair_passphrase_length_msg">Passphrase must be at least 4 characters long</string>
+
+    <!-- WOL messages -->
+    <string name="wol_pc_online">Computer is online</string>
+    <string name="wol_no_mac">Unable to wake PC because there is no stored MAC address</string>
+    <string name="wol_waking_pc">Waking PC…</string>
+    <string name="wol_waking_msg">It may take a few seconds for your PC to wake up.
+	    If it doesn\'t, make sure it\'s configured properly for Wake-On-LAN.
+    </string>
+    <string name="wol_fail">Failed to send Wake-On-LAN packets</string>
+
+    <!-- Unpair messages -->
+    <string name="unpairing">Unpairing…</string>
+    <string name="unpair_success">Unpaired successfully</string>
+    <string name="unpair_fail">Failed to unpair</string>
+    <string name="unpair_error">Device was not paired</string>
+
+    <!-- Errors -->
+    <string name="error_pc_offline">Computer is offline</string>
+    <string name="error_manager_not_running">The ComputerManager service is not running. Please wait a few seconds or restart the app.</string>
+    <string name="error_unknown_host">Failed to resolve host</string>
+    <string name="error_404">GFE returned an HTTP 404 error. Make sure your PC is running a supported GPU.
+	    Using remote desktop software can also cause this error. Try rebooting your machine or reinstalling GFE.
+    </string>
+    <string name="title_decoding_error">Video Decoder Crashed</string>
+    <string name="message_decoding_error">Nova has crashed due to an incompatibility with this device\'s video decoder. Try adjusting the streaming settings if the crashes continue.</string>
+    <string name="title_decoding_reset">Video Settings Reset</string>
+    <string name="message_decoding_reset">Your device\'s video decoder continues to crash at your selected streaming settings. Your streaming settings have been reset to default.</string>
+    <string name="error_usb_prohibited">USB access is prohibited by your device administrator. Check your Knox or MDM settings.</string>
+    <string name="unable_to_pin_shortcut">Your current launcher does not allow for creating pinned shortcuts.</string>
+    <string name="video_decoder_init_failed">Video decoder failed to initialize. Your device may not support the selected resolution or frame rate.</string>
+    <string name="no_video_received_error">No video received from host.</string>
+    <string name="no_frame_received_error">Your network connection isn\'t performing well. Reduce your video bitrate setting or try a faster connection.</string>
+    <string name="early_termination_error">Something went wrong on your host PC when starting the stream.\n\nMake sure you don\'t have any DRM-protected content open on your host PC. You can also try restarting your host PC.</string>
+    <string name="frame_conversion_error">The host PC reported a fatal video encoding error.\n\nTry disabling HDR mode, changing the streaming resolution, or changing your host PC\'s display resolution.</string>
+    <string name="check_ports_msg">Check your firewall and port forwarding rules for port(s):</string>
+
+    <!-- Start application messages -->
+    <string name="conn_establishing_title">Establishing Connection</string>
+    <string name="conn_establishing_msg">Starting connection</string>
+    <string name="conn_metered">Warning: Your active network connection is metered!</string>
+    <string name="conn_client_latency">Average frame decoding latency:</string>
+    <string name="conn_client_latency_hw">hardware decoder latency:</string>
+    <string name="conn_hardware_latency">Average hardware decoding latency:</string>
+    <string name="conn_starting">Starting</string>
+    <string name="conn_error_title">Connection Error</string>
+    <string name="conn_error_msg">Failed to start</string>
+    <string name="conn_terminated_title">Connection Terminated</string>
+    <string name="conn_terminated_msg">The connection was terminated.</string>
+    <string name="error_code_prefix">Error code:</string>
+
+    <!-- General strings -->
+    <string name="ip_hint">IP address of host PC</string>
+    <string name="searching_pc">Searching for host PCs on your local network…\n\nEnsure Apollo is running on your host PC.</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="lost_connection">Lost connection to PC</string>
+    <string name="title_details">Details</string>
+    <string name="help">Help</string>
+    <string name="delete_pc_msg">Are you sure you want to delete this PC?</string>
+    <string name="slow_connection_msg">Slow connection to PC\nReduce your bitrate</string>
+    <string name="poor_connection_msg">Poor connection to PC</string>
+    <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>
+    <string name="perf_overlay_decoder">Decoder: %1$s</string>
+    <string name="perf_overlay_incomingfps">Incoming frame rate from network: %1$.2f FPS</string>
+    <string name="perf_overlay_renderingfps">Rendering frame rate: %1$.2f FPS</string>
+    <string name="perf_overlay_hostprocessinglatency">Host processing latency min/max/average: %1$.1f/%2$.1f/%3$.1f ms</string>
+    <string name="perf_overlay_netdrops">Frames dropped by your network connection: %1$.2f%%</string>
+    <string name="perf_overlay_netlatency">Average network latency: %1$d ms (variance: %2$d ms)</string>
+    <string name="perf_overlay_dectime">Average decoding time: %1$.2f ms</string>
+    <string name="perf_overlay_drawdelay"> Delay: %1$.2f ms</string>
+
+    <!-- Performance Report Sharing -->
+    <string name="email_prefix_message">
+        Attach this log file to a GitHub issue or another support channel.\n
+        It may include device model, decoder details, streaming settings, and session timing data.\n
+        Review it before sharing if you do not want to disclose that information.\n\n
+        Issue tracker: https://github.com/papi-ux/nova/issues\n\n
+    </string>
+
+    <string name="email_recipient"></string>
+    <string name="email_subject">Nova - Performance Log</string>
+    <string name="email_chooser_title">Share performance log...</string>
+    <string name="toast_no_email_clients">No compatible share apps installed.</string>
+    <string name="toast_no_logs">There is no performance data stored yet.</string>
+
+    <!-- AppList activity -->
+    <string name="applist_connect_msg">Connecting to PC…</string>
+    <string name="applist_menu_resume">Resume Session</string>
+    <string name="applist_menu_start_vdisplay">Start in Virtual Display</string>
+    <string name="applist_menu_start_primarydisplay">Start in Primary Display</string>
+    <string name="applist_menu_quit">Quit Session</string>
+    <string name="applist_menu_quit_and_start">Quit Current Game and Start</string>
+    <string name="applist_menu_quit_and_start_vdisplay">Quit Current Game and Start in Virtual Display</string>
+    <string name="applist_menu_quit_and_start_primarydisplay">Quit Current Game and Start in Primary Display</string>
+    <string name="applist_menu_cancel">Cancel</string>
+    <string name="applist_menu_details">View Details</string>
+    <string name="applist_menu_scut">Create Shortcut</string>
+    <string name="applist_menu_export_launcher">Export Launcher File</string>
+    <string name="applist_menu_tv_channel">Add to Channel</string>
+    <string name="applist_menu_hide_app">Hide App</string>
+    <string name="applist_refresh_title">App List</string>
+    <string name="applist_refresh_msg">Refreshing apps…</string>
+    <string name="applist_refresh_error_title">Error</string>
+    <string name="applist_refresh_error_msg">Failed to get app list</string>
+    <string name="applist_quit_app">Quitting</string>
+    <string name="applist_quit_success">Successfully quit</string>
+    <string name="applist_quit_fail">Failed to quit</string>
+    <string name="applist_quit_confirmation">Are you sure you want to quit the running app? All unsaved data will be lost.</string>
+    <string name="applist_details_id">App ID:</string>
+
+    <!-- Add computer manually activity -->
+    <string name="title_add_pc">Add PC Manually</string>
+    <string name="msg_add_pc">Connecting to the PC…</string>
+    <string name="addpc_fail">Unable to connect to the specified computer. Make sure the required ports are allowed through the firewall.</string>
+    <string name="addpc_success">Successfully added computer</string>
+    <string name="addpc_unknown_host">Unable to resolve PC address. Make sure you didn\'t make a typo in the address.</string>
+    <string name="addpc_enter_ip">You must enter an IP address</string>
+    <string name="addpc_wrong_sitelocal">That address doesn\'t look right. You must use your router\'s public IP address for streaming over the Internet.</string>
+
+    <!-- Preferences -->
+    <string name="category_general_settings">General Settings</string>
+    <string name="category_video_settings">Video Settings</string>
+    <string name="title_resolution_list">Video resolution</string>
+    <string name="summary_resolution_list">Increase to improve image clarity. Decrease for better performance on lower end devices and slower networks.</string>
+    <string name="title_native_res_dialog">Native Resolution Warning</string>
+    <string name="text_native_res_dialog">Native resolution and/or FPS may not be supported by the streaming server. You will probably need to configure a matching custom display mode for the host PC manually.\n\nIf you choose to create a custom resolution in NVIDIA Control Panel to match your screen settings, please ensure you have read and understood NVIDIA\'s warning regarding possible monitor damage, PC instability, and other potential problems.\n\nWe are not responsible for any problems resulting from creating a custom resolution on your PC.\n\nIt may be that your monitor does not support a necessary display configuration. If so, you may try to set up a virtual monitor. Finally, if your device or host PC does not support streaming at a specific resolution or refresh rate, you\'re out of luck unfortunately.</string>
+    <string name="title_fps_list">Video frame rate</string>
+    <string name="summary_fps_list">Increase for a smoother video stream. Decrease for better performance on lower end devices.</string>
+    <string name="title_seekbar_bitrate">Video bitrate</string>
+    <string name="summary_seekbar_bitrate">Increase for better image quality. Decrease to improve performance on slower connections.</string>
+    <string name="title_seekbar_metered_bitrate">Video bitrate on metered networks</string>
+    <string name="summary_seekbar_metered_bitrate">High bitrates consume more data, lower bitrates improve smoothness in metered networks.\nSet 0 for ¼ of the above bitrate settings.</string>
+    <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
+    <string name="title_resolution_scale_factor">Resolution Scale Factor</string>
+    <string name="summary_resolution_scale_factor">Server side requested virtual screen resolution will be multiplied by this factor. Streaming resolution are not affected.\ne.g. 120% will make 2000x1000 become 2400x1200.\nSetting a higher scale factor will improve image quality for some games.\nRequires Apollo to take effect.</string>
+    <string name="resolution_prefix_native">Native</string>
+    <string name="resolution_prefix_native_fullscreen">Native Full-Screen</string>
+    <string name="resolution_prefix_native_landscape">(Landscape)</string>
+    <string name="resolution_prefix_native_portrait">(Portrait)</string>
+    <string name="resolution_prefix_custom">Custom</string>
+    <string name="fps_suffix_fps">FPS</string>
+    <string name="title_native_fps_dialog">Native FPS Warning</string>
+    <string name="title_checkbox_auto_invert_video_resolution">Auto Invert Resolution</string>
+    <string name="summary_checkbox_auto_invert_video_resolution">Automatically invert the width and height of the video stream when in portrait mode.\nFor example: 1920x1080 will become 1080x1920.</string>
+    <string name="title_video_scale_mode">Video Scale Mode</string>
+    <string name="summary_video_scale_mode">Select between Fit, Fill and Stretch</string>
+    <string name="video_scale_mode_fit">Fit</string>
+    <string name="video_scale_mode_fill">Fill</string>
+    <string name="video_scale_mode_stretch">Stretch</string>
+
+    <string name="category_audio_settings">Audio Settings</string>
+    <string name="title_audio_config_list">Surround sound configuration</string>
+    <string name="summary_audio_config_list">Enable 5.1 or 7.1 surround sound for home-theater systems</string>
+    <string name="title_checkbox_enable_audiofx">Enable system equalizer support</string>
+    <string name="summary_checkbox_enable_audiofx">Allows audio effects to function while streaming, but may increase audio latency</string>
+
+    <string name="category_gamepad_settings">Gamepad Settings</string>
+    <string name="title_checkbox_multi_controller">Automatic gamepad presence detection</string>
+    <string name="summary_checkbox_multi_controller">Unchecking this option forces a gamepad to always be present</string>
+    <string name="title_checkbox_vibrate_fallback">Emulate rumble support with vibration</string>
+    <string name="summary_checkbox_vibrate_fallback">Vibrates your device to emulate rumble if your gamepad does not support it</string>
+    <string name="title_seekbar_vibrate_fallback_strength">Adjust emulated rumble intensity</string>
+    <string name="summary_seekbar_vibrate_fallback_strength">Amplify or reduce the vibration intensity on your device</string>
+    <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
+    <string name="title_seekbar_deadzone">Adjust analog stick deadzone</string>
+    <string name="summary_seekbar_deadzone">Positive values set a normal dead zone, negative values apply dead zone compensation. Ensure your controller can adjust dead zones when using dead zone compensation, or centering may be difficult.</string>
+    <string name="suffix_seekbar_deadzone">%</string>
+    <string name="title_checkbox_xb1_driver">Xbox 360/One/NintendoPro USB gamepad driver</string>
+    <string name="summary_checkbox_xb1_driver">Enables a built-in USB driver for devices without native Xbox/Nintendo Pro controller support</string>
+    <string name="title_checkbox_usb_bind_all">Override native Xbox gamepad support</string>
+    <string name="summary_checkbox_usb_bind_all">Use Nova\'s USB driver for all supported gamepads, even if native Xbox/Nintendo Pro controller support is present</string>
+    <string name="title_checkbox_mouse_emulation">Mouse emulation via gamepad</string>
+    <string name="summary_checkbox_mouse_emulation">Long-press the Start button to toggle between gamepad and mouse mode</string>
+    <string name="title_checkbox_remember_mouse_mode">Remember mouse mode</string>
+    <string name="summary_checkbox_remember_mouse_mode">Remember mouse mode selected during stream. When disabled, mouse mode changed during stream will be temporary.</string>
+    <string name="title_checkbox_flip_face_buttons">Flip face buttons</string>
+    <string name="summary_checkbox_flip_face_buttons">Switches the face buttons A/B and X/Y for gamepads and the on-screen controls</string>
+    <string name="title_checkbox_gamepad_touchpad_as_mouse">Always control mouse with touchpad</string>
+    <string name="summary_checkbox_gamepad_touchpad_as_mouse">Forces gamepad touchpad input to control the host mouse, even when emulating a gamepad with a touchpad.</string>
+    <string name="title_checkbox_gamepad_motion_sensors">Allow use of gamepad motion sensors</string>
+    <string name="summary_checkbox_gamepad_motion_sensors">Enables supported hosts to request motion sensor data when emulating a gamepad with motion sensors. Disabling may slightly reduce power and network usage if motion sensors are not being used in game.</string>
+    <string name="title_checkbox_gamepad_motion_fallback">Emulate gamepad motion sensor support</string>
+    <string name="summary_checkbox_gamepad_motion_fallback">Uses your device\'s built-in motion sensors if gamepad sensors are not supported by your connected gamepad or your Android version.\nNote: Enabling this option may cause your gamepad to appear as a PlayStation controller on the host.</string>
+    <string name="title_checkbox_force_device_motion">Always use device\'s motion sensors</string>
+    <string name="summary_checkbox_force_device_motion">Enforce using devices\'s built-in motion sensor even when the controller reported motion sensors are supported.</string>
+    <string name="title_enable_rumble">Enable Rumble</string>
+    <string name="summary_enable_rumble">Enable rumble feedback on supported gamepads.</string>
+    <string name="category_input_settings">Input Settings</string>
+    <string name="title_checkbox_touchscreen_trackpad">Use the touchscreen as a trackpad</string>
+    <string name="summary_checkbox_touchscreen_trackpad">If enabled, the touchscreen acts like a trackpad. If disabled, the touchscreen directly controls the mouse cursor.</string>
+    <string name="title_checkbox_absolute_mouse_mode">Remote desktop mouse mode</string>
+    <string name="summary_checkbox_absolute_mouse_mode">This can make mouse acceleration behave more naturally for remote desktop usage, but it is incompatible with many games.</string>
+    <string name="title_checkbox_mouse_nav_buttons">Enable forward/back mouse buttons</string>
+    <string name="summary_checkbox_mouse_nav_buttons">Enabling this option may break right clicking on some buggy devices</string>
+
+    <string name="category_on_screen_controls_settings">On-screen Controls Settings</string>
+    <string name="title_checkbox_show_onscreen_controls">Show on-screen controls</string>
+    <string name="summary_checkbox_show_onscreen_controls">Show virtual controller overlay on touchscreen</string>
+    <string name="title_hide_osc_when_has_gamepad">Hide OSC when using Controller</string>
+    <string name="summary_hide_osc_when_has_gamepad">Hide OSC when a physical controller is connected</string>
+    <string name="title_checkbox_vibrate_osc">Enable vibration</string>
+    <string name="summary_checkbox_vibrate_osc">Vibrates your device to emulate rumble for the on-screen controls</string>
+    <string name="title_only_l3r3">Only show L3 and R3</string>
+    <string name="summary_only_l3r3">Hide all virtual buttons except L3 and R3</string>
+    <string name="title_show_guide_button">Show Guide Button</string>
+    <string name="summary_show_guide_button">Show the guide button on screen</string>
+    <string name="title_reset_osc">Clear saved on-screen controls layout</string>
+    <string name="summary_reset_osc">Resets all on-screen controls to their default size and position</string>
+    <string name="dialog_title_reset_osc">Reset Layout</string>
+    <string name="dialog_text_reset_osc">Are you sure you want to delete your saved on-screen controls layout?</string>
+    <string name="toast_reset_osc_success">On-screen controls reset to default</string>
+    <string name="title_osc_opacity">Change opacity of on-screen controls</string>
+    <string name="summary_osc_opacity">Make the on-screen controls more/less transparent</string>
+    <string name="dialog_title_osc_opacity">Change opacity</string>
+    <string name="suffix_osc_opacity">%</string>
+
+    <string name="category_ui_settings">UI Settings</string>
+    <string name="title_checkbox_enable_pip">Enable Picture-in-Picture observer mode</string>
+    <string name="summary_checkbox_enable_pip">Allows the stream to be viewed (but not controlled) while multitasking</string>
+    <string name="title_language_list">Language</string>
+    <string name="summary_language_list">Language to use for Nova</string>
+    <string name="title_checkbox_small_icon_mode">Use small box art</string>
+    <string name="summary_checkbox_small_icon_mode">Smaller box art in the app grid allows more apps to be visible on screen</string>
+
+    <string name="category_host_settings">Host Settings</string>
+    <string name="title_checkbox_enable_sops">Optimize game settings</string>
+    <string name="summary_checkbox_enable_sops">Allow GFE to modify game settings for optimal streaming</string>
+    <string name="title_checkbox_host_audio">Play audio on PC</string>
+    <string name="summary_checkbox_host_audio">Play audio from the computer and this device</string>
+
+    <string name="category_advanced_settings">Advanced Settings</string>
+    <string name="title_unlock_fps">Unlock all possible frame rates</string>
+    <string name="summary_unlock_fps">Streaming at 90 or 120 FPS may reduce latency on high-end devices but can cause lag or instability on devices that can\'t support it</string>
+    <string name="title_checkbox_reduce_refresh_rate">Allow refresh rate reduction</string>
+    <string name="summary_checkbox_reduce_refresh_rate">Lower display refresh rates can save power at the expense of some additional video latency</string>
+    <string name="title_checkbox_disable_warnings">Disable warning messages</string>
+    <string name="summary_checkbox_disable_warnings">Disable on-screen connection warning messages while streaming</string>
+    <string name="title_disable_frame_drop">Never drop frames</string>
+    <string name="summary_disable_frame_drop">May reduce micro-stuttering on some devices, but can increase latency</string>
+    <string name="title_video_format">Change codec settings</string>
+    <string name="summary_video_format">Newer codecs can lower video bandwidth requirements if your device supports them. Codec selections may be ignored if not supported by the host software or GPU.</string>
+    <string name="title_enable_hdr">Enable HDR (Experimental)</string>
+    <string name="summary_enable_hdr">Stream HDR when the game and PC GPU support it. HDR requires a GPU with HEVC Main 10 encoding support.</string>
+    <string name="title_full_range">Force full range video (Experimental)</string>
+    <string name="summary_full_range">This will cause loss of detail in light and dark areas if your device doesn\'t properly display full range video content.</string>
+    <string name="title_prevent_packet_loss">Prevent Packet Loss</string>
+    <string name="summary_prevent_packet_loss">For devices that have packet loss for unknown reasons, you can try to enable this option.</string>
+    <string name="title_enable_perf_overlay">Show performance stats while streaming</string>
+    <string name="summary_enable_perf_overlay">Display real-time stream performance information while streaming</string>
+    <string name="title_enable_post_stream_toast">Show latency message after streaming</string>
+    <string name="summary_enable_post_stream_toast">Display a latency information message after the stream ends</string>
+
+    <string name="category_help">Help</string>
+    <string name="title_setup_guide">Setup guide</string>
+    <string name="summary_setup_guide">View instructions on how to set up your gaming PC for streaming</string>
+    <string name="title_troubleshooting">Troubleshooting guide</string>
+    <string name="summary_troubleshooting">View tips for diagnosing and fixing common streaming issues</string>
+    <string name="title_privacy_policy">Privacy policy</string>
+    <string name="summary_privacy_policy">View Nova\'s privacy policy</string>
+    <string name="title_special_key_help">Custom Keys help</string>
+    <string name="summary_special_key_help">Instructions about how to setup custom special keys</string>
+    <string name="summary_performance_link">See performance of other devices.\nPlease note, these data are managed by the community, it is not managed by Nova and does not represent Nova officially.</string>
+    <string name="title_performance_link">Performance Dashboard</string>
+
+    <!-- Toasts -->
+    <string name="toast_controller_type_changed">Gamepad type may be changed due to motion sensor emulation</string>
+
+    <!-- Array strings -->
+    <string name="resolution_360p">360p</string>
+    <string name="resolution_480p">480p</string>
+    <string name="resolution_720p">720p</string>
+    <string name="resolution_1080p">1080p</string>
+    <string name="resolution_1440p">1440p</string>
+    <string name="resolution_4k">4K</string>
+
+    <string name="fps_30">30 FPS</string>
+    <string name="fps_60">60 FPS</string>
+    <string name="fps_90">90 FPS</string>
+    <string name="fps_120">120 FPS</string>
+
+    <string name="audioconf_stereo">Stereo</string>
+    <string name="audioconf_51surround">5.1 Surround Sound</string>
+    <string name="audioconf_71surround">7.1 Surround Sound</string>
+
+    <string name="videoformat_auto">Automatic (Recommended)</string>
+    <string name="videoformat_av1always">Prefer AV1 (Experimental)</string>
+    <string name="videoformat_hevcalways">Prefer HEVC</string>
+    <string name="videoformat_h264always">Prefer H.264</string>
+
+    <string name="title_frame_pacing">Video frame pacing</string>
+    <string name="summary_frame_pacing">Specify how to balance video latency and smoothness</string>
+    <string name="pacing_warp">Warp Drive (Experimental)</string>
+    <string name="pacing_warp2">Warp 2 (Experimental)</string>
+    <string name="pacing_latency">Prefer lowest latency</string>
+    <string name="pacing_balanced">Balanced</string>
+    <string name="pacing_balanced_alt">Balanced with FPS limit</string>
+    <string name="pacing_smoothness">Prefer smoothest video (may significantly increase latency)</string>
+
+
+    <string name="keyboard_service_label">Nova Physical keyboard</string>
+    <string name="accessibility_description_text">Only used when physical keyboard shortcut were intercepted by system. In some systems, several keyboard shortcut are defind and used by the Android system, causing them not being able to be passed through to the host PC. Nova will not look through your input, nor collecting your password, credit card number or any other private information.</string>
+
+
+    <!-- In Game menu -->
+    <string name="game_menu_toggle_keyboard">Show soft keyboard</string>
+    <string name="game_menu_toggle_hud">Toggle Performance Overlay</string>
+    <string name="game_menu_toggle_floating_button">Toggle Floating Button</string>
+    <string name="game_menu_select_mouse_mode">Select Mouse mode</string>
+    <string name="game_menu_select_steam_mode">Select Stream mode</string>
+    <string name="game_menu_enable_zoom_mode">Enable Pan/Zoom</string>
+    <string name="game_menu_disable_zoom_mode">Disable Pan/Zoom</string>
+    <string name="game_menu_rotate_screen">Rotate Screen</string>
+    <string name="game_menu_toggle_keyboard_model">Toggle Special keys</string>s
+    <string name="game_menu_toggle_virtual_model">Toggle On-screen controller</string>
+    <string name="game_menu_toggle_virtual_keyboard_model">Toggle On-screen full keyboard</string>
+    <string name="game_menu_switch_touch_sensitivity_model">Switch touch sensitivity</string>
+
+
+    <string name="game_menu_toggle_mouse_on">Enable Controller Mouse Emulation</string>
+    <string name="game_menu_toggle_mouse_off">Disable Controller Mouse Emulation</string>
+    <string name="game_menu_disconnect">Disconnect</string>
+    <string name="game_menu_cancel">Cancel</string>
+    <string name="game_menu_task_manager">Open Task Manager</string>
+    <string name="game_menu_send_keys">Send special keys</string>
+    <string name="game_menu_send_keys_esc">ESC</string>
+    <string name="game_menu_send_keys_f11">F11</string>
+    <string name="game_menu_send_keys_alt_f4">Alt + F4</string>
+    <string name="game_menu_send_keys_ctrl_v">Ctrl + V</string>
+    <string name="game_menu_send_keys_win">Win (Meta)</string>
+    <string name="game_menu_send_keys_win_d">Win + D</string>
+    <string name="game_menu_send_keys_alt_b">ALT + B</string>
+    <string name="game_menu_send_keys_win_g">Win + G (Xbox Game Bar)</string>
+    <string name="game_menu_send_keys_ctrl_alt_tab">Ctrl + Alt + Tab</string>
+    <string name="game_menu_send_keys_shift_tab">Shift + Tab (Steam Overlay)</string>
+    <string name="game_menu_send_keys_alt_enter">Alt + Enter</string>
+    <string name="game_menu_send_keys_win_shift_left">Win + shift + left (Move app between Desktops)</string>
+    <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (PC Exit Streaming)</string>
+    <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (Switch Monitor)</string>
+    <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
+
+    <string name="toggle_pan_zoom_mode">Toggle Pan/Zoom Mode</string>
+    <string name="pan_zoom_mode_enabled">Pan/Zoom Mode Enabled</string>
+    <string name="pan_zoom_mode_disabled">Pan/Zoom Mode Disabled</string>
+
+    <string name="title_analog_scrolling">Use an analog stick to scroll</string>
+    <string name="summary_analog_scrolling">Select an analog stick to scroll when in mouse emulation mode</string>
+    <string name="analogscroll_none">None (both sticks move the mouse)</string>
+    <string name="analogscroll_right">Right analog stick</string>
+    <string name="analogscroll_left">Left analog stick</string>
+
+    <string name="perf_overlay_lite_net">%1$dms</string>
+    <string name="perf_overlay_lite_dectime">%1$.2fms</string>
+    <string name="perf_overlay_lite_netdrops">%1$.2f%%</string>
+    <string name="perf_overlay_lite_streamdetails">%1$s</string>
+    <string name="perf_overlay_lite_fps">%1$.2f</string>
+    <string name="perf_overlay_drawn_fps">GpuFPS:</string>
+    <string name="perf_overlay_lite_decoder">Decoder: %1$s</string>
+    <string name="title_import_keyboard_layout">Import keyboard layout</string>
+    <string name="title_export_keyboard_layout">Export keyboard layout</string>
+    <string name="summary_import_keyboard_layout">This will overwrite the current layout.</string>
+    <string name="summary_export_keyboard_layout">Export the current keyboard layout</string>
+    <string name="title_manual_enter_bitrate">Custom bitrate</string>
+    <string name="summary_manual_enter_bitrate">Enter bitrate manually.\nCan exceed the maximum range of the seekbar.</string>
+    <string name="dialog_manual_enter_bitrate">Enter bitrate in Mbps. Round to 0.5.</string>
+    <string name="title_custom_refresh_rate">Custom refresh rate</string>
+    <string name="summary_custom_refresh_rate">Enter refresh rate manually. Only supports Apollo.</string>
+    <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
+    <string name="title_touchscreen_mode">Touchscreen Mode</string>
+    <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
+    <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
+    <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
+    <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>
+    <string name="summary_checkbox_multi_touch_gestures">Enable 3 finger tap for keyboard, 4 finger tap for full keyboard, 5 finger tap for quick menu when using multi-touch mode.</string>
+    <string name="title_checkbox_onscreen_style_official">Official Virtual Gamepad Skin</string>
+    <string name="summary_checkbox_onscreen_style_official">If you still like the old style of official virtual gamepad buttons, you can select this option.\nButton shapes can be square if you selected the bottom virtual button [Normal buttons are square buttons]</string>
+    <string name="title_checkbox_enable_perf_overlay_lite">Enable Lite mode</string>
+    <string name="summary_checkbox_enable_perf_overlay_lite">Display simplified performance information: Network Speed / Latency / Decode / Packet Loss Rate / FPS</string>
+    <string name="title_checkbox_enable_perf_logging">Enable Performance Logging</string>
+    <string name="summary_checkbox_enable_perf_logging">"Stores performance data per configuration. (Offline only) "</string>
+    <string name="title_checkbox_enable_perf_overlay_lite_dialog">Lite mode click to pop up quick options</string>
+    <string name="summary_checkbox_enable_perf_overlay_lite_dialog">Replace the back button logic, pop up the game quick menu.</string>
+    <string name="title_show_overlay_zoom_toggle_button">Show overlay zoom toggle button</string>
+    <string name="summary_show_overlay_zoom_toggle_button">Displays a draggable button at the top of the screen to toggle pan/zoom mode.</string>
+    <string name="title_virtual_trackpad_settings">Virtual Trackpad Settings</string>
+    <string name="title_quit_dialog">Back Menu</string>
+    <string name="summary_quit_dialog">When enabled, clicking the physical back button on the streaming interface will show related options!\nSoft keyboard, performance information, touch mode switching, send special keys</string>
+    <string name="title_floating_button">Floating Button</string>
+    <string name="summary_floating_button">Enable floating button</string>
+    <string name="dialog_custom_resolution">Set the resolution and exit the settings page to take effect!</string>
+    <string name="summary_custom_resolution">Add a custom resolution, separated by x, strange resolutions may not work.\nFor example: 1920x1080\nIf it is a non-native resolution, it may not fill the notch area by default. If the aspect ratio is the same, you can manually set to stretch the screen to fill the full screen</string>
+    <string name="title_custom_resolution">Custom Resolution</string>
+    <string name="title_auto_orientation">Auto Orientation</string>
+    <string name="summary_auto_orientation">The streaming screen will be displayed according to the device\'s orientation when the stream begins.</string>
+    <string name="title_import_special_button">Import Custom Keys</string>
+    <string name="summary_import_special_button">Available in Back Menu and special keys.\nNote: Importing will overwrite current configuration, please backup accordingly.</string>
+    <string name="summary_share_performance_logs">Share your performance logs with a bug report or support thread</string>
+    <string name="title_share_performance_logs_button">Share Performance Logs</string>
+    <string name="title_software_update">Software Update</string>
+    <string name="summary_software_update">Nova — Polaris Streaming Client. Built on Artemis/Moonlight</string>
+    <string name="title_follow_update">Follow Update</string>
+    <string name="summary_follow_update">Get Nova updates via Obtainium</string>
+    <string name="title_special_key_layout">Special Key Layout</string>
+    <string name="title_show_virtual_key">Display virtual keys on screen</string>
+    <string name="summary_show_virtual_key">Display a layer of virtual special keys on the touchscreen.\nKey opacity is shared with the virtual gamepad above.</string>
+    <string name="title_default_layout_scheme">Default layout profile</string>
+    <string name="summary_default_layout_scheme">Each layout profile is initially the same (generated based on the keyboards.json file), you can delete and adjust it yourself</string>
+    <string name="summary_vibrate_keyboard">When you click the screen button, it will trigger the phone motor vibration. This option can also be used for virtual gamepad buttons.</string>
+    <string name="title_square_buttons">Normal buttons are square buttons</string>
+    <string name="summary_square_buttons">Virtual button shapes are square buttons, by default they are round.</string>
+    <string name="title_reset_keyboard_layout">Reset virtual keyboard layout</string>
+    <string name="summary_reset_keyboard_layout">Initialize the special key layout (reset the default selected layout scheme)</string>
+    <string name="title_joyconfix">Compatible with Switch JoyCon</string>
+    <string name="summary_joyconfix">If your JoyCon cannot be used or has key recognition issues, you can try to enable this feature. Adapted for Android 10 and above</string>
+    <string name="title_keyboard_opacity">Virtual Full Keyboard Opacity</string>
+    <string name="title_onscreen_keyboard_autofit">Virtual Full Keyboard Disable Autofit</string>
+    <string name="title_onscreen_keyboard_height">Virtual Full Keyboard Height</string>
+    <string name="title_onscreen_keyboard_width">Virtual Full Keyboard Width</string>
+    <string name="title_onscreen_keyboard_align_mode">Virtual Full Keyboard Align Mode</string>
+    <string name="summary_onscreen_keyboard_height">Adjust the height of the virtual full keyboard</string>
+    <string name="summary_onscreen_keyboard_autofit">Dont adjust the size and position of the keyboard automatically and allows custom size </string>
+    <string name="summary_onscreen_keyboard_width">Adjust the width of the virtual full keyboard</string>
+    <string name="summary_onscreen_keyboard_align_mode">How the virtual full keyboard aligns to the view port</string>
+    <string name="title_free_analog_stick">Free Analog Stick</string>
+    <string name="summary_free_analog_stick">Virtual gamepad left and right stick center point positions are not fixed, can be freely adjusted within a certain range of movement.</string>
+    <string name="summary_free_analog_stick_opacity">By default, only when the stick moves, the background is displayed. If you don\'t like it, you can adjust the opacity effect.</string>
+    <string name="title_free_analog_stick_opacity">Free Analog Stick Background Opacity</string>
+    <string name="title_exdisplay_mode">External Display Mode (Beta)</string>
+    <string name="title_fullexdisplay_mode">Fully External Display Mode (Beta)</string>
+    <string name="summary_exdisplay_mode">Stream display on the monitor, virtual buttons and performance information and other controls on the phone screen.</string>
+    <string name="summary_fullexdisplay_mode">Allows full immersive secondary screen mode with automatically matched refresh rate and resolution. Manual settings won\'t apply in this mode.</string>
+    <string name="title_top_center_display">Display in Top Center</string>
+    <string name="summary_top_center_display">Streaming picture will be aligned to the top of the screen instead of centered when resolution is not native.</string>
+    <string name="title_touch_sensitivity">Touch Screen Sensitivity</string>
+    <string name="summary_touch_sensitivity">When enabled, you can manually adjust the touch sensitivity.</string>
+    <string name="title_global_touch_sensitivity">Touch Screen Sensitivity Global Effect</string>
+    <string name="summary_global_touch_sensitivity">By default not selected, only effective on the right half of the screen (suitable for playing Genshin Impact), selected to be effective within the full screen range.</string>
+    <string name="title_auto_touch_sensitivity">Automatically return to screen center when touch coordinates exceed boundary</string>
+    <string name="summary_auto_touch_sensitivity">Normally high sensitivity, small sliding distance will exceed the boundary, resulting in unable to move, you can select this option.</string>
+    <string name="title_touch_sensitivity_x">Screen Sensitivity Adjustment X Axis</string>
+    <string name="summary_touch_sensitivity_x">Multi-touch mode, when playing games, some games may not meet the sensitivity adjustment needs, you can use this option to modify the sensitivity of the field of view.</string>
+    <string name="title_touch_sensitivity_y">Screen Sensitivity Adjustment Y Axis</string>
+    <string name="summary_touch_sensitivity_y">Multi-touch mode, when playing games, some games may not meet the sensitivity adjustment needs, you can use this option to modify the sensitivity of the field of view.</string>
+    <string name="title_debug_info">Debug Info</string>
+    <string name="summary_debug_info">Test gamepad vibration and other stuff.</string>
+    <string name="title_touchpad_sensitivity_x">Touchpad Sensitivity X Axis</string>
+    <string name="summary_touchpad_sensitivity_x">For mouse touchpad mode and virtual special button touchpad control;\nBoth share a sensitivity value, but the sensitivity performance may be different.\nDoes anyone use both together?</string>
+    <string name="title_touchpad_sensitivity_y">Touchpad Sensitivity Y Axis</string>
+    <string name="summary_touchpad_sensitivity_y">For mouse touchpad mode and virtual special button touchpad control;\nBoth share a sensitivity value, but the sensitivity performance may be different.\nDoes anyone use both together?</string>
+    <string name="title_device_rumble">Force vibration on device</string>
+    <string name="summary_device_rumble">If you are not satisfied with the vibration of the connected gamepad, you can enable this option.\nInvalid for forced use of Nova\'s built-in USB driver</string>
+    <string name="title_clear_default_special_button">Disable default Special Keys</string>
+    <string name="summary_clear_default_special_button">If you feel the built-in commands in the Back Menu are useless, you can disable them and use your imported ones.</string>
+    <string name="title_trackpad_sensitivity_x">Trackpad Sensitivity X</string>
+    <string name="summary_trackpad_sensitivity_x">X axis Sensitivity of the trackpad, negative to invert direction</string>
+    <string name="title_trackpad_sensitivity_y">Trackpad Sensitivity Y</string>
+    <string name="summary_trackpad_sensitivity_y">Y axis Sensitivity of the trackpad, negative to invert direction</string>
+    <string name="title_trackpad_drag_drop_vibration">Enable Vibration for Drag-and-Drop on Trackpad</string>
+    <string name="summary_trackpad_drag_drop_vibration">Enables vibration feedback for drag-and-drop actions on Samsung trackpad devices.</string>
+    <string name="title_trackpad_drag_drop_threshold">Hold Duration for Drag-and-Drop Activation on Trackpad</string>
+    <string name="summary_trackpad_drag_drop_threshold">Set the duration to hold on the trackpad before activating drag-and-drop on Samsung devices.</string>
+    <string name="title_trackpad_swap_axis">Swap X and Y axis of the trackpad input</string>
+    <string name="summary_trackpad_swap_axis">On some devices, trackpad input may be rotated in axis. Enabling this option may help.</string>
+    <string name="title_checkbox_force_qwerty">Force QWERTY layout</string>
+    <string name="summary_checkbox_force_qwerty">Force use QWERTY keyboard layout.\nRequired by GFE.\nTurn off if you want to use a different keyboard layout.</string>
+    <string name="title_checkbox_back_as_meta">Back button as Meta</string>
+    <string name="summary_back_as_meta">Send Meta(Win) key on physical back button press.</string>
+    <string name="title_back_as_guide">Back button as Guide</string>
+    <string name="summary_back_as_guide">Send Guide(PS/HOME) button press when Back button is pressed on controllers.</string>
+    <string name="title_checkbox_ignore_synth_events">Ignore synthetic events</string>
+    <string name="summary_ignore_synth_events">Ignore synthetic events sent by the Android system. This may resolve issues where mouse clicks trigger other unexpected keys on certain devices.\nEnabling this option will cause the system\'s soft keyboard to stop working.</string>
+    <string name="title_smart_clipboard_sync">Smart Clipboard Sync (Experimental)</string>
+    <string name="summary_smart_clipboard_sync">Automatically upload clipboard content to server when the stream starts/resumes, download clipboard from server when losing focus(requires Apollo)</string>
+    <string name="title_smart_clipboard_sync_toast">Clipboard Sync Toast</string>
+    <string name="summary_smart_clipboard_sync_toast">Show toast for clipboard sync result</string>
+    <string name="title_hide_clipboard_content">Hide clipboard content</string>
+    <string name="summary_hide_clipboard_content">Mark remote clipboard as sensitive information</string>
+    <string name="title_settings_misc">MISC</string>
+    <string name="perf_overlay_lite_bandwidth">Bandwidth</string>
+    <string name="perf_overlay_lite_network_decoding_delay">Network/Decoding delay</string>
+    <string name="perf_overlay_lite_packet_loss">Packet loss</string>
+    <string name="wrong_import_format">Wrong import format, please check!</string>
+    <string name="title_checkbox_gamepad_enable_battery_report">Enable battery status report for gamepad</string>
+    <string name="summary_checkbox_gamepad_enable_battery_report">Report gamepad battery status when possible.\nDisable this option might help if you experience stutter with touch screen/touch pad/stylus/mouse input occasionally.</string>
+    <string name="title_checkbox_enforce_display_mode">Enforce Display Mode</string>
+    <string name="summary_checkbox_enforce_display_mode">Force surface to use the optimal display mode.\nRequired by some systems (such as ColorOS) to set refresh rate/resolution properly.\nDo not enable on ChromeCast 4K as it might lead to bugs.</string>
+    <string name="title_checkbox_ultra_low_latency">Ultra Low Latency (experimental)</string>
+    <string name="summary_checkbox_ultra_low_latency">Only effective for SD8Gen2/8(s)Gen3/8Elite and MTK devices.</string>
+   	<string name="title_checkbox_forceTightThresholds">Tight Vsync (Experimental)</string>
+    <string name="summary_checkbox_forceTightThresholds">Tighter VSYNC thresholds for lower latency; may increase drops.</string>
+    <string name="title_checkbox_use_virtual_display">Use Virtual Display</string>
+    <string name="summary_checkbox_use_virtual_display">Use Virtual Display by default.\nVirtual Display can automatically match your client side resolution and frame rate settings, giving you a seamless streaming experience.\nRequires Apollo as host streaming software.</string>
+    <string name="title_checkbox_resume_without_confirm">Quick Resume</string>
+    <string name="summary_checkbox_resume_without_confirm">Do not show resume menu when clicking resume button, resume the app immediately.</string>
+    <string name="title_checkbox_enable_sticky_modifier_key_virtual_keyboard">Sticky modifier keys</string>
+    <string name="summary_checkbox_enable_sticky_modifier_key_virtual_keyboard">Use sticky modifier keys on virtual full keyboard and custom onscreen keyboard.</string>
+    <string name="virtual_keyboard_hide">Hide\nKBD</string>
+    <string name="mouse_mode_multi_touch">Multi touch</string>
+    <string name="mouse_mode_absolute_touch">Absolute touch</string>
+    <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
+    <string name="mouse_mode_track_pad_gaming">Track pad(Gaming/Long press to drag)</string>
+    <string name="mouse_mode_disabled">Disabled</string>
+    <string name="mouse_mode_absolute_touch_swapped">Absolute touch (left/right click swapped)</string>
+    <string name="keyboard_layout_set_1">Profile 1</string>
+    <string name="keyboard_layout_set_2">Profile 2</string>
+    <string name="keyboard_layout_set_3">Profile 3</string>
+    <string name="keyboard_layout_set_4">Profile 4</string>
+    <string name="keyboard_layout_set_5">Profile 5</string>
+    <string name="toggle_local_mouse_cursor">Toggle local mouse cursor(physical mouse needed)</string>
+    <string name="debug_info_android_version">Android Version:</string>
+    <string name="debug_info_api_version">API Version:</string>
+    <string name="debug_info_kernel_version">Kernel Version:</string>
+    <string name="debug_info_brand_model">Brand and Model:</string>
+    <string name="debug_info_has_vibration_motor">Has Vibration Motor</string>
+    <string name="debug_info_no_vibration_motor">No Vibration Motor</string>
+    <string name="debug_info_test_device_vibration">Test Device Vibration (%s)</string>
+    <string name="debug_info_vibration_amplitude">Vibration Amplitude (%d)</string>
+    <string name="debug_info_simple_vibration">Simple Vibration for 1 Second</string>
+    <string name="debug_info_continuous_hd_vibration">Continuous HD Vibration</string>
+    <string name="debug_info_please_choose">Please Choose</string>
+    <string name="debug_info_no_gamepad_detected">No gamepad detected, please connect a gamepad, tap refresh, and try again!</string>
+    <string name="debug_info_no_vibrator">No vibrator detected on the gamepad!</string>
+    <string name="debug_info_set_amplitude">Set Amplitude 0-255 (Effective only for HD Vibration)</string>
+    <string name="debug_info_name">Name: </string>
+    <string name="debug_info_sensors">Sensors: </string>
+    <string name="debug_info_no_relevant_driver">None (no relevant driver or gamepad not supported)</string>
+    <string name="debug_info_no_api_below_android12">No corresponding API below Android 12</string>
+    <string name="debug_info_vid_pid">VID_PID: </string>
+    <string name="debug_info_vibration">Vibration: </string>
+    <string name="debug_info_supported">Supported</string>
+    <string name="debug_info_not_supported">Not Supported</string>
+    <string name="debug_info_details">Details: </string>
+    <string name="debug_info_number_of_gamepads">Number of Gamepads: </string>
+    <string name="debug_info_accelerometer">+Accelerometer</string>
+    <string name="debug_info_gyroscope">+Gyroscope</string>
+    <string name="debug_info_stop_vibration">Stop Vibration</string>
+    <string name="debug_info_refresh_gamepad_info">Tap to refresh gamepad info</string>
+    <string name="debug_info_refresh_gamepad_list">Refresh gamepad list</string>
+    <string name="debug_info_test_gamepad_rumble">Test gamepad rumble</string>
+    <string name="pref_enter_value_0_9999">Please enter a value between 0 and 9999.</string>
+    <string name="pref_set_success">Settings saved successfully!</string>
+    <string name="pref_empty_file">Empty file!</string>
+    <string name="pref_import_success">Import success!</string>
+    <string name="pref_error_occurred">An error occurred: </string>
+    <string name="pref_save_keyboard_profile">Save OSK profile</string>
+    <string name="game_menu_advanced">Advanced Menu</string>
+    <string name="game_dialog_title_quit_confirm">Really want to quit?</string>
+    <string name="game_dialog_message_quit_confirm">Please make sure you have no unsaved progress. Quitting the session will terminate your current running application.</string>
+    <string name="game_menu_quit_session">Quit Session</string>
+    <string name="game_menu_server_cmd">Server Commands</string>
+    <string name="game_menu_fetch_clipboard">Fetch Clipboard</string>
+    <string name="game_menu_upload_clipboard">Upload Clipboard</string>
+    <string name="game_dialog_title_server_cmd_empty">No Server Commands</string>
+    <string name="game_dialog_message_server_cmd_empty">Please make sure you\'re using Apollo as server software and has been granted this client with "Server Command" permission.</string>
+    <string name="vdisplay_not_ready">Virtual display driver isn\'t ready on the server. Please make sure the SudoVDA driver is installed and enabled.</string>
+    <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this server. Please use <a href=\"https://github.com/ClassicOldSong/Apollo\">Apollo</a> as the host streaming software.]]></string>
+    <string name="clipboard_sync_unsupported">This server does not support clipboard sync. Please install or upgrade your server to the latest version of Apollo.</string>
+    <string name="send_clipboard_failed">Failed to send clipboard: </string>
+    <string name="external_display_info">External Display connected with: %1$dx%2$d at %3$.1fHz</string>
+    <string name="notification_channel_name">External Display Control</string>
+    <string name="notification_title">External Display Active</string>
+    <string name="notification_text">Tap to open touchpad controller</string>
+    <string name="permission_denied">Notification permission denied</string>
+    <string name="no_external_display">No external display detected</string>
+    <string name="no_game_instance">No game instance available</string>
+    <string name="get_clipboard_failed">Failed to get clipboard: </string>
+    <string name="send_clipboard_success">Clipboard sent successfully</string>
+    <string name="get_clipboard_success">Clipboard get successfully</string>
+    <string name="proceed">Proceed</string>
+    <string name="cancel">Cancel</string>
+    <string name="unlocking_or_starting">Server is starting or computer is unlocking, please wait…</string>
+    <string name="error_msg_permission_denied">Permission Denied</string>
+    <string name="error_msg_timeout">Connection Timeout</string>
+    <string name="permission_launch_app">Launch Apps</string>
+    <string name="permission_sync_clipboard">Sync Clipboard</string>
+
+    <string name="searchpreference_search">Search…</string>
+    <string name="searchpreference_clear">Clear</string>
+    <string name="searchpreference_history_entry">History entry</string>
+    <string name="searchpreference_more">More</string>
+    <string name="searchpreference_clear_history">Clear history</string>
+    <string name="searchpreference_no_results">No results</string>
+
+    <!-- Keyboard -->
+    <string name="keyboard_clear_all">Clear All</string>
+    <string name="keyboard_add_keys">Add Keys</string>
+    <string name="keyboard_select_keys">Select Keys to Add</string>
+    <string name="keyboard_clear_all_confirm_title">Clear All Keys</string>
+    <string name="keyboard_clear_all_confirm_message">Are you sure you want to hide all on-screen controls? You can add them back later in configuration mode.</string>
+    <string name="keyboard_keys_added">%d keys added successfully</string>
+    <string name="keyboard_duplicates_skipped">%d duplicates were skipped</string>
+    <string name="keyboard_configure_movable">You can now move the settings button.</string>
+    <string name="keyboard_load_error">Error loading keyboard configuration: %s</string>
+    <string name="keyboard_add">Add</string>
+    <string name="keyboard_key_custom">%s (Custom)</string>
+
+    <!-- Compliance -->
+    <string name="category_basic_settings" />
+    <string name="title_checkbox_stretch_video" />
+
+    <!-- ShortcutHelper Toast Messages -->
+    <string name="export_launcher_computer_details_incomplete">Cannot export: Computer details are incomplete.</string>
+    <string name="export_launcher_app_details_incomplete">Cannot export: App details are incomplete.</string>
+    <string name="failed_to_initiate_file_export">Failed to initiate file export: %s</string>
+    <string name="file_export_failed_no_location_selected">File export failed: No location selected.</string>
+    <string name="file_export_failed_no_content_to_write">File export failed: No content to write.</string>
+    <string name="file_exported_successfully">File exported successfully.</string>
+    <string name="failed_to_open_file_for_writing">Failed to open file for writing.</string>
+    <string name="error_writing_file">Error writing file: %s</string>
+    <string name="unexpected_error_during_file_export">An unexpected error occurred during file export.</string>
+
+    <!-- AppView Toast Messages -->
+    <string name="file_export_cancelled">File export cancelled.</string>
+    <string name="app_removed_from_pc">App removed from PC</string>
+    <string name="title_export_sunshine_launcher_file">Export Launcher File for Sunshine</string>
+    <string name="message_export_sunshine_launcher_file">Exporting launcher file for Sunshine is unstable, and may break at any moment. You\'ll need to export again every time if you changed the app name or image.\nUse Apollo for a more stable experience.</string>
+
+    <string name="title_enable_commit_text">Enable commit-text input (swipe/voice)</string>
+    <string name="summary_enable_commit_text">Forward multi-character text from soft keyboards (gesture typing, predictions, voice dictation). May break games that rely on key-by-key input.</string>
+    <string name="title_checkbox_remember_zoom_pan">Remember Zoom&amp;Pan</string>
+    <string name="summary_checkbox_remember_zoom_pan">Save changes to zoom and pan position between sessions</string>
+    <string name="title_checkbox_enable_perf_overlay_bottom">Move overlay to bottom</string>
+    <string name="summary_checkbox_enable_perf_overlay_bottom">Useful when Display in Top Center and Lite mode are enabled during non-native resolution streaming.</string>
+    <string name="title_edit_profile">Edit Profile</string>
+    <string name="profile_manager_new_profile">New Profile</string>
+    <string name="profile_manager_profile_not_found">Profile not found</string>
+    <string name="profile_manager_edit_profile">"Edit Profile: "</string>
+    <string name="profile_manager_profile">"Profile "</string>
+    <string name="profile_manager_profile_saved">Profile \'%s\' saved.</string>
+    <string name="profile_manager_edit_profile_name">Edit Profile Name</string>
+    <string name="profile_manager_name_cannot_be_blank">Name cannot be blank</string>
+    <string name="profile_manager_edit_profile_with">Edit Profile: %s</string>
+    <string name="profile_manager_new_profile_with">New Profile: %s</string>
+    <string name="profile_manager_no_profiles_yet">No profiles yet</string>
+    <string name="profile_manager_profiles_description">Profiles allow you to create and save different streaming configurations. Each profile stores its own settings which can be quickly switched between.</string>
+    <string name="profile_manager_tap_create_profile">Tap + to create your first profile</string>s
+    <string name="profile_manager_choose_profile">Choose Profile</string>
+    <string name="profile_manager_deactivated_profile">Deactivated profile</string>
+    <string name="profile_manager_activated_profile">Activated profile \'%s\'</string>
+    <string name="profile_manager_delete_profile">Delete Profile</string>
+    <string name="profile_manager_confirm_profile_deleteion">Are you sure you want to delete \'%s\'?</string>
+    <string name="profile_manager_delete">Delete</string>
+    <string name="profile_manager_profile_deleted">Deleted profile \'%s\'</string>
+    <string name="profile_manager_failed_to_save">Failed to save profile. Please check logcat for details.</string>
+    <string name="profile_manager_failed_to_load">Failed to load profiles. Please check logcat for details.</string>
+    <string name="profile_manager_active_profile">Active profile: %s</string>
+    <string name="rename">Rename</string>
+    <string name="save">Save</string>
+    <string name="title_low_latency_frame_balance">LFR (Experimental)</string>
+    <string name="summary_low_latency_frame_balance">Minimizes delay by dropping queued frames.</string>
+    <string name="category_perf_monitor_settings">Performance Monitor</string>
+
+    <string name="title_checkbox_full_screen">Enable Full Screen</string>
+    <string name="summary_checkbox_full_screen">Hide system bars with immersive mode</string>
+</resources>

@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="nova_theme_names">
+        <item>Polaris (Navy)</item>
+        <item>OLED (Pure Black)</item>
+        <item>Material You (System)</item>
+    </string-array>
+    <string-array name="nova_theme_values">
+        <item>polaris</item>
+        <item>oled</item>
+        <item>material_you</item>
+    </string-array>
+
+    <string-array name="nova_retry_names">
+        <item>2 attempts</item>
+        <item>4 attempts (default)</item>
+        <item>8 attempts</item>
+        <item>Unlimited</item>
+    </string-array>
+    <string-array name="nova_retry_values">
+        <item>2</item>
+        <item>4</item>
+        <item>8</item>
+        <item>0</item>
+    </string-array>
+
+    <string-array name="nova_hud_position_names">
+        <item>Top Left</item>
+        <item>Top Right</item>
+        <item>Bottom Left</item>
+        <item>Bottom Right</item>
+    </string-array>
+    <string-array name="nova_hud_position_values">
+        <item>top_left</item>
+        <item>top_right</item>
+        <item>bottom_left</item>
+        <item>bottom_right</item>
+    </string-array>
+
+    <string-array name="nova_preset_names">
+        <item>Performance (720p, 10 Mbps)</item>
+        <item>Balanced (1080p, 20 Mbps)</item>
+        <item>Quality (1080p HEVC, 50 Mbps)</item>
+        <item>Custom</item>
+    </string-array>
+    <string-array name="nova_preset_values">
+        <item>performance</item>
+        <item>balanced</item>
+        <item>quality</item>
+        <item>custom</item>
+    </string-array>
+
+    <string-array name="nova_haptics_names">
+        <item>Off</item>
+        <item>Subtle</item>
+        <item>Strong</item>
+    </string-array>
+    <string-array name="nova_haptics_values">
+        <item>off</item>
+        <item>subtle</item>
+        <item>strong</item>
+    </string-array>
+
+    <string-array name="nova_hud_mode_names">
+        <item>Full (sparkline + stats)</item>
+        <item>Banner (MangoHud-style strip)</item>
+        <item>FPS Only (tiny pill)</item>
+    </string-array>
+    <string-array name="nova_hud_mode_values">
+        <item>full</item>
+        <item>banner</item>
+        <item>fps_only</item>
+    </string-array>
+
+    <string-array name="resolution_names">
+        <item>@string/resolution_360p</item>
+        <item>@string/resolution_480p</item>
+        <item>@string/resolution_720p</item>
+        <item>@string/resolution_1080p</item>
+        <item>@string/resolution_1440p</item>
+        <item>@string/resolution_4k</item>
+    </string-array>
+
+    <!-- Keep this in sync with PreferenceConfiguration.isNativeResolution()! -->
+    <string-array name="resolution_values" translatable="false">
+        <item>640x360</item>
+        <item>854x480</item>
+        <item>1280x720</item>
+        <item>1920x1080</item>
+        <item>2560x1440</item>
+        <item>3840x2160</item>
+    </string-array>
+
+    <string-array name="fps_names">
+        <item>@string/fps_30</item>
+        <item>@string/fps_60</item>
+        <item>@string/fps_90</item>
+        <item>@string/fps_120</item>
+    </string-array>
+    <string-array name="fps_values" translatable="false">
+        <item>30</item>
+        <item>60</item>
+        <item>90</item>
+        <item>120</item>
+    </string-array>
+
+    <string-array name="video_scale_mode_names">
+        <item>@string/video_scale_mode_fit</item>
+        <item>@string/video_scale_mode_fill</item>
+        <item>@string/video_scale_mode_stretch</item>
+    </string-array>
+    <string-array name="video_scale_mode_values" translatable="false">
+        <item>fit</item>
+        <item>fill</item>
+        <item>stretch</item>
+    </string-array>
+
+    <string-array name="audio_config_names">
+        <item>@string/audioconf_stereo</item>
+        <item>@string/audioconf_51surround</item>
+        <item>@string/audioconf_71surround</item>
+    </string-array>
+    <string-array name="audio_config_values" translatable="false">
+        <item>2</item>
+        <item>51</item>
+        <item>71</item>
+    </string-array>
+
+    <!-- Don't forget to update locales_config.xml when you modify this! -->
+    <string-array name="language_names" translatable="false">
+        <item>Default</item>
+        <item>English</item>
+        <item>Italiano</item>
+        <item>日本語</item>
+        <item>Русский</item>
+        <item>Nederlands</item>
+        <item>中文(简体)</item>
+        <item>中文(繁體)</item>
+        <item>한국어</item>
+        <item>Español</item>
+        <item>Français</item>
+        <item>Deutsch</item>
+        <item>Română</item>
+        <item>Українська</item>
+        <item>Norsk bokmål</item>
+        <item>Tiếng Việt</item>
+        <item>Magyar</item>
+        <item>Ελληνικά</item>
+        <item>Português do Brasil</item>
+        <item>Čeština</item>
+        <item>עִבְרִית</item>
+        <item>Svenska</item>
+        <item>Indonesia</item>
+    </string-array>
+    <string-array name="language_values" translatable="false">
+        <item>default</item>
+        <item>en</item>
+        <item>it</item>
+        <item>ja</item>
+        <item>ru</item>
+        <item>nl</item>
+        <item>zh-CN</item>
+        <item>zh-TW</item>
+        <item>ko</item>
+        <item>es</item>
+        <item>fr</item>
+        <item>de</item>
+        <item>ro</item>
+        <item>uk</item>
+        <item>nb-NO</item>
+        <item>vi</item>
+        <item>hu</item>
+        <item>el</item>
+        <item>pt-BR</item>
+        <item>cs</item>
+        <item>iw</item>
+        <item>sv</item>
+        <item>in</item>
+    </string-array>
+
+    <string-array name="video_format_names">
+        <item>@string/videoformat_auto</item>
+        <item>@string/videoformat_av1always</item>
+        <item>@string/videoformat_hevcalways</item>
+        <item>@string/videoformat_h264always</item>
+    </string-array>
+    <string-array name="video_format_values" translatable="false">
+        <item>auto</item>
+        <item>forceav1</item>
+        <item>forceh265</item>
+        <item>neverh265</item>
+    </string-array>
+
+    <string-array name="video_frame_pacing_names">
+        <item>@string/pacing_warp2</item>
+        <item>@string/pacing_warp</item>
+        <item>@string/pacing_latency</item>
+        <item>@string/pacing_balanced</item>
+        <item>@string/pacing_balanced_alt</item>
+        <item>@string/pacing_smoothness</item>
+    </string-array>
+    <string-array name="video_frame_pacing_values" translatable="false">
+        <item>warp2</item>
+        <item>warp</item>
+        <item>latency</item>
+        <item>balanced</item>
+        <item>cap-fps</item>
+        <item>smoothness</item>
+    </string-array>
+
+    <string-array name="analog_scrolling_names">
+        <item>@string/analogscroll_none</item>
+        <item>@string/analogscroll_right</item>
+        <item>@string/analogscroll_left</item>
+    </string-array>
+    <string-array name="analog_scrolling_values" translatable="false">
+        <item>none</item>
+        <item>right</item>
+        <item>left</item>
+    </string-array>
+
+
+    <string-array name="keyboard_axi_names">
+        <item>@string/keyboard_layout_set_1</item>
+        <item>@string/keyboard_layout_set_1</item>
+        <item>@string/keyboard_layout_set_1</item>
+        <item>@string/keyboard_layout_set_1</item>
+        <item>@string/keyboard_layout_set_1</item>
+    </string-array>
+    <string-array name="keyboard_axi_values" translatable="false">
+        <item>OSC_Keyboard</item>
+        <item>OSC_Keyboard_2</item>
+        <item>OSC_Keyboard_3</item>
+        <item>OSC_Keyboard_4</item>
+        <item>OSC_Keyboard_5</item>
+    </string-array>
+    <string-array name="mouse_mode_names">
+        <item>@string/mouse_mode_multi_touch</item>
+        <item>@string/mouse_mode_absolute_touch</item>
+        <item>@string/mouse_mode_track_pad_natural</item>
+        <item>@string/mouse_mode_track_pad_gaming</item>
+        <item>@string/mouse_mode_disabled</item>
+        <item>@string/mouse_mode_absolute_touch_swapped</item>
+    </string-array>
+    <string-array name="mouse_mode_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+    </string-array>
+
+    <string-array name="onscreen_keyboard_align_modes">
+        <item>@string/align_left</item>
+        <item>@string/align_center</item>
+        <item>@string/align_right</item>
+    </string-array>
+    <string-array name="onscreen_keyboard_align_values" translatable="false">
+        <item>left</item>
+        <item>center</item>
+        <item>right</item>
+    </string-array>
+
+</resources>

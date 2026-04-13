@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Nova north star — 4 main points with smooth curves -->
+    <path
+        android:fillColor="#FFd4dde8"
+        android:pathData="M54,18 Q58,47 86,54 Q58,61 54,90 Q50,61 22,54 Q50,47 54,18 Z" />
+
+    <!-- Inner accent — small 4-pointed sparkle -->
+    <path
+        android:fillColor="#FF7c73ff"
+        android:pathData="M54,42 Q55.5,52.5 64,54 Q55.5,55.5 54,66 Q52.5,55.5 44,54 Q52.5,52.5 54,42 Z" />
+
+    <!-- Center dot -->
+    <path
+        android:fillColor="#FFd4dde8"
+        android:pathData="M54,51 A3,3 0 1,1 54,57 A3,3 0 1,1 54,51 Z" />
+
+</vector>

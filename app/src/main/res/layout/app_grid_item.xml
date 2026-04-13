@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nova game card — cover art focused -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="170dp"
+    android:layout_height="250dp"
+    android:padding="6dp">
+
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:cardBackgroundColor="@color/nova_bg_card">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <!-- Cover art -->
+            <ImageView
+                android:id="@+id/grid_image"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:transitionName="game_cover_art" />
+
+            <!-- Running overlay + play icon -->
+            <RelativeLayout
+                android:id="@+id/grid_mask"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <ImageView
+                    android:id="@+id/grid_overlay"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_centerInParent="true" />
+            </RelativeLayout>
+
+            <!-- Running indicator badge (top-right) -->
+            <TextView
+                android:id="@+id/running_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="8dp"
+                android:text="STREAMING"
+                android:textSize="9sp"
+                android:textColor="@color/nova_bg_window"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.05"
+                android:background="@color/nova_success"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:visibility="gone" />
+
+            <!-- Title bar at bottom -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:orientation="vertical"
+                android:background="@color/nova_bg_card"
+                android:padding="10dp">
+
+                <TextView
+                    android:id="@+id/grid_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/nova_ice"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
+            </LinearLayout>
+
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Running glow border (overlays the card) -->
+    <View
+        android:id="@+id/running_border"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/nova_running_border"
+        android:visibility="gone" />
+
+</FrameLayout>

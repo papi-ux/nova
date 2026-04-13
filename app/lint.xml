@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <issue id="InvalidPackage">
+        <ignore path="**/bcpkix-jdk15on-*.jar"/>
+    </issue>
+    <issue id="MissingThemeAttr" severity="error" />
+</lint>

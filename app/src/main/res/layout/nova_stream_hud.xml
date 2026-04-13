@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nova Performance HUD — compact, themed, non-intrusive -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/nova_hud_bg"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
+    android:alpha="0.92"
+    android:minWidth="120dp">
+
+    <!-- Header: status dot + FPS (hero metric) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- Status dot -->
+        <View
+            android:id="@+id/hud_status_dot"
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:background="@drawable/nova_dot_green" />
+
+        <!-- FPS — hero number -->
+        <TextView
+            android:id="@+id/hud_fps"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="60"
+            android:textSize="20sp"
+            android:textColor="#FF4ade80"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-condensed"
+            android:layout_marginStart="6dp"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="fps"
+            android:textSize="9sp"
+            android:textColor="#99687b81"
+            android:fontFamily="sans-serif"
+            android:layout_marginStart="2dp"
+            android:layout_marginBottom="1dp"
+            android:layout_gravity="bottom" />
+
+        <!-- Spacer -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- 1% low FPS -->
+        <TextView
+            android:id="@+id/hud_fps_low"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1%: --"
+            android:textSize="9sp"
+            android:textColor="#99687b81"
+            android:fontFamily="sans-serif"
+            android:layout_gravity="bottom"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <!-- FPS sparkline -->
+    <com.papi.nova.ui.SparklineView
+        android:id="@+id/hud_sparkline"
+        android:layout_width="match_parent"
+        android:layout_height="16dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="4dp" />
+
+    <!-- Divider -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#1Ac8d6e5"
+        android:layout_marginBottom="4dp" />
+
+    <!-- Stat rows — icon-less, compact grid -->
+    <!-- Latency -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="RTT"
+            android:textSize="9sp"
+            android:textColor="#99687b81"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/hud_latency"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="12ms"
+            android:textSize="10sp"
+            android:textColor="#FFfbbf24"
+            android:fontFamily="sans-serif-medium" />
+    </LinearLayout>
+
+    <!-- Codec + Bitrate -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="ENC"
+            android:textSize="9sp"
+            android:textColor="#99687b81"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/hud_codec"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="HEVC"
+            android:textSize="10sp"
+            android:textColor="#FF7c73ff"
+            android:fontFamily="sans-serif-medium" />
+    </LinearLayout>
+
+    <!-- Bitrate -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="BIT"
+            android:textSize="9sp"
+            android:textColor="#99687b81"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/hud_bitrate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="50 Mbps"
+            android:textSize="10sp"
+            android:textColor="#FFd4dde8"
+            android:fontFamily="sans-serif-medium" />
+    </LinearLayout>
+
+    <!-- Resolution -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="RES"
+            android:textSize="9sp"
+            android:textColor="#99687b81"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/hud_resolution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1920×1080"
+            android:textSize="10sp"
+            android:textColor="#99a8b0b8"
+            android:fontFamily="sans-serif-medium" />
+    </LinearLayout>
+
+</LinearLayout>

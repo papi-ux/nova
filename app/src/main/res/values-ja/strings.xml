@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- PC view menu entries -->
+    <string name="pcview_menu_app_list">ゲームリストを表示</string>
+    <string name="pcview_menu_pair_pc">コンピュータとペアリング</string>
+    <string name="pcview_menu_unpair_pc">ペアリングを解除r</string>
+    <string name="pcview_menu_send_wol">Wake-On-LANリクエストを送信する</string>
+    <string name="pcview_menu_delete_pc">コンピュータをリストから削除する</string>
+    <!-- Pair messages -->
+    <string name="pairing">ペアリング中</string>
+    <string name="pair_pc_offline">コンピュータはオフラインです</string>
+    <string name="pair_pc_ingame">現在このコンピュータはゲームを実行中のため、ペアリングする前にゲームを閉じる必要があります</string>
+    <string name="pair_pairing_title">ペアリング</string>
+    <string name="pair_pairing_msg">ペアリングしたいコンピュータのPINコードを入力してください:</string>
+    <string name="pair_incorrect_pin">PINコードが間違っています</string>
+    <string name="pair_fail">ペアリングに失敗しました</string>
+    <!-- WOL messages -->
+    <string name="wol_pc_online">コンピュータはオンラインです</string>
+    <string name="wol_no_mac">GFEがMACアドレスを送信しなかったため、コンピュータを起動することができません</string>
+    <string name="wol_waking_pc">コンピュータを起動中</string>
+    <string name="wol_waking_msg">コンピュータが起動するまで数秒かかる可能性があります。Wake-On-LANが正しく構成されているか確認してください</string>
+    <string name="wol_fail">Wake-On-LANパケットの送信に失敗しました</string>
+    <!-- Unpair messages -->
+    <string name="unpairing">ペアリングの解除中</string>
+    <string name="unpair_success">ペアリングの解除に成功しました</string>
+    <string name="unpair_fail">ペアリングの解除に失敗しました</string>
+    <string name="unpair_error">このデバイスはペアリングされませんでした</string>
+    <!-- Errors -->
+    <string name="error_pc_offline">コンピュータはオフラインです</string>
+    <string name="error_manager_not_running">ComputerManagerサービスが動作していません。しばらく待つか、Novaを再起動してください</string>
+    <string name="error_unknown_host">ホストが解決できません</string>
+    <string name="error_404">GFEがHTTP 404を返しました。コンピュータでサポートされているGPUが動作しているか確認してください。リモートデスクトップソフトウェアでもこのエラーが発生する可能性があります。コンピュータを再起動するか、GFEを再インストールしてください</string>
+    <!-- Start application messages -->
+    <string name="conn_establishing_title">接続を確立</string>
+    <string name="conn_establishing_msg">接続を開始</string>
+    <string name="conn_metered">警告: 現在使用中のネットワークは従量制課金接続です</string>
+    <string name="conn_client_latency"> デコードの平均待ち時間:</string>
+    <string name="conn_client_latency_hw">ハードウェアデコーダーの待ち時間</string>
+    <string name="conn_hardware_latency">ハードウェアデコーダーの平均待ち時間:</string>
+    <string name="conn_starting">開始</string>
+    <string name="conn_error_title">接続エラー</string>
+    <string name="conn_error_msg">開始できません</string>
+    <string name="conn_terminated_title">接続を終了</string>
+    <string name="conn_terminated_msg">接続は終了しました</string>
+    <!-- General strings -->
+    <string name="ip_hint">ホストPCのIPアドレス</string>
+    <string name="searching_pc">ローカルネットワーク上のホストPCを検索中…
+\n
+\nホストPCでSunshineが実行中であるか、GeForce ExperienceのSHIELD設定でGameStreamが有効になっていることを確認してください。</string>
+    <string name="yes">はい</string>
+    <string name="no">いいえ</string>
+    <string name="lost_connection">コンピュータとの接続が失われました</string>
+    <!-- AppList activity -->
+    <string name="applist_menu_resume">セッションを続ける</string>
+    <string name="applist_menu_quit">セッションを終了する</string>
+    <string name="applist_menu_quit_and_start">現在のゲームを終了して新しいゲームを始める</string>
+    <string name="applist_menu_cancel">キャンセル</string>
+    <string name="applist_refresh_title">ゲームリスト</string>
+    <string name="applist_refresh_msg">ゲームリストを更新中</string>
+    <string name="applist_refresh_error_title">エラー</string>
+    <string name="applist_refresh_error_msg">ゲームリストの取得に失敗しました</string>
+    <string name="applist_quit_app">終了中</string>
+    <string name="applist_quit_success">ゲームを終了しました</string>
+    <string name="applist_quit_fail">ゲームが終了できませんでした</string>
+    <string name="applist_quit_confirmation">本当にゲームを終了しますか?  保存されていないデータは破棄されます</string>
+    <!-- Add computer manually activity -->
+    <string name="title_add_pc">手動でコンピュータを追加する</string>
+    <string name="msg_add_pc">コンピュータに接続中</string>
+    <string name="addpc_fail">指定されたコンピュータに接続できませんでした。ファイアーウォールの設定を確認してください</string>
+    <string name="addpc_success">コンピュータの追加に成功しました</string>
+    <string name="addpc_unknown_host">コンピュータのアドレスが解決できません。コンピュータのアドレスを確認してください</string>
+    <string name="addpc_enter_ip">IPアドレスを入力してください</string>
+    <!-- Preferences -->
+    <string name="category_basic_settings">基本的な設定</string>
+    <string name="title_resolution_list">解像度とフレームレート</string>
+    <string name="summary_resolution_list">品質が高いほどラグとクラッシュが発生しやすくなります</string>
+    <string name="title_seekbar_bitrate">映像のビットレート</string>
+    <string name="summary_seekbar_bitrate">ビットレートを低くすればカクつきが抑制され、高くすれば画質が向上します</string>
+    <string name="title_checkbox_stretch_video">映像を全画面に拡大</string>
+    <string name="title_checkbox_disable_warnings">警告を無効化</string>
+    <string name="summary_checkbox_disable_warnings">ストリーミング中に画面に警告メッセージを表示しない</string>
+    <string name="category_audio_settings">音声</string>
+    <string name="title_checkbox_multi_controller">複数のゲームコントローラ</string>
+    <string name="summary_checkbox_multi_controller">チェックを外すと、全てのゲームコントローラが単一の物として認識されます</string>
+    <string name="title_seekbar_deadzone">アナログゲームコントローラのデッドゾーン</string>
+    <string name="suffix_seekbar_deadzone">%</string>
+    <string name="title_checkbox_xb1_driver">Xbox 360/Oneコントローラ</string>
+    <string name="summary_checkbox_xb1_driver">XboxゲームコントローラをサポートしないデバイスでXboxゲームコントローラ用のドライバを有効にします</string>
+    <string name="category_on_screen_controls_settings">オンスクリーンコントローラ</string>
+    <string name="title_checkbox_show_onscreen_controls">オンスクリーンコントローラ</string>
+    <string name="summary_checkbox_show_onscreen_controls">タッチスクリーン上にオンスクリーンコントローラを表示します</string>
+    <string name="category_ui_settings">インターフェース</string>
+    <string name="title_language_list">言語</string>
+    <string name="summary_language_list">Novaで使用する言語</string>
+    <string name="title_checkbox_small_icon_mode">小さなアイコン</string>
+    <string name="summary_checkbox_small_icon_mode">グリッドで小さなアイコンを使用します</string>
+    <string name="category_host_settings">ホスト</string>
+    <string name="title_checkbox_enable_sops">ゲーム設定の最適化</string>
+    <string name="summary_checkbox_enable_sops">GFEがゲームの設定を最適化します</string>
+    <string name="title_checkbox_host_audio">コンピュータで音声を再生</string>
+    <string name="summary_checkbox_host_audio">音声をコンピュータとこのデバイスの両方で再生します</string>
+    <string name="category_advanced_settings">高度な設定</string>
+    <string name="title_video_format">HEVC</string>
+    <string name="summary_video_format">HEVCは動画に必要な帯域幅を圧縮します。この機能にはなるべく新しいデバイスが必要です</string>
+    <string name="suffix_osc_opacity">%</string>
+    <string name="dialog_title_osc_opacity">透過率</string>
+    <string name="title_osc_opacity">透過率</string>
+    <string name="summary_osc_opacity">オンスクリーンコントローラの透過率を調整します</string>
+    <string name="title_only_l3r3">L3 と R3 のみ表示します</string>
+    <string name="summary_only_l3r3">L3 と R3 以外のボタンを表示しない</string>
+    <string name="title_reset_osc">オンスクリーンコントローラをデフォルトに戻します</string>
+    <string name="summary_reset_osc">サイズやレイアウトを戻します</string>
+    <string name="dialog_title_reset_osc">デフォルトに戻します</string>
+    <string name="dialog_text_reset_osc">本当にデフォルトに戻しますか？</string>
+    <string name="toast_reset_osc_success">オンスクリーンコントローラをデフォルトに戻しました</string>
+    <string name="title_checkbox_vibrate_osc">振動</string>
+    <string name="summary_checkbox_vibrate_osc">コントローラの振動を真似します</string>
+    <!-- Array strings -->
+    <string name="videoformat_hevcalways">HEVCを強制的に有効化(クラッシュする可能性があります)</string>
+    <string name="scut_not_paired">コンピュータとペアリングされてません</string>
+    <string name="scut_invalid_uuid">指定したコンピュータは有効ではないです</string>
+    <string name="scut_invalid_app_id">指定したアプリは無効です</string>
+    <string name="help_loading_msg">ヘルプページを読み込み中…</string>
+    <string name="nettest_text_success">ネットワークは Nova をブロックしていません。接続に問題があるようでしたらコンピュータのファイアーウォールの設定を確認してください。
+\n
+\nインターネット上でゲームをストリームする場合は Nova Internet Hosting Tool をインストールして付属のInternet Streaming Tester をはしらせコンピュータの接続を確認してください。</string>
+    <string name="nettest_text_inconclusive">Nova のコネクションテスト用のサーバーがアクセスできなかったためネットワークテストができませんでした。インターネットの接続を確認し、再度お試しください。</string>
+    <string name="help_loading_title">ヘルプ表示</string>
+    <string name="pcview_menu_header_unknown">リロード中</string>
+    <string name="scut_deleted_pc">コンピュータを検知しました</string>
+    <string name="scut_pc_not_found">コンピュータが見つかりませんでした</string>
+    <string name="pcview_menu_header_offline">オフライン</string>
+    <string name="pcview_menu_eol">NVIDIA GameStream はサービスが終了しています</string>
+    <string name="nettest_text_waiting">Nova はポートがブロックされていないか確かめるためネットワーク接続をてすとしています。
+\n
+\n少々お待ちください…</string>
+    <string name="pcview_menu_header_online">オンライン</string>
+    <string name="pcview_menu_test_network">ネットワーク接続テスト</string>
+    <string name="nettest_title_done">ネットワークテスト終了</string>
+    <string name="pcview_menu_details">詳細を表示</string>
+    <string name="nettest_title_waiting">ネットワーク接続テスト中</string>
+    <string name="nettest_text_blocked">デバイスの設定が Nova をブロックしているようです。このネットワークに接続している間ストリーミングが使えないかもしれません。</string>
+    <string name="message_decoding_error">このデバイスのビデオデコーダーが Nova と非対応なため Nova がクラッシュしました。クラッシュが継続するようでしたらストリームの設定を変更してください。</string>
+    <string name="nettest_text_failure">デバイスの設定が Nova をブロックしているようです。このネットワークに接続している間ストリーミングが使えないかもしれません。
+\n
+\n次のネットワークポートがブロックされています:
+\n</string>
+    <string name="title_decoding_error">ビデオデコーダーがクラッシュしました</string>
+    <string name="title_decoding_reset">ビデオ設定リセット</string>
+    <string name="pair_pairing_help">ホーストのコンピューターが Sunshine を使用している場合、Sunshineにピンを入れてください。</string>
+    <string name="pair_already_in_progress">ペアリング中です</string>
+    <string name="video_decoder_init_failed">ビデオデコーダーの初期化に失敗しました。デバイスが選択された解像度またはフレームレートをサポートしていない可能性があります。</string>
+    <string name="no_frame_received_error">ネットワーク接続が不安定です。 ビデオのビットレート設定を下げるか、より高速な接続をお試しください。</string>
+    <string name="error_code_prefix">エラーコード:</string>
+    <string name="perf_overlay_hostprocessinglatency">ホスト処理遅延 最小/最大/平均: %1$.1f/%2$.1f/%3$.1f ms</string>
+    <string name="perf_overlay_netdrops">ネットワーク接続によりドロップしたフレーム: %1$.2f%%</string>
+    <string name="perf_overlay_netlatency">平均ネットワーク遅延: %1$d ミリ秒 (分散: %2$d ミリ秒)</string>
+    <string name="perf_overlay_dectime">平均デコード時間: %1$.2f ms</string>
+    <string name="applist_menu_details">詳細を表示</string>
+    <string name="applist_menu_scut">ショートカットを作成</string>
+    <string name="title_native_res_dialog">ネイティブ解像度に関する警告</string>
+    <string name="perf_overlay_streamdetails">ビデオストリーム: %1$s %2$.2f FPS</string>
+    <string name="unable_to_pin_shortcut">現在のランチャーでは、ピン留めされたショートカットを作成することはできません。</string>
+    <string name="message_decoding_reset">デバイスのビデオデコーダーが選択されたストリーミング設定でクラッシュし続けています。ストリーミング設定はデフォルトにりせっとされました。</string>
+    <string name="error_usb_prohibited">USBへのアクセスはデバイス管理者によって禁止されています。KnoxまたはMDM設定を確認してください。</string>
+    <string name="early_termination_error">ストリームを開始する際に、ホストPCで何か問題が発生しました。
+\n
+\nホストPCでDRM保護されたコンテンツが開いていないことを確認してください。また、ホストPCの再起動を試みることもできます。</string>
+    <string name="frame_conversion_error">ホストPCが致命的なビデオエンコーディングエラーを報告しました。
+\n
+\nHDRモードを無効にするか、ストリーミング解像度を変更するか、ホストPCのディスプレイ解像度を変更してください。</string>
+    <string name="help">ヘルプ</string>
+    <string name="title_details">詳細</string>
+    <string name="poor_connection_msg">PCとの接続不良</string>
+    <string name="perf_overlay_decoder">デコーダー: %1$s</string>
+    <string name="slow_connection_msg">PCへの接続が低速
+\nビットレートを下げてください</string>
+    <string name="perf_overlay_incomingfps">ネットワークからの受信フレームレート: %1$.2f FPS</string>
+    <string name="perf_overlay_renderingfps">レンダリングフレームレート: %1$.2f FPS</string>
+    <string name="text_native_res_dialog">ネイティブ解像度やFPSがストリーミングサーバーによってサポートされていない可能性があります。ホストPCに対して、手動で一致するカスタム表示モードを設定する必要があるでしょう。
+\n
+\nNVIDIAコントロールパネルでカスタム解像度を作成して画面設定に合わせることを選択した場合は、モニターに損傷やPCの不安定性、その他の潜在的な問題の可能性についてNVIDIAの警告を読み、理解したことを確認してください。
+\n
+\nカスタム解像度を作成することに起因する問題について、私たちは責任を負いません。
+\n
+\nモニターが必要な表示設定をサポートしていない場合もあります。その場合は、仮想モニターを設定してみてください。最後に、デバイスまたはホストPCが特定の解像度またはリフレッシュレートでのストリーミングをサポートしていない場合、残念ながら運が悪かったということになります。</string>
+</resources>

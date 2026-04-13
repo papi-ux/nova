@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ splash screen branding -->
+    <style name="AppTheme" parent="AppBaseTheme">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:colorBackground">@color/nova_bg_window</item>
+        <item name="android:windowBackground">@color/nova_bg_window</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:windowSplashScreenBackground">@color/nova_bg_window</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_bg_window</item>
+    </style>
+
+    <style name="AppTheme.OLED">
+        <item name="android:colorBackground">@color/nova_oled_bg_window</item>
+        <item name="android:windowBackground">@color/nova_oled_bg_window</item>
+        <item name="android:windowSplashScreenBackground">@color/nova_oled_bg_window</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_oled_bg_window</item>
+    </style>
+</resources>

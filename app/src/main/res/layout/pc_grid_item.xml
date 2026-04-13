@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nova server card — full-width horizontal with status -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/nova_card_bg"
+        android:padding="14dp"
+        android:foreground="?attr/selectableItemBackground">
+
+        <!-- Server icon -->
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:gravity="center">
+
+            <RelativeLayout
+                android:id="@+id/grid_image_layout"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/grid_image"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_centerInParent="true" />
+
+                <ImageView
+                    android:id="@+id/grid_overlay"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_centerInParent="true" />
+
+                <ProgressBar
+                    android:id="@+id/grid_spinner"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_centerInParent="true"
+                    android:indeterminate="true"
+                    android:indeterminateTint="@color/nova_accent" />
+            </RelativeLayout>
+        </FrameLayout>
+
+        <!-- Server info -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp">
+
+            <TextView
+                android:id="@+id/grid_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="@color/nova_ice"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <!-- Status row -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="4dp">
+
+                <View
+                    android:id="@+id/status_dot"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:background="@drawable/nova_status_connecting" />
+
+                <TextView
+                    android:id="@+id/status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:textSize="12sp"
+                    android:textColor="@color/nova_text_muted"
+                    android:fontFamily="sans-serif"
+                    android:text="Connecting..." />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/primary_action_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/nova_badge_bg"
+            android:fontFamily="sans-serif-medium"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:text="Open Apps"
+            android:textColor="@color/nova_text_primary"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,870 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:seekbar="http://schemas.moonlight-stream.com/apk/res/seekbar"
+    app:iconSpaceReserved="false">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         1. STREAM QUALITY — the one page most users need
+         Resolution, FPS, Bitrate, Codec, HDR, Frame Pacing
+         ═══════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="category_stream_quality"
+        android:title="Stream Quality"
+        app:iconSpaceReserved="false">
+
+        <!-- Preset quick-switch -->
+        <ListPreference
+            android:key="nova_stream_preset"
+            android:title="Quality Preset"
+            android:summary="Quick-switch between Performance, Balanced, and Quality"
+            android:entries="@array/nova_preset_names"
+            android:entryValues="@array/nova_preset_values"
+            android:defaultValue="balanced"
+            app:iconSpaceReserved="false" />
+
+        <!-- Core: Resolution, FPS, Bitrate -->
+        <ListPreference
+            android:defaultValue="1280x720"
+            android:entries="@array/resolution_names"
+            android:entryValues="@array/resolution_values"
+            android:key="list_resolution"
+            android:summary="@string/summary_resolution_list"
+            android:title="@string/title_resolution_list"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="60"
+            android:entries="@array/fps_names"
+            android:entryValues="@array/fps_values"
+            android:key="list_fps"
+            android:summary="@string/summary_fps_list"
+            android:title="@string/title_fps_list"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:dialogMessage="@string/summary_seekbar_bitrate"
+            android:key="seekbar_bitrate_kbps"
+            android:max="300000"
+            android:summary="@string/summary_seekbar_bitrate"
+            android:text="@string/suffix_seekbar_bitrate_mbps"
+            android:title="@string/title_seekbar_bitrate"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1000"
+            seekbar:keyStep="1000"
+            seekbar:min="500"
+            seekbar:step="500" />
+
+        <!-- Codec (moved from Advanced — this is important) -->
+        <ListPreference
+            android:defaultValue="auto"
+            android:entries="@array/video_format_names"
+            android:entryValues="@array/video_format_values"
+            android:key="video_format"
+            android:summary="@string/summary_video_format"
+            android:title="@string/title_video_format"
+            app:iconSpaceReserved="false" />
+
+        <!-- Frame pacing -->
+        <ListPreference
+            android:defaultValue="latency"
+            android:entries="@array/video_frame_pacing_names"
+            android:entryValues="@array/video_frame_pacing_values"
+            android:key="frame_pacing"
+            android:summary="@string/summary_frame_pacing"
+            android:title="@string/title_frame_pacing"
+            app:iconSpaceReserved="false" />
+
+        <!-- HDR -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_hdr"
+            android:summary="@string/summary_enable_hdr"
+            android:title="@string/title_enable_hdr"
+            app:iconSpaceReserved="false" />
+
+        <!-- Metered bitrate -->
+        <com.papi.nova.preferences.SeekBarPreference
+            android:dialogMessage="@string/summary_seekbar_metered_bitrate"
+            android:key="seekbar_metered_bitrate_kbps"
+            android:max="300000"
+            android:summary="@string/summary_seekbar_metered_bitrate"
+            android:text="@string/suffix_seekbar_bitrate_mbps"
+            android:title="@string/title_seekbar_metered_bitrate"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1000"
+            seekbar:keyStep="1000"
+            seekbar:min="0"
+            seekbar:step="500" />
+    </PreferenceCategory>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         2. DISPLAY & AUDIO
+         Scale mode, orientation, audio, host audio
+         ═══════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="category_display_audio"
+        android:title="Display &amp; Audio"
+        app:initialExpandedChildrenCount="4"
+        app:iconSpaceReserved="false">
+
+        <!-- Display -->
+        <ListPreference
+            android:defaultValue="fit"
+            android:entries="@array/video_scale_mode_names"
+            android:entryValues="@array/video_scale_mode_values"
+            android:key="list_video_scale_mode"
+            android:summary="@string/summary_video_scale_mode"
+            android:title="@string/title_video_scale_mode"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:key="checkbox_full_screen"
+            android:title="@string/title_checkbox_full_screen"
+            android:summary="@string/summary_checkbox_full_screen"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_auto_orientation"
+            android:summary="@string/summary_auto_orientation"
+            android:title="@string/title_auto_orientation"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:dependency="checkbox_auto_orientation"
+            android:key="checkbox_auto_invert_video_resolution"
+            android:summary="@string/summary_checkbox_auto_invert_video_resolution"
+            android:title="@string/title_checkbox_auto_invert_video_resolution"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_view_top_center"
+            android:summary="@string/summary_top_center_display"
+            android:title="@string/title_top_center_display"
+            app:iconSpaceReserved="false" />
+
+        <!-- Audio -->
+        <ListPreference
+            android:defaultValue="2"
+            android:entries="@array/audio_config_names"
+            android:entryValues="@array/audio_config_values"
+            android:key="list_audio_config"
+            android:summary="@string/summary_audio_config_list"
+            android:title="@string/title_audio_config_list"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_audiofx"
+            android:summary="@string/summary_checkbox_enable_audiofx"
+            android:title="@string/title_checkbox_enable_audiofx"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_host_audio"
+            android:summary="@string/summary_checkbox_host_audio"
+            android:title="@string/title_checkbox_host_audio"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         3. INPUT & CONTROLLERS
+         Gamepad, touch, mouse — merged from 4 old categories
+         ═══════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="category_input"
+        android:title="Input &amp; Controllers"
+        app:initialExpandedChildrenCount="3"
+        app:iconSpaceReserved="false">
+
+        <!-- Touchscreen mode (most used input setting) -->
+        <ListPreference
+            android:defaultValue="0"
+            android:entries="@array/mouse_mode_names"
+            android:entryValues="@array/mouse_mode_values"
+            android:key="mouse_mode_list"
+            android:summary="@string/summary_touchscreen_mode"
+            android:title="@string/title_touchscreen_mode"
+            app:iconSpaceReserved="false" />
+
+        <!-- Gamepad deadzone -->
+        <com.papi.nova.preferences.SeekBarPreference
+            android:defaultValue="5"
+            android:key="seekbar_deadzone"
+            android:max="20"
+            android:summary="@string/summary_seekbar_deadzone"
+            android:text="@string/suffix_seekbar_deadzone"
+            android:title="@string/title_seekbar_deadzone"
+            app:iconSpaceReserved="false"
+            seekbar:min="-20" />
+
+        <!-- Rumble -->
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_enable_rumble"
+            android:summary="@string/summary_enable_rumble"
+            android:title="@string/title_enable_rumble"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_enable_rumble"
+            android:key="checkbox_vibrate_fallback"
+            android:summary="@string/summary_checkbox_vibrate_fallback"
+            android:title="@string/title_checkbox_vibrate_fallback"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_vibrate_fallback"
+            android:key="checkbox_enable_device_rumble"
+            android:summary="@string/summary_device_rumble"
+            android:title="@string/title_device_rumble"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:dependency="checkbox_vibrate_fallback"
+            android:key="seekbar_vibrate_fallback_strength"
+            android:max="200"
+            android:summary="@string/summary_seekbar_vibrate_fallback_strength"
+            android:text="@string/suffix_seekbar_vibrate_fallback_strength"
+            android:title="@string/title_seekbar_vibrate_fallback_strength"
+            app:iconSpaceReserved="false" />
+
+        <!-- Controller detection & drivers -->
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_multi_controller"
+            android:summary="@string/summary_checkbox_multi_controller"
+            android:title="@string/title_checkbox_multi_controller"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_usb_driver"
+            android:summary="@string/summary_checkbox_xb1_driver"
+            android:title="@string/title_checkbox_xb1_driver"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_usb_driver"
+            android:key="checkbox_usb_bind_all"
+            android:summary="@string/summary_checkbox_usb_bind_all"
+            android:title="@string/title_checkbox_usb_bind_all"
+            app:iconSpaceReserved="false" />
+
+        <!-- Mouse emulation -->
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_mouse_emulation"
+            android:summary="@string/summary_checkbox_mouse_emulation"
+            android:title="@string/title_checkbox_mouse_emulation"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="right"
+            android:dependency="checkbox_mouse_emulation"
+            android:entries="@array/analog_scrolling_names"
+            android:entryValues="@array/analog_scrolling_values"
+            android:key="analog_scrolling"
+            android:summary="@string/summary_analog_scrolling"
+            android:title="@string/title_analog_scrolling"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_remember_mouse_mode"
+            android:summary="@string/summary_checkbox_remember_mouse_mode"
+            android:title="@string/title_checkbox_remember_mouse_mode"
+            android:dependency="checkbox_mouse_emulation"
+            app:iconSpaceReserved="false" />
+
+        <!-- Face buttons & motion -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_flip_face_buttons"
+            android:summary="@string/summary_checkbox_flip_face_buttons"
+            android:title="@string/title_checkbox_flip_face_buttons"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_gamepad_touchpad_as_mouse"
+            android:summary="@string/summary_checkbox_gamepad_touchpad_as_mouse"
+            android:title="@string/title_checkbox_gamepad_touchpad_as_mouse"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_gamepad_motion_sensors"
+            android:summary="@string/summary_checkbox_gamepad_motion_sensors"
+            android:title="@string/title_checkbox_gamepad_motion_sensors"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_gamepad_motion_fallback"
+            android:summary="@string/summary_checkbox_gamepad_motion_fallback"
+            android:title="@string/title_checkbox_gamepad_motion_fallback"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_force_device_motion"
+            android:summary="@string/summary_checkbox_force_device_motion"
+            android:title="@string/title_checkbox_force_device_motion"
+            android:dependency="checkbox_gamepad_motion_fallback"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_gamepad_enable_battery_report"
+            android:summary="@string/summary_checkbox_gamepad_enable_battery_report"
+            android:title="@string/title_checkbox_gamepad_enable_battery_report"
+            app:iconSpaceReserved="false" />
+
+        <!-- Gyro aiming -->
+        <CheckBoxPreference
+            android:key="nova_gyro_aim"
+            android:title="Gyro Aiming"
+            android:summary="Tilt device to move camera — great for FPS games"
+            android:defaultValue="false"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:key="nova_gyro_sensitivity"
+            android:title="Gyro Sensitivity"
+            android:summary="Camera movement speed from gyro input"
+            android:dependency="nova_gyro_aim"
+            android:defaultValue="100"
+            android:max="300"
+            android:text="%"
+            app:iconSpaceReserved="false"
+            seekbar:min="10"
+            seekbar:step="10" />
+        <CheckBoxPreference
+            android:key="nova_gyro_invert_y"
+            android:title="Invert Gyro Y-Axis"
+            android:summary="Reverse vertical gyro direction"
+            android:dependency="nova_gyro_aim"
+            android:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
+        <!-- Touch & trackpad sensitivity -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_mouse_local_cursor"
+            android:summary="@string/summary_checkbox_mouse_local_cursor"
+            android:title="@string/title_checkbox_mouse_local_cursor"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_multi_touch_gestures"
+            android:summary="@string/summary_checkbox_multi_touch_gestures"
+            android:title="@string/title_checkbox_multi_touch_gestures"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_absolute_mouse_mode"
+            android:summary="@string/summary_checkbox_absolute_mouse_mode"
+            android:title="@string/title_checkbox_absolute_mouse_mode"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:key="seekbar_trackpad_sensitivity_x"
+            android:max="200"
+            android:summary="@string/summary_trackpad_sensitivity_x"
+            android:text="%"
+            android:title="@string/title_trackpad_sensitivity_x"
+            app:iconSpaceReserved="false"
+            seekbar:min="-200"
+            seekbar:step="10" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:key="seekbar_trackpad_sensitivity_y"
+            android:max="200"
+            android:summary="@string/summary_trackpad_sensitivity_y"
+            android:text="%"
+            android:title="@string/title_trackpad_sensitivity_y"
+            app:iconSpaceReserved="false"
+            seekbar:min="-200"
+            seekbar:step="10" />
+    </PreferenceCategory>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         4. OVERLAYS & CONTROLS
+         Nova HUD, MangoHud, OSC, virtual keyboard, perf stats
+         ═══════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="category_overlays"
+        android:title="Overlays &amp; Controls"
+        app:initialExpandedChildrenCount="4"
+        app:iconSpaceReserved="false">
+
+        <!-- Nova HUD -->
+        <CheckBoxPreference
+            android:key="nova_polaris_hud"
+            android:title="Nova Stream HUD"
+            android:summary="Drag to move, tap to cycle modes (full / banner / fps)"
+            android:defaultValue="false"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:key="nova_polaris_hud_mode"
+            android:title="Starting HUD Style"
+            android:dependency="nova_polaris_hud"
+            android:entries="@array/nova_hud_mode_names"
+            android:entryValues="@array/nova_hud_mode_values"
+            android:defaultValue="full"
+            android:summary="Initial mode — tap the HUD during streaming to cycle"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:key="nova_polaris_hud_position"
+            android:title="HUD Position"
+            android:dependency="nova_polaris_hud"
+            android:entries="@array/nova_hud_position_names"
+            android:entryValues="@array/nova_hud_position_values"
+            android:defaultValue="top_left"
+            app:iconSpaceReserved="false" />
+
+        <!-- Legacy perf overlay (Moonlight-inherited) -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_perf_overlay"
+            android:summary="@string/summary_enable_perf_overlay"
+            android:title="@string/title_enable_perf_overlay"
+            app:iconSpaceReserved="false" />
+
+        <!-- On-screen controls -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_show_onscreen_controls"
+            android:summary="@string/summary_checkbox_show_onscreen_controls"
+            android:title="@string/title_checkbox_show_onscreen_controls"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:dependency="checkbox_show_onscreen_controls"
+            android:key="checkbox_hide_osc_when_has_gamepad"
+            android:summary="@string/summary_hide_osc_when_has_gamepad"
+            android:title="@string/title_hide_osc_when_has_gamepad"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:dependency="checkbox_show_onscreen_controls"
+            android:key="checkbox_vibrate_osc"
+            android:summary="@string/summary_checkbox_vibrate_osc"
+            android:title="@string/title_checkbox_vibrate_osc"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:defaultValue="90"
+            android:dependency="checkbox_show_onscreen_controls"
+            android:dialogMessage="@string/summary_osc_opacity"
+            android:key="seekbar_osc_opacity"
+            android:max="100"
+            android:summary="@string/summary_osc_opacity"
+            android:text="@string/suffix_osc_opacity"
+            android:title="@string/dialog_title_osc_opacity"
+            app:iconSpaceReserved="false"
+            seekbar:min="0"
+            seekbar:step="1" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_show_onscreen_controls"
+            android:key="checkbox_only_show_L3R3"
+            android:summary="@string/summary_only_l3r3"
+            android:title="@string/title_only_l3r3"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:defaultValue="true"
+            android:dependency="checkbox_show_onscreen_controls"
+            android:key="checkbox_show_guide_button"
+            android:summary="@string/summary_show_guide_button"
+            android:title="@string/title_show_guide_button"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_show_onscreen_controls"
+            android:key="checkbox_enable_analog_stick_new"
+            android:summary="@string/summary_free_analog_stick"
+            android:title="@string/title_free_analog_stick"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:defaultValue="20"
+            android:dependency="checkbox_enable_analog_stick_new"
+            android:dialogMessage="@string/summary_osc_opacity"
+            android:key="seekbar_osc_free_analog_stick_opacity"
+            android:max="100"
+            android:summary="@string/summary_free_analog_stick_opacity"
+            android:text="@string/suffix_osc_opacity"
+            android:title="@string/title_free_analog_stick_opacity"
+            app:iconSpaceReserved="false"
+            seekbar:min="0"
+            seekbar:step="1" />
+        <com.papi.nova.preferences.ConfirmDeleteOscPreference
+            android:dialogMessage="@string/dialog_text_reset_osc"
+            android:dialogTitle="@string/dialog_title_reset_osc"
+            android:key="option_reset_osc_preference"
+            android:negativeButtonText="@string/no"
+            android:positiveButtonText="@string/yes"
+            android:summary="@string/summary_reset_osc"
+            android:title="@string/title_reset_osc"
+            app:iconSpaceReserved="false" />
+
+        <!-- Virtual special keys -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_keyboard"
+            android:summary="@string/summary_show_virtual_key"
+            android:title="@string/title_show_virtual_key"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="OSC_Keyboard"
+            android:dependency="checkbox_enable_keyboard"
+            android:entries="@array/keyboard_axi_names"
+            android:entryValues="@array/keyboard_axi_values"
+            android:key="keyboard_axi_list"
+            android:summary="@string/summary_default_layout_scheme"
+            android:title="@string/title_default_layout_scheme"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="import_keyboard_file"
+            android:summary="@string/summary_import_keyboard_layout"
+            android:title="@string/title_import_keyboard_layout"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="export_keyboard_file"
+            android:summary="@string/summary_export_keyboard_layout"
+            android:title="@string/title_export_keyboard_layout"
+            app:iconSpaceReserved="false" />
+
+        <!-- Audio-driven haptics -->
+        <ListPreference
+            android:key="nova_audio_haptics"
+            android:title="Audio Haptics"
+            android:summary="Vibrate on bass — feel explosions and impacts"
+            android:entries="@array/nova_haptics_names"
+            android:entryValues="@array/nova_haptics_values"
+            android:defaultValue="off"
+            app:iconSpaceReserved="false" />
+
+        <!-- Performance logging -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="checkbox_enable_perf_overlay"
+            android:key="checkbox_enable_perf_logging"
+            android:summary="@string/summary_checkbox_enable_perf_logging"
+            android:title="@string/title_checkbox_enable_perf_logging"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="share_performance_logs"
+            android:summary="@string/summary_share_performance_logs"
+            android:title="@string/title_share_performance_logs_button"
+            android:dependency="checkbox_enable_perf_logging"
+            app:iconSpaceReserved="false" />
+
+        <!-- Floating button & back menu -->
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_enable_quit_dialog"
+            android:summary="@string/summary_quit_dialog"
+            android:title="@string/title_quit_dialog"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:dependency="checkbox_enable_quit_dialog"
+            android:defaultValue="false"
+            android:key="checkbox_enable_floating_button"
+            android:summary="@string/summary_floating_button"
+            android:title="@string/title_floating_button"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_show_overlay_zoom_toggle_button"
+            android:summary="@string/summary_show_overlay_zoom_toggle_button"
+            android:title="@string/title_show_overlay_zoom_toggle_button"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_disable_warnings"
+            android:summary="@string/summary_checkbox_disable_warnings"
+            android:title="@string/title_checkbox_disable_warnings"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         5. NOVA & ADVANCED
+         Nova features, then collapsed advanced/device-specific
+         ═══════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="category_nova"
+        android:title="Nova"
+        app:iconSpaceReserved="false">
+        <ListPreference
+            android:key="nova_theme"
+            android:title="Theme"
+            android:summary="Polaris (navy), OLED (black), or Material You (system accent)"
+            android:entries="@array/nova_theme_names"
+            android:entryValues="@array/nova_theme_values"
+            android:defaultValue="polaris"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:key="nova_auto_connect"
+            android:title="Auto-Connect"
+            android:summary="Skip server browser when only one paired server"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:key="nova_haptic_feedback"
+            android:title="Haptic Feedback"
+            android:summary="Vibration on taps and menu actions"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:key="nova_stream_notification"
+            android:title="Streaming Notification"
+            android:summary="Show persistent notification while streaming"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
+        <!-- Keep stream alive in background -->
+        <CheckBoxPreference
+            android:key="nova_keep_stream_alive"
+            android:title="Keep Stream in Background"
+            android:summary="Don't disconnect when switching apps (auto-stops after 5 min)"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
+        <!-- Polaris server features -->
+        <CheckBoxPreference
+            android:key="nova_polaris_auto_detect"
+            android:title="Auto-Detect Polaris"
+            android:summary="Probe server for Polaris features on connect"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:key="nova_polaris_resilience"
+            android:title="Connection Recovery"
+            android:summary="Auto-reconnect on stream errors"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:key="nova_polaris_max_retries"
+            android:title="Max Reconnect Attempts"
+            android:summary="Give up after N failures"
+            android:dependency="nova_polaris_resilience"
+            android:entries="@array/nova_retry_names"
+            android:entryValues="@array/nova_retry_values"
+            android:defaultValue="4"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:key="nova_polaris_progress_overlay"
+            android:title="Connection Progress"
+            android:summary="Show session setup stages during launch"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
+        <!-- Language -->
+        <com.papi.nova.preferences.LanguagePreference
+            android:defaultValue="default"
+            android:entries="@array/language_names"
+            android:entryValues="@array/language_values"
+            android:icon="@drawable/ic_language"
+            android:key="list_languages"
+            android:summary="@string/summary_language_list"
+            android:title="@string/title_language_list" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="category_advanced"
+        android:title="Advanced"
+        app:initialExpandedChildrenCount="0"
+        app:iconSpaceReserved="false">
+
+        <!-- Stream tuning -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="pref_low_latency_frame_balance"
+            android:title="@string/title_low_latency_frame_balance"
+            android:summary="@string/summary_low_latency_frame_balance"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_ultra_low_latency"
+            android:summary="@string/summary_checkbox_ultra_low_latency"
+            android:title="@string/title_checkbox_ultra_low_latency"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_forceTightThresholds"
+            android:summary="@string/summary_checkbox_forceTightThresholds"
+            android:title="@string/title_checkbox_forceTightThresholds"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_unlock_fps"
+            android:summary="@string/summary_unlock_fps"
+            android:title="@string/title_unlock_fps"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_reduce_refresh_rate"
+            android:summary="@string/summary_checkbox_reduce_refresh_rate"
+            android:title="@string/title_checkbox_reduce_refresh_rate"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_full_range"
+            android:summary="@string/summary_full_range"
+            android:title="@string/title_full_range"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_prevent_packet_loss"
+            android:summary="@string/summary_prevent_packet_loss"
+            android:title="@string/title_prevent_packet_loss"
+            app:iconSpaceReserved="false" />
+
+        <!-- Custom overrides -->
+        <EditTextPreference
+            android:defaultValue="1920x1080"
+            android:dialogTitle="@string/dialog_custom_resolution"
+            android:key="edit_diy_w_h"
+            android:singleLine="true"
+            android:summary="@string/summary_custom_resolution"
+            android:title="@string/title_custom_resolution"
+            app:iconSpaceReserved="false" />
+        <EditTextPreference
+            android:key="edit_diy_bitrate"
+            android:defaultValue="20"
+            android:dialogMessage="@string/dialog_manual_enter_bitrate"
+            android:dialogTitle="@string/title_manual_enter_bitrate"
+            android:singleLine="true"
+            android:summary="@string/summary_manual_enter_bitrate"
+            android:title="@string/title_manual_enter_bitrate"
+            app:iconSpaceReserved="false" />
+        <EditTextPreference
+            android:key="custom_refresh_rate"
+            android:defaultValue="59.94"
+            android:dialogMessage="@string/dialog_custom_refresh_rate"
+            android:dialogTitle="@string/title_custom_refresh_rate"
+            android:summary="@string/summary_custom_refresh_rate"
+            android:title="@string/title_custom_refresh_rate"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:dialogMessage=""
+            android:key="seekbar_resolution_scale_factor"
+            android:max="200"
+            android:summary="@string/summary_resolution_scale_factor"
+            android:text="%"
+            android:title="@string/title_resolution_scale_factor"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1"
+            seekbar:keyStep="0"
+            seekbar:min="20"
+            seekbar:step="1" />
+
+        <!-- Server & host -->
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_enable_sops"
+            android:summary="@string/summary_checkbox_enable_sops"
+            android:title="@string/title_checkbox_enable_sops"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_use_virtual_display"
+            android:summary="@string/summary_checkbox_use_virtual_display"
+            android:title="@string/title_checkbox_use_virtual_display"
+            app:iconSpaceReserved="false" />
+
+        <!-- Clipboard -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_smart_clipboard_sync"
+            android:summary="@string/summary_smart_clipboard_sync"
+            android:title="@string/title_smart_clipboard_sync"
+            app:iconSpaceReserved="false" />
+
+        <!-- Display quirks -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enforce_display_mode"
+            android:summary="@string/summary_checkbox_enforce_display_mode"
+            android:title="@string/title_checkbox_enforce_display_mode"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_fullexdisplay"
+            android:summary="@string/summary_fullexdisplay_mode"
+            android:title="@string/title_fullexdisplay_mode"
+            app:iconSpaceReserved="false" />
+
+        <!-- Device fixes -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_joyconfix"
+            android:summary="@string/summary_joyconfix"
+            android:title="@string/title_joyconfix"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_mouse_nav_buttons"
+            android:summary="@string/summary_checkbox_mouse_nav_buttons"
+            android:title="@string/title_checkbox_mouse_nav_buttons"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="checkbox_force_qwerty"
+            android:summary="@string/summary_checkbox_force_qwerty"
+            android:title="@string/title_checkbox_force_qwerty"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_back_as_meta"
+            android:summary="@string/summary_back_as_meta"
+            android:title="@string/title_checkbox_back_as_meta"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_back_as_guide"
+            android:summary="@string/summary_back_as_guide"
+            android:title="@string/title_back_as_guide"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_ignore_synth_events"
+            android:summary="@string/summary_ignore_synth_events"
+            android:title="@string/title_checkbox_ignore_synth_events"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_pip"
+            android:summary="@string/summary_checkbox_enable_pip"
+            android:title="@string/title_checkbox_enable_pip"
+            app:iconSpaceReserved="false" />
+
+        <!-- Misc -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_resume_without_confirm"
+            android:summary="@string/summary_checkbox_resume_without_confirm"
+            android:title="@string/title_checkbox_resume_without_confirm"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SmallIconCheckboxPreference
+            android:key="checkbox_small_icon_mode"
+            android:summary="@string/summary_checkbox_small_icon_mode"
+            android:title="@string/title_checkbox_small_icon_mode"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="import_special_button_file"
+            android:summary="@string/summary_import_special_button"
+            android:title="@string/title_import_special_button"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="pref_debug_info"
+            android:summary="@string/summary_debug_info"
+            android:title="@string/title_debug_info"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.WebLauncherPreference
+            url="https://github.com/papi-ux/nova/releases"
+            android:key="option_software_release"
+            android:summary="@string/summary_software_update"
+            android:title="@string/title_software_update"
+            app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.WebLauncherPreference
+            url="@string/obtainium_app_url"
+            android:key="option_follow_update"
+            android:summary="@string/summary_follow_update"
+            android:title="@string/title_follow_update"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

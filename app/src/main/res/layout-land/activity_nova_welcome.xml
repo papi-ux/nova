@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:colorBackground">
+
+    <!-- Space particles -->
+    <com.papi.nova.ui.SpaceParticleView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Two-column landscape layout -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="32dp"
+        android:paddingVertical="24dp"
+        android:baselineAligned="false">
+
+        <!-- Left column: branding -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingEnd="24dp">
+
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/ic_nova_star_foreground"
+                android:importantForAccessibility="no"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Welcome to Nova"
+                android:textSize="24sp"
+                android:textColor="@color/nova_ice"
+                android:fontFamily="sans-serif-light"
+                android:letterSpacing="0.03"
+                android:layout_marginBottom="6dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Game streaming, designed for your device"
+                android:textSize="12sp"
+                android:textColor="@color/nova_text_muted"
+                android:fontFamily="sans-serif"
+                android:gravity="center" />
+        </LinearLayout>
+
+        <!-- Right column: features + button -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="24dp">
+
+            <!-- Feature 1 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="12dp">
+
+                <TextView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:gravity="center"
+                    android:text="\uD83C\uDFAE"
+                    android:textSize="13sp"
+                    android:layout_marginEnd="12dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Stream your PC games"
+                        android:textSize="13sp"
+                        android:textColor="@color/nova_text_primary"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Low-latency H.265/AV1 over your local network"
+                        android:textSize="10sp"
+                        android:textColor="@color/nova_text_muted"
+                        android:layout_marginTop="1dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Feature 2 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="12dp">
+
+                <TextView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:gravity="center"
+                    android:text="\uD83D\uDD17"
+                    android:textSize="13sp"
+                    android:layout_marginEnd="12dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Instant pairing"
+                        android:textSize="13sp"
+                        android:textColor="@color/nova_text_primary"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="TOFU auto-pair on your LAN, or scan a QR code"
+                        android:textSize="10sp"
+                        android:textColor="@color/nova_text_muted"
+                        android:layout_marginTop="1dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Feature 3 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="12dp">
+
+                <TextView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:gravity="center"
+                    android:text="\uD83D\uDCCA"
+                    android:textSize="13sp"
+                    android:layout_marginEnd="12dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Performance HUD"
+                        android:textSize="13sp"
+                        android:textColor="@color/nova_text_primary"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="FPS sparkline, latency, bitrate — tap to cycle modes"
+                        android:textSize="10sp"
+                        android:textColor="@color/nova_text_muted"
+                        android:layout_marginTop="1dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Feature 4 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="16dp">
+
+                <TextView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:gravity="center"
+                    android:text="\u2728"
+                    android:textSize="13sp"
+                    android:layout_marginEnd="12dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="AI-optimized quality"
+                        android:textSize="13sp"
+                        android:textColor="@color/nova_text_primary"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Polaris tunes encoding per device, per game"
+                        android:textSize="10sp"
+                        android:textColor="@color/nova_text_muted"
+                        android:layout_marginTop="1dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Get Started button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/welcome_start_btn"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="Get Started"
+                android:textSize="14sp"
+                android:textColor="@color/nova_ice"
+                android:textAllCaps="false"
+                app:backgroundTint="@color/nova_accent"
+                app:cornerRadius="12dp" />
+
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

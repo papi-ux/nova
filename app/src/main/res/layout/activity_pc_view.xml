@@ -1,0 +1,265 @@
+<!-- Nova Server Browser -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:colorBackground"
+    tools:context=".PcView">
+
+    <!-- Animated space particle background -->
+    <com.papi.nova.ui.SpaceParticleView
+        android:id="@+id/space_particles"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/pcViewHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="24dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/pcViewTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Nova"
+                    android:textSize="30sp"
+                    android:textColor="@color/nova_ice"
+                    android:fontFamily="sans-serif-light"
+                    android:letterSpacing="0.04" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/pcViewSectionLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/pcview_home_subtitle"
+                android:textSize="11sp"
+                android:textColor="@color/nova_text_muted"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.04"
+                android:paddingTop="4dp"
+                android:paddingBottom="12dp" />
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:id="@+id/pcModeTabs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/modeServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_mode_servers"
+                        android:background="@drawable/nova_chip_selected" />
+
+                    <TextView
+                        android:id="@+id/modeLibrary"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_mode_library" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:id="@+id/pcQuickActions"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/actionAddServer"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_quick_add_server" />
+
+                    <TextView
+                        android:id="@+id/actionScanPair"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_quick_scan_pair" />
+
+                    <TextView
+                        android:id="@+id/actionTheme"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_quick_theme" />
+
+                    <TextView
+                        android:id="@+id/actionSettings"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_quick_settings" />
+
+                    <TextView
+                        android:id="@+id/actionHelp"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/help" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:paddingBottom="12dp">
+
+                <LinearLayout
+                    android:id="@+id/serverFilterTabs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/filterAllServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_filter_all"
+                        android:background="@drawable/nova_chip_selected" />
+
+                    <TextView
+                        android:id="@+id/filterOnlineServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_filter_online" />
+
+                    <TextView
+                        android:id="@+id/filterStreamingServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_filter_streaming" />
+
+                    <TextView
+                        android:id="@+id/filterNeedsPairingServers"
+                        style="@style/NovaFilterChip"
+                        android:text="@string/pcview_filter_needs_pairing" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+        </LinearLayout>
+
+        <!-- Server list area with pull-to-refresh -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <RelativeLayout
+                android:id="@+id/pcFragmentContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+
+                <LinearLayout
+                    android:id="@+id/no_pc_found_layout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ImageView
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:src="@drawable/ic_nova_star_foreground"
+                        android:alpha="0.3" />
+
+                    <ProgressBar
+                        android:id="@+id/pcs_loading"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginTop="20dp"
+                        android:indeterminate="true"
+                        android:indeterminateTint="@color/nova_accent" />
+
+                    <TextView
+                        android:id="@+id/pcViewEmptyTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:textSize="14sp"
+                        android:textColor="@color/nova_text_muted"
+                        android:fontFamily="sans-serif"
+                        android:text="@string/pcview_empty_title_searching" />
+
+                    <TextView
+                        android:id="@+id/pcViewEmptyHint"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:textSize="12sp"
+                        android:textColor="@color/nova_text_muted"
+                        android:fontFamily="sans-serif"
+                        android:alpha="0.6"
+                        android:text="@string/pcview_empty_hint_searching" />
+
+                    <HorizontalScrollView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/emptyAddServer"
+                                style="@style/NovaFilterChip"
+                                android:text="@string/pcview_quick_add_server" />
+
+                            <TextView
+                                android:id="@+id/emptyScanPair"
+                                style="@style/NovaFilterChip"
+                                android:text="@string/pcview_quick_scan_pair" />
+
+                            <TextView
+                                android:id="@+id/emptyHelp"
+                                style="@style/NovaFilterChip"
+                                android:text="@string/help" />
+                        </LinearLayout>
+                    </HorizontalScrollView>
+                </LinearLayout>
+            </RelativeLayout>
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <!-- Profiles FAB -->
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+            android:id="@+id/profilesButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|bottom"
+            android:layout_marginBottom="24dp"
+            android:layout_marginEnd="24dp"
+            android:contentDescription="@string/profile_manager_choose_profile"
+            app:icon="@drawable/ic_profiles"
+            app:backgroundTint="@color/nova_accent"
+            app:iconTint="@color/nova_ice" />
+
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,14 @@
+<resources>
+
+    <style name="AppBaseTheme" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="colorPrimary">@color/nova_accent</item>
+        <item name="colorAccent">@color/nova_accent</item>
+        <item name="colorSurface">@color/nova_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_text_secondary</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog</item>
+    </style>
+
+</resources>
