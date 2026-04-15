@@ -235,3 +235,9 @@ dependencies {
     androidTestImplementation 'androidx.test:rules:1.7.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
 }
+
+// AGP's cached packaged-manifest outputs can restore output metadata without the
+// split AndroidManifest.xml files it references, which breaks downstream resource linking.
+tasks.withType(com.android.build.gradle.tasks.ProcessPackagedManifestTask).configureEach {
+    outputs.cacheIf { false }
+}
