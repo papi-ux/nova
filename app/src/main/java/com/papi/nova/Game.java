@@ -132,6 +132,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import android.view.SurfaceView;
 import android.view.ViewGroup;
 
@@ -214,6 +217,15 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private int modifierFlags = 0;
     private boolean grabbedInput = true;
     private boolean cursorVisible = false;
+    private final Object cursorVisibilitySyncLock = new Object();
+    private final ExecutorService cursorVisibilitySyncExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "NovaCursorSync");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private boolean pendingHostCursorVisible = false;
+    private boolean hasPendingCursorVisibilitySync = false;
+    private boolean cursorVisibilitySyncScheduled = false;
     private boolean isPanZoomMode = false;
     private boolean synthClickPending = false;
     private boolean pointerSwiping = false;
@@ -1771,6 +1783,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         super.onDestroy();
 
         // Nova: clean up Polaris integration
+        stopCursorVisibilitySync();
         if (novaEventSource != null) novaEventSource.stop();
         if (novaProgressOverlay != null) novaProgressOverlay.dismiss();
         if (novaLockScreenOverlay != null) novaLockScreenOverlay.dismiss();
@@ -2033,12 +2046,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                             inputCaptureProvider.enableCapture();
                             grabbedInput = true;
                         }
-                        cursorVisible = !cursorVisible;
-                        if (cursorVisible) {
-                            inputCaptureProvider.showCursor();
-                        } else {
-                            inputCaptureProvider.hideCursor();
-                        }
+                        setLocalCursorVisible(!cursorVisible);
                         break;
 
                     default:
@@ -3788,9 +3796,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     spinner = null;
                 }
 
-                connected = true;
-                connecting = false;
-                isStreamActive = true;
+                handleStreamStartedState();
 
                 // Show Nova Stream HUD if enabled
                 if (com.papi.nova.ui.NovaStreamHud.Companion.isEnabled(Game.this)) {
@@ -3887,6 +3893,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // This may be null if launched from the "Resume Session" PC context menu item
             shortcutHelper.reportGameLaunched(computer, app);
         }
+    }
+
+    void handleStreamStartedState() {
+        connected = true;
+        connecting = false;
+        isStreamActive = true;
+        syncPolarisCursorVisibility();
     }
 
     @Override
@@ -4317,12 +4330,85 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             inputCaptureProvider.enableCapture();
             grabbedInput = true;
         }
-        cursorVisible = !cursorVisible;
+        setLocalCursorVisible(!cursorVisible);
+    }
+
+    private void setLocalCursorVisible(boolean visible) {
+        cursorVisible = visible;
         if (cursorVisible) {
             inputCaptureProvider.showCursor();
         } else {
             inputCaptureProvider.hideCursor();
         }
+        syncPolarisCursorVisibility();
+    }
+
+    private void syncPolarisCursorVisibility() {
+        queuePolarisCursorVisibilitySync(!cursorVisible);
+    }
+
+    private void queuePolarisCursorVisibilitySync(boolean hostCursorVisible) {
+        if (novaApiClient == null ||
+                !com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasCursorVisibilityControl()) {
+            return;
+        }
+
+        boolean shouldSchedule = false;
+        synchronized (cursorVisibilitySyncLock) {
+            pendingHostCursorVisible = hostCursorVisible;
+            hasPendingCursorVisibilitySync = true;
+            if (!cursorVisibilitySyncScheduled) {
+                cursorVisibilitySyncScheduled = true;
+                shouldSchedule = true;
+            }
+        }
+
+        if (shouldSchedule) {
+            try {
+                cursorVisibilitySyncExecutor.execute(this::drainCursorVisibilitySyncQueue);
+            } catch (RejectedExecutionException e) {
+                synchronized (cursorVisibilitySyncLock) {
+                    hasPendingCursorVisibilitySync = false;
+                    cursorVisibilitySyncScheduled = false;
+                }
+                com.papi.nova.LimeLog.warning("Nova: Cursor visibility sync executor unavailable");
+            }
+        }
+    }
+
+    private void drainCursorVisibilitySyncQueue() {
+        while (true) {
+            final boolean hostCursorVisible;
+            synchronized (cursorVisibilitySyncLock) {
+                if (!hasPendingCursorVisibilitySync) {
+                    cursorVisibilitySyncScheduled = false;
+                    return;
+                }
+                hostCursorVisible = pendingHostCursorVisible;
+                hasPendingCursorVisibilitySync = false;
+            }
+
+            com.papi.nova.api.PolarisApiClient client = novaApiClient;
+            if (client == null ||
+                    !com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasCursorVisibilityControl()) {
+                continue;
+            }
+
+            boolean success = client.setCursorVisibility(hostCursorVisible);
+            if (success) {
+                com.papi.nova.LimeLog.info("Nova: Host cursor visibility synced → " + hostCursorVisible);
+            } else {
+                com.papi.nova.LimeLog.warning("Nova: Host cursor visibility sync failed");
+            }
+        }
+    }
+
+    private void stopCursorVisibilitySync() {
+        synchronized (cursorVisibilitySyncLock) {
+            hasPendingCursorVisibilitySync = false;
+            cursorVisibilitySyncScheduled = false;
+        }
+        cursorVisibilitySyncExecutor.shutdownNow();
     }
 
     private void applyMouseMode(int mode) {

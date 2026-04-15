@@ -25,6 +25,7 @@ object FeatureFlagManager {
     val hasSessionLifecycle: Boolean get() = capabilities?.features?.sessionLifecycle == true
     val hasDeviceProfiles: Boolean get() = capabilities?.features?.deviceProfiles == true
     val hasLockScreenControl: Boolean get() = capabilities?.features?.lockScreenControl == true
+    val hasCursorVisibilityControl: Boolean get() = capabilities?.features?.cursorVisibilityControl == true
 
     // Capture info
     val captureBackend: String get() = capabilities?.capture?.backend ?: ""
@@ -41,7 +42,8 @@ object FeatureFlagManager {
         if (isPolarisServer) {
             LimeLog.info("Nova: Polaris server detected — v$serverVersion")
             LimeLog.info("Nova: Features: AI=${hasAiOptimizer} GameLib=${hasGameLibrary} " +
-                "Session=${hasSessionLifecycle} Devices=${hasDeviceProfiles} Lock=${hasLockScreenControl}")
+                "Session=${hasSessionLifecycle} Devices=${hasDeviceProfiles} Lock=${hasLockScreenControl} " +
+                "Cursor=${hasCursorVisibilityControl}")
             LimeLog.info("Nova: Capture: ${captureBackend}, codecs: ${supportedCodecs}")
         } else {
             LimeLog.info("Nova: Standard Sunshine/Apollo server (no Polaris features)")

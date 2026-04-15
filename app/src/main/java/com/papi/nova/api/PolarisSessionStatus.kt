@@ -5,6 +5,7 @@ data class PolarisSessionStatus(
     val game: String = "",
     val cagePid: Int = 0,
     val screenLocked: Boolean = false,
+    val cursorVisible: Boolean = false,
     val capture: CaptureStatus = CaptureStatus(),
     val encoder: EncoderStatus = EncoderStatus()
 ) {
