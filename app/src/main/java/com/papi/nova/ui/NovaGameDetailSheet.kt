@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import coil.load
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -165,8 +166,23 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
         // MangoHud toggle
         val mangoToggle = view.findViewById<SwitchMaterial>(R.id.detail_mangohud_toggle)
+        val mangoNote = view.findViewById<TextView>(R.id.detail_mangohud_note)
+        val mangoRiskMessageRes = when {
+            game.isSteamBigPicture -> R.string.nova_mangohud_warning_big_picture
+            game.hasMangoHudCompatibilityRisk -> R.string.nova_mangohud_warning_steam
+            else -> null
+        }
+        if (mangoRiskMessageRes != null) {
+            mangoNote.setText(mangoRiskMessageRes)
+            mangoNote.visibility = View.VISIBLE
+        } else {
+            mangoNote.visibility = View.GONE
+        }
         mangoToggle.isChecked = game.mangohud
         mangoToggle.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked && mangoRiskMessageRes != null) {
+                Toast.makeText(requireContext(), mangoRiskMessageRes, Toast.LENGTH_LONG).show()
+            }
             viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
                 apiClient.setMangoHud(game.id, isChecked)
             }

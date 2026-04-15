@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import android.view.View
 import android.widget.TextView
+import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.Game
@@ -125,19 +126,58 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         // MangoHud (server-side — can coexist with client HUDs)
         val mangoIndicator = sheet.findViewById<View>(R.id.mangohud_indicator)
+        val mangoCaption = sheet.findViewById<TextView>(R.id.mangohud_caption)
         val mangoHost = getServerAddress()
         val mangoGameUuid = getRunningGameUuid()
+        val mangoAppName = getRunningAppName()
         val mangoRow = sheet.findViewById<View>(R.id.toggle_mangohud)
+        var mangoRiskMessageRes: Int? = when {
+            isSteamBigPictureName(mangoAppName) -> R.string.nova_mangohud_warning_big_picture
+            else -> null
+        }
+
+        fun refreshMangoHudCaption() {
+            val warning = mangoRiskMessageRes != null
+            mangoCaption?.setText(
+                if (warning) R.string.nova_mangohud_quick_menu_caption_risky
+                else R.string.nova_mangohud_quick_menu_caption_default
+            )
+            mangoCaption?.setTextColor(
+                game.getColor(
+                    if (warning) R.color.nova_warning else R.color.nova_text_muted
+                )
+            )
+        }
+        refreshMangoHudCaption()
 
         if (mangoHost == null || mangoGameUuid == null) {
             mangoRow?.alpha = 0.4f
             mangoRow?.isClickable = false
         } else {
+            Thread {
+                try {
+                    val client = PolarisApiClient(game.applicationContext, mangoHost, getHttpsPort())
+                    val currentGame = client.getGames(limit = 500).firstOrNull { it.id == mangoGameUuid }
+                    val resolvedRisk = when {
+                        currentGame?.isSteamBigPicture == true -> R.string.nova_mangohud_warning_big_picture
+                        currentGame?.hasMangoHudCompatibilityRisk == true -> R.string.nova_mangohud_warning_steam
+                        else -> null
+                    }
+                    if (resolvedRisk != mangoRiskMessageRes) {
+                        mangoRiskMessageRes = resolvedRisk
+                        game.runOnUiThread { refreshMangoHudCaption() }
+                    }
+                } catch (_: Exception) {}
+            }.start()
+
             updateIndicator(mangoIndicator, mangoHudEnabled)
             mangoRow?.setOnClickListener {
                 it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 mangoHudEnabled = !mangoHudEnabled
                 updateIndicator(mangoIndicator, mangoHudEnabled)
+                if (mangoHudEnabled && mangoRiskMessageRes != null) {
+                    Toast.makeText(game, mangoRiskMessageRes!!, Toast.LENGTH_LONG).show()
+                }
 
                 Thread {
                     try {
@@ -277,6 +317,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             game.intent?.getStringExtra("AppUUID")
                 ?: game.intent?.getStringExtra("appuuid")
         } catch (_: Exception) { null }
+    }
+
+    private fun getRunningAppName(): String? {
+        return try {
+            game.intent?.getStringExtra(Game.EXTRA_APP_NAME)
+                ?: game.intent?.getStringExtra("AppName")
+                ?: game.intent?.getStringExtra("appname")
+        } catch (_: Exception) { null }
+    }
+
+    private fun isSteamBigPictureName(appName: String?): Boolean {
+        return appName?.trim()?.equals("Steam Big Picture", ignoreCase = true) == true
     }
 
     /** Get the server address from the Game activity. */

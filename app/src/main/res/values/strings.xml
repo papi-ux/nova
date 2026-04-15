@@ -458,6 +458,11 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (PC Exit Streaming)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (Switch Monitor)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
+    <string name="nova_mangohud_detail_label">MangoHud (server-side overlay)</string>
+    <string name="nova_mangohud_quick_menu_caption_default">next launch</string>
+    <string name="nova_mangohud_quick_menu_caption_risky">next launch · risky on Steam/Proton</string>
+    <string name="nova_mangohud_warning_big_picture">Leave this off for Steam Big Picture. MangoHud has crashed Steam helper processes and caused black screens on this host.</string>
+    <string name="nova_mangohud_warning_steam">Use cautiously on Steam/Proton titles. MangoHud has crashed Steam helper processes and caused black screens on this host.</string>
 
     <string name="toggle_pan_zoom_mode">Toggle Pan/Zoom Mode</string>
     <string name="pan_zoom_mode_enabled">Pan/Zoom Mode Enabled</string>

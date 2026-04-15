@@ -175,13 +175,28 @@
             android:gravity="center_vertical"
             android:paddingTop="16dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="MangoHud (server-side overlay)"
-                android:textSize="14sp"
-                android:textColor="@color/nova_text_secondary" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/nova_mangohud_detail_label"
+                    android:textSize="14sp"
+                    android:textColor="@color/nova_text_secondary" />
+
+                <TextView
+                    android:id="@+id/detail_mangohud_note"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/nova_warning"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </LinearLayout>
 
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/detail_mangohud_toggle"

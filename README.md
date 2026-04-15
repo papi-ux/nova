@@ -104,7 +104,7 @@ Nova is a Moonlight-compatible Android client with a UI and feature set tuned fo
 | Banner | `HEVC │ 60 FPS │ 12ms │ 50 Mbps │ 1080p │ ~~~` |
 | FPS Only | Floating pill: `60 fps` |
 
-**Quick Menu** — Bottom sheet with 6 hotkeys (ESC, Alt+Enter, Alt+F4, F11, Super, Ctrl+V), three columns of toggles (Nova HUD, MangoHud, Perf Stats / Mouse, Controller, Keyboard / Paste, Rotate, Special Keys), Disconnect and End buttons.
+**Quick Menu** — Bottom sheet with 6 hotkeys (ESC, Alt+Enter, Alt+F4, F11, Super, Ctrl+V), three columns of toggles (Nova HUD, MangoHud, Perf Stats / Mouse, Controller, Keyboard / Paste, Rotate, Special Keys), Disconnect and End buttons. On Polaris-backed Steam Big Picture and Steam/Proton titles, Nova warns before enabling MangoHud on the next launch.
 
 **Polaris Integration** — Capabilities probing on connect. Live session state via SSE. Game library with cover art, genres, and optimization recommendations. Smart launch sends display dimensions for resolution matching. Session reports feed the recommendation loop.
 
@@ -232,6 +232,13 @@ adb install -r app/build/outputs/apk/nonRoot_game/release/app-nonRoot_game-arm64
 <summary><b>Does Nova work with Sunshine / Apollo, not just Polaris?</b></summary>
 
 Yes. Nova is a standard Moonlight client and works with Moonlight-compatible servers. Polaris-specific features activate automatically when a Polaris server is detected.
+
+</details>
+
+<details>
+<summary><b>Why does Nova warn me before enabling MangoHud?</b></summary>
+
+On Polaris-backed Steam Big Picture and Steam/Proton titles, MangoHud can crash helper processes early enough to leave the session black-screened. Nova now flags those launches before you enable MangoHud so the safer default is obvious.
 
 </details>
 

@@ -40,7 +40,9 @@ data class PolarisGame(
         }
     }
 
+    val isSteamBigPicture get() = name.equals("Steam Big Picture", ignoreCase = true)
     val isProtonGame get() = source == "steam" && steamAppid.isNotEmpty()
+    val hasMangoHudCompatibilityRisk get() = isSteamBigPicture || isProtonGame
     val categoryLabel get() = when (category) {
         "fast_action" -> "Action"
         "cinematic" -> "Cinematic"
