@@ -644,32 +644,42 @@ public class StreamSettings extends AppCompatActivity {
                 addNativeResolutionEntries(width, height, false, false);
             }
 
-            if (!PreferenceConfiguration.readPreferences(this.getActivity()).unlockFps) {
-                // We give some extra room in case the FPS is rounded down
-                if (maxSupportedFps < 118) {
-                    removeEntryFromListAndSetValue(PreferenceConfiguration.FPS_PREF_STRING, "120", "90");
-                }
-                if (maxSupportedFps < 88) {
-                    // 1080p is unsupported
-                    removeEntryFromListAndSetValue(PreferenceConfiguration.FPS_PREF_STRING, "90", "60");
-                }
-                // Never remove 30 FPS or 60 FPS
+            // Never offer frame rates the active display cannot actually present.
+            // This avoids implying that 90/120 FPS are achievable on 60 Hz handheld panels.
+            if (maxSupportedFps < 118) {
+                removeEntryFromListAndSetValue(PreferenceConfiguration.FPS_PREF_STRING, "120", "90");
             }
+            if (maxSupportedFps < 88) {
+                removeEntryFromListAndSetValue(PreferenceConfiguration.FPS_PREF_STRING, "90", "60");
+            }
+            // Never remove 30 FPS or 60 FPS.
             addNativeFrameRateEntry(maxSupportedFps, false);
 
             // Android L introduces the drop duplicate behavior of releaseOutputBuffer()
             // that the unlock FPS option relies on to not massively increase latency.
-            findPreference(PreferenceConfiguration.UNLOCK_FPS_STRING).setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
-                @Override
-                public boolean onPreferenceChange(Preference preference, Object newValue) {
-                    // HACK: We need to let the preference change succeed before reinitializing to ensure
-                    // it's reflected in the new layout.
-                    reloadSettings();
-
-                    // Allow the original preference change to take place
-                    return true;
+            CheckBoxPreference unlockFpsPref = findPreference(PreferenceConfiguration.UNLOCK_FPS_STRING);
+            if (unlockFpsPref != null) {
+                if (maxSupportedFps < 88) {
+                    unlockFpsPref.setEnabled(false);
+                    unlockFpsPref.setSummary(getString(R.string.summary_unlock_fps_display_cap,
+                            Math.round(maxSupportedFps)));
+                } else {
+                    unlockFpsPref.setEnabled(true);
+                    unlockFpsPref.setSummary(R.string.summary_unlock_fps);
                 }
-            });
+
+                unlockFpsPref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                    @Override
+                    public boolean onPreferenceChange(Preference preference, Object newValue) {
+                        // HACK: We need to let the preference change succeed before reinitializing to ensure
+                        // it's reflected in the new layout.
+                        reloadSettings();
+
+                        // Allow the original preference change to take place
+                        return true;
+                    }
+                });
+            }
 
             // Remove HDR preference for devices below Nougat.
             // On SDR handheld panels running Android N+, we still expose this toggle
@@ -968,8 +978,11 @@ public class StreamSettings extends AppCompatActivity {
                 });
             }
 
+            final float maxDisplayRefreshRate = maxSupportedFps;
             EditTextPreference customRefreshRatePref = findPreference(PreferenceConfiguration.CUSTOM_REFRESH_RATE_PREF_STRING);
             if (customRefreshRatePref != null) {
+                customRefreshRatePref.setSummary(getString(R.string.summary_custom_refresh_rate_display_cap,
+                        Math.round(maxDisplayRefreshRate)));
                 customRefreshRatePref.setOnBindEditTextListener((EditText editText) -> {
                     editText.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
                     editText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(7)});
@@ -988,7 +1001,14 @@ public class StreamSettings extends AppCompatActivity {
                             Toast.makeText(getActivity(), getString(R.string.pref_enter_value_0_9999), Toast.LENGTH_SHORT).show();
                             return false;
                         }
-                        
+                        if (maxDisplayRefreshRate > 0 && refreshRate > maxDisplayRefreshRate + 0.5f) {
+                            Toast.makeText(getActivity(),
+                                    getString(R.string.pref_refresh_rate_exceeds_display_cap,
+                                            Math.round(maxDisplayRefreshRate)),
+                                    Toast.LENGTH_SHORT).show();
+                            return false;
+                        }
+
                         // Format to max 3 decimal places
                         String formattedValue = String.format("%.3f", refreshRate);
                         // Remove trailing zeros

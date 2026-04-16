@@ -355,6 +355,7 @@
     <string name="category_advanced_settings">Advanced Settings</string>
     <string name="title_unlock_fps">Unlock all possible frame rates</string>
     <string name="summary_unlock_fps">Streaming at 90 or 120 FPS may reduce latency on high-end devices but can cause lag or instability on devices that can\'t support it</string>
+    <string name="summary_unlock_fps_display_cap">This display tops out at %1$d FPS, so 90/120 FPS options are unavailable on this screen</string>
     <string name="title_checkbox_reduce_refresh_rate">Allow refresh rate reduction</string>
     <string name="summary_checkbox_reduce_refresh_rate">Lower display refresh rates can save power at the expense of some additional video latency</string>
     <string name="title_checkbox_disable_warnings">Disable warning messages</string>
@@ -495,7 +496,9 @@
     <string name="dialog_manual_enter_bitrate">Enter bitrate in Mbps. Round to 0.5.</string>
     <string name="title_custom_refresh_rate">Custom refresh rate</string>
     <string name="summary_custom_refresh_rate">Enter refresh rate manually. Only supports Apollo.</string>
+    <string name="summary_custom_refresh_rate_display_cap">Enter refresh rate manually up to %1$d Hz on this display. Only supports Apollo.</string>
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
+    <string name="pref_refresh_rate_exceeds_display_cap">This display supports up to %1$d Hz</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
     <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>

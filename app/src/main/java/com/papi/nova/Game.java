@@ -895,12 +895,21 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             chosenFrameRate *= prefConfig.framePacingWarpFactor;
         }
 
+        float launchRefreshRate = prefConfig.fps;
+        float maxSupportedLaunchRefreshRate = getMaxSupportedRefreshRate(currentDisplay);
+        if (maxSupportedLaunchRefreshRate > 0 &&
+                launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f) {
+            LimeLog.info("Clamping launch refresh rate from " + launchRefreshRate +
+                    " to display max " + maxSupportedLaunchRefreshRate);
+            launchRefreshRate = maxSupportedLaunchRefreshRate;
+        }
+
         StreamConfiguration config = new StreamConfiguration.Builder()
                 .setResolution(
                         displayWidth,
                         displayHeight
                 )
-                .setLaunchRefreshRate(prefConfig.fps)
+                .setLaunchRefreshRate(launchRefreshRate)
                 .setRefreshRate(chosenFrameRate)
                 .setVirtualDisplay(vDisplay)
                 .setResolutionScaleFactor(prefConfig.resolutionScaleFactor)
@@ -1588,6 +1597,23 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     public boolean isOnExternalDisplay() {
         return onExternelDisplay;
+    }
+
+    private float getMaxSupportedRefreshRate(Display display) {
+        float maxRefreshRate = display.getRefreshRate();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            for (Display.Mode candidate : display.getSupportedModes()) {
+                maxRefreshRate = Math.max(maxRefreshRate, candidate.getRefreshRate());
+            }
+        }
+        else {
+            for (float candidate : display.getSupportedRefreshRates()) {
+                maxRefreshRate = Math.max(maxRefreshRate, candidate);
+            }
+        }
+
+        return maxRefreshRate;
     }
 
     private float prepareDisplayForRendering(Display currentDisplay) {
