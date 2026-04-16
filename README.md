@@ -51,6 +51,7 @@ Nova is a Moonlight-compatible Android client with a UI and feature set tuned fo
 - **Fast pairing**: TOFU on trusted LANs, plus QR and manual PIN pairing.
 - **Handheld-first UI**: game grid, quick menu, drag-and-tap HUD, and theme support that feel native on Android.
 - **Polaris-aware features**: richer library metadata, live session state, quality recommendations, and session reporting.
+- **Explicit 10-bit opt-in**: enabling HDR can request a 10-bit stream from Polaris even when the handheld panel itself is SDR-only.
 - **Connection resilience**: reconnect overlay with backoff instead of dropping the session immediately.
 - **Input depth**: gyro aim, audio haptics, multiple mouse modes, and broad controller support.
 
@@ -92,7 +93,7 @@ Nova is a Moonlight-compatible Android client with a UI and feature set tuned fo
 
 ## Features
 
-**Streaming** — H.264, HEVC, AV1 decode. Streaming presets (Performance / Balanced / Quality) apply with one tap. Proactive bitrate monitor auto-reduces via the Polaris API when FPS drops, gradually recovers when stable.
+**Streaming** — H.264, HEVC, AV1 decode. Streaming presets (Performance / Balanced / Quality) apply with one tap. Proactive bitrate monitor auto-reduces via the Polaris API when FPS drops, gradually recovers when stable. On Polaris/Main10-capable hosts, enabling HDR in Nova is treated as an explicit 10-bit opt-in, so Nova can request a 10-bit SDR stream even when the Android display itself does not expose HDR10 support.
 
 **Input** — Gyro aiming maps device gyroscope to mouse delta for FPS camera control. Audio haptics convert bass frequencies into vibration (Off / Subtle / Strong). Up to 8 gamepads with USB driver support, per-axis deadzone, face button flip. Mouse modes: Direct, Trackpad, Relative.
 
@@ -239,6 +240,13 @@ Yes. Nova is a standard Moonlight client and works with Moonlight-compatible ser
 <summary><b>Why does Nova warn me before enabling MangoHud?</b></summary>
 
 On Polaris-backed Steam Big Picture and Steam/Proton titles, MangoHud can crash helper processes early enough to leave the session black-screened. Nova now flags those launches before you enable MangoHud so the safer default is obvious.
+
+</details>
+
+<details>
+<summary><b>Can Nova request a 10-bit stream on an SDR display?</b></summary>
+
+Yes. When you explicitly enable HDR in Nova and the server supports Main10, Nova can request a 10-bit stream even if the handheld screen itself is SDR-only. This is especially useful with Polaris on handhelds such as Retroid devices: Nova requests the 10-bit path, and Polaris can keep the active stream on `p010` without requiring the device panel to advertise HDR10.
 
 </details>
 
