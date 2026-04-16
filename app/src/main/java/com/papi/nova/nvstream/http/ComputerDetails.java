@@ -81,6 +81,7 @@ public class ComputerDetails {
     public String runningGameUUID;
     public String rawAppList;
     public boolean nvidiaServer;
+    public int serverMaxLaunchRefreshRate;
 
     // VDisplay info
     public boolean vDisplaySupported = false;
@@ -160,6 +161,7 @@ public class ComputerDetails {
         this.runningGameUUID = details.runningGameUUID;
         this.nvidiaServer = details.nvidiaServer;
         this.rawAppList = details.rawAppList;
+        this.serverMaxLaunchRefreshRate = details.serverMaxLaunchRefreshRate;
 
         this.vDisplayDriverReady = details.vDisplayDriverReady;
         this.vDisplaySupported = details.vDisplaySupported;
@@ -234,6 +236,7 @@ public class ComputerDetails {
                 "Pair State: " + pairState + "\n" +
                 "Running Game ID: " + runningGameId + "\n" +
                 "Running Game UUID: " + runningGameUUID + "\n" +
+                "Server Max Launch Refresh Rate: " + serverMaxLaunchRefreshRate + "\n" +
                 "HTTPS Port: " + httpsPort + "\n";
     }
 }

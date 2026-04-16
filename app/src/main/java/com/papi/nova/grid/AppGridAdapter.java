@@ -43,6 +43,7 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     private final boolean showHiddenApps;
 
     private CachedAppAssetLoader loader;
+    private boolean showHdrBadges;
     private Set<Integer> hiddenAppIds = new HashSet<>();
     private Set<Integer> pinnedAppIds = new HashSet<>();
     private ArrayList<AppView.AppObject> allApps = new ArrayList<>();
@@ -123,6 +124,7 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     public void updateLayoutWithPreferences(Context context, PreferenceConfiguration prefs) {
         int dpi = context.getResources().getDisplayMetrics().densityDpi;
         int dp;
+        showHdrBadges = prefs.enableHdr;
 
         if (prefs.smallIconMode) {
             dp = SMALL_WIDTH_DP;
@@ -273,8 +275,13 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         loader.populateImageView(obj.app, imgView, txtView);
 
         // Running state indicators
+        TextView hdrBadge = parentView.findViewById(R.id.hdr_badge);
         View runningBadge = parentView.findViewById(R.id.running_badge);
         View runningBorder = parentView.findViewById(R.id.running_border);
+
+        if (hdrBadge != null) {
+            hdrBadge.setVisibility(showHdrBadges && obj.app.isHdrSupported() ? View.VISIBLE : View.GONE);
+        }
 
         if (obj.isRunning) {
             overlayView.setImageResource(R.drawable.ic_play);

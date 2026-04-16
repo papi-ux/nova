@@ -104,6 +104,14 @@ public class NvConnection {
         connectionAllowed.release();
     }
 
+    static float negotiateLaunchRefreshRate(float requestedLaunchRefreshRate, int serverMaxLaunchRefreshRate) {
+        if (requestedLaunchRefreshRate <= 0 || serverMaxLaunchRefreshRate <= 0) {
+            return requestedLaunchRefreshRate;
+        }
+
+        return Math.min(requestedLaunchRefreshRate, serverMaxLaunchRefreshRate);
+    }
+
     private InetAddress resolveServerAddress() throws IOException {
         // Try to find an address that works for this host
         InetAddress[] addrs = InetAddress.getAllByName(context.serverAddress.address);
@@ -236,6 +244,7 @@ public class NvConnection {
 
         ComputerDetails details = h.getComputerDetails(serverInfo);
         context.isNvidiaServerSoftware = details.nvidiaServer;
+        context.serverMaxLaunchRefreshRate = details.serverMaxLaunchRefreshRate;
 
         // May be missing for older servers
         context.serverGfeVersion = h.getGfeVersion(serverInfo);
@@ -374,6 +383,17 @@ public class NvConnection {
     
     private boolean launchNotRunningApp(NvHTTP h, ConnectionContext context)
             throws IOException, XmlPullParserException {
+        float requestedLaunchRefreshRate = context.streamConfig.getLaunchRefreshRate();
+        context.negotiatedLaunchRefreshRate = negotiateLaunchRefreshRate(
+                requestedLaunchRefreshRate,
+                context.serverMaxLaunchRefreshRate);
+        if (context.serverMaxLaunchRefreshRate > 0 &&
+                context.negotiatedLaunchRefreshRate < requestedLaunchRefreshRate) {
+            context.connListener.displayTransientMessage(
+                    "This host currently advertises up to " + context.serverMaxLaunchRefreshRate +
+                            " FPS. The stream will launch at " + context.serverMaxLaunchRefreshRate + " FPS.");
+        }
+
         // Launch the app since it's not running
         if (!h.launchApp(context, "launch", context.streamConfig.getApp().getAppUUID(), context.streamConfig.getApp().getAppId(), context.negotiatedHdr)) {
             context.connListener.displayMessage("Failed to launch application");

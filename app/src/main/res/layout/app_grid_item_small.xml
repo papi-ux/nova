@@ -36,6 +36,24 @@
             </RelativeLayout>
 
             <TextView
+                android:id="@+id/hdr_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:layout_margin="6dp"
+                android:text="@string/badge_hdr"
+                android:textSize="8sp"
+                android:textColor="@color/nova_ice"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.05"
+                android:background="@drawable/nova_badge_bg"
+                android:paddingStart="5dp"
+                android:paddingEnd="5dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:visibility="gone" />
+
+            <TextView
                 android:id="@+id/grid_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -20,12 +20,14 @@ public class ConnectionContext {
     public String serverAppVersion;
     public String serverGfeVersion;
     public int serverCodecModeSupport;
+    public int serverMaxLaunchRefreshRate;
 
     // This is the sessionUrl0 tag from /resume and /launch
     public String rtspSessionUrl;
     
     public int negotiatedWidth, negotiatedHeight;
     public boolean negotiatedHdr;
+    public float negotiatedLaunchRefreshRate;
 
     public int negotiatedRemoteStreaming;
     public int negotiatedPacketSize;

@@ -74,6 +74,8 @@ jobs:
     name: Assemble release APK
     needs: [verify, android-smoke]
     runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 != '' }}
 
     steps:
       - uses: actions/checkout@v5
@@ -97,7 +99,7 @@ jobs:
         run: ./gradlew assembleNonRoot_gameRelease
 
       - name: Sign APK
-        if: github.event_name != 'pull_request' && secrets.KEYSTORE_BASE64 != ''
+        if: github.event_name != 'pull_request' && env.HAS_KEYSTORE_BASE64 == 'true'
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/keystore.jks
 

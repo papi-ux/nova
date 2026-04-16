@@ -439,6 +439,7 @@ public class NvHTTP {
         details.pairState = getPairState(serverInfo);
         details.runningGameId = getCurrentGame(serverInfo);
         details.runningGameUUID = getCurrentGameUUID(serverInfo);
+        details.serverMaxLaunchRefreshRate = getServerMaxLaunchRefreshRate(serverInfo);
 
         // The MJOLNIR codename was used by GFE but never by any third-party server
         details.nvidiaServer = getXmlString(serverInfo, "state", true).contains("MJOLNIR");
@@ -615,6 +616,23 @@ public class NvHTTP {
         } else {
             return 0;
         }
+    }
+
+    static int parseServerMaxLaunchRefreshRate(String serverInfo) throws XmlPullParserException, IOException {
+        String str = getXmlString(serverInfo, "ServerMaxLaunchRefreshRate", false);
+        if (str != null) {
+            try {
+                return Integer.parseInt(str);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+
+        return 0;
+    }
+
+    public int getServerMaxLaunchRefreshRate(String serverInfo) throws XmlPullParserException, IOException {
+        return parseServerMaxLaunchRefreshRate(serverInfo);
     }
     
     public String getGpuType(String serverInfo) throws XmlPullParserException, IOException {
@@ -847,12 +865,15 @@ public class NvHTTP {
     }
     
     public boolean launchApp(ConnectionContext context, String verb, String appUUID, int appId, boolean enableHdr) throws IOException, XmlPullParserException {
+        float requestedLaunchRefreshRate = context.negotiatedLaunchRefreshRate > 0 ?
+                context.negotiatedLaunchRefreshRate : context.streamConfig.getLaunchRefreshRate();
+
         // Using an FPS value over 60 causes SOPS to default to 720p60,
         // so force it to 0 to ensure the correct resolution is set. We
         // used to use 60 here but that locked the frame rate to 60 FPS
         // on GFE 3.20.3.
-        float fps = context.isNvidiaServerSoftware && context.streamConfig.getLaunchRefreshRate() > 60 ?
-                0 : context.streamConfig.getLaunchRefreshRate();
+        float fps = context.isNvidiaServerSoftware && requestedLaunchRefreshRate > 60 ?
+                0 : requestedLaunchRefreshRate;
 
         int fpsInt = (int)fps;
 
