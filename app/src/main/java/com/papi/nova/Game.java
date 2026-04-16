@@ -345,7 +345,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private final Handler commitTextHandler = new Handler(Looper.getMainLooper());
 
     static boolean displaySupportsHdr10(Display.HdrCapabilities hdrCapabilities) {
-        if (hdrCapabilities == null) {
+        if (hdrCapabilities == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             return false;
         }
 

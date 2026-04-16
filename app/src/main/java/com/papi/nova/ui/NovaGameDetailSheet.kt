@@ -13,6 +13,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import android.text.format.DateUtils
+import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -227,7 +228,8 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             }
         )
         mangoCaption.setTextColor(
-            requireContext().getColor(
+            ContextCompat.getColor(
+                requireContext(),
                 if (mangoRiskMessageRes != null) R.color.nova_warning else R.color.nova_text_secondary
             )
         )
@@ -283,13 +285,13 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         button.isEnabled = isAvailable
         button.alpha = if (isAvailable) 1f else 0.45f
         if (isRecommended && isAvailable) {
-            button.backgroundTintList = android.content.res.ColorStateList.valueOf(requireContext().getColor(R.color.nova_accent))
-            button.setTextColor(requireContext().getColor(R.color.nova_ice))
+            button.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_accent))
+            button.setTextColor(ContextCompat.getColor(requireContext(), R.color.nova_ice))
             button.strokeWidth = 0
         } else {
-            button.backgroundTintList = android.content.res.ColorStateList.valueOf(requireContext().getColor(R.color.nova_badge_bg))
-            button.setTextColor(requireContext().getColor(R.color.nova_text_primary))
-            button.strokeColor = android.content.res.ColorStateList.valueOf(requireContext().getColor(R.color.nova_divider))
+            button.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_badge_bg))
+            button.setTextColor(ContextCompat.getColor(requireContext(), R.color.nova_text_primary))
+            button.strokeColor = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_divider))
             button.strokeWidth = 2
         }
     }

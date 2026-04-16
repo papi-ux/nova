@@ -4,6 +4,7 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.Game
@@ -293,7 +294,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
             )
             mangoCaption?.setTextColor(
-                game.getColor(
+                ContextCompat.getColor(
+                    game,
                     if (mangoRiskMessageRes != null && mangoToggleAllowed) R.color.nova_warning
                     else R.color.nova_text_muted
                 )
@@ -556,10 +558,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         chip.text = label
 
         val (textColor, bgColor) = when (tone) {
-            ChipTone.ACTIVE -> game.getColor(R.color.nova_ice) to game.getColor(R.color.nova_accent)
-            ChipTone.INACTIVE -> game.getColor(R.color.nova_text_secondary) to game.getColor(R.color.nova_badge_bg)
-            ChipTone.MUTED -> game.getColor(R.color.nova_text_muted) to game.getColor(R.color.nova_divider)
-            ChipTone.WARNING -> game.getColor(R.color.nova_warning) to game.getColor(R.color.nova_divider)
+            ChipTone.ACTIVE -> ContextCompat.getColor(game, R.color.nova_ice) to ContextCompat.getColor(game, R.color.nova_accent)
+            ChipTone.INACTIVE -> ContextCompat.getColor(game, R.color.nova_text_secondary) to ContextCompat.getColor(game, R.color.nova_badge_bg)
+            ChipTone.MUTED -> ContextCompat.getColor(game, R.color.nova_text_muted) to ContextCompat.getColor(game, R.color.nova_divider)
+            ChipTone.WARNING -> ContextCompat.getColor(game, R.color.nova_warning) to ContextCompat.getColor(game, R.color.nova_divider)
         }
 
         chip.setTextColor(textColor)
