@@ -682,8 +682,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     }
 
                     if (!willStreamHdr) {
-                        // Nope, no HDR for us :(
-                        Toast.makeText(this, "Display does not support HDR10", Toast.LENGTH_LONG).show();
+                        // Explicit HDR opt-in can still be useful on SDR displays because it
+                        // enables HEVC/AV1 Main10 negotiation and a 10-bit stream path.
+                        willStreamHdr = true;
+                        Toast.makeText(this, "Display does not support HDR10. Nova will request a 10-bit SDR stream.", Toast.LENGTH_LONG).show();
                     }
                 }
                 else {
