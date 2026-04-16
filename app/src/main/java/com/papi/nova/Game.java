@@ -339,6 +339,62 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private final Queue<String> commitTextQueue = new ArrayDeque<>();
     private final Handler commitTextHandler = new Handler(Looper.getMainLooper());
 
+    static boolean displaySupportsHdr10(Display.HdrCapabilities hdrCapabilities) {
+        if (hdrCapabilities == null) {
+            return false;
+        }
+
+        for (int hdrType : hdrCapabilities.getSupportedHdrTypes()) {
+            if (hdrType == Display.HdrCapabilities.HDR_TYPE_HDR10) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static boolean shouldRequestHdrStream(boolean prefEnableHdr,
+                                          boolean onExternalDisplay,
+                                          int sdkInt,
+                                          boolean displaySupportsHdr10) {
+        if (!prefEnableHdr) {
+            return false;
+        }
+
+        if (onExternalDisplay) {
+            return true;
+        }
+
+        if (sdkInt < Build.VERSION_CODES.N) {
+            return false;
+        }
+
+        if (displaySupportsHdr10) {
+            return true;
+        }
+
+        // Explicit HDR opt-in still requests a 10-bit stream on SDR panels.
+        return true;
+    }
+
+    static boolean shouldShowSdr10BitOptInToast(boolean prefEnableHdr,
+                                                boolean onExternalDisplay,
+                                                int sdkInt,
+                                                boolean displaySupportsHdr10) {
+        return prefEnableHdr &&
+                !onExternalDisplay &&
+                sdkInt >= Build.VERSION_CODES.N &&
+                !displaySupportsHdr10;
+    }
+
+    static boolean shouldShowHdrRequiresAndroidNToast(boolean prefEnableHdr,
+                                                      boolean onExternalDisplay,
+                                                      int sdkInt) {
+        return prefEnableHdr &&
+                !onExternalDisplay &&
+                sdkInt < Build.VERSION_CODES.N;
+    }
+
     private final Runnable flushCommitTextQueue = new Runnable() {
         @Override
         public void run() {
@@ -660,38 +716,31 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         MediaCodecHelper.initialize(this, glPrefs.glRenderer);
 
         // Check if the user has enabled HDR
-        boolean willStreamHdr = false;
-        if (prefConfig.enableHdr) {
-            if (onExternelDisplay) {
-                // Enforce HDR on unsupported hardware can still enable 10bit streaming for better quality
-                willStreamHdr = true;
-            } else {
-                // Start our HDR checklist
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    Display.HdrCapabilities hdrCaps = currentDisplay.getHdrCapabilities();
+        boolean displaySupportsHdr10 = false;
+        if (!onExternelDisplay && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            displaySupportsHdr10 = displaySupportsHdr10(currentDisplay.getHdrCapabilities());
+        }
 
-                    // We must now ensure our display is compatible with HDR10
-                    if (hdrCaps != null) {
-                        // getHdrCapabilities() returns null on Lenovo Lenovo Mirage Solo (vega), Android 8.0
-                        for (int hdrType : hdrCaps.getSupportedHdrTypes()) {
-                            if (hdrType == Display.HdrCapabilities.HDR_TYPE_HDR10) {
-                                willStreamHdr = true;
-                                break;
-                            }
-                        }
-                    }
+        boolean willStreamHdr = shouldRequestHdrStream(
+                prefConfig.enableHdr,
+                onExternelDisplay,
+                Build.VERSION.SDK_INT,
+                displaySupportsHdr10
+        );
 
-                    if (!willStreamHdr) {
-                        // Explicit HDR opt-in can still be useful on SDR displays because it
-                        // enables HEVC/AV1 Main10 negotiation and a 10-bit stream path.
-                        willStreamHdr = true;
-                        Toast.makeText(this, "Display does not support HDR10. Nova will request a 10-bit SDR stream.", Toast.LENGTH_LONG).show();
-                    }
-                }
-                else {
-                    Toast.makeText(this, "HDR requires Android 7.0 or later", Toast.LENGTH_LONG).show();
-                }
-            }
+        if (shouldShowSdr10BitOptInToast(
+                prefConfig.enableHdr,
+                onExternelDisplay,
+                Build.VERSION.SDK_INT,
+                displaySupportsHdr10
+        )) {
+            Toast.makeText(this, "Display does not support HDR10. Nova will request a 10-bit SDR stream.", Toast.LENGTH_LONG).show();
+        } else if (shouldShowHdrRequiresAndroidNToast(
+                prefConfig.enableHdr,
+                onExternelDisplay,
+                Build.VERSION.SDK_INT
+        )) {
+            Toast.makeText(this, "HDR requires Android 7.0 or later", Toast.LENGTH_LONG).show();
         }
 
         // Check if the user has enabled performance stats overlay
