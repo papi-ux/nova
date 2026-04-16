@@ -375,6 +375,12 @@ public class NvConnection {
                     context.connListener.displayMessage("The application is minimized. Resume it on the PC manually or " +
                             "quit the session and start streaming again.");
                     return false;
+                } else if (e.getErrorCode() == 412 && context.watchOnlyRequested) {
+                    String errorMessage = e.getErrorMessage();
+                    context.connListener.displayMessage(errorMessage != null && !errorMessage.isEmpty() ?
+                            errorMessage :
+                            "Watch mode must match the active stream profile.");
+                    return false;
                 } else if (e.getErrorCode() == 409 && context.watchOnlyRequested) {
                     context.connListener.displayMessage("No active stream is available to watch.");
                     return false;
