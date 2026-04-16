@@ -35,6 +35,7 @@ class NovaStreamHud(private val activity: Activity) {
 
     private var hudView: View? = null
     private var fpsText: TextView? = null
+    private var targetFpsText: TextView? = null
     private var codecText: TextView? = null
     private var bitrateText: TextView? = null
     private var latencyText: TextView? = null
@@ -42,8 +43,10 @@ class NovaStreamHud(private val activity: Activity) {
     private var sparkline: SparklineView? = null
     private var fpsLowText: TextView? = null
     private var codecLabel: TextView? = null
+    private var streamModeText: TextView? = null
     private var activeCodecLabel = ""
     private var sessionModeLabel = ""
+    private var targetFps = 0.0
 
     // Mode cycling: full → banner → fps_only → full
     private val modes = listOf("full", "banner", "fps_only")
@@ -119,6 +122,7 @@ class NovaStreamHud(private val activity: Activity) {
 
         // Wire up view references (some may be null depending on mode)
         fpsText = hudView?.findViewById(R.id.hud_fps)
+        targetFpsText = hudView?.findViewById(R.id.hud_target_fps)
         codecText = hudView?.findViewById(R.id.hud_codec)
         bitrateText = hudView?.findViewById(R.id.hud_bitrate)
         latencyText = hudView?.findViewById(R.id.hud_latency)
@@ -126,10 +130,17 @@ class NovaStreamHud(private val activity: Activity) {
         sparkline = hudView?.findViewById(R.id.hud_sparkline)
         fpsLowText = hudView?.findViewById(R.id.hud_fps_low)
         codecLabel = hudView?.findViewById(R.id.hud_codec_label)
+        streamModeText = hudView?.findViewById(R.id.hud_stream_mode)
 
         // Restore sparkline data if switching modes
         sparkline?.let { sv ->
             for (v in sparklineData) sv.push(v)
+        }
+
+        renderTargetFps()
+        renderStreamMode()
+        if (activeCodecLabel.isNotBlank()) {
+            applyCodecLabel(activeCodecLabel)
         }
 
         // Set up touch: drag + tap-to-cycle
@@ -137,8 +148,14 @@ class NovaStreamHud(private val activity: Activity) {
 
         // Position — use absolute positioning for drag support
         val margin = (12 * activity.resources.displayMetrics.density).toInt()
+        val width = if (currentMode == "full") {
+            (232 * activity.resources.displayMetrics.density).toInt()
+        } else {
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        }
+
         val params = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
+            width,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -263,11 +280,20 @@ class NovaStreamHud(private val activity: Activity) {
         lastBitrateKbps = bitrateKbps
     }
 
+    fun setTargetFps(fps: Double) {
+        if (fps <= 0) {
+            return
+        }
+
+        targetFps = fps
+        activity.runOnUiThread { renderTargetFps() }
+    }
+
     fun update(fps: Double, codec: String, bitrateKbps: Int, width: Int, height: Int, latencyMs: Double) {
         activity.runOnUiThread {
             updateFps(fps)
             if (currentMode != "fps_only") {
-                val codecStr = codec.uppercase()
+                val codecStr = normalizeCodecLabel(codec)
                 applyCodecLabel(codecStr)
                 bitrateText?.text = if (currentMode == "banner") "  ${bitrateKbps / 1000}Mbps"
                     else "${bitrateKbps / 1000} Mbps"
@@ -279,20 +305,41 @@ class NovaStreamHud(private val activity: Activity) {
 
     fun applySessionStatus(status: PolarisSessionStatus?) {
         activity.runOnUiThread {
+            val resolvedTargetFps = status?.let(::resolveTargetFps) ?: 0.0
+            if (resolvedTargetFps > 0) {
+                targetFps = resolvedTargetFps
+            }
             sessionModeLabel = status?.let(::buildSessionModeLabel) ?: ""
+            renderTargetFps()
+            renderStreamMode()
+
             if (currentMode == "fps_only") {
                 return@runOnUiThread
             }
 
             if (activeCodecLabel.isNotBlank()) {
                 applyCodecLabel(activeCodecLabel)
-            } else if (sessionModeLabel.isNotBlank()) {
-                if (currentMode == "banner") codecLabel?.text = sessionModeLabel else codecText?.text = sessionModeLabel
+            } else if (currentMode == "banner") {
+                codecLabel?.text = sessionModeLabel
             }
         }
     }
 
+    private fun resolveTargetFps(status: PolarisSessionStatus): Double {
+        return when {
+            status.encoder.sessionTargetFps > 0 -> status.encoder.sessionTargetFps
+            status.encoder.encodeTargetFps > 0 -> status.encoder.encodeTargetFps
+            status.encoder.requestedClientFps > 0 -> status.encoder.requestedClientFps
+            else -> 0.0
+        }
+    }
+
     private fun buildSessionModeLabel(status: PolarisSessionStatus): String {
+        val mode = when {
+            status.isHeadlessMode -> activity.getString(R.string.nova_session_mode_headless)
+            status.isVirtualDisplayMode -> activity.getString(R.string.nova_session_mode_virtual_display)
+            else -> activity.getString(R.string.nova_session_mode_host_display)
+        }
         val bitDepth = if (status.isTenBitActive) "10b" else "8b"
         val path = when {
             status.isGpuPath -> "GPU"
@@ -301,15 +348,65 @@ class NovaStreamHud(private val activity: Activity) {
         }
         val role = if (status.isViewer) "WATCH" else ""
 
-        return listOf(bitDepth, path, role).filter { it.isNotBlank() }.joinToString(" ")
+        return listOf(mode, bitDepth, path, role).filter { it.isNotBlank() }.joinToString(" ")
     }
 
     private fun applyCodecLabel(codec: String) {
-        activeCodecLabel = codec
-        val decorated = listOf(codec, sessionModeLabel)
-            .filter { it.isNotBlank() }
-            .joinToString(if (currentMode == "banner") " " else " · ")
-        if (currentMode == "banner") codecLabel?.text = decorated else codecText?.text = decorated
+        val normalized = normalizeCodecLabel(codec)
+        activeCodecLabel = normalized
+        if (currentMode == "banner") {
+            val decorated = listOf(normalized, sessionModeLabel)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+            codecLabel?.text = decorated
+        } else {
+            codecText?.text = normalized
+        }
+    }
+
+    private fun normalizeCodecLabel(codec: String): String {
+        val value = codec.trim()
+        if (value.isBlank()) {
+            return ""
+        }
+
+        val lower = value.lowercase()
+        return when {
+            lower.contains("av1") -> "AV1"
+            lower.contains("hevc") || lower.contains("h265") -> "HEVC"
+            lower.contains("avc") || lower.contains("h264") -> "H264"
+            lower.contains("vp9") -> "VP9"
+            else -> value.uppercase()
+        }
+    }
+
+    private fun renderTargetFps() {
+        val view = targetFpsText ?: return
+        if (targetFps <= 0) {
+            view.visibility = View.GONE
+            return
+        }
+
+        val rounded = targetFps.toInt()
+        view.visibility = View.VISIBLE
+        view.text = when (currentMode) {
+            "banner", "fps_only" -> "/$rounded"
+            else -> "TGT $rounded"
+        }
+    }
+
+    private fun renderStreamMode() {
+        if (currentMode == "banner") {
+            if (activeCodecLabel.isNotBlank()) {
+                applyCodecLabel(activeCodecLabel)
+            } else if (sessionModeLabel.isNotBlank()) {
+                codecLabel?.text = sessionModeLabel
+            }
+            return
+        }
+
+        streamModeText?.text = sessionModeLabel
+        streamModeText?.visibility = if (sessionModeLabel.isNotBlank()) View.VISIBLE else View.GONE
     }
 
     private fun updateFps(fps: Double) {

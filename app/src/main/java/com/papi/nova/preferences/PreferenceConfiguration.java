@@ -63,6 +63,7 @@ public class PreferenceConfiguration {
     private static final String USB_DRIVER_PREF_SRING = "checkbox_usb_driver";
     private static final String VIDEO_FORMAT_PREF_STRING = "video_format";
     private static final String ONSCREEN_CONTROLLER_PREF_STRING = "checkbox_show_onscreen_controls";
+    public static final String ONSCREEN_CONTROLLER_LAYOUT_PRESET_PREF_STRING = "list_onscreen_controls_layout_preset";
     private static final String CHECKBOX_HIDE_OSC_WHEN_HAS_GAMEPAD = "checkbox_hide_osc_when_has_gamepad";
     private static final String ONLY_L3_R3_PREF_STRING = "checkbox_only_show_L3R3";
     private static final String SHOW_GUIDE_BUTTON_PREF_STRING = "checkbox_show_guide_button";
@@ -158,6 +159,8 @@ public class PreferenceConfiguration {
     private static final String DEFAULT_VIDEO_FORMAT = "auto";
 
     private static final boolean DEFAULT_ONSCREEN_CONTROLLER = false;
+    public static final String ONSCREEN_CONTROLLER_LAYOUT_PRESET_COMPACT_HANDHELD = "compact_handheld";
+    public static final String ONSCREEN_CONTROLLER_LAYOUT_PRESET_FULL_CONSOLE = "full_console";
     private static final boolean DEFAULT_HIDE_OSC_WHEN_HAS_GAMEPAD = true;
     private static final boolean ONLY_L3_R3_DEFAULT = false;
     private static final boolean SHOW_GUIDE_BUTTON_DEFAULT = true;
@@ -249,6 +252,7 @@ public class PreferenceConfiguration {
     public String language;
     public boolean smallIconMode, multiController, usbDriver, flipFaceButtons;
     public boolean onscreenController;
+    public String onscreenControllerLayoutPreset;
     public boolean hideOSCWhenHasGamepad;
     public boolean enableBatteryReport;
     public boolean forceQwerty;
@@ -564,6 +568,12 @@ public class PreferenceConfiguration {
 
         // Use small mode on anything smaller than a 7" tablet
         return context.getResources().getConfiguration().smallestScreenWidthDp < 500;
+    }
+
+    public static String getDefaultOnScreenControllerLayoutPreset(Context context) {
+        return context.getSharedPreferences("OSC", Context.MODE_PRIVATE).getAll().isEmpty() ?
+                ONSCREEN_CONTROLLER_LAYOUT_PRESET_COMPACT_HANDHELD :
+                ONSCREEN_CONTROLLER_LAYOUT_PRESET_FULL_CONSOLE;
     }
 
     public static int getDefaultBitrate(Context context) {
@@ -902,6 +912,15 @@ private static int getFramePacingValue(Context context) {
                 break;
         }
         config.onscreenController = prefs.getBoolean(ONSCREEN_CONTROLLER_PREF_STRING, DEFAULT_ONSCREEN_CONTROLLER);
+        if (!prefs.contains(ONSCREEN_CONTROLLER_LAYOUT_PRESET_PREF_STRING)) {
+            prefs.edit()
+                    .putString(ONSCREEN_CONTROLLER_LAYOUT_PRESET_PREF_STRING,
+                            getDefaultOnScreenControllerLayoutPreset(context))
+                    .apply();
+        }
+        config.onscreenControllerLayoutPreset = prefs.getString(
+                ONSCREEN_CONTROLLER_LAYOUT_PRESET_PREF_STRING,
+                getDefaultOnScreenControllerLayoutPreset(context));
         config.hideOSCWhenHasGamepad = prefs.getBoolean(CHECKBOX_HIDE_OSC_WHEN_HAS_GAMEPAD, DEFAULT_HIDE_OSC_WHEN_HAS_GAMEPAD);
         config.onlyL3R3 = prefs.getBoolean(ONLY_L3_R3_PREF_STRING, ONLY_L3_R3_DEFAULT);
         config.showGuideButton = prefs.getBoolean(SHOW_GUIDE_BUTTON_PREF_STRING, SHOW_GUIDE_BUTTON_DEFAULT);

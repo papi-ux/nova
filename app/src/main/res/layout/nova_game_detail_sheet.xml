@@ -1,209 +1,302 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
     android:background="@drawable/nova_sheet_bg"
-    android:paddingBottom="32dp">
+    android:fillViewport="false"
+    android:paddingBottom="12dp">
 
-    <!-- Drag handle -->
-    <View
-        android:layout_width="40dp"
-        android:layout_height="4dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="12dp"
-        android:layout_marginBottom="16dp"
-        android:background="@drawable/nova_drag_handle" />
-
-    <!-- Hero cover art -->
-    <ImageView
-        android:id="@+id/detail_cover"
-        android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:scaleType="centerCrop"
-        android:layout_marginStart="20dp"
-        android:layout_marginEnd="20dp"
-        android:background="@color/nova_deep" />
-
-    <!-- Game info -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/detail_name"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="22sp"
-            android:textColor="@color/nova_ice"
-            android:fontFamily="sans-serif-medium" />
+        <View
+            android:layout_width="40dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/nova_drag_handle" />
 
-        <!-- Tags row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="top"
             android:orientation="horizontal"
-            android:paddingTop="8dp">
+            android:paddingStart="20dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="20dp">
 
-            <TextView
-                android:id="@+id/detail_source"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="12sp"
-                android:textColor="@color/nova_silver"
-                android:background="@drawable/nova_badge_bg"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp" />
+            <androidx.cardview.widget.CardView
+                android:layout_width="104dp"
+                android:layout_height="140dp"
+                app:cardBackgroundColor="@color/nova_deep"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp">
 
-            <TextView
-                android:id="@+id/detail_category"
-                android:layout_width="wrap_content"
+                <ImageView
+                    android:id="@+id/detail_cover"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@color/nova_deep"
+                    android:contentDescription="@string/nova_a11y_game_cover"
+                    android:scaleType="centerCrop" />
+            </androidx.cardview.widget.CardView>
+
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:textSize="12sp"
-                android:textColor="@color/nova_silver"
-                android:background="@drawable/nova_badge_bg"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp" />
+                android:layout_marginStart="18dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/detail_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="3"
+                    android:textColor="@color/nova_ice"
+                    android:textSize="22sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/detail_source"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/nova_badge_bg"
+                        android:paddingStart="9dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="9dp"
+                        android:paddingBottom="3dp"
+                        android:textColor="@color/nova_silver"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/detail_category"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/nova_badge_bg"
+                        android:paddingStart="9dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="9dp"
+                        android:paddingBottom="3dp"
+                        android:textColor="@color/nova_silver"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/detail_genres"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/detail_last_played"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/nova_text_muted"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/detail_launch_intro"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textColor="@color/nova_text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical"
+                    android:paddingTop="2dp">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/nova_library_launch_mode_title"
+                            android:textColor="@color/nova_text_primary"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/detail_default_mode_badge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/nova_badge_bg"
+                            android:paddingStart="9dp"
+                            android:paddingTop="3dp"
+                            android:paddingEnd="9dp"
+                            android:paddingBottom="3dp"
+                            android:textColor="@color/nova_text_secondary"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/detail_launch_headless_btn"
+                            style="@style/Widget.Material3.Button"
+                            android:layout_width="0dp"
+                            android:layout_height="42dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:textAllCaps="false"
+                            app:cornerRadius="14dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/detail_launch_virtual_btn"
+                            style="@style/Widget.Material3.Button"
+                            android:layout_width="0dp"
+                            android:layout_height="42dp"
+                            android:layout_marginStart="10dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:textAllCaps="false"
+                            app:cornerRadius="14dp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Genre chips -->
-        <LinearLayout
-            android:id="@+id/detail_genres"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingTop="8dp"
-            android:visibility="gone" />
-
-        <!-- Last played -->
-        <TextView
-            android:id="@+id/detail_last_played"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="12sp"
-            android:textColor="@color/nova_text_muted"
-            android:paddingTop="8dp"
-            android:visibility="gone" />
-
-        <!-- AI recommendation card (populated from /optimize endpoint) -->
         <LinearLayout
             android:id="@+id/detail_ai_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="20dp"
             android:background="@drawable/nova_card_bg"
+            android:orientation="vertical"
             android:padding="12dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginBottom="12dp"
             android:visibility="gone">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="AI Recommended"
-                    android:textSize="10sp"
-                    android:textColor="@color/nova_accent"
                     android:fontFamily="sans-serif-medium"
                     android:letterSpacing="0.08"
-                    android:textAllCaps="true" />
+                    android:text="AI Recommended"
+                    android:textAllCaps="true"
+                    android:textColor="@color/nova_accent"
+                    android:textSize="10sp" />
 
                 <TextView
                     android:id="@+id/detail_ai_source"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:textSize="9sp"
-                    android:textColor="@color/nova_text_muted" />
+                    android:textColor="@color/nova_text_muted"
+                    android:textSize="9sp" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/detail_ai_settings"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="13sp"
-                android:textColor="@color/nova_ice"
+                android:layout_marginTop="4dp"
                 android:fontFamily="sans-serif-medium"
-                android:paddingTop="4dp" />
+                android:textColor="@color/nova_ice"
+                android:textSize="13sp" />
 
             <TextView
                 android:id="@+id/detail_ai_reasoning"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="11sp"
-                android:textColor="@color/nova_text_muted"
-                android:fontFamily="sans-serif"
-                android:paddingTop="4dp"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
                 android:maxLines="3"
-                android:ellipsize="end" />
-
+                android:textColor="@color/nova_text_muted"
+                android:textSize="11sp" />
         </LinearLayout>
 
-        <!-- Play button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/detail_play_btn"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="Play"
-            android:textSize="16sp"
-            android:textColor="@color/nova_ice"
-            android:textAllCaps="false"
-            app:backgroundTint="@color/nova_accent"
-            app:cornerRadius="14dp"
-            app:icon="@android:drawable/ic_media_play"
-            app:iconTint="@color/nova_ice"
-            app:iconGravity="textStart" />
-
-        <!-- MangoHud toggle -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingTop="16dp">
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginEnd="20dp"
+            android:background="@drawable/nova_card_bg"
+            android:orientation="vertical"
+            android:padding="14dp"
+            android:paddingBottom="12dp">
 
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-                <TextView
-                    android:layout_width="match_parent"
+                <LinearLayout
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="@string/nova_mangohud_detail_label"
-                    android:textSize="14sp"
-                    android:textColor="@color/nova_text_secondary" />
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/detail_mangohud_note"
-                    android:layout_width="match_parent"
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/nova_mangohud_detail_label"
+                        android:textColor="@color/nova_text_primary"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/nova_mangohud_detail_caption"
+                        android:textColor="@color/nova_text_secondary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/detail_mangohud_toggle"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/nova_warning"
-                    android:textSize="12sp"
-                    android:visibility="gone" />
+                    android:layout_marginStart="12dp" />
             </LinearLayout>
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/detail_mangohud_toggle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
+            <TextView
+                android:id="@+id/detail_mangohud_note"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/nova_warning"
+                android:textSize="11sp"
+                android:visibility="gone" />
         </LinearLayout>
-
-
     </LinearLayout>
-</LinearLayout>
+</androidx.core.widget.NestedScrollView>

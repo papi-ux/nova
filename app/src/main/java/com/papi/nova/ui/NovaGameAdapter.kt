@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.graphics.drawable.GradientDrawable
+import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -10,11 +11,9 @@ import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import coil.load
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGame
@@ -24,13 +23,26 @@ class NovaGameAdapter(
     private val onGameClick: (PolarisGame) -> Unit,
     private val onGameLongClick: ((PolarisGame) -> Unit)? = null
 ) : RecyclerView.Adapter<NovaGameAdapter.ViewHolder>() {
+    companion object {
+        private const val PAYLOAD_REFRESH_COVER = "refresh_cover"
+    }
 
     private var games = listOf<PolarisGame>()
+
+    init {
+        setHasStableIds(true)
+    }
 
     fun updateGames(newGames: List<PolarisGame>) {
         val diffResult = DiffUtil.calculateDiff(GameDiffCallback(games, newGames))
         games = newGames
         diffResult.dispatchUpdatesTo(this)
+    }
+
+    fun reloadAllCovers() {
+        if (games.isNotEmpty()) {
+            notifyItemRangeChanged(0, games.size, PAYLOAD_REFRESH_COVER)
+        }
     }
 
     private class GameDiffCallback(
@@ -49,9 +61,19 @@ class NovaGameAdapter(
         return ViewHolder(view)
     }
 
+    override fun getItemId(position: Int): Long = games[position].id.hashCode().toLong()
+
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val game = games[position]
         holder.bind(game)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (payloads.contains(PAYLOAD_REFRESH_COVER)) {
+            holder.refreshCover(games[position])
+            return
+        }
+        super.onBindViewHolder(holder, position, payloads)
     }
 
     override fun getItemCount() = games.size
@@ -59,9 +81,10 @@ class NovaGameAdapter(
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val coverArt: ImageView = itemView.findViewById(R.id.nova_cover_art)
         private val gameName: TextView = itemView.findViewById(R.id.nova_game_name)
+        private val gameMeta: TextView = itemView.findViewById(R.id.nova_game_meta)
         private val categoryBadge: TextView = itemView.findViewById(R.id.nova_category_badge)
         private val sourceBadge: TextView = itemView.findViewById(R.id.nova_source_badge)
-        private val genreChips: LinearLayout = itemView.findViewById(R.id.nova_genre_chips)
+        private val hdrBadge: TextView = itemView.findViewById(R.id.nova_hdr_badge)
 
         fun bind(game: PolarisGame) {
             gameName.text = game.name
@@ -104,41 +127,16 @@ class NovaGameAdapter(
                 categoryBadge.visibility = View.GONE
             }
 
-            // Genre chips (show up to 2)
-            genreChips.removeAllViews()
-            val genres = game.genres.take(2)
-            if (genres.isNotEmpty()) {
-                genreChips.visibility = View.VISIBLE
-                for (genre in genres) {
-                    val chip = TextView(itemView.context).apply {
-                        text = genre
-                        textSize = 9f
-                        setTextColor(0xFF9CA3AF.toInt())
-                        setPadding(12, 3, 12, 3)
-                        val chipBg = GradientDrawable()
-                        chipBg.cornerRadius = 6f
-                        chipBg.setColor(0x1A6B7280.toInt())
-                        background = chipBg
-                    }
-                    val params = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                    if (genreChips.childCount > 0) params.marginStart = 6
-                    genreChips.addView(chip, params)
-                }
+            if (game.hdrSupported) {
+                hdrBadge.visibility = View.VISIBLE
             } else {
-                genreChips.visibility = View.GONE
+                hdrBadge.visibility = View.GONE
             }
 
-            // Load cover art via Coil (lifecycle-aware, auto-caching, crossfade)
-            coverArt.load(apiClient.getCoverUrl(game.id)) {
-                crossfade(200)
-                placeholder(android.R.color.transparent)
-                error(R.color.nova_deep)
-            }
+            gameMeta.text = buildMetaLine(game)
 
-            // Click to launch
+            refreshCover(game)
+
             itemView.setOnClickListener { v ->
                 v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 onGameClick(game)
@@ -198,6 +196,36 @@ class NovaGameAdapter(
                     v.scaleX = 1.0f
                     v.scaleY = 1.0f
                 }
+            }
+        }
+
+        fun refreshCover(game: PolarisGame) {
+            apiClient.loadCoverInto(coverArt, game)
+        }
+
+        private fun buildMetaLine(game: PolarisGame): String {
+            if (game.lastLaunched > 0) {
+                val relative = DateUtils.getRelativeTimeSpanString(
+                    game.lastLaunched * 1000,
+                    System.currentTimeMillis(),
+                    DateUtils.MINUTE_IN_MILLIS,
+                    DateUtils.FORMAT_ABBREV_RELATIVE
+                )
+                return itemView.context.getString(R.string.nova_library_meta_last_played, relative)
+            }
+
+            val parts = mutableListOf<String>()
+            if (game.genres.isNotEmpty()) {
+                parts += game.genres.take(2)
+            } else {
+                if (game.sourceLabel.isNotEmpty()) parts += game.sourceLabel
+                if (game.categoryLabel.isNotEmpty()) parts += game.categoryLabel
+            }
+
+            return if (parts.isEmpty()) {
+                itemView.context.getString(R.string.nova_library_meta_ready_to_play)
+            } else {
+                parts.joinToString(" · ")
             }
         }
     }

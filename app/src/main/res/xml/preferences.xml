@@ -431,6 +431,15 @@
             android:summary="@string/summary_checkbox_show_onscreen_controls"
             android:title="@string/title_checkbox_show_onscreen_controls"
             app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="compact_handheld"
+            android:dependency="checkbox_show_onscreen_controls"
+            android:entries="@array/onscreen_controls_layout_preset_names"
+            android:entryValues="@array/onscreen_controls_layout_preset_values"
+            android:key="list_onscreen_controls_layout_preset"
+            android:summary="@string/summary_onscreen_controls_layout_preset"
+            android:title="@string/title_onscreen_controls_layout_preset"
+            app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:defaultValue="true"
             android:dependency="checkbox_show_onscreen_controls"
@@ -603,7 +612,7 @@
             android:key="nova_auto_connect"
             android:title="Auto-Connect"
             android:summary="Skip server browser when only one paired server"
-            android:defaultValue="true"
+            android:defaultValue="false"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:key="nova_haptic_feedback"

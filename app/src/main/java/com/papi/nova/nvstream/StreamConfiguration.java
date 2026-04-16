@@ -15,6 +15,7 @@ public class StreamConfiguration {
     private float refreshRate;
     private float launchRefreshRate;
     private boolean virtualDisplay;
+    private boolean displayModeExplicit;
     private int resolutionScaleFactor;
     private int clientRefreshRateX100;
     private int bitrate;
@@ -63,6 +64,11 @@ public class StreamConfiguration {
 
         public StreamConfiguration.Builder setVirtualDisplay(boolean enable) {
             config.virtualDisplay = enable;
+            return this;
+        }
+
+        public StreamConfiguration.Builder setDisplayModeExplicit(boolean explicit) {
+            config.displayModeExplicit = explicit;
             return this;
         }
 
@@ -159,6 +165,7 @@ public class StreamConfiguration {
         this.refreshRate = 60;
         this.launchRefreshRate = 60;
         this.virtualDisplay = false;
+        this.displayModeExplicit = false;
         this.resolutionScaleFactor = 100;
         this.bitrate = 10000;
         this.maxPacketSize = 1024;
@@ -196,6 +203,8 @@ public class StreamConfiguration {
     }
 
     public boolean getVirtualDisplay() { return virtualDisplay; }
+
+    public boolean getDisplayModeExplicit() { return displayModeExplicit; }
 
     public int getResolutionScaleFactor() { return resolutionScaleFactor; }
     

@@ -7,12 +7,12 @@ import android.widget.Toast;
 
 import com.papi.nova.R;
 
-import static com.papi.nova.binding.input.virtual_controller.VirtualControllerConfigurationLoader.OSC_PREFERENCE;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.preference.DialogPreference;
 import androidx.preference.PreferenceDialogFragmentCompat;
+
+import com.papi.nova.binding.input.virtual_controller.VirtualControllerConfigurationLoader;
 
 public class ConfirmDeleteOscPreference extends DialogPreference {
     public ConfirmDeleteOscPreference(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr, int defStyleRes) {
@@ -43,7 +43,7 @@ public class ConfirmDeleteOscPreference extends DialogPreference {
         @Override
         public void onDialogClosed(boolean positiveResult) {
             if (positiveResult) {
-                getContext().getSharedPreferences(OSC_PREFERENCE, Context.MODE_PRIVATE).edit().clear().apply();
+                VirtualControllerConfigurationLoader.clearProfile(getContext());
                 Toast.makeText(getContext(), R.string.toast_reset_osc_success, Toast.LENGTH_SHORT).show();
             }
         }

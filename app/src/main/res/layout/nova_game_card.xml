@@ -3,92 +3,114 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="@dimen/nova_spacing_sm"
-    app:cardCornerRadius="@dimen/nova_card_corner_radius"
-    app:cardElevation="2dp"
+    android:layout_margin="6dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
     app:cardBackgroundColor="@color/nova_bg_card"
     android:foreground="@drawable/nova_ripple_accent">
 
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="wrap_content">
 
-        <!-- Cover art -->
-        <ImageView
-            android:id="@+id/nova_cover_art"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="@dimen/nova_game_card_cover_height"
-            android:scaleType="centerCrop"
-            android:background="@color/nova_deep"
-            android:transitionName="game_cover_art"
-            android:contentDescription="@string/nova_a11y_game_cover" />
+            android:layout_height="@dimen/nova_game_card_cover_height">
 
-        <!-- Game info -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="@dimen/nova_spacing_md">
-
-            <TextView
-                android:id="@+id/nova_game_name"
+            <ImageView
+                android:id="@+id/nova_cover_art"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/nova_ice"
-                android:textSize="13sp"
-                android:fontFamily="sans-serif-medium"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:layout_height="match_parent"
+                android:background="@color/nova_deep"
+                android:contentDescription="@string/nova_a11y_game_cover"
+                android:scaleType="centerCrop"
+                android:transitionName="game_cover_art" />
 
-            <!-- Source + Category badges row -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/nova_cover_scrim" />
+
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingTop="6dp">
+                android:layout_height="match_parent"
+                android:gravity="bottom"
+                android:orientation="vertical"
+                android:padding="@dimen/nova_spacing_md">
 
-                <!-- Source badge -->
-                <TextView
-                    android:id="@+id/nova_source_badge"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/nova_source_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/nova_badge_bg"
+                        android:paddingStart="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="8dp"
+                        android:paddingBottom="3dp"
+                        android:textColor="@color/nova_text_muted"
+                        android:textSize="10sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/nova_category_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/nova_badge_bg"
+                        android:paddingStart="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="8dp"
+                        android:paddingBottom="3dp"
+                        android:textColor="@color/nova_text_secondary"
+                        android:textSize="10sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/nova_hdr_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/nova_badge_bg"
+                        android:paddingStart="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="8dp"
+                        android:paddingBottom="3dp"
+                        android:text="@string/badge_hdr"
+                        android:textColor="@color/nova_accent"
+                        android:textSize="10sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/nova_game_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/nova_spacing_sm"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="2"
+                    android:textColor="@color/nova_ice"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/nova_game_meta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
                     android:textColor="@color/nova_text_muted"
-                    android:textSize="10sp"
-                    android:fontFamily="sans-serif-medium"
-                    android:background="@drawable/nova_badge_bg"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:paddingTop="2dp"
-                    android:paddingBottom="2dp"
-                    android:visibility="gone" />
-
-                <!-- Category badge -->
-                <TextView
-                    android:id="@+id/nova_category_badge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/nova_text_secondary"
-                    android:textSize="10sp"
-                    android:fontFamily="sans-serif-medium"
-                    android:background="@drawable/nova_badge_bg"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:paddingTop="2dp"
-                    android:paddingBottom="2dp"
-                    android:layout_marginStart="4dp"
-                    android:visibility="gone" />
+                    android:textSize="11sp" />
             </LinearLayout>
-
-            <!-- Genre chips row -->
-            <LinearLayout
-                android:id="@+id/nova_genre_chips"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingTop="4dp"
-                android:visibility="gone" />
-
-        </LinearLayout>
-    </LinearLayout>
+        </FrameLayout>
+    </FrameLayout>
 </androidx.cardview.widget.CardView>

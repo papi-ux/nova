@@ -22,7 +22,7 @@ public class FeatureFlagManagerTest {
         setCapabilities(new PolarisCapabilities(
                 "polaris",
                 "1.0.0",
-                new PolarisCapabilities.Features(false, false, false, false, false, true),
+                new PolarisCapabilities.Features(false, false, false, false, false, false, false, true),
                 new PolarisCapabilities.CaptureInfo()
         ));
 

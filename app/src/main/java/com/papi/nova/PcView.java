@@ -7,7 +7,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
 
-import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 import com.papi.nova.binding.PlatformBinding;
 import com.papi.nova.binding.crypto.AndroidCryptoProvider;
 import com.papi.nova.computers.ComputerManagerService;
@@ -79,6 +80,7 @@ import javax.microedition.khronos.opengles.GL10;
 import com.papi.nova.PcViewModel.ComputerObject;
 
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.ColorUtils;
 
 public class PcView extends AppCompatActivity implements AdapterFragmentCallbacks {
     private static final int FILTER_ALL = 0;
@@ -245,13 +247,13 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         pcGridAdapter.updateLayoutWithPreferences(this, prefs);
 
         // Setup the main actions (null-safe for alternate layouts)
-        TextView modeServers = findViewById(R.id.modeServers);
-        TextView modeLibrary = findViewById(R.id.modeLibrary);
-        TextView addServerAction = findViewById(R.id.actionAddServer);
-        TextView scanPairAction = findViewById(R.id.actionScanPair);
-        TextView themeAction = findViewById(R.id.actionTheme);
-        TextView settingsAction = findViewById(R.id.actionSettings);
-        TextView helpAction = findViewById(R.id.actionHelp);
+        View modeServers = findViewById(R.id.modeServers);
+        View modeLibrary = findViewById(R.id.modeLibrary);
+        View addServerAction = findViewById(R.id.actionAddServer);
+        View scanPairAction = findViewById(R.id.actionScanPair);
+        View themeAction = findViewById(R.id.actionTheme);
+        View settingsAction = findViewById(R.id.actionSettings);
+        View helpAction = findViewById(R.id.actionHelp);
         TextView emptyRefresh = findViewById(R.id.emptyRefresh);
         TextView emptyAddServer = findViewById(R.id.emptyAddServer);
         TextView emptyScanPair = findViewById(R.id.emptyScanPair);
@@ -260,10 +262,13 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         TextView filterOnlineServers = findViewById(R.id.filterOnlineServers);
         TextView filterStreamingServers = findViewById(R.id.filterStreamingServers);
         TextView filterNeedsPairingServers = findViewById(R.id.filterNeedsPairingServers);
-        ExtendedFloatingActionButton profilesButton = findViewById(R.id.profilesButton);
+        MaterialButton profilesButton = findViewById(R.id.profilesButton);
 
         if (modeServers != null) {
-            modeServers.setOnClickListener(v -> updateModeTabs());
+            modeServers.setOnClickListener(v -> {
+                setServerFilter(FILTER_ALL);
+                updateModeTabs();
+            });
         }
         if (modeLibrary != null) {
             modeLibrary.setOnClickListener(v -> launchQuickLibrary());
@@ -349,8 +354,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private void applyThemeToServerBrowser() {
         int accent = com.papi.nova.ui.NovaThemeManager.INSTANCE.getAccentColor(this);
         int textPrimary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextPrimaryColor(this);
+        int textSecondary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextSecondaryColor(this);
         int textMuted = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextMutedColor(this);
         int surface = com.papi.nova.ui.NovaThemeManager.INSTANCE.getCardBackgroundColor(this);
+        int divider = com.papi.nova.ui.NovaThemeManager.INSTANCE.getDividerColor(this);
 
         androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh = findViewById(R.id.swipe_refresh);
         if (swipeRefresh != null) {
@@ -368,6 +375,26 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             sectionView.setTextColor(textMuted);
         }
 
+        TextView toolsLabel = findViewById(R.id.pcViewToolsLabel);
+        if (toolsLabel != null) {
+            toolsLabel.setTextColor(textPrimary);
+        }
+
+        TextView toolsHint = findViewById(R.id.pcViewToolsHint);
+        if (toolsHint != null) {
+            toolsHint.setTextColor(textMuted);
+        }
+
+        TextView hostsLabel = findViewById(R.id.pcViewHostsLabel);
+        if (hostsLabel != null) {
+            hostsLabel.setTextColor(textPrimary);
+        }
+
+        TextView hostsSummary = findViewById(R.id.pcViewHostsSummary);
+        if (hostsSummary != null) {
+            hostsSummary.setTextColor(textMuted);
+        }
+
         TextView emptyTitle = findViewById(R.id.pcViewEmptyTitle);
         if (emptyTitle != null) {
             emptyTitle.setTextColor(textMuted);
@@ -378,11 +405,15 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             emptyHint.setTextColor(textMuted);
         }
 
+        styleDestinationCard(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textSecondary, textMuted);
+        styleDestinationCard(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textSecondary, textMuted);
+
+        styleActionButton(findViewById(R.id.actionAddServer), ColorUtils.blendARGB(surface, accent, 0.26f), textPrimary);
+        styleActionButton(findViewById(R.id.actionScanPair), surface, textPrimary);
+        styleActionButton(findViewById(R.id.actionSettings), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary);
+
         tintChipRow(new int[] {
-                R.id.actionAddServer,
-                R.id.actionScanPair,
                 R.id.actionTheme,
-                R.id.actionSettings,
                 R.id.actionHelp,
                 R.id.emptyRefresh,
                 R.id.emptyAddServer,
@@ -390,12 +421,48 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 R.id.emptyHelp
         }, textPrimary);
 
-        ExtendedFloatingActionButton profilesButton = findViewById(R.id.profilesButton);
-        if (profilesButton != null) {
-            profilesButton.setBackgroundTintList(ColorStateList.valueOf(accent));
-            profilesButton.setIconTint(ColorStateList.valueOf(textPrimary));
-            profilesButton.setTextColor(textPrimary);
+        styleActionButton(findViewById(R.id.profilesButton), surface, textPrimary);
+    }
+
+    private void styleActionButton(MaterialButton button, int backgroundColor, int foregroundColor) {
+        if (button == null) {
+            return;
         }
+
+        button.setBackgroundTintList(ColorStateList.valueOf(backgroundColor));
+        button.setTextColor(foregroundColor);
+        button.setIconTint(ColorStateList.valueOf(foregroundColor));
+    }
+
+    private void styleDestinationCard(MaterialCardView card, boolean active, int accent, int surface,
+                                      int divider, int textPrimary, int textSecondary, int textMuted) {
+        if (card == null) {
+            return;
+        }
+
+        card.setCardBackgroundColor(active ? ColorUtils.blendARGB(surface, accent, 0.12f) : surface);
+        card.setStrokeColor(active ? accent : divider);
+        card.setStrokeWidth((int) UiHelper.dpToPx(this, 1));
+
+        View content = card.getChildAt(0);
+        if (!(content instanceof LinearLayout)) {
+            return;
+        }
+
+        LinearLayout layout = (LinearLayout) content;
+        if (layout.getChildCount() < 4) {
+            return;
+        }
+
+        TextView badge = (TextView) layout.getChildAt(0);
+        TextView title = (TextView) layout.getChildAt(1);
+        TextView summary = (TextView) layout.getChildAt(2);
+        TextView meta = (TextView) layout.getChildAt(3);
+
+        badge.setTextColor(active ? accent : textMuted);
+        title.setTextColor(textPrimary);
+        summary.setTextColor(textSecondary);
+        meta.setTextColor(active ? textPrimary : textMuted);
     }
 
     private void tintChipRow(int[] ids, int color) {
@@ -419,11 +486,14 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     private void updateModeTabs() {
-        // Material chips handle their own background states via selector now
-        com.google.android.material.chip.ChipGroup group = findViewById(R.id.pcModeTabs);
-        if (group != null) {
-            group.check(R.id.modeServers);
-        }
+        int accent = com.papi.nova.ui.NovaThemeManager.INSTANCE.getAccentColor(this);
+        int surface = com.papi.nova.ui.NovaThemeManager.INSTANCE.getCardBackgroundColor(this);
+        int divider = com.papi.nova.ui.NovaThemeManager.INSTANCE.getDividerColor(this);
+        int textPrimary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextPrimaryColor(this);
+        int textSecondary = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextSecondaryColor(this);
+        int textMuted = com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextMutedColor(this);
+        styleDestinationCard(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textSecondary, textMuted);
+        styleDestinationCard(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textSecondary, textMuted);
     }
 
     private void updateServerFilterTabs() {
@@ -466,29 +536,60 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         List<ComputerObject> allComputers = viewModel.getComputersLiveData().getValue();
         if (allComputers == null) {
+            pcGridAdapter.setItems(new ArrayList<>());
+            updateHomeSummaries(0, 0, 0, 0);
+            updateEmptyState();
             return;
         }
 
         ArrayList<ComputerObject> visibleComputers = new ArrayList<>();
-        int pairedOnlineCount = 0;
-        ComputerObject singleServer = null;
+        int onlineCount = 0;
+        int libraryReadyCount = 0;
 
         for (ComputerObject computer : allComputers) {
+            if (computer.details.state == ComputerDetails.State.ONLINE) {
+                onlineCount++;
+            }
+            if (computer.details.state == ComputerDetails.State.ONLINE &&
+                    computer.details.pairState == PairState.PAIRED &&
+                    computer.details.activeAddress != null) {
+                libraryReadyCount++;
+            }
+
             if (matchesCurrentFilter(computer)) {
                 visibleComputers.add(computer);
-                if (computer.details.state != ComputerDetails.State.OFFLINE && computer.details.pairState == PairState.PAIRED) {
-                    pairedOnlineCount++;
-                    singleServer = computer;
-                }
             }
         }
 
         pcGridAdapter.setItems(visibleComputers);
+        updateHomeSummaries(visibleComputers.size(), allComputers.size(), onlineCount, libraryReadyCount);
         updateEmptyState();
+    }
 
-        if (!autoNavigated && pairedOnlineCount == 1) {
-            autoNavigated = true;
-            doAppList(singleServer.details, false, false);
+    private void updateHomeSummaries(int visibleCount, int totalCount, int onlineCount, int libraryReadyCount) {
+        TextView hostsSummary = findViewById(R.id.pcViewHostsSummary);
+        if (hostsSummary != null) {
+            hostsSummary.setText(getString(R.string.pcview_hosts_summary_format, visibleCount, totalCount));
+        }
+
+        TextView serversMeta = findViewById(R.id.pcViewServersMeta);
+        if (serversMeta != null) {
+            if (totalCount <= 0) {
+                serversMeta.setText(R.string.pcview_destination_servers_meta_empty);
+            } else {
+                serversMeta.setText(getString(R.string.pcview_destination_servers_meta_format, onlineCount, totalCount));
+            }
+        }
+
+        TextView libraryMeta = findViewById(R.id.pcViewLibraryMeta);
+        if (libraryMeta != null) {
+            if (libraryReadyCount <= 0) {
+                libraryMeta.setText(R.string.pcview_destination_library_meta_empty);
+            } else if (libraryReadyCount == 1) {
+                libraryMeta.setText(R.string.pcview_destination_library_meta_one);
+            } else {
+                libraryMeta.setText(getString(R.string.pcview_destination_library_meta_many, libraryReadyCount));
+            }
         }
     }
 
@@ -667,12 +768,13 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         viewModel = new ViewModelProvider(this).get(PcViewModel.class);
         viewModel.getComputersLiveData().observe(this, newList -> {
             if (!freezeUpdates) {
-                pcGridAdapter.setItems(newList);
-                updateEmptyState();
-                maybeRunPendingQrPairing(newList);
+                syncComputerList();
+                if (newList != null) {
+                    maybeRunPendingQrPairing(newList);
 
-                // Auto-navigate logic
-                checkAutoNavigation(newList);
+                    // Auto-navigate logic
+                    checkAutoNavigation(newList);
+                }
             }
         });
 
@@ -710,18 +812,16 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     private void refreshProfileButton() {
-        ExtendedFloatingActionButton profilesButton = findViewById(R.id.profilesButton);
-        // User report Samsung and Xiaomi devices have this problem
-        // Why just these two brands have the most problems?
+        MaterialButton profilesButton = findViewById(R.id.profilesButton);
         if (profilesButton == null) {
             return;
         }
+
         String activeProfileName = ProfilesManager.getInstance().getActiveName();
         if (activeProfileName.isEmpty()) {
-            profilesButton.shrink();
+            profilesButton.setContentDescription(getString(R.string.profile_manager_choose_profile));
         } else {
-            profilesButton.setText(activeProfileName);
-            profilesButton.extend();
+            profilesButton.setContentDescription(getString(R.string.profile_manager_choose_profile) + ": " + activeProfileName);
         }
     }
 
@@ -1276,7 +1376,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
     private void checkAutoNavigation(List<ComputerObject> computers) {
         boolean autoConnectEnabled = androidx.preference.PreferenceManager
-                .getDefaultSharedPreferences(this).getBoolean("nova_auto_connect", true);
+                .getDefaultSharedPreferences(this).getBoolean("nova_auto_connect", false);
         if (autoConnectEnabled && !autoNavigated && pendingPairingAddress == null) {
             int pairedOnlineCount = 0;
             ComputerObject singleServer = null;

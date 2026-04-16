@@ -15,9 +15,21 @@ data class PolarisSessionStatus(
     val screenLocked: Boolean = false,
     val cursorVisible: Boolean = false,
     val dynamicRange: Int = 0,
+    val adaptiveBitrateEnabled: Boolean = false,
+    val adaptiveTargetBitrateKbps: Int = 0,
+    val aiOptimizerEnabled: Boolean = false,
+    val displayMode: DisplayModeStatus = DisplayModeStatus(),
     val capture: CaptureStatus = CaptureStatus(),
     val encoder: EncoderStatus = EncoderStatus()
 ) {
+    data class DisplayModeStatus(
+        val label: String = "",
+        val virtualDisplay: Boolean = false,
+        val requestedHeadless: Boolean = false,
+        val effectiveHeadless: Boolean = false,
+        val gpuNativeOverrideActive: Boolean = false
+    )
+
     data class CaptureStatus(
         val backend: String = "",
         val resolution: String = "",
@@ -42,5 +54,14 @@ data class PolarisSessionStatus(
     val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming")
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
     val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true)
+    val isHeadlessMode get() = displayMode.effectiveHeadless
+    val isVirtualDisplayMode get() = displayMode.virtualDisplay
+    val sessionModeLabel get() = when {
+        displayMode.label.isNotBlank() -> displayMode.label
+        displayMode.effectiveHeadless -> "Headless"
+        displayMode.virtualDisplay -> "Virtual Display"
+        else -> "Host Display"
+    }
     val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
+    val canAdjustHostTuning get() = ownedByClient && !isViewer
 }

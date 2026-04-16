@@ -1,7 +1,17 @@
 package com.papi.nova.api
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.content.Context
+import android.widget.ImageView
 import com.papi.nova.LimeLog
+import com.papi.nova.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.Protocol
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -18,6 +28,7 @@ import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import androidx.collection.LruCache
 
 /**
  * HTTP client for Polaris REST API on the nvhttp port (47984).
@@ -26,8 +37,13 @@ import javax.net.ssl.X509TrustManager
 class PolarisApiClient(context: Context, private val serverAddress: String, private val httpsPort: Int = 47984) {
 
     @JvmField val client: OkHttpClient
+    private val coverClient: OkHttpClient
     private val baseUrl = "https://$serverAddress:$httpsPort/polaris/v1"
     private val webBaseUrl = "https://$serverAddress:$WEB_UI_HTTPS_PORT"
+    private val imageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+    private val coverCache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
 
     companion object {
         const val WEB_UI_HTTPS_PORT = 47990
@@ -42,6 +58,8 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                 version = json.optString("version", ""),
                 features = PolarisCapabilities.Features(
                     aiOptimizer = features?.optBoolean("ai_optimizer") ?: false,
+                    aiOptimizerControl = features?.optBoolean("ai_optimizer_control") ?: false,
+                    adaptiveBitrateControl = features?.optBoolean("adaptive_bitrate_control") ?: false,
                     gameLibrary = features?.optBoolean("game_library") ?: false,
                     sessionLifecycle = features?.optBoolean("session_lifecycle") ?: false,
                     deviceProfiles = features?.optBoolean("device_profiles") ?: false,
@@ -62,6 +80,7 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
 
         @JvmStatic
         fun parseSessionStatusResponse(json: JSONObject): PolarisSessionStatus {
+            val displayMode = json.optJSONObject("display_mode")
             val capture = json.optJSONObject("capture")
             val encoder = json.optJSONObject("encoder")
 
@@ -80,6 +99,16 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                 screenLocked = json.optBoolean("screen_locked", false),
                 cursorVisible = json.optBoolean("cursor_visible", false),
                 dynamicRange = json.optInt("dynamic_range", 0),
+                adaptiveBitrateEnabled = json.optBoolean("adaptive_bitrate_enabled", false),
+                adaptiveTargetBitrateKbps = json.optInt("adaptive_target_bitrate_kbps", 0),
+                aiOptimizerEnabled = json.optBoolean("ai_optimizer_enabled", false),
+                displayMode = PolarisSessionStatus.DisplayModeStatus(
+                    label = displayMode?.optString("label", "") ?: "",
+                    virtualDisplay = displayMode?.optBoolean("virtual_display", false) ?: false,
+                    requestedHeadless = displayMode?.optBoolean("requested_headless", false) ?: false,
+                    effectiveHeadless = displayMode?.optBoolean("effective_headless", false) ?: false,
+                    gpuNativeOverrideActive = displayMode?.optBoolean("gpu_native_override_active", false) ?: false
+                ),
                 capture = PolarisSessionStatus.CaptureStatus(
                     backend = capture?.optString("backend", "") ?: "",
                     resolution = capture?.optString("resolution", "") ?: "",
@@ -113,6 +142,10 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             LimeLog.warning("Nova: No client cert found, API calls will fail")
             createBasicClient()
         }
+        coverClient = client.newBuilder()
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .retryOnConnectionFailure(true)
+            .build()
     }
 
     private fun createClientWithCert(certFile: File, keyFile: File): OkHttpClient {
@@ -225,6 +258,88 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
         return "https://$serverAddress:$httpsPort/polaris/v1/games/$gameId/cover"
     }
 
+    fun getPreferredCoverUrl(game: PolarisGame): String {
+        val coverUrl = game.coverUrl.trim()
+        return when {
+            coverUrl.isEmpty() -> getCoverUrl(game.id)
+            coverUrl.startsWith("https://") || coverUrl.startsWith("http://") -> coverUrl
+            coverUrl.startsWith("/") -> "https://$serverAddress:$httpsPort$coverUrl"
+            else -> getCoverUrl(game.id)
+        }
+    }
+
+    fun clearCoverCache() {
+        coverCache.evictAll()
+    }
+
+    fun loadCoverInto(view: ImageView, game: PolarisGame) {
+        val cacheKey = "polaris-cover:${game.id}:${game.coverUrl}"
+        val imageUrl = getPreferredCoverUrl(game)
+
+        view.tag = cacheKey
+        view.setImageResource(R.drawable.nova_cover_placeholder)
+
+        coverCache.get(cacheKey)?.let { cached ->
+            view.setImageBitmap(cached)
+            return
+        }
+
+        imageScope.launch {
+            val bitmap = fetchCoverBitmap(imageUrl)
+            withContext(Dispatchers.Main) {
+                if (view.tag != cacheKey) {
+                    return@withContext
+                }
+
+                if (bitmap != null) {
+                    coverCache.put(cacheKey, bitmap)
+                    view.setImageBitmap(bitmap)
+                } else {
+                    view.setImageResource(R.drawable.nova_cover_placeholder)
+                    LimeLog.warning("Nova: cover load failed for ${game.name}")
+                }
+            }
+        }
+    }
+
+    private fun fetchCoverBitmap(url: String): Bitmap? {
+        repeat(3) { attempt ->
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Connection", "close")
+                    .build()
+                coverClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        LimeLog.warning("Nova: cover request failed [$url] code=${response.code}")
+                        return null
+                    }
+
+                    val bytes = response.body?.bytes() ?: return null
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply {
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                        inScaled = false
+                    })
+                    if (bitmap != null) {
+                        return bitmap
+                    }
+
+                    LimeLog.warning("Nova: cover decode failed [$url] bytes=${bytes.size}")
+                }
+
+                if (attempt < 2) {
+                    Thread.sleep((attempt + 1) * 150L)
+                }
+            } catch (e: Exception) {
+                if (attempt == 2) {
+                    LimeLog.warning("Nova: cover fetch failed [$url]: ${e.message}")
+                }
+            }
+        }
+
+        return null
+    }
+
     /**
      * Toggle MangoHud for a game via Polaris API.
      */
@@ -266,6 +381,48 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             response.code == 200
         } catch (e: Exception) {
             LimeLog.warning("Nova: Bitrate change failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Toggle adaptive bitrate during an active Polaris session.
+     */
+    fun setAdaptiveBitrateEnabled(enabled: Boolean): Boolean {
+        return try {
+            val body = org.json.JSONObject().apply { put("enabled", enabled) }
+            val request = Request.Builder()
+                .url("$baseUrl/session/adaptive-bitrate")
+                .post(okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    body.toString()
+                ))
+                .build()
+            val response = client.newCall(request).execute()
+            response.code == 200
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Adaptive bitrate toggle failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Toggle the AI optimizer state for subsequent launches.
+     */
+    fun setAiOptimizerEnabled(enabled: Boolean): Boolean {
+        return try {
+            val body = org.json.JSONObject().apply { put("enabled", enabled) }
+            val request = Request.Builder()
+                .url("$baseUrl/session/ai-optimizer")
+                .post(okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    body.toString()
+                ))
+                .build()
+            val response = client.newCall(request).execute()
+            response.code == 200
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: AI optimizer toggle failed: ${e.message}")
             false
         }
     }

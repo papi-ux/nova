@@ -72,6 +72,15 @@
         <item>fps_only</item>
     </string-array>
 
+    <string-array name="onscreen_controls_layout_preset_names">
+        <item>@string/onscreen_controls_layout_preset_compact_handheld</item>
+        <item>@string/onscreen_controls_layout_preset_full_console</item>
+    </string-array>
+    <string-array name="onscreen_controls_layout_preset_values" translatable="false">
+        <item>compact_handheld</item>
+        <item>full_console</item>
+    </string-array>
+
     <string-array name="resolution_names">
         <item>@string/resolution_360p</item>
         <item>@string/resolution_480p</item>

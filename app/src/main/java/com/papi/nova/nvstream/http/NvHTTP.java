@@ -957,6 +957,7 @@ public class NvHTTP {
             (context.sessionToken == null || context.sessionToken.isEmpty() ? "" : ("&sessiontoken=" + context.sessionToken)) +
             (watchOnly ? "&watch=1" : "") +
             "&virtualDisplay=" + (context.streamConfig.getVirtualDisplay() ? 1 : 0) +
+            "&displayModeExplicit=" + (context.streamConfig.getDisplayModeExplicit() ? 1 : 0) +
             "&localAudioPlayMode=" + (context.streamConfig.getPlayLocalAudio() ? 1 : 0) +
             "&surroundAudioInfo=" + context.streamConfig.getAudioConfiguration().getSurroundAudioInfo() +
             "&remoteControllersBitmap=" + context.streamConfig.getAttachedGamepadMask() +

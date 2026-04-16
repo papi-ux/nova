@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="315"
+                android:endColor="#FF0F1724"
+                android:startColor="#FF23324A" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+
+    <item android:top="24dp" android:bottom="24dp" android:left="24dp" android:right="24dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="16dp" />
+            <gradient
+                android:angle="270"
+                android:startColor="#12000000"
+                android:endColor="#28000000" />
+            <stroke
+                android:width="1dp"
+                android:color="#22FFFFFF" />
+        </shape>
+    </item>
+
+    <item
+        android:gravity="center"
+        android:drawable="@drawable/ic_nova_star_foreground" />
+</layer-list>

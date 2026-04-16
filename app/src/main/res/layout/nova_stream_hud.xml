@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Nova Performance HUD — compact, themed, non-intrusive -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+    android:layout_width="232dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/nova_hud_bg"
@@ -9,10 +9,9 @@
     android:paddingEnd="12dp"
     android:paddingTop="8dp"
     android:paddingBottom="8dp"
-    android:alpha="0.92"
-    android:minWidth="120dp">
+    android:alpha="0.92">
 
-    <!-- Header: status dot + FPS (hero metric) -->
+    <!-- Header: actual FPS + target/stream mode -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -26,29 +25,32 @@
             android:layout_height="6dp"
             android:background="@drawable/nova_dot_green" />
 
-        <!-- FPS — hero number -->
-        <TextView
-            android:id="@+id/hud_fps"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="60"
-            android:textSize="20sp"
-            android:textColor="#FF4ade80"
-            android:textStyle="bold"
-            android:fontFamily="sans-serif-condensed"
-            android:layout_marginStart="6dp"
-            android:includeFontPadding="false" />
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="fps"
-            android:textSize="9sp"
-            android:textColor="#99687b81"
-            android:fontFamily="sans-serif"
-            android:layout_marginStart="2dp"
-            android:layout_marginBottom="1dp"
-            android:layout_gravity="bottom" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ACT FPS"
+                android:textSize="8sp"
+                android:textColor="#99687b81"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false" />
+
+            <TextView
+                android:id="@+id/hud_fps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="60"
+                android:textSize="22sp"
+                android:textColor="#FF4ade80"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-condensed"
+                android:includeFontPadding="false" />
+        </LinearLayout>
 
         <!-- Spacer -->
         <View
@@ -56,17 +58,33 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <!-- 1% low FPS -->
-        <TextView
-            android:id="@+id/hud_fps_low"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="1%: --"
-            android:textSize="9sp"
-            android:textColor="#99687b81"
-            android:fontFamily="sans-serif"
-            android:layout_gravity="bottom"
-            android:includeFontPadding="false" />
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <TextView
+                android:id="@+id/hud_target_fps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TGT 120"
+                android:textSize="10sp"
+                android:textColor="#FFd4dde8"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false" />
+
+            <TextView
+                android:id="@+id/hud_stream_mode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="10b GPU"
+                android:textSize="9sp"
+                android:textColor="#99a8b0b8"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- FPS sparkline -->
@@ -83,6 +101,34 @@
         android:layout_height="1dp"
         android:background="#1Ac8d6e5"
         android:layout_marginBottom="4dp" />
+
+    <!-- 1% low FPS -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="LOW"
+            android:textSize="9sp"
+            android:textColor="#99687b81"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/hud_fps_low"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1%: --"
+            android:textSize="10sp"
+            android:textColor="#99a8b0b8"
+            android:fontFamily="sans-serif-medium" />
+    </LinearLayout>
 
     <!-- Stat rows — icon-less, compact grid -->
     <!-- Latency -->

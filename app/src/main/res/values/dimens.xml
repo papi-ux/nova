@@ -27,7 +27,7 @@
     <dimen name="nova_text_tiny">9sp</dimen>
 
     <!-- Nova card dimensions -->
-    <dimen name="nova_game_card_cover_height">200dp</dimen>
+    <dimen name="nova_game_card_cover_height">216dp</dimen>
     <dimen name="nova_card_corner_radius">14dp</dimen>
     <dimen name="nova_card_corner_radius_lg">16dp</dimen>
     <dimen name="nova_search_height">48dp</dimen>

@@ -47,6 +47,8 @@ class NovaLibraryActivity : AppCompatActivity() {
     private lateinit var emptyTitle: TextView
     private lateinit var emptyHint: TextView
     private lateinit var serverContext: TextView
+    private lateinit var librarySummary: TextView
+    private lateinit var resultsSummary: TextView
     private lateinit var shimmer: ShimmerFrameLayout
 
     private var allGames = listOf<PolarisGame>()
@@ -106,18 +108,25 @@ class NovaLibraryActivity : AppCompatActivity() {
         emptyHint = findViewById(R.id.nova_empty_hint)
         shimmer = findViewById(R.id.nova_shimmer_container)
         serverContext = findViewById(R.id.nova_library_context)
+        librarySummary = findViewById(R.id.nova_library_summary)
+        resultsSummary = findViewById(R.id.nova_library_results)
         serverContext.text = if (serverName.isNullOrBlank()) {
             getString(R.string.nova_library_server_context_fallback)
         } else {
             getString(R.string.nova_library_server_context, serverName)
         }
 
-        // Grid layout — 2 columns on phone, 3 on tablet/RP6
-        val columns = if (resources.configuration.screenWidthDp >= 600) 3 else 2
+        val columns = when (resources.configuration.screenWidthDp) {
+            in 960..Int.MAX_VALUE -> 5
+            in 720..959 -> 4
+            in 600..719 -> 3
+            else -> 2
+        }
         gameGrid.layoutManager = GridLayoutManager(this, columns)
 
-        adapter = NovaGameAdapter(apiClient,
-            onGameClick = { game -> launchGame(game) },
+        adapter = NovaGameAdapter(
+            apiClient,
+            onGameClick = { game -> showGameDetail(game) },
             onGameLongClick = { game -> showGameDetail(game) }
         )
         gameGrid.adapter = adapter
@@ -127,6 +136,16 @@ class NovaLibraryActivity : AppCompatActivity() {
         swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.nova_bg_elevated))
         swipeRefresh.setOnRefreshListener {
             swipeRefresh.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            loadGames()
+        }
+
+        findViewById<MaterialButton>(R.id.nova_library_back).setOnClickListener {
+            finish()
+            NovaThemeManager.applyBackTransition(this)
+        }
+
+        findViewById<MaterialButton>(R.id.nova_library_refresh).setOnClickListener { v ->
+            v.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
             loadGames()
         }
 
@@ -186,7 +205,9 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             val games = withContext(Dispatchers.IO) { apiClient.getGames(limit = 100) }
+            apiClient.clearCoverCache()
             allGames = games
+            updateLibraryStats()
             // Hide shimmer, show content
             if (shimmer.visibility == View.VISIBLE) {
                 shimmer.stopShimmer()
@@ -200,14 +221,14 @@ class NovaLibraryActivity : AppCompatActivity() {
                 emptyText.visibility = View.VISIBLE
             } else {
                 emptyText.visibility = View.GONE
-                filterGames(searchBar.text.toString())
+                filterGames(searchBar.text.toString(), forceCoverRefresh = true)
             }
             swipeRefresh.isRefreshing = false
             LimeLog.info("Nova: Loaded ${allGames.size} games")
         }
     }
 
-    private fun filterGames(search: String) {
+    private fun filterGames(search: String, forceCoverRefresh: Boolean = false) {
         var filtered = allGames
 
         // Text search
@@ -228,8 +249,25 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
 
         adapter.updateGames(filtered)
+        if (forceCoverRefresh) {
+            adapter.reloadAllCovers()
+        }
+        resultsSummary.text = getString(R.string.nova_library_results_format, filtered.size)
         updateEmptyState(search)
         emptyText.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun updateLibraryStats() {
+        val recentCount = allGames.count { it.lastLaunched > 0 }
+        val hdrCount = allGames.count { it.hdrSupported }
+
+        librarySummary.text = getString(
+            R.string.nova_library_summary_format,
+            allGames.size,
+            recentCount,
+            hdrCount
+        )
+        resultsSummary.text = getString(R.string.nova_library_results_format, allGames.size)
     }
 
     private fun updateEmptyState(search: String) {
@@ -274,13 +312,14 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     private fun showGameDetail(game: PolarisGame) {
-        val sheet = NovaGameDetailSheet.newInstance(game, apiClient) { g ->
-            launchGame(g)
+        val defaultToVirtualDisplay = PreferenceConfiguration.readPreferences(this).useVirtualDisplay
+        val sheet = NovaGameDetailSheet.newInstance(game, apiClient, defaultToVirtualDisplay) { g, withVirtualDisplay ->
+            launchGame(g, withVirtualDisplay)
         }
         sheet.show(supportFragmentManager, "game_detail")
     }
 
-    private fun launchGame(game: PolarisGame) {
+    private fun launchGame(game: PolarisGame, withVirtualDisplay: Boolean) {
         if (game.appId <= 0) {
             Toast.makeText(this, "This game entry is missing a launch ID", Toast.LENGTH_SHORT).show()
             return
@@ -291,11 +330,15 @@ class NovaLibraryActivity : AppCompatActivity() {
             return
         }
 
-        Toast.makeText(this, "Launching ${game.name}...", Toast.LENGTH_SHORT).show()
+        val modeLabel = if (withVirtualDisplay) {
+            getString(R.string.nova_library_launch_virtual_display)
+        } else {
+            getString(R.string.nova_library_launch_headless)
+        }
+        Toast.makeText(this, getString(R.string.nova_library_launching_mode, game.name, modeLabel), Toast.LENGTH_SHORT).show()
         LimeLog.info("Nova: Launching game ${game.name} (${game.id}/${game.appId})")
 
         val app = NvApp(game.name, game.id, game.appId, game.hdrSupported)
-        val prefConfig = PreferenceConfiguration.readPreferences(this)
 
         ServerHelper.doStart(
             this,
@@ -307,7 +350,9 @@ class NovaLibraryActivity : AppCompatActivity() {
             streamPcUuid!!,
             streamPcName,
             streamServerCommands,
-            prefConfig.useVirtualDisplay,
+            withVirtualDisplay,
+            true,
+            false,
             streamServerCert
         )
     }

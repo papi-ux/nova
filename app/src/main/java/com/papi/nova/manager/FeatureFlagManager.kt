@@ -21,6 +21,8 @@ object FeatureFlagManager {
 
     // Feature flags — all false when connected to non-Polaris server
     val hasAiOptimizer: Boolean get() = capabilities?.features?.aiOptimizer == true
+    val hasAiOptimizerControl: Boolean get() = capabilities?.features?.aiOptimizerControl == true
+    val hasAdaptiveBitrateControl: Boolean get() = capabilities?.features?.adaptiveBitrateControl == true
     val hasGameLibrary: Boolean get() = capabilities?.features?.gameLibrary == true
     val hasSessionLifecycle: Boolean get() = capabilities?.features?.sessionLifecycle == true
     val hasDeviceProfiles: Boolean get() = capabilities?.features?.deviceProfiles == true
@@ -42,6 +44,7 @@ object FeatureFlagManager {
         if (isPolarisServer) {
             LimeLog.info("Nova: Polaris server detected — v$serverVersion")
             LimeLog.info("Nova: Features: AI=${hasAiOptimizer} GameLib=${hasGameLibrary} " +
+                "AIControl=${hasAiOptimizerControl} Adaptive=${hasAdaptiveBitrateControl} " +
                 "Session=${hasSessionLifecycle} Devices=${hasDeviceProfiles} Lock=${hasLockScreenControl} " +
                 "Cursor=${hasCursorVisibilityControl}")
             LimeLog.info("Nova: Capture: ${captureBackend}, codecs: ${supportedCodecs}")

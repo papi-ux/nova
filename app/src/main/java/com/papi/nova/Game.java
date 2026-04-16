@@ -148,6 +148,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public static volatile boolean isStreamActive = false;
 
     private com.papi.nova.ui.NovaStreamHud novaHud;
+    private float configuredHudTargetFps = 0f;
     private com.papi.nova.ui.AudioHapticEngine audioHapticEngine;
     private com.papi.nova.ui.GyroAimController gyroAimController;
     private android.content.BroadcastReceiver novaDisconnectReceiver;
@@ -217,6 +218,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private int modifierFlags = 0;
     private boolean grabbedInput = true;
     private boolean cursorVisible = false;
+    private int currentMouseModeIndex = 0;
     private final Object cursorVisibilitySyncLock = new Object();
     private final ExecutorService cursorVisibilitySyncExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "NovaCursorSync");
@@ -290,6 +292,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public static final String EXTRA_APP_HDR = "HDR";
     public static final String EXTRA_SERVER_CERT = "ServerCert";
     public static final String EXTRA_VDISPLAY = "VirtualDisplay";
+    public static final String EXTRA_DISPLAY_MODE_EXPLICIT = "DisplayModeExplicit";
     public static final String EXTRA_WATCH_ONLY = "WatchOnly";
     public static final String EXTRA_SERVER_COMMANDS = "ServerCommands";
     public static final String EXTRA_DISPLAY_ID = "DisplayID";
@@ -395,6 +398,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         return prefEnableHdr &&
                 !onExternalDisplay &&
                 sdkInt < Build.VERSION_CODES.N;
+    }
+
+    public float getConfiguredHudTargetFps() {
+        return configuredHudTargetFps;
     }
 
     private final Runnable flushCommitTextQueue = new Runnable() {
@@ -647,6 +654,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         appId = Game.this.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID);
         uniqueId = Game.this.getIntent().getStringExtra(EXTRA_UNIQUEID);
         vDisplay = Game.this.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false);
+        boolean displayModeExplicit = Game.this.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false);
         watchOnlyRequested = Game.this.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false);
         serverCommands = Game.this.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS);
         boolean appSupportsHdr = Game.this.getIntent().getBooleanExtra(EXTRA_APP_HDR, false);
@@ -903,6 +911,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     " to display max " + maxSupportedLaunchRefreshRate);
             launchRefreshRate = maxSupportedLaunchRefreshRate;
         }
+        configuredHudTargetFps = launchRefreshRate;
 
         StreamConfiguration config = new StreamConfiguration.Builder()
                 .setResolution(
@@ -912,6 +921,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 .setLaunchRefreshRate(launchRefreshRate)
                 .setRefreshRate(chosenFrameRate)
                 .setVirtualDisplay(vDisplay)
+                .setDisplayModeExplicit(displayModeExplicit)
                 .setResolutionScaleFactor(prefConfig.resolutionScaleFactor)
                 .setApp(app)
                 .setEnableUltraLowLatency(prefConfig.enableUltraLowLatency)
@@ -3886,6 +3896,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 if (com.papi.nova.ui.NovaStreamHud.Companion.isEnabled(Game.this)) {
                     novaHud = new com.papi.nova.ui.NovaStreamHud(Game.this);
                     novaHud.show();
+                    novaHud.setTargetFps(configuredHudTargetFps);
                     ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
                     boolean isMeteredConnection = connMgr != null && connMgr.isActiveNetworkMetered();
                     novaHud.setTargetBitrateKbps(isMeteredConnection ? prefConfig.meteredBitrate : prefConfig.bitrate);
@@ -4514,6 +4525,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void applyMouseMode(int mode) {
+        currentMouseModeIndex = mode;
         switch (mode) {
             case 0: // Multi-touch
                 prefConfig.enableMultiTouchScreen = true;
@@ -4553,6 +4565,18 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // Always exit zoom mode if mouse mode has changed
         isPanZoomMode = false;
         updateZoomButtonAppearance();
+    }
+
+    public com.papi.nova.api.PolarisApiClient getNovaApiClient() {
+        return novaApiClient;
+    }
+
+    public String getCurrentMouseModeLabel() {
+        String[] mouseModes = getResources().getStringArray(R.array.mouse_mode_names);
+        if (currentMouseModeIndex >= 0 && currentMouseModeIndex < mouseModes.length) {
+            return mouseModes[currentMouseModeIndex];
+        }
+        return getString(R.string.mouse_mode_absolute_touch);
     }
 
     public void toggleHUD() {

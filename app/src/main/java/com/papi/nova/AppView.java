@@ -665,7 +665,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             if (prefConfig.useVirtualDisplay) {
                 addSheetAction(actions, getString(R.string.applist_menu_start_primarydisplay), () -> {
                     sheet.dismiss();
-                    ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, false);
+                    ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, false, true, false);
                 });
             } else {
                 addSheetAction(actions, getString(R.string.applist_menu_start_vdisplay), () -> {
@@ -673,9 +673,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     boolean vdReady = computer.vDisplaySupported && computer.vDisplayDriverReady;
                     if (!vdReady) {
                         UiHelper.displayVdisplayConfirmationDialog(this, computer,
-                            () -> ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, true), null);
+                            () -> ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, true, true, false), null);
                     } else {
-                        ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, true);
+                        ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, true, true, false);
                     }
                 });
             }
@@ -838,7 +838,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                         UiHelper.displayVdisplayConfirmationDialog(
                                 AppView.this,
                                 computer,
-                                () -> ServerHelper.doStart(AppView.this, app.app, computer, managerBinder, true),
+                                () -> ServerHelper.doStart(AppView.this, app.app, computer, managerBinder, true, true, false),
                                 null
                         );
                     } else {
