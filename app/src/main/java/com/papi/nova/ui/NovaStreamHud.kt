@@ -10,6 +10,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.preference.PreferenceManager
 import com.papi.nova.R
+import com.papi.nova.api.PolarisSessionStatus
 import kotlin.math.abs
 
 /**
@@ -41,6 +42,8 @@ class NovaStreamHud(private val activity: Activity) {
     private var sparkline: SparklineView? = null
     private var fpsLowText: TextView? = null
     private var codecLabel: TextView? = null
+    private var activeCodecLabel = ""
+    private var sessionModeLabel = ""
 
     // Mode cycling: full → banner → fps_only → full
     private val modes = listOf("full", "banner", "fps_only")
@@ -237,7 +240,7 @@ class NovaStreamHud(private val activity: Activity) {
                 if (codecMatch != null) {
                     val codec = codecMatch.groupValues[1].uppercase()
                     lastCodec = codec
-                    if (currentMode == "banner") codecLabel?.text = codec else codecText?.text = codec
+                    applyCodecLabel(codec)
                 }
             }
 
@@ -265,13 +268,47 @@ class NovaStreamHud(private val activity: Activity) {
             updateFps(fps)
             if (currentMode != "fps_only") {
                 val codecStr = codec.uppercase()
-                if (currentMode == "banner") codecLabel?.text = codecStr else codecText?.text = codecStr
+                applyCodecLabel(codecStr)
                 bitrateText?.text = if (currentMode == "banner") "  ${bitrateKbps / 1000}Mbps"
                     else "${bitrateKbps / 1000} Mbps"
                 resolutionText?.text = if (currentMode == "banner") "  ${height}p" else "${width}×${height}"
                 updateLatency(latencyMs.toInt())
             }
         }
+    }
+
+    fun applySessionStatus(status: PolarisSessionStatus?) {
+        activity.runOnUiThread {
+            sessionModeLabel = status?.let(::buildSessionModeLabel) ?: ""
+            if (currentMode == "fps_only") {
+                return@runOnUiThread
+            }
+
+            if (activeCodecLabel.isNotBlank()) {
+                applyCodecLabel(activeCodecLabel)
+            } else if (sessionModeLabel.isNotBlank()) {
+                if (currentMode == "banner") codecLabel?.text = sessionModeLabel else codecText?.text = sessionModeLabel
+            }
+        }
+    }
+
+    private fun buildSessionModeLabel(status: PolarisSessionStatus): String {
+        val bitDepth = if (status.isTenBitActive) "10b" else "8b"
+        val path = when {
+            status.isGpuPath -> "GPU"
+            status.encoder.targetResidency.equals("cpu", ignoreCase = true) -> "CPU"
+            else -> ""
+        }
+
+        return listOf(bitDepth, path).filter { it.isNotBlank() }.joinToString(" ")
+    }
+
+    private fun applyCodecLabel(codec: String) {
+        activeCodecLabel = codec
+        val decorated = listOf(codec, sessionModeLabel)
+            .filter { it.isNotBlank() }
+            .joinToString(if (currentMode == "banner") " " else " · ")
+        if (currentMode == "banner") codecLabel?.text = decorated else codecText?.text = decorated
     }
 
     private fun updateFps(fps: Double) {

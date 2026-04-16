@@ -74,6 +74,8 @@ jobs:
     name: Assemble release APK
     needs: [verify, android-smoke]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       HAS_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 != '' }}
 
@@ -142,14 +144,34 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      - name: Create GitHub Release
+      - name: Upload GitHub Release assets
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{ env.APK_PATH }}
-            ${{ env.APK_PATH }}.sha256
-          generate_release_notes: true
-          draft: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for file in "${APK_PATH}" "${APK_PATH}.sha256"; do
+            if [ ! -f "$file" ]; then
+              echo "Missing release asset: $file" >&2
+              exit 1
+            fi
+          done
+
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --verify-tag \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi
+
+          gh release upload "${GITHUB_REF_NAME}" "${APK_PATH}" "${APK_PATH}.sha256" --clobber
+
+      - name: Verify GitHub Release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          asset_count=$(gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets | length')
+          if [ "${asset_count}" -lt 2 ]; then
+            echo "Expected at least 2 release assets on ${GITHUB_REF_NAME}, found ${asset_count}" >&2
+            exit 1
+          fi

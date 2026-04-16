@@ -68,17 +68,33 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
                 game = json.optString("game", ""),
+                gameId = json.optInt("game_id", 0),
+                gameUuid = json.optString("game_uuid", ""),
+                sessionToken = json.optString("session_token", ""),
+                ownerUniqueId = json.optString("owner_unique_id", ""),
+                ownerDeviceName = json.optString("owner_device_name", ""),
+                ownedByClient = json.optBoolean("owned_by_client", false),
                 cagePid = json.optInt("cage_pid", 0),
                 screenLocked = json.optBoolean("screen_locked", false),
                 cursorVisible = json.optBoolean("cursor_visible", false),
+                dynamicRange = json.optInt("dynamic_range", 0),
                 capture = PolarisSessionStatus.CaptureStatus(
                     backend = capture?.optString("backend", "") ?: "",
-                    resolution = capture?.optString("resolution", "") ?: ""
+                    resolution = capture?.optString("resolution", "") ?: "",
+                    transport = capture?.optString("transport", "") ?: "",
+                    residency = capture?.optString("residency", "") ?: "",
+                    format = capture?.optString("format", "") ?: ""
                 ),
                 encoder = PolarisSessionStatus.EncoderStatus(
                     codec = encoder?.optString("codec", "") ?: "",
                     bitrateKbps = encoder?.optInt("bitrate_kbps", 0) ?: 0,
-                    fps = encoder?.optDouble("fps", 0.0) ?: 0.0
+                    fps = encoder?.optDouble("fps", 0.0) ?: 0.0,
+                    requestedClientFps = encoder?.optDouble("requested_client_fps", 0.0) ?: 0.0,
+                    sessionTargetFps = encoder?.optDouble("session_target_fps", 0.0) ?: 0.0,
+                    encodeTargetFps = encoder?.optDouble("encode_target_fps", 0.0) ?: 0.0,
+                    targetDevice = encoder?.optString("target_device", "") ?: "",
+                    targetResidency = encoder?.optString("target_residency", "") ?: "",
+                    targetFormat = encoder?.optString("target_format", "") ?: ""
                 )
             )
         }

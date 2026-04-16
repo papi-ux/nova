@@ -255,6 +255,8 @@ public class NvConnection {
         }
 
         context.serverCodecModeSupport = (int)h.getServerCodecModeSupport(serverInfo);
+        context.sessionToken = h.getCurrentGameSessionToken(serverInfo);
+        context.currentGameOwnedByClient = h.getCurrentGameOwned(serverInfo);
 
         context.negotiatedHdr = (context.streamConfig.getSupportedVideoFormats() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
         if ((context.serverCodecModeSupport & 0x20200) == 0 && context.negotiatedHdr) {
@@ -323,6 +325,12 @@ public class NvConnection {
         if (h.getCurrentGame(serverInfo) != 0 || (h.getCurrentGameUUID(serverInfo) != null && !h.getCurrentGameUUID(serverInfo).isEmpty())) {
             try {
                 if (h.getCurrentGame(serverInfo) == app.getAppId() || Objects.equals(h.getCurrentGameUUID(serverInfo), app.getAppUUID())) {
+                    if (Boolean.FALSE.equals(context.currentGameOwnedByClient)) {
+                        context.connListener.displayMessage("This session wasn't started by this device," +
+                                " so it cannot be resumed. End streaming on the original " +
+                                "device or the PC itself and try again.");
+                        return false;
+                    }
                     if (!h.launchApp(context, "resume", app.getAppUUID(), app.getAppId(), context.negotiatedHdr)) {
                         context.connListener.displayMessage("Failed to resume existing session");
                         return false;
@@ -361,13 +369,20 @@ public class NvConnection {
 
     protected boolean quitAndLaunch(NvHTTP h, ConnectionContext context) throws IOException,
             XmlPullParserException {
+        if (Boolean.FALSE.equals(context.currentGameOwnedByClient)) {
+            context.connListener.displayMessage("This session wasn't started by this device," +
+                    " so it cannot be quit. End streaming on the original " +
+                    "device or the PC itself.");
+            return false;
+        }
+
         try {
-            if (!h.quitApp()) {
+            if (!h.quitApp(context.sessionToken)) {
                 context.connListener.displayMessage("Failed to quit previous session! You must quit it manually");
                 return false;
             } 
         } catch (HostHttpResponseException e) {
-            if (e.getErrorCode() == 599) {
+            if (e.getErrorCode() == 470 || e.getErrorCode() == 599) {
                 context.connListener.displayMessage("This session wasn't started by this device," +
                         " so it cannot be quit. End streaming on the original " +
                         "device or the PC itself. (Error code: "+e.getErrorCode()+")");
@@ -379,6 +394,10 @@ public class NvConnection {
         }
 
         return launchNotRunningApp(h, context);
+    }
+
+    public String getSessionToken() {
+        return context.sessionToken;
     }
     
     private boolean launchNotRunningApp(NvHTTP h, ConnectionContext context)

@@ -688,6 +688,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     @Override
                     public void onStateUpdate(String sessionState, boolean cageRunning, boolean screenLocked) {
                         novaProgressOverlay.updateState(sessionState, "");
+                        if ("streaming".equals(sessionState)) {
+                            refreshPolarisLiveSessionStatus();
+                        }
                         if (com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasLockScreenControl()) {
                             if (screenLocked) {
                                 novaLockScreenOverlay.show();
@@ -3636,7 +3639,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     if (httpConn != null && quitOnStop) {
                         try {
                             sleep(1000);
-                            httpConn.quitApp();
+                            httpConn.quitApp(conn != null ? conn.getSessionToken() : null);
                             Game.this.runOnUiThread(() -> Toast.makeText(Game.this, Game.this.getResources().getString(R.string.applist_quit_success) + " " + appName, Toast.LENGTH_LONG).show());
                         } catch (Exception e) {
                             Game.this.runOnUiThread(() -> Toast.makeText(Game.this, e.getMessage(), Toast.LENGTH_LONG).show());
@@ -3872,6 +3875,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         }).start();
                         return null;
                     });
+                    refreshPolarisLiveSessionStatus();
                 }
 
                 // Start audio-driven haptics if enabled
@@ -4460,6 +4464,23 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             cursorVisibilitySyncScheduled = false;
         }
         cursorVisibilitySyncExecutor.shutdownNow();
+    }
+
+    private void refreshPolarisLiveSessionStatus() {
+        if (novaApiClient == null) {
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                com.papi.nova.api.PolarisSessionStatus status = novaApiClient.getSessionStatus();
+                if (status != null && novaHud != null) {
+                    novaHud.applySessionStatus(status);
+                }
+            } catch (Exception e) {
+                com.papi.nova.LimeLog.warning("Nova: Live session status refresh failed: " + e.getMessage());
+            }
+        }, "NovaSessionStatus").start();
     }
 
     private void applyMouseMode(int mode) {

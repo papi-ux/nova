@@ -6,6 +6,9 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 @Config(sdk = {33})
 @RunWith(RobolectricTestRunner.class)
@@ -35,5 +38,30 @@ public class NvHttpServerInfoParsingTest {
         String serverInfo = "<root status_code=\"200\"><ServerMaxLaunchRefreshRate>abc</ServerMaxLaunchRefreshRate></root>";
 
         assertEquals(0, NvHTTP.parseServerMaxLaunchRefreshRate(serverInfo));
+    }
+
+    @Test
+    public void parsesCurrentGameOwnershipAndSessionToken() throws Exception {
+        String serverInfo = "<root status_code=\"200\">" +
+                "<currentgameowned>1</currentgameowned>" +
+                "<currentgamesessiontoken>token-123</currentgamesessiontoken>" +
+                "</root>";
+
+        assertTrue(NvHTTP.parseCurrentGameOwned(serverInfo));
+        assertEquals("token-123", NvHTTP.parseCurrentGameSessionToken(serverInfo));
+    }
+
+    @Test
+    public void missingCurrentGameOwnershipFallsBackToNull() throws Exception {
+        String serverInfo = "<root status_code=\"200\"></root>";
+
+        assertNull(NvHTTP.parseCurrentGameOwned(serverInfo));
+    }
+
+    @Test
+    public void parsesCurrentGameOwnershipFalse() throws Exception {
+        String serverInfo = "<root status_code=\"200\"><currentgameowned>0</currentgameowned></root>";
+
+        assertFalse(NvHTTP.parseCurrentGameOwned(serverInfo));
     }
 }

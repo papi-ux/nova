@@ -631,8 +631,29 @@ public class NvHTTP {
         return 0;
     }
 
+    static Boolean parseCurrentGameOwned(String serverInfo) throws XmlPullParserException, IOException {
+        String str = getXmlString(serverInfo, "currentgameowned", false);
+        if (str == null) {
+            return null;
+        }
+
+        return !str.equals("0") && !str.equalsIgnoreCase("false");
+    }
+
+    static String parseCurrentGameSessionToken(String serverInfo) throws XmlPullParserException, IOException {
+        return getXmlString(serverInfo, "currentgamesessiontoken", false);
+    }
+
     public int getServerMaxLaunchRefreshRate(String serverInfo) throws XmlPullParserException, IOException {
         return parseServerMaxLaunchRefreshRate(serverInfo);
+    }
+
+    public Boolean getCurrentGameOwned(String serverInfo) throws IOException, XmlPullParserException {
+        return parseCurrentGameOwned(serverInfo);
+    }
+
+    public String getCurrentGameSessionToken(String serverInfo) throws IOException, XmlPullParserException {
+        return parseCurrentGameSessionToken(serverInfo);
     }
     
     public String getGpuType(String serverInfo) throws XmlPullParserException, IOException {
@@ -905,6 +926,7 @@ public class NvHTTP {
             "&rikey="+bytesToHex(context.riKey.getEncoded()) +
             "&rikeyid="+context.riKeyId +
             (!enableHdr ? "" : "&hdrMode=1&clientHdrCapVersion=0&clientHdrCapSupportedFlagsInUint32=0&clientHdrCapMetaDataId=NV_STATIC_METADATA_TYPE_1&clientHdrCapDisplayData=0x0x0x0x0x0x0x0x0x0x0") +
+            (context.sessionToken == null || context.sessionToken.isEmpty() ? "" : ("&sessiontoken=" + context.sessionToken)) +
             "&virtualDisplay=" + (context.streamConfig.getVirtualDisplay() ? 1 : 0) +
             "&localAudioPlayMode=" + (context.streamConfig.getPlayLocalAudio() ? 1 : 0) +
             "&surroundAudioInfo=" + context.streamConfig.getAudioConfiguration().getSurroundAudioInfo() +
@@ -916,6 +938,8 @@ public class NvHTTP {
                 (verb.equals("resume") && !getXmlString(xmlStr, "resume", true).equals("0")))) {
             // sessionUrl0 will be missing for older GFE versions
             context.rtspSessionUrl = getXmlString(xmlStr, "sessionUrl0", false);
+            context.sessionToken = getXmlString(xmlStr, "sessionToken", false);
+            context.currentGameOwnedByClient = true;
             return true;
         }
         else {
@@ -924,7 +948,16 @@ public class NvHTTP {
     }
     
     public boolean quitApp() throws IOException, XmlPullParserException {
-        String xmlStr = openHttpConnectionToString(httpClientLongConnectNoReadTimeout, getHttpsUrl(true), "cancel");
+        return quitApp(null);
+    }
+
+    public boolean quitApp(String sessionToken) throws IOException, XmlPullParserException {
+        String xmlStr = openHttpConnectionToString(
+                httpClientLongConnectNoReadTimeout,
+                getHttpsUrl(true),
+                "cancel",
+                sessionToken == null || sessionToken.isEmpty() ? null : ("sessiontoken=" + sessionToken)
+        );
         if (getXmlString(xmlStr, "cancel", true).equals("0")) {
             return false;
         }
