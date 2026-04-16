@@ -8,6 +8,8 @@ data class PolarisSessionStatus(
     val sessionToken: String = "",
     val ownerUniqueId: String = "",
     val ownerDeviceName: String = "",
+    val clientRole: String = "none",
+    val viewerCount: Int = 0,
     val ownedByClient: Boolean = false,
     val cagePid: Int = 0,
     val screenLocked: Boolean = false,
@@ -40,4 +42,5 @@ data class PolarisSessionStatus(
     val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming")
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
     val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true)
+    val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
 }

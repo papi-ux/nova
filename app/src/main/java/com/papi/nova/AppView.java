@@ -226,6 +226,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
             // App list is the same or empty
             if (details.rawAppList == null || details.rawAppList.equals(lastRawAppList)) {
+                computer.update(details);
 
                 // Let's check if the running app ID changed
                 if (details.runningGameId != lastRunningAppId) {
@@ -237,6 +238,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 return;
             }
 
+            computer.update(details);
             lastRunningAppId = details.runningGameId;
             lastRawAppList = details.rawAppList;
 
@@ -577,7 +579,11 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             getSharedPreferences("nova_prefs", MODE_PRIVATE).edit()
                     .putInt("last_played_" + uuidString, finalApp.app.getAppId())
                     .apply();
-            ServerHelper.doStart(this, finalApp.app, computer, managerBinder, prefConfig.useVirtualDisplay);
+            if (lastRunningAppId != 0 && Boolean.FALSE.equals(computer.currentGameOwnedByClient)) {
+                ServerHelper.doWatch(this, createWatchTargetApp(finalApp.app), computer, managerBinder);
+            } else {
+                ServerHelper.doStart(this, finalApp.app, computer, managerBinder, prefConfig.useVirtualDisplay);
+            }
         });
     }
 
@@ -654,6 +660,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         if (actions == null) { sheet.show(); return; }
 
         // Build actions based on app state
+        boolean ownedByOtherClient = lastRunningAppId != 0 && Boolean.FALSE.equals(computer.currentGameOwnedByClient);
         if (lastRunningAppId == 0) {
             if (prefConfig.useVirtualDisplay) {
                 addSheetAction(actions, getString(R.string.applist_menu_start_primarydisplay), () -> {
@@ -673,27 +680,41 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 });
             }
         } else if (lastRunningAppId == selectedApp.app.getAppId()) {
-            addSheetAction(actions, getString(R.string.applist_menu_resume), () -> {
-                sheet.dismiss();
-                ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, prefConfig.useVirtualDisplay);
-            });
-            addSheetAction(actions, getString(R.string.applist_menu_quit), () -> {
-                sheet.dismiss();
-                UiHelper.displayQuitConfirmationDialog(this, () -> {
-                    suspendGridUpdates = true;
-                    ServerHelper.doQuit(this, computer, selectedApp.app, managerBinder, () -> {
-                        suspendGridUpdates = false;
-                        if (poller != null) poller.pollNow();
-                    });
-                }, null);
-            });
+            if (ownedByOtherClient) {
+                addSheetAction(actions, getString(R.string.applist_menu_watch), () -> {
+                    sheet.dismiss();
+                    ServerHelper.doWatch(this, createWatchTargetApp(selectedApp.app), computer, managerBinder);
+                });
+            } else {
+                addSheetAction(actions, getString(R.string.applist_menu_resume), () -> {
+                    sheet.dismiss();
+                    ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, prefConfig.useVirtualDisplay);
+                });
+                addSheetAction(actions, getString(R.string.applist_menu_quit), () -> {
+                    sheet.dismiss();
+                    UiHelper.displayQuitConfirmationDialog(this, () -> {
+                        suspendGridUpdates = true;
+                        ServerHelper.doQuit(this, computer, selectedApp.app, managerBinder, () -> {
+                            suspendGridUpdates = false;
+                            if (poller != null) poller.pollNow();
+                        });
+                    }, null);
+                });
+            }
         } else {
-            String startLabel = getString(R.string.applist_menu_quit_and_start);
-            addSheetAction(actions, startLabel, () -> {
-                sheet.dismiss();
-                UiHelper.displayQuitConfirmationDialog(this, () ->
-                    ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, prefConfig.useVirtualDisplay), null);
-            });
+            if (ownedByOtherClient) {
+                addSheetAction(actions, getString(R.string.applist_menu_watch_active), () -> {
+                    sheet.dismiss();
+                    ServerHelper.doWatch(this, createWatchTargetApp(selectedApp.app), computer, managerBinder);
+                });
+            } else {
+                String startLabel = getString(R.string.applist_menu_quit_and_start);
+                addSheetAction(actions, startLabel, () -> {
+                    sheet.dismiss();
+                    UiHelper.displayQuitConfirmationDialog(this, () ->
+                        ServerHelper.doStart(this, selectedApp.app, computer, managerBinder, prefConfig.useVirtualDisplay), null);
+                });
+            }
         }
 
         // Hide/show toggle
@@ -767,6 +788,28 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         container.addView(item);
     }
 
+    private NvApp createWatchTargetApp(NvApp fallbackApp) {
+        if (computer != null && computer.runningGameId != 0) {
+            for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
+                Object item = appGridAdapter.getItem(i);
+                if (item instanceof AppObject) {
+                    AppObject appObject = (AppObject) item;
+                    if (appObject.app.getAppId() == computer.runningGameId) {
+                        return appObject.app;
+                    }
+                }
+            }
+
+            if (fallbackApp != null && fallbackApp.getAppId() == computer.runningGameId) {
+                return fallbackApp;
+            }
+
+            return new NvApp(getString(R.string.applist_menu_watch_active_name), computer.runningGameUUID, computer.runningGameId, false);
+        }
+
+        return fallbackApp;
+    }
+
     @Override
     public int getAdapterFragmentLayoutId() {
         return R.layout.app_grid_view;
@@ -782,7 +825,11 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             appGridAdapter.setOnItemClickListener(app -> {
                 if (lastRunningAppId != 0) {
                     if (prefConfig.resumeWithoutConfirm && lastRunningAppId == app.app.getAppId()) {
-                        ServerHelper.doStart(AppView.this, app.app, computer, managerBinder, prefConfig.useVirtualDisplay);
+                        if (Boolean.FALSE.equals(computer.currentGameOwnedByClient)) {
+                            ServerHelper.doWatch(AppView.this, createWatchTargetApp(app.app), computer, managerBinder);
+                        } else {
+                            ServerHelper.doStart(AppView.this, app.app, computer, managerBinder, prefConfig.useVirtualDisplay);
+                        }
                     } else {
                         showAppBottomSheet(app);
                     }

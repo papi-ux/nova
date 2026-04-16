@@ -245,6 +245,7 @@ public class NvConnection {
         ComputerDetails details = h.getComputerDetails(serverInfo);
         context.isNvidiaServerSoftware = details.nvidiaServer;
         context.serverMaxLaunchRefreshRate = details.serverMaxLaunchRefreshRate;
+        context.currentGameOwnerName = details.currentGameOwnerName;
 
         // May be missing for older servers
         context.serverGfeVersion = h.getGfeVersion(serverInfo);
@@ -257,6 +258,7 @@ public class NvConnection {
         context.serverCodecModeSupport = (int)h.getServerCodecModeSupport(serverInfo);
         context.sessionToken = h.getCurrentGameSessionToken(serverInfo);
         context.currentGameOwnedByClient = h.getCurrentGameOwned(serverInfo);
+        context.currentGameOwnerName = h.getCurrentGameOwner(serverInfo);
 
         context.negotiatedHdr = (context.streamConfig.getSupportedVideoFormats() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
         if ((context.serverCodecModeSupport & 0x20200) == 0 && context.negotiatedHdr) {
@@ -326,19 +328,38 @@ public class NvConnection {
             try {
                 if (h.getCurrentGame(serverInfo) == app.getAppId() || Objects.equals(h.getCurrentGameUUID(serverInfo), app.getAppUUID())) {
                     if (Boolean.FALSE.equals(context.currentGameOwnedByClient)) {
-                        context.connListener.displayMessage("This session wasn't started by this device," +
-                                " so it cannot be resumed. End streaming on the original " +
-                                "device or the PC itself and try again.");
+                        if (!context.watchOnlyRequested) {
+                            context.connListener.displayMessage("This session wasn't started by this device," +
+                                    " so it cannot be resumed. End streaming on the original " +
+                                    "device or the PC itself and try again.");
+                            return false;
+                        }
+                    }
+                    else if (context.watchOnlyRequested) {
+                        context.connListener.displayMessage("This stream is already owned by this device. Resume it instead of watching.");
                         return false;
                     }
-                    if (!h.launchApp(context, "resume", app.getAppUUID(), app.getAppId(), context.negotiatedHdr)) {
-                        context.connListener.displayMessage("Failed to resume existing session");
+                    if (!h.launchApp(context, "resume", app.getAppUUID(), app.getAppId(), context.negotiatedHdr, context.watchOnlyRequested)) {
+                        context.connListener.displayMessage(context.watchOnlyRequested ?
+                                "Failed to join active stream" :
+                                "Failed to resume existing session");
                         return false;
+                    }
+                    if (context.watchOnlyRequested) {
+                        String ownerName = context.currentGameOwnerName;
+                        context.connListener.displayTransientMessage(
+                                ownerName != null && !ownerName.isEmpty()
+                                        ? "Watching " + ownerName + "'s stream."
+                                        : "Watching active stream.");
                     }
                 } else if (Objects.equals(NvApp.REMOTE_INPUT_UUID, app.getAppUUID())) {
                     // When launching InputOnly, we shouldn't try terminating the current running app
                     return launchNotRunningApp(h, context);
                 } else {
+                    if (context.watchOnlyRequested) {
+                        context.connListener.displayMessage("Watch mode can only join the active stream.");
+                        return false;
+                    }
                     return quitAndLaunch(h, context);
                 }
             } catch (HostHttpResponseException e) {
@@ -354,6 +375,9 @@ public class NvConnection {
                     context.connListener.displayMessage("The application is minimized. Resume it on the PC manually or " +
                             "quit the session and start streaming again.");
                     return false;
+                } else if (e.getErrorCode() == 409 && context.watchOnlyRequested) {
+                    context.connListener.displayMessage("No active stream is available to watch.");
+                    return false;
                 } else {
                     throw e;
                 }
@@ -363,12 +387,21 @@ public class NvConnection {
             return true;
         }
         else {
+            if (context.watchOnlyRequested) {
+                context.connListener.displayMessage("No active stream is available to watch.");
+                return false;
+            }
             return launchNotRunningApp(h, context);
         }
     }
 
     protected boolean quitAndLaunch(NvHTTP h, ConnectionContext context) throws IOException,
             XmlPullParserException {
+        if (context.watchOnlyRequested) {
+            context.connListener.displayMessage("Watch mode can't quit or replace the active stream.");
+            return false;
+        }
+
         if (Boolean.FALSE.equals(context.currentGameOwnedByClient)) {
             context.connListener.displayMessage("This session wasn't started by this device," +
                     " so it cannot be quit. End streaming on the original " +
@@ -402,6 +435,11 @@ public class NvConnection {
     
     private boolean launchNotRunningApp(NvHTTP h, ConnectionContext context)
             throws IOException, XmlPullParserException {
+        if (context.watchOnlyRequested) {
+            context.connListener.displayMessage("No active stream is available to watch.");
+            return false;
+        }
+
         float requestedLaunchRefreshRate = context.streamConfig.getLaunchRefreshRate();
         context.negotiatedLaunchRefreshRate = negotiateLaunchRefreshRate(
                 requestedLaunchRefreshRate,
@@ -414,7 +452,7 @@ public class NvConnection {
         }
 
         // Launch the app since it's not running
-        if (!h.launchApp(context, "launch", context.streamConfig.getApp().getAppUUID(), context.streamConfig.getApp().getAppId(), context.negotiatedHdr)) {
+        if (!h.launchApp(context, "launch", context.streamConfig.getApp().getAppUUID(), context.streamConfig.getApp().getAppId(), context.negotiatedHdr, false)) {
             context.connListener.displayMessage("Failed to launch application");
             return false;
         }
@@ -518,6 +556,10 @@ public class NvConnection {
                 }
             }
         }).start();
+    }
+
+    public void setWatchOnlyRequested(boolean watchOnlyRequested) {
+        context.watchOnlyRequested = watchOnlyRequested;
     }
 
     public void sendExecServerCmd(final int cmdId) {

@@ -33,7 +33,7 @@ public class PolarisApiClientParsingTest {
         JSONObject json = new JSONObject(
                 "{\"state\":\"streaming\",\"game_id\":123,\"game_uuid\":\"game-uuid\"," +
                         "\"session_token\":\"token-123\",\"owner_unique_id\":\"owner-uuid\"," +
-                        "\"owner_device_name\":\"Retroid\",\"owned_by_client\":true," +
+                        "\"owner_device_name\":\"Retroid\",\"client_role\":\"viewer\",\"viewer_count\":2,\"owned_by_client\":true," +
                         "\"cursor_visible\":true,\"dynamic_range\":1," +
                         "\"capture\":{\"backend\":\"wayland\",\"resolution\":\"1920x1080\"," +
                         "\"transport\":\"dmabuf\",\"residency\":\"gpu\",\"format\":\"bgra8\"}," +
@@ -51,6 +51,8 @@ public class PolarisApiClientParsingTest {
         assertEquals("token-123", status.getSessionToken());
         assertEquals("owner-uuid", status.getOwnerUniqueId());
         assertEquals("Retroid", status.getOwnerDeviceName());
+        assertEquals("viewer", status.getClientRole());
+        assertEquals(2, status.getViewerCount());
         assertTrue(status.getOwnedByClient());
         assertTrue(status.getCursorVisible());
         assertEquals("1920x1080", status.getCapture().getResolution());
@@ -59,5 +61,6 @@ public class PolarisApiClientParsingTest {
         assertEquals("p010", status.getEncoder().getTargetFormat());
         assertTrue(status.isTenBitActive());
         assertTrue(status.isGpuPath());
+        assertTrue(status.isViewer());
     }
 }

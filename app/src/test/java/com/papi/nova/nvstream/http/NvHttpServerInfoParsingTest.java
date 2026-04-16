@@ -44,10 +44,14 @@ public class NvHttpServerInfoParsingTest {
     public void parsesCurrentGameOwnershipAndSessionToken() throws Exception {
         String serverInfo = "<root status_code=\"200\">" +
                 "<currentgameowned>1</currentgameowned>" +
+                "<currentgameowner>Retroid</currentgameowner>" +
+                "<currentgameviewercount>2</currentgameviewercount>" +
                 "<currentgamesessiontoken>token-123</currentgamesessiontoken>" +
                 "</root>";
 
         assertTrue(NvHTTP.parseCurrentGameOwned(serverInfo));
+        assertEquals("Retroid", NvHTTP.parseCurrentGameOwner(serverInfo));
+        assertEquals(2, NvHTTP.parseCurrentGameViewerCount(serverInfo));
         assertEquals("token-123", NvHTTP.parseCurrentGameSessionToken(serverInfo));
     }
 

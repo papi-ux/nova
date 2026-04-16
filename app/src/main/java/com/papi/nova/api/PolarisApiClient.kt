@@ -73,6 +73,8 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                 sessionToken = json.optString("session_token", ""),
                 ownerUniqueId = json.optString("owner_unique_id", ""),
                 ownerDeviceName = json.optString("owner_device_name", ""),
+                clientRole = json.optString("client_role", "none"),
+                viewerCount = json.optInt("viewer_count", 0),
                 ownedByClient = json.optBoolean("owned_by_client", false),
                 cagePid = json.optInt("cage_pid", 0),
                 screenLocked = json.optBoolean("screen_locked", false),

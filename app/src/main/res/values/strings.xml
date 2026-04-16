@@ -207,6 +207,9 @@
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>
     <string name="applist_menu_resume">Resume Session</string>
+    <string name="applist_menu_watch">Watch Stream</string>
+    <string name="applist_menu_watch_active">Watch Active Stream</string>
+    <string name="applist_menu_watch_active_name">Active Stream</string>
     <string name="applist_menu_start_vdisplay">Start in Virtual Display</string>
     <string name="applist_menu_start_primarydisplay">Start in Primary Display</string>
     <string name="applist_menu_quit">Quit Session</string>

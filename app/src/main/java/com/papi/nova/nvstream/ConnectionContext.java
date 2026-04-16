@@ -26,6 +26,8 @@ public class ConnectionContext {
     public String rtspSessionUrl;
     public String sessionToken;
     public Boolean currentGameOwnedByClient;
+    public String currentGameOwnerName;
+    public boolean watchOnlyRequested;
     
     public int negotiatedWidth, negotiatedHeight;
     public boolean negotiatedHdr;

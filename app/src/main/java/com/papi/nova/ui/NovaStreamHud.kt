@@ -299,8 +299,9 @@ class NovaStreamHud(private val activity: Activity) {
             status.encoder.targetResidency.equals("cpu", ignoreCase = true) -> "CPU"
             else -> ""
         }
+        val role = if (status.isViewer) "WATCH" else ""
 
-        return listOf(bitDepth, path).filter { it.isNotBlank() }.joinToString(" ")
+        return listOf(bitDepth, path, role).filter { it.isNotBlank() }.joinToString(" ")
     }
 
     private fun applyCodecLabel(codec: String) {

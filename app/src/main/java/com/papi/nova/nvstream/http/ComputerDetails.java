@@ -79,6 +79,9 @@ public class ComputerDetails {
     public PairingManager.PairState pairState;
     public int runningGameId;
     public String runningGameUUID;
+    public Boolean currentGameOwnedByClient;
+    public String currentGameOwnerName;
+    public int currentGameViewerCount;
     public String rawAppList;
     public boolean nvidiaServer;
     public int serverMaxLaunchRefreshRate;
@@ -159,6 +162,9 @@ public class ComputerDetails {
         this.pairState = details.pairState;
         this.runningGameId = details.runningGameId;
         this.runningGameUUID = details.runningGameUUID;
+        this.currentGameOwnedByClient = details.currentGameOwnedByClient;
+        this.currentGameOwnerName = details.currentGameOwnerName;
+        this.currentGameViewerCount = details.currentGameViewerCount;
         this.nvidiaServer = details.nvidiaServer;
         this.rawAppList = details.rawAppList;
         this.serverMaxLaunchRefreshRate = details.serverMaxLaunchRefreshRate;
@@ -236,6 +242,9 @@ public class ComputerDetails {
                 "Pair State: " + pairState + "\n" +
                 "Running Game ID: " + runningGameId + "\n" +
                 "Running Game UUID: " + runningGameUUID + "\n" +
+                "Current Game Owned By Client: " + currentGameOwnedByClient + "\n" +
+                "Current Game Owner: " + currentGameOwnerName + "\n" +
+                "Current Game Viewer Count: " + currentGameViewerCount + "\n" +
                 "Server Max Launch Refresh Rate: " + serverMaxLaunchRefreshRate + "\n" +
                 "HTTPS Port: " + httpsPort + "\n";
     }

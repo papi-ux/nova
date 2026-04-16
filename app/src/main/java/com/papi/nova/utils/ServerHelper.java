@@ -99,6 +99,7 @@ public class ServerHelper {
                                             String pcUuid,
                                             String pcName,
                                             boolean withVDisplay,
+                                            boolean watchOnly,
                                             ArrayList<String> serverCommands,
                                             byte[] serverCert) {
         Intent gameIntent = null;
@@ -122,6 +123,7 @@ public class ServerHelper {
         gameIntent.putExtra(Game.EXTRA_PC_UUID, pcUuid);
         gameIntent.putExtra(Game.EXTRA_PC_NAME, pcName);
         gameIntent.putExtra(Game.EXTRA_VDISPLAY, withVDisplay);
+        gameIntent.putExtra(Game.EXTRA_WATCH_ONLY, watchOnly);
         if (serverCommands != null) {
             gameIntent.putStringArrayListExtra(Game.EXTRA_SERVER_COMMANDS, serverCommands);
         }
@@ -146,6 +148,13 @@ public class ServerHelper {
     public static Intent createStartIntent(Activity parent, NvApp app, ComputerDetails computer,
                                            ComputerManagerService.ComputerManagerBinder managerBinder,
                                            boolean withVDisplay) {
+        return createStartIntent(parent, app, computer, managerBinder, withVDisplay, false);
+    }
+
+    public static Intent createStartIntent(Activity parent, NvApp app, ComputerDetails computer,
+                                           ComputerManagerService.ComputerManagerBinder managerBinder,
+                                           boolean withVDisplay,
+                                           boolean watchOnly) {
         byte[] serverCert = null;
         try {
             if (computer.serverCert != null) {
@@ -169,6 +178,7 @@ public class ServerHelper {
                 computer.uuid,
                 computer.name,
                 withVDisplay,
+                watchOnly,
                 serverCommands,
                 serverCert
         );
@@ -181,6 +191,17 @@ public class ServerHelper {
             ComputerManagerService.ComputerManagerBinder managerBinder,
             boolean withVDisplay
     ) {
+        doStart(parent, app, computer, managerBinder, withVDisplay, false);
+    }
+
+    public static void doStart(
+            Activity parent,
+            NvApp app,
+            ComputerDetails computer,
+            ComputerManagerService.ComputerManagerBinder managerBinder,
+            boolean withVDisplay,
+            boolean watchOnly
+    ) {
         if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
             Toast.makeText(parent, parent.getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show();
             return;
@@ -191,9 +212,18 @@ public class ServerHelper {
                 .putInt("last_played_" + computer.uuid, app.getAppId())
                 .apply();
 
-        Intent intent = createStartIntent(parent, app, computer, managerBinder, withVDisplay);
+        Intent intent = createStartIntent(parent, app, computer, managerBinder, withVDisplay, watchOnly);
         parent.startActivity(intent);
         com.papi.nova.ui.NovaThemeManager.INSTANCE.applyFadeTransition(parent);
+    }
+
+    public static void doWatch(
+            Activity parent,
+            NvApp app,
+            ComputerDetails computer,
+            ComputerManagerService.ComputerManagerBinder managerBinder
+    ) {
+        doStart(parent, app, computer, managerBinder, false, true);
     }
 
     public static void doStart(Activity parent,
@@ -206,6 +236,21 @@ public class ServerHelper {
                                String pcName,
                                ArrayList<String> serverCommands,
                                boolean withVDisplay,
+                               byte[] serverCert) {
+        doStart(parent, app, host, port, httpsPort, uniqueId, pcUuid, pcName, serverCommands, withVDisplay, false, serverCert);
+    }
+
+    public static void doStart(Activity parent,
+                               NvApp app,
+                               String host,
+                               int port,
+                               int httpsPort,
+                               String uniqueId,
+                               String pcUuid,
+                               String pcName,
+                               ArrayList<String> serverCommands,
+                               boolean withVDisplay,
+                               boolean watchOnly,
                                byte[] serverCert) {
         parent.getSharedPreferences("nova_prefs", android.content.Context.MODE_PRIVATE).edit()
                 .putInt("last_played_" + pcUuid, app.getAppId())
@@ -221,6 +266,7 @@ public class ServerHelper {
                 pcUuid,
                 pcName,
                 withVDisplay,
+                watchOnly,
                 serverCommands,
                 serverCert
         );

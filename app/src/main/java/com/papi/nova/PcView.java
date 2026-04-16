@@ -830,18 +830,25 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
         else {
             if (computer.details.runningGameId != 0) {
-                addPcSheetAction(actions, getString(R.string.applist_menu_resume), () -> {
-                    sheet.dismiss();
-                    NvApp runningApp = new NvApp();
-                    runningApp.setAppId(computer.details.runningGameId);
-                    ServerHelper.doStart(this, runningApp, computer.details, managerBinder, false);
-                });
-                addPcSheetAction(actions, getString(R.string.applist_menu_quit), () -> {
-                    sheet.dismiss();
-                    NvApp runningApp = new NvApp();
-                    runningApp.setAppId(computer.details.runningGameId);
-                    UiHelper.displayQuitConfirmationDialog(this, () -> ServerHelper.doQuit(this, computer.details, runningApp, managerBinder, null), null);
-                });
+                if (Boolean.FALSE.equals(computer.details.currentGameOwnedByClient)) {
+                    addPcSheetAction(actions, getString(R.string.applist_menu_watch), () -> {
+                        sheet.dismiss();
+                        ServerHelper.doWatch(this, createWatchTargetApp(computer.details), computer.details, managerBinder);
+                    });
+                } else {
+                    addPcSheetAction(actions, getString(R.string.applist_menu_resume), () -> {
+                        sheet.dismiss();
+                        NvApp runningApp = new NvApp();
+                        runningApp.setAppId(computer.details.runningGameId);
+                        ServerHelper.doStart(this, runningApp, computer.details, managerBinder, false);
+                    });
+                    addPcSheetAction(actions, getString(R.string.applist_menu_quit), () -> {
+                        sheet.dismiss();
+                        NvApp runningApp = new NvApp();
+                        runningApp.setAppId(computer.details.runningGameId);
+                        UiHelper.displayQuitConfirmationDialog(this, () -> ServerHelper.doQuit(this, computer.details, runningApp, managerBinder, null), null);
+                    });
+                }
             }
             addPcSheetAction(actions, getString(R.string.pcview_menu_app_list), () -> {
                 sheet.dismiss();
@@ -891,6 +898,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         actions.addView(deleteItem);
 
         sheet.show();
+    }
+
+    private NvApp createWatchTargetApp(ComputerDetails details) {
+        return new NvApp(getString(R.string.applist_menu_watch_active_name), details.runningGameUUID, details.runningGameId, false);
     }
 
     private void addPcSheetAction(android.widget.LinearLayout container, String label, Runnable action) {

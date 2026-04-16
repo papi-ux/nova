@@ -439,6 +439,9 @@ public class NvHTTP {
         details.pairState = getPairState(serverInfo);
         details.runningGameId = getCurrentGame(serverInfo);
         details.runningGameUUID = getCurrentGameUUID(serverInfo);
+        details.currentGameOwnedByClient = getCurrentGameOwned(serverInfo);
+        details.currentGameOwnerName = getCurrentGameOwner(serverInfo);
+        details.currentGameViewerCount = getCurrentGameViewerCount(serverInfo);
         details.serverMaxLaunchRefreshRate = getServerMaxLaunchRefreshRate(serverInfo);
 
         // The MJOLNIR codename was used by GFE but never by any third-party server
@@ -644,6 +647,23 @@ public class NvHTTP {
         return getXmlString(serverInfo, "currentgamesessiontoken", false);
     }
 
+    static String parseCurrentGameOwner(String serverInfo) throws XmlPullParserException, IOException {
+        return getXmlString(serverInfo, "currentgameowner", false);
+    }
+
+    static int parseCurrentGameViewerCount(String serverInfo) throws XmlPullParserException, IOException {
+        String str = getXmlString(serverInfo, "currentgameviewercount", false);
+        if (str != null) {
+            try {
+                return Integer.parseInt(str);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+
+        return 0;
+    }
+
     public int getServerMaxLaunchRefreshRate(String serverInfo) throws XmlPullParserException, IOException {
         return parseServerMaxLaunchRefreshRate(serverInfo);
     }
@@ -654,6 +674,14 @@ public class NvHTTP {
 
     public String getCurrentGameSessionToken(String serverInfo) throws IOException, XmlPullParserException {
         return parseCurrentGameSessionToken(serverInfo);
+    }
+
+    public String getCurrentGameOwner(String serverInfo) throws IOException, XmlPullParserException {
+        return parseCurrentGameOwner(serverInfo);
+    }
+
+    public int getCurrentGameViewerCount(String serverInfo) throws IOException, XmlPullParserException {
+        return parseCurrentGameViewerCount(serverInfo);
     }
     
     public String getGpuType(String serverInfo) throws XmlPullParserException, IOException {
@@ -885,7 +913,7 @@ public class NvHTTP {
         return new String(hexChars);
     }
     
-    public boolean launchApp(ConnectionContext context, String verb, String appUUID, int appId, boolean enableHdr) throws IOException, XmlPullParserException {
+    public boolean launchApp(ConnectionContext context, String verb, String appUUID, int appId, boolean enableHdr, boolean watchOnly) throws IOException, XmlPullParserException {
         float requestedLaunchRefreshRate = context.negotiatedLaunchRefreshRate > 0 ?
                 context.negotiatedLaunchRefreshRate : context.streamConfig.getLaunchRefreshRate();
 
@@ -927,6 +955,7 @@ public class NvHTTP {
             "&rikeyid="+context.riKeyId +
             (!enableHdr ? "" : "&hdrMode=1&clientHdrCapVersion=0&clientHdrCapSupportedFlagsInUint32=0&clientHdrCapMetaDataId=NV_STATIC_METADATA_TYPE_1&clientHdrCapDisplayData=0x0x0x0x0x0x0x0x0x0x0") +
             (context.sessionToken == null || context.sessionToken.isEmpty() ? "" : ("&sessiontoken=" + context.sessionToken)) +
+            (watchOnly ? "&watch=1" : "") +
             "&virtualDisplay=" + (context.streamConfig.getVirtualDisplay() ? 1 : 0) +
             "&localAudioPlayMode=" + (context.streamConfig.getPlayLocalAudio() ? 1 : 0) +
             "&surroundAudioInfo=" + context.streamConfig.getAudioConfiguration().getSurroundAudioInfo() +
@@ -939,7 +968,7 @@ public class NvHTTP {
             // sessionUrl0 will be missing for older GFE versions
             context.rtspSessionUrl = getXmlString(xmlStr, "sessionUrl0", false);
             context.sessionToken = getXmlString(xmlStr, "sessionToken", false);
-            context.currentGameOwnedByClient = true;
+            context.currentGameOwnedByClient = !watchOnly;
             return true;
         }
         else {
