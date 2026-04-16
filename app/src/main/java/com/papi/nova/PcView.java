@@ -903,7 +903,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             });
         }
         else if (computer.details.pairState != PairState.PAIRED) {
-            // "Pair PC" attempts TOFU first if supported, then falls back to PIN pairing
+            // "Trusted Pair" attempts TOFU first if supported, then falls back to PIN pairing
             addPcSheetAction(actions, getString(R.string.pcview_menu_pair_pc), () -> {
                 sheet.dismiss();
                 doPair(computer.details, null, null);

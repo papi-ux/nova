@@ -121,13 +121,38 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         var mangoToggleAllowed = false
         var mangoRiskMessageRes: Int? = null
 
+        fun syncSessionDerivedState() {
+            viewerSession = sessionStatus?.isViewer == true
+            canAdjustHostTuning = sessionStatus?.canAdjustHostTuning == true
+            adaptiveEnabled = sessionStatus?.tuning?.adaptiveBitrateEnabled == true ||
+                sessionStatus?.adaptiveBitrateEnabled == true
+            aiEnabled = sessionStatus?.tuning?.aiOptimizerEnabled == true ||
+                sessionStatus?.aiOptimizerEnabled == true
+
+            val currentGameUuid = sessionStatus?.gameUuid?.takeIf { it.isNotEmpty() } ?: getRunningGameUuid()
+            mangoToggleAllowed = canAdjustHostTuning && !currentGameUuid.isNullOrEmpty()
+            mangoHudEnabled = sessionStatus?.tuning?.mangohudConfigured == true ||
+                sessionStatus?.mangohudConfigured == true
+            mangoRiskMessageRes = when {
+                sessionStatus?.game?.equals("Steam Big Picture", ignoreCase = true) == true ->
+                    R.string.nova_mangohud_warning_big_picture
+                else -> null
+            }
+        }
+
         fun baseSessionModeLabel(status: PolarisSessionStatus?): String {
-            return when {
+            val mode = when {
                 status == null -> game.getString(R.string.nova_quick_menu_mode_unknown)
                 status.isHeadlessMode -> game.getString(R.string.nova_session_mode_headless)
                 status.isVirtualDisplayMode -> game.getString(R.string.nova_session_mode_virtual_display)
                 else -> game.getString(R.string.nova_session_mode_host_display)
             }
+            val source = when (status?.displayMode?.requested) {
+                "auto" -> "Auto"
+                "headless", "virtual_display" -> "Explicit"
+                else -> ""
+            }
+            return listOf(mode, source).filter { it.isNotBlank() }.joinToString(" · ")
         }
 
         fun resolveSessionModeLabel(status: PolarisSessionStatus?): String {
@@ -144,12 +169,15 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             val label = resolveSessionModeLabel(sessionStatus)
             val tone = when {
                 sessionStatus == null -> ChipTone.MUTED
+                sessionStatus?.isShuttingDown == true -> ChipTone.WARNING
                 sessionStatus?.isViewer == true -> ChipTone.WARNING
                 sessionStatus?.isHeadlessMode == true -> ChipTone.ACTIVE
                 else -> ChipTone.INACTIVE
             }
             updateStateChip(sessionModeState, label, tone)
             quickMenuSubtitle?.text = when {
+                sessionStatus?.isShuttingDown == true ->
+                    "Host shutdown is in progress. Session actions are temporarily limited."
                 sessionStatus?.isHeadlessMode == true ->
                     "Stream controls, tuning, and session actions for headless streaming"
                 sessionStatus?.isVirtualDisplayMode == true ->
@@ -183,6 +211,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         fun refreshTuningStates() {
+            syncSessionDerivedState()
+            val shutdownInProgress = sessionStatus?.isShuttingDown == true ||
+                sessionStatus?.controls?.shutdownInProgress == true
+
             setRowEnabled(adaptiveRow, adaptiveSupported && canAdjustHostTuning)
             setRowEnabled(aiRow, aiSupported && canAdjustHostTuning)
             setRowEnabled(mangoRow, mangoToggleAllowed)
@@ -204,9 +236,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
             val adaptiveLabel = when {
                 !adaptiveSupported -> "server unavailable"
+                shutdownInProgress -> "session ending"
                 !canAdjustHostTuning && viewerSession -> "owner controls host tuning"
-                sessionStatus?.adaptiveTargetBitrateKbps ?: 0 > 0 && adaptiveEnabled ->
-                    "live · ${(sessionStatus?.adaptiveTargetBitrateKbps ?: 0) / 1000} Mbps target"
+                !canAdjustHostTuning -> "host controls unavailable"
+                sessionStatus?.tuning?.adaptiveTargetBitrateKbps ?: 0 > 0 && adaptiveEnabled ->
+                    "live · ${(sessionStatus?.tuning?.adaptiveTargetBitrateKbps ?: 0) / 1000} Mbps target"
                 else -> "live network response"
             }
             adaptiveCaption?.text = adaptiveLabel
@@ -228,7 +262,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
             aiCaption?.text = when {
                 !aiSupported -> "server unavailable"
+                shutdownInProgress -> "session ending"
                 !canAdjustHostTuning && viewerSession -> "owner controls host tuning"
+                !canAdjustHostTuning -> "host controls unavailable"
                 else -> "next launch"
             }
 
@@ -249,7 +285,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
             mangoCaption?.setText(
                 when {
+                    shutdownInProgress -> R.string.nova_quick_menu_session_ending_caption
                     !mangoToggleAllowed && viewerSession -> R.string.nova_quick_menu_owner_only_caption
+                    !mangoToggleAllowed -> R.string.nova_quick_menu_host_controls_unavailable_caption
                     mangoRiskMessageRes != null -> R.string.nova_mangohud_quick_menu_caption_risky
                     else -> R.string.nova_mangohud_quick_menu_caption_default
                 }
@@ -270,11 +308,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             setRowEnabled(pasteRow, ownerInputAllowed)
             setRowEnabled(moreKeysRow, ownerInputAllowed)
             setRowEnabled(rotateRow, true)
+            setRowEnabled(quitRow, viewerSession || sessionStatus?.canQuit == true)
 
-            if (viewerSession) {
-                quitRow?.text = "Leave"
-            } else {
-                quitRow?.text = "End"
+            quitRow?.text = when {
+                viewerSession -> "Leave"
+                sessionStatus?.isShuttingDown == true -> "Ending…"
+                else -> "End"
             }
         }
 
@@ -358,6 +397,14 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         quitRow?.setOnClickListener {
+            if (!viewerSession && sessionStatus?.isShuttingDown == true) {
+                Toast.makeText(game, "Host shutdown is already in progress", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (!viewerSession && sessionStatus?.canQuit == false) {
+                Toast.makeText(game, "Host session controls are unavailable", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             dismiss()
             if (viewerSession) {
                 game.disconnect()
@@ -376,7 +423,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     val success = apiClient.setAdaptiveBitrateEnabled(next)
                     if (success) {
                         sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
-                        adaptiveEnabled = sessionStatus?.adaptiveBitrateEnabled ?: next
+                        syncSessionDerivedState()
                     }
                     game.runOnUiThread {
                         if (!success) {
@@ -401,7 +448,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     val success = apiClient.setAiOptimizerEnabled(next)
                     if (success) {
                         sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
-                        aiEnabled = sessionStatus?.aiOptimizerEnabled ?: next
+                        syncSessionDerivedState()
                     }
                     game.runOnUiThread {
                         if (!success) {
@@ -434,6 +481,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             refreshTuningStates()
                             Toast.makeText(game, "MangoHud toggle failed", Toast.LENGTH_SHORT).show()
                         } else {
+                            sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
+                            syncSessionDerivedState()
                             refreshTuningStates()
                         }
                     }
@@ -447,25 +496,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     capabilities = apiClient.getCapabilities()
                     sessionStatus = apiClient.getSessionStatus()
 
-                    viewerSession = sessionStatus?.isViewer == true
-                    canAdjustHostTuning = sessionStatus?.canAdjustHostTuning == true
                     adaptiveSupported = capabilities?.features?.adaptiveBitrateControl == true
                     aiSupported = capabilities?.features?.aiOptimizerControl == true
-                    adaptiveEnabled = sessionStatus?.adaptiveBitrateEnabled == true
-                    aiEnabled = sessionStatus?.aiOptimizerEnabled == true
-
-                    val currentGameUuid = sessionStatus?.gameUuid?.takeIf { it.isNotEmpty() } ?: getRunningGameUuid()
-                    mangoToggleAllowed = canAdjustHostTuning && !currentGameUuid.isNullOrEmpty()
-
-                    if (!currentGameUuid.isNullOrEmpty()) {
-                        val currentGame = apiClient.getGames(limit = 500).firstOrNull { it.id == currentGameUuid }
-                        mangoHudEnabled = currentGame?.mangohud == true
-                        mangoRiskMessageRes = when {
-                            currentGame?.isSteamBigPicture == true -> R.string.nova_mangohud_warning_big_picture
-                            currentGame?.hasMangoHudCompatibilityRisk == true -> R.string.nova_mangohud_warning_steam
-                            else -> null
-                        }
-                    }
+                    syncSessionDerivedState()
 
                     game.runOnUiThread {
                         refreshSessionModeState()

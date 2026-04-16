@@ -28,7 +28,7 @@
     <string name="pcview_menu_header_format">%1$s · %2$s</string>
     <string name="pcview_menu_app_list">Browse This Server</string>
     <string name="pcview_menu_nova_library">Open Nova Library</string>
-    <string name="pcview_menu_pair_pc">Legacy Pair</string>
+    <string name="pcview_menu_pair_pc">Trusted Pair</string>
     <string name="pcview_menu_pair_pc_otp">OTP Pair</string>
     <string name="pcview_menu_scan_qr">Scan QR to Pair</string>
     <string name="nova_theme_cycle">Cycle theme</string>
@@ -114,12 +114,17 @@
     <string name="nova_library_launch_mode_title">Launch Mode</string>
     <string name="nova_library_launch_headless">Headless</string>
     <string name="nova_library_launch_virtual_display">Virtual Display</string>
+    <string name="nova_library_launch_virtual_short">Virtual</string>
     <string name="nova_library_launch_intro_headless_default">Headless is currently the default for this Polaris server.</string>
     <string name="nova_library_launch_intro_virtual_default">Virtual Display is currently the default for this Polaris server.</string>
     <string name="nova_library_launch_mode_note">Headless uses the Polaris default non-desktop path when available. Virtual Display creates a separate display for the session.</string>
     <string name="nova_library_launch_default_mode_badge">Default: %1$s</string>
     <string name="nova_library_launch_mode_default_format">%1$s · Default</string>
+    <string name="nova_library_launch_recommended_mode_badge">Rec. %1$s</string>
+    <string name="nova_library_launch_preferred_mode_format">App default: %1$s.</string>
+    <string name="nova_library_launch_mode_unavailable_format">%1$s · Unavailable</string>
     <string name="nova_library_launching_mode">Launching %1$s in %2$s…</string>
+    <string name="nova_library_ai_recommended_label">Optimized</string>
 
     <!-- Actions -->
     <string name="nova_retry">Retry</string>
@@ -506,10 +511,14 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (Switch Monitor)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
     <string name="nova_mangohud_detail_label">MangoHud Overlay</string>
-    <string name="nova_mangohud_detail_caption">Host-side overlay toggle for the next launch</string>
+    <string name="nova_mangohud_detail_caption">Next launch only</string>
+    <string name="nova_mangohud_detail_caption_risky">Next launch only · Risky on Steam/Proton</string>
+    <string name="nova_mangohud_detail_caption_big_picture">Next launch only · Avoid on Big Picture</string>
     <string name="nova_mangohud_quick_menu_caption_default">next launch</string>
     <string name="nova_mangohud_quick_menu_caption_risky">next launch · risky on Steam/Proton</string>
     <string name="nova_quick_menu_owner_only_caption">owner controls host tuning</string>
+    <string name="nova_quick_menu_host_controls_unavailable_caption">host controls unavailable</string>
+    <string name="nova_quick_menu_session_ending_caption">session ending</string>
     <string name="nova_quick_menu_mode_unknown">Checking stream mode</string>
     <string name="nova_quick_menu_mode_format">%1$s session</string>
     <string name="nova_session_mode_headless">Headless</string>
@@ -517,8 +526,8 @@
     <string name="nova_session_mode_host_display">Host Display</string>
     <string name="nova_session_mode_watch_format">Watching · %1$s</string>
     <string name="nova_session_mode_owner_format">%1$s · owner</string>
-    <string name="nova_mangohud_warning_big_picture">Avoid this for Steam Big Picture. MangoHud has caused black screens and Steam helper crashes on this host.</string>
-    <string name="nova_mangohud_warning_steam">Use cautiously on Steam and Proton titles. MangoHud has caused black screens and helper crashes on this host.</string>
+    <string name="nova_mangohud_warning_big_picture">Avoid on Steam Big Picture on this host.</string>
+    <string name="nova_mangohud_warning_steam">Risky on Steam and Proton on this host.</string>
 
     <string name="toggle_pan_zoom_mode">Toggle Pan/Zoom Mode</string>
     <string name="pan_zoom_mode_enabled">Pan/Zoom Mode Enabled</string>

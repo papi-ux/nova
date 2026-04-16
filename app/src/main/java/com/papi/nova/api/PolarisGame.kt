@@ -12,8 +12,18 @@ data class PolarisGame(
     val genres: List<String> = emptyList(),
     val lastLaunched: Long = 0,
     val mangohud: Boolean = false,
-    val hdrSupported: Boolean = false
+    val hdrSupported: Boolean = false,
+    val launchMode: LaunchModeContract? = null
 ) {
+    data class LaunchModeContract(
+        val preferredMode: String = "",
+        val recommendedMode: String = "",
+        val allowedModes: List<String> = emptyList(),
+        val modeReason: String = ""
+    ) {
+        fun allows(mode: String): Boolean = allowedModes.contains(mode)
+    }
+
     companion object {
         fun fromJson(json: org.json.JSONObject): PolarisGame {
             val genreList = mutableListOf<String>()
@@ -22,6 +32,21 @@ data class PolarisGame(
                 for (i in 0 until genreArr.length()) {
                     genreArr.optString(i)?.let { genreList.add(it) }
                 }
+            }
+            val launchMode = json.optJSONObject("launch_mode")?.let { modeJson ->
+                val allowedModes = mutableListOf<String>()
+                val allowedArr = modeJson.optJSONArray("allowed_modes")
+                if (allowedArr != null) {
+                    for (i in 0 until allowedArr.length()) {
+                        allowedArr.optString(i)?.takeIf { it.isNotBlank() }?.let { allowedModes.add(it) }
+                    }
+                }
+                LaunchModeContract(
+                    preferredMode = modeJson.optString("preferred_mode", ""),
+                    recommendedMode = modeJson.optString("recommended_mode", ""),
+                    allowedModes = allowedModes,
+                    modeReason = modeJson.optString("mode_reason", "")
+                )
             }
             return PolarisGame(
                 id = json.optString("id", ""),
@@ -35,7 +60,8 @@ data class PolarisGame(
                 genres = genreList,
                 lastLaunched = json.optLong("last_launched", 0),
                 mangohud = json.optBoolean("mangohud", false),
-                hdrSupported = json.optBoolean("hdr_supported", false)
+                hdrSupported = json.optBoolean("hdr_supported", false),
+                launchMode = launchMode
             )
         }
     }

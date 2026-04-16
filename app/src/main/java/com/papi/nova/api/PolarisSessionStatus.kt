@@ -2,6 +2,8 @@ package com.papi.nova.api
 
 data class PolarisSessionStatus(
     val state: String,
+    val streamingActive: Boolean = false,
+    val shutdownRequested: Boolean = false,
     val game: String = "",
     val gameId: Int = 0,
     val gameUuid: String = "",
@@ -18,12 +20,33 @@ data class PolarisSessionStatus(
     val adaptiveBitrateEnabled: Boolean = false,
     val adaptiveTargetBitrateKbps: Int = 0,
     val aiOptimizerEnabled: Boolean = false,
+    val mangohudConfigured: Boolean = false,
+    val controls: ControlsStatus = ControlsStatus(),
+    val tuning: TuningStatus = TuningStatus(),
     val displayMode: DisplayModeStatus = DisplayModeStatus(),
     val capture: CaptureStatus = CaptureStatus(),
     val encoder: EncoderStatus = EncoderStatus()
 ) {
+    data class ControlsStatus(
+        val hostTuningAllowed: Boolean = false,
+        val quitAllowed: Boolean = false,
+        val shutdownInProgress: Boolean = false,
+        val clientCommandsEnabled: Boolean = false,
+        val deviceCommandsEnabled: Boolean = false
+    )
+
+    data class TuningStatus(
+        val adaptiveBitrateEnabled: Boolean = false,
+        val adaptiveTargetBitrateKbps: Int = 0,
+        val aiOptimizerEnabled: Boolean = false,
+        val mangohudConfigured: Boolean = false
+    )
+
     data class DisplayModeStatus(
         val label: String = "",
+        val selection: String = "",
+        val requested: String = "",
+        val explicitChoice: Boolean = false,
         val virtualDisplay: Boolean = false,
         val requestedHeadless: Boolean = false,
         val effectiveHeadless: Boolean = false,
@@ -45,13 +68,16 @@ data class PolarisSessionStatus(
         val requestedClientFps: Double = 0.0,
         val sessionTargetFps: Double = 0.0,
         val encodeTargetFps: Double = 0.0,
+        val pacingPolicy: String = "",
+        val optimizationSource: String = "",
         val targetDevice: String = "",
         val targetResidency: String = "",
         val targetFormat: String = ""
     )
 
-    val isStreaming get() = state == "streaming"
+    val isStreaming get() = state == "streaming" || streamingActive
     val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming")
+    val isShuttingDown get() = shutdownRequested || state == "tearing_down"
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
     val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true)
     val isHeadlessMode get() = displayMode.effectiveHeadless
@@ -63,5 +89,7 @@ data class PolarisSessionStatus(
         else -> "Host Display"
     }
     val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
-    val canAdjustHostTuning get() = ownedByClient && !isViewer
+    val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice
+    val canAdjustHostTuning get() = controls.hostTuningAllowed || (ownedByClient && !isViewer)
+    val canQuit get() = controls.quitAllowed || (ownedByClient && !isViewer)
 }

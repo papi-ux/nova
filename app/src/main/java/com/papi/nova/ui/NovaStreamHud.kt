@@ -346,9 +346,18 @@ class NovaStreamHud(private val activity: Activity) {
             status.encoder.targetResidency.equals("cpu", ignoreCase = true) -> "CPU"
             else -> ""
         }
-        val role = if (status.isViewer) "WATCH" else ""
+        val modeSource = when (status.displayMode.requested) {
+            "auto" -> "AUTO"
+            "headless", "virtual_display" -> "EXP"
+            else -> ""
+        }
+        val lifecycle = when {
+            status.isViewer -> "WATCH"
+            status.isShuttingDown -> "ENDING"
+            else -> ""
+        }
 
-        return listOf(mode, bitDepth, path, role).filter { it.isNotBlank() }.joinToString(" ")
+        return listOf(mode, bitDepth, path, modeSource, lifecycle).filter { it.isNotBlank() }.joinToString(" ")
     }
 
     private fun applyCodecLabel(codec: String) {

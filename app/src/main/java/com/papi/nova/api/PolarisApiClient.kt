@@ -80,12 +80,16 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
 
         @JvmStatic
         fun parseSessionStatusResponse(json: JSONObject): PolarisSessionStatus {
+            val controls = json.optJSONObject("controls")
+            val tuning = json.optJSONObject("tuning")
             val displayMode = json.optJSONObject("display_mode")
             val capture = json.optJSONObject("capture")
             val encoder = json.optJSONObject("encoder")
 
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
+                streamingActive = json.optBoolean("streaming_active", false),
+                shutdownRequested = json.optBoolean("shutdown_requested", false),
                 game = json.optString("game", ""),
                 gameId = json.optInt("game_id", 0),
                 gameUuid = json.optString("game_uuid", ""),
@@ -102,8 +106,29 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                 adaptiveBitrateEnabled = json.optBoolean("adaptive_bitrate_enabled", false),
                 adaptiveTargetBitrateKbps = json.optInt("adaptive_target_bitrate_kbps", 0),
                 aiOptimizerEnabled = json.optBoolean("ai_optimizer_enabled", false),
+                mangohudConfigured = json.optBoolean("mangohud_configured", false),
+                controls = PolarisSessionStatus.ControlsStatus(
+                    hostTuningAllowed = controls?.optBoolean("host_tuning_allowed", false) ?: false,
+                    quitAllowed = controls?.optBoolean("quit_allowed", false) ?: false,
+                    shutdownInProgress = controls?.optBoolean("shutdown_in_progress", false) ?: false,
+                    clientCommandsEnabled = controls?.optBoolean("client_commands_enabled", false) ?: false,
+                    deviceCommandsEnabled = controls?.optBoolean("device_commands_enabled", false) ?: false
+                ),
+                tuning = PolarisSessionStatus.TuningStatus(
+                    adaptiveBitrateEnabled = tuning?.optBoolean("adaptive_bitrate_enabled", false)
+                        ?: json.optBoolean("adaptive_bitrate_enabled", false),
+                    adaptiveTargetBitrateKbps = tuning?.optInt("adaptive_target_bitrate_kbps", 0)
+                        ?: json.optInt("adaptive_target_bitrate_kbps", 0),
+                    aiOptimizerEnabled = tuning?.optBoolean("ai_optimizer_enabled", false)
+                        ?: json.optBoolean("ai_optimizer_enabled", false),
+                    mangohudConfigured = tuning?.optBoolean("mangohud_configured", false)
+                        ?: json.optBoolean("mangohud_configured", false)
+                ),
                 displayMode = PolarisSessionStatus.DisplayModeStatus(
                     label = displayMode?.optString("label", "") ?: "",
+                    selection = displayMode?.optString("selection", "") ?: "",
+                    requested = displayMode?.optString("requested", "") ?: "",
+                    explicitChoice = displayMode?.optBoolean("explicit_choice", false) ?: false,
                     virtualDisplay = displayMode?.optBoolean("virtual_display", false) ?: false,
                     requestedHeadless = displayMode?.optBoolean("requested_headless", false) ?: false,
                     effectiveHeadless = displayMode?.optBoolean("effective_headless", false) ?: false,
@@ -123,6 +148,8 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                     requestedClientFps = encoder?.optDouble("requested_client_fps", 0.0) ?: 0.0,
                     sessionTargetFps = encoder?.optDouble("session_target_fps", 0.0) ?: 0.0,
                     encodeTargetFps = encoder?.optDouble("encode_target_fps", 0.0) ?: 0.0,
+                    pacingPolicy = encoder?.optString("pacing_policy", "") ?: "",
+                    optimizationSource = encoder?.optString("optimization_source", "") ?: "",
                     targetDevice = encoder?.optString("target_device", "") ?: "",
                     targetResidency = encoder?.optString("target_residency", "") ?: "",
                     targetFormat = encoder?.optString("target_format", "") ?: ""

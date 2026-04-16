@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,6 +32,7 @@ import com.papi.nova.api.PolarisGame
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.utils.ServerHelper
+import com.papi.nova.utils.UiHelper
 
 /**
  * Nova Game Library — browse and launch games from the Polaris server.
@@ -79,6 +82,10 @@ class NovaLibraryActivity : AppCompatActivity() {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_nova_library)
+        applyHeaderInsets()
+        if (savedInstanceState != null) {
+            dismissOpenGameDetail()
+        }
 
         val host = intent.getStringExtra(EXTRA_HOST) ?: run {
             finish()
@@ -312,11 +319,44 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     private fun showGameDetail(game: PolarisGame) {
+        dismissOpenGameDetail()
         val defaultToVirtualDisplay = PreferenceConfiguration.readPreferences(this).useVirtualDisplay
         val sheet = NovaGameDetailSheet.newInstance(game, apiClient, defaultToVirtualDisplay) { g, withVirtualDisplay ->
             launchGame(g, withVirtualDisplay)
         }
         sheet.show(supportFragmentManager, "game_detail")
+    }
+
+    override fun onStop() {
+        dismissOpenGameDetail()
+        super.onStop()
+    }
+
+    private fun dismissOpenGameDetail() {
+        (supportFragmentManager.findFragmentByTag("game_detail") as? BottomSheetDialogFragment)
+            ?.dismissAllowingStateLoss()
+    }
+
+    private fun applyHeaderInsets() {
+        val header = findViewById<View>(R.id.nova_library_header) ?: return
+        header.setOnApplyWindowInsetsListener { v, insets ->
+            val topInset = when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ->
+                    insets.getInsets(android.view.WindowInsets.Type.statusBars()).top
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+                    insets.systemWindowInsetTop
+                else -> 0
+            }
+
+            v.setPadding(
+                v.paddingLeft,
+                topInset + UiHelper.dpToPx(this, 16f).toInt(),
+                v.paddingRight,
+                v.paddingBottom
+            )
+            insets
+        }
+        header.requestApplyInsets()
     }
 
     private fun launchGame(game: PolarisGame, withVirtualDisplay: Boolean) {

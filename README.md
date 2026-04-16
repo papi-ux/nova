@@ -4,14 +4,14 @@
 
 **Game streaming that feels native on Android.**
 
-Stream PC games to your phone or handheld over your local network.
-Built for [Polaris](https://github.com/papi-ux/polaris), compatible with any Moonlight server.
+Stream PC games to phones and handhelds over your local network.
+Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlight-compatible hosts such as Polaris, Sunshine, and Apollo.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1a1a2e)](https://github.com/papi-ux/nova/stargazers)
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Install](#install) · [Why Nova](#why-nova) · [Screenshots](#screenshots) · [Build](#build-from-source) · [FAQ](#faq)
+[Install](#install) · [Quick Start](#quick-start) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [FAQ](#faq)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · **Donate**: [Ko-fi](https://ko-fi.com/papiux) · [PayPal](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
 
@@ -20,7 +20,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with any Moo
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/nova-showcase.gif" width="720" />
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/nova-showcase-oled.gif" width="720" />
-  <img src="docs/screenshots/nova-showcase.gif" width="720" alt="Nova — Welcome, Servers, Games, Library, Quick Menu" />
+  <img src="docs/screenshots/nova-showcase.gif" width="720" alt="Nova on Android: onboarding, server browser, game grid, library, and quick menu" />
 </picture>
 
 </div>
@@ -37,102 +37,140 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with any Moo
 
 </div>
 
+**Recommended install path**
+
+1. Download the latest release from GitHub Releases or add Nova to Obtainium.
+2. Install the signed Android release APK: `app-nonRoot_game-arm64-v8a-release-signed.apk`.
+3. Open Nova, add or discover your host, then pair it.
+
 > [!NOTE]
-> If you distribute Nova from a private GitHub repo, Obtainium requires a Personal Access Token with `repo` scope. Public release repos do not.
+> If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
-**Target devices:** Retroid Pocket 6 (primary), Pixel 10
+**Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
----
+## Quick Start
+
+### First stream
+
+1. **Install Nova** from Obtainium or GitHub Releases.
+2. **Add your server** from the Servers screen. Polaris hosts appear automatically on the LAN when discovery is enabled.
+3. **Pair once** using one of three paths:
+   - **Trusted Pair (TOFU)** on a trusted subnet
+   - **QR pairing** from the Polaris web UI
+   - **Manual PIN** pairing for standard Moonlight servers
+4. **Launch a game** from the game grid or the Polaris library.
+5. **Use the quick menu** for stream tuning, overlays, controller actions, and quit/disconnect controls.
+
+### If you use Polaris
+
+Nova gets the best experience when the host is Polaris:
+
+- host-recommended **Headless** or **Virtual Display** launch modes
+- live **ACT / TGT FPS** HUD readouts
+- watch active stream without stealing ownership
+- owner-aware quit and resume
+- live host tuning for Adaptive Bitrate, AI Optimizer, and MangoHud
+- richer library metadata, cover art, and per-game recommendations
+
+### If you use Sunshine or Apollo
+
+Nova still works as a standard Moonlight client. Pair normally, launch normally, and stream normally. Polaris-only UI simply stays out of the way.
 
 ## Why Nova
 
-Nova is a Moonlight-compatible Android client with a UI and feature set tuned for handhelds, phones, and Polaris-powered setups.
+Nova is a Moonlight-compatible Android client built for handhelds first, not desktop assumptions squeezed onto a touch screen.
 
-- **Fast pairing**: TOFU on trusted LANs, plus QR and manual PIN pairing.
-- **Handheld-first UI**: game grid, quick menu, drag-and-tap HUD, and theme support that feel native on Android.
-- **Polaris-aware features**: richer library metadata, live session state, quality recommendations, and session reporting.
-- **Explicit 10-bit opt-in**: enabling HDR can request a 10-bit stream from Polaris even when the handheld panel itself is SDR-only.
-- **Connection resilience**: reconnect overlay with backoff instead of dropping the session immediately.
-- **Input depth**: gyro aim, audio haptics, multiple mouse modes, and broad controller support.
+- **Handheld-first UI**: large game art, clear session actions, controller-friendly navigation, and OLED-aware themes
+- **Practical session controls**: quick menu, multi-mode HUD, reconnect overlay, and live stream state
+- **Deep input support**: gyro aim, audio haptics, gamepads, mouse modes, and touch controls
+- **Polaris-aware workflow**: library metadata, launch-mode choices, watch mode, session ownership, live tuning, and stream reports
+
+## With Polaris
+
+| Capability | What It Does |
+|---|---|
+| Launch modes | Pick **Headless** or **Virtual Display** per launch when the host supports it |
+| 10-bit opt-in | Enabling HDR can request a 10-bit stream even on SDR handheld displays |
+| Watch Stream | Join an active session as a passive viewer instead of taking ownership |
+| Session truth | HUD and quick menu show the live mode, owner/viewer role, and negotiated stream state |
+| Stream tuning | Toggle Adaptive Bitrate, AI Optimizer, and MangoHud from the quick menu |
+| Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
 
 ## At A Glance
 
 | Area | What You Get |
 |---|---|
-| Pairing | TOFU, QR code, manual PIN |
+| Pairing | Trusted Pair (TOFU), QR, manual PIN |
 | Streaming | H.264, HEVC, AV1 decode |
-| HUD | Full, banner, FPS-only modes |
+| HUD | Full, banner, FPS-only modes with actual vs target FPS |
 | Input | Gyro aim, audio haptics, gamepads, mouse modes |
-| Polaris | REST + SSE integration, cover art, recommendations, session reports |
+| Polaris | Library metadata, launch modes, tuning, watch mode, session reports |
 | Background | Quick Settings tile, keep-alive service, lock screen overlay |
-
----
 
 ## Screenshots
 
 <table>
 <tr>
-<td><img src="docs/screenshots/welcome.png" width="400" alt="Welcome"/><br/><sub>Welcome — landscape two-column onboarding</sub></td>
-<td><img src="docs/screenshots/servers.png" width="400" alt="Servers"/><br/><sub>Servers — auto-discovered with status, QR pairing sidebar</sub></td>
+<td><img src="docs/screenshots/welcome.png" width="400" alt="Welcome"/><br/><sub>Welcome — onboarding built for handheld landscape</sub></td>
+<td><img src="docs/screenshots/servers.png" width="400" alt="Servers"/><br/><sub>Servers — discovery, pairing status, QR workflow</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/games.png" width="400" alt="Games"/><br/><sub>Game grid — cover art from Polaris, search bar, virtual display</sub></td>
-<td><img src="docs/screenshots/library.png" width="400" alt="Library"/><br/><sub>Nova Library — genre chips, source badges, category filters</sub></td>
+<td><img src="docs/screenshots/games.png" width="400" alt="Games"/><br/><sub>Games — large art, search, and fast launch</sub></td>
+<td><img src="docs/screenshots/library.png" width="400" alt="Library"/><br/><sub>Library — cover art, source badges, and launch-mode choices</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/quick-menu.png" width="400" alt="Quick Menu"/><br/><sub>Quick menu — hotkeys, overlays, controls, session actions</sub></td>
-<td><img src="docs/screenshots/pairing.png" width="400" alt="Pairing"/><br/><sub>Discovery — "Online · Not Paired" with lock icon, TOFU ready</sub></td>
+<td><img src="docs/screenshots/quick-menu.png" width="400" alt="Quick Menu"/><br/><sub>Quick menu — tuning, overlays, controls, and session actions</sub></td>
+<td><img src="docs/screenshots/pairing.png" width="400" alt="Pairing"/><br/><sub>Pairing — trusted LAN pairing, QR, or PIN</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/servers-oled.png" width="400" alt="OLED"/><br/><sub>OLED Dark Galaxy — true black with space particles</sub></td>
-<td><img src="docs/screenshots/games-oled.png" width="400" alt="Games OLED"/><br/><sub>Game grid (OLED) — cover art pops on pure black</sub></td>
+<td><img src="docs/screenshots/servers-oled.png" width="400" alt="OLED"/><br/><sub>OLED Dark Galaxy — pure black theme for OLED devices</sub></td>
+<td><img src="docs/screenshots/games-oled.png" width="400" alt="Games OLED"/><br/><sub>Games (OLED) — high-contrast library presentation</sub></td>
 </tr>
 </table>
 
----
+## Highlights
 
-## Features
+### Streaming and HUD
 
-**Streaming** — H.264, HEVC, AV1 decode. Streaming presets (Performance / Balanced / Quality) apply with one tap. Proactive bitrate monitor auto-reduces via the Polaris API when FPS drops, gradually recovers when stable. On Polaris/Main10-capable hosts, enabling HDR in Nova is treated as an explicit 10-bit opt-in, so Nova can request a 10-bit SDR stream even when the Android display itself does not expose HDR10 support.
+- H.264, HEVC, and AV1 decode
+- Full, banner, and FPS-only HUD modes
+- actual FPS vs target FPS labels, not one ambiguous number
+- reconnect overlay with retry/backoff instead of dropping immediately
+- quality presets for quick setup on new devices
 
-**Input** — Gyro aiming maps device gyroscope to mouse delta for FPS camera control. Audio haptics convert bass frequencies into vibration (Off / Subtle / Strong). Up to 8 gamepads with USB driver support, per-axis deadzone, face button flip. Mouse modes: Direct, Trackpad, Relative.
+### Input
 
-**HUD Modes** — Tap to cycle, drag to reposition:
+- gyro aiming mapped to mouse delta
+- audio haptics with Off / Subtle / Strong modes
+- broad controller support with deadzone and face-button options
+- multiple mouse modes: Direct, Trackpad, Relative
+- on-screen controls with a newer compact handheld layout preset
 
-| Mode | Display |
-|------|---------|
-| Full | Sparkline FPS history, 1% low, per-stat colors, codec + resolution + bitrate |
-| Banner | `HEVC │ 60 FPS │ 12ms │ 50 Mbps │ 1080p │ ~~~` |
-| FPS Only | Floating pill: `60 fps` |
+### Polaris-specific flow
 
-**Quick Menu** — Bottom sheet with 6 hotkeys (ESC, Alt+Enter, Alt+F4, F11, Super, Ctrl+V), three columns of toggles (Nova HUD, MangoHud, Perf Stats / Mouse, Controller, Keyboard / Paste, Rotate, Special Keys), Disconnect and End buttons. On Polaris-backed Steam Big Picture and Steam/Proton titles, Nova warns before enabling MangoHud on the next launch.
+- host-backed library with authenticated cover loading
+- explicit Headless vs Virtual Display launch buttons in the library
+- host-recommended launch mode and reason text
+- owner vs viewer session awareness
+- live tuning controls in the quick menu
+- warnings before risky MangoHud launches on Steam Big Picture and Steam/Proton titles
 
-**Polaris Integration** — Capabilities probing on connect. Live session state via SSE. Game library with cover art, genres, and optimization recommendations. Smart launch sends display dimensions for resolution matching. Session reports feed the recommendation loop.
+## Nova vs Standard Moonlight UI
 
-**Background** — Quick Settings tile starts streaming from your notification shade. Keep-alive foreground service on app-switch (5-min auto-stop). Lock screen overlay.
-
----
-
-## Nova vs Moonlight
-
-| | Nova | Moonlight |
+| | Nova | Standard Moonlight-style client flow |
 |---|---|---|
-| **Pairing** | TOFU + QR code + PIN | PIN only |
-| **Performance HUD** | 3 modes, sparkline, drag-to-reposition, proactive bitrate | Static overlay |
-| **Reconnection** | 4-attempt auto-reconnect with backoff | — |
-| **Input** | Gyro aiming, audio haptics | Standard gamepad/touch |
-| **Game library** | Cover art grid, genres, recommendations, search | Text list |
-| **Settings** | 6 categories, streaming presets | 15+ categories |
-| **Themes** | Space Whale + OLED Galaxy + Material You | Single dark |
-| **Server integration** | REST API, SSE events, session reports | NVHTTP only |
-| **Quick menu** | 3-column with hotkeys, MangoHud toggle | Basic menu |
+| Pairing | Trusted Pair (TOFU), QR, PIN | Usually PIN-focused |
+| Library | Cover art, filters, metadata, detail sheet | Mostly app list / grid |
+| HUD | Multiple modes, draggable, ACT/TGT view | Simpler overlay |
+| Quick controls | Stream tuning, session actions, overlays | More limited session controls |
+| Polaris awareness | Launch modes, watch mode, live session state | Generic Moonlight protocol only |
+| Handheld UX | Built around landscape Android handhelds | More generic phone/tablet UI |
 
 > [!TIP]
-> Nova is fully backward-compatible. It works with Sunshine and Apollo — Polaris features activate automatically when a Polaris server is detected.
+> Nova stays fully backward-compatible. It works with Sunshine, Apollo, and other Moonlight servers. Polaris-specific features appear only when the connected host supports them.
 
----
-
-## Architecture
+<details>
+<summary><b>Architecture</b></summary>
 
 ```mermaid
 block-beta
@@ -169,9 +207,9 @@ block-beta
   style native fill:#1a1a2e,stroke:#4c5265,color:#687b81
 ```
 
-All new code lives in the Kotlin layer. The Java core is battle-tested Moonlight — targeted modifications only.
+All new Nova-specific behavior lives in the Kotlin layer. The Java core stays close to Moonlight and is changed surgically.
 
----
+</details>
 
 ## Build From Source
 
@@ -184,144 +222,128 @@ All new code lives in the Kotlin layer. The Java core is battle-tested Moonlight
 | Android SDK | compileSdk 36 |
 | Git | with submodule support |
 
-### Build
+### Clone
 
 ```bash
 git clone --recursive https://github.com/papi-ux/nova.git
 cd nova
+```
 
-# Release APK (arm64-only by default, signed with debug key)
+### Build
+
+```bash
+# Release APKs
 ./gradlew assembleNonRoot_gameRelease
 
-# Debug APK (separate package ID, can install alongside release)
+# Debug APKs (installs alongside release as com.papi.nova.debug)
 ./gradlew assembleNonRoot_gameDebug
 ```
 
-Output: `app/build/outputs/apk/nonRoot_game/release/app-nonRoot_game-arm64-v8a-release.apk`
+By default, local source builds produce split APKs for `arm64-v8a` and `x86_64`.
 
 > [!TIP]
-> Nova now defaults to an `arm64-v8a` deliverable to keep the shipped APK smaller and the release path simpler for modern Android handhelds and phones.
+> Official GitHub releases ship a signed `arm64-v8a` APK for real devices.
 >
-> Need extra ABIs for emulator or legacy-device testing?
+> If you want a different ABI set locally:
 > `./gradlew assembleNonRoot_gameDebug -PnovaAbis=arm64-v8a,armeabi-v7a,x86,x86_64`
 
 ### Install on device
 
+Use the ABI-specific APK that matches your device from `app/build/outputs/apk/nonRoot_game/<buildType>/`.
+
+Example for a real arm64 device:
+
 ```bash
-adb install -r app/build/outputs/apk/nonRoot_game/release/app-nonRoot_game-arm64-v8a-release.apk
+adb install -r app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk
 ```
 
 <details>
-<summary><b>Build flavors & tests</b></summary>
+<summary><b>Build flavors and tests</b></summary>
 
 | Flavor | Package | Notes |
 |--------|---------|-------|
-| `nonRoot_game` | `com.papi.nova` | Standard build — use this |
-| `nonRoot_gameDebug` | `com.papi.nova.debug` | Debug, installs alongside release |
+| `nonRoot_game` | `com.papi.nova` | Standard release build |
+| `nonRoot_gameDebug` | `com.papi.nova.debug` | Debug build, installs alongside release |
 
 ```bash
-./gradlew :app:testNonRoot_gameDebugUnitTest   # Robolectric tests
+./gradlew :app:testNonRoot_gameDebugUnitTest
 ```
 
 </details>
-
----
 
 ## FAQ
 
 <details>
-<summary><b>Does Nova work with Sunshine / Apollo, not just Polaris?</b></summary>
+<summary><b>Does Nova work with Sunshine and Apollo, not just Polaris?</b></summary>
 
-Yes. Nova is a standard Moonlight client and works with Moonlight-compatible servers. Polaris-specific features activate automatically when a Polaris server is detected.
+Yes. Nova is a Moonlight-compatible client. Polaris adds the richest integration, but Nova still works with other Moonlight servers.
 
 </details>
 
 <details>
-<summary><b>Why does Nova warn me before enabling MangoHud?</b></summary>
+<summary><b>What is Trusted Pair?</b></summary>
 
-On Polaris-backed Steam Big Picture and Steam/Proton titles, MangoHud can crash helper processes early enough to leave the session black-screened. Nova now flags those launches before you enable MangoHud so the safer default is obvious.
+Trusted Pair is Nova’s TOFU flow. If Polaris trusts the subnet you are on, Nova can complete first pairing without the usual PIN ceremony. You can still use QR or manual PIN pairing when you want the traditional flow.
+
+</details>
+
+<details>
+<summary><b>What is the difference between Headless and Virtual Display?</b></summary>
+
+**Headless** launches against Polaris’ isolated compositor path without touching your physical desktop layout. **Virtual Display** asks the host for a virtual display-backed launch instead. Nova’s Polaris library now shows what the host recommends, what the app prefers, and which modes are currently allowed.
 
 </details>
 
 <details>
 <summary><b>Can Nova request a 10-bit stream on an SDR display?</b></summary>
 
-Yes. When you explicitly enable HDR in Nova and the server supports Main10, Nova can request a 10-bit stream even if the handheld screen itself is SDR-only. This is especially useful with Polaris on handhelds such as Retroid devices: Nova requests the 10-bit path, and Polaris can keep the active stream on `p010` without requiring the device panel to advertise HDR10.
+Yes. When you explicitly enable HDR in Nova and the server supports Main10, Nova can request a 10-bit stream even if the handheld screen itself does not advertise HDR10. This is especially useful with Polaris on handhelds such as Retroid devices.
+
+</details>
+
+<details>
+<summary><b>What does Watch Stream do?</b></summary>
+
+Watch Stream lets a second device join an already running Polaris session as a passive viewer. It does not take ownership, and viewer sessions are limited to the active stream profile rather than silently renegotiating their own version.
+
+</details>
+
+<details>
+<summary><b>Why does Nova warn me before enabling MangoHud?</b></summary>
+
+On Polaris-backed Steam Big Picture and Steam/Proton titles, MangoHud can crash helper processes early enough to leave the session black-screened. Nova flags those launches before you enable MangoHud so the safer choice is obvious.
 
 </details>
 
 <details>
 <summary><b>Why can't I find Nova on the Play Store?</b></summary>
 
-Nova is distributed via GitHub Releases and Obtainium. If you keep your own fork private, Obtainium will require a GitHub Personal Access Token with `repo` scope to check for updates.
+Nova is distributed through GitHub Releases and Obtainium. The official public release path is GitHub first.
 
 </details>
-
-<details>
-<summary><b>My server shows "Online · Not Paired"</b></summary>
-
-Your server was discovered but pairing has not completed. Use one of three paths: **TOFU** on a trusted LAN, **QR code** from the Polaris web UI, or a **manual PIN** from the server UI.
-
-</details>
-
-<details>
-<summary><b>The stream has audio static/crackle at startup</b></summary>
-
-This was a known issue fixed in v1.4.0. The audio receiver now defers playback until real audio data arrives, eliminating the buffer underrun crackle. Update to the latest version.
-
-</details>
-
-<details>
-<summary><b>How do I switch between HUD modes?</b></summary>
-
-Tap the HUD overlay to cycle through modes: Full panel → Banner → FPS only → Off. Drag the HUD to reposition it anywhere on screen. The HUD can be toggled from the Quick Menu under Overlays.
-
-</details>
-
-<details>
-<summary><b>Can I use gyro aiming with any game?</b></summary>
-
-Gyro aiming maps your device's gyroscope to mouse movement. It works with any game that accepts mouse input for camera control — most FPS and third-person games. Adjust sensitivity and Y-axis inversion in Settings → Input & Controllers.
-
-</details>
-
-<details>
-<summary><b>What's the difference between the three themes?</b></summary>
-
-**Space Whale** (default) — Deep navy backgrounds with ice-blue text and purple accents. **OLED Dark Galaxy** — Pure black backgrounds for OLED screens (saves battery, looks stunning). **Material You** — Pulls your Android 12+ system accent color for a personalized look (falls back to Space Whale on older devices).
-
-</details>
-
----
 
 ## Donate
 
-I build Nova and Polaris in my spare time because game streaming on Linux and Android deserves better. If you find it useful, a donation helps keep development going.
+I build Nova and Polaris in my spare time because game streaming on Linux and Android deserves better tooling. If Nova is useful to you, donations help keep development moving.
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=for-the-badge&logo=ko-fi&labelColor=1a1a2e)](https://ko-fi.com/papiux)
 &nbsp;
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-7c73ff?style=for-the-badge&logo=paypal&labelColor=1a1a2e)](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
 
-Thank you to everyone who's supported the project — you're the reason it keeps getting better.
-
----
-
 ## Contributing
 
-Contributions are welcome — bug fixes, new features, UI polish, translations.
+Contributions are welcome: bug fixes, features, UI polish, documentation, and translations.
 
-1. Fork the repo and create a branch from `master`
-2. Build with `./gradlew assembleNonRoot_gameDebug` and test on a device or emulator
-3. New Polaris integration code goes in `com.papi.nova` (Kotlin). Moonlight core changes go in the existing Java layer — targeted modifications only.
-4. Open a pull request with a clear description of what changed and why
+1. Fork the repo and branch from `master`.
+2. Build with `./gradlew assembleNonRoot_gameDebug`.
+3. Test on a real device or emulator.
+4. Open a pull request that clearly explains what changed and why.
 
 > [!NOTE]
-> The native streaming layer (`app/src/main/jni/moonlight-core/`) is a git submodule. Run `git submodule update --init --recursive` after cloning.
-
----
+> The native streaming layer in `app/src/main/jni/moonlight-core/` is a git submodule. Run `git submodule update --init --recursive` after cloning.
 
 ## License
 
-Nova is licensed under the **GNU General Public License v3.0** — see [LICENSE.txt](LICENSE.txt) for the full text.
+Nova is licensed under the **GNU General Public License v3.0**. See [LICENSE.txt](LICENSE.txt) for the full text.
 
 Nova is a fork of [Artemis](https://github.com/ClassicOldSong/moonlight-android) by ClassicOldSong, which is itself a fork of [Moonlight Android](https://github.com/moonlight-stream/moonlight-android) by Cameron Gutman, Diego Waxemberg, Aaron Neyer, and Andrew Hennessy. All are GPLv3. The native streaming core is [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c).

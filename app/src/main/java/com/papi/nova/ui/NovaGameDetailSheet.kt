@@ -3,14 +3,16 @@ package com.papi.nova.ui
 import android.graphics.drawable.GradientDrawable
 import android.app.Dialog
 import android.os.Bundle
+import android.content.res.Configuration
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
+import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.text.format.DateUtils
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -24,9 +26,6 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGame
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Bottom sheet showing game details, tuning, and explicit launch modes.
@@ -78,16 +77,32 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
         val game = this.game ?: return
         val apiClient = this.apiClient ?: return
+        val launchContract = game.launchMode
+        val fallbackMode = if (defaultToVirtualDisplay) "virtual_display" else "headless"
+        val preferredMode = launchContract?.preferredMode?.takeIf { it.isNotBlank() } ?: fallbackMode
+        val recommendedMode = launchContract?.recommendedMode?.takeIf { it.isNotBlank() } ?: preferredMode
+        val headlessAllowed = launchContract?.allows("headless") ?: true
+        val virtualAllowed = launchContract?.allows("virtual_display") ?: true
 
         // Apply OLED theme to sheet background
         if (NovaThemeManager.isOled(requireContext())) {
             view.setBackgroundResource(R.drawable.nova_sheet_bg_oled)
         }
 
-        view.findViewById<TextView>(R.id.detail_launch_intro).text = if (defaultToVirtualDisplay) {
-            getString(R.string.nova_library_launch_intro_virtual_default)
-        } else {
-            getString(R.string.nova_library_launch_intro_headless_default)
+        view.findViewById<TextView>(R.id.detail_launch_intro).text = buildLaunchIntro(
+            preferredMode = preferredMode,
+            recommendedMode = recommendedMode,
+            serverReason = launchContract?.modeReason
+        )
+
+        val launchModeTitle = view.findViewById<TextView>(R.id.detail_default_mode_badge)
+        launchModeTitle.text = getString(
+            R.string.nova_library_launch_recommended_mode_badge,
+            modeBadgeLabel(recommendedMode)
+        )
+
+        if (!headlessAllowed && !virtualAllowed) {
+            launchModeTitle.visibility = View.GONE
         }
 
         // Name
@@ -140,9 +155,13 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         // Last played
         val lastPlayed = view.findViewById<TextView>(R.id.detail_last_played)
         if (game.lastLaunched > 0) {
-            val date = Date(game.lastLaunched * 1000)
-            val fmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.getDefault())
-            lastPlayed.text = "Last played: ${fmt.format(date)}"
+            val relative = DateUtils.getRelativeTimeSpanString(
+                game.lastLaunched * 1000,
+                System.currentTimeMillis(),
+                DateUtils.MINUTE_IN_MILLIS,
+                DateUtils.FORMAT_ABBREV_RELATIVE
+            )
+            lastPlayed.text = getString(R.string.nova_library_meta_last_played, relative)
             lastPlayed.visibility = View.VISIBLE
         }
 
@@ -176,7 +195,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                         val sourceLabel = when {
                             source.contains("ai_cached") -> "cached"
                             source.contains("ai_live") -> "live"
-                            source.contains("device_db") -> "device profile"
+                            source.contains("device_db") -> "device tune"
                             else -> source
                         }
 
@@ -194,18 +213,24 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
         // MangoHud toggle
         val mangoToggle = view.findViewById<SwitchMaterial>(R.id.detail_mangohud_toggle)
-        val mangoNote = view.findViewById<TextView>(R.id.detail_mangohud_note)
+        val mangoCaption = view.findViewById<TextView>(R.id.detail_mangohud_caption)
         val mangoRiskMessageRes = when {
             game.isSteamBigPicture -> R.string.nova_mangohud_warning_big_picture
             game.hasMangoHudCompatibilityRisk -> R.string.nova_mangohud_warning_steam
             else -> null
         }
-        if (mangoRiskMessageRes != null) {
-            mangoNote.setText(mangoRiskMessageRes)
-            mangoNote.visibility = View.VISIBLE
-        } else {
-            mangoNote.visibility = View.GONE
-        }
+        mangoCaption.setText(
+            when (mangoRiskMessageRes) {
+                R.string.nova_mangohud_warning_big_picture -> R.string.nova_mangohud_detail_caption_big_picture
+                R.string.nova_mangohud_warning_steam -> R.string.nova_mangohud_detail_caption_risky
+                else -> R.string.nova_mangohud_detail_caption
+            }
+        )
+        mangoCaption.setTextColor(
+            requireContext().getColor(
+                if (mangoRiskMessageRes != null) R.color.nova_warning else R.color.nova_text_secondary
+            )
+        )
         mangoToggle.isChecked = game.mangohud
         mangoToggle.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked && mangoRiskMessageRes != null) {
@@ -219,24 +244,19 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         // Launch buttons
         val headlessButton = view.findViewById<MaterialButton>(R.id.detail_launch_headless_btn)
         val virtualButton = view.findViewById<MaterialButton>(R.id.detail_launch_virtual_btn)
-        val defaultBadge = view.findViewById<TextView>(R.id.detail_default_mode_badge)
 
         configureLaunchButton(
             button = headlessButton,
-            isDefault = !defaultToVirtualDisplay,
+            isRecommended = recommendedMode == "headless",
+            isAvailable = headlessAllowed,
             labelRes = R.string.nova_library_launch_headless
         )
         configureLaunchButton(
             button = virtualButton,
-            isDefault = defaultToVirtualDisplay,
+            isRecommended = recommendedMode == "virtual_display",
+            isAvailable = virtualAllowed,
             labelRes = R.string.nova_library_launch_virtual_display
         )
-
-        defaultBadge.text = if (defaultToVirtualDisplay) {
-            getString(R.string.nova_library_launch_default_mode_badge, getString(R.string.nova_library_launch_virtual_display))
-        } else {
-            getString(R.string.nova_library_launch_default_mode_badge, getString(R.string.nova_library_launch_headless))
-        }
 
         headlessButton.setOnClickListener {
             onLaunch?.invoke(game, false)
@@ -250,16 +270,19 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
     private fun configureLaunchButton(
         button: MaterialButton,
-        isDefault: Boolean,
+        isRecommended: Boolean,
+        isAvailable: Boolean,
         labelRes: Int
     ) {
-        val label = if (isDefault) {
-            getString(R.string.nova_library_launch_mode_default_format, getString(labelRes))
+        val label = if (!isAvailable) {
+            getString(R.string.nova_library_launch_mode_unavailable_format, getString(labelRes))
         } else {
             getString(labelRes)
         }
         button.text = label
-        if (isDefault) {
+        button.isEnabled = isAvailable
+        button.alpha = if (isAvailable) 1f else 0.45f
+        if (isRecommended && isAvailable) {
             button.backgroundTintList = android.content.res.ColorStateList.valueOf(requireContext().getColor(R.color.nova_accent))
             button.setTextColor(requireContext().getColor(R.color.nova_ice))
             button.strokeWidth = 0
@@ -269,6 +292,37 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             button.strokeColor = android.content.res.ColorStateList.valueOf(requireContext().getColor(R.color.nova_divider))
             button.strokeWidth = 2
         }
+    }
+
+    private fun modeLabel(mode: String): String {
+        return when (mode) {
+            "virtual_display" -> getString(R.string.nova_library_launch_virtual_display)
+            else -> getString(R.string.nova_library_launch_headless)
+        }
+    }
+
+    private fun modeBadgeLabel(mode: String): String {
+        return when (mode) {
+            "virtual_display" -> getString(R.string.nova_library_launch_virtual_short)
+            else -> getString(R.string.nova_library_launch_headless)
+        }
+    }
+
+    private fun buildLaunchIntro(
+        preferredMode: String,
+        recommendedMode: String,
+        serverReason: String?
+    ): String {
+        val parts = mutableListOf<String>()
+        if (preferredMode != recommendedMode) {
+            parts += getString(R.string.nova_library_launch_preferred_mode_format, modeLabel(preferredMode))
+        }
+        parts += when {
+            !serverReason.isNullOrBlank() -> serverReason
+            recommendedMode == "virtual_display" -> getString(R.string.nova_library_launch_intro_virtual_default)
+            else -> getString(R.string.nova_library_launch_intro_headless_default)
+        }
+        return parts.joinToString(" ")
     }
 
     private fun expandBottomSheet(bottomSheetDialog: BottomSheetDialog?) {
@@ -282,15 +336,37 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             }
         )
         contentView.post {
-            val maxHeight = (resources.displayMetrics.heightPixels * 0.88f).toInt()
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val maxHeightRatio = if (isLandscape) 0.96f else 0.90f
+            val maxHeight = (resources.displayMetrics.heightPixels * maxHeightRatio).toInt()
             val contentHeight = contentView.measuredHeight.takeIf { it > 0 } ?: return@post
             val desiredHeight = contentHeight.coerceAtMost(maxHeight)
+            val displayWidth = resources.displayMetrics.widthPixels
+            val density = resources.displayMetrics.density
+            val desiredWidth = if (isLandscape) {
+                val minWidth = (720 * density).toInt()
+                val maxWidth = (1260 * density).toInt()
+                (displayWidth * 0.7f).toInt().coerceIn(minWidth, maxWidth)
+            } else {
+                displayWidth
+            }
+            val horizontalMargin = if (isLandscape) {
+                ((displayWidth - desiredWidth) / 2).coerceAtLeast((18 * density).toInt())
+            } else {
+                0
+            }
 
             contentView.layoutParams = contentView.layoutParams.apply {
                 height = if (contentHeight > maxHeight) desiredHeight else ViewGroup.LayoutParams.WRAP_CONTENT
             }
             sheet.layoutParams = sheet.layoutParams.apply {
+                width = if (isLandscape) displayWidth - (horizontalMargin * 2) else ViewGroup.LayoutParams.MATCH_PARENT
                 height = desiredHeight
+            }
+            (sheet.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
+                lp.marginStart = horizontalMargin
+                lp.marginEnd = horizontalMargin
+                sheet.layoutParams = lp
             }
             sheet.minimumHeight = 0
             sheet.requestLayout()
