@@ -18,9 +18,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 <br/>
 
 <picture>
-  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/nova-showcase.gif" width="720" />
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/nova-showcase-oled.gif" width="720" />
-  <img src="docs/screenshots/nova-showcase.gif" width="720" alt="Nova on Android: onboarding, server browser, game grid, library, and quick menu" />
+  <img src="docs/screenshots/nova-showcase.gif" width="820" alt="Nova on Android: server browser, game grid, library detail sheet, quick menu, and live stream HUD" />
 </picture>
 
 </div>
@@ -129,20 +127,16 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 
 <table>
 <tr>
-<td><img src="docs/screenshots/welcome.png" width="400" alt="Welcome"/><br/><sub>Welcome — onboarding built for handheld landscape</sub></td>
-<td><img src="docs/screenshots/servers.png" width="400" alt="Servers"/><br/><sub>Servers — discovery, pairing status, QR workflow</sub></td>
+<td><img src="docs/screenshots/nova-themes.gif" width="400" alt="Themes"/><br/><sub>Main menu and theme system</sub></td>
+<td><img src="docs/screenshots/nova-hud-modes.gif" width="400" alt="HUD modes"/><br/><sub>Nova HUD modes and on-stream toggles</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/games.png" width="400" alt="Games"/><br/><sub>Games — large art, search, and fast launch</sub></td>
-<td><img src="docs/screenshots/library.png" width="400" alt="Library"/><br/><sub>Library — cover art, source badges, and launch-mode choices</sub></td>
+<td><img src="docs/screenshots/nova-home.png" width="400" alt="Games home"/><br/><sub>Games home with Continue rail and host shortcuts</sub></td>
+<td><img src="docs/screenshots/nova-library-grid.png" width="400" alt="Library grid"/><br/><sub>Polaris library with filters, search, and HDR-ready badges</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/quick-menu.png" width="400" alt="Quick Menu"/><br/><sub>Quick menu — tuning, overlays, controls, and session actions</sub></td>
-<td><img src="docs/screenshots/pairing.png" width="400" alt="Pairing"/><br/><sub>Pairing — trusted LAN pairing, QR, or PIN</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/servers-oled.png" width="400" alt="OLED"/><br/><sub>OLED Dark Galaxy — pure black theme for OLED devices</sub></td>
-<td><img src="docs/screenshots/games-oled.png" width="400" alt="Games OLED"/><br/><sub>Games (OLED) — high-contrast library presentation</sub></td>
+<td><img src="docs/screenshots/nova-library-detail.png" width="400" alt="Library detail sheet"/><br/><sub>Per-game launch modes and next-launch tuning</sub></td>
+<td><img src="docs/screenshots/nova-quick-menu-detail.png" width="400" alt="Quick menu"/><br/><sub>Quick menu for tuning, overlays, controls, and session actions</sub></td>
 </tr>
 </table>
 
@@ -340,13 +334,11 @@ Nova is distributed through GitHub Releases and Obtainium. The official public r
 
 </details>
 
-## Donate
+## AI Transparency
 
-I build Nova and Polaris in my spare time because game streaming on Linux and Android deserves better tooling. If Nova is useful to you, donations help keep development moving.
+Nova is built with help from AI tools, including Anthropic Claude, OpenAI Codex, and local models.
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=for-the-badge&logo=ko-fi&labelColor=1a1a2e)](https://ko-fi.com/papiux)
-&nbsp;
-[![PayPal](https://img.shields.io/badge/PayPal-Donate-7c73ff?style=for-the-badge&logo=paypal&labelColor=1a1a2e)](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
+I use them as engineering assistants for brainstorming, UI exploration, debugging, refactoring, tests, and documentation. Final design choices, code review, integration, and release decisions are still mine, and anything shipped in this repo is manually reviewed and tested before release.
 
 ## Contributing
 
@@ -360,14 +352,16 @@ Contributions are welcome: bug fixes, features, UI polish, documentation, and tr
 > [!NOTE]
 > The native streaming layer in `app/src/main/jni/moonlight-core/` is a git submodule. Run `git submodule update --init --recursive` after cloning.
 
+## Donate
+
+I build Nova and Polaris in my spare time because game streaming on Linux and Android deserves better tooling. If Nova is useful to you, donations help keep development moving.
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=for-the-badge&logo=ko-fi&labelColor=1a1a2e)](https://ko-fi.com/papiux)
+&nbsp;
+[![PayPal](https://img.shields.io/badge/PayPal-Donate-7c73ff?style=for-the-badge&logo=paypal&labelColor=1a1a2e)](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
+
 ## License
 
 Nova is licensed under the **GNU General Public License v3.0**. See [LICENSE.txt](LICENSE.txt) for the full text.
 
 Nova is a fork of [Artemis](https://github.com/ClassicOldSong/moonlight-android) by ClassicOldSong, which is itself a fork of [Moonlight Android](https://github.com/moonlight-stream/moonlight-android) by Cameron Gutman, Diego Waxemberg, Aaron Neyer, and Andrew Hennessy. All are GPLv3. The native streaming core is [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c).
-
-## AI Transparency
-
-Nova is built with help from AI tools, including Anthropic Claude, OpenAI Codex, and local models.
-
-I use them as engineering assistants for brainstorming, UI exploration, debugging, refactoring, tests, and documentation. Final design choices, code review, integration, and release decisions are still mine, and anything shipped in this repo is manually reviewed and tested before release.
