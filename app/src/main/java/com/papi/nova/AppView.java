@@ -37,6 +37,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -566,7 +567,35 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
         card.setVisibility(View.VISIBLE);
         TextView nameView = findViewById(R.id.recently_played_name);
-        if (nameView != null) nameView.setText(targetApp.app.getAppName());
+        TextView kickerView = findViewById(R.id.recently_played_kicker);
+        TextView metaView = findViewById(R.id.recently_played_meta);
+        TextView actionView = findViewById(R.id.recently_played_action);
+        ImageView artView = findViewById(R.id.recently_played_art);
+
+        boolean appIsRunning = lastRunningAppId == targetApp.app.getAppId();
+        boolean appOwnedByAnotherClient = appIsRunning && Boolean.FALSE.equals(computer.currentGameOwnedByClient);
+
+        if (nameView != null) {
+            nameView.setText(targetApp.app.getAppName());
+        }
+        if (kickerView != null) {
+            kickerView.setText(appOwnedByAnotherClient
+                    ? R.string.applist_hero_watch
+                    : (appIsRunning ? R.string.applist_hero_live : R.string.applist_hero_continue));
+        }
+        if (metaView != null) {
+            metaView.setText(appOwnedByAnotherClient
+                    ? R.string.applist_hero_summary_watch
+                    : (appIsRunning ? R.string.applist_hero_summary_resume : R.string.applist_hero_summary_continue));
+        }
+        if (actionView != null) {
+            actionView.setText(appOwnedByAnotherClient
+                    ? R.string.applist_menu_watch
+                    : R.string.pcview_card_action_resume);
+        }
+        if (artView != null && appGridAdapter != null) {
+            appGridAdapter.populateFeaturedArt(targetApp, artView);
+        }
 
         final AppObject finalApp = targetApp;
         card.setOnClickListener(v -> {
@@ -637,12 +666,11 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 @SuppressWarnings("NotifyDataSetChanged")
                 Runnable r = () -> appGridAdapter.notifyDataSetChanged();
                 r.run();
+            }
 
-                // Show search bar when there are enough games
-                android.widget.EditText searchView = findViewById(R.id.app_search);
-                if (searchView != null && appGridAdapter.getTotalAppCount() > 6) {
-                    searchView.setVisibility(View.VISIBLE);
-                }
+            android.widget.EditText searchView = findViewById(R.id.app_search);
+            if (searchView != null) {
+                searchView.setVisibility(appGridAdapter.getTotalAppCount() > 5 ? View.VISIBLE : View.GONE);
             }
         });
     }

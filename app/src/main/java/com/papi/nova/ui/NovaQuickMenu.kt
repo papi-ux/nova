@@ -166,6 +166,30 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             }
         }
 
+        fun optimizationRuntimeCaption(status: PolarisSessionStatus?): String? {
+            val source = status?.optimizationSourceLabel?.takeIf { it.isNotBlank() } ?: return null
+            val confidence = status.optimizationConfidenceLabel
+                .takeIf { it.isNotBlank() && !status.encoder.optimizationSource.equals("device_db", ignoreCase = true) }
+                ?.lowercase()
+            val normalization = status.optimizationNormalizedLabel.takeIf { it.isNotBlank() }
+            val freshness = when (status.encoder.optimizationCacheStatus.lowercase()) {
+                "hit" -> game.getString(R.string.nova_optimization_cached)
+                "invalidated" -> game.getString(R.string.nova_optimization_recovery)
+                "miss" -> game.getString(R.string.nova_optimization_fresh)
+                else -> ""
+            }
+            return listOfNotNull(
+                source,
+                confidence,
+                freshness.takeIf {
+                    it.isNotBlank() &&
+                        !status.encoder.optimizationSource.equals("device_db", ignoreCase = true) &&
+                        it != normalization
+                },
+                normalization
+            ).joinToString(" · ")
+        }
+
         fun refreshSessionModeState() {
             val label = resolveSessionModeLabel(sessionStatus)
             val tone = when {
@@ -266,7 +290,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 shutdownInProgress -> "session ending"
                 !canAdjustHostTuning && viewerSession -> "owner controls host tuning"
                 !canAdjustHostTuning -> "host controls unavailable"
-                else -> "next launch"
+                else -> optimizationRuntimeCaption(sessionStatus) ?: "next launch"
             }
 
             val mangoTone = when {

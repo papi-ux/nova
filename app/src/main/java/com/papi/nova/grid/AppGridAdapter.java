@@ -304,4 +304,8 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
             parentView.setAlpha(1.0f);
         }
     }
+
+    public void populateFeaturedArt(AppView.AppObject obj, ImageView imageView) {
+        loader.populateImageView(obj.app, imageView);
+    }
 }

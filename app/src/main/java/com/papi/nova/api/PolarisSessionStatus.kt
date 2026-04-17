@@ -70,6 +70,11 @@ data class PolarisSessionStatus(
         val encodeTargetFps: Double = 0.0,
         val pacingPolicy: String = "",
         val optimizationSource: String = "",
+        val optimizationConfidence: String = "",
+        val optimizationCacheStatus: String = "",
+        val optimizationReasoning: String = "",
+        val optimizationNormalizationReason: String = "",
+        val recommendationVersion: Int = 0,
         val targetDevice: String = "",
         val targetResidency: String = "",
         val targetFormat: String = ""
@@ -92,4 +97,23 @@ data class PolarisSessionStatus(
     val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice
     val canAdjustHostTuning get() = controls.hostTuningAllowed || (ownedByClient && !isViewer)
     val canQuit get() = controls.quitAllowed || (ownedByClient && !isViewer)
+    val optimizationSourceLabel get() = when {
+        encoder.optimizationSource.equals("ai_live", ignoreCase = true) &&
+            encoder.optimizationCacheStatus.equals("invalidated", ignoreCase = true) -> "Recovery tune"
+        encoder.optimizationSource.equals("ai_live", ignoreCase = true) -> "AI tune"
+        encoder.optimizationSource.equals("ai_cached", ignoreCase = true) -> "Cached AI"
+        encoder.optimizationSource.equals("device_db", ignoreCase = true) -> "Baseline device tune"
+        else -> ""
+    }
+    val optimizationBadgeLabel get() = when {
+        encoder.optimizationSource.equals("ai_live", ignoreCase = true) &&
+            encoder.optimizationCacheStatus.equals("invalidated", ignoreCase = true) -> "Recovery"
+        encoder.optimizationSource.equals("ai_live", ignoreCase = true) -> "AI"
+        encoder.optimizationSource.equals("ai_cached", ignoreCase = true) -> "Cached AI"
+        encoder.optimizationSource.equals("device_db", ignoreCase = true) -> "Baseline"
+        else -> ""
+    }
+    val hasOptimizationNormalization get() = encoder.optimizationNormalizationReason.isNotBlank()
+    val optimizationNormalizedLabel get() = if (hasOptimizationNormalization) "Host adjusted" else ""
+    val optimizationConfidenceLabel get() = encoder.optimizationConfidence.uppercase()
 }

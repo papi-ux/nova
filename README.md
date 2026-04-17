@@ -63,10 +63,12 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 
 Nova gets the best experience when the host is Polaris:
 
+- featured **Continue** surface with live/watch state, cover art, and one-tap resume
 - host-recommended **Headless** or **Virtual Display** launch modes
 - live **ACT / TGT FPS** HUD readouts
 - watch active stream without stealing ownership
 - owner-aware quit and resume
+- clear **Baseline / AI tune / Cached AI / Recovery tune** labels in Polaris-backed flows
 - live host tuning for Adaptive Bitrate, AI Optimizer, and MangoHud
 - richer library metadata, cover art, and per-game recommendations
 
@@ -97,6 +99,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 Nova is a Moonlight-compatible Android client built for handhelds first, not desktop assumptions squeezed onto a touch screen.
 
 - **Handheld-first UI**: large game art, clear session actions, controller-friendly navigation, and OLED-aware themes
+- **Clear launch surfaces**: host library screens keep the primary action obvious instead of burying resume/watch behind generic grids
 - **Practical session controls**: quick menu, multi-mode HUD, reconnect overlay, and live stream state
 - **Deep input support**: gyro aim, audio haptics, gamepads, mouse modes, and touch controls
 - **Polaris-aware workflow**: library metadata, launch-mode choices, watch mode, session ownership, live tuning, and stream reports
@@ -109,6 +112,7 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | 10-bit opt-in | Enabling HDR can request a 10-bit stream even on SDR handheld displays |
 | Watch Stream | Join an active session as a passive viewer instead of taking ownership |
 | Session truth | HUD and quick menu show the live mode, owner/viewer role, and negotiated stream state |
+| AI state | Library and quick menu can distinguish baseline device tuning, live AI, cached AI, recovery tuning, and host-adjusted recommendations |
 | Stream tuning | Toggle Adaptive Bitrate, AI Optimizer, and MangoHud from the quick menu |
 | Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
 
@@ -161,9 +165,11 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 ### Polaris-specific flow
 
 - host-backed library with authenticated cover loading
+- featured Continue card with cover art, live/watch state, and one-tap resume or watch
 - explicit Headless vs Virtual Display launch buttons in the library
 - host-recommended launch mode and reason text
 - owner vs viewer session awareness
+- AI recommendation source labels and host-adjusted runtime notes in Polaris-backed surfaces
 - live tuning controls in the quick menu
 - warnings before risky MangoHud launches on Steam Big Picture and Steam/Proton titles
 

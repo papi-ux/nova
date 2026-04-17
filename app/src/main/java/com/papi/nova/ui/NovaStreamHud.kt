@@ -47,6 +47,9 @@ class NovaStreamHud(private val activity: Activity) {
     private var activeCodecLabel = ""
     private var sessionModeLabel = ""
     private var targetFps = 0.0
+    private var optimizationSource = ""
+    private var optimizationConfidence = ""
+    private var recommendationVersion = 0
 
     // Mode cycling: full → banner → fps_only → full
     private val modes = listOf("full", "banner", "fps_only")
@@ -309,6 +312,9 @@ class NovaStreamHud(private val activity: Activity) {
             if (resolvedTargetFps > 0) {
                 targetFps = resolvedTargetFps
             }
+            optimizationSource = status?.encoder?.optimizationSource.orEmpty()
+            optimizationConfidence = status?.encoder?.optimizationConfidence.orEmpty()
+            recommendationVersion = status?.encoder?.recommendationVersion ?: 0
             sessionModeLabel = status?.let(::buildSessionModeLabel) ?: ""
             renderTargetFps()
             renderStreamMode()
@@ -356,8 +362,17 @@ class NovaStreamHud(private val activity: Activity) {
             status.isShuttingDown -> "ENDING"
             else -> ""
         }
+        val optimization = when (status.encoder.optimizationSource.lowercase()) {
+            "ai_live" -> "AI"
+            "ai_cached" -> "AI-C"
+            "device_db" -> "BASE"
+            else -> ""
+        }
+        val normalized = if (status.hasOptimizationNormalization) "ADJ" else ""
 
-        return listOf(mode, bitDepth, path, modeSource, lifecycle).filter { it.isNotBlank() }.joinToString(" ")
+        return listOf(mode, bitDepth, path, modeSource, lifecycle, optimization, normalized)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
     }
 
     private fun applyCodecLabel(codec: String) {
@@ -499,12 +514,16 @@ class NovaStreamHud(private val activity: Activity) {
             ((System.currentTimeMillis() - sessionStartTime) / 1000).toInt() else 0
         return mapOf(
             "avg_fps" to if (sessionSamples > 0) sessionFpsSum / sessionSamples else 0.0,
+            "target_fps" to targetFps,
             "avg_latency_ms" to if (sessionSamples > 0) sessionLatencySum / sessionSamples else 0.0,
             "packet_loss_pct" to if (sessionPacketLossSamples > 0) sessionPacketLossSum / sessionPacketLossSamples else 0.0,
             "avg_bitrate_kbps" to lastBitrateKbps,
             "codec" to lastCodec,
             "duration_s" to durationS,
-            "samples" to sessionSamples
+            "samples" to sessionSamples,
+            "optimization_source" to optimizationSource,
+            "optimization_confidence" to optimizationConfidence,
+            "recommendation_version" to recommendationVersion
         )
     }
 

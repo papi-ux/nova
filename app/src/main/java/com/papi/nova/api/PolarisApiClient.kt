@@ -150,6 +150,11 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                     encodeTargetFps = encoder?.optDouble("encode_target_fps", 0.0) ?: 0.0,
                     pacingPolicy = encoder?.optString("pacing_policy", "") ?: "",
                     optimizationSource = encoder?.optString("optimization_source", "") ?: "",
+                    optimizationConfidence = encoder?.optString("optimization_confidence", "") ?: "",
+                    optimizationCacheStatus = encoder?.optString("optimization_cache_status", "") ?: "",
+                    optimizationReasoning = encoder?.optString("optimization_reasoning", "") ?: "",
+                    optimizationNormalizationReason = encoder?.optString("optimization_normalization_reason", "") ?: "",
+                    recommendationVersion = encoder?.optInt("recommendation_version", 0) ?: 0,
                     targetDevice = encoder?.optString("target_device", "") ?: "",
                     targetResidency = encoder?.optString("target_residency", "") ?: "",
                     targetFormat = encoder?.optString("target_format", "") ?: ""
@@ -478,20 +483,27 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
     /**
      * Send session quality report at end of stream.
      */
-    fun sendSessionReport(device: String, game: String, avgFps: Double, avgLatency: Double,
+    fun sendSessionReport(device: String, uniqueId: String, game: String, avgFps: Double, targetFps: Double, avgLatency: Double,
                           avgBitrate: Int, packetLoss: Double, codec: String,
-                          durationS: Int, endReason: String): Boolean {
+                          durationS: Int, endReason: String,
+                          optimizationSource: String, optimizationConfidence: String,
+                          recommendationVersion: Int): Boolean {
         return try {
             val body = org.json.JSONObject().apply {
                 put("device", device)
+                if (uniqueId.isNotBlank()) put("unique_id", uniqueId)
                 put("game", game)
                 put("avg_fps", avgFps)
+                if (targetFps > 0.0) put("target_fps", targetFps)
                 put("avg_latency_ms", avgLatency)
                 put("avg_bitrate_kbps", avgBitrate)
                 put("packet_loss_pct", packetLoss)
                 put("codec", codec)
                 put("duration_s", durationS)
                 put("end_reason", endReason)
+                if (optimizationSource.isNotBlank()) put("optimization_source", optimizationSource)
+                if (optimizationConfidence.isNotBlank()) put("optimization_confidence", optimizationConfidence)
+                if (recommendationVersion > 0) put("recommendation_version", recommendationVersion)
             }
             val request = Request.Builder()
                 .url("$baseUrl/session/report")

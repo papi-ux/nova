@@ -46,7 +46,11 @@ public class PolarisApiClientParsingTest {
                         "\"transport\":\"dmabuf\",\"residency\":\"gpu\",\"format\":\"bgra8\"}," +
                         "\"encoder\":{\"codec\":\"hevc_nvenc\",\"bitrate_kbps\":20000,\"fps\":60.0," +
                         "\"requested_client_fps\":60.0,\"session_target_fps\":60.0," +
-                        "\"encode_target_fps\":60.0,\"pacing_policy\":\"client_fps_limit\",\"optimization_source\":\"device_db\"," +
+                        "\"encode_target_fps\":60.0,\"pacing_policy\":\"client_fps_limit\",\"optimization_source\":\"ai_cached\"," +
+                        "\"optimization_confidence\":\"medium\",\"optimization_cache_status\":\"hit\"," +
+                        "\"optimization_reasoning\":\"Cached AI recommendation remained healthy.\"," +
+                        "\"optimization_normalization_reason\":\"Adjusted bitrate to fit host limits.\"," +
+                        "\"recommendation_version\":2," +
                         "\"target_device\":\"cuda\"," +
                         "\"target_residency\":\"gpu\",\"target_format\":\"p010\"}}"
         );
@@ -69,7 +73,11 @@ public class PolarisApiClientParsingTest {
         assertTrue(status.getTuning().getAdaptiveBitrateEnabled());
         assertEquals(18000, status.getTuning().getAdaptiveTargetBitrateKbps());
         assertEquals("auto", status.getDisplayMode().getRequested());
-        assertEquals("device_db", status.getEncoder().getOptimizationSource());
+        assertEquals("ai_cached", status.getEncoder().getOptimizationSource());
+        assertEquals("medium", status.getEncoder().getOptimizationConfidence());
+        assertEquals("hit", status.getEncoder().getOptimizationCacheStatus());
+        assertEquals("Adjusted bitrate to fit host limits.", status.getEncoder().getOptimizationNormalizationReason());
+        assertEquals(2, status.getEncoder().getRecommendationVersion());
         assertEquals("1920x1080", status.getCapture().getResolution());
         assertEquals("dmabuf", status.getCapture().getTransport());
         assertEquals("gpu", status.getEncoder().getTargetResidency());
@@ -77,6 +85,8 @@ public class PolarisApiClientParsingTest {
         assertTrue(status.isTenBitActive());
         assertTrue(status.isGpuPath());
         assertTrue(status.isViewer());
+        assertEquals("Cached AI", status.getOptimizationSourceLabel());
+        assertEquals("MEDIUM", status.getOptimizationConfidenceLabel());
     }
 
     @Test

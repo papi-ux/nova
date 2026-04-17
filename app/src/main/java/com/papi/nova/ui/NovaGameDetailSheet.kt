@@ -171,6 +171,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
         // AI optimization recommendation
         val aiCard = view.findViewById<View>(R.id.detail_ai_card)
+        val aiLabel = view.findViewById<TextView>(R.id.detail_ai_label)
         val aiSettings = view.findViewById<TextView>(R.id.detail_ai_settings)
         val aiReasoning = view.findViewById<TextView>(R.id.detail_ai_reasoning)
         val aiSource = view.findViewById<TextView>(R.id.detail_ai_source)
@@ -181,10 +182,14 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                 val opt = withContext(Dispatchers.IO) { apiClient.getOptimization(deviceName, game.name) }
                 if (opt != null) {
                     val source = opt.optString("source", "")
+                    val confidence = opt.optString("confidence", "")
+                    val cacheStatus = opt.optString("cache_status", "")
                     val displayMode = opt.optString("display_mode", "")
                     val bitrate = opt.optInt("target_bitrate_kbps", 0)
                     val codec = opt.optString("preferred_codec", "")
                     val reasoning = opt.optString("reasoning", "")
+                    val normalizationReason = opt.optString("normalization_reason", "")
+                    val generatedAt = opt.optLong("generated_at", 0L)
 
                     if (displayMode.isNotEmpty() || codec.isNotEmpty()) {
                         val parts = mutableListOf<String>()
@@ -193,17 +198,54 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                         if (displayMode.isNotEmpty()) parts.add(displayMode)
                         val settingsText = parts.joinToString(" · ")
 
+                        val titleLabel = when {
+                            source.contains("ai_live") && cacheStatus.equals("invalidated", ignoreCase = true) ->
+                                getString(R.string.nova_library_ai_recovery_label)
+                            source.contains("ai_cached") -> getString(R.string.nova_library_ai_cached_label)
+                            source.contains("ai_live") -> getString(R.string.nova_library_ai_live_label)
+                            source.contains("device_db") -> getString(R.string.nova_library_ai_baseline_label)
+                            else -> getString(R.string.nova_library_ai_recommended_label)
+                        }
                         val sourceLabel = when {
-                            source.contains("ai_cached") -> "cached"
-                            source.contains("ai_live") -> "live"
-                            source.contains("device_db") -> "device tune"
+                            source.contains("ai_live") && cacheStatus.equals("invalidated", ignoreCase = true) ->
+                                getString(R.string.nova_library_ai_recovery_label)
+                            source.contains("ai_cached") -> getString(R.string.nova_library_ai_cached_label)
+                            source.contains("ai_live") -> getString(R.string.nova_library_ai_live_label)
+                            source.contains("device_db") -> getString(R.string.nova_library_ai_baseline_source_label)
                             else -> source
                         }
+                        val stateLabel = when {
+                            normalizationReason.isNotBlank() -> getString(R.string.nova_optimization_host_adjusted)
+                            cacheStatus.equals("hit", ignoreCase = true) -> getString(R.string.nova_optimization_cached)
+                            cacheStatus.equals("invalidated", ignoreCase = true) -> getString(R.string.nova_optimization_recovery)
+                            cacheStatus.equals("miss", ignoreCase = true) -> getString(R.string.nova_optimization_fresh)
+                            source.contains("device_db") -> getString(R.string.nova_optimization_device_tune)
+                            else -> ""
+                        }
+                        val generatedLabel = if (generatedAt > 0) {
+                            DateUtils.getRelativeTimeSpanString(
+                                generatedAt * 1000,
+                                System.currentTimeMillis(),
+                                DateUtils.MINUTE_IN_MILLIS,
+                                DateUtils.FORMAT_ABBREV_RELATIVE
+                            ).toString()
+                        } else {
+                            ""
+                        }
 
+                        aiLabel.text = titleLabel
                         aiSettings.text = settingsText
-                        aiSource.text = sourceLabel
-                        if (reasoning.isNotEmpty()) {
-                            aiReasoning.text = reasoning
+                        aiSource.text = listOf(
+                            stateLabel.takeIf { it.isNotBlank() },
+                            sourceLabel.takeIf { it.isNotBlank() && sourceLabel != titleLabel },
+                            confidence.takeIf { it.isNotBlank() }?.lowercase()?.plus(" confidence"),
+                            generatedLabel.takeIf { it.isNotBlank() }
+                        ).filter { !it.isNullOrBlank() }.joinToString(" · ")
+                        val fullReasoning = listOf(reasoning, normalizationReason)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" ")
+                        if (fullReasoning.isNotEmpty()) {
+                            aiReasoning.text = fullReasoning
                             aiReasoning.visibility = View.VISIBLE
                         }
                         aiCard.visibility = View.VISIBLE

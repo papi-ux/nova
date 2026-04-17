@@ -149,13 +149,19 @@ public class CachedAppAssetLoader {
         private final WeakReference<ImageView> imageViewRef;
         private final WeakReference<TextView> textViewRef;
         private final boolean diskOnly;
+        private final boolean manageTextVisibility;
 
         private LoaderTuple tuple;
 
         public LoaderTask(ImageView imageView, TextView textView, boolean diskOnly) {
+            this(imageView, textView, diskOnly, textView != null);
+        }
+
+        public LoaderTask(ImageView imageView, TextView textView, boolean diskOnly, boolean manageTextVisibility) {
             this.imageViewRef = new WeakReference<>(imageView);
             this.textViewRef = new WeakReference<>(textView);
             this.diskOnly = diskOnly;
+            this.manageTextVisibility = manageTextVisibility;
         }
 
         @Override
@@ -163,7 +169,7 @@ public class CachedAppAssetLoader {
             tuple = params[0];
 
             // Check whether it has been cancelled or the views are gone
-            if (isCancelled() || imageViewRef.get() == null || textViewRef.get() == null) {
+            if (isCancelled() || imageViewRef.get() == null || (manageTextVisibility && textViewRef.get() == null)) {
                 return null;
             }
 
@@ -197,15 +203,20 @@ public class CachedAppAssetLoader {
             // If the current loader task for this view isn't us, do nothing
             final ImageView imageView = imageViewRef.get();
             final TextView textView = textViewRef.get();
+            if (imageView == null) {
+                return;
+            }
             if (getLoaderTask(imageView) == this) {
                 // Set off another loader task on the network executor. This time our AsyncDrawable
                 // will use the app image placeholder bitmap, rather than an empty bitmap.
-                LoaderTask task = new LoaderTask(imageView, textView, false);
+                LoaderTask task = new LoaderTask(imageView, textView, false, manageTextVisibility);
                 AsyncDrawable asyncDrawable = new AsyncDrawable(imageView.getResources(), noAppImageBitmap, task);
                 imageView.setImageDrawable(asyncDrawable);
                 imageView.startAnimation(AnimationUtils.loadAnimation(imageView.getContext(), R.anim.boxart_fadein));
                 imageView.setVisibility(View.VISIBLE);
-                textView.setVisibility(View.VISIBLE);
+                if (manageTextVisibility && textView != null) {
+                    textView.setVisibility(View.VISIBLE);
+                }
                 task.executeOnExecutor(networkExecutor, tuple);
             }
         }
@@ -219,11 +230,16 @@ public class CachedAppAssetLoader {
 
             final ImageView imageView = imageViewRef.get();
             final TextView textView = textViewRef.get();
+            if (imageView == null) {
+                return;
+            }
             if (getLoaderTask(imageView) == this) {
                 // Fade in the box art
                 if (bitmap != null) {
                     // Show the text if it's a placeholder
-                    textView.setVisibility(isBitmapPlaceholder(bitmap) ? View.VISIBLE : View.GONE);
+                    if (manageTextVisibility && textView != null) {
+                        textView.setVisibility(isBitmapPlaceholder(bitmap) ? View.VISIBLE : View.GONE);
+                    }
 
                     if (imageView.getVisibility() == View.VISIBLE) {
                         // Fade out the placeholder first
@@ -334,7 +350,15 @@ public class CachedAppAssetLoader {
                 (bitmap.originalWidth == 628 && bitmap.originalHeight == 888); // GFE 3.0
     }
 
+    public boolean populateImageView(NvApp app, ImageView imgView) {
+        return populateImageView(app, imgView, null, false);
+    }
+
     public boolean populateImageView(NvApp app, ImageView imgView, TextView textView) {
+        return populateImageView(app, imgView, textView, true);
+    }
+
+    private boolean populateImageView(NvApp app, ImageView imgView, TextView textView, boolean manageTextVisibility) {
         LoaderTuple tuple = new LoaderTuple(computer, app);
 
         // If there's already a task in progress for this view,
@@ -345,7 +369,9 @@ public class CachedAppAssetLoader {
         }
 
         // Always set the name text so we have it if needed later
-        textView.setText(app.getAppName());
+        if (manageTextVisibility && textView != null) {
+            textView.setText(app.getAppName());
+        }
 
         // First, try the memory cache in the current context
         ScaledBitmap bmp = memoryLoader.loadBitmapFromCache(tuple);
@@ -355,15 +381,19 @@ public class CachedAppAssetLoader {
             imgView.setImageBitmap(bmp.bitmap);
 
             // Show the text if it's a placeholder bitmap
-            textView.setVisibility(isBitmapPlaceholder(bmp) ? View.VISIBLE : View.GONE);
+            if (manageTextVisibility && textView != null) {
+                textView.setVisibility(isBitmapPlaceholder(bmp) ? View.VISIBLE : View.GONE);
+            }
             return true;
         }
 
         // If it's not in memory, create an async task to load it. This task will be attached
         // via AsyncDrawable to this view.
-        final LoaderTask task = new LoaderTask(imgView, textView, true);
+        final LoaderTask task = new LoaderTask(imgView, textView, true, manageTextVisibility);
         final AsyncDrawable asyncDrawable = new AsyncDrawable(imgView.getResources(), placeholderBitmap, task);
-        textView.setVisibility(View.INVISIBLE);
+        if (manageTextVisibility && textView != null) {
+            textView.setVisibility(View.INVISIBLE);
+        }
         imgView.setVisibility(View.INVISIBLE);
         imgView.setImageDrawable(asyncDrawable);
 

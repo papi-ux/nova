@@ -125,6 +125,16 @@
     <string name="nova_library_launch_mode_unavailable_format">%1$s · Unavailable</string>
     <string name="nova_library_launching_mode">Launching %1$s in %2$s…</string>
     <string name="nova_library_ai_recommended_label">Optimized</string>
+    <string name="nova_library_ai_baseline_label">Baseline</string>
+    <string name="nova_library_ai_live_label">AI tune</string>
+    <string name="nova_library_ai_cached_label">Cached AI</string>
+    <string name="nova_library_ai_recovery_label">Recovery tune</string>
+    <string name="nova_library_ai_baseline_source_label">Baseline device tune</string>
+    <string name="nova_optimization_host_adjusted">Host adjusted</string>
+    <string name="nova_optimization_cached">Cached</string>
+    <string name="nova_optimization_recovery">Recovery</string>
+    <string name="nova_optimization_fresh">Fresh</string>
+    <string name="nova_optimization_device_tune">Device tune</string>
 
     <!-- Actions -->
     <string name="nova_retry">Retry</string>
@@ -264,6 +274,12 @@
     <string name="applist_menu_export_launcher">Export Launcher File</string>
     <string name="applist_menu_tv_channel">Add to Channel</string>
     <string name="applist_menu_hide_app">Hide App</string>
+    <string name="applist_hero_continue">Continue</string>
+    <string name="applist_hero_live">Live</string>
+    <string name="applist_hero_watch">Watch</string>
+    <string name="applist_hero_summary_continue">Pick up where you left off</string>
+    <string name="applist_hero_summary_resume">Resume your active session on this device</string>
+    <string name="applist_hero_summary_watch">Another device owns the current session</string>
     <string name="applist_refresh_title">App List</string>
     <string name="applist_refresh_msg">Refreshing apps…</string>
     <string name="applist_refresh_error_title">Error</string>

@@ -3633,14 +3633,18 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         com.papi.nova.api.PolarisApiClient client =
                             new com.papi.nova.api.PolarisApiClient(Game.this, reportHost, httpsPort);
                         client.sendSessionReport(
-                            reportDevice, reportGame,
+                            reportDevice, uniqueId, reportGame,
                             ((Number) summary.getOrDefault("avg_fps", 0.0)).doubleValue(),
+                            ((Number) summary.getOrDefault("target_fps", 0.0)).doubleValue(),
                             ((Number) summary.getOrDefault("avg_latency_ms", 0.0)).doubleValue(),
                             ((Number) summary.getOrDefault("avg_bitrate_kbps", 0)).intValue(),
                             ((Number) summary.getOrDefault("packet_loss_pct", 0.0)).doubleValue(),
                             (String) summary.getOrDefault("codec", ""),
                             ((Number) summary.getOrDefault("duration_s", 0)).intValue(),
-                            "disconnect"
+                            "disconnect",
+                            (String) summary.getOrDefault("optimization_source", ""),
+                            (String) summary.getOrDefault("optimization_confidence", ""),
+                            ((Number) summary.getOrDefault("recommendation_version", 0)).intValue()
                         );
                     } catch (Exception e) {
                         com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e.getMessage());
