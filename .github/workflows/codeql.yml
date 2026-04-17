@@ -16,6 +16,10 @@ permissions:
 jobs:
   analyze:
     name: Analyze Java/Kotlin
+    # Private repositories require GitHub Code Security before CodeQL can upload SARIF.
+    # Keep public repos scanning by default, and allow private repos to opt in once
+    # repository-side code scanning is enabled.
+    if: ${{ !github.event.repository.private || vars.ENABLE_PRIVATE_CODEQL == 'true' }}
     runs-on: ubuntu-latest
 
     steps:

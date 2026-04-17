@@ -3618,6 +3618,21 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public void stageComplete(String stage) {
     }
 
+    private static double getSummaryDouble(java.util.Map<String, Object> summary, String key, double fallback) {
+        Object value = summary.get(key);
+        return value instanceof Number ? ((Number) value).doubleValue() : fallback;
+    }
+
+    private static int getSummaryInt(java.util.Map<String, Object> summary, String key, int fallback) {
+        Object value = summary.get(key);
+        return value instanceof Number ? ((Number) value).intValue() : fallback;
+    }
+
+    private static String getSummaryString(java.util.Map<String, Object> summary, String key) {
+        Object value = summary.get(key);
+        return value instanceof String ? (String) value : "";
+    }
+
     private void stopConnection() {
         if (connecting || connected) {
             connecting = connected = false;
@@ -3634,17 +3649,17 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                             new com.papi.nova.api.PolarisApiClient(Game.this, reportHost, httpsPort);
                         client.sendSessionReport(
                             reportDevice, uniqueId, reportGame,
-                            ((Number) summary.getOrDefault("avg_fps", 0.0)).doubleValue(),
-                            ((Number) summary.getOrDefault("target_fps", 0.0)).doubleValue(),
-                            ((Number) summary.getOrDefault("avg_latency_ms", 0.0)).doubleValue(),
-                            ((Number) summary.getOrDefault("avg_bitrate_kbps", 0)).intValue(),
-                            ((Number) summary.getOrDefault("packet_loss_pct", 0.0)).doubleValue(),
-                            (String) summary.getOrDefault("codec", ""),
-                            ((Number) summary.getOrDefault("duration_s", 0)).intValue(),
+                            getSummaryDouble(summary, "avg_fps", 0.0),
+                            getSummaryDouble(summary, "target_fps", 0.0),
+                            getSummaryDouble(summary, "avg_latency_ms", 0.0),
+                            getSummaryInt(summary, "avg_bitrate_kbps", 0),
+                            getSummaryDouble(summary, "packet_loss_pct", 0.0),
+                            getSummaryString(summary, "codec"),
+                            getSummaryInt(summary, "duration_s", 0),
                             "disconnect",
-                            (String) summary.getOrDefault("optimization_source", ""),
-                            (String) summary.getOrDefault("optimization_confidence", ""),
-                            ((Number) summary.getOrDefault("recommendation_version", 0)).intValue()
+                            getSummaryString(summary, "optimization_source"),
+                            getSummaryString(summary, "optimization_confidence"),
+                            getSummaryInt(summary, "recommendation_version", 0)
                         );
                     } catch (Exception e) {
                         com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e.getMessage());
