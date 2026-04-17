@@ -11,7 +11,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Install](#install) · [Quick Start](#quick-start) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [FAQ](#faq)
+[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [FAQ](#faq)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · **Donate**: [Ko-fi](https://ko-fi.com/papiux) · [PayPal](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
 
@@ -76,6 +76,24 @@ Nova gets the best experience when the host is Polaris:
 
 Nova still works as a standard Moonlight client. Pair normally, launch normally, and stream normally. Polaris-only UI simply stays out of the way.
 
+## Compatibility
+
+| Area | Status | Notes |
+|---|---|---|
+| Android handhelds | Primary target | Designed first for landscape handheld use |
+| Android phones and tablets | Supported | Works well, but the UX is tuned most heavily for handhelds |
+| Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, and live-session integration |
+| Sunshine / Apollo | Compatible | Standard Moonlight-compatible client flow |
+| High refresh devices | Supported | Nova can request 90/120 Hz when the device display and host both support it |
+| Official release asset | `arm64-v8a` | Public GitHub Releases currently ship `app-nonRoot_game-arm64-v8a-release.apk` |
+
+## Known Limitations
+
+- Advanced launch modes, watch mode, live host tuning, and richer session telemetry are Polaris-specific.
+- Nova is not on the Play Store; the public install path is GitHub Releases or Obtainium.
+- High refresh streaming is limited by the real display panel on the Android device, not just the selected setting in Nova.
+- The public release asset is currently `arm64-v8a` only. Other ABIs are available from local source builds.
+
 ## Why Nova
 
 Nova is a Moonlight-compatible Android client built for handhelds first, not desktop assumptions squeezed onto a touch screen.
@@ -96,7 +114,7 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | Stream tuning | Toggle Adaptive Bitrate, AI Optimizer, and MangoHud from the quick menu |
 | Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
 
-## At A Glance
+## Feature Summary
 
 | Area | What You Get |
 |---|---|
