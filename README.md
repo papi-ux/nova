@@ -40,7 +40,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 **Recommended install path**
 
 1. Download the latest release from GitHub Releases or add Nova to Obtainium.
-2. Install the signed Android release APK: `app-nonRoot_game-arm64-v8a-release-signed.apk`.
+2. Install the Android release APK: `app-nonRoot_game-arm64-v8a-release.apk`.
 3. Open Nova, add or discover your host, then pair it.
 
 > [!NOTE]
@@ -242,7 +242,7 @@ cd nova
 By default, local source builds produce split APKs for `arm64-v8a` and `x86_64`.
 
 > [!TIP]
-> Official GitHub releases ship a signed `arm64-v8a` APK for real devices.
+> Official GitHub releases ship a signed `arm64-v8a` APK for real devices as `app-nonRoot_game-arm64-v8a-release.apk`.
 >
 > If you want a different ABI set locally:
 > `./gradlew assembleNonRoot_gameDebug -PnovaAbis=arm64-v8a,armeabi-v7a,x86,x86_64`
@@ -347,3 +347,9 @@ Contributions are welcome: bug fixes, features, UI polish, documentation, and tr
 Nova is licensed under the **GNU General Public License v3.0**. See [LICENSE.txt](LICENSE.txt) for the full text.
 
 Nova is a fork of [Artemis](https://github.com/ClassicOldSong/moonlight-android) by ClassicOldSong, which is itself a fork of [Moonlight Android](https://github.com/moonlight-stream/moonlight-android) by Cameron Gutman, Diego Waxemberg, Aaron Neyer, and Andrew Hennessy. All are GPLv3. The native streaming core is [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c).
+
+## AI Transparency
+
+Nova is built with help from AI tools, including Anthropic Claude, OpenAI Codex, and local models.
+
+I use them as engineering assistants for brainstorming, UI exploration, debugging, refactoring, tests, and documentation. Final design choices, code review, integration, and release decisions are still mine, and anything shipped in this repo is manually reviewed and tested before release.
