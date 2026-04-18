@@ -73,6 +73,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           target: google_apis
+          disk-size: 3072M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics
           script: ./gradlew -PnovaAbis=x86_64 connectedNonRoot_gameDebugAndroidTest
 
