@@ -11,7 +11,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Changelog](CHANGELOG.md) · [FAQ](#faq)
+[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Platforms](docs/multi_platform_monorepo.md) · [Changelog](CHANGELOG.md) · [FAQ](#faq)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · **Donate**: [Ko-fi](https://ko-fi.com/papiux) · [PayPal](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
 
@@ -29,7 +29,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 
 <div align="center">
 
-[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-Get_Nova-7c73ff?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJMMi41IDcuNVYxNi41TDEyIDIybDkuNS01LjVWNy41TDEyIDJ6bTAgMi4xN2w2LjkgNHYuMDFsLTYuOSA0LTYuOS00di0uMDFMNiA4LjE3bDYtMy44M3oiLz48L3N2Zz4=&labelColor=1a1a2e)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%20%22com.papi.nova%22%2C%20%22url%22%3A%20%22https%3A//github.com/papi-ux/nova%22%2C%20%22author%22%3A%20%22papi-ux%22%2C%20%22name%22%3A%20%22Nova%22%2C%20%22additionalSettings%22%3A%20%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22arm64%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%7D%22%7D)
+[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-Get_Nova-7c73ff?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJMMi41IDcuNVYxNi41TDEyIDIybDkuNS01LjVWNy41TDEyIDJ6bTAgMi4xN2w2LjkgNHYuMDFsLTYuOSA0LTYuOS00di0uMDFMNiA4LjE3bDYtMy44M3oiLz48L3N2Zz4=&labelColor=1a1a2e)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22app-nonRoot_game-arm64-v8a-release%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v(.%2B)%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%7D%22%7D)
 &nbsp;
 [![Get it on GitHub](https://img.shields.io/badge/GitHub-Releases-4c5265?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github.com/papi-ux/nova/releases/latest)
 
@@ -40,6 +40,8 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 1. Download the latest release from GitHub Releases or add Nova to Obtainium.
 2. Install the Android release APK: `app-nonRoot_game-arm64-v8a-release.apk`.
 3. Open Nova, add or discover your host, then pair it.
+
+The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly.
 
 > [!NOTE]
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
@@ -93,6 +95,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 - Nova is not on the Play Store; the public install path is GitHub Releases or Obtainium.
 - High refresh streaming is limited by the real display panel on the Android device, not just the selected setting in Nova.
 - The public release asset is currently `arm64-v8a` only. Other ABIs are available from local source builds.
+- Today, only the Android client ships. Steam Deck and iOS work are being staged inside this repo as future sibling clients.
 
 ## Why Nova
 
@@ -247,6 +250,17 @@ git clone --recursive https://github.com/papi-ux/nova.git
 cd nova
 ```
 
+### Repository Layout
+
+| Path | Purpose |
+|---|---|
+| `app/` | Current Android client |
+| `clients/deck/` | Future native Steam Deck client |
+| `clients/ios/` | Future native iOS client |
+| `shared/` | Future cross-client backend layers |
+
+The repo direction is documented in [Nova Multi-Platform Monorepo](docs/multi_platform_monorepo.md). Platform-specific architecture for the first non-Android client is tracked in [Steam Deck Native Port Study](docs/steam_deck_native_port_study.md).
+
 ### Build
 
 ```bash
@@ -334,6 +348,24 @@ On Polaris-backed Steam Big Picture and Steam/Proton titles, MangoHud can crash 
 </details>
 
 <details>
+<summary><b>Can Nova run natively on Steam Deck?</b></summary>
+
+Not today. Nova currently ships as an Android client, so a real Steam Deck version is a native Linux/SteamOS client rather than an APK packaging change.
+
+The current Deck architecture is documented in [Steam Deck Native Port Study](docs/steam_deck_native_port_study.md). The repo-level client layout and release model are documented in [Nova Multi-Platform Monorepo](docs/multi_platform_monorepo.md).
+
+</details>
+
+<details>
+<summary><b>How will multi-platform Nova work in one repo?</b></summary>
+
+Nova is moving toward a multi-client monorepo. Android stays in `app/`, Steam Deck will live in `clients/deck/`, iOS in `clients/ios/`, and Android TV stays inside the Android client.
+
+The release goal is one Nova tag and one GitHub release page with whichever platform assets are ready for that version.
+
+</details>
+
+<details>
 <summary><b>Why can't I find Nova on the Play Store?</b></summary>
 
 Nova is distributed through GitHub Releases and Obtainium. The official public release path is GitHub first.
@@ -344,7 +376,7 @@ Nova is distributed through GitHub Releases and Obtainium. The official public r
 
 Nova is built with help from AI tools, including Anthropic Claude, OpenAI Codex, and local models.
 
-I use them as engineering assistants for brainstorming, UI exploration, debugging, refactoring, tests, and documentation. Final design choices, code review, integration, and release decisions are still mine, and anything shipped in this repo is manually reviewed and tested before release.
+I use them the same way I'd use a second set of eyes: to brainstorm, pressure-test UI ideas, untangle bugs, speed up refactors, and help with tests and docs. Product direction, code review, integration, and release decisions are still mine, and I manually check what ships before it goes out.
 
 ## Contributing
 

@@ -2,6 +2,12 @@
 
 ## 2026-04-17
 
+### Release and repo hygiene
+
+- Tightened the public Obtainium configuration so it resolves directly to `app-nonRoot_game-arm64-v8a-release.apk` and tracks `v*` GitHub tags cleanly.
+- Refreshed the public docs around the multi-platform repo layout, Steam Deck planning notes, and release/install guidance.
+- Updated the Android CI workflows to use the current `setup-android` action and restored the emulator smoke test's hosted-runner KVM setup.
+
 ### Polaris-aware library and AI surfaces
 
 - Added clearer Polaris-backed session labels across the library, quick menu, HUD, and detail surfaces:
