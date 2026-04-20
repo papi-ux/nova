@@ -175,6 +175,10 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         val aiSettings = view.findViewById<TextView>(R.id.detail_ai_settings)
         val aiReasoning = view.findViewById<TextView>(R.id.detail_ai_reasoning)
         val aiSource = view.findViewById<TextView>(R.id.detail_ai_source)
+        val stabilityCard = view.findViewById<View>(R.id.detail_stability_card)
+        val stabilityLabel = view.findViewById<TextView>(R.id.detail_stability_label)
+        val stabilitySettings = view.findViewById<TextView>(R.id.detail_stability_settings)
+        val stabilityReasoning = view.findViewById<TextView>(R.id.detail_stability_reasoning)
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -249,6 +253,65 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             aiReasoning.visibility = View.VISIBLE
                         }
                         aiCard.visibility = View.VISIBLE
+                    }
+
+                    opt.optJSONObject("stability")?.let { stability ->
+                        val safeProfile = stability.optJSONObject("safe_profile")
+                        val safeProfileParts = mutableListOf<String>()
+                        val safeCodec = safeProfile?.optString("preferred_codec", "").orEmpty()
+                        if (safeCodec.isNotBlank()) {
+                            safeProfileParts += safeCodec.uppercase()
+                        }
+                        val safeBitrate = safeProfile?.optInt("target_bitrate_kbps", 0) ?: 0
+                        if (safeBitrate > 0) {
+                            safeProfileParts += "${safeBitrate / 1000} Mbps"
+                        }
+                        val safeDisplayMode = safeProfile?.optString("display_mode", "").orEmpty()
+                        if (safeDisplayMode.isNotBlank()) {
+                            safeProfileParts += modeBadgeLabel(safeDisplayMode)
+                        }
+                        if (safeProfile?.has("hdr") == true && !safeProfile.optBoolean("hdr", false)) {
+                            safeProfileParts += "HDR off"
+                        }
+
+                        val discouragedFeatures = stability.optJSONArray("discouraged_features")
+                        val firstDiscouragedReason = if (discouragedFeatures != null && discouragedFeatures.length() > 0) {
+                            discouragedFeatures.optJSONObject(0)?.optString("reason", "").orEmpty()
+                        } else {
+                            ""
+                        }
+                        val relaunchNotes = stability.optJSONArray("relaunch_notes")
+                        val relaunchNote = if (relaunchNotes != null && relaunchNotes.length() > 0) {
+                            relaunchNotes.optString(0)
+                        } else {
+                            ""
+                        }
+                        val stabilitySummary = stability.optString("summary", "")
+                        val stabilityMode = stability.optString("mode", "")
+                        val stabilityDetails = listOfNotNull(
+                            stabilitySummary.takeIf { it.isNotBlank() },
+                            firstDiscouragedReason.takeIf { it.isNotBlank() },
+                            relaunchNote.takeIf { it.isNotBlank() }
+                        ).joinToString(" ")
+
+                        if (safeProfileParts.isNotEmpty() || stabilityDetails.isNotBlank()) {
+                            val isStabilityFirst = stabilityMode.equals("stability_first", ignoreCase = true) ||
+                                opt.optInt("consecutive_poor_outcomes", 0) > 0
+                            stabilityLabel.text = if (isStabilityFirst) "Stability first" else "Safe fallback"
+                            stabilityLabel.setTextColor(
+                                ContextCompat.getColor(
+                                    requireContext(),
+                                    if (isStabilityFirst) R.color.nova_warning else R.color.nova_accent
+                                )
+                            )
+                            stabilitySettings.text = if (safeProfileParts.isNotEmpty()) {
+                                safeProfileParts.joinToString(" · ")
+                            } else {
+                                "Safer next launch"
+                            }
+                            stabilityReasoning.text = stabilityDetails
+                            stabilityCard.visibility = View.VISIBLE
+                        }
                     }
                 }
             } catch (_: Exception) {}

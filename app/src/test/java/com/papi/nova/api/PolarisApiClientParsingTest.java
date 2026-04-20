@@ -52,7 +52,13 @@ public class PolarisApiClientParsingTest {
                         "\"optimization_normalization_reason\":\"Adjusted bitrate to fit host limits.\"," +
                         "\"recommendation_version\":2," +
                         "\"target_device\":\"cuda\"," +
-                        "\"target_residency\":\"gpu\",\"target_format\":\"p010\"}}"
+                        "\"target_residency\":\"gpu\",\"target_format\":\"p010\"}," +
+                        "\"health\":{\"grade\":\"watch\",\"summary\":\"Network jitter is the most likely source of the hitching.\"," +
+                        "\"primary_issue\":\"network_jitter\",\"issues\":[\"network_jitter\",\"frame_pacing\"]," +
+                        "\"recommendations\":[\"Lower bitrate or keep Adaptive Bitrate enabled.\"]," +
+                        "\"safe_bitrate_kbps\":15000,\"safe_codec\":\"hevc\",\"safe_display_mode\":\"headless\"," +
+                        "\"safe_hdr\":false,\"decoder_risk\":\"normal\",\"hdr_risk\":\"normal\",\"network_risk\":\"elevated\"," +
+                        "\"relaunch_recommended\":true}}"
         );
 
         PolarisSessionStatus status = PolarisApiClient.parseSessionStatusResponse(json);
@@ -82,6 +88,14 @@ public class PolarisApiClientParsingTest {
         assertEquals("dmabuf", status.getCapture().getTransport());
         assertEquals("gpu", status.getEncoder().getTargetResidency());
         assertEquals("p010", status.getEncoder().getTargetFormat());
+        assertEquals("watch", status.getHealth().getGrade());
+        assertEquals("network_jitter", status.getHealth().getPrimaryIssue());
+        assertTrue(status.getHealth().getRecommendations().contains("Lower bitrate or keep Adaptive Bitrate enabled."));
+        assertEquals(15000, status.getHealth().getSafeBitrateKbps());
+        assertEquals("hevc", status.getHealth().getSafeCodec());
+        assertEquals("headless", status.getHealth().getSafeDisplayMode());
+        assertEquals(Boolean.FALSE, status.getHealth().getSafeHdr());
+        assertTrue(status.getHasHealthConcerns());
         assertTrue(status.isTenBitActive());
         assertTrue(status.isGpuPath());
         assertTrue(status.isViewer());

@@ -48,6 +48,13 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
     companion object {
         const val WEB_UI_HTTPS_PORT = 47990
 
+        private fun parseStringArray(array: org.json.JSONArray?): List<String> {
+            if (array == null) return emptyList()
+            return (0 until array.length()).mapNotNull { index ->
+                array.optString(index).takeIf { it.isNotBlank() }
+            }
+        }
+
         @JvmStatic
         fun parseCapabilitiesResponse(json: JSONObject): PolarisCapabilities {
             val features = json.optJSONObject("features")
@@ -85,6 +92,7 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             val displayMode = json.optJSONObject("display_mode")
             val capture = json.optJSONObject("capture")
             val encoder = json.optJSONObject("encoder")
+            val health = json.optJSONObject("health")
 
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
@@ -158,6 +166,21 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                     targetDevice = encoder?.optString("target_device", "") ?: "",
                     targetResidency = encoder?.optString("target_residency", "") ?: "",
                     targetFormat = encoder?.optString("target_format", "") ?: ""
+                ),
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = health?.optString("grade", "") ?: "",
+                    summary = health?.optString("summary", "") ?: "",
+                    primaryIssue = health?.optString("primary_issue", "") ?: "",
+                    issues = parseStringArray(health?.optJSONArray("issues")),
+                    recommendations = parseStringArray(health?.optJSONArray("recommendations")),
+                    safeBitrateKbps = health?.optInt("safe_bitrate_kbps", 0) ?: 0,
+                    safeCodec = health?.optString("safe_codec", "") ?: "",
+                    safeDisplayMode = health?.optString("safe_display_mode", "") ?: "",
+                    safeHdr = if (health?.has("safe_hdr") == true) health.optBoolean("safe_hdr") else null,
+                    decoderRisk = health?.optString("decoder_risk", "") ?: "",
+                    hdrRisk = health?.optString("hdr_risk", "") ?: "",
+                    networkRisk = health?.optString("network_risk", "") ?: "",
+                    relaunchRecommended = health?.optBoolean("relaunch_recommended", false) ?: false
                 )
             )
         }
@@ -487,7 +510,19 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                           avgBitrate: Int, packetLoss: Double, codec: String,
                           durationS: Int, endReason: String,
                           optimizationSource: String, optimizationConfidence: String,
-                          recommendationVersion: Int): Boolean {
+                          recommendationVersion: Int,
+                          healthGrade: String,
+                          primaryIssue: String,
+                          issues: List<String>,
+                          decoderRisk: String,
+                          hdrRisk: String,
+                          networkRisk: String,
+                          capturePath: String,
+                          safeBitrateKbps: Int,
+                          safeCodec: String,
+                          safeDisplayMode: String,
+                          safeHdr: Boolean?,
+                          relaunchRecommended: Boolean): Boolean {
         return try {
             val body = org.json.JSONObject().apply {
                 put("device", device)
@@ -504,6 +539,18 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                 if (optimizationSource.isNotBlank()) put("optimization_source", optimizationSource)
                 if (optimizationConfidence.isNotBlank()) put("optimization_confidence", optimizationConfidence)
                 if (recommendationVersion > 0) put("recommendation_version", recommendationVersion)
+                if (healthGrade.isNotBlank()) put("health_grade", healthGrade)
+                if (primaryIssue.isNotBlank()) put("primary_issue", primaryIssue)
+                if (issues.isNotEmpty()) put("issues", org.json.JSONArray(issues))
+                if (decoderRisk.isNotBlank()) put("decoder_risk", decoderRisk)
+                if (hdrRisk.isNotBlank()) put("hdr_risk", hdrRisk)
+                if (networkRisk.isNotBlank()) put("network_risk", networkRisk)
+                if (capturePath.isNotBlank()) put("capture_path", capturePath)
+                if (safeBitrateKbps > 0) put("safe_bitrate_kbps", safeBitrateKbps)
+                if (safeCodec.isNotBlank()) put("safe_codec", safeCodec)
+                if (safeDisplayMode.isNotBlank()) put("safe_display_mode", safeDisplayMode)
+                if (safeHdr != null) put("safe_hdr", safeHdr)
+                if (relaunchRecommended) put("relaunch_recommended", true)
             }
             val request = Request.Builder()
                 .url("$baseUrl/session/report")

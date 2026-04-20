@@ -50,6 +50,18 @@ class NovaStreamHud(private val activity: Activity) {
     private var optimizationSource = ""
     private var optimizationConfidence = ""
     private var recommendationVersion = 0
+    private var healthGrade = ""
+    private var healthPrimaryIssue = ""
+    private var healthIssues: List<String> = emptyList()
+    private var decoderRisk = ""
+    private var hdrRisk = ""
+    private var networkRisk = ""
+    private var capturePath = ""
+    private var safeBitrateKbps = 0
+    private var safeCodec = ""
+    private var safeDisplayMode = ""
+    private var safeHdr: Boolean? = null
+    private var relaunchRecommended = false
 
     // Mode cycling: full → banner → fps_only → full
     private val modes = listOf("full", "banner", "fps_only")
@@ -315,6 +327,18 @@ class NovaStreamHud(private val activity: Activity) {
             optimizationSource = status?.encoder?.optimizationSource.orEmpty()
             optimizationConfidence = status?.encoder?.optimizationConfidence.orEmpty()
             recommendationVersion = status?.encoder?.recommendationVersion ?: 0
+            healthGrade = status?.health?.grade.orEmpty()
+            healthPrimaryIssue = status?.health?.primaryIssue.orEmpty()
+            healthIssues = status?.health?.issues ?: emptyList()
+            decoderRisk = status?.health?.decoderRisk.orEmpty()
+            hdrRisk = status?.health?.hdrRisk.orEmpty()
+            networkRisk = status?.health?.networkRisk.orEmpty()
+            safeBitrateKbps = status?.health?.safeBitrateKbps ?: 0
+            safeCodec = status?.health?.safeCodec.orEmpty()
+            safeDisplayMode = status?.health?.safeDisplayMode.orEmpty()
+            safeHdr = status?.health?.safeHdr
+            relaunchRecommended = status?.health?.relaunchRecommended == true
+            capturePath = resolveCapturePath(status)
             sessionModeLabel = status?.let(::buildSessionModeLabel) ?: ""
             renderTargetFps()
             renderStreamMode()
@@ -328,6 +352,20 @@ class NovaStreamHud(private val activity: Activity) {
             } else if (currentMode == "banner") {
                 codecLabel?.text = sessionModeLabel
             }
+        }
+    }
+
+    private fun resolveCapturePath(status: PolarisSessionStatus?): String {
+        if (status == null) {
+            return ""
+        }
+        return when {
+            status.isVirtualDisplayMode -> "virtual_display"
+            status.capture.transport.equals("shm", ignoreCase = true) ||
+                status.capture.residency.equals("cpu", ignoreCase = true) ||
+                status.encoder.targetResidency.equals("cpu", ignoreCase = true) -> "cpu_fallback"
+            status.isHeadlessMode -> "headless"
+            else -> "desktop"
         }
     }
 
@@ -512,7 +550,7 @@ class NovaStreamHud(private val activity: Activity) {
     fun getSessionSummary(): Map<String, Any> {
         val durationS = if (sessionStartTime > 0)
             ((System.currentTimeMillis() - sessionStartTime) / 1000).toInt() else 0
-        return mapOf(
+        val summary = mutableMapOf<String, Any>(
             "avg_fps" to if (sessionSamples > 0) sessionFpsSum / sessionSamples else 0.0,
             "target_fps" to targetFps,
             "avg_latency_ms" to if (sessionSamples > 0) sessionLatencySum / sessionSamples else 0.0,
@@ -525,6 +563,19 @@ class NovaStreamHud(private val activity: Activity) {
             "optimization_confidence" to optimizationConfidence,
             "recommendation_version" to recommendationVersion
         )
+        if (healthGrade.isNotBlank()) summary["health_grade"] = healthGrade
+        if (healthPrimaryIssue.isNotBlank()) summary["primary_issue"] = healthPrimaryIssue
+        if (healthIssues.isNotEmpty()) summary["issues"] = healthIssues
+        if (decoderRisk.isNotBlank()) summary["decoder_risk"] = decoderRisk
+        if (hdrRisk.isNotBlank()) summary["hdr_risk"] = hdrRisk
+        if (networkRisk.isNotBlank()) summary["network_risk"] = networkRisk
+        if (capturePath.isNotBlank()) summary["capture_path"] = capturePath
+        if (safeBitrateKbps > 0) summary["safe_bitrate_kbps"] = safeBitrateKbps
+        if (safeCodec.isNotBlank()) summary["safe_codec"] = safeCodec
+        if (safeDisplayMode.isNotBlank()) summary["safe_display_mode"] = safeDisplayMode
+        safeHdr?.let { summary["safe_hdr"] = it }
+        if (relaunchRecommended) summary["relaunch_recommended"] = true
+        return summary
     }
 
     val isShowing get() = hudView != null

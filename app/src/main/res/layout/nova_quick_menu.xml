@@ -60,6 +60,16 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="Checking stream mode" />
+
+                <TextView
+                    android:id="@+id/quick_menu_health_summary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:maxLines="2"
+                    android:text="Checking session health"
+                    android:textColor="@color/nova_text_muted"
+                    android:textSize="10sp" />
             </LinearLayout>
 
             <com.google.android.material.button.MaterialButton
@@ -164,6 +174,49 @@
                     android:text="Stream Tuning"
                     android:textColor="@color/nova_text_muted"
                     android:textSize="12sp" />
+
+                <LinearLayout
+                    android:id="@+id/action_stability_mode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:minHeight="52dp"
+                    android:orientation="horizontal"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
+                    android:paddingStart="2dp"
+                    android:paddingEnd="2dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Stability Mode"
+                            android:textColor="@color/nova_text_primary"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/stability_mode_caption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Safer live fallback"
+                            android:textColor="@color/nova_text_muted"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/stability_mode_state"
+                        style="@style/NovaQuickMenuState"
+                        android:text="Ready" />
+                </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/toggle_adaptive_bitrate"

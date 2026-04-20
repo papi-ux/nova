@@ -135,6 +135,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import android.view.SurfaceView;
 import android.view.ViewGroup;
 
@@ -196,6 +197,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     // Nova: Polaris integration
     private com.papi.nova.api.PolarisApiClient novaApiClient;
+    private volatile com.papi.nova.api.PolarisSessionStatus lastPolarisSessionStatus;
+    private final AtomicBoolean polarisSessionStatusRefreshInFlight = new AtomicBoolean(false);
     private com.papi.nova.manager.ConnectionResilienceManager novaResilienceManager;
     private com.papi.nova.api.PolarisEventSource novaEventSource;
     private com.papi.nova.ui.SessionProgressOverlay novaProgressOverlay;
@@ -233,6 +236,17 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean pointerSwiping = false;
     private boolean waitingForAllModifiersUp = false;
     private int specialKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+    private static final long POLARIS_SESSION_STATUS_REFRESH_MS = 15000L;
+    private final Runnable polarisSessionStatusRefreshTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!connected || !isStreamActive || timerHandler == null) {
+                return;
+            }
+            refreshPolarisLiveSessionStatus();
+            timerHandler.postDelayed(this, POLARIS_SESSION_STATUS_REFRESH_MS);
+        }
+    };
     private StreamContainer streamContainer;
     private long synthTouchDownTime = 0;
 
@@ -700,7 +714,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     public void onStateUpdate(String sessionState, boolean cageRunning, boolean screenLocked) {
                         novaProgressOverlay.updateState(sessionState, "");
                         if ("streaming".equals(sessionState)) {
-                            refreshPolarisLiveSessionStatus();
+                            schedulePolarisLiveSessionStatusRefresh(true);
                         }
                         if (com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasLockScreenControl()) {
                             if (screenLocked) {
@@ -1877,6 +1891,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         super.onDestroy();
 
         // Nova: clean up Polaris integration
+        stopPolarisLiveSessionStatusRefresh();
         stopCursorVisibilitySync();
         if (novaEventSource != null) novaEventSource.stop();
         if (novaProgressOverlay != null) novaProgressOverlay.dismiss();
@@ -3633,10 +3648,31 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         return value instanceof String ? (String) value : "";
     }
 
+    @SuppressWarnings("unchecked")
+    private static java.util.List<String> getSummaryStringList(java.util.Map<String, Object> summary, String key) {
+        Object value = summary.get(key);
+        if (value instanceof java.util.List<?>) {
+            java.util.ArrayList<String> result = new java.util.ArrayList<>();
+            for (Object item : (java.util.List<?>) value) {
+                if (item instanceof String) {
+                    result.add((String) item);
+                }
+            }
+            return result;
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    private static Boolean getSummaryBoolean(java.util.Map<String, Object> summary, String key) {
+        Object value = summary.get(key);
+        return value instanceof Boolean ? (Boolean) value : null;
+    }
+
     private void stopConnection() {
         if (connecting || connected) {
             connecting = connected = false;
             isStreamActive = false;
+            stopPolarisLiveSessionStatusRefresh();
             // Send AI session report before dismissing HUD
             if (novaHud != null && host != null) {
                 final java.util.Map<String, Object> summary = novaHud.getSessionSummary();
@@ -3659,7 +3695,19 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                             "disconnect",
                             getSummaryString(summary, "optimization_source"),
                             getSummaryString(summary, "optimization_confidence"),
-                            getSummaryInt(summary, "recommendation_version", 0)
+                            getSummaryInt(summary, "recommendation_version", 0),
+                            getSummaryString(summary, "health_grade"),
+                            getSummaryString(summary, "primary_issue"),
+                            getSummaryStringList(summary, "issues"),
+                            getSummaryString(summary, "decoder_risk"),
+                            getSummaryString(summary, "hdr_risk"),
+                            getSummaryString(summary, "network_risk"),
+                            getSummaryString(summary, "capture_path"),
+                            getSummaryInt(summary, "safe_bitrate_kbps", 0),
+                            getSummaryString(summary, "safe_codec"),
+                            getSummaryString(summary, "safe_display_mode"),
+                            getSummaryBoolean(summary, "safe_hdr"),
+                            Boolean.TRUE.equals(getSummaryBoolean(summary, "relaunch_recommended"))
                         );
                     } catch (Exception e) {
                         com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e.getMessage());
@@ -3916,6 +3964,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     novaHud = new com.papi.nova.ui.NovaStreamHud(Game.this);
                     novaHud.show();
                     novaHud.setTargetFps(configuredHudTargetFps);
+                    if (lastPolarisSessionStatus != null) {
+                        novaHud.applySessionStatus(lastPolarisSessionStatus);
+                    }
                     ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
                     boolean isMeteredConnection = connMgr != null && connMgr.isActiveNetworkMetered();
                     novaHud.setTargetBitrateKbps(isMeteredConnection ? prefConfig.meteredBitrate : prefConfig.bitrate);
@@ -3935,7 +3986,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         }).start();
                         return null;
                     });
-                    refreshPolarisLiveSessionStatus();
+                    schedulePolarisLiveSessionStatusRefresh(true);
                 }
 
                 // Start audio-driven haptics if enabled
@@ -4015,6 +4066,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         connecting = false;
         isStreamActive = true;
         syncPolarisCursorVisibility();
+        schedulePolarisLiveSessionStatusRefresh(true);
     }
 
     @Override
@@ -4526,19 +4578,42 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         cursorVisibilitySyncExecutor.shutdownNow();
     }
 
+    private void schedulePolarisLiveSessionStatusRefresh(boolean immediate) {
+        if (timerHandler == null || novaApiClient == null) {
+            return;
+        }
+        timerHandler.removeCallbacks(polarisSessionStatusRefreshTick);
+        if (immediate) {
+            refreshPolarisLiveSessionStatus();
+        }
+        timerHandler.postDelayed(polarisSessionStatusRefreshTick, POLARIS_SESSION_STATUS_REFRESH_MS);
+    }
+
+    private void stopPolarisLiveSessionStatusRefresh() {
+        if (timerHandler != null) {
+            timerHandler.removeCallbacks(polarisSessionStatusRefreshTick);
+        }
+        polarisSessionStatusRefreshInFlight.set(false);
+    }
+
     private void refreshPolarisLiveSessionStatus() {
-        if (novaApiClient == null) {
+        if (novaApiClient == null || !polarisSessionStatusRefreshInFlight.compareAndSet(false, true)) {
             return;
         }
 
         new Thread(() -> {
             try {
                 com.papi.nova.api.PolarisSessionStatus status = novaApiClient.getSessionStatus();
-                if (status != null && novaHud != null) {
-                    novaHud.applySessionStatus(status);
+                if (status != null) {
+                    lastPolarisSessionStatus = status;
+                    if (novaHud != null) {
+                        novaHud.applySessionStatus(status);
+                    }
                 }
             } catch (Exception e) {
                 com.papi.nova.LimeLog.warning("Nova: Live session status refresh failed: " + e.getMessage());
+            } finally {
+                polarisSessionStatusRefreshInFlight.set(false);
             }
         }, "NovaSessionStatus").start();
     }
