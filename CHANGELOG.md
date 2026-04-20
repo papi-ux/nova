@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 - 2026-04-20
+
+- Prepared Nova for the first public `v1.0.0` release line with refreshed public-facing docs, repo hygiene checks, and release metadata.
+- Tightened the public repo surface rules so maintainer-local files and session checkpoint notes are blocked from the tracked tree.
+- Landed the current Polaris-aware Android client surface:
+  richer session guidance, launch-mode awareness, reliability feedback, library polish, and live quick-menu controls.
+
 ## 2026-04-17
 
 ### Release and repo hygiene

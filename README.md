@@ -11,7 +11,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Platforms](docs/multi_platform_monorepo.md) · [Changelog](CHANGELOG.md) · [FAQ](#faq)
+[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Platforms](docs/multi_platform_monorepo.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [FAQ](#faq)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · **Donate**: [Ko-fi](https://ko-fi.com/papiux) · [PayPal](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
 
@@ -45,6 +45,9 @@ The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64
 
 > [!NOTE]
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
+
+> [!NOTE]
+> `v1.0.0` is the first public Nova release line. This repo intentionally includes scaffold-only `clients/` and `shared/` directories for the future Deck and iOS clients, but `app/` is still the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
@@ -255,9 +258,9 @@ cd nova
 | Path | Purpose |
 |---|---|
 | `app/` | Current Android client |
-| `clients/deck/` | Future native Steam Deck client |
-| `clients/ios/` | Future native iOS client |
-| `shared/` | Future cross-client backend layers |
+| `clients/deck/` | Public scaffold for the future native Steam Deck client |
+| `clients/ios/` | Public scaffold for the future native iOS client |
+| `shared/` | Public scaffold for future cross-client backend layers |
 
 The repo direction is documented in [Nova Multi-Platform Monorepo](docs/multi_platform_monorepo.md). Platform-specific architecture for the first non-Android client is tracked in [Steam Deck Native Port Study](docs/steam_deck_native_port_study.md).
 

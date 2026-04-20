@@ -51,8 +51,14 @@ app/.externalNativeBuild/
 AGENTS.md
 CLAUDE.md
 .codex
+.claude/
 .codex/
 .private/
+.envrc
+.direnv/
+*.code-workspace
+docs/.claude/
+docs/session-notes-*.md
 # Nova signing
 *.keystore
 signing.properties
