@@ -1,5 +1,5 @@
 name: Bug report
-description: Follow the troubleshooting guide before reporting a bug
+description: Share the details we need to reproduce a Nova issue
 title: "[Issue]: "
 labels: bug
 body:
@@ -8,8 +8,13 @@ body:
       value: |
         Thank you for taking the time to fill out this bug form!
 
-        **READ ME FIRST!**
-        If you're here because something basic is not working (like gamepad input, video, or similar), it's probably something specific to your setup, so make sure you've gone through the Troubleshooting Guide first: https://github.com/moonlight-stream/moonlight-docs/wiki/Troubleshooting
+        **READ ME FIRST**
+
+        Before filing:
+
+        - retry on the latest public Nova release
+        - note which host software you are using
+        - include logs or screenshots whenever possible
 
   - type: textarea
     id: describe-bug
@@ -29,14 +34,14 @@ body:
     id: affected-games
     attributes:
       label: Affected games
-      description: List the games you've tried that exhibit the issue. To see if the issue is game-specific, try streaming Steam Big Picture with Moonlight and see if the issue persists there.
+      description: List the games you've tried that exhibit the issue. To check whether the problem is game-specific, also try a basic launcher flow such as Steam Big Picture.
     validations:
       required: false
   - type: dropdown
     id: other-clients
     attributes:
-      label: Other Moonlight clients
-      description: Does the issue occur when using Moonlight on PC or iOS?
+      label: Other clients tested
+      description: Does the issue also happen in another Moonlight-compatible client on a different device?
       options:
         - "PC"
         - "iOS"
@@ -45,8 +50,8 @@ body:
   - type: dropdown
     id: settings-adjusted
     attributes:
-      label: Moonlight adjusted settings
-      description: Have any settings been adjusted from defaults?
+      label: Nova adjusted settings
+      description: Have any Nova settings been changed from defaults?
       options:
         - "Yes"
         - "No"
@@ -55,15 +60,15 @@ body:
   - type: textarea
     id: settings-adjusted-settings
     attributes:
-      label: Moonlight adjusted settings (please complete the following information)
-      description: If the settings have been adjusted, which settings have been changed?
+      label: Adjusted settings details
+      description: If you changed settings, which ones changed?
     validations:
       required: false
   - type: dropdown
     id: settings-default
     attributes:
-      label: Moonlight default settings
-      description: Does the problem still occur after reverting settings back to default?
+      label: Default settings retest
+      description: Does the problem still occur after reverting Nova settings back to default?
       options:
         - "Yes"
         - "No"
@@ -83,7 +88,7 @@ body:
     id: gamepad-on-screen
     attributes:
       label: Gamepad-related input issue
-      description: If gamepad input is not working, does it work if you use Moonlight's on-screen controls?
+      description: If gamepad input is not working, does it work if you use Nova's on-screen controls?
       options:
         - "Yes"
         - "No"
@@ -95,7 +100,6 @@ body:
       label: Gamepad-related streaming issue
       description: |
         Does the problem still remain if you stream the desktop and use https://html5gamepad.com to test your gamepad?
-        Instructions for streaming the desktop can be found here: https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide
       options:
         - "Yes"
         - "No"

@@ -5,15 +5,15 @@
 **Game streaming that feels native on Android.**
 
 Stream PC games to phones and handhelds over your local network.
-Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlight-compatible hosts such as Polaris, Sunshine, and Apollo.
+Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other Moonlight-compatible hosts.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1a1a2e)](https://github.com/papi-ux/nova/stargazers)
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Platforms](docs/multi_platform_monorepo.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [FAQ](#faq)
+[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [FAQ](#faq)
 
-**Support**: [Issues](https://github.com/papi-ux/nova/issues) · **Donate**: [Ko-fi](https://ko-fi.com/papiux) · [PayPal](https://www.paypal.com/donate/?hosted_button_id=KD9R5KLYF6GN4)
+**Support**: [Issues](https://github.com/papi-ux/nova/issues)
 
 <br/>
 
@@ -41,13 +41,18 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with Moonlig
 2. Install the Android release APK: `app-nonRoot_game-arm64-v8a-release.apk`.
 3. Open Nova, add or discover your host, then pair it.
 
+| Public release asset | Use it for |
+|---|---|
+| `app-nonRoot_game-arm64-v8a-release.apk` | Recommended Android install on real devices |
+| `app-nonRoot_game-arm64-v8a-release.apk.sha256` | Integrity check for the public APK |
+
 The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly.
 
 > [!NOTE]
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line. This repo intentionally includes scaffold-only `clients/` and `shared/` directories for the future Deck and iOS clients, but `app/` is still the only shipping client today.
+> `v1.0.0` is the first public Nova release line. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
@@ -77,7 +82,7 @@ Nova gets the best experience when the host is Polaris:
 - live host tuning for Adaptive Bitrate, AI Optimizer, and MangoHud
 - richer library metadata, cover art, and per-game recommendations
 
-### If you use Sunshine or Apollo
+### If you use another compatible host
 
 Nova still works as a standard Moonlight client. Pair normally, launch normally, and stream normally. Polaris-only UI simply stays out of the way.
 
@@ -88,7 +93,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 | Android handhelds | Primary target | Designed first for landscape handheld use |
 | Android phones and tablets | Supported | Works well, but the UX is tuned most heavily for handhelds |
 | Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, and live-session integration |
-| Sunshine / Apollo | Compatible | Standard Moonlight-compatible client flow |
+| Other Moonlight-compatible hosts | Compatible | Standard Moonlight-compatible client flow |
 | High refresh devices | Supported | Nova can request 90/120 Hz when the device display and host both support it |
 | Official release asset | `arm64-v8a` | Public GitHub Releases currently ship `app-nonRoot_game-arm64-v8a-release.apk` |
 
@@ -98,7 +103,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 - Nova is not on the Play Store; the public install path is GitHub Releases or Obtainium.
 - High refresh streaming is limited by the real display panel on the Android device, not just the selected setting in Nova.
 - The public release asset is currently `arm64-v8a` only. Other ABIs are available from local source builds.
-- Today, only the Android client ships. Steam Deck and iOS work are being staged inside this repo as future sibling clients.
+- Today, only the Android client ships.
 
 ## Why Nova
 
@@ -191,7 +196,7 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | Handheld UX | Built around landscape Android handhelds | More generic phone/tablet UI |
 
 > [!TIP]
-> Nova stays fully backward-compatible. It works with Sunshine, Apollo, and other Moonlight servers. Polaris-specific features appear only when the connected host supports them.
+> Nova stays backward-compatible with other Moonlight hosts. Polaris-specific features appear only when the connected host supports them.
 
 <details>
 <summary><b>Architecture</b></summary>
@@ -258,11 +263,8 @@ cd nova
 | Path | Purpose |
 |---|---|
 | `app/` | Current Android client |
-| `clients/deck/` | Public scaffold for the future native Steam Deck client |
-| `clients/ios/` | Public scaffold for the future native iOS client |
-| `shared/` | Public scaffold for future cross-client backend layers |
 
-The repo direction is documented in [Nova Multi-Platform Monorepo](docs/multi_platform_monorepo.md). Platform-specific architecture for the first non-Android client is tracked in [Steam Deck Native Port Study](docs/steam_deck_native_port_study.md).
+Android is the only public release target today.
 
 ### Build
 
@@ -309,7 +311,7 @@ adb install -r app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v
 ## FAQ
 
 <details>
-<summary><b>Does Nova work with Sunshine and Apollo, not just Polaris?</b></summary>
+<summary><b>Does Nova work with other Moonlight-compatible hosts, not just Polaris?</b></summary>
 
 Yes. Nova is a Moonlight-compatible client. Polaris adds the richest integration, but Nova still works with other Moonlight servers.
 
@@ -351,20 +353,9 @@ On Polaris-backed Steam Big Picture and Steam/Proton titles, MangoHud can crash 
 </details>
 
 <details>
-<summary><b>Can Nova run natively on Steam Deck?</b></summary>
+<summary><b>Is there a native Steam Deck or iOS client yet?</b></summary>
 
-Not today. Nova currently ships as an Android client, so a real Steam Deck version is a native Linux/SteamOS client rather than an APK packaging change.
-
-The current Deck architecture is documented in [Steam Deck Native Port Study](docs/steam_deck_native_port_study.md). The repo-level client layout and release model are documented in [Nova Multi-Platform Monorepo](docs/multi_platform_monorepo.md).
-
-</details>
-
-<details>
-<summary><b>How will multi-platform Nova work in one repo?</b></summary>
-
-Nova is moving toward a multi-client monorepo. Android stays in `app/`, Steam Deck will live in `clients/deck/`, iOS in `clients/ios/`, and Android TV stays inside the Android client.
-
-The release goal is one Nova tag and one GitHub release page with whichever platform assets are ready for that version.
+Not today. Nova currently ships as an Android client only.
 
 </details>
 
@@ -405,4 +396,4 @@ I build Nova and Polaris in my spare time because game streaming on Linux and An
 
 Nova is licensed under the **GNU General Public License v3.0**. See [LICENSE.txt](LICENSE.txt) for the full text.
 
-Nova is a fork of [Artemis](https://github.com/ClassicOldSong/moonlight-android) by ClassicOldSong, which is itself a fork of [Moonlight Android](https://github.com/moonlight-stream/moonlight-android) by Cameron Gutman, Diego Waxemberg, Aaron Neyer, and Andrew Hennessy. All are GPLv3. The native streaming core is [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c).
+Nova builds on [Artemis](https://github.com/ClassicOldSong/moonlight-android), [Moonlight Android](https://github.com/moonlight-stream/moonlight-android), and [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c) under GPLv3 lineage.

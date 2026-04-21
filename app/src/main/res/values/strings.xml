@@ -162,9 +162,9 @@
     <string name="pair_pc_ingame">Computer is currently in a game. You must close the game before pairing.</string>
     <string name="pair_pairing_title">Pairing</string>
     <string name="pair_pairing_msg">Please enter the following PIN on the target PC:</string>
-    <string name="pair_pairing_help">If your host PC is running Sunshine, navigate to the Sunshine web UI to enter the PIN.</string>
+    <string name="pair_pairing_help">If your host provides a pairing page in its web UI, open it and enter the PIN there.</string>
     <string name="pair_otp_pairing_msg">Pairing, please wait…</string>
-    <string name="pair_otp_pairing_help">OTP pairing is only available with Apollo, enter the PIN you just provided on the web UI manually if you\'re using other host software.</string>
+    <string name="pair_otp_pairing_help">OTP pairing is only available on hosts that support it. If your host uses manual PIN entry, enter the code in the host web UI instead.</string>
     <string name="pair_incorrect_pin">Incorrect PIN or Passphrase</string>
     <string name="pair_fail">Pairing failed</string>
     <string name="pair_already_in_progress">Pairing already in progress</string>
@@ -223,7 +223,7 @@
 
     <!-- General strings -->
     <string name="ip_hint">IP address of host PC</string>
-    <string name="searching_pc">Searching for host PCs on your local network…\n\nEnsure Apollo is running on your host PC.</string>
+    <string name="searching_pc">Searching for host PCs on your local network…\n\nMake sure your host streaming software is running.</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="lost_connection">Lost connection to PC</string>
@@ -314,7 +314,7 @@
     <string name="summary_seekbar_metered_bitrate">High bitrates consume more data, lower bitrates improve smoothness in metered networks.\nSet 0 for ¼ of the above bitrate settings.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="title_resolution_scale_factor">Resolution Scale Factor</string>
-    <string name="summary_resolution_scale_factor">Server side requested virtual screen resolution will be multiplied by this factor. Streaming resolution are not affected.\ne.g. 120% will make 2000x1000 become 2400x1200.\nSetting a higher scale factor will improve image quality for some games.\nRequires Apollo to take effect.</string>
+    <string name="summary_resolution_scale_factor">Server side requested virtual screen resolution will be multiplied by this factor. Streaming resolution are not affected.\ne.g. 120% will make 2000x1000 become 2400x1200.\nSetting a higher scale factor will improve image quality for some games.\nRequires a host that supports virtual display scaling.</string>
     <string name="resolution_prefix_native">Native</string>
     <string name="resolution_prefix_native_fullscreen">Native Full-Screen</string>
     <string name="resolution_prefix_native_landscape">(Landscape)</string>
@@ -570,8 +570,8 @@
     <string name="summary_manual_enter_bitrate">Enter bitrate manually.\nCan exceed the maximum range of the seekbar.</string>
     <string name="dialog_manual_enter_bitrate">Enter bitrate in Mbps. Round to 0.5.</string>
     <string name="title_custom_refresh_rate">Custom refresh rate</string>
-    <string name="summary_custom_refresh_rate">Enter refresh rate manually. Only supports Apollo.</string>
-    <string name="summary_custom_refresh_rate_display_cap">Enter refresh rate manually up to %1$d Hz on this display. Only supports Apollo.</string>
+    <string name="summary_custom_refresh_rate">Enter refresh rate manually. Requires a host that supports custom display modes.</string>
+    <string name="summary_custom_refresh_rate_display_cap">Enter refresh rate manually up to %1$d Hz on this display. Requires a host that supports custom display modes.</string>
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
     <string name="pref_refresh_rate_exceeds_display_cap">This display supports up to %1$d Hz</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
@@ -605,7 +605,7 @@
     <string name="summary_share_performance_logs">Share your performance logs with a bug report or support thread</string>
     <string name="title_share_performance_logs_button">Share Performance Logs</string>
     <string name="title_software_update">Software Update</string>
-    <string name="summary_software_update">Nova — Polaris Streaming Client. Built on Artemis/Moonlight</string>
+    <string name="summary_software_update">Nova for Polaris and other Moonlight-compatible hosts</string>
     <string name="title_follow_update">Follow Update</string>
     <string name="summary_follow_update">Get Nova updates via Obtainium</string>
     <string name="title_special_key_layout">Special Key Layout</string>
@@ -678,7 +678,7 @@
     <string name="title_checkbox_ignore_synth_events">Ignore synthetic events</string>
     <string name="summary_ignore_synth_events">Ignore synthetic events sent by the Android system. This may resolve issues where mouse clicks trigger other unexpected keys on certain devices.\nEnabling this option will cause the system\'s soft keyboard to stop working.</string>
     <string name="title_smart_clipboard_sync">Smart Clipboard Sync (Experimental)</string>
-    <string name="summary_smart_clipboard_sync">Automatically upload clipboard content to server when the stream starts/resumes, download clipboard from server when losing focus(requires Apollo)</string>
+    <string name="summary_smart_clipboard_sync">Automatically upload clipboard content when the stream starts or resumes, then pull remote clipboard updates when Nova loses focus. Requires a host that supports clipboard sync.</string>
     <string name="title_smart_clipboard_sync_toast">Clipboard Sync Toast</string>
     <string name="summary_smart_clipboard_sync_toast">Show toast for clipboard sync result</string>
     <string name="title_hide_clipboard_content">Hide clipboard content</string>
@@ -697,7 +697,7 @@
    	<string name="title_checkbox_forceTightThresholds">Tight Vsync (Experimental)</string>
     <string name="summary_checkbox_forceTightThresholds">Tighter VSYNC thresholds for lower latency; may increase drops.</string>
     <string name="title_checkbox_use_virtual_display">Use Virtual Display</string>
-    <string name="summary_checkbox_use_virtual_display">Prefer a dedicated virtual display when the host supports it.\nHeadless mode keeps streaming off your physical desktop; Virtual Display creates a separate display device that can match the client resolution and refresh rate.\nRequires Apollo as host streaming software.</string>
+    <string name="summary_checkbox_use_virtual_display">Prefer a dedicated virtual display when the host supports it.\nHeadless mode keeps streaming off your physical desktop; Virtual Display creates a separate display device that can match the client resolution and refresh rate.\nRequires a host with virtual display support.</string>
     <string name="title_checkbox_resume_without_confirm">Quick Resume</string>
     <string name="summary_checkbox_resume_without_confirm">Do not show resume menu when clicking resume button, resume the app immediately.</string>
     <string name="title_checkbox_enable_sticky_modifier_key_virtual_keyboard">Sticky modifier keys</string>
@@ -759,10 +759,10 @@
     <string name="game_menu_fetch_clipboard">Fetch Clipboard</string>
     <string name="game_menu_upload_clipboard">Upload Clipboard</string>
     <string name="game_dialog_title_server_cmd_empty">No Server Commands</string>
-    <string name="game_dialog_message_server_cmd_empty">Please make sure you\'re using Apollo as server software and has been granted this client with "Server Command" permission.</string>
+    <string name="game_dialog_message_server_cmd_empty">Make sure your host supports server commands and that this client has been granted the required permission.</string>
     <string name="vdisplay_not_ready">Virtual display driver isn\'t ready on the server. Please make sure the SudoVDA driver is installed and enabled.</string>
-    <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this server. Please use <a href=\"https://github.com/ClassicOldSong/Apollo\">Apollo</a> as the host streaming software.]]></string>
-    <string name="clipboard_sync_unsupported">This server does not support clipboard sync. Please install or upgrade your server to the latest version of Apollo.</string>
+    <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this server. Use a host that implements virtual display support, such as <a href=\"https://github.com/papi-ux/polaris\">Polaris</a>.]]></string>
+    <string name="clipboard_sync_unsupported">This server does not support clipboard sync. Install or upgrade a host that implements clipboard sync.</string>
     <string name="send_clipboard_failed">Failed to send clipboard: </string>
     <string name="external_display_info">External Display connected with: %1$dx%2$d at %3$.1fHz</string>
     <string name="notification_channel_name">External Display Control</string>
@@ -820,8 +820,8 @@
     <!-- AppView Toast Messages -->
     <string name="file_export_cancelled">File export cancelled.</string>
     <string name="app_removed_from_pc">App removed from PC</string>
-    <string name="title_export_sunshine_launcher_file">Export Launcher File for Sunshine</string>
-    <string name="message_export_sunshine_launcher_file">Exporting launcher file for Sunshine is unstable, and may break at any moment. You\'ll need to export again every time if you changed the app name or image.\nUse Apollo for a more stable experience.</string>
+    <string name="title_export_sunshine_launcher_file">Export Host Launcher File</string>
+    <string name="message_export_sunshine_launcher_file">Launcher export is host-specific and may break after app metadata changes. Re-export after changing the app name or image.\nPolaris provides the most stable experience for this flow.</string>
 
     <string name="title_enable_commit_text">Enable commit-text input (swipe/voice)</string>
     <string name="summary_enable_commit_text">Forward multi-character text from soft keyboards (gesture typing, predictions, voice dictation). May break games that rely on key-by-key input.</string>
