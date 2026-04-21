@@ -69,11 +69,11 @@ jobs:
       - name: Run instrumentation smoke test
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 33
+          api-level: 29
           arch: x86_64
-          profile: pixel_6
-          target: google_apis
-          disk-size: 3072M
+          profile: Nexus 6
+          target: default
+          disk-size: 1024M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics
           script: ./gradlew -PnovaAbis=x86_64 connectedNonRoot_gameDebugAndroidTest
 
