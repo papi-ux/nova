@@ -1109,7 +1109,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                         if (otp == null && passphrase == null) {
                             if (serverInfo.contains("<TofuEnabled>1</TofuEnabled>")) {
                                 LimeLog.info("TOFU: Server supports trusted subnet pairing, attempting auto-pair");
-                                PairState tofuState = pm.pair(serverInfo, "0000", null);
+                                PairState tofuState = pm.pair(serverInfo, "0000", null, true);
                                 if (tofuState == PairState.PAIRED) {
                                     message = null;
                                     success = true;
