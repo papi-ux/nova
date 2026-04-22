@@ -52,7 +52,7 @@ The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
@@ -370,7 +370,7 @@ Nova is distributed through GitHub Releases and Obtainium. The official public r
 
 Nova is built with help from AI tools, including Anthropic Claude, OpenAI Codex, and local models.
 
-I use them the same way I'd use a second set of eyes: to brainstorm, pressure-test UI ideas, untangle bugs, speed up refactors, and help with tests and docs. Product direction, code review, integration, and release decisions are still mine, and I manually check what ships before it goes out.
+I use them the same way I'd use a second set of eyes: for research, pressure-testing UI ideas, remediating pain points from older builds, untangling bugs, and helping with tests and docs. I've spent years working in cybersecurity, so I'm careful about validation, trust boundaries, and what actually makes it into a release. Product direction, code review, integration, and release decisions are still mine, and I manually check what ships before it goes out.
 
 ## Contributing
 
@@ -386,7 +386,7 @@ Contributions are welcome: bug fixes, features, UI polish, documentation, and tr
 
 ## Donate
 
-I build Nova and Polaris in my spare time because game streaming on Linux and Android deserves better tooling. If Nova is useful to you, donations help keep development moving.
+Nova started as a passion project because I couldn't find a handheld-first client and host stack that met my standards. I build Nova and Polaris in my spare time because game streaming on Linux and Android deserves better tooling. If Nova is useful to you, donations help keep development moving.
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=for-the-badge&logo=ko-fi&labelColor=1a1a2e)](https://ko-fi.com/papiux)
 &nbsp;
