@@ -48,6 +48,12 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly.
 
+If you install manually, verify the download before sideloading:
+
+```bash
+sha256sum -c app-nonRoot_game-arm64-v8a-release.apk.sha256
+```
+
 > [!NOTE]
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
@@ -127,16 +133,11 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | Stream tuning | Toggle Adaptive Bitrate, AI Optimizer, and MangoHud from the quick menu |
 | Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
 
-## Feature Summary
+## Core Features
 
-| Area | What You Get |
-|---|---|
-| Pairing | Trusted Pair (TOFU), QR, manual PIN |
-| Streaming | H.264, HEVC, AV1 decode |
-| HUD | Full, banner, FPS-only modes with actual vs target FPS |
-| Input | Gyro aim, audio haptics, gamepads, mouse modes |
-| Polaris | Library metadata, launch modes, tuning, watch mode, session reports |
-| Background | Quick Settings tile, keep-alive service, lock screen overlay |
+- **Streaming and HUD**: H.264, HEVC, and AV1 decode; full, banner, and FPS-only HUD modes; actual vs target FPS labels; reconnect overlay; quality presets for quick setup
+- **Input**: gyro aim, audio haptics, broad controller support, Direct/Trackpad/Relative mouse modes, and compact handheld on-screen controls
+- **Polaris flow**: host-backed library, Continue/watch flows, explicit Headless vs Virtual Display launches, AI source labels, live tuning, and warnings before risky MangoHud launches
 
 ## Screenshots
 
@@ -154,49 +155,6 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 <td><img src="docs/screenshots/nova-quick-menu-detail.png" width="400" alt="Quick menu"/><br/><sub>Quick menu for tuning, overlays, controls, and session actions</sub></td>
 </tr>
 </table>
-
-## Highlights
-
-### Streaming and HUD
-
-- H.264, HEVC, and AV1 decode
-- Full, banner, and FPS-only HUD modes
-- actual FPS vs target FPS labels, not one ambiguous number
-- reconnect overlay with retry/backoff instead of dropping immediately
-- quality presets for quick setup on new devices
-
-### Input
-
-- gyro aiming mapped to mouse delta
-- audio haptics with Off / Subtle / Strong modes
-- broad controller support with deadzone and face-button options
-- multiple mouse modes: Direct, Trackpad, Relative
-- on-screen controls with a newer compact handheld layout preset
-
-### Polaris-specific flow
-
-- host-backed library with authenticated cover loading
-- featured Continue card with cover art, live/watch state, and one-tap resume or watch
-- explicit Headless vs Virtual Display launch buttons in the library
-- host-recommended launch mode and reason text
-- owner vs viewer session awareness
-- AI recommendation source labels and host-adjusted runtime notes in Polaris-backed surfaces
-- live tuning controls in the quick menu
-- warnings before risky MangoHud launches on Steam Big Picture and Steam/Proton titles
-
-## Nova vs Standard Moonlight UI
-
-| | Nova | Standard Moonlight-style client flow |
-|---|---|---|
-| Pairing | Trusted Pair (TOFU), QR, PIN | Usually PIN-focused |
-| Library | Cover art, filters, metadata, detail sheet | Mostly app list / grid |
-| HUD | Multiple modes, draggable, ACT/TGT view | Simpler overlay |
-| Quick controls | Stream tuning, session actions, overlays | More limited session controls |
-| Polaris awareness | Launch modes, watch mode, live session state | Generic Moonlight protocol only |
-| Handheld UX | Built around landscape Android handhelds | More generic phone/tablet UI |
-
-> [!TIP]
-> Nova stays backward-compatible with other Moonlight hosts. Polaris-specific features appear only when the connected host supports them.
 
 <details>
 <summary><b>Architecture</b></summary>
