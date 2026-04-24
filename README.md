@@ -29,7 +29,9 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 <div align="center">
 
-[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-Get_Nova-7c73ff?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJMMi41IDcuNVYxNi41TDEyIDIybDkuNS01LjVWNy41TDEyIDJ6bTAgMi4xN2w2LjkgNHYuMDFsLTYuOSA0LTYuOS00di0uMDFMNiA4LjE3bDYtMy44M3oiLz48L3N2Zz4=&labelColor=1a1a2e)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22app-nonRoot_game-arm64-v8a-release%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v(.%2B)%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%7D%22%7D)
+[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-Get_Nova-7c73ff?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJMMi41IDcuNVYxNi41TDEyIDIybDkuNS01LjVWNy41TDEyIDJ6bTAgMi4xN2w2LjkgNHYuMDFsLTYuOSA0LTYuOS00di0uMDFMNiA4LjE3bDYtMy44M3oiLz48L3N2Zz4=&labelColor=1a1a2e)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22app-nonRoot_game-arm64-v8a-release%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%7D%22%7D)
+&nbsp;
+[![Get it on GitHub Store](https://img.shields.io/badge/GitHub_Store-Get_Nova-24292f?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github-store.org/app?repo=papi-ux/nova)
 &nbsp;
 [![Get it on GitHub](https://img.shields.io/badge/GitHub-Releases-4c5265?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github.com/papi-ux/nova/releases/latest)
 
@@ -37,7 +39,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 **Recommended install path**
 
-1. Download the latest release from GitHub Releases or add Nova to Obtainium.
+1. Download the latest release from GitHub Releases, add Nova to Obtainium, or open it in GitHub Store.
 2. Install the Android release APK: `app-nonRoot_game-arm64-v8a-release.apk`.
 3. Open Nova, add or discover your host, then pair it.
 
@@ -46,7 +48,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 | `app-nonRoot_game-arm64-v8a-release.apk` | Recommended Android install on real devices |
 | `app-nonRoot_game-arm64-v8a-release.apk.sha256` | Integrity check for the public APK |
 
-The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly.
+The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer.
 
 If you install manually, verify the download before sideloading:
 
@@ -66,7 +68,7 @@ sha256sum -c app-nonRoot_game-arm64-v8a-release.apk.sha256
 
 ### First stream
 
-1. **Install Nova** from Obtainium or GitHub Releases.
+1. **Install Nova** from GitHub Store, Obtainium, or GitHub Releases.
 2. **Add your server** from the Servers screen. Polaris hosts appear automatically on the LAN when discovery is enabled.
 3. **Pair once** using one of three paths:
    - **Trusted Pair (TOFU)** on a trusted subnet
@@ -320,7 +322,7 @@ Not today. Nova currently ships as an Android client only.
 <details>
 <summary><b>Why can't I find Nova on the Play Store?</b></summary>
 
-Nova is distributed through GitHub Releases and Obtainium. The official public release path is GitHub first.
+Nova is distributed through GitHub Releases, Obtainium, and GitHub Store. The official public release path is GitHub first.
 
 </details>
 
