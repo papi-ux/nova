@@ -47,7 +47,7 @@ jobs:
         run: sdkmanager "ndk;27.0.12077973"
 
       - name: Build for CodeQL
-        run: ./gradlew -PnovaAbis=x86_64 assembleNonRoot_gameDebug
+        run: ./gradlew --no-build-cache --no-configuration-cache --rerun-tasks -PnovaAbis=x86_64 assembleNonRoot_gameDebug
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4
