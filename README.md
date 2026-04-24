@@ -328,18 +328,18 @@ Nova is distributed through GitHub Releases, Obtainium, and GitHub Store. The of
 
 ## AI Transparency
 
-Nova is built with help from AI tools, including Anthropic Claude, OpenAI Codex, and local models.
+Nova is built by me, with help from AI tools including Anthropic Claude, OpenAI Codex, and local models.
 
-I use them the same way I'd use a second set of eyes: for research, pressure-testing UI ideas, remediating pain points from older builds, untangling bugs, and helping with tests and docs. I've spent years working in cybersecurity, so I'm careful about validation, trust boundaries, and what actually makes it into a release. Product direction, code review, integration, and release decisions are still mine, and I manually check what ships before it goes out.
+I use them as a sounding board: to compare approaches, pressure-test UI ideas, draft tests and docs, chase down awkward bugs, and spot things I might have missed. They do not decide what Nova is or what ships. I have been around engineering and IT for a while, and that has made me careful about validation, trust boundaries, and release quality. I review the work, test the pieces I can test, and own the final decisions.
 
 ## Contributing
 
-Contributions are welcome: bug fixes, features, UI polish, documentation, and translations.
+Contributions are welcome, especially focused fixes, UI polish, docs, translations, and careful feature work. Nova is still a small maintainer-led project, so the easiest pull requests to review are the ones that explain the problem clearly and keep the change scoped.
 
 1. Fork the repo and branch from `master`.
 2. Build with `./gradlew assembleNonRoot_gameDebug`.
 3. Test on a real device or emulator.
-4. Open a pull request that clearly explains what changed and why.
+4. Open a pull request that explains what changed, why it helps, and what you were able to test.
 
 > [!NOTE]
 > The native streaming layer in `app/src/main/jni/moonlight-core/` is a git submodule. Run `git submodule update --init --recursive` after cloning.
