@@ -107,47 +107,81 @@ jobs:
       - name: Build release APK
         run: ./gradlew assembleNonRoot_gameRelease
 
-      - name: Sign APK
+      - name: Sign APKs
         if: github.event_name != 'pull_request' && env.HAS_KEYSTORE_BASE64 == 'true'
         run: |
+          set -euo pipefail
+          shopt -s nullglob
+
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/keystore.jks
 
-          APK=$(find app/build/outputs/apk/nonRoot_game/release -name "*arm64*unsigned*.apk" | head -1)
-          SIGNED_APK="${APK/unsigned/signed}"
+          APK_DIR="app/build/outputs/apk/nonRoot_game/release"
+          unsigned_apks=("${APK_DIR}"/*release-unsigned.apk)
 
-          ${ANDROID_HOME}/build-tools/$(ls ${ANDROID_HOME}/build-tools/ | tail -1)/zipalign -v 4 "$APK" "${APK}.aligned"
-
-          ${ANDROID_HOME}/build-tools/$(ls ${ANDROID_HOME}/build-tools/ | tail -1)/apksigner sign \
-            --ks /tmp/keystore.jks \
-            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
-            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
-            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
-            --out "$SIGNED_APK" \
-            "${APK}.aligned"
-
-          echo "SIGNED_APK=$SIGNED_APK" >> $GITHUB_ENV
-
-      - name: Select APK artifact
-        run: |
-          if [ -n "${SIGNED_APK}" ]; then
-            APK_PATH="${SIGNED_APK}"
-          else
-            APK_PATH="$(find app/build/outputs/apk/nonRoot_game/release -name '*arm64*unsigned*.apk' | head -1)"
+          if [ "${#unsigned_apks[@]}" -eq 0 ]; then
+            echo "No unsigned release APKs found in ${APK_DIR}" >&2
+            exit 1
           fi
 
-          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
+          BUILD_TOOLS="${ANDROID_HOME}/build-tools/$(ls "${ANDROID_HOME}/build-tools/" | sort -V | tail -1)"
 
-      - name: Generate checksum
-        run: sha256sum "${APK_PATH}" > "${APK_PATH}.sha256"
+          for APK in "${unsigned_apks[@]}"; do
+            SIGNED_APK="${APK/-unsigned/}"
+
+            "${BUILD_TOOLS}/zipalign" -v 4 "$APK" "${APK}.aligned"
+
+            "${BUILD_TOOLS}/apksigner" sign \
+              --ks /tmp/keystore.jks \
+              --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+              --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+              --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+              --out "$SIGNED_APK" \
+              "${APK}.aligned"
+          done
+
+      - name: Select APK artifacts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          APK_DIR="app/build/outputs/apk/nonRoot_game/release"
+          APK_ASSET_DIR="${PWD}/release-assets"
+          mkdir -p "${APK_ASSET_DIR}"
+
+          signed_apks=("${APK_DIR}"/*-release.apk)
+
+          if [ "${#signed_apks[@]}" -gt 0 ]; then
+            apk_files=("${signed_apks[@]}")
+          else
+            apk_files=("${APK_DIR}"/*release-unsigned.apk)
+          fi
+
+          if [ "${#apk_files[@]}" -eq 0 ]; then
+            echo "No release APKs found in ${APK_DIR}" >&2
+            exit 1
+          fi
+
+          for apk in "${apk_files[@]}"; do
+            cp "$apk" "${APK_ASSET_DIR}/$(basename "$apk")"
+          done
+
+          echo "APK_ASSET_DIR=${APK_ASSET_DIR}" >> "$GITHUB_ENV"
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          for apk in "${APK_ASSET_DIR}"/*.apk; do
+            sha256sum "$apk" > "$apk.sha256"
+          done
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
           name: nova-release-apk
-          path: |
-            ${{ env.APK_PATH }}
-            ${{ env.APK_PATH }}.sha256
+          path: ${{ env.APK_ASSET_DIR }}/*
           if-no-files-found: error
           retention-days: 3
 
@@ -157,7 +191,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          for file in "${APK_PATH}" "${APK_PATH}.sha256"; do
+          set -euo pipefail
+          shopt -s nullglob
+
+          release_assets=("${APK_ASSET_DIR}"/*.apk "${APK_ASSET_DIR}"/*.apk.sha256)
+
+          for file in "${release_assets[@]}"; do
             if [ ! -f "$file" ]; then
               echo "Missing release asset: $file" >&2
               exit 1
@@ -171,7 +210,7 @@ jobs:
               --generate-notes
           fi
 
-          gh release upload "${GITHUB_REF_NAME}" "${APK_PATH}" "${APK_PATH}.sha256" --clobber
+          gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber
 
       - name: Verify GitHub Release assets
         if: startsWith(github.ref, 'refs/tags/v')
@@ -179,8 +218,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+
           asset_count=$(gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets | length')
-          if [ "${asset_count}" -lt 2 ]; then
-            echo "Expected at least 2 release assets on ${GITHUB_REF_NAME}, found ${asset_count}" >&2
+          if [ "${asset_count}" -lt 4 ]; then
+            echo "Expected at least 4 release assets on ${GITHUB_REF_NAME}, found ${asset_count}" >&2
             exit 1
           fi
+
+          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'app-nonRoot_game-arm64-v8a-release.apk'
+          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'app-nonRoot_game-x86_64-release.apk'

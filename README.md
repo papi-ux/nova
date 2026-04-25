@@ -39,16 +39,18 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 **Recommended install path**
 
-1. Download the latest release from GitHub Releases, add Nova to Obtainium, or open it in GitHub Store.
-2. Install the Android release APK: `app-nonRoot_game-arm64-v8a-release.apk`.
+1. Download the latest release from GitHub Releases, add Nova to Obtainium, or open it in GitHub Store on Android.
+2. Install the APK that matches your Android device.
+   Most phones and handhelds use `app-nonRoot_game-arm64-v8a-release.apk`; x86_64 Android devices and emulators use `app-nonRoot_game-x86_64-release.apk`.
 3. Open Nova, add or discover your host, then pair it.
 
 | Public release asset | Use it for |
 |---|---|
-| `app-nonRoot_game-arm64-v8a-release.apk` | Recommended Android install on real devices |
-| `app-nonRoot_game-arm64-v8a-release.apk.sha256` | Integrity check for the public APK |
+| `app-nonRoot_game-arm64-v8a-release.apk` | Recommended Android install for phones and handhelds |
+| `app-nonRoot_game-x86_64-release.apk` | Android x86_64 devices and emulators |
+| `*.apk.sha256` | Integrity checks for the public APKs |
 
-The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer.
+The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer; GitHub Store filters assets for the device it is running on, so its desktop app may show Nova as unavailable because Nova ships Android APKs.
 
 If you install manually, verify the download before sideloading:
 
@@ -103,14 +105,14 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 | Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, and live-session integration |
 | Other Moonlight-compatible hosts | Compatible | Standard Moonlight-compatible client flow |
 | High refresh devices | Supported | Nova can request 90/120 Hz when the device display and host both support it |
-| Official release asset | `arm64-v8a` | Public GitHub Releases currently ship `app-nonRoot_game-arm64-v8a-release.apk` |
+| Official release assets | `arm64-v8a`, `x86_64` | Public GitHub Releases ship separate APKs per Android ABI |
 
 ## Known Limitations
 
 - Advanced launch modes, watch mode, live host tuning, and richer session telemetry are Polaris-specific.
 - Nova is not on the Play Store; the public install paths are GitHub Releases, Obtainium, and GitHub Store.
 - High refresh streaming is limited by the real display panel on the Android device, not just the selected setting in Nova.
-- The public release asset is currently `arm64-v8a` only. Other ABIs are available from local source builds.
+- Public releases currently ship `arm64-v8a` and `x86_64` APKs. Other ABIs are available from local source builds.
 - Today, only the Android client ships.
 
 ## Why Nova

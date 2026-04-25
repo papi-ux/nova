@@ -39,16 +39,17 @@ if missing:
     sys.exit(1)
 PY
 
-expected_asset="app-nonRoot_game-arm64-v8a-release.apk"
-expected_asset_prefix="app-nonRoot_game-arm64-v8a-release"
+expected_arm64_asset="app-nonRoot_game-arm64-v8a-release.apk"
+expected_x86_asset="app-nonRoot_game-x86_64-release.apk"
 expected_github_store_url="https://github-store.org/app?repo=papi-ux/nova"
 expected_obtainium_version_regex="versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29"
 
-grep -Fq "$expected_asset" README.md
+grep -Fq "$expected_arm64_asset" README.md
+grep -Fq "$expected_x86_asset" README.md
 grep -Fq "$expected_github_store_url" README.md
 grep -Fq "$expected_obtainium_version_regex" README.md
-grep -Fq "$expected_asset_prefix" app/build.gradle
-grep -Fq "find app/build/outputs/apk/nonRoot_game/release -name '*arm64*unsigned*.apk'" .github/workflows/build.yml
-grep -Fq 'gh release upload "${GITHUB_REF_NAME}" "${APK_PATH}" "${APK_PATH}.sha256" --clobber' .github/workflows/build.yml
+grep -Fq "arm64-v8a,x86_64" app/build.gradle
+grep -Fq "unsigned_apks=(\"\${APK_DIR}\"/*release-unsigned.apk)" .github/workflows/build.yml
+grep -Fq 'gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber' .github/workflows/build.yml
 
 echo "Public docs and release references look clean."
