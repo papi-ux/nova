@@ -29,11 +29,13 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 <div align="center">
 
-[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-Get_Nova-7c73ff?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJMMi41IDcuNVYxNi41TDEyIDIybDkuNS01LjVWNy41TDEyIDJ6bTAgMi4xN2w2LjkgNHYuMDFsLTYuOSA0LTYuOS00di0uMDFMNiA4LjE3bDYtMy44M3oiLz48L3N2Zz4=&labelColor=1a1a2e)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22app-nonRoot_game-arm64-v8a-release%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%7D%22%7D)
+[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-Get_Nova-7c73ff?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJMMi41IDcuNVYxNi41TDEyIDIybDkuNS01LjVWNy41TDEyIDJ6bTAgMi4xN2w2LjkgNHYuMDFsLTYuOSA0LTYuOS00di0uMDFMNiA4LjE3bDYtMy44M3oiLz48L3N2Zz4=&labelColor=1a1a2e)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22Nova-Android-arm64-v8a%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%7D%22%7D)
 &nbsp;
 [![Get it on GitHub Store](https://img.shields.io/badge/GitHub_Store-Get_Nova-24292f?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github-store.org/app?repo=papi-ux/nova)
 &nbsp;
 [![Get it on GitHub](https://img.shields.io/badge/GitHub-Releases-4c5265?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github.com/papi-ux/nova/releases/latest)
+&nbsp;
+[![Latest APK](https://img.shields.io/badge/Latest-ARM64_APK-4ade80?style=for-the-badge&logo=android&labelColor=1a1a2e)](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk)
 
 </div>
 
@@ -41,30 +43,30 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 1. Download the latest release from GitHub Releases, add Nova to Obtainium, or open it in GitHub Store on Android.
 2. Install the APK that matches your Android device.
-   Most phones and handhelds use `app-nonRoot_game-arm64-v8a-release.apk`; x86_64 Android devices and emulators use `app-nonRoot_game-x86_64-release.apk`.
+   Most phones and handhelds use `Nova-Android-arm64-v8a.apk`; x86_64 Android devices and emulators use `Nova-Android-x86_64.apk`.
 3. Open Nova, add or discover your host, then pair it.
 
 | Public release asset | Use it for |
 |---|---|
-| `app-nonRoot_game-arm64-v8a-release.apk` | Recommended Android install for phones and handhelds |
-| `app-nonRoot_game-x86_64-release.apk` | Android x86_64 devices and emulators |
+| `Nova-Android-arm64-v8a.apk` | Recommended Android install for phones and handhelds |
+| `Nova-Android-x86_64.apk` | Android x86_64 devices and emulators |
 | `*.apk.sha256` | Integrity checks for the public APKs |
 
-The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer; GitHub Store filters assets for the device it is running on, so its desktop app may show Nova as unavailable because Nova ships Android APKs.
+The latest direct APKs are always available through GitHub's latest-release URLs: `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk` and `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk`. The Obtainium link above is preconfigured for the ARM64 public asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer; GitHub Store filters assets for the device it is running on, so its desktop app may show Nova as unavailable because Nova ships Android APKs.
 
 F-Droid and IzzyOnDroid packaging notes are tracked in [docs/fdroid.md](docs/fdroid.md).
 
 If you install manually, verify the download before sideloading:
 
 ```bash
-sha256sum -c app-nonRoot_game-arm64-v8a-release.apk.sha256
+sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 ```
 
 > [!NOTE]
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, and `v1.0.1` adds the first store-packaging pass. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
@@ -243,7 +245,7 @@ Android is the only public release target today.
 By default, local source builds produce split APKs for `arm64-v8a` and `x86_64`.
 
 > [!TIP]
-> Official GitHub releases ship a signed `arm64-v8a` APK for real devices as `app-nonRoot_game-arm64-v8a-release.apk`.
+> Official GitHub releases ship a signed `arm64-v8a` APK for real devices as `Nova-Android-arm64-v8a.apk`.
 >
 > If you want a different ABI set locally:
 > `./gradlew assembleNonRoot_gameDebug -PnovaAbis=arm64-v8a,armeabi-v7a,x86,x86_64`

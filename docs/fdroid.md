@@ -23,7 +23,7 @@ The metadata is intentionally written for public stores and app-index mirrors:
 - title and short description are store-sized
 - full description avoids marketing-only language and names the Polaris relationship clearly
 - screenshots are copied from `docs/screenshots/`
-- changelog `15.txt` matches Nova `versionCode = 15`
+- changelog `16.txt` matches Nova `versionCode = 16`
 
 ## F-Droid Build Switch
 
@@ -90,15 +90,18 @@ CurrentVersion: 1.0.1
 CurrentVersionCode: 16
 ```
 
-Use the first tag that contains the F-Droid build switch and any source-built native dependency changes. Do not submit this sample against `v1.0.0`; that tag predates this packaging prep.
+`v1.0.1` contains the F-Droid build switch and store metadata. Official F-Droid main still needs the source-built native dependency path described above; do not submit this sample against `v1.0.0` because that tag predates the packaging prep.
 
 ## IzzyOnDroid Request Checklist
 
 Before requesting inclusion:
 
 - confirm the latest GitHub release has signed APK assets
+- confirm the release contains `Nova-Android-arm64-v8a.apk` and `Nova-Android-x86_64.apk`
 - confirm `fastlane/metadata/android/en-US` is present in the default branch
 - mention that Nova is Android-only and currently publishes `arm64-v8a` and `x86_64` APKs
 - mention that Nova is a game streaming client, not a bundled game
 - mention that Polaris-related tuning indicators are local host state, not a cloud AI service
 - link the release page: `https://github.com/papi-ux/nova/releases/latest`
+
+After IzzyOnDroid accepts Nova, add an IzzyOnDroid badge to the README beside the GitHub, GitHub Store, and Obtainium links.

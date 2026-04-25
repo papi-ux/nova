@@ -1,0 +1,5 @@
+Nova 1.0.1
+
+- Added store metadata, screenshots, and F-Droid/IzzyOnDroid packaging notes.
+- Added a F-Droid build switch that hides GitHub and Obtainium update shortcuts.
+- Renamed public APK assets to clearer Nova Android filenames.

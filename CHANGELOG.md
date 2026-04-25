@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 - 2026-04-25
+
+- Added Fastlane metadata, screenshots, and F-Droid/IzzyOnDroid packaging notes for public store review.
+- Added the `novaFdroid` build switch so F-Droid-style builds can hide GitHub and Obtainium update shortcuts.
+- Renamed public APK release assets to `Nova-Android-arm64-v8a.apk` and `Nova-Android-x86_64.apk`, with stable latest-download links through GitHub Releases.
+
 ## 1.0.0 - 2026-04-20
 
 - Prepared Nova for the first public `v1.0.0` release line with refreshed public-facing docs, repo hygiene checks, and release metadata.

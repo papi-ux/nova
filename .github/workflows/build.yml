@@ -161,8 +161,29 @@ jobs:
             exit 1
           fi
 
+          if [[ "${GITHUB_REF}" == refs/tags/v* && "${#signed_apks[@]}" -eq 0 ]]; then
+            echo "Refusing to publish unsigned APKs for ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
           for apk in "${apk_files[@]}"; do
-            cp "$apk" "${APK_ASSET_DIR}/$(basename "$apk")"
+            apk_name="$(basename "$apk")"
+            case "$apk_name" in
+              *arm64-v8a*) abi="arm64-v8a" ;;
+              *x86_64*) abi="x86_64" ;;
+              *)
+                echo "Could not determine ABI for ${apk_name}" >&2
+                exit 1
+                ;;
+            esac
+
+            if [[ "$apk_name" == *-unsigned.apk ]]; then
+              asset_name="Nova-Android-${abi}-unsigned.apk"
+            else
+              asset_name="Nova-Android-${abi}.apk"
+            fi
+
+            cp "$apk" "${APK_ASSET_DIR}/${asset_name}"
           done
 
           echo "APK_ASSET_DIR=${APK_ASSET_DIR}" >> "$GITHUB_ENV"
@@ -226,5 +247,5 @@ jobs:
             exit 1
           fi
 
-          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'app-nonRoot_game-arm64-v8a-release.apk'
-          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'app-nonRoot_game-x86_64-release.apk'
+          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'Nova-Android-arm64-v8a.apk'
+          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'Nova-Android-x86_64.apk'
