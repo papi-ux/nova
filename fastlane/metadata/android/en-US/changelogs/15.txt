@@ -1,0 +1,6 @@
+Initial public Nova release.
+
+- Added the current Polaris-aware Android client surface.
+- Added handheld-first server, library, stream, HUD, and quick-menu flows.
+- Added signed public APK assets for arm64-v8a and x86_64.
+- Added public install paths through GitHub Releases, Obtainium, and GitHub Store.

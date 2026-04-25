@@ -52,6 +52,8 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 The Obtainium link above is preconfigured for the public `app-nonRoot_game-arm64-v8a-release.apk` asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer; GitHub Store filters assets for the device it is running on, so its desktop app may show Nova as unavailable because Nova ships Android APKs.
 
+F-Droid and IzzyOnDroid packaging notes are tracked in [docs/fdroid.md](docs/fdroid.md).
+
 If you install manually, verify the download before sideloading:
 
 ```bash

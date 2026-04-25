@@ -409,6 +409,12 @@ public class StreamSettings extends AppCompatActivity {
             AppCompatActivity activity = (AppCompatActivity) requireActivity();
             PackageManager pm = activity.getPackageManager();
 
+            if (BuildConfig.FDROID_BUILD) {
+                PreferenceCategory advanced = findPreference("category_advanced");
+                removeIfExists(advanced, "option_software_release");
+                removeIfExists(advanced, "option_follow_update");
+            }
+
             // All input, gamepad, and OSC settings are now in category_input and category_overlays.
             // Hide touch-only overlay controls on non-touchscreen devices
             if (!pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {

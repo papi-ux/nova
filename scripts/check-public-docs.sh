@@ -51,5 +51,41 @@ grep -Fq "$expected_obtainium_version_regex" README.md
 grep -Fq "arm64-v8a,x86_64" app/build.gradle
 grep -Fq "unsigned_apks=(\"\${APK_DIR}\"/*release-unsigned.apk)" .github/workflows/build.yml
 grep -Fq 'gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber' .github/workflows/build.yml
+grep -Fq "F-Droid and IzzyOnDroid packaging notes" README.md
+grep -Fq 'buildConfigField "boolean", "FDROID_BUILD"' app/build.gradle
+grep -Fq "BuildConfig.FDROID_BUILD" app/src/main/java/com/papi/nova/preferences/StreamSettings.java
+
+metadata_dir="fastlane/metadata/android/en-US"
+required_metadata=(
+  "$metadata_dir/title.txt"
+  "$metadata_dir/short_description.txt"
+  "$metadata_dir/full_description.txt"
+  "$metadata_dir/changelogs/15.txt"
+  "$metadata_dir/images/icon.png"
+  "docs/fdroid.md"
+)
+
+for path in "${required_metadata[@]}"; do
+  if [[ ! -s "$path" ]]; then
+    echo "Missing or empty store metadata file: $path" >&2
+    exit 1
+  fi
+done
+
+short_description_len="$(python3 - <<'PY'
+from pathlib import Path
+print(len(Path("fastlane/metadata/android/en-US/short_description.txt").read_text(encoding="utf-8").strip()))
+PY
+)"
+if [[ "$short_description_len" -gt 80 ]]; then
+  echo "Fastlane short description is ${short_description_len} characters; keep it at 80 or less." >&2
+  exit 1
+fi
+
+phone_screenshot_count="$(find "$metadata_dir/images/phoneScreenshots" -type f -name '*.png' | wc -l)"
+if [[ "$phone_screenshot_count" -lt 4 ]]; then
+  echo "Expected at least 4 phone screenshots for store metadata, found $phone_screenshot_count." >&2
+  exit 1
+fi
 
 echo "Public docs and release references look clean."
