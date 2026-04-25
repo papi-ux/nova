@@ -1,178 +1,144 @@
 name: Bug report
-description: Share the details we need to reproduce a Nova issue
-title: "[Issue]: "
+description: Share the details needed to reproduce a Nova issue
+title: "[Bug]: "
 labels: bug
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to fill out this bug form!
-
-        **READ ME FIRST**
+        Thanks for filing a Nova bug report.
 
         Before filing:
 
         - retry on the latest public Nova release
         - note which host software you are using
-        - include logs or screenshots whenever possible
+        - include screenshots, recordings, or logs when they help explain the issue
 
   - type: textarea
     id: describe-bug
     attributes:
       label: Describe the bug
-      description: A clear and concise description of what the bug is.
+      description: A clear summary of what went wrong.
     validations:
       required: true
+
   - type: textarea
     id: steps-reproduce
     attributes:
       label: Steps to reproduce
-      description: Any special steps that are required for the bug to appear.
+      description: List the exact steps, including host selection, pairing, launch flow, and in-stream actions if relevant.
     validations:
       required: true
-  - type: textarea
-    id: affected-games
-    attributes:
-      label: Affected games
-      description: List the games you've tried that exhibit the issue. To check whether the problem is game-specific, also try a basic launcher flow such as Steam Big Picture.
-    validations:
-      required: false
+
   - type: dropdown
-    id: other-clients
+    id: install-source
     attributes:
-      label: Other clients tested
-      description: Does the issue also happen in another Moonlight-compatible client on a different device?
+      label: Install source
+      description: How did you install Nova?
       options:
-        - "PC"
-        - "iOS"
-    validations:
-      required: false
-  - type: dropdown
-    id: settings-adjusted
-    attributes:
-      label: Nova adjusted settings
-      description: Have any Nova settings been changed from defaults?
-      options:
-        - "Yes"
-        - "No"
-    validations:
-      required: false
-  - type: textarea
-    id: settings-adjusted-settings
-    attributes:
-      label: Adjusted settings details
-      description: If you changed settings, which ones changed?
-    validations:
-      required: false
-  - type: dropdown
-    id: settings-default
-    attributes:
-      label: Default settings retest
-      description: Does the problem still occur after reverting Nova settings back to default?
-      options:
-        - "Yes"
-        - "No"
+        - GitHub Releases
+        - Obtainium
+        - GitHub Store
+        - Local debug build
+        - Other
     validations:
       required: true
-  - type: dropdown
-    id: gamepad-connected
-    attributes:
-      label: Gamepad-related connection issue
-      description: Do you have any gamepads connected to your host PC directly?
-      options:
-        - "Yes"
-        - "No"
-    validations:
-      required: true
-  - type: dropdown
-    id: gamepad-on-screen
-    attributes:
-      label: Gamepad-related input issue
-      description: If gamepad input is not working, does it work if you use Nova's on-screen controls?
-      options:
-        - "Yes"
-        - "No"
-    validations:
-      required: true
-  - type: dropdown
-    id: gamepad-test
-    attributes:
-      label: Gamepad-related streaming issue
-      description: |
-        Does the problem still remain if you stream the desktop and use https://html5gamepad.com to test your gamepad?
-      options:
-        - "Yes"
-        - "No"
-    validations:
-      required: true
+
   - type: input
-    id: android
+    id: nova-version
     attributes:
-      label: Android version
-      description: What is the Android version?
-      placeholder: e.g. Android 10
+      label: Nova version
+      description: Release tag, APK version, or commit SHA.
+      placeholder: e.g. v1.0.0
     validations:
       required: true
+
   - type: input
     id: device
     attributes:
-      label: Device model
-      description: What is the device model?
-      placeholder: e.g. Samsung Galaxy S21
+      label: Android device
+      description: Device model and Android version.
+      placeholder: e.g. Retroid Pocket 6, Android 13
     validations:
       required: true
-  - type: input
-    id: server-os
+
+  - type: dropdown
+    id: host-software
     attributes:
-      label: Server PC OS version
-      description: What is the PC OS version?
-      placeholder: e.g. Windows 10 1809
+      label: Host software
+      description: Which host was Nova paired with?
+      options:
+        - Polaris
+        - Sunshine
+        - Other Moonlight-compatible host
+        - Unknown
     validations:
       required: true
+
   - type: input
-    id: server-geforce
+    id: host-version
     attributes:
-      label: Server PC GeForce Experience version
-      description: What is the GeForce Experience version?
-      placeholder: e.g. 3.16.0.140
+      label: Host version and OS
+      description: Host software version plus OS/distro when known.
+      placeholder: e.g. Polaris v1.0.1 on Fedora 42
     validations:
       required: false
-  - type: input
-    id: server-driver
+
+  - type: dropdown
+    id: issue-area
     attributes:
-      label: Server PC Nvidia GPU driver version
-      description: What is the Nvidia GPU driver version?
-      placeholder: e.g. 417.35
+      label: Issue area
+      options:
+        - Pairing / discovery
+        - Library / launch
+        - Streaming video
+        - Audio
+        - Input / controller / gyro
+        - Quick menu / HUD
+        - Watch mode
+        - Install / update
+        - Crash / freeze
+        - Other
     validations:
-      required: false
-  - type: input
-    id: server-antivirus
-    attributes:
-      label: Server PC antivirus and firewall software
-      description: Which antivirus and firewall software are installed on the Server PC?
-      placeholder: e.g. Windows Defender and Windows Firewall
-    validations:
-      required: false
+      required: true
+
   - type: textarea
-    id: screenshots
+    id: expected
     attributes:
-      label: Screenshots
-      description: If applicable, add screenshots to help explain your problem. If the issue is related to video glitching or poor quality, please include screenshots.
+      label: Expected behavior
+      description: What should have happened instead?
     validations:
       required: false
+
+  - type: textarea
+    id: comparison
+    attributes:
+      label: Comparison with another client
+      description: If you tried Moonlight or another client against the same host, what happened there?
+    validations:
+      required: false
+
   - type: textarea
     id: logs
     attributes:
       label: Relevant log output
-      description: |
-        Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      description: Paste Nova, Android, or host logs that help explain the issue. Remove secrets before posting.
       render: Shell
     validations:
       required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: Add screenshots, recordings, or photos if the issue is visual, input-related, or hard to describe.
+    validations:
+      required: false
+
   - type: textarea
     id: additional
     attributes:
       label: Additional context
-      description: Anything else you think may be relevant to the issue or special about your specific setup.
+      description: Network details, stream settings, affected games, or anything else that may help reproduce the problem.
     validations:
       required: false

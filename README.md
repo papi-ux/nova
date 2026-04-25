@@ -11,9 +11,9 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [FAQ](#faq)
+[Install](#install) · [Quick Start](#quick-start) · [Compatibility](#compatibility) · [Known Limitations](#known-limitations) · [Roadmap](ROADMAP.md) · [Why Nova](#why-nova) · [With Polaris](#with-polaris) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [FAQ](#faq)
 
-**Support**: [Issues](https://github.com/papi-ux/nova/issues)
+**Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
 <br/>
 
@@ -108,7 +108,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 ## Known Limitations
 
 - Advanced launch modes, watch mode, live host tuning, and richer session telemetry are Polaris-specific.
-- Nova is not on the Play Store; the public install path is GitHub Releases or Obtainium.
+- Nova is not on the Play Store; the public install paths are GitHub Releases, Obtainium, and GitHub Store.
 - High refresh streaming is limited by the real display panel on the Android device, not just the selected setting in Nova.
 - The public release asset is currently `arm64-v8a` only. Other ABIs are available from local source builds.
 - Today, only the Android client ships.
