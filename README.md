@@ -346,7 +346,7 @@ Contributions are welcome, especially focused fixes, UI polish, docs, translatio
 
 ## Donate
 
-Nova started as a passion project because I couldn't find a handheld-first client and host stack that met my standards. I build Nova and Polaris in my spare time because game streaming on Linux and Android deserves better tooling. If Nova is useful to you, donations help keep development moving.
+Nova is something I build in my spare time because I want handheld game streaming to feel more thoughtful, more capable, and less fragile. If it becomes part of your setup, donations are appreciated but never expected. They help with testing devices, packaging work, release time, and the unglamorous maintenance that keeps the project moving. Bug reports, testing notes, and thoughtful feedback help too.
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=for-the-badge&logo=ko-fi&labelColor=1a1a2e)](https://ko-fi.com/papiux)
 &nbsp;
