@@ -5,6 +5,7 @@ import static com.papi.nova.utils.ServerHelper.getSecondaryDisplay;
 import android.app.Activity;
 import android.app.Service;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
@@ -40,11 +41,14 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
 public class ShortcutTrampoline extends AppCompatActivity {
+    private static final int MAX_ART_FILE_CHARS = 64 * 1024;
+
     private PreferenceConfiguration prefConfig;
     private String uuidString;
     private NvApp app;
@@ -308,17 +312,51 @@ public class ShortcutTrampoline extends AppCompatActivity {
         return true;
     }
 
+    private boolean isSafeArtFileUri(Uri fileUri) {
+        if (fileUri == null) {
+            return false;
+        }
+
+        String scheme = fileUri.getScheme();
+        if (!ContentResolver.SCHEME_CONTENT.equals(scheme) &&
+                !ContentResolver.SCHEME_FILE.equals(scheme)) {
+            return false;
+        }
+
+        String path = fileUri.getPath();
+        return path != null && path.toLowerCase(Locale.US).endsWith(".art");
+    }
+
+    @SuppressWarnings("java/android/unsafe-content-uri-resolution")
     private Map<String, String> parseArtFileData(Uri fileUri) {
         if (fileUri == null) {
             return null;
         }
 
+        if (!isSafeArtFileUri(fileUri)) {
+            Dialog.displayDialog(ShortcutTrampoline.this,
+                    getResources().getString(R.string.conn_error_title),
+                    "Invalid .art file URI",
+                    true);
+            return null;
+        }
+
         Map<String, String> artData = new HashMap<>();
 
-        try (InputStream inputStream = getContentResolver().openInputStream(fileUri);
-             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+        try (InputStream inputStream = getContentResolver().openInputStream(fileUri)) {
+            if (inputStream == null) {
+                throw new IOException("Unable to open .art file");
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
             String line;
+            int charsRead = 0;
             while ((line = reader.readLine()) != null) {
+                charsRead += line.length();
+                if (charsRead > MAX_ART_FILE_CHARS) {
+                    throw new IOException(".art file is too large");
+                }
+
                 line = line.trim();
                 if (line.startsWith("#") || line.isEmpty()) {
                     continue; // Skip comments and empty lines

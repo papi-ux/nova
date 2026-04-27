@@ -52,10 +52,11 @@ object NovaStreamNotification {
         )
 
         // Disconnect action
-        val disconnectIntent = Intent(NovaQsTile.NOVA_DISCONNECT_ACTION).apply {
-            setPackage(context.packageName)
+        val disconnectIntent = Intent(context, Game::class.java).apply {
+            action = NovaQsTile.NOVA_DISCONNECT_ACTION
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
         }
-        val disconnectPending = PendingIntent.getBroadcast(
+        val disconnectPending = PendingIntent.getActivity(
             context, 1, disconnectIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

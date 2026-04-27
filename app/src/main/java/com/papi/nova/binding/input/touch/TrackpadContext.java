@@ -339,8 +339,8 @@ public class TrackpadContext implements TouchContext {
                 absDeltaY = Math.abs(rawDeltaY);
             }
 
-            deltaX *= precisionMultiplier;
-            deltaY *= precisionMultiplier;
+            deltaX = (float) (deltaX * precisionMultiplier);
+            deltaY = (float) (deltaY * precisionMultiplier);
 
             deltaX *= sensitivityX;
             deltaY *= sensitivityY;

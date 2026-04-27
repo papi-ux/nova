@@ -12,7 +12,9 @@ import com.papi.nova.grid.assets.DiskAssetLoader;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 public class PosterContentProvider extends ContentProvider {
 
@@ -40,6 +42,7 @@ public class PosterContentProvider extends ContentProvider {
         return openBoxArtFile(uri, mode);
     }
 
+    @SuppressWarnings("java/path-injection")
     public ParcelFileDescriptor openBoxArtFile(Uri uri, String mode) throws FileNotFoundException {
         if (!"r".equals(mode)) {
             throw new UnsupportedOperationException("This provider is only for read mode");
@@ -53,13 +56,25 @@ public class PosterContentProvider extends ContentProvider {
         String uuid = segments.get(COMPUTER_UUID_PATH_INDEX);
         final int parsedAppId;
         try {
+            UUID.fromString(uuid);
             parsedAppId = Integer.parseInt(appId);
+            if (parsedAppId < 0) {
+                throw new NumberFormatException("Negative app ID");
+            }
         } catch (NumberFormatException e) {
+            throw new FileNotFoundException();
+        } catch (IllegalArgumentException e) {
             throw new FileNotFoundException();
         }
 
-        File file = mDiskAssetLoader.getFile(uuid, parsedAppId);
-        if (file.exists()) {
+        final File file;
+        try {
+            file = mDiskAssetLoader.getFile(uuid, parsedAppId).getCanonicalFile();
+        } catch (IllegalArgumentException | IOException e) {
+            throw new FileNotFoundException();
+        }
+
+        if (file.isFile()) {
             return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
         }
         throw new FileNotFoundException();

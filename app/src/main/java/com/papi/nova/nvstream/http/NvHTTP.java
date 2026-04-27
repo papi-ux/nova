@@ -88,6 +88,27 @@ public class NvHTTP {
     private X509KeyManager keyManager;
     private X509Certificate serverCert;
 
+    private static boolean isKnownNvHttpPath(String path) {
+        if (path == null) {
+            return false;
+        }
+
+        switch (path) {
+            case "actions/clipboard":
+            case "appasset":
+            case "applist":
+            case "cancel":
+            case "launch":
+            case "pair":
+            case "resume":
+            case "serverinfo":
+            case "unpair":
+                return true;
+            default:
+                return false;
+        }
+    }
+
     void setServerCert(X509Certificate serverCert) {
         this.serverCert = serverCert;
     }
@@ -476,6 +497,10 @@ public class NvHTTP {
     }
 
     private HttpUrl getCompleteUrl(HttpUrl baseUrl, String path, String query) {
+        if (!isKnownNvHttpPath(path)) {
+            throw new IllegalArgumentException("Unexpected NvHTTP path");
+        }
+
         return baseUrl.newBuilder()
                 .addPathSegments(path)
                 .query(query)
@@ -489,6 +514,7 @@ public class NvHTTP {
     // on the GFE server. Examples of queries that DO require outside action are launch, resume, and quit.
     // The initial pair query does require outside action (user entering a PIN) but subsequent pairing
     // queries do not.
+    @SuppressWarnings("java/ssrf")
     private ResponseBody openHttpConnection(OkHttpClient client, HttpUrl baseUrl, String path, String query, RequestBody requestBody) throws IOException {
         HttpUrl completeUrl = getCompleteUrl(baseUrl, path, query);
         Request.Builder _builder = new Request.Builder().url(completeUrl);

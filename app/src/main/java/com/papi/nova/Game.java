@@ -441,6 +441,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
     };
 
+    private static boolean isDisconnectIntent(Intent intent) {
+        return intent != null &&
+                com.papi.nova.service.NovaQsTile.NOVA_DISCONNECT_ACTION.equals(intent.getAction());
+    }
+
     @SuppressLint({"MissingInflatedId", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -457,6 +462,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // Read the stream preferences
         prefConfig = PreferenceConfiguration.readPreferences(this);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
+
+        if (isDisconnectIntent(getIntent())) {
+            finish();
+            return;
+        }
 
         if (prefConfig.fullScreen) {
             // Full-screen
@@ -688,7 +698,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         // Nova: probe Polaris capabilities and set up resilience + overlays
-        novaApiClient = new com.papi.nova.api.PolarisApiClient(this, host, httpsPort);
+        novaApiClient = new com.papi.nova.api.PolarisApiClient(this, host, httpsPort, serverCert);
         com.papi.nova.manager.FeatureFlagManager.INSTANCE.probe(novaApiClient);
         novaProgressOverlay = new com.papi.nova.ui.SessionProgressOverlay(this);
         novaLockScreenOverlay = new com.papi.nova.ui.LockScreenOverlay(this, novaApiClient);
@@ -1940,8 +1950,24 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         // Destroy the capture provider
-        inputCaptureProvider.destroy();
-        streamContainer.onDestroy();
+        if (inputCaptureProvider != null) {
+            inputCaptureProvider.destroy();
+        }
+        if (streamContainer != null) {
+            streamContainer.onDestroy();
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+
+        if (isDisconnectIntent(intent)) {
+            disconnect();
+            return;
+        }
+
+        setIntent(intent);
     }
 
     @Override
@@ -2765,11 +2791,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         InputDevice dev = event.getDevice();
         if (dev != null) {
             if (dev.getMotionRange(MotionEvent.AXIS_ORIENTATION, event.getSource()) != null) {
-                short rotationDegrees = (short) Math.toDegrees(event.getOrientation(pointerIndex));
+                int rotationDegrees = (int) Math.toDegrees(event.getOrientation(pointerIndex));
                 if (rotationDegrees < 0) {
                     rotationDegrees += 360;
                 }
-                return rotationDegrees;
+                return (short) rotationDegrees;
             }
         }
         return MoonBridge.LI_ROT_UNKNOWN;
@@ -3682,7 +3708,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 new Thread(() -> {
                     try {
                         com.papi.nova.api.PolarisApiClient client =
-                            new com.papi.nova.api.PolarisApiClient(Game.this, reportHost, httpsPort);
+                            new com.papi.nova.api.PolarisApiClient(Game.this, reportHost, httpsPort, serverCert);
                         client.sendSessionReport(
                             reportDevice, uniqueId, reportGame,
                             getSummaryDouble(summary, "avg_fps", 0.0),
@@ -3977,7 +4003,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         new Thread(() -> {
                             try {
                                 com.papi.nova.api.PolarisApiClient client =
-                                    new com.papi.nova.api.PolarisApiClient(Game.this, streamHost, httpsPort);
+                                    new com.papi.nova.api.PolarisApiClient(Game.this, streamHost, httpsPort, serverCert);
                                 client.setBitrate(newBitrate);
                                 com.papi.nova.LimeLog.info("Nova: Proactive bitrate adjust → " + newBitrate + " kbps");
                             } catch (Exception e) {

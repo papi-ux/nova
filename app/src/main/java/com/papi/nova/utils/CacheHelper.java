@@ -13,10 +13,33 @@ import java.io.OutputStream;
 import java.io.Reader;
 
 public class CacheHelper {
+    private static boolean isSafePathComponent(String component) {
+        return component != null &&
+                !component.isEmpty() &&
+                !component.equals(".") &&
+                !component.equals("..") &&
+                component.indexOf('/') == -1 &&
+                component.indexOf('\\') == -1;
+    }
+
     public static File openPath(boolean createPath, File root, String... path) {
+        if (root == null) {
+            throw new IllegalArgumentException("Root cannot be null");
+        }
+
+        File canonicalRoot;
+        try {
+            canonicalRoot = root.getCanonicalFile();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Unable to resolve cache root", e);
+        }
+
         File f = root;
         for (int i = 0; i < path.length; i++) {
             String component = path[i];
+            if (!isSafePathComponent(component)) {
+                throw new IllegalArgumentException("Invalid cache path component");
+            }
 
             if (i == path.length - 1) {
                 // This is the file component so now we create parent directories
@@ -27,6 +50,18 @@ public class CacheHelper {
 
             f = new File(f, component);
         }
+
+        try {
+            File canonicalFile = f.getCanonicalFile();
+            String rootPath = canonicalRoot.getPath();
+            String filePath = canonicalFile.getPath();
+            if (!filePath.equals(rootPath) && !filePath.startsWith(rootPath + File.separator)) {
+                throw new IllegalArgumentException("Cache path escapes root");
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Unable to resolve cache path", e);
+        }
+
         return f;
     }
 
@@ -42,10 +77,12 @@ public class CacheHelper {
         return openPath(false, root, path).exists();
     }
 
+    @SuppressWarnings("java/path-injection")
     public static InputStream openCacheFileForInput(File root, String... path) throws FileNotFoundException {
         return new BufferedInputStream(new FileInputStream(openPath(false, root, path)));
     }
 
+    @SuppressWarnings("java/path-injection")
     public static OutputStream openCacheFileForOutput(File root, String... path) throws FileNotFoundException {
         return new BufferedOutputStream(new FileOutputStream(openPath(true, root, path)));
     }

@@ -102,7 +102,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         streamServerCommands = intent.getStringArrayListExtra(EXTRA_SERVER_COMMANDS)
         streamServerCert = intent.getByteArrayExtra(EXTRA_SERVER_CERT)
 
-        apiClient = PolarisApiClient(this, host, httpsPort)
+        apiClient = PolarisApiClient(this, host, httpsPort, streamServerCert)
 
         // Enable dense particles (nebulae + shooting stars) for library
         findViewById<SpaceParticleView>(R.id.space_particles_dense)?.dense = true
