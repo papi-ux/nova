@@ -88,6 +88,26 @@ public class NvHTTP {
     private X509KeyManager keyManager;
     private X509Certificate serverCert;
 
+    private static String validateHost(String host) throws IOException {
+        if (host == null) {
+            throw new IOException("Host cannot be null");
+        }
+
+        String trimmedHost = host.trim();
+        if (trimmedHost.isEmpty()) {
+            throw new IOException("Host cannot be empty");
+        }
+
+        for (int i = 0; i < trimmedHost.length(); i++) {
+            char c = trimmedHost.charAt(i);
+            if (c <= ' ' || c == '/' || c == '\\' || c == '@' || c == '#' || c == '?') {
+                throw new IOException("Invalid host");
+            }
+        }
+
+        return trimmedHost;
+    }
+
     private static boolean isKnownNvHttpPath(String path) {
         if (path == null) {
             return false;
@@ -107,6 +127,26 @@ public class NvHTTP {
             default:
                 return false;
         }
+    }
+
+    private boolean isExpectedBaseUrl(HttpUrl baseUrl) {
+        if (baseUrl == null || baseUrlHttp == null) {
+            return false;
+        }
+
+        if (!baseUrl.host().equals(baseUrlHttp.host())) {
+            return false;
+        }
+
+        if ("http".equals(baseUrl.scheme())) {
+            return baseUrl.port() == baseUrlHttp.port();
+        }
+
+        if ("https".equals(baseUrl.scheme())) {
+            return baseUrl.port() == httpsPort;
+        }
+
+        return false;
     }
 
     void setServerCert(X509Certificate serverCert) {
@@ -238,7 +278,7 @@ public class NvHTTP {
             // in IPv6 form, because InetAddress.getByName() will return an Inet4Address
             // for what OkHTTP thinks is an IPv6 address. Normalize it into IPv4 form
             // to avoid triggering this bug.
-            String addressString = address.address;
+            String addressString = validateHost(address.address);
             if (addressString.contains(":") && addressString.contains(".")) {
                 InetAddress addr = InetAddress.getByName(addressString);
                 if (addr instanceof Inet4Address) {
@@ -514,8 +554,11 @@ public class NvHTTP {
     // on the GFE server. Examples of queries that DO require outside action are launch, resume, and quit.
     // The initial pair query does require outside action (user entering a PIN) but subsequent pairing
     // queries do not.
-    @SuppressWarnings("java/ssrf")
     private ResponseBody openHttpConnection(OkHttpClient client, HttpUrl baseUrl, String path, String query, RequestBody requestBody) throws IOException {
+        if (!isExpectedBaseUrl(baseUrl)) {
+            throw new IOException("Unexpected NvHTTP target");
+        }
+
         HttpUrl completeUrl = getCompleteUrl(baseUrl, path, query);
         Request.Builder _builder = new Request.Builder().url(completeUrl);
         Request request;

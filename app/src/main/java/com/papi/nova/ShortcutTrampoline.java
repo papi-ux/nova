@@ -34,6 +34,7 @@ import com.papi.nova.utils.UiHelper;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -48,6 +49,13 @@ import java.util.UUID;
 
 public class ShortcutTrampoline extends AppCompatActivity {
     private static final int MAX_ART_FILE_CHARS = 64 * 1024;
+    private static final String[] DISALLOWED_ART_FILE_PATH_PREFIXES = {
+            "/data",
+            "/proc",
+            "/sys",
+            "/dev",
+            "/acct"
+    };
 
     private PreferenceConfiguration prefConfig;
     private String uuidString;
@@ -324,10 +332,30 @@ public class ShortcutTrampoline extends AppCompatActivity {
         }
 
         String path = fileUri.getPath();
-        return path != null && path.toLowerCase(Locale.US).endsWith(".art");
+        if (path == null || !path.toLowerCase(Locale.US).endsWith(".art")) {
+            return false;
+        }
+
+        String authority = fileUri.getAuthority();
+        if (ContentResolver.SCHEME_CONTENT.equals(scheme) &&
+                (authority == null || authority.isEmpty())) {
+            return false;
+        }
+
+        try {
+            String normalizedPath = new File(path).getCanonicalPath();
+            for (String prefix : DISALLOWED_ART_FILE_PATH_PREFIXES) {
+                if (normalizedPath.equals(prefix) || normalizedPath.startsWith(prefix + File.separator)) {
+                    return false;
+                }
+            }
+        } catch (IOException e) {
+            return false;
+        }
+
+        return true;
     }
 
-    @SuppressWarnings("java/android/unsafe-content-uri-resolution")
     private Map<String, String> parseArtFileData(Uri fileUri) {
         if (fileUri == null) {
             return null;
