@@ -8,8 +8,6 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 
-import com.papi.nova.grid.assets.DiskAssetLoader;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -23,7 +21,6 @@ public class PosterContentProvider extends ContentProvider {
     public static final String PNG_MIME_TYPE = "image/png";
     public static final int APP_ID_PATH_INDEX = 2;
     public static final int COMPUTER_UUID_PATH_INDEX = 1;
-    private DiskAssetLoader mDiskAssetLoader;
 
     private static final UriMatcher sUriMatcher;
     private static final String BOXART_PATH = "boxart";
@@ -42,7 +39,6 @@ public class PosterContentProvider extends ContentProvider {
         return openBoxArtFile(uri, mode);
     }
 
-    @SuppressWarnings("java/path-injection")
     public ParcelFileDescriptor openBoxArtFile(Uri uri, String mode) throws FileNotFoundException {
         if (!"r".equals(mode)) {
             throw new UnsupportedOperationException("This provider is only for read mode");
@@ -55,8 +51,9 @@ public class PosterContentProvider extends ContentProvider {
         String appId = segments.get(APP_ID_PATH_INDEX);
         String uuid = segments.get(COMPUTER_UUID_PATH_INDEX);
         final int parsedAppId;
+        final UUID parsedUuid;
         try {
-            UUID.fromString(uuid);
+            parsedUuid = UUID.fromString(uuid);
             parsedAppId = Integer.parseInt(appId);
             if (parsedAppId < 0) {
                 throw new NumberFormatException("Negative app ID");
@@ -69,7 +66,19 @@ public class PosterContentProvider extends ContentProvider {
 
         final File file;
         try {
-            file = mDiskAssetLoader.getFile(uuid, parsedAppId).getCanonicalFile();
+            if (getContext() == null) {
+                throw new IOException("Missing provider context");
+            }
+
+            File boxArtRoot = new File(getContext().getCacheDir(), BOXART_PATH).getCanonicalFile();
+            File uuidDir = new File(boxArtRoot, parsedUuid.toString()).getCanonicalFile();
+            file = new File(uuidDir, parsedAppId + ".png").getCanonicalFile();
+
+            String boxArtRootPath = boxArtRoot.getPath();
+            String filePath = file.getPath();
+            if (!filePath.startsWith(boxArtRootPath + File.separator)) {
+                throw new IOException("Box art path escapes cache");
+            }
         } catch (IllegalArgumentException | IOException e) {
             throw new FileNotFoundException();
         }
@@ -97,7 +106,6 @@ public class PosterContentProvider extends ContentProvider {
 
     @Override
     public boolean onCreate() {
-        mDiskAssetLoader = new DiskAssetLoader(getContext());
         return true;
     }
 

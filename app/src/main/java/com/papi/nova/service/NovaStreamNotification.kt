@@ -2,12 +2,9 @@ package com.papi.nova.service
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.papi.nova.Game
 import com.papi.nova.R
 
 /**
@@ -42,24 +39,8 @@ object NovaStreamNotification {
 
         createChannel(context)
 
-        // Tap to return to stream
-        val returnIntent = Intent(context, Game::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-        }
-        val returnPending = PendingIntent.getActivity(
-            context, 0, returnIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Disconnect action
-        val disconnectIntent = Intent(context, Game::class.java).apply {
-            action = NovaQsTile.NOVA_DISCONNECT_ACTION
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-        }
-        val disconnectPending = PendingIntent.getActivity(
-            context, 1, disconnectIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val returnPending = NovaStreamPendingIntents.createReturnToStreamIntent(context)
+        val disconnectPending = NovaStreamPendingIntents.createDisconnectIntent(context)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_nova_star_foreground)
