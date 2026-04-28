@@ -54,7 +54,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 The latest direct APKs are always available through GitHub's latest-release URLs: `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk` and `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk`. The Obtainium link above is preconfigured for the ARM64 public asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer; GitHub Store filters assets for the device it is running on, so its desktop app may show Nova as unavailable because Nova ships Android APKs.
 
-F-Droid and IzzyOnDroid packaging status, scan notes, and source-build blockers are tracked in [docs/fdroid.md](docs/fdroid.md).
+F-Droid and IzzyOnDroid packaging notes are tracked in [docs/fdroid.md](docs/fdroid.md), including current status, APK scan notes, and source-build blockers.
 
 If you install manually, verify the download before sideloading:
 
