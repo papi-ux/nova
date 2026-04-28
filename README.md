@@ -54,7 +54,7 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 The latest direct APKs are always available through GitHub's latest-release URLs: `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk` and `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk`. The Obtainium link above is preconfigured for the ARM64 public asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer; GitHub Store filters assets for the device it is running on, so its desktop app may show Nova as unavailable because Nova ships Android APKs.
 
-F-Droid and IzzyOnDroid packaging notes are tracked in [docs/fdroid.md](docs/fdroid.md).
+F-Droid and IzzyOnDroid packaging status, scan notes, and source-build blockers are tracked in [docs/fdroid.md](docs/fdroid.md).
 
 If you install manually, verify the download before sideloading:
 
@@ -66,7 +66,7 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line, and `v1.0.1` adds the first store-packaging pass. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, and `v1.0.2` hardens the security surfaces found during public scanner review. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
@@ -334,9 +334,9 @@ Nova is distributed through GitHub Releases, Obtainium, and GitHub Store. The of
 
 ## AI Transparency
 
-Nova is built by me and only me, with help from tools like ClaudeCode 4.7, OpenAI Codex 5.5, and local models.
+Nova is built and released by me, with assistance from tools such as OpenAI Codex, Claude, and local models.
 
-I use them as a sounding board and look for ways to cut a lot of fat from the debugging process. I also use it to compare approaches, draft tests and docs, research the headless-first components, and spot things I might have missed. They do not decide what Polaris is or what ships. I have been around engineering and IT for a while, I'm not a vibe-coder, but as we all know in this industry, the capabilites of these tools definitely have solid pratical use cases for working with them. Regardless, I still am adament and always careful about validation, trust boundaries, and release quality. I review the work, test the pieces I can test, and own the final decisions.
+I use those tools for documentation polish, release workflow cleanup, store-readiness checks, build/test triage, implementation review, and to compare approaches while debugging. They do not decide what Nova or Polaris are, what features ship, or what releases are published. I review, edit, build, test, and approve the changes before release, and I own the final engineering and trust-boundary decisions.
 
 ## Contributing
 

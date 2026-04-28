@@ -1,12 +1,12 @@
 # F-Droid and IzzyOnDroid Packaging Notes
 
-Nova is being prepared for F-Droid-compatible distribution.
+Nova is prepared for release-APK distribution and is being prepared for F-Droid-compatible source builds.
 
 ## Current Status
 
 | Channel | Status | Notes |
 |---|---|---|
-| IzzyOnDroid | Ready to request review | Nova has public signed APK releases, Fastlane metadata, screenshots, GPL-3.0 licensing, and no Play Store dependency. |
+| IzzyOnDroid | Declined for now | App request #159 was declined under IzzyOnDroid's current policy/space limits for games and gaming-focused apps. Nova remains prepared for a future re-review if that policy changes or an exception path opens. |
 | F-Droid main | Not ready yet | The Android build still consumes prebuilt native static libraries for OpenSSL and Opus. F-Droid main generally expects those dependencies to be built from source in the build recipe. |
 | Self-hosted F-Droid repo | Possible | The existing GitHub release APKs can be indexed in a self-hosted repo, but users would need to add that repo manually. |
 
@@ -23,7 +23,21 @@ The metadata is intentionally written for public stores and app-index mirrors:
 - title and short description are store-sized
 - full description avoids marketing-only language and names the Polaris relationship clearly
 - screenshots are copied from `docs/screenshots/`
-- changelog `16.txt` matches Nova `versionCode = 16`
+- changelog `17.txt` matches Nova `versionCode = 17`
+
+## APK Scan and Security Notes
+
+The `v1.0.2` release hardens the security surfaces that were raised during public scanner review:
+
+- externally supplied host and path handling in Moonlight/Polaris HTTP flows
+- poster/content URI handling used by launcher and TV surfaces
+- cache path validation for app artwork
+- stream notification PendingIntent creation
+
+IzzyOnDroid's APK scan also flagged two manifest items that are expected for Nova:
+
+- `android.permission.CAMERA` is used for QR pairing with a Polaris host. The camera hardware feature is declared optional.
+- `android.accessibilityservice.AccessibilityService` is used by the optional physical keyboard helper for shortcut passthrough while streaming. The service is not exported, requires Android's `BIND_ACCESSIBILITY_SERVICE` permission, and must be enabled by the user in system settings.
 
 ## F-Droid Build Switch
 
@@ -74,9 +88,9 @@ RepoType: git
 Repo: https://github.com/papi-ux/nova.git
 
 Builds:
-  - versionName: 1.0.1
-    versionCode: 16
-    commit: v1.0.1
+  - versionName: 1.0.2
+    versionCode: 17
+    commit: v1.0.2
     subdir: .
     gradle:
       - nonRoot_gameRelease
@@ -86,19 +100,20 @@ Builds:
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-CurrentVersion: 1.0.1
-CurrentVersionCode: 16
+CurrentVersion: 1.0.2
+CurrentVersionCode: 17
 ```
 
-`v1.0.1` contains the F-Droid build switch and store metadata. Official F-Droid main still needs the source-built native dependency path described above; do not submit this sample against `v1.0.0` because that tag predates the packaging prep.
+`v1.0.2` contains the F-Droid build switch, store metadata, and public scanner hardening. Official F-Droid main still needs the source-built native dependency path described above; do not submit this sample against `v1.0.0` because that tag predates the packaging prep.
 
-## IzzyOnDroid Request Checklist
+## Future IzzyOnDroid Checklist
 
-Before requesting inclusion:
+Nova's first IzzyOnDroid request was declined because Nova is game-streaming/gaming-focused. If IzzyOnDroid's category policy changes or a specific exception path becomes available, confirm the following before requesting re-review:
 
 - confirm the latest GitHub release has signed APK assets
 - confirm the release contains `Nova-Android-arm64-v8a.apk` and `Nova-Android-x86_64.apk`
 - confirm `fastlane/metadata/android/en-US` is present in the default branch
+- mention the `v1.0.2` scanner hardening and link this document's APK scan notes
 - mention that Nova is Android-only and currently publishes `arm64-v8a` and `x86_64` APKs
 - mention that Nova is a game streaming client, not a bundled game
 - mention that Polaris-related tuning indicators are local host state, not a cloud AI service

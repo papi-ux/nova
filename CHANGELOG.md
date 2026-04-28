@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 - 2026-04-28
+
+- Hardened externally supplied host, URI, and cache path handling found during CodeQL/security review.
+- Made stream notification actions use explicit immutable PendingIntents.
+- Updated public README and F-Droid/IzzyOnDroid notes with the current packaging, scan, and inclusion status.
+
 ## 1.0.1 - 2026-04-25
 
 - Added Fastlane metadata, screenshots, and F-Droid/IzzyOnDroid packaging notes for public store review.
