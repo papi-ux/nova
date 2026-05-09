@@ -9,11 +9,13 @@ import java.net.UnknownHostException;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.papi.nova.binding.PlatformBinding;
 import com.papi.nova.binding.crypto.AndroidCryptoProvider;
 import com.papi.nova.computers.ComputerManagerService;
 import com.papi.nova.grid.PcGridAdapter;
 import com.papi.nova.grid.assets.DiskAssetLoader;
+import com.papi.nova.api.PolarisApiClient;
 import com.papi.nova.nvstream.http.ComputerDetails;
 import com.papi.nova.nvstream.http.NvApp;
 import com.papi.nova.nvstream.http.NvHTTP;
@@ -32,6 +34,7 @@ import com.papi.nova.profiles.ProfilesManager;
 import com.papi.nova.ui.AdapterFragment;
 import com.papi.nova.ui.SpaceParticleView;
 import com.papi.nova.ui.AdapterFragmentCallbacks;
+import com.papi.nova.ui.NovaPolarisSyncSheet;
 import com.papi.nova.utils.Dialog;
 import com.papi.nova.utils.HelpLauncher;
 import com.papi.nova.utils.ServerHelper;
@@ -252,6 +255,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         View addServerAction = findViewById(R.id.actionAddServer);
         View scanPairAction = findViewById(R.id.actionScanPair);
         View themeAction = findViewById(R.id.actionTheme);
+        View polarisSyncAction = findViewById(R.id.actionPolarisSync);
         View settingsAction = findViewById(R.id.actionSettings);
         View helpAction = findViewById(R.id.actionHelp);
         TextView emptyRefresh = findViewById(R.id.emptyRefresh);
@@ -283,6 +287,12 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             themeAction.setOnClickListener(v -> {
                 v.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM);
                 cycleTheme();
+            });
+        }
+        if (polarisSyncAction != null) {
+            polarisSyncAction.setOnClickListener(v -> {
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM);
+                launchPolarisSync();
             });
         }
         if (settingsAction != null) {
@@ -410,7 +420,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         styleActionButton(findViewById(R.id.actionAddServer), ColorUtils.blendARGB(surface, accent, 0.26f), textPrimary);
         styleActionButton(findViewById(R.id.actionScanPair), surface, textPrimary);
-        styleActionButton(findViewById(R.id.actionSettings), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary);
+        styleActionButton(findViewById(R.id.actionPolarisSync), ColorUtils.blendARGB(surface, accent, 0.28f), accent);
+        styleActionButton(findViewById(R.id.actionSettings), surface, textPrimary);
 
         tintChipRow(new int[] {
                 R.id.actionTheme,
@@ -644,17 +655,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     private void launchQuickLibrary() {
-        java.util.ArrayList<ComputerObject> candidates = new java.util.ArrayList<>();
-        List<ComputerObject> allComputers = viewModel.getComputersLiveData().getValue();
-        if (allComputers != null) {
-            for (ComputerObject candidate : allComputers) {
-                if (candidate.details.state == ComputerDetails.State.ONLINE &&
-                        candidate.details.pairState == PairState.PAIRED &&
-                        candidate.details.activeAddress != null) {
-                    candidates.add(candidate);
-                }
-            }
-        }
+        java.util.ArrayList<ComputerObject> candidates = getPairedOnlineServers();
 
         if (candidates.isEmpty()) {
             Toast.makeText(this, R.string.pcview_library_no_server, Toast.LENGTH_SHORT).show();
@@ -676,6 +677,70 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 .setItems(names, (dialog, which) -> doNovaLibrary(candidates.get(which).details))
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    private void launchPolarisSync() {
+        java.util.ArrayList<ComputerObject> candidates = getPairedOnlineServers();
+
+        if (candidates.isEmpty()) {
+            Toast.makeText(this, R.string.pcview_sync_no_server, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (candidates.size() == 1) {
+            showPolarisSync(candidates.get(0).details);
+            return;
+        }
+
+        CharSequence[] names = new CharSequence[candidates.size()];
+        for (int i = 0; i < candidates.size(); i++) {
+            names[i] = candidates.get(i).details.name;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.pcview_sync_choose_server)
+                .setItems(names, (dialog, which) -> showPolarisSync(candidates.get(which).details))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private java.util.ArrayList<ComputerObject> getPairedOnlineServers() {
+        java.util.ArrayList<ComputerObject> candidates = new java.util.ArrayList<>();
+        List<ComputerObject> allComputers = viewModel.getComputersLiveData().getValue();
+        if (allComputers == null) {
+            return candidates;
+        }
+
+        for (ComputerObject candidate : allComputers) {
+            if (candidate.details.state == ComputerDetails.State.ONLINE &&
+                    candidate.details.pairState == PairState.PAIRED &&
+                    candidate.details.activeAddress != null) {
+                candidates.add(candidate);
+            }
+        }
+        return candidates;
+    }
+
+    private void showPolarisSync(ComputerDetails computer) {
+        if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
+            Toast.makeText(PcView.this, getResources().getString(R.string.error_pc_offline), Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        dismissPolarisSyncSheet();
+        PolarisApiClient client = new PolarisApiClient(this, computer.activeAddress.address, computer.httpsPort, computer.serverCert);
+        String label = computer.name != null && !computer.name.isEmpty()
+                ? computer.name
+                : computer.activeAddress.address;
+        NovaPolarisSyncSheet.newInstance(client, label, computer.uuid, null)
+                .show(getSupportFragmentManager(), "polaris_sync");
+    }
+
+    private void dismissPolarisSyncSheet() {
+        androidx.fragment.app.Fragment existing = getSupportFragmentManager().findFragmentByTag("polaris_sync");
+        if (existing instanceof BottomSheetDialogFragment) {
+            ((BottomSheetDialogFragment) existing).dismissAllowingStateLoss();
+        }
     }
 
     private String appliedTheme;
@@ -869,6 +934,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     protected void onStop() {
         super.onStop();
 
+        dismissPolarisSyncSheet();
         Dialog.closeDialogs();
     }
 

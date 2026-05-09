@@ -80,6 +80,25 @@
                     app:iconTint="@color/nova_ice" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/actionPolarisSync"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="10dp"
+                    android:contentDescription="@string/pcview_quick_polaris_sync"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minWidth="0dp"
+                    android:padding="0dp"
+                    app:backgroundTint="@color/nova_badge_bg"
+                    app:cornerRadius="14dp"
+                    app:elevation="0dp"
+                    app:icon="@drawable/ic_polaris_sync"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconTint="@color/nova_ice" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/actionSettings"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="40dp"

@@ -16,22 +16,28 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.ByteArrayInputStream
+import java.net.Proxy
+import java.net.Socket
 import org.json.JSONObject
 import java.io.File
 import java.security.KeyFactory
 import java.security.KeyStore
+import java.security.Principal
+import java.security.PrivateKey
+import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLPeerUnverifiedException
 import javax.net.ssl.SSLSession
 import javax.net.ssl.TrustManager
 import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509KeyManager
 import javax.net.ssl.X509TrustManager
 import androidx.collection.LruCache
 
@@ -90,8 +96,10 @@ class PolarisApiClient @JvmOverloads constructor(
                     gameLibrary = features?.optBoolean("game_library") ?: false,
                     sessionLifecycle = features?.optBoolean("session_lifecycle") ?: false,
                     deviceProfiles = features?.optBoolean("device_profiles") ?: false,
+                    clientSettings = features?.optBoolean("client_settings_v1") ?: false,
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
-                    cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false
+                    cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
+                    disconnectResume = features?.optBoolean("disconnect_resume_v1") ?: false
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
@@ -105,6 +113,66 @@ class PolarisApiClient @JvmOverloads constructor(
             )
         }
 
+        private fun parseModeOptions(array: org.json.JSONArray?): List<PolarisClientSettings.ModeOption> {
+            if (array == null) return emptyList()
+            return (0 until array.length()).mapNotNull { index ->
+                array.optJSONObject(index)?.let { mode ->
+                    PolarisClientSettings.ModeOption(
+                        value = mode.optString("value", ""),
+                        label = mode.optString("label", ""),
+                        available = mode.optBoolean("available", true),
+                        restartRequired = mode.optBoolean("restart_required", true),
+                        reason = mode.optString("reason", "")
+                    )
+                }
+            }
+        }
+
+        @JvmStatic
+        fun parseClientSettingsResponse(json: JSONObject): PolarisClientSettings {
+            val settingsJson = json.optJSONObject("client_settings") ?: json
+            val desired = settingsJson.optJSONObject("desired")
+            val effective = settingsJson.optJSONObject("effective")
+            val capabilities = settingsJson.optJSONObject("capabilities")
+
+            return PolarisClientSettings(
+                version = settingsJson.optInt("version", 1),
+                revision = settingsJson.optString("revision", ""),
+                desired = PolarisClientSettings.Desired(
+                    streamDisplayMode = desired?.optString("stream_display_mode", "") ?: "",
+                    streamDisplayModeLabel = desired?.optString("stream_display_mode_label", "") ?: "",
+                    streamDisplayModeReason = desired?.optString("stream_display_mode_reason", "") ?: "",
+                    displayMode = desired?.optString("display_mode", "") ?: "",
+                    targetBitrateKbps = desired?.optInt("target_bitrate_kbps", 0) ?: 0,
+                    adaptiveBitrateEnabled = desired?.optBoolean("adaptive_bitrate_enabled", false) ?: false,
+                    aiOptimizerEnabled = desired?.optBoolean("ai_optimizer_enabled", false) ?: false,
+                    disconnectResumeTimeoutSeconds = desired?.optInt("disconnect_resume_timeout_seconds", 300) ?: 300
+                ),
+                effective = PolarisClientSettings.Effective(
+                    streamDisplayMode = effective?.optString("stream_display_mode", "") ?: "",
+                    streamDisplayModeLabel = effective?.optString("stream_display_mode_label", "") ?: "",
+                    streamDisplayModeReason = effective?.optString("stream_display_mode_reason", "") ?: "",
+                    displayMode = effective?.optString("display_mode", "") ?: "",
+                    targetBitrateKbps = effective?.optInt("target_bitrate_kbps", 0) ?: 0,
+                    adaptiveBitrateEnabled = effective?.optBoolean("adaptive_bitrate_enabled", false) ?: false,
+                    adaptiveTargetBitrateKbps = effective?.optInt("adaptive_target_bitrate_kbps", 0) ?: 0,
+                    aiOptimizerEnabled = effective?.optBoolean("ai_optimizer_enabled", false) ?: false,
+                    disconnectResumeTimeoutSeconds = effective?.optInt("disconnect_resume_timeout_seconds", 300) ?: 300,
+                    capturePath = effective?.optString("capture_path", "") ?: "",
+                    captureGpuNative = effective?.optBoolean("capture_gpu_native", false) ?: false
+                ),
+                capabilities = PolarisClientSettings.Capabilities(
+                    modes = parseModeOptions(capabilities?.optJSONArray("modes")),
+                    displayModeOverride = capabilities?.optBoolean("display_mode_override", false) ?: false,
+                    targetBitrateOverride = capabilities?.optBoolean("target_bitrate_override", false) ?: false,
+                    adaptiveBitrateControl = capabilities?.optBoolean("adaptive_bitrate_control", false) ?: false,
+                    aiOptimizerControl = capabilities?.optBoolean("ai_optimizer_control", false) ?: false,
+                    disconnectResumeTimeoutControl = capabilities?.optBoolean("disconnect_resume_timeout_control", false) ?: false
+                ),
+                relaunchRequired = settingsJson.optBoolean("relaunch_required", false)
+            )
+        }
+
         @JvmStatic
         fun parseSessionStatusResponse(json: JSONObject): PolarisSessionStatus {
             val controls = json.optJSONObject("controls")
@@ -113,6 +181,7 @@ class PolarisApiClient @JvmOverloads constructor(
             val capture = json.optJSONObject("capture")
             val encoder = json.optJSONObject("encoder")
             val health = json.optJSONObject("health")
+            val clientSettings = json.optJSONObject("client_settings")
 
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
@@ -167,7 +236,12 @@ class PolarisApiClient @JvmOverloads constructor(
                     resolution = capture?.optString("resolution", "") ?: "",
                     transport = capture?.optString("transport", "") ?: "",
                     residency = capture?.optString("residency", "") ?: "",
-                    format = capture?.optString("format", "") ?: ""
+                    format = capture?.optString("format", "") ?: "",
+                    path = capture?.optString("path", "") ?: "",
+                    reason = capture?.optString("reason", "") ?: "",
+                    reasonMessage = capture?.optString("reason_message", "") ?: "",
+                    cpuCopy = capture?.optBoolean("cpu_copy", false) ?: false,
+                    gpuNative = capture?.optBoolean("gpu_native", false) ?: false
                 ),
                 encoder = PolarisSessionStatus.EncoderStatus(
                     codec = encoder?.optString("codec", "") ?: "",
@@ -201,8 +275,32 @@ class PolarisApiClient @JvmOverloads constructor(
                     hdrRisk = health?.optString("hdr_risk", "") ?: "",
                     networkRisk = health?.optString("network_risk", "") ?: "",
                     relaunchRecommended = health?.optBoolean("relaunch_recommended", false) ?: false
-                )
+                ),
+                clientSettings = clientSettings?.let { parseClientSettingsResponse(it) } ?: PolarisClientSettings()
             )
+        }
+
+        @JvmStatic
+        fun buildClientSettingsUpdateBody(
+            streamDisplayMode: String? = null,
+            displayMode: String? = null,
+            clearDisplayMode: Boolean = false,
+            targetBitrateKbps: Int? = null,
+            clearTargetBitrate: Boolean = false,
+            adaptiveBitrateEnabled: Boolean? = null,
+            aiOptimizerEnabled: Boolean? = null,
+            disconnectResumeTimeoutSeconds: Int? = null
+        ): JSONObject {
+            return JSONObject().apply {
+                streamDisplayMode?.let { put("stream_display_mode", it) }
+                displayMode?.let { put("display_mode", it) }
+                if (clearDisplayMode) put("clear_display_mode", true)
+                targetBitrateKbps?.let { put("target_bitrate_kbps", it) }
+                if (clearTargetBitrate) put("clear_target_bitrate", true)
+                adaptiveBitrateEnabled?.let { put("adaptive_bitrate_enabled", it) }
+                aiOptimizerEnabled?.let { put("ai_optimizer_enabled", it) }
+                disconnectResumeTimeoutSeconds?.let { put("disconnect_resume_timeout_seconds", it) }
+            }
         }
     }
 
@@ -233,30 +331,65 @@ class PolarisApiClient @JvmOverloads constructor(
         val keyFactory = KeyFactory.getInstance("RSA")
         val privateKey = keyFactory.generatePrivate(PKCS8EncodedKeySpec(keyBytes))
 
-        val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
-            load(null, null)
-            setKeyEntry("client", privateKey, charArrayOf(), arrayOf(cert))
-        }
-
-        val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
-            init(keyStore, charArrayOf())
-        }
-
         val trustManager = createPinnedServerTrustManager()
+        val keyManager = createForcedClientKeyManager(cert, privateKey)
 
         val sslContext = SSLContext.getInstance("TLS").apply {
-            init(kmf.keyManagers, arrayOf<TrustManager>(trustManager), null)
+            init(arrayOf<KeyManager>(keyManager), arrayOf<TrustManager>(trustManager), SecureRandom())
         }
 
         return OkHttpClient.Builder()
             .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .protocols(listOf(Protocol.HTTP_1_1))
             .hostnameVerifier { hostname, session ->
                 isPinnedServerCertificate(session) ||
                     HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)
             }
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
+            .proxy(Proxy.NO_PROXY)
             .build()
+    }
+
+    private fun createForcedClientKeyManager(
+        cert: X509Certificate,
+        privateKey: PrivateKey
+    ): X509KeyManager {
+        return object : X509KeyManager {
+            override fun chooseClientAlias(
+                keyTypes: Array<out String>?,
+                issuers: Array<out Principal>?,
+                socket: Socket?
+            ): String? {
+                return if (keyTypes == null || keyTypes.any { it.equals("RSA", ignoreCase = true) }) {
+                    "Limelight-RSA"
+                } else {
+                    null
+                }
+            }
+
+            override fun chooseServerAlias(
+                keyType: String?,
+                issuers: Array<out Principal>?,
+                socket: Socket?
+            ): String? = null
+
+            override fun getCertificateChain(alias: String?): Array<X509Certificate> {
+                return arrayOf(cert)
+            }
+
+            override fun getClientAliases(
+                keyType: String?,
+                issuers: Array<out Principal>?
+            ): Array<String> = arrayOf("Limelight-RSA")
+
+            override fun getPrivateKey(alias: String?): PrivateKey = privateKey
+
+            override fun getServerAliases(
+                keyType: String?,
+                issuers: Array<out Principal>?
+            ): Array<String>? = null
+        }
     }
 
     private fun createPinnedServerTrustManager(): X509TrustManager {
@@ -304,9 +437,45 @@ class PolarisApiClient @JvmOverloads constructor(
 
     private fun createBasicClient(): OkHttpClient {
         return OkHttpClient.Builder()
+            .protocols(listOf(Protocol.HTTP_1_1))
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .build()
+    }
+
+    private fun logMessage(e: Exception): String {
+        val message = e.message
+        return if (message.isNullOrBlank()) e.javaClass.simpleName else "${e.javaClass.simpleName}: $message"
+    }
+
+    private fun jsonBody(body: JSONObject = JSONObject()): okhttp3.RequestBody {
+        return okhttp3.RequestBody.create(
+            "application/json".toMediaTypeOrNull(),
+            body.toString()
+        )
+    }
+
+    private fun getJson(path: String): JSONObject? {
+        val request = Request.Builder().url("$baseUrl/$path").build()
+        client.newCall(request).execute().use { response ->
+            if (response.code != 200) return null
+            return JSONObject(response.body?.string() ?: return null)
+        }
+    }
+
+    private fun postJson(path: String, body: JSONObject = JSONObject()): JSONObject? {
+        val request = Request.Builder()
+            .url("$baseUrl/$path")
+            .post(jsonBody(body))
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (response.code != 200) return null
+            return JSONObject(response.body?.string() ?: "{}")
+        }
+    }
+
+    private fun postBoolean(path: String, body: JSONObject = JSONObject()): Boolean {
+        return postJson(path, body)?.optBoolean("status", true) == true
     }
 
     /**
@@ -315,14 +484,9 @@ class PolarisApiClient @JvmOverloads constructor(
      */
     fun getCapabilities(): PolarisCapabilities? {
         return try {
-            val request = Request.Builder().url("$baseUrl/capabilities").build()
-            val response = client.newCall(request).execute()
-
-            if (response.code != 200) return null
-
-            parseCapabilitiesResponse(JSONObject(response.body?.string() ?: return null))
+            parseCapabilitiesResponse(getJson("capabilities") ?: return null)
         } catch (e: Exception) {
-            LimeLog.warning("Nova: Capabilities probe failed: ${e.message}")
+            LimeLog.warning("Nova: Capabilities probe failed: ${logMessage(e)}")
             null
         }
     }
@@ -333,16 +497,63 @@ class PolarisApiClient @JvmOverloads constructor(
      */
     fun getSessionStatus(): PolarisSessionStatus? {
         return try {
-            val request = Request.Builder().url("$baseUrl/session/status").build()
-            val response = client.newCall(request).execute()
-
-            if (response.code != 200) return null
-
-            parseSessionStatusResponse(JSONObject(response.body?.string() ?: return null))
+            parseSessionStatusResponse(getJson("session/status") ?: return null)
         } catch (e: Exception) {
-            LimeLog.warning("Nova: Session status query failed: ${e.message}")
+            LimeLog.warning("Nova: Session status query failed: ${logMessage(e)}")
             null
         }
+    }
+
+    fun getClientSettings(): PolarisClientSettings? {
+        return try {
+            parseClientSettingsResponse(getJson("client-settings") ?: return null)
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Client settings query failed: ${logMessage(e)}")
+            null
+        }
+    }
+
+    fun updateClientSettings(
+        streamDisplayMode: String? = null,
+        displayMode: String? = null,
+        clearDisplayMode: Boolean = false,
+        targetBitrateKbps: Int? = null,
+        clearTargetBitrate: Boolean = false,
+        adaptiveBitrateEnabled: Boolean? = null,
+        aiOptimizerEnabled: Boolean? = null,
+        disconnectResumeTimeoutSeconds: Int? = null
+    ): PolarisClientSettings? {
+        return try {
+            val body = buildClientSettingsUpdateBody(
+                streamDisplayMode = streamDisplayMode,
+                displayMode = displayMode,
+                clearDisplayMode = clearDisplayMode,
+                targetBitrateKbps = targetBitrateKbps,
+                clearTargetBitrate = clearTargetBitrate,
+                adaptiveBitrateEnabled = adaptiveBitrateEnabled,
+                aiOptimizerEnabled = aiOptimizerEnabled,
+                disconnectResumeTimeoutSeconds = disconnectResumeTimeoutSeconds
+            )
+            parseClientSettingsResponse(postJson("client-settings", body) ?: return null)
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Client settings update failed: ${logMessage(e)}")
+            null
+        }
+    }
+
+    fun setClientTargetBitrate(bitrateKbps: Int): Boolean {
+        return updateClientSettings(targetBitrateKbps = bitrateKbps) != null
+    }
+
+    fun setLaunchProfile(displayMode: String, bitrateKbps: Int): Boolean {
+        return updateClientSettings(
+            displayMode = displayMode,
+            targetBitrateKbps = bitrateKbps.takeIf { it > 0 }
+        ) != null
+    }
+
+    fun setDisconnectResumeTimeout(timeoutSeconds: Int): Boolean {
+        return updateClientSettings(disconnectResumeTimeoutSeconds = timeoutSeconds) != null
     }
 
     /**
@@ -355,14 +566,14 @@ class PolarisApiClient @JvmOverloads constructor(
             if (source.isNotEmpty()) url += "&source=$source"
 
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
+            client.newCall(request).execute().use { response ->
+                if (response.code != 200) return emptyList()
 
-            if (response.code != 200) return emptyList()
+                val json = org.json.JSONObject(response.body?.string() ?: return emptyList())
+                val gamesArray = json.optJSONArray("games") ?: return emptyList()
 
-            val json = org.json.JSONObject(response.body?.string() ?: return emptyList())
-            val gamesArray = json.optJSONArray("games") ?: return emptyList()
-
-            (0 until gamesArray.length()).map { PolarisGame.fromJson(gamesArray.getJSONObject(it)) }
+                (0 until gamesArray.length()).map { PolarisGame.fromJson(gamesArray.getJSONObject(it)) }
+            }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Game library fetch failed: ${e.message}")
             emptyList()
@@ -467,15 +678,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 put("game_id", gameId)
                 put("mangohud", enabled)
             }
-            val request = Request.Builder()
-                .url("$baseUrl/games/$gameId/mangohud")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            postBoolean("games/$gameId/mangohud", body)
         } catch (e: Exception) {
             LimeLog.warning("Nova: MangoHud toggle failed: ${e.message}")
             false
@@ -488,15 +691,7 @@ class PolarisApiClient @JvmOverloads constructor(
     fun setBitrate(bitrateKbps: Int): Boolean {
         return try {
             val body = org.json.JSONObject().apply { put("bitrate_kbps", bitrateKbps) }
-            val request = Request.Builder()
-                .url("$baseUrl/session/bitrate")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            postBoolean("session/bitrate", body)
         } catch (e: Exception) {
             LimeLog.warning("Nova: Bitrate change failed: ${e.message}")
             false
@@ -509,15 +704,7 @@ class PolarisApiClient @JvmOverloads constructor(
     fun setAdaptiveBitrateEnabled(enabled: Boolean): Boolean {
         return try {
             val body = org.json.JSONObject().apply { put("enabled", enabled) }
-            val request = Request.Builder()
-                .url("$baseUrl/session/adaptive-bitrate")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            postBoolean("session/adaptive-bitrate", body)
         } catch (e: Exception) {
             LimeLog.warning("Nova: Adaptive bitrate toggle failed: ${e.message}")
             false
@@ -530,15 +717,7 @@ class PolarisApiClient @JvmOverloads constructor(
     fun setAiOptimizerEnabled(enabled: Boolean): Boolean {
         return try {
             val body = org.json.JSONObject().apply { put("enabled", enabled) }
-            val request = Request.Builder()
-                .url("$baseUrl/session/ai-optimizer")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            postBoolean("session/ai-optimizer", body)
         } catch (e: Exception) {
             LimeLog.warning("Nova: AI optimizer toggle failed: ${e.message}")
             false
@@ -551,15 +730,7 @@ class PolarisApiClient @JvmOverloads constructor(
     fun setCursorVisibility(visible: Boolean): Boolean {
         return try {
             val body = org.json.JSONObject().apply { put("visible", visible) }
-            val request = Request.Builder()
-                .url("$baseUrl/session/cursor")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            postBoolean("session/cursor", body)
         } catch (e: Exception) {
             LimeLog.warning("Nova: Cursor visibility change failed: ${e.message}")
             false
@@ -615,15 +786,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 if (safeHdr != null) put("safe_hdr", safeHdr)
                 if (relaunchRecommended) put("relaunch_recommended", true)
             }
-            val request = Request.Builder()
-                .url("$baseUrl/session/report")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            postBoolean("session/report", body)
         } catch (e: Exception) {
             LimeLog.warning("Nova: Session report failed: ${e.message}")
             false
@@ -638,10 +801,11 @@ class PolarisApiClient @JvmOverloads constructor(
             val url = "$baseUrl/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
                       "&game=${java.net.URLEncoder.encode(game, "UTF-8")}"
             val request = Request.Builder().url(url).get().build()
-            val response = client.newCall(request).execute()
-            if (response.code == 200) {
-                org.json.JSONObject(response.body?.string() ?: "{}")
-            } else null
+            client.newCall(request).execute().use { response ->
+                if (response.code == 200) {
+                    org.json.JSONObject(response.body?.string() ?: "{}")
+                } else null
+            }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Optimization query failed: ${e.message}")
             null
@@ -661,15 +825,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     if (displayFps > 0) put("client_fps", displayFps)
                 }
             }
-            val request = Request.Builder()
-                .url("$baseUrl/session/launch")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            val response = client.newCall(request).execute()
-            response.code == 200
+            postBoolean("session/launch", body)
         } catch (e: Exception) {
             LimeLog.warning("Nova: Game launch failed: ${e.message}")
             false
@@ -688,11 +844,12 @@ class PolarisApiClient @JvmOverloads constructor(
                     "{}"
                 ))
                 .build()
-            val response = client.newCall(request).execute()
-            if (response.code != 200) return false
+            client.newCall(request).execute().use { response ->
+                if (response.code != 200) return false
 
-            val json = JSONObject(response.body?.string() ?: "{}")
-            json.optBoolean("success", false)
+                val json = JSONObject(response.body?.string() ?: "{}")
+                json.optBoolean("success", false)
+            }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Unlock request failed: ${e.message}")
             false

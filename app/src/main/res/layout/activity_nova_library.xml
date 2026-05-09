@@ -64,6 +64,7 @@
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
+                    android:layout_marginEnd="8dp"
                     android:minWidth="0dp"
                     android:text="@string/nova_refresh"
                     android:textAllCaps="false"
@@ -71,6 +72,22 @@
                     app:backgroundTint="@color/nova_badge_bg"
                     app:cornerRadius="14dp"
                     app:elevation="0dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/nova_library_polaris_sync"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:minWidth="0dp"
+                    android:text="@string/nova_library_sync"
+                    android:textAllCaps="false"
+                    android:textColor="@color/nova_text_primary"
+                    app:backgroundTint="@color/nova_badge_bg"
+                    app:cornerRadius="14dp"
+                    app:elevation="0dp"
+                    app:icon="@drawable/ic_settings"
+                    app:iconPadding="6dp"
+                    app:iconTint="@color/nova_text_primary" />
             </LinearLayout>
 
             <TextView

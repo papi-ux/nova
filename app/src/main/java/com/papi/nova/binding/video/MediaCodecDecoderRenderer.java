@@ -963,6 +963,19 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return true;
     }
 
+    private void requestWatchdogFlush() {
+        if (stopping || !foreground || videoDecoder == null) {
+            return;
+        }
+
+        if (codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_FLUSH)) {
+            LimeLog.warning("Decoder watchdog: no output >1.2s, requesting coordinated codec flush...");
+            synchronized (codecRecoveryMonitor) {
+                codecRecoveryMonitor.notifyAll();
+            }
+        }
+    }
+
     // Returns true if the exception is transient
     private boolean handleDecoderException(IllegalStateException e) {
         // Eat decoder exceptions if we're in the process of stopping
@@ -1395,16 +1408,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 /* WATCHDOG_C2_SLEEP */
                 try {
                     final long __nowNs = System.nanoTime();
-                    if (__nowNs - lastOutputNs > 1_200_000_000L) { // ~1.2s without output → likely C2 sleep
-                        LimeLog.warning("Decoder watchdog: no output >1.2s, flushing codec to recover...");
-                        try {
-                            videoDecoder.flush();
-                        } catch (Throwable ignored) {}
-                        try {
-                            android.os.Bundle __poke = new android.os.Bundle();
-                            __poke.putInt("priority", 0);
-                            videoDecoder.setParameters(__poke);
-                        } catch (Throwable ignored) {}
+                    if (__nowNs - lastOutputNs > 1_200_000_000L) {
+                        requestWatchdogFlush();
                         lastOutputNs = __nowNs;
                     }
                 } catch (Throwable ignored) {}
@@ -1501,17 +1506,21 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
 
         // Post a quit message to the Choreographer looper (if we have one)
-        if (choreographerHandler != null) {
-            choreographerHandler.post(new Runnable() {
+        Handler handler = choreographerHandler;
+        HandlerThread handlerThread = choreographerHandlerThread;
+        if (handler != null && handlerThread != null && handlerThread.isAlive()) {
+            handler.post(new Runnable() {
                 @Override
                 public void run() {
                     // Don't allow any further messages to be queued
-                    choreographerHandlerThread.quit();
+                    handlerThread.quit();
 
                     // Deregister the frame callback (if registered)
                     Choreographer.getInstance().removeFrameCallback(MediaCodecDecoderRenderer.this);
                 }
             });
+        } else if (handlerThread != null) {
+            handlerThread.quit();
         }
     }
 

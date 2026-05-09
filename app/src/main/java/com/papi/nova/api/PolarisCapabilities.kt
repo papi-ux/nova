@@ -6,7 +6,7 @@ data class PolarisCapabilities(
     val features: Features,
     val capture: CaptureInfo
 ) {
-    data class Features(
+    data class Features @JvmOverloads constructor(
         val aiOptimizer: Boolean = false,
         val aiOptimizerControl: Boolean = false,
         val adaptiveBitrateControl: Boolean = false,
@@ -14,7 +14,9 @@ data class PolarisCapabilities(
         val sessionLifecycle: Boolean = false,
         val deviceProfiles: Boolean = false,
         val lockScreenControl: Boolean = false,
-        val cursorVisibilityControl: Boolean = false
+        val cursorVisibilityControl: Boolean = false,
+        val clientSettings: Boolean = false,
+        val disconnectResume: Boolean = false
     )
 
     data class CaptureInfo(
