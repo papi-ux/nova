@@ -15,7 +15,8 @@ data class PolarisCapabilities(
         val deviceProfiles: Boolean = false,
         val lockScreenControl: Boolean = false,
         val cursorVisibilityControl: Boolean = false,
-        val clientSettings: Boolean = false
+        val clientSettings: Boolean = false,
+        val disconnectResume: Boolean = false
     )
 
     data class CaptureInfo(

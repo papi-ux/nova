@@ -15,7 +15,8 @@ data class PolarisClientSettings(
         val displayMode: String = "",
         val targetBitrateKbps: Int = 0,
         val adaptiveBitrateEnabled: Boolean = false,
-        val aiOptimizerEnabled: Boolean = false
+        val aiOptimizerEnabled: Boolean = false,
+        val disconnectResumeTimeoutSeconds: Int = 300
     )
 
     data class Effective(
@@ -27,6 +28,7 @@ data class PolarisClientSettings(
         val adaptiveBitrateEnabled: Boolean = false,
         val adaptiveTargetBitrateKbps: Int = 0,
         val aiOptimizerEnabled: Boolean = false,
+        val disconnectResumeTimeoutSeconds: Int = 300,
         val capturePath: String = "",
         val captureGpuNative: Boolean = false
     )
@@ -36,7 +38,8 @@ data class PolarisClientSettings(
         val displayModeOverride: Boolean = false,
         val targetBitrateOverride: Boolean = false,
         val adaptiveBitrateControl: Boolean = false,
-        val aiOptimizerControl: Boolean = false
+        val aiOptimizerControl: Boolean = false,
+        val disconnectResumeTimeoutControl: Boolean = false
     )
 
     data class ModeOption(

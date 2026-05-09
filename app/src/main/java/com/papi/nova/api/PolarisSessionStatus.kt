@@ -104,7 +104,7 @@ data class PolarisSessionStatus(
     )
 
     val isStreaming get() = state == "streaming" || streamingActive
-    val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming")
+    val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming", "paused")
     val isShuttingDown get() = shutdownRequested || state == "tearing_down"
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
     val isGpuPath get() = capture.gpuNative || encoder.targetResidency.equals("gpu", ignoreCase = true)

@@ -145,6 +145,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         OnSystemUiVisibilityChangeListener, GameGestures, StreamContainer.InputCallbacks,
         ExternalControllerView.InputCallbacks,
         PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {
+    private static final String SESSION_END_REASON_DISCONNECT = "disconnect";
+    private static final String SESSION_END_REASON_BACKGROUND_DETACH = "background_detach";
+    private static final String SESSION_END_REASON_END = "end";
+
     public static Game instance;
     public static volatile boolean isStreamActive = false;
 
@@ -218,6 +222,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean surfaceCreated = false;
     private boolean attemptedConnection = false;
     private int suppressPipRefCount = 0;
+    private String pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
+    private boolean backgroundDetachPending = false;
+    private boolean explicitSessionEndRequested = false;
     private String pcName;
     private String appName;
     private NvApp app;
@@ -1562,6 +1569,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public void onUserLeaveHint() {
         super.onUserLeaveHint();
 
+        if (connected && prefConfig != null && prefConfig.keepStreamAlive && !quitOnStop) {
+            backgroundDetachPending = true;
+            pendingSessionEndReason = SESSION_END_REASON_BACKGROUND_DETACH;
+        }
+
         // PiP is only supported on Oreo and later, and we don't need to manually enter PiP on
         // Android S and later. On Android R, we will use onPictureInPictureRequested() instead.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
@@ -1972,11 +1984,26 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         super.onNewIntent(intent);
 
         if (isDisconnectIntent(intent)) {
+            pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
+            backgroundDetachPending = false;
             disconnect();
             return;
         }
 
         setIntent(intent);
+    }
+
+    private boolean isInPipMode() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode();
+    }
+
+    private boolean shouldDetachOnStopForResume() {
+        return conn != null &&
+                prefConfig != null &&
+                prefConfig.keepStreamAlive &&
+                !explicitSessionEndRequested &&
+                !quitOnStop &&
+                !isInPipMode();
     }
 
     @Override
@@ -1998,6 +2025,31 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     protected void onStop() {
         super.onStop();
 
+        boolean detachForResume = shouldDetachOnStopForResume();
+        String sessionEndReason = detachForResume ?
+                SESSION_END_REASON_BACKGROUND_DETACH :
+                pendingSessionEndReason;
+        LimeLog.info("Nova: onStop detach=" + detachForResume +
+                " connected=" + connected +
+                " connecting=" + connecting +
+                " conn=" + (conn != null) +
+                " explicitEnd=" + explicitSessionEndRequested +
+                " finishing=" + isFinishing() +
+                " quitOnStop=" + quitOnStop);
+        if (detachForResume) {
+            backgroundDetachPending = true;
+            pendingSessionEndReason = SESSION_END_REASON_BACKGROUND_DETACH;
+            LimeLog.info("Nova: Detaching stream for background resume");
+            com.papi.nova.service.NovaStreamKeepAlive.Companion.start(
+                    this,
+                    prefConfig.disconnectResumeTimeoutSeconds,
+                    appName,
+                    pcName);
+        } else {
+            backgroundDetachPending = false;
+            com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(this);
+        }
+
         SpinnerDialog.closeDialogs(this);
         Dialog.closeDialogs();
 
@@ -2016,7 +2068,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             int videoFormat = decoderRenderer.getActiveVideoFormat();
 
             displayedFailureDialog = true;
-            stopConnection();
+            stopConnection(sessionEndReason);
             String message = null;
             String selectedVideoFormat = "";
 
@@ -2056,7 +2108,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 message += selectedVideoFormat;
             }
 
-            if (message != null) {
+            if (message != null && !detachForResume) {
                 if (prefConfig.enableLatencyToast) {
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 }
@@ -3704,6 +3756,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void stopConnection() {
+        stopConnection(backgroundDetachPending ? SESSION_END_REASON_BACKGROUND_DETACH : pendingSessionEndReason);
+    }
+
+    private void stopConnection(String sessionEndReason) {
         if (connecting || connected) {
             connecting = connected = false;
             isStreamActive = false;
@@ -3727,7 +3783,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                             getSummaryDouble(summary, "packet_loss_pct", 0.0),
                             getSummaryString(summary, "codec"),
                             getSummaryInt(summary, "duration_s", 0),
-                            "disconnect",
+                            sessionEndReason,
                             getSummaryString(summary, "optimization_source"),
                             getSummaryString(summary, "optimization_confidence"),
                             getSummaryInt(summary, "recommendation_version", 0),
@@ -3775,6 +3831,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // thread to keep things smooth for the UI. Inside moonlight-common,
             // we prevent another thread from starting a connection before and
             // during the process of stopping this one.
+            if (decoderRenderer != null) {
+                decoderRenderer.prepareForStop();
+            }
             new Thread() {
                 public void run() {
                     conn.stop();
@@ -4038,11 +4097,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 });
                 gyroAimController.start();
 
-                com.papi.nova.service.NovaStreamNotification.INSTANCE.show(
-                    Game.this,
-                    appName != null ? appName : "Streaming",
-                    pcName != null ? pcName : "Server"
-                );
+                com.papi.nova.service.NovaStreamNotification.INSTANCE.dismiss(Game.this);
+                com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(Game.this);
+                backgroundDetachPending = false;
+                explicitSessionEndRequested = false;
+                pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
                 updatePipAutoEnter();
 
                 // Hide the mouse cursor now after a short delay.
@@ -4364,6 +4423,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             showGameMenu(null);
             return;
         }
+        explicitSessionEndRequested = true;
+        pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
+        backgroundDetachPending = false;
+        com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(this);
         super.onBackPressed();
     }
 
@@ -4649,6 +4712,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         if (!executePolarisSessionTask(() -> {
             try {
+                if (prefConfig.keepStreamAlive &&
+                        com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasDisconnectResume()) {
+                    novaApiClient.setDisconnectResumeTimeout(prefConfig.disconnectResumeTimeoutSeconds);
+                }
                 novaApiClient.setLaunchProfile(displayMode, bitrateKbps);
             } catch (Exception e) {
                 LimeLog.warning("Nova: Polaris launch profile sync failed: " + e.getMessage());
@@ -4783,6 +4850,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void disconnect() {
+        pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
+        backgroundDetachPending = false;
+        explicitSessionEndRequested = true;
+        quitOnStop = false;
+        com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(this);
         if (prefConfig.smartClipboardSync) {
             getClipboard(-1);
         }
@@ -4802,6 +4874,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         builder.setPositiveButton(getString(R.string.yes), (dialog, which) -> {
             quitOnStop = true;
+            pendingSessionEndReason = SESSION_END_REASON_END;
+            backgroundDetachPending = false;
+            explicitSessionEndRequested = true;
+            com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(this);
             dialog.dismiss();
             finish();
         });

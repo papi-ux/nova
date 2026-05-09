@@ -16,22 +16,28 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.ByteArrayInputStream
+import java.net.Proxy
+import java.net.Socket
 import org.json.JSONObject
 import java.io.File
 import java.security.KeyFactory
 import java.security.KeyStore
+import java.security.Principal
+import java.security.PrivateKey
+import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLPeerUnverifiedException
 import javax.net.ssl.SSLSession
 import javax.net.ssl.TrustManager
 import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509KeyManager
 import javax.net.ssl.X509TrustManager
 import androidx.collection.LruCache
 
@@ -92,7 +98,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     deviceProfiles = features?.optBoolean("device_profiles") ?: false,
                     clientSettings = features?.optBoolean("client_settings_v1") ?: false,
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
-                    cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false
+                    cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
+                    disconnectResume = features?.optBoolean("disconnect_resume_v1") ?: false
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
@@ -138,7 +145,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     displayMode = desired?.optString("display_mode", "") ?: "",
                     targetBitrateKbps = desired?.optInt("target_bitrate_kbps", 0) ?: 0,
                     adaptiveBitrateEnabled = desired?.optBoolean("adaptive_bitrate_enabled", false) ?: false,
-                    aiOptimizerEnabled = desired?.optBoolean("ai_optimizer_enabled", false) ?: false
+                    aiOptimizerEnabled = desired?.optBoolean("ai_optimizer_enabled", false) ?: false,
+                    disconnectResumeTimeoutSeconds = desired?.optInt("disconnect_resume_timeout_seconds", 300) ?: 300
                 ),
                 effective = PolarisClientSettings.Effective(
                     streamDisplayMode = effective?.optString("stream_display_mode", "") ?: "",
@@ -149,6 +157,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     adaptiveBitrateEnabled = effective?.optBoolean("adaptive_bitrate_enabled", false) ?: false,
                     adaptiveTargetBitrateKbps = effective?.optInt("adaptive_target_bitrate_kbps", 0) ?: 0,
                     aiOptimizerEnabled = effective?.optBoolean("ai_optimizer_enabled", false) ?: false,
+                    disconnectResumeTimeoutSeconds = effective?.optInt("disconnect_resume_timeout_seconds", 300) ?: 300,
                     capturePath = effective?.optString("capture_path", "") ?: "",
                     captureGpuNative = effective?.optBoolean("capture_gpu_native", false) ?: false
                 ),
@@ -157,7 +166,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     displayModeOverride = capabilities?.optBoolean("display_mode_override", false) ?: false,
                     targetBitrateOverride = capabilities?.optBoolean("target_bitrate_override", false) ?: false,
                     adaptiveBitrateControl = capabilities?.optBoolean("adaptive_bitrate_control", false) ?: false,
-                    aiOptimizerControl = capabilities?.optBoolean("ai_optimizer_control", false) ?: false
+                    aiOptimizerControl = capabilities?.optBoolean("ai_optimizer_control", false) ?: false,
+                    disconnectResumeTimeoutControl = capabilities?.optBoolean("disconnect_resume_timeout_control", false) ?: false
                 ),
                 relaunchRequired = settingsJson.optBoolean("relaunch_required", false)
             )
@@ -278,7 +288,8 @@ class PolarisApiClient @JvmOverloads constructor(
             targetBitrateKbps: Int? = null,
             clearTargetBitrate: Boolean = false,
             adaptiveBitrateEnabled: Boolean? = null,
-            aiOptimizerEnabled: Boolean? = null
+            aiOptimizerEnabled: Boolean? = null,
+            disconnectResumeTimeoutSeconds: Int? = null
         ): JSONObject {
             return JSONObject().apply {
                 streamDisplayMode?.let { put("stream_display_mode", it) }
@@ -288,6 +299,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 if (clearTargetBitrate) put("clear_target_bitrate", true)
                 adaptiveBitrateEnabled?.let { put("adaptive_bitrate_enabled", it) }
                 aiOptimizerEnabled?.let { put("ai_optimizer_enabled", it) }
+                disconnectResumeTimeoutSeconds?.let { put("disconnect_resume_timeout_seconds", it) }
             }
         }
     }
@@ -319,19 +331,11 @@ class PolarisApiClient @JvmOverloads constructor(
         val keyFactory = KeyFactory.getInstance("RSA")
         val privateKey = keyFactory.generatePrivate(PKCS8EncodedKeySpec(keyBytes))
 
-        val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
-            load(null, null)
-            setKeyEntry("client", privateKey, charArrayOf(), arrayOf(cert))
-        }
-
-        val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
-            init(keyStore, charArrayOf())
-        }
-
         val trustManager = createPinnedServerTrustManager()
+        val keyManager = createForcedClientKeyManager(cert, privateKey)
 
         val sslContext = SSLContext.getInstance("TLS").apply {
-            init(kmf.keyManagers, arrayOf<TrustManager>(trustManager), null)
+            init(arrayOf<KeyManager>(keyManager), arrayOf<TrustManager>(trustManager), SecureRandom())
         }
 
         return OkHttpClient.Builder()
@@ -343,7 +347,49 @@ class PolarisApiClient @JvmOverloads constructor(
             }
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
+            .proxy(Proxy.NO_PROXY)
             .build()
+    }
+
+    private fun createForcedClientKeyManager(
+        cert: X509Certificate,
+        privateKey: PrivateKey
+    ): X509KeyManager {
+        return object : X509KeyManager {
+            override fun chooseClientAlias(
+                keyTypes: Array<out String>?,
+                issuers: Array<out Principal>?,
+                socket: Socket?
+            ): String? {
+                return if (keyTypes == null || keyTypes.any { it.equals("RSA", ignoreCase = true) }) {
+                    "Limelight-RSA"
+                } else {
+                    null
+                }
+            }
+
+            override fun chooseServerAlias(
+                keyType: String?,
+                issuers: Array<out Principal>?,
+                socket: Socket?
+            ): String? = null
+
+            override fun getCertificateChain(alias: String?): Array<X509Certificate> {
+                return arrayOf(cert)
+            }
+
+            override fun getClientAliases(
+                keyType: String?,
+                issuers: Array<out Principal>?
+            ): Array<String> = arrayOf("Limelight-RSA")
+
+            override fun getPrivateKey(alias: String?): PrivateKey = privateKey
+
+            override fun getServerAliases(
+                keyType: String?,
+                issuers: Array<out Principal>?
+            ): Array<String>? = null
+        }
     }
 
     private fun createPinnedServerTrustManager(): X509TrustManager {
@@ -474,7 +520,8 @@ class PolarisApiClient @JvmOverloads constructor(
         targetBitrateKbps: Int? = null,
         clearTargetBitrate: Boolean = false,
         adaptiveBitrateEnabled: Boolean? = null,
-        aiOptimizerEnabled: Boolean? = null
+        aiOptimizerEnabled: Boolean? = null,
+        disconnectResumeTimeoutSeconds: Int? = null
     ): PolarisClientSettings? {
         return try {
             val body = buildClientSettingsUpdateBody(
@@ -484,7 +531,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 targetBitrateKbps = targetBitrateKbps,
                 clearTargetBitrate = clearTargetBitrate,
                 adaptiveBitrateEnabled = adaptiveBitrateEnabled,
-                aiOptimizerEnabled = aiOptimizerEnabled
+                aiOptimizerEnabled = aiOptimizerEnabled,
+                disconnectResumeTimeoutSeconds = disconnectResumeTimeoutSeconds
             )
             parseClientSettingsResponse(postJson("client-settings", body) ?: return null)
         } catch (e: Exception) {
@@ -502,6 +550,10 @@ class PolarisApiClient @JvmOverloads constructor(
             displayMode = displayMode,
             targetBitrateKbps = bitrateKbps.takeIf { it > 0 }
         ) != null
+    }
+
+    fun setDisconnectResumeTimeout(timeoutSeconds: Int): Boolean {
+        return updateClientSettings(disconnectResumeTimeoutSeconds = timeoutSeconds) != null
     }
 
     /**

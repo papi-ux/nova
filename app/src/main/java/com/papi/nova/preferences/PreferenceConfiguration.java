@@ -72,6 +72,8 @@ public class PreferenceConfiguration {
     private static final String LEGACY_DISABLE_FRAME_DROP_PREF_STRING = "checkbox_disable_frame_drop";
     private static final String ENABLE_HDR_PREF_STRING = "checkbox_enable_hdr";
     private static final String ENABLE_PIP_PREF_STRING = "checkbox_enable_pip";
+    private static final String KEEP_STREAM_ALIVE_PREF_STRING = "nova_keep_stream_alive";
+    private static final String DISCONNECT_RESUME_TIMEOUT_PREF_STRING = "nova_disconnect_resume_timeout_seconds";
     private static final String ENABLE_PERF_OVERLAY_STRING = "checkbox_enable_perf_overlay";
     private static final String ENABLE_PERF_LOGGING = "checkbox_enable_perf_logging";
     private static final String BIND_ALL_USB_STRING = "checkbox_usb_bind_all";
@@ -168,6 +170,8 @@ public class PreferenceConfiguration {
     private static final boolean SHOW_GUIDE_BUTTON_DEFAULT = true;
     private static final boolean DEFAULT_ENABLE_HDR = false;
     private static final boolean DEFAULT_ENABLE_PIP = false;
+    private static final boolean DEFAULT_KEEP_STREAM_ALIVE = true;
+    private static final int DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS = 300;
     private static final boolean DEFAULT_ENABLE_PERF_OVERLAY = false;
     private static final boolean DEFAULT_PERF_OVERLAY_BOTTOM = false;
     private static final boolean DEFAULT_ENABLE_PERF_LOGGING = false;
@@ -269,6 +273,8 @@ public class PreferenceConfiguration {
     public boolean showGuideButton;
     public boolean enableHdr;
     public boolean enablePip;
+    public boolean keepStreamAlive;
+    public int disconnectResumeTimeoutSeconds;
 
     public boolean enablePerfOverlay;
     public boolean enablePerfLogging;
@@ -991,6 +997,16 @@ private static int getFramePacingValue(Context context) {
         config.showGuideButton = prefs.getBoolean(SHOW_GUIDE_BUTTON_PREF_STRING, SHOW_GUIDE_BUTTON_DEFAULT);
         config.enableHdr = prefs.getBoolean(ENABLE_HDR_PREF_STRING, DEFAULT_ENABLE_HDR) && !isShieldAtvFirmwareWithBrokenHdr();
         config.enablePip = prefs.getBoolean(ENABLE_PIP_PREF_STRING, DEFAULT_ENABLE_PIP);
+        config.keepStreamAlive = prefs.getBoolean(KEEP_STREAM_ALIVE_PREF_STRING, DEFAULT_KEEP_STREAM_ALIVE);
+        try {
+            config.disconnectResumeTimeoutSeconds = Integer.parseInt(
+                    prefs.getString(DISCONNECT_RESUME_TIMEOUT_PREF_STRING, String.valueOf(DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS)));
+        } catch (NumberFormatException e) {
+            config.disconnectResumeTimeoutSeconds = DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS;
+        }
+        if (config.disconnectResumeTimeoutSeconds < 0 || config.disconnectResumeTimeoutSeconds > 24 * 60 * 60) {
+            config.disconnectResumeTimeoutSeconds = DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS;
+        }
         config.enablePerfOverlay = prefs.getBoolean(ENABLE_PERF_OVERLAY_STRING, DEFAULT_ENABLE_PERF_OVERLAY);
         config.enablePerfLogging = prefs.getBoolean(ENABLE_PERF_LOGGING, DEFAULT_ENABLE_PERF_LOGGING);
         config.enablePerfOverlayLite = prefs.getBoolean("checkbox_enable_perf_overlay_lite",DEFAULT_ENABLE_PERF_OVERLAY);

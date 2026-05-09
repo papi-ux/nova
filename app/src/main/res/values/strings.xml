@@ -793,9 +793,9 @@
     <string name="pref_error_occurred">An error occurred: </string>
     <string name="pref_save_keyboard_profile">Save OSK profile</string>
     <string name="game_menu_advanced">Advanced Menu</string>
-    <string name="game_dialog_title_quit_confirm">Really want to quit?</string>
-    <string name="game_dialog_message_quit_confirm">Please make sure you have no unsaved progress. Quitting the session will terminate your current running application.</string>
-    <string name="game_menu_quit_session">Quit Session</string>
+    <string name="game_dialog_title_quit_confirm">End session?</string>
+    <string name="game_dialog_message_quit_confirm">This closes the host app/session. Unsaved progress may be lost.</string>
+    <string name="game_menu_quit_session">End Session</string>
     <string name="game_menu_server_cmd">Server Commands</string>
     <string name="game_menu_fetch_clipboard">Fetch Clipboard</string>
     <string name="game_menu_upload_clipboard">Upload Clipboard</string>
