@@ -10,8 +10,8 @@
          ═══════════════════════════════════════════════════════════ -->
     <PreferenceCategory
         android:key="category_stream_quality"
-        android:title="Stream Quality"
-        android:summary="Resolution, FPS, codec, and bitrate"
+        android:title="Client Stream Defaults"
+        android:summary="Nova defaults for resolution, FPS, codec, and bitrate"
         app:iconSpaceReserved="false">
 
         <!-- Preset quick-switch -->

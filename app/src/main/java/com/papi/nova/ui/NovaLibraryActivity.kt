@@ -28,7 +28,9 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisGame
+import com.papi.nova.manager.PolarisSettingsSyncManager
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.utils.ServerHelper
@@ -66,6 +68,8 @@ class NovaLibraryActivity : AppCompatActivity() {
     private var streamPcName: String = ""
     private var streamServerCommands: ArrayList<String>? = null
     private var streamServerCert: ByteArray? = null
+    private var settingsSync: PolarisSettingsSyncManager? = null
+    private var currentClientSettings: PolarisClientSettings? = null
 
     companion object {
         const val EXTRA_HOST = "host"
@@ -103,6 +107,9 @@ class NovaLibraryActivity : AppCompatActivity() {
         streamServerCert = intent.getByteArrayExtra(EXTRA_SERVER_CERT)
 
         apiClient = PolarisApiClient(this, host, httpsPort, streamServerCert)
+        settingsSync = PolarisSettingsSyncManager(apiClient) { settings ->
+            currentClientSettings = settings
+        }.also { it.start(immediate = true) }
 
         // Enable dense particles (nebulae + shooting stars) for library
         findViewById<SpaceParticleView>(R.id.space_particles_dense)?.dense = true
@@ -154,6 +161,10 @@ class NovaLibraryActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.nova_library_refresh).setOnClickListener { v ->
             v.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
             loadGames()
+        }
+        findViewById<MaterialButton>(R.id.nova_library_polaris_sync).setOnClickListener { v ->
+            v.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+            showPolarisSync()
         }
 
         // Search
@@ -321,15 +332,35 @@ class NovaLibraryActivity : AppCompatActivity() {
     private fun showGameDetail(game: PolarisGame) {
         dismissOpenGameDetail()
         val defaultToVirtualDisplay = PreferenceConfiguration.readPreferences(this).useVirtualDisplay
-        val sheet = NovaGameDetailSheet.newInstance(game, apiClient, defaultToVirtualDisplay) { g, withVirtualDisplay ->
-            launchGame(g, withVirtualDisplay)
+        settingsSync?.refresh()
+        val sheet = NovaGameDetailSheet.newInstance(game, apiClient, defaultToVirtualDisplay, currentClientSettings) { g, mode ->
+            launchGame(g, mode)
         }
         sheet.show(supportFragmentManager, "game_detail")
     }
 
+    private fun showPolarisSync() {
+        dismissOpenGameDetail()
+        (supportFragmentManager.findFragmentByTag("polaris_sync") as? BottomSheetDialogFragment)
+            ?.dismissAllowingStateLoss()
+        settingsSync?.refresh()
+        val label = streamPcName.ifBlank { streamHost }
+        NovaPolarisSyncSheet.newInstance(apiClient, label, streamPcUuid, currentClientSettings) { settings ->
+            currentClientSettings = settings
+        }.show(supportFragmentManager, "polaris_sync")
+    }
+
     override fun onStop() {
         dismissOpenGameDetail()
+        (supportFragmentManager.findFragmentByTag("polaris_sync") as? BottomSheetDialogFragment)
+            ?.dismissAllowingStateLoss()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        settingsSync?.close()
+        settingsSync = null
+        super.onDestroy()
     }
 
     private fun dismissOpenGameDetail() {
@@ -359,7 +390,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         header.requestApplyInsets()
     }
 
-    private fun launchGame(game: PolarisGame, withVirtualDisplay: Boolean) {
+    private fun launchGame(game: PolarisGame, streamDisplayMode: String) {
         if (game.appId <= 0) {
             Toast.makeText(this, "This game entry is missing a launch ID", Toast.LENGTH_SHORT).show()
             return
@@ -370,9 +401,9 @@ class NovaLibraryActivity : AppCompatActivity() {
             return
         }
 
-        val modeLabel = if (withVirtualDisplay) {
-            getString(R.string.nova_library_launch_virtual_display)
-        } else {
+        val normalizedMode = normalizeLaunchMode(streamDisplayMode)
+        val withVirtualDisplay = normalizedMode == PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
+        val modeLabel = PolarisClientSettings.labelForMode(normalizedMode).ifBlank {
             getString(R.string.nova_library_launch_headless)
         }
         Toast.makeText(this, getString(R.string.nova_library_launching_mode, game.name, modeLabel), Toast.LENGTH_SHORT).show()
@@ -395,5 +426,13 @@ class NovaLibraryActivity : AppCompatActivity() {
             false,
             streamServerCert
         )
+    }
+
+    private fun normalizeLaunchMode(mode: String): String {
+        return when (mode) {
+            "virtual_display" -> PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
+            "headless" -> PolarisClientSettings.MODE_HEADLESS_STREAM
+            else -> mode
+        }
     }
 }

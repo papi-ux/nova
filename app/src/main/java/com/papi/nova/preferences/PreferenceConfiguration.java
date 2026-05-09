@@ -9,6 +9,8 @@ import android.view.Display;
 import com.papi.nova.nvstream.jni.MoonBridge;
 import com.papi.nova.profiles.ProfilesManager;
 
+import java.util.Locale;
+
 public class PreferenceConfiguration {
 
     public enum ScaleMode {
@@ -485,6 +487,69 @@ public class PreferenceConfiguration {
             case 2160:
                 return RES_4K;
         }
+    }
+
+    private static String formatFpsValue(float fps) {
+        int rounded = Math.round(fps);
+        if (Math.abs(fps - rounded) < 0.01f) {
+            return Integer.toString(rounded);
+        }
+        return String.format(Locale.US, "%.3f", fps)
+                .replaceAll("0+$", "")
+                .replaceAll("\\.$", "");
+    }
+
+    public static String formatStreamingDisplayMode(int width, int height, float fps) {
+        return width + "x" + height + "x" + formatFpsValue(fps);
+    }
+
+    public static String formatCurrentStreamingDisplayMode(Context context) {
+        PreferenceConfiguration config = readPreferences(context);
+        return formatStreamingDisplayMode(config.width, config.height, config.fps);
+    }
+
+    public static boolean applyPolarisStreamingProfile(Context context, String displayMode, int bitrateKbps) {
+        SharedPreferences prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context);
+        SharedPreferences.Editor editor = prefs.edit();
+        boolean changed = false;
+
+        if (displayMode != null && !displayMode.trim().isEmpty()) {
+            String[] segments = displayMode.trim().split("x");
+            if (segments.length != 3) {
+                return false;
+            }
+
+            try {
+                int width = Integer.parseInt(segments[0]);
+                int height = Integer.parseInt(segments[1]);
+                float fps = Float.parseFloat(segments[2]);
+                if (width <= 0 || height <= 0 || fps <= 0f) {
+                    return false;
+                }
+
+                String resolution = width + "x" + height;
+                String fpsValue = formatFpsValue(fps);
+                editor.putString(CUSTOM_RESOLUTION_PREF_STRING, resolution);
+                editor.putString(RESOLUTION_PREF_STRING, resolution);
+                editor.putString(CUSTOM_REFRESH_RATE_PREF_STRING, fpsValue);
+                editor.putString(FPS_PREF_STRING, fpsValue);
+                changed = true;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+
+        if (bitrateKbps > 0) {
+            editor.putInt(BITRATE_PREF_STRING, bitrateKbps);
+            changed = true;
+        }
+
+        if (!changed) {
+            return false;
+        }
+
+        editor.apply();
+        return true;
     }
 
     public static int getDefaultBitrate(String resString, String fpsString) {

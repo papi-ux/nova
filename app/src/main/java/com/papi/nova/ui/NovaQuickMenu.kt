@@ -130,9 +130,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         fun syncSessionDerivedState() {
             viewerSession = sessionStatus?.isViewer == true
             canAdjustHostTuning = sessionStatus?.canAdjustHostTuning == true
-            adaptiveEnabled = sessionStatus?.tuning?.adaptiveBitrateEnabled == true ||
+            adaptiveEnabled = sessionStatus?.clientSettings?.effective?.adaptiveBitrateEnabled == true ||
+                sessionStatus?.tuning?.adaptiveBitrateEnabled == true ||
                 sessionStatus?.adaptiveBitrateEnabled == true
-            aiEnabled = sessionStatus?.tuning?.aiOptimizerEnabled == true ||
+            aiEnabled = sessionStatus?.clientSettings?.effective?.aiOptimizerEnabled == true ||
+                sessionStatus?.tuning?.aiOptimizerEnabled == true ||
                 sessionStatus?.aiOptimizerEnabled == true
 
             val currentGameUuid = sessionStatus?.gameUuid?.takeIf { it.isNotEmpty() } ?: getRunningGameUuid()
@@ -147,15 +149,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         fun baseSessionModeLabel(status: PolarisSessionStatus?): String {
-            val mode = when {
-                status == null -> game.getString(R.string.nova_quick_menu_mode_unknown)
-                status.isHeadlessMode -> game.getString(R.string.nova_session_mode_headless)
-                status.isVirtualDisplayMode -> game.getString(R.string.nova_session_mode_virtual_display)
-                else -> game.getString(R.string.nova_session_mode_host_display)
-            }
+            val mode = status?.sessionModeLabel?.takeIf { it.isNotBlank() }
+                ?: game.getString(R.string.nova_quick_menu_mode_unknown)
             val source = when (status?.displayMode?.requested) {
                 "auto" -> "Auto"
-                "headless", "virtual_display" -> "Explicit"
+                "headless", "virtual_display", "headless_stream", "host_virtual_display",
+                "desktop_display", "windowed_stream" -> "Explicit"
                 else -> ""
             }
             return listOf(mode, source).filter { it.isNotBlank() }.joinToString(" · ")
@@ -530,13 +529,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 updateStateChip(stabilityState, "Applying", ChipTone.WARNING)
 
                 Thread {
-                    var success = true
-                    if (shouldEnableAdaptive) {
-                        success = apiClient.setAdaptiveBitrateEnabled(true) && success
-                    }
-                    if (shouldLowerBitrate) {
-                        success = apiClient.setBitrate(safeBitrate) && success
-                    }
+                    val confirmed = apiClient.updateClientSettings(
+                        adaptiveBitrateEnabled = if (shouldEnableAdaptive) true else null,
+                        targetBitrateKbps = if (shouldLowerBitrate) safeBitrate else null
+                    )
+                    val success = confirmed != null
                     if (success) {
                         sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                         syncSessionDerivedState()
@@ -573,7 +570,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 adaptiveEnabled = next
                 updateStateChip(adaptiveState, if (next) "On" else "Off", if (next) ChipTone.ACTIVE else ChipTone.INACTIVE)
                 Thread {
-                    val success = apiClient.setAdaptiveBitrateEnabled(next)
+                    val success = apiClient.updateClientSettings(adaptiveBitrateEnabled = next) != null
                     if (success) {
                         sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                         syncSessionDerivedState()
@@ -601,7 +598,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 aiEnabled = next
                 updateStateChip(aiState, if (next) "On" else "Off", if (next) ChipTone.ACTIVE else ChipTone.INACTIVE)
                 Thread {
-                    val success = apiClient.setAiOptimizerEnabled(next)
+                    val success = apiClient.updateClientSettings(aiOptimizerEnabled = next) != null
                     if (success) {
                         sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                         syncSessionDerivedState()
@@ -658,8 +655,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     capabilities = apiClient.getCapabilities()
                     sessionStatus = apiClient.getSessionStatus()
 
-                    adaptiveSupported = capabilities?.features?.adaptiveBitrateControl == true
-                    aiSupported = capabilities?.features?.aiOptimizerControl == true
+                    adaptiveSupported = capabilities?.features?.adaptiveBitrateControl == true ||
+                        capabilities?.features?.clientSettings == true
+                    aiSupported = capabilities?.features?.aiOptimizerControl == true ||
+                        capabilities?.features?.clientSettings == true
                     syncSessionDerivedState()
 
                     game.runOnUiThread {

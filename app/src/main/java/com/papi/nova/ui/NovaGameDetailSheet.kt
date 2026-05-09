@@ -26,6 +26,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisGame
 
 /**
@@ -37,19 +38,22 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     private var game: PolarisGame? = null
     private var apiClient: PolarisApiClient? = null
     private var defaultToVirtualDisplay: Boolean = false
-    private var onLaunch: ((PolarisGame, Boolean) -> Unit)? = null
+    private var clientSettings: PolarisClientSettings? = null
+    private var onLaunch: ((PolarisGame, String) -> Unit)? = null
 
     companion object {
         fun newInstance(
             game: PolarisGame,
             apiClient: PolarisApiClient,
             defaultToVirtualDisplay: Boolean,
-            onLaunch: (PolarisGame, Boolean) -> Unit
+            clientSettings: PolarisClientSettings?,
+            onLaunch: (PolarisGame, String) -> Unit
         ): NovaGameDetailSheet {
             return NovaGameDetailSheet().apply {
                 this.game = game
                 this.apiClient = apiClient
                 this.defaultToVirtualDisplay = defaultToVirtualDisplay
+                this.clientSettings = clientSettings
                 this.onLaunch = onLaunch
             }
         }
@@ -79,11 +83,29 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         val game = this.game ?: return
         val apiClient = this.apiClient ?: return
         val launchContract = game.launchMode
-        val fallbackMode = if (defaultToVirtualDisplay) "virtual_display" else "headless"
-        val preferredMode = launchContract?.preferredMode?.takeIf { it.isNotBlank() } ?: fallbackMode
-        val recommendedMode = launchContract?.recommendedMode?.takeIf { it.isNotBlank() } ?: preferredMode
-        val headlessAllowed = launchContract?.allows("headless") ?: true
-        val virtualAllowed = launchContract?.allows("virtual_display") ?: true
+        val syncedMode = clientSettings?.desired?.streamDisplayMode?.takeIf { it.isNotBlank() }
+        val fallbackMode = syncedMode ?: if (defaultToVirtualDisplay) {
+            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
+        } else {
+            PolarisClientSettings.MODE_HEADLESS_STREAM
+        }
+        val preferredMode = normalizeMode(launchContract?.preferredMode?.takeIf { it.isNotBlank() } ?: fallbackMode)
+        val recommendedMode = normalizeMode(launchContract?.recommendedMode?.takeIf { it.isNotBlank() } ?: preferredMode)
+        val availableModes = clientSettings?.capabilities?.modes
+            ?.filter { it.available }
+            ?.map { it.value }
+            ?.toSet()
+            ?.takeIf { it.isNotEmpty() }
+            ?: setOf(
+                PolarisClientSettings.MODE_HEADLESS_STREAM,
+                PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
+                PolarisClientSettings.MODE_DESKTOP_DISPLAY,
+                PolarisClientSettings.MODE_GPU_NATIVE_TEST
+            )
+        val headlessAllowed = availableModes.contains(PolarisClientSettings.MODE_HEADLESS_STREAM)
+        val virtualAllowed = availableModes.contains(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY)
+        val desktopAllowed = availableModes.contains(PolarisClientSettings.MODE_DESKTOP_DISPLAY)
+        val gpuAllowed = availableModes.contains(PolarisClientSettings.MODE_GPU_NATIVE_TEST)
 
         // Apply OLED theme to sheet background
         if (NovaThemeManager.isOled(requireContext())) {
@@ -102,7 +124,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             modeBadgeLabel(recommendedMode)
         )
 
-        if (!headlessAllowed && !virtualAllowed) {
+        if (!headlessAllowed && !virtualAllowed && !desktopAllowed && !gpuAllowed) {
             launchModeTitle.visibility = View.GONE
         }
 
@@ -351,26 +373,60 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         // Launch buttons
         val headlessButton = view.findViewById<MaterialButton>(R.id.detail_launch_headless_btn)
         val virtualButton = view.findViewById<MaterialButton>(R.id.detail_launch_virtual_btn)
+        val desktopButton = view.findViewById<MaterialButton>(R.id.detail_launch_desktop_btn)
+        val gpuButton = view.findViewById<MaterialButton>(R.id.detail_launch_gpu_btn)
 
         configureLaunchButton(
             button = headlessButton,
-            isRecommended = recommendedMode == "headless",
+            isRecommended = recommendedMode == PolarisClientSettings.MODE_HEADLESS_STREAM,
             isAvailable = headlessAllowed,
             labelRes = R.string.nova_library_launch_headless
         )
         configureLaunchButton(
             button = virtualButton,
-            isRecommended = recommendedMode == "virtual_display",
+            isRecommended = recommendedMode == PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
             isAvailable = virtualAllowed,
             labelRes = R.string.nova_library_launch_virtual_display
         )
+        configureLaunchButton(
+            button = desktopButton,
+            isRecommended = recommendedMode == PolarisClientSettings.MODE_DESKTOP_DISPLAY,
+            isAvailable = desktopAllowed,
+            labelRes = R.string.nova_library_launch_desktop_display
+        )
+        configureLaunchButton(
+            button = gpuButton,
+            isRecommended = recommendedMode == PolarisClientSettings.MODE_GPU_NATIVE_TEST,
+            isAvailable = gpuAllowed,
+            labelRes = R.string.nova_library_launch_gpu_native_test
+        )
 
         headlessButton.setOnClickListener {
-            onLaunch?.invoke(game, false)
-            dismiss()
+            launchWithSyncedMode(game, PolarisClientSettings.MODE_HEADLESS_STREAM)
         }
         virtualButton.setOnClickListener {
-            onLaunch?.invoke(game, true)
+            launchWithSyncedMode(game, PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY)
+        }
+        desktopButton.setOnClickListener {
+            launchWithSyncedMode(game, PolarisClientSettings.MODE_DESKTOP_DISPLAY)
+        }
+        gpuButton.setOnClickListener {
+            launchWithSyncedMode(game, PolarisClientSettings.MODE_GPU_NATIVE_TEST)
+        }
+    }
+
+    private fun launchWithSyncedMode(game: PolarisGame, mode: String) {
+        val apiClient = this.apiClient ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            val confirmed = withContext(Dispatchers.IO) {
+                apiClient.updateClientSettings(streamDisplayMode = mode)
+            }
+            if (confirmed == null) {
+                Toast.makeText(requireContext(), "Could not sync Polaris launch mode", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            clientSettings = confirmed
+            onLaunch?.invoke(game, mode)
             dismiss()
         }
     }
@@ -402,16 +458,28 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     }
 
     private fun modeLabel(mode: String): String {
-        return when (mode) {
-            "virtual_display" -> getString(R.string.nova_library_launch_virtual_display)
+        return when (normalizeMode(mode)) {
+            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
+            PolarisClientSettings.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisClientSettings.MODE_GPU_NATIVE_TEST -> getString(R.string.nova_library_launch_gpu_native_test)
             else -> getString(R.string.nova_library_launch_headless)
         }
     }
 
     private fun modeBadgeLabel(mode: String): String {
-        return when (mode) {
-            "virtual_display" -> getString(R.string.nova_library_launch_virtual_short)
+        return when (normalizeMode(mode)) {
+            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_short)
+            PolarisClientSettings.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisClientSettings.MODE_GPU_NATIVE_TEST -> getString(R.string.nova_library_launch_gpu_native_test)
             else -> getString(R.string.nova_library_launch_headless)
+        }
+    }
+
+    private fun normalizeMode(mode: String): String {
+        return when (mode) {
+            "virtual_display" -> PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
+            "headless" -> PolarisClientSettings.MODE_HEADLESS_STREAM
+            else -> mode
         }
     }
 
@@ -426,7 +494,9 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         }
         parts += when {
             !serverReason.isNullOrBlank() -> serverReason
-            recommendedMode == "virtual_display" -> getString(R.string.nova_library_launch_intro_virtual_default)
+            recommendedMode == PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_intro_virtual_default)
+            recommendedMode == PolarisClientSettings.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_intro_desktop_default)
+            recommendedMode == PolarisClientSettings.MODE_GPU_NATIVE_TEST -> getString(R.string.nova_library_launch_intro_gpu_native_default)
             else -> getString(R.string.nova_library_launch_intro_headless_default)
         }
         return parts.joinToString(" ")
