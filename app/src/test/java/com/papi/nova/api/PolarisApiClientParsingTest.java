@@ -133,6 +133,7 @@ public class PolarisApiClientParsingTest {
                 30000,
                 false,
                 null,
+                null,
                 null
         );
 
@@ -151,6 +152,7 @@ public class PolarisApiClientParsingTest {
                 null,
                 false,
                 true,
+                null,
                 null
         );
 
@@ -167,7 +169,8 @@ public class PolarisApiClientParsingTest {
                 null,
                 false,
                 null,
-                true
+                true,
+                null
         );
 
         assertEquals(1, body.length());
