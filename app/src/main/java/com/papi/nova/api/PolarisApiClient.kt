@@ -336,6 +336,7 @@ class PolarisApiClient @JvmOverloads constructor(
 
         return OkHttpClient.Builder()
             .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .protocols(listOf(Protocol.HTTP_1_1))
             .hostnameVerifier { hostname, session ->
                 isPinnedServerCertificate(session) ||
                     HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)
@@ -390,9 +391,15 @@ class PolarisApiClient @JvmOverloads constructor(
 
     private fun createBasicClient(): OkHttpClient {
         return OkHttpClient.Builder()
+            .protocols(listOf(Protocol.HTTP_1_1))
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .build()
+    }
+
+    private fun logMessage(e: Exception): String {
+        val message = e.message
+        return if (message.isNullOrBlank()) e.javaClass.simpleName else "${e.javaClass.simpleName}: $message"
     }
 
     private fun jsonBody(body: JSONObject = JSONObject()): okhttp3.RequestBody {
@@ -433,7 +440,7 @@ class PolarisApiClient @JvmOverloads constructor(
         return try {
             parseCapabilitiesResponse(getJson("capabilities") ?: return null)
         } catch (e: Exception) {
-            LimeLog.warning("Nova: Capabilities probe failed: ${e.message}")
+            LimeLog.warning("Nova: Capabilities probe failed: ${logMessage(e)}")
             null
         }
     }
@@ -446,7 +453,7 @@ class PolarisApiClient @JvmOverloads constructor(
         return try {
             parseSessionStatusResponse(getJson("session/status") ?: return null)
         } catch (e: Exception) {
-            LimeLog.warning("Nova: Session status query failed: ${e.message}")
+            LimeLog.warning("Nova: Session status query failed: ${logMessage(e)}")
             null
         }
     }
@@ -455,7 +462,7 @@ class PolarisApiClient @JvmOverloads constructor(
         return try {
             parseClientSettingsResponse(getJson("client-settings") ?: return null)
         } catch (e: Exception) {
-            LimeLog.warning("Nova: Client settings query failed: ${e.message}")
+            LimeLog.warning("Nova: Client settings query failed: ${logMessage(e)}")
             null
         }
     }
@@ -481,7 +488,7 @@ class PolarisApiClient @JvmOverloads constructor(
             )
             parseClientSettingsResponse(postJson("client-settings", body) ?: return null)
         } catch (e: Exception) {
-            LimeLog.warning("Nova: Client settings update failed: ${e.message}")
+            LimeLog.warning("Nova: Client settings update failed: ${logMessage(e)}")
             null
         }
     }
