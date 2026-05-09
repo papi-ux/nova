@@ -25,7 +25,8 @@ data class PolarisSessionStatus(
     val tuning: TuningStatus = TuningStatus(),
     val displayMode: DisplayModeStatus = DisplayModeStatus(),
     val capture: CaptureStatus = CaptureStatus(),
-    val encoder: EncoderStatus = EncoderStatus()
+    val encoder: EncoderStatus = EncoderStatus(),
+    val health: HealthStatus = HealthStatus()
 ) {
     data class ControlsStatus(
         val hostTuningAllowed: Boolean = false,
@@ -80,6 +81,22 @@ data class PolarisSessionStatus(
         val targetFormat: String = ""
     )
 
+    data class HealthStatus(
+        val grade: String = "",
+        val summary: String = "",
+        val primaryIssue: String = "",
+        val issues: List<String> = emptyList(),
+        val recommendations: List<String> = emptyList(),
+        val safeBitrateKbps: Int = 0,
+        val safeCodec: String = "",
+        val safeDisplayMode: String = "",
+        val safeHdr: Boolean? = null,
+        val decoderRisk: String = "",
+        val hdrRisk: String = "",
+        val networkRisk: String = "",
+        val relaunchRecommended: Boolean = false
+    )
+
     val isStreaming get() = state == "streaming" || streamingActive
     val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming")
     val isShuttingDown get() = shutdownRequested || state == "tearing_down"
@@ -116,4 +133,10 @@ data class PolarisSessionStatus(
     val hasOptimizationNormalization get() = encoder.optimizationNormalizationReason.isNotBlank()
     val optimizationNormalizedLabel get() = if (hasOptimizationNormalization) "Host adjusted" else ""
     val optimizationConfidenceLabel get() = encoder.optimizationConfidence.uppercase()
+    val hasHealthConcerns get() = health.grade.equals("watch", ignoreCase = true) || health.grade.equals("degraded", ignoreCase = true)
+    val healthToneLabel get() = when {
+        health.grade.equals("degraded", ignoreCase = true) -> "Degraded"
+        health.grade.equals("watch", ignoreCase = true) -> "Watch"
+        else -> "Stable"
+    }
 }

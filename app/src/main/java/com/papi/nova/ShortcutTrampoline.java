@@ -5,6 +5,7 @@ import static com.papi.nova.utils.ServerHelper.getSecondaryDisplay;
 import android.app.Activity;
 import android.app.Service;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
@@ -33,6 +34,7 @@ import com.papi.nova.utils.UiHelper;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -40,11 +42,21 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
 public class ShortcutTrampoline extends AppCompatActivity {
+    private static final int MAX_ART_FILE_CHARS = 64 * 1024;
+    private static final String[] DISALLOWED_ART_FILE_PATH_PREFIXES = {
+            "/data",
+            "/proc",
+            "/sys",
+            "/dev",
+            "/acct"
+    };
+
     private PreferenceConfiguration prefConfig;
     private String uuidString;
     private NvApp app;
@@ -308,17 +320,71 @@ public class ShortcutTrampoline extends AppCompatActivity {
         return true;
     }
 
+    private boolean isSafeArtFileUri(Uri fileUri) {
+        if (fileUri == null) {
+            return false;
+        }
+
+        String scheme = fileUri.getScheme();
+        if (!ContentResolver.SCHEME_CONTENT.equals(scheme) &&
+                !ContentResolver.SCHEME_FILE.equals(scheme)) {
+            return false;
+        }
+
+        String path = fileUri.getPath();
+        if (path == null || !path.toLowerCase(Locale.US).endsWith(".art")) {
+            return false;
+        }
+
+        String authority = fileUri.getAuthority();
+        if (ContentResolver.SCHEME_CONTENT.equals(scheme) &&
+                (authority == null || authority.isEmpty())) {
+            return false;
+        }
+
+        try {
+            String normalizedPath = new File(path).getCanonicalPath();
+            for (String prefix : DISALLOWED_ART_FILE_PATH_PREFIXES) {
+                if (normalizedPath.equals(prefix) || normalizedPath.startsWith(prefix + File.separator)) {
+                    return false;
+                }
+            }
+        } catch (IOException e) {
+            return false;
+        }
+
+        return true;
+    }
+
     private Map<String, String> parseArtFileData(Uri fileUri) {
         if (fileUri == null) {
             return null;
         }
 
+        if (!isSafeArtFileUri(fileUri)) {
+            Dialog.displayDialog(ShortcutTrampoline.this,
+                    getResources().getString(R.string.conn_error_title),
+                    "Invalid .art file URI",
+                    true);
+            return null;
+        }
+
         Map<String, String> artData = new HashMap<>();
 
-        try (InputStream inputStream = getContentResolver().openInputStream(fileUri);
-             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+        try (InputStream inputStream = getContentResolver().openInputStream(fileUri)) {
+            if (inputStream == null) {
+                throw new IOException("Unable to open .art file");
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
             String line;
+            int charsRead = 0;
             while ((line = reader.readLine()) != null) {
+                charsRead += line.length();
+                if (charsRead > MAX_ART_FILE_CHARS) {
+                    throw new IOException(".art file is too large");
+                }
+
                 line = line.trim();
                 if (line.startsWith("#") || line.isEmpty()) {
                     continue; // Skip comments and empty lines

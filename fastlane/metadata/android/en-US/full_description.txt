@@ -1,0 +1,19 @@
+Nova is a handheld-first Android game streaming client for Polaris and other Moonlight-compatible hosts.
+
+It is built for local-network PC game streaming on Android phones, tablets, and gaming handhelds. Nova keeps the common flow direct: add a host, pair once, open your library, launch a game, and use the quick menu when you need stream controls.
+
+Highlights:
+
+- Stream from Polaris or another Moonlight-compatible host
+- Controller-friendly server and library screens
+- Polaris-aware Continue, Watch, and launch-mode flows
+- Quick menu for stream tuning, overlays, input controls, and disconnect actions
+- HUD modes for stream state, FPS, codec, bitrate, and latency
+- Input support for controllers, gyro aim, haptics, touch controls, and mouse modes
+- OLED-aware themes and layouts tuned for handheld screens
+
+Nova works best with Polaris because Polaris can provide richer library metadata, session state, stream recommendations, and host-side tuning labels. Nova still works as a normal Moonlight-compatible client when paired with other compatible hosts.
+
+Nova does not provide cloud gaming by itself. You need a PC or compatible host on your network. Polaris-related tuning indicators are local host state, not a cloud AI service.
+
+This is an early public release. It is usable, but there will still be bugs and device-specific rough edges while the Android client and Polaris integration continue to mature.

@@ -185,6 +185,10 @@ public class PairingManager {
     }
     
     public PairState pair(String serverInfo, String pin, String passphrase) throws IOException, XmlPullParserException {
+        return pair(serverInfo, pin, passphrase, false);
+    }
+
+    public PairState pair(String serverInfo, String pin, String passphrase, boolean trustedPair) throws IOException, XmlPullParserException {
         PairingHashAlgorithm hashAlgo;
 
         int serverMajorVersion = http.getServerMajorVersion(serverInfo);
@@ -208,6 +212,10 @@ public class PairingManager {
 
         String pairingArguments = "phrase=getservercert&salt="+
                 saltStr+"&clientcert="+bytesToHex(pemCertBytes);
+
+        if (trustedPair) {
+            pairingArguments += "&trustedpair=1";
+        }
 
         if (passphrase != null) {
             try {

@@ -1,55 +1,47 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-VERSION="${1:-}"
-if [ -z "$VERSION" ]; then
-  # No version arg — re-release current version (overwrite existing release)
-  VERSION=$(grep 'versionName' app/build.gradle | head -1 | sed 's/.*"\(.*\)"/\1/')
-  echo "Re-releasing v${VERSION}"
-else
-  echo "Releasing v${VERSION}"
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
 
-  # Bump versionCode (increment from current)
-  CURRENT_CODE=$(grep 'versionCode' app/build.gradle | head -1 | sed 's/[^0-9]//g')
-  NEW_CODE=$((CURRENT_CODE + 1))
-
-  # Update build.gradle
-  sed -i "s/versionName \".*\"/versionName \"${VERSION}\"/" app/build.gradle
-  sed -i "s/versionCode = .*/versionCode = ${NEW_CODE}/" app/build.gradle
-  echo "  versionName: ${VERSION}, versionCode: ${NEW_CODE}"
+version="${1:-}"
+if [[ -z "$version" ]]; then
+  version="$(grep 'versionName' app/build.gradle | head -1 | sed 's/.*"\(.*\)"/\1/')"
 fi
 
-# Build
-echo "Building..."
-./gradlew assembleNonRoot_gameRelease -PnovaAbis=arm64-v8a -q
+tag="v${version}"
 
-APK="app/build/outputs/apk/nonRoot_game/release/app-nonRoot_game-arm64-v8a-release.apk"
-if [ ! -f "$APK" ]; then
-  echo "ERROR: APK not found at $APK"
+if git rev-parse "$tag" >/dev/null 2>&1; then
+  echo "Tag ${tag} already exists locally." >&2
   exit 1
 fi
 
-# Commit if there are changes
-if ! git diff --quiet app/build.gradle 2>/dev/null; then
-  git add app/build.gradle
-  git commit -m "release: Nova v${VERSION}"
+if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+  echo "Tag ${tag} already exists on origin." >&2
+  exit 1
 fi
 
-# Push
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Working tree is not clean. Commit release prep before tagging." >&2
+  exit 1
+fi
+
+bash scripts/check-public-docs.sh
+bash scripts/check-public-surface.sh
+./gradlew -PnovaAbis=arm64-v8a,x86_64 assembleNonRoot_gameRelease
+
 git push origin master
+git tag -a "$tag" -m "Nova ${tag}"
+git push origin "$tag"
 
-# Delete existing release/tag if present
-gh release delete "v${VERSION}" --repo papi-ux/nova --yes 2>/dev/null || true
-git tag -d "v${VERSION}" 2>/dev/null || true
-git push origin --delete "v${VERSION}" 2>/dev/null || true
+cat <<EOF
+Tagged ${tag}.
 
-# Create release
-gh release create "v${VERSION}" "$APK" \
-  --repo papi-ux/nova \
-  --title "Nova v${VERSION}" \
-  --generate-notes
+GitHub Actions will create or update the public release and upload:
+  - Nova-Android-arm64-v8a.apk
+  - Nova-Android-x86_64.apk
+  - matching .sha256 files
 
-echo ""
-echo "Released Nova v${VERSION}"
-echo "  APK: $APK"
-echo "  URL: https://github.com/papi-ux/nova/releases/tag/v${VERSION}"
+Release URL:
+  https://github.com/papi-ux/nova/releases/tag/${tag}
+EOF

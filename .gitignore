@@ -34,9 +34,9 @@ Thumbs.db
 .project
 
 # Android Studio
-.idea
+.idea/
 #.idea/workspace.xml - remove # and delete .idea if it better suit your needs.
-.gradle
+.gradle/
 build/
 *.iml
 
@@ -51,11 +51,23 @@ app/.externalNativeBuild/
 AGENTS.md
 CLAUDE.md
 .codex
-.codex/
+.claude/
 .private/
+.envrc
+.direnv/
+*.code-workspace
+docs/.claude/
+docs/session-notes-*.md
 # Nova signing
 *.keystore
 signing.properties
 .kotlin/
 .env
 .env.*
+
+# Patch and editor leftovers
+*.orig
+*.rej
+*.swp
+*.swo
+*~

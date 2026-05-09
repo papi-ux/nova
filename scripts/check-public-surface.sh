@@ -20,7 +20,7 @@ for path in "${blocked_exact[@]}"; do
 done
 
 path_hits="$(
-  git ls-files | rg '(^build-local/|(^|/)\.codex/|(^|/)\.private/|(^|/).+\.code-workspace$|(^|/)local\.properties$|(^|/)signing\.properties$|(^|/).+\.(keystore|jks)$)' || true
+  git ls-files | rg '(^build-local/|(^|/)\.codex/|(^|/)\.claude/|(^|/)docs/\.claude/|(^|/)\.private/|(^|/)\.envrc$|(^|/)\.direnv/|(^|/).+\.code-workspace$|(^|/)local\.properties$|(^|/)signing\.properties$|(^|/).+\.(keystore|jks)$|(^|/)docs/session-notes-[0-9-]+\.md$)' || true
 )"
 if [[ -n "$path_hits" ]]; then
   echo "Tracked files that should stay out of the public repo:" >&2

@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.2 - 2026-04-28
+
+- Hardened externally supplied host, URI, and cache path handling found during CodeQL/security review.
+- Made stream notification actions use explicit immutable PendingIntents.
+- Updated public README and F-Droid/IzzyOnDroid notes with the current packaging, scan, and inclusion status.
+
+## 1.0.1 - 2026-04-25
+
+- Added Fastlane metadata, screenshots, and F-Droid/IzzyOnDroid packaging notes for public store review.
+- Added the `novaFdroid` build switch so F-Droid-style builds can hide GitHub and Obtainium update shortcuts.
+- Renamed public APK release assets to `Nova-Android-arm64-v8a.apk` and `Nova-Android-x86_64.apk`, with stable latest-download links through GitHub Releases.
+
+## 1.0.0 - 2026-04-20
+
+- Prepared Nova for the first public `v1.0.0` release line with refreshed public-facing docs, repo hygiene checks, and release metadata.
+- Tightened the public repo surface rules so maintainer-local files and session checkpoint notes are blocked from the tracked tree.
+- Landed the current Polaris-aware Android client surface:
+  richer session guidance, launch-mode awareness, reliability feedback, library polish, and live quick-menu controls.
+
 ## 2026-04-17
 
 ### Release and repo hygiene

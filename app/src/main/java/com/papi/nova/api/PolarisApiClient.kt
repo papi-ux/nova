@@ -15,18 +15,23 @@ import okhttp3.Protocol
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.ByteArrayInputStream
 import org.json.JSONObject
 import java.io.File
-import java.io.FileInputStream
 import java.security.KeyFactory
 import java.security.KeyStore
+import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLPeerUnverifiedException
+import javax.net.ssl.SSLSession
 import javax.net.ssl.TrustManager
+import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 import androidx.collection.LruCache
 
@@ -34,7 +39,15 @@ import androidx.collection.LruCache
  * HTTP client for Polaris REST API on the nvhttp port (47984).
  * Uses the same client certificate as Moonlight pairing.
  */
-class PolarisApiClient(context: Context, private val serverAddress: String, private val httpsPort: Int = 47984) {
+class PolarisApiClient @JvmOverloads constructor(
+    context: Context,
+    private val serverAddress: String,
+    private val httpsPort: Int = 47984,
+    private val pinnedServerCert: X509Certificate? = null
+) {
+
+    constructor(context: Context, serverAddress: String, httpsPort: Int, serverCertDer: ByteArray?) :
+        this(context, serverAddress, httpsPort, decodeCertificate(serverCertDer))
 
     @JvmField val client: OkHttpClient
     private val coverClient: OkHttpClient
@@ -47,6 +60,20 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
 
     companion object {
         const val WEB_UI_HTTPS_PORT = 47990
+
+        @JvmStatic
+        fun decodeCertificate(serverCertDer: ByteArray?): X509Certificate? {
+            if (serverCertDer == null) return null
+            return CertificateFactory.getInstance("X.509")
+                .generateCertificate(ByteArrayInputStream(serverCertDer)) as X509Certificate
+        }
+
+        private fun parseStringArray(array: org.json.JSONArray?): List<String> {
+            if (array == null) return emptyList()
+            return (0 until array.length()).mapNotNull { index ->
+                array.optString(index).takeIf { it.isNotBlank() }
+            }
+        }
 
         @JvmStatic
         fun parseCapabilitiesResponse(json: JSONObject): PolarisCapabilities {
@@ -85,6 +112,7 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             val displayMode = json.optJSONObject("display_mode")
             val capture = json.optJSONObject("capture")
             val encoder = json.optJSONObject("encoder")
+            val health = json.optJSONObject("health")
 
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
@@ -158,6 +186,21 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                     targetDevice = encoder?.optString("target_device", "") ?: "",
                     targetResidency = encoder?.optString("target_residency", "") ?: "",
                     targetFormat = encoder?.optString("target_format", "") ?: ""
+                ),
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = health?.optString("grade", "") ?: "",
+                    summary = health?.optString("summary", "") ?: "",
+                    primaryIssue = health?.optString("primary_issue", "") ?: "",
+                    issues = parseStringArray(health?.optJSONArray("issues")),
+                    recommendations = parseStringArray(health?.optJSONArray("recommendations")),
+                    safeBitrateKbps = health?.optInt("safe_bitrate_kbps", 0) ?: 0,
+                    safeCodec = health?.optString("safe_codec", "") ?: "",
+                    safeDisplayMode = health?.optString("safe_display_mode", "") ?: "",
+                    safeHdr = if (health?.has("safe_hdr") == true) health.optBoolean("safe_hdr") else null,
+                    decoderRisk = health?.optString("decoder_risk", "") ?: "",
+                    hdrRisk = health?.optString("hdr_risk", "") ?: "",
+                    networkRisk = health?.optString("network_risk", "") ?: "",
+                    relaunchRecommended = health?.optBoolean("relaunch_recommended", false) ?: false
                 )
             )
         }
@@ -182,7 +225,9 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
 
     private fun createClientWithCert(certFile: File, keyFile: File): OkHttpClient {
         val certFactory = CertificateFactory.getInstance("X.509")
-        val cert = certFactory.generateCertificate(FileInputStream(certFile)) as X509Certificate
+        val cert = certFile.inputStream().use {
+            certFactory.generateCertificate(it) as X509Certificate
+        }
 
         val keyBytes = keyFile.readBytes()
         val keyFactory = KeyFactory.getInstance("RSA")
@@ -197,23 +242,64 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
             init(keyStore, charArrayOf())
         }
 
-        // Trust all certs (server uses self-signed)
-        val trustAllManager = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-        }
+        val trustManager = createPinnedServerTrustManager()
 
         val sslContext = SSLContext.getInstance("TLS").apply {
-            init(kmf.keyManagers, arrayOf<TrustManager>(trustAllManager), null)
+            init(kmf.keyManagers, arrayOf<TrustManager>(trustManager), null)
         }
 
         return OkHttpClient.Builder()
-            .sslSocketFactory(sslContext.socketFactory, trustAllManager)
-            .hostnameVerifier { _, _ -> true }
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .hostnameVerifier { hostname, session ->
+                isPinnedServerCertificate(session) ||
+                    HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)
+            }
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .build()
+    }
+
+    private fun createPinnedServerTrustManager(): X509TrustManager {
+        val defaultTrustManager = getDefaultTrustManager()
+
+        return object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
+                defaultTrustManager.checkClientTrusted(chain, authType)
+            }
+
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                try {
+                    defaultTrustManager.checkServerTrusted(chain, authType)
+                } catch (e: CertificateException) {
+                    if (pinnedServerCert != null && chain.size == 1 && chain[0] == pinnedServerCert) {
+                        return
+                    }
+                    throw e
+                }
+            }
+
+            override fun getAcceptedIssuers(): Array<X509Certificate> = defaultTrustManager.acceptedIssuers
+        }
+    }
+
+    private fun getDefaultTrustManager(): X509TrustManager {
+        val trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
+            init(null as KeyStore?)
+        }
+
+        return trustManagerFactory.trustManagers
+            .filterIsInstance<X509TrustManager>()
+            .firstOrNull()
+            ?: throw IllegalStateException("No X509 trust manager found")
+    }
+
+    private fun isPinnedServerCertificate(session: SSLSession): Boolean {
+        val pinnedCert = pinnedServerCert ?: return false
+        return try {
+            session.peerCertificates.size == 1 && session.peerCertificates[0] == pinnedCert
+        } catch (_: SSLPeerUnverifiedException) {
+            false
+        }
     }
 
     private fun createBasicClient(): OkHttpClient {
@@ -487,7 +573,19 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                           avgBitrate: Int, packetLoss: Double, codec: String,
                           durationS: Int, endReason: String,
                           optimizationSource: String, optimizationConfidence: String,
-                          recommendationVersion: Int): Boolean {
+                          recommendationVersion: Int,
+                          healthGrade: String,
+                          primaryIssue: String,
+                          issues: List<String>,
+                          decoderRisk: String,
+                          hdrRisk: String,
+                          networkRisk: String,
+                          capturePath: String,
+                          safeBitrateKbps: Int,
+                          safeCodec: String,
+                          safeDisplayMode: String,
+                          safeHdr: Boolean?,
+                          relaunchRecommended: Boolean): Boolean {
         return try {
             val body = org.json.JSONObject().apply {
                 put("device", device)
@@ -504,6 +602,18 @@ class PolarisApiClient(context: Context, private val serverAddress: String, priv
                 if (optimizationSource.isNotBlank()) put("optimization_source", optimizationSource)
                 if (optimizationConfidence.isNotBlank()) put("optimization_confidence", optimizationConfidence)
                 if (recommendationVersion > 0) put("recommendation_version", recommendationVersion)
+                if (healthGrade.isNotBlank()) put("health_grade", healthGrade)
+                if (primaryIssue.isNotBlank()) put("primary_issue", primaryIssue)
+                if (issues.isNotEmpty()) put("issues", org.json.JSONArray(issues))
+                if (decoderRisk.isNotBlank()) put("decoder_risk", decoderRisk)
+                if (hdrRisk.isNotBlank()) put("hdr_risk", hdrRisk)
+                if (networkRisk.isNotBlank()) put("network_risk", networkRisk)
+                if (capturePath.isNotBlank()) put("capture_path", capturePath)
+                if (safeBitrateKbps > 0) put("safe_bitrate_kbps", safeBitrateKbps)
+                if (safeCodec.isNotBlank()) put("safe_codec", safeCodec)
+                if (safeDisplayMode.isNotBlank()) put("safe_display_mode", safeDisplayMode)
+                if (safeHdr != null) put("safe_hdr", safeHdr)
+                if (relaunchRecommended) put("relaunch_recommended", true)
             }
             val request = Request.Builder()
                 .url("$baseUrl/session/report")

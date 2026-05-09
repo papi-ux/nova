@@ -1,0 +1,5 @@
+Nova 1.0.2
+
+- Hardened host, content URI, and poster cache validation from the latest security review.
+- Made stream notification actions use explicit immutable PendingIntents.
+- Updated public F-Droid and IzzyOnDroid packaging notes.

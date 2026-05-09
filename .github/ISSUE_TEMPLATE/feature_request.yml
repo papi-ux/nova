@@ -1,37 +1,59 @@
 name: Feature request
-description: Suggest an idea for this project
-title: "[Feature request]: "
+description: Suggest an idea for Nova
+title: "[Feature]: "
 labels: enhancement
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to fill out this feature form!
+        Thanks for sharing an idea for Nova.
+
   - type: textarea
-    id: feature
+    id: problem
     attributes:
-      label: Is your feature request related to a problem? Please describe.
-      description: A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+      label: What problem should this solve?
+      description: Describe the gap, friction, or missing capability.
     validations:
       required: true
+
   - type: textarea
-    id: solution
+    id: proposal
     attributes:
-      label: Describe the solution you'd like
-      description: A clear and concise description of what you want to happen.
+      label: What would you like Nova to do?
+      description: Describe the behavior, UI, or workflow you want.
     validations:
-      required: true      
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Pairing / discovery
+        - Library / launch
+        - Streaming quality
+        - Input / controller / gyro
+        - Quick menu / HUD
+        - Watch mode
+        - Polaris integration
+        - Install / update
+        - Documentation
+        - Other
+    validations:
+      required: false
+
   - type: textarea
     id: alternatives
     attributes:
-      label: Describe alternatives you've considered
-      description: A clear and concise description of any alternative solutions or features you've considered.
+      label: Alternatives considered
+      description: Describe any workarounds or other approaches you considered.
     validations:
-      required: true      
+      required: false
+
   - type: textarea
-    id: screenshots
+    id: context
     attributes:
-      label: Screenshots
-      description: Add any other context or screenshots about the feature request here.
+      label: Additional context
+      description: Add screenshots, mockups, example workflows, or device details if helpful.
     validations:
       required: false
