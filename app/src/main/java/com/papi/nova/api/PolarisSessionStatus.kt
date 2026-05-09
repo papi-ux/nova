@@ -26,7 +26,8 @@ data class PolarisSessionStatus(
     val displayMode: DisplayModeStatus = DisplayModeStatus(),
     val capture: CaptureStatus = CaptureStatus(),
     val encoder: EncoderStatus = EncoderStatus(),
-    val health: HealthStatus = HealthStatus()
+    val health: HealthStatus = HealthStatus(),
+    val clientSettings: PolarisClientSettings = PolarisClientSettings()
 ) {
     data class ControlsStatus(
         val hostTuningAllowed: Boolean = false,
@@ -59,7 +60,12 @@ data class PolarisSessionStatus(
         val resolution: String = "",
         val transport: String = "",
         val residency: String = "",
-        val format: String = ""
+        val format: String = "",
+        val path: String = "",
+        val reason: String = "",
+        val reasonMessage: String = "",
+        val cpuCopy: Boolean = false,
+        val gpuNative: Boolean = false
     )
 
     data class EncoderStatus(
@@ -101,14 +107,18 @@ data class PolarisSessionStatus(
     val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming")
     val isShuttingDown get() = shutdownRequested || state == "tearing_down"
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
-    val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true)
+    val isGpuPath get() = capture.gpuNative || encoder.targetResidency.equals("gpu", ignoreCase = true)
     val isHeadlessMode get() = displayMode.effectiveHeadless
     val isVirtualDisplayMode get() = displayMode.virtualDisplay
     val sessionModeLabel get() = when {
         displayMode.label.isNotBlank() -> displayMode.label
-        displayMode.effectiveHeadless -> "Headless"
-        displayMode.virtualDisplay -> "Virtual Display"
-        else -> "Host Display"
+        displayMode.selection.equals(PolarisClientSettings.MODE_HEADLESS_STREAM, ignoreCase = true) -> "Headless Stream"
+        displayMode.selection.equals(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, ignoreCase = true) -> "Host Virtual Display"
+        displayMode.selection.equals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, ignoreCase = true) -> "GPU-Native Test"
+        displayMode.selection.equals(PolarisClientSettings.MODE_DESKTOP_DISPLAY, ignoreCase = true) -> "Desktop Display"
+        displayMode.effectiveHeadless -> "Headless Stream"
+        displayMode.virtualDisplay -> "Host Virtual Display"
+        else -> "Desktop Display"
     }
     val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
     val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice

@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
+import android.os.Looper
 import androidx.preference.PreferenceManager
 import com.papi.nova.R
 import com.papi.nova.api.PolarisSessionStatus
@@ -75,6 +76,14 @@ class NovaStreamHud(private val activity: Activity) {
     private var currentBitrateKbps = 0   // last known bitrate
     private var bitrateReduced = false
     var onBitrateAdjust: ((Int) -> Unit)? = null  // callback to adjust bitrate via API
+
+    private fun runOnMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            block()
+        } else {
+            activity.runOnUiThread { block() }
+        }
+    }
 
     // Session stats accumulator for end-of-session report
     private var sessionFpsSum = 0.0
@@ -238,20 +247,20 @@ class NovaStreamHud(private val activity: Activity) {
      * Parse key metrics from Moonlight's performance overlay text.
      */
     fun updateFromPerfText(text: String) {
-        activity.runOnUiThread {
-            if (hudView == null) return@runOnUiThread
+        runOnMain {
+            if (hudView == null) return@runOnMain
 
             // FPS
-            val fpsMatch = Regex("""(\d+(?:\.\d+)?)\s*(?:fps|FPS)""", RegexOption.IGNORE_CASE).find(text)
-                ?: Regex("""FPS[:\s]+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE).find(text)
-                ?: Regex("""(\d+\.\d)\s*$""", RegexOption.MULTILINE).find(text.lines().firstOrNull() ?: "")
+            val fpsMatch = FPS_SUFFIX_REGEX.find(text)
+                ?: FPS_PREFIX_REGEX.find(text)
+                ?: FPS_FIRST_LINE_REGEX.find(text.lines().firstOrNull() ?: "")
             if (fpsMatch != null) {
                 updateFps(fpsMatch.groupValues[1].toDoubleOrNull() ?: 0.0)
             }
 
             // Resolution (not in fps_only mode)
             if (currentMode != "fps_only") {
-                val resMatch = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""").find(text)
+                val resMatch = RESOLUTION_REGEX.find(text)
                 if (resMatch != null) {
                     resolutionText?.text = if (currentMode == "banner") "  ${resMatch.groupValues[2]}p"
                         else "${resMatch.groupValues[1]}×${resMatch.groupValues[2]}"
@@ -260,7 +269,7 @@ class NovaStreamHud(private val activity: Activity) {
 
             // Latency
             if (currentMode != "fps_only") {
-                val latMatch = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE).find(text)
+                val latMatch = LATENCY_REGEX.find(text)
                 if (latMatch != null) {
                     updateLatency(latMatch.groupValues[1].toIntOrNull() ?: 0)
                 }
@@ -268,7 +277,7 @@ class NovaStreamHud(private val activity: Activity) {
 
             // Codec
             if (currentMode != "fps_only") {
-                val codecMatch = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE).find(text)
+                val codecMatch = CODEC_REGEX.find(text)
                 if (codecMatch != null) {
                     val codec = codecMatch.groupValues[1].uppercase()
                     lastCodec = codec
@@ -277,11 +286,8 @@ class NovaStreamHud(private val activity: Activity) {
             }
 
             // Packet loss / net drops
-            val packetLossMatch = Regex(
-                """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*(\d+(?:\.\d+)?)\s*%""",
-                RegexOption.IGNORE_CASE
-            ).find(text)
-                ?: Regex("""(\d+(?:\.\d+)?)\s*%\s*(?:packet loss|netdrops)""", RegexOption.IGNORE_CASE).find(text)
+            val packetLossMatch = PACKET_LOSS_PREFIX_REGEX.find(text)
+                ?: PACKET_LOSS_SUFFIX_REGEX.find(text)
             if (packetLossMatch != null) {
                 val packetLossPct = packetLossMatch.groupValues[1].toDoubleOrNull() ?: 0.0
                 sessionPacketLossSum += packetLossPct
@@ -301,11 +307,11 @@ class NovaStreamHud(private val activity: Activity) {
         }
 
         targetFps = fps
-        activity.runOnUiThread { renderTargetFps() }
+        runOnMain { renderTargetFps() }
     }
 
     fun update(fps: Double, codec: String, bitrateKbps: Int, width: Int, height: Int, latencyMs: Double) {
-        activity.runOnUiThread {
+        runOnMain {
             updateFps(fps)
             if (currentMode != "fps_only") {
                 val codecStr = normalizeCodecLabel(codec)
@@ -319,7 +325,7 @@ class NovaStreamHud(private val activity: Activity) {
     }
 
     fun applySessionStatus(status: PolarisSessionStatus?) {
-        activity.runOnUiThread {
+        runOnMain {
             val resolvedTargetFps = status?.let(::resolveTargetFps) ?: 0.0
             if (resolvedTargetFps > 0) {
                 targetFps = resolvedTargetFps
@@ -344,7 +350,7 @@ class NovaStreamHud(private val activity: Activity) {
             renderStreamMode()
 
             if (currentMode == "fps_only") {
-                return@runOnUiThread
+                return@runOnMain
             }
 
             if (activeCodecLabel.isNotBlank()) {
@@ -360,6 +366,8 @@ class NovaStreamHud(private val activity: Activity) {
             return ""
         }
         return when {
+            status.capture.path.isNotBlank() -> status.capture.path
+            status.capture.gpuNative -> "gpu_native"
             status.isVirtualDisplayMode -> "virtual_display"
             status.capture.transport.equals("shm", ignoreCase = true) ||
                 status.capture.residency.equals("cpu", ignoreCase = true) ||
@@ -379,11 +387,7 @@ class NovaStreamHud(private val activity: Activity) {
     }
 
     private fun buildSessionModeLabel(status: PolarisSessionStatus): String {
-        val mode = when {
-            status.isHeadlessMode -> activity.getString(R.string.nova_session_mode_headless)
-            status.isVirtualDisplayMode -> activity.getString(R.string.nova_session_mode_virtual_display)
-            else -> activity.getString(R.string.nova_session_mode_host_display)
-        }
+        val mode = status.sessionModeLabel.ifBlank { activity.getString(R.string.nova_session_mode_host_display) }
         val bitDepth = if (status.isTenBitActive) "10b" else "8b"
         val path = when {
             status.isGpuPath -> "GPU"
@@ -392,7 +396,8 @@ class NovaStreamHud(private val activity: Activity) {
         }
         val modeSource = when (status.displayMode.requested) {
             "auto" -> "AUTO"
-            "headless", "virtual_display" -> "EXP"
+            "headless", "virtual_display", "headless_stream", "host_virtual_display",
+            "desktop_display", "windowed_stream" -> "EXP"
             else -> ""
         }
         val lifecycle = when {
@@ -581,6 +586,21 @@ class NovaStreamHud(private val activity: Activity) {
     val isShowing get() = hudView != null
 
     companion object {
+        private val FPS_SUFFIX_REGEX = Regex("""(\d+(?:\.\d+)?)\s*(?:fps|FPS)""", RegexOption.IGNORE_CASE)
+        private val FPS_PREFIX_REGEX = Regex("""FPS[:\s]+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
+        private val FPS_FIRST_LINE_REGEX = Regex("""(\d+\.\d)\s*$""", RegexOption.MULTILINE)
+        private val RESOLUTION_REGEX = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""")
+        private val LATENCY_REGEX = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE)
+        private val CODEC_REGEX = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE)
+        private val PACKET_LOSS_PREFIX_REGEX = Regex(
+            """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*(\d+(?:\.\d+)?)\s*%""",
+            RegexOption.IGNORE_CASE
+        )
+        private val PACKET_LOSS_SUFFIX_REGEX = Regex(
+            """(\d+(?:\.\d+)?)\s*%\s*(?:packet loss|netdrops)""",
+            RegexOption.IGNORE_CASE
+        )
+
         fun isEnabled(activity: Activity): Boolean {
             return PreferenceManager.getDefaultSharedPreferences(activity)
                 .getBoolean("nova_polaris_hud", false)
