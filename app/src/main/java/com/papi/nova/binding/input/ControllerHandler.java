@@ -3096,10 +3096,31 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return options;
         }
 
+        @Override
+        public boolean supportsControllerMouseEmulation() {
+            return true;
+        }
+
+        @Override
+        public boolean isControllerMouseEmulationActive() {
+            return mouseEmulationActive;
+        }
+
+        @Override
+        public void setControllerMouseEmulationActive(boolean active) {
+            setMouseEmulationActive(active, false);
+        }
+
         public void toggleMouseEmulation() {
+            setMouseEmulationActive(!mouseEmulationActive, true);
+        }
+
+        private void setMouseEmulationActive(boolean active, boolean showToast) {
             mainThreadHandler.removeCallbacks(mouseEmulationRunnable);
-            mouseEmulationActive = !mouseEmulationActive;
-            Toast.makeText(activityContext, "Mouse emulation is: " + (mouseEmulationActive ? "ON" : "OFF"), Toast.LENGTH_SHORT).show();
+            mouseEmulationActive = active;
+            if (showToast) {
+                Toast.makeText(activityContext, "Mouse emulation is: " + (mouseEmulationActive ? "ON" : "OFF"), Toast.LENGTH_SHORT).show();
+            }
 
             if (mouseEmulationActive) {
                 mainThreadHandler.postDelayed(mouseEmulationRunnable, mouseEmulationReportPeriod);

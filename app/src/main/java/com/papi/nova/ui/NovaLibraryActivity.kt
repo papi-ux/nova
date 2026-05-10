@@ -9,6 +9,7 @@ import android.text.TextWatcher
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -70,6 +71,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     private var streamServerCert: ByteArray? = null
     private var settingsSync: PolarisSettingsSyncManager? = null
     private var currentClientSettings: PolarisClientSettings? = null
+    private var tvInitialFocusRequested = false
 
     companion object {
         const val EXTRA_HOST = "host"
@@ -86,6 +88,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_nova_library)
+        UiHelper.notifyNewRootView(this)
         applyHeaderInsets()
         if (savedInstanceState != null) {
             dismissOpenGameDetail()
@@ -130,11 +133,15 @@ class NovaLibraryActivity : AppCompatActivity() {
             getString(R.string.nova_library_server_context, serverName)
         }
 
-        val columns = when (resources.configuration.screenWidthDp) {
-            in 960..Int.MAX_VALUE -> 5
-            in 720..959 -> 4
-            in 600..719 -> 3
-            else -> 2
+        val columns = if (UiHelper.isTvDevice(this)) {
+            (resources.configuration.screenWidthDp / 230).coerceIn(4, 6)
+        } else {
+            when (resources.configuration.screenWidthDp) {
+                in 960..Int.MAX_VALUE -> 5
+                in 720..959 -> 4
+                in 600..719 -> 3
+                else -> 2
+            }
         }
         gameGrid.layoutManager = GridLayoutManager(this, columns)
 
@@ -148,6 +155,9 @@ class NovaLibraryActivity : AppCompatActivity() {
         // Swipe to refresh
         swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.nova_accent))
         swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.nova_bg_elevated))
+        if (UiHelper.isTvDevice(this)) {
+            swipeRefresh.isEnabled = false
+        }
         swipeRefresh.setOnRefreshListener {
             swipeRefresh.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             loadGames()
@@ -185,6 +195,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         setupFilterTab(R.id.filter_steam, "steam")
         setupFilterTab(R.id.filter_action, "fast_action")
         setupFilterTab(R.id.filter_cinematic, "cinematic")
+        setupTvNavigation()
 
         // Retry button
         findViewById<MaterialButton>(R.id.nova_empty_retry).setOnClickListener { loadGames() }
@@ -204,7 +215,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 val child = tabContainer.getChildAt(i)
                 child.setBackgroundResource(
                     if (child.id == id) R.drawable.nova_chip_selected
-                    else 0 // transparent — style handles default
+                    else R.drawable.nova_chip_default
                 )
             }
             filterGames(searchBar.text.toString())
@@ -246,6 +257,29 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupTvNavigation() {
+        if (!UiHelper.isTvDevice(this)) return
+
+        gameGrid.isFocusable = true
+        gameGrid.isFocusableInTouchMode = false
+        gameGrid.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        searchBar.isFocusableInTouchMode = false
+
+        intArrayOf(
+            R.id.nova_library_back,
+            R.id.nova_library_refresh,
+            R.id.nova_library_polaris_sync,
+            R.id.filter_all,
+            R.id.filter_recent,
+            R.id.filter_steam,
+            R.id.filter_action,
+            R.id.filter_cinematic,
+            R.id.nova_empty_retry
+        ).forEach { id ->
+            findViewById<View>(id)?.let { UiHelper.applyTvFocusStyle(it) }
+        }
+    }
+
     private fun filterGames(search: String, forceCoverRefresh: Boolean = false) {
         var filtered = allGames
 
@@ -273,6 +307,26 @@ class NovaLibraryActivity : AppCompatActivity() {
         resultsSummary.text = getString(R.string.nova_library_results_format, filtered.size)
         updateEmptyState(search)
         emptyText.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+        requestInitialTvLibraryFocus(filtered.isEmpty())
+    }
+
+    private fun requestInitialTvLibraryFocus(isEmpty: Boolean) {
+        if (!UiHelper.isTvDevice(this) || tvInitialFocusRequested) return
+
+        tvInitialFocusRequested = true
+        if (isEmpty) {
+            UiHelper.requestInitialTvFocus(this, findViewById(R.id.nova_empty_retry))
+            return
+        }
+
+        gameGrid.postDelayed({
+            val firstCard = gameGrid.findViewHolderForAdapterPosition(0)?.itemView
+            if (firstCard != null && firstCard.isShown) {
+                firstCard.requestFocus()
+            } else {
+                gameGrid.requestFocus()
+            }
+        }, 140L)
     }
 
     private fun updateLibraryStats() {

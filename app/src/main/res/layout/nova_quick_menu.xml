@@ -451,10 +451,11 @@
                     android:paddingEnd="2dp">
 
                     <TextView
+                        android:id="@+id/mouse_mode_title"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Mouse"
+                        android:text="@string/nova_quick_menu_touch_mouse_title"
                         android:textColor="@color/nova_text_primary"
                         android:textSize="14sp" />
 

@@ -126,6 +126,11 @@
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
         <item name="android:textColorSecondary">@color/nova_text_secondary</item>
         <item name="colorAccent">@color/nova_accent</item>
+        <item name="android:colorControlHighlight">@color/nova_accent_surface</item>
+        <item name="colorControlHighlight">@color/nova_accent_surface</item>
+        <item name="android:listChoiceBackgroundIndicator">@drawable/nova_dialog_choice_bg</item>
+        <item name="listChoiceBackgroundIndicator">@drawable/nova_dialog_choice_bg</item>
+        <item name="android:listSelector">@drawable/nova_dialog_choice_bg</item>
         <item name="buttonBarPositiveButtonStyle">@style/NovaDialogButton</item>
         <item name="buttonBarNegativeButtonStyle">@style/NovaDialogButton</item>
         <item name="buttonBarNeutralButtonStyle">@style/NovaDialogButton</item>
@@ -160,7 +165,7 @@
         <item name="android:textColor">@color/nova_text_primary</item>
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:background">@drawable/nova_badge_bg</item>
+        <item name="android:background">@drawable/nova_chip_default</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
     </style>

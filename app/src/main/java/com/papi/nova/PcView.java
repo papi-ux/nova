@@ -348,6 +348,26 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             }
         }
 
+        applyTvNavigationMode(
+                modeServers,
+                modeLibrary,
+                addServerAction,
+                scanPairAction,
+                themeAction,
+                polarisSyncAction,
+                settingsAction,
+                helpAction,
+                emptyRefresh,
+                emptyAddServer,
+                emptyScanPair,
+                emptyHelp,
+                filterAllServers,
+                filterOnlineServers,
+                filterStreamingServers,
+                filterNeedsPairingServers,
+                profilesButton
+        );
+
         applyThemeToServerBrowser();
         updateModeTabs();
         updateServerFilterTabs();
@@ -359,6 +379,38 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout);
         updateEmptyState();
+    }
+
+    private void applyTvNavigationMode(View... focusTargets) {
+        if (!UiHelper.isTvDevice(this)) {
+            return;
+        }
+
+        androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh = findViewById(R.id.swipe_refresh);
+        if (swipeRefresh != null) {
+            swipeRefresh.setEnabled(false);
+        }
+
+        if (!UiHelper.hasCamera(this)) {
+            View scanPairAction = findViewById(R.id.actionScanPair);
+            if (scanPairAction != null) {
+                scanPairAction.setVisibility(View.GONE);
+            }
+            View emptyScanPair = findViewById(R.id.emptyScanPair);
+            if (emptyScanPair != null) {
+                emptyScanPair.setVisibility(View.GONE);
+            }
+        }
+
+        for (View target : focusTargets) {
+            UiHelper.applyTvFocusStyle(target);
+        }
+
+        View initialFocus = findViewById(R.id.modeServers);
+        if (initialFocus == null || initialFocus.getVisibility() != View.VISIBLE) {
+            initialFocus = findViewById(R.id.actionAddServer);
+        }
+        UiHelper.requestInitialTvFocus(this, initialFocus);
     }
 
     private void applyThemeToServerBrowser() {
@@ -785,6 +837,19 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         // between binding to CMS and onResume()
         inForeground = true;
 
+        // On first launch, show onboarding before creating the temporary GL surface used
+        // for renderer detection. Some Android TV builds do not like that surface being
+        // backgrounded immediately by the welcome activity.
+        if (UiHelper.isTvDevice(this) && com.papi.nova.ui.NovaWelcomeActivity.Companion.shouldShow(this)) {
+            Intent welcomeIntent = new Intent(this, com.papi.nova.ui.NovaWelcomeActivity.class);
+            if (getIntent().getExtras() != null) {
+                welcomeIntent.putExtras(getIntent().getExtras());
+            }
+            startActivity(welcomeIntent);
+            finish();
+            return;
+        }
+
         // Create a GLSurfaceView to fetch GLRenderer unless we have
         // a cached result already.
         final GlPreferences glPrefs = GlPreferences.readPreferences(this);
@@ -813,11 +878,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
     private void completeOnCreate() {
         completeOnCreateCalled = true;
-
-        // Show welcome screen on first launch
-        if (com.papi.nova.ui.NovaWelcomeActivity.Companion.shouldShow(this)) {
-            startActivity(new Intent(this, com.papi.nova.ui.NovaWelcomeActivity.class));
-        }
 
         shortcutHelper = new ShortcutHelper(this);
 

@@ -9,6 +9,7 @@ import android.app.UiModeManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.os.Build;
@@ -35,6 +36,8 @@ public class UiHelper {
 
     private static final int TV_VERTICAL_PADDING_DP = 15;
     private static final int TV_HORIZONTAL_PADDING_DP = 15;
+    private static final float TV_FOCUS_SCALE = 1.04f;
+    private static final long TV_FOCUS_ANIMATION_MS = 120L;
 
     private static void setGameModeStatus(Context context, boolean streaming, boolean interruptible) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -125,7 +128,6 @@ public class UiHelper {
     public static void notifyNewRootView(final Activity activity)
     {
         View rootView = activity.findViewById(android.R.id.content);
-        UiModeManager modeMgr = (UiModeManager) activity.getSystemService(Context.UI_MODE_SERVICE);
 
         // Set GameState.MODE_NONE initially for all activities
         setGameModeStatus(activity, false, false);
@@ -140,7 +142,7 @@ public class UiHelper {
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
 
-        if (modeMgr.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) {
+        if (isTvDevice(activity)) {
             // Increase view padding on TVs
             float scale = activity.getResources().getDisplayMetrics().density;
             int verticalPaddingPixels = (int) (TV_VERTICAL_PADDING_DP*scale + 0.5f);
@@ -177,6 +179,78 @@ public class UiHelper {
 
             activity.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         }
+    }
+
+    public static boolean isTvDevice(Context context) {
+        if (context == null) {
+            return false;
+        }
+
+        UiModeManager modeMgr = (UiModeManager) context.getSystemService(Context.UI_MODE_SERVICE);
+        if (modeMgr != null && modeMgr.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) {
+            return true;
+        }
+
+        int uiMode = context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_TYPE_MASK;
+        if (uiMode == Configuration.UI_MODE_TYPE_TELEVISION) {
+            return true;
+        }
+
+        PackageManager packageManager = context.getPackageManager();
+        return packageManager != null && packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+    }
+
+    public static boolean hasCamera(Context context) {
+        if (context == null || context.getPackageManager() == null) {
+            return false;
+        }
+
+        PackageManager packageManager = context.getPackageManager();
+        return packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) ||
+                packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA) ||
+                packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FRONT);
+    }
+
+    public static void applyTvFocusStyle(Context context, View view) {
+        if (isTvDevice(context)) {
+            applyTvFocusStyle(view);
+        }
+    }
+
+    public static void applyTvFocusStyle(View view) {
+        if (view == null) {
+            return;
+        }
+
+        view.setFocusable(true);
+        view.setFocusableInTouchMode(false);
+        view.setOnFocusChangeListener((v, hasFocus) -> {
+            View focusRing = v.findViewById(R.id.nova_focus_ring);
+            if (focusRing != null) {
+                focusRing.setVisibility(hasFocus ? View.VISIBLE : View.GONE);
+            }
+            float scale = hasFocus ? TV_FOCUS_SCALE : 1.0f;
+            v.animate()
+                    .scaleX(scale)
+                    .scaleY(scale)
+                    .setDuration(TV_FOCUS_ANIMATION_MS)
+                    .start();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                v.setTranslationZ(hasFocus ? dpToPx(v.getContext(), 8) : 0);
+            }
+        });
+    }
+
+    public static void requestInitialTvFocus(Context context, View preferredView) {
+        if (!isTvDevice(context) || preferredView == null) {
+            return;
+        }
+
+        preferredView.postDelayed(() -> {
+            if (preferredView.isShown() && preferredView.isFocusable()) {
+                preferredView.requestFocus();
+            }
+        }, TV_FOCUS_ANIMATION_MS);
     }
 
     public static void showDecoderCrashDialog(Activity activity) {

@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.R
+import com.papi.nova.PcView
 
 /**
  * First-launch welcome screen. Shows once, then never again.
@@ -18,7 +19,10 @@ class NovaWelcomeActivity : AppCompatActivity() {
             // Mark as seen
             getSharedPreferences("nova_prefs", MODE_PRIVATE).edit()
                 .putBoolean("welcome_seen", true)
-                .apply()
+                .commit()
+            val next = android.content.Intent(this, PcView::class.java)
+            intent.extras?.let { next.putExtras(it) }
+            startActivity(next)
             finish()
         }
     }
