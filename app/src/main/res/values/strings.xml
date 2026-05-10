@@ -83,6 +83,7 @@
     <string name="pcview_sync_no_server">No paired online server available for Polaris Sync</string>
     <string name="pcview_menu_unpair_pc">Unpair</string>
     <string name="pcview_menu_send_wol">Send Wake-On-LAN request</string>
+    <string name="pcview_menu_edit_wol_mac">Edit Wake-on-LAN MAC</string>
     <string name="pcview_menu_delete_pc">Delete PC</string>
     <string name="pcview_menu_test_network">Test Network Connection</string>
     <string name="pcview_menu_details">View Details</string>
@@ -221,6 +222,12 @@
 	    If it doesn\'t, make sure it\'s configured properly for Wake-On-LAN.
     </string>
     <string name="wol_fail">Failed to send Wake-On-LAN packets</string>
+    <string name="wol_mac_title">Wake-on-LAN MAC address</string>
+    <string name="wol_mac_message">Enter the host network adapter MAC address. Nova stores it for this server and uses it to build Wake-on-LAN packets.</string>
+    <string name="wol_mac_hint">AA:BB:CC:DD:EE:FF</string>
+    <string name="wol_mac_invalid">Enter a valid MAC address</string>
+    <string name="wol_mac_saved">Wake-on-LAN MAC saved</string>
+    <string name="wol_mac_save_and_wake">Save and Wake</string>
 
     <!-- Unpair messages -->
     <string name="unpairing">Unpairing…</string>

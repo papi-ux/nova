@@ -1045,6 +1045,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             sheet.dismiss();
             Dialog.displayDialog(this, getString(R.string.title_details), computer.details.toString(), false);
         });
+        addPcSheetAction(actions, getString(R.string.pcview_menu_edit_wol_mac), () -> {
+            sheet.dismiss();
+            showWakeMacDialog(computer.details, false);
+        });
 
         // Delete at the bottom — dangerous action
         android.widget.TextView deleteItem = new android.widget.TextView(this);
@@ -1346,9 +1350,13 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             return;
         }
 
-        if (computer.macAddress == null) {
-            com.papi.nova.ui.NovaSnackbar.INSTANCE.showError(PcView.this, getResources().getString(R.string.wol_no_mac));
+        String normalizedMacAddress = WakeOnLanSender.normalizeMacAddress(computer.macAddress);
+        if (normalizedMacAddress == null) {
+            showWakeMacDialog(computer, true);
             return;
+        }
+        if (!normalizedMacAddress.equals(computer.macAddress)) {
+            saveWakeMacAddress(computer, normalizedMacAddress);
         }
 
         new Thread(() -> {
@@ -1363,6 +1371,76 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 final String snackMessage = message;
                 runOnUiThread(() -> com.papi.nova.ui.NovaSnackbar.INSTANCE.show(PcView.this, snackMessage));
         }).start();
+    }
+
+    private void showWakeMacDialog(final ComputerDetails computer, boolean wakeAfterSave) {
+        if (managerBinder == null) {
+            Toast.makeText(this, R.string.error_manager_not_running, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        EditText macInput = new EditText(this);
+        macInput.setSingleLine(true);
+        macInput.setHint(R.string.wol_mac_hint);
+        macInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        macInput.setFilters(new InputFilter[] { new InputFilter.LengthFilter(17) });
+
+        String normalizedMacAddress = WakeOnLanSender.normalizeMacAddress(computer.macAddress);
+        if (normalizedMacAddress != null) {
+            macInput.setText(normalizedMacAddress);
+            macInput.setSelection(macInput.getText().length());
+        }
+
+        int padding = (int) UiHelper.dpToPx(this, 24);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(padding, padding / 2, padding, 0);
+        layout.addView(macInput);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.wol_mac_title)
+                .setMessage(R.string.wol_mac_message)
+                .setView(layout)
+                .setPositiveButton(wakeAfterSave ? R.string.wol_mac_save_and_wake : R.string.save, null)
+                .setNegativeButton(R.string.cancel, (d, which) -> d.dismiss())
+                .create();
+
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String normalized = WakeOnLanSender.normalizeMacAddress(macInput.getText().toString());
+            if (normalized == null) {
+                macInput.setError(getString(R.string.wol_mac_invalid));
+                return;
+            }
+
+            saveWakeMacAddress(computer, normalized);
+            dialog.dismiss();
+
+            if (wakeAfterSave) {
+                doWakeOnLan(computer);
+            }
+            else {
+                com.papi.nova.ui.NovaSnackbar.INSTANCE.showSuccess(PcView.this, getString(R.string.wol_mac_saved));
+            }
+        }));
+
+        dialog.show();
+    }
+
+    private void saveWakeMacAddress(final ComputerDetails computer, String normalizedMacAddress) {
+        computer.macAddress = normalizedMacAddress;
+
+        if (managerBinder == null) {
+            return;
+        }
+
+        ComputerDetails managedComputer = managerBinder.getComputer(computer.uuid);
+        if (managedComputer != null) {
+            managedComputer.macAddress = normalizedMacAddress;
+            managerBinder.persistComputer(managedComputer);
+        }
+        else {
+            managerBinder.persistComputer(computer);
+        }
     }
 
 
