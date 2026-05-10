@@ -12,6 +12,7 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.papi.nova.R
@@ -188,14 +189,14 @@ class NovaGameAdapter(
                 if (hasFocus) {
                     card.cardElevation = 8f
                     card.setCardBackgroundColor(
-                        v.context.resources.getColor(R.color.nova_twilight, v.context.theme)
+                        ContextCompat.getColor(v.context, R.color.nova_twilight)
                     )
                     v.scaleX = 1.03f
                     v.scaleY = 1.03f
                 } else {
                     card.cardElevation = 0f
                     card.setCardBackgroundColor(
-                        v.context.resources.getColor(R.color.nova_bg_card, v.context.theme)
+                        ContextCompat.getColor(v.context, R.color.nova_bg_card)
                     )
                     v.scaleX = 1.0f
                     v.scaleY = 1.0f
