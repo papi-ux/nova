@@ -108,6 +108,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         val perfState = sheet.findViewById<TextView>(R.id.perf_state)
         val oscState = sheet.findViewById<TextView>(R.id.osc_state)
         val keyboardState = sheet.findViewById<TextView>(R.id.keyboard_state)
+        val mouseModeTitle = sheet.findViewById<TextView>(R.id.mouse_mode_title)
         val mouseModeState = sheet.findViewById<TextView>(R.id.mouse_mode_label)
 
         val apiClient = game.novaApiClient ?: getServerAddress()?.let {
@@ -295,7 +296,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 if (game.isKeyboardLayoutVisible() == true) "Shown" else "Hidden",
                 if (game.isKeyboardLayoutVisible() == true) ChipTone.ACTIVE else ChipTone.INACTIVE
             )
-            updateStateChip(mouseModeState, game.currentMouseModeLabel, ChipTone.INACTIVE)
+            if (device?.supportsControllerMouseEmulation() == true) {
+                val active = device.isControllerMouseEmulationActive()
+                mouseModeTitle?.setText(R.string.nova_quick_menu_controller_mouse_title)
+                updateStateChip(
+                    mouseModeState,
+                    if (active) "On" else "Off",
+                    if (active) ChipTone.ACTIVE else ChipTone.INACTIVE
+                )
+            } else {
+                mouseModeTitle?.setText(R.string.nova_quick_menu_touch_mouse_title)
+                updateStateChip(mouseModeState, game.currentMouseModeLabel, ChipTone.INACTIVE)
+            }
         }
 
         fun refreshTuningStates() {
@@ -391,7 +403,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         fun refreshInputAvailability() {
             val ownerInputAllowed = !viewerSession
-            setRowEnabled(mouseRow, ownerInputAllowed && game.allowChangeMouseMode)
+            val controllerMouseSupported = device?.supportsControllerMouseEmulation() == true
+            setRowEnabled(mouseRow, ownerInputAllowed && (controllerMouseSupported || game.allowChangeMouseMode))
             setRowEnabled(oscRow, ownerInputAllowed)
             setRowEnabled(keyboardRow, ownerInputAllowed)
             setRowEnabled(pasteRow, ownerInputAllowed)
@@ -446,12 +459,23 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             refreshOverlayStates()
         } }
 
-        if (game.allowChangeMouseMode) {
-            mouseRow?.let { hapticClick(it) {
+        mouseRow?.let { hapticClick(it) {
+            val controllerMouseDevice = device?.takeIf { it.supportsControllerMouseEmulation() }
+            if (controllerMouseDevice != null) {
+                val next = !controllerMouseDevice.isControllerMouseEmulationActive()
+                controllerMouseDevice.setControllerMouseEmulationActive(next)
+                refreshOverlayStates()
+                dismiss()
+                Toast.makeText(
+                    game,
+                    if (next) R.string.nova_controller_mouse_enabled else R.string.nova_controller_mouse_disabled,
+                    if (next) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                ).show()
+            } else if (game.allowChangeMouseMode) {
                 dismiss()
                 game.selectMouseMode(game)
-            } }
-        }
+            }
+        } }
 
         oscRow?.let { hapticClick(it) {
             dismiss()

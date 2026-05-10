@@ -112,5 +112,12 @@
                     android:textSize="11sp" />
             </LinearLayout>
         </FrameLayout>
+
+        <View
+            android:id="@+id/nova_focus_ring"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/nova_game_card_cover_height"
+            android:background="@drawable/nova_card_focus_ring"
+            android:visibility="gone" />
     </FrameLayout>
 </androidx.cardview.widget.CardView>

@@ -12,6 +12,7 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.papi.nova.R
@@ -85,6 +86,7 @@ class NovaGameAdapter(
         private val categoryBadge: TextView = itemView.findViewById(R.id.nova_category_badge)
         private val sourceBadge: TextView = itemView.findViewById(R.id.nova_source_badge)
         private val hdrBadge: TextView = itemView.findViewById(R.id.nova_hdr_badge)
+        private val focusRing: View = itemView.findViewById(R.id.nova_focus_ring)
 
         fun bind(game: PolarisGame) {
             gameName.text = game.name
@@ -183,15 +185,18 @@ class NovaGameAdapter(
             itemView.isFocusableInTouchMode = false
             itemView.setOnFocusChangeListener { v, hasFocus ->
                 val card = v as? androidx.cardview.widget.CardView ?: return@setOnFocusChangeListener
+                focusRing.visibility = if (hasFocus) View.VISIBLE else View.GONE
                 if (hasFocus) {
                     card.cardElevation = 8f
-                    card.setCardBackgroundColor(0xFF4c5265.toInt())
+                    card.setCardBackgroundColor(
+                        ContextCompat.getColor(v.context, R.color.nova_twilight)
+                    )
                     v.scaleX = 1.03f
                     v.scaleY = 1.03f
                 } else {
-                    card.cardElevation = 2f
+                    card.cardElevation = 0f
                     card.setCardBackgroundColor(
-                        v.context.resources.getColor(R.color.nova_bg_card, v.context.theme)
+                        ContextCompat.getColor(v.context, R.color.nova_bg_card)
                     )
                     v.scaleX = 1.0f
                     v.scaleY = 1.0f
@@ -220,6 +225,12 @@ class NovaGameAdapter(
             } else {
                 if (game.sourceLabel.isNotEmpty()) parts += game.sourceLabel
                 if (game.categoryLabel.isNotEmpty()) parts += game.categoryLabel
+            }
+            if (game.platformLabel.isNotEmpty() && !parts.any { it.equals(game.platformLabel, ignoreCase = true) }) {
+                parts += game.platformLabel
+            }
+            if (game.runtimeLabel.isNotEmpty() && !parts.any { it.equals(game.runtimeLabel, ignoreCase = true) }) {
+                parts += game.runtimeLabel
             }
 
             return if (parts.isEmpty()) {

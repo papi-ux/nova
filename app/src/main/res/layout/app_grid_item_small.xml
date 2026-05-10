@@ -23,6 +23,11 @@
                 android:layout_height="match_parent"
                 android:scaleType="centerCrop" />
 
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/nova_cover_scrim" />
+
             <RelativeLayout
                 android:id="@+id/grid_mask"
                 android:layout_width="match_parent"
@@ -53,18 +58,42 @@
                 android:paddingBottom="2dp"
                 android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/grid_text"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
                 android:background="@color/nova_bg_card"
-                android:padding="8dp"
-                android:textColor="@color/nova_ice"
-                android:fontFamily="sans-serif-medium"
-                android:textSize="11sp"
-                android:maxLines="2"
-                android:ellipsize="end" />
+                android:orientation="vertical"
+                android:padding="8dp">
+
+                <TextView
+                    android:id="@+id/grid_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/nova_ice"
+                    android:fontFamily="sans-serif-medium"
+                    android:textSize="11sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/grid_meta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/nova_text_muted"
+                    android:textSize="8sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:visibility="gone" />
+            </LinearLayout>
         </FrameLayout>
     </androidx.cardview.widget.CardView>
+
+    <View
+        android:id="@+id/nova_focus_ring"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/nova_card_focus_ring"
+        android:visibility="gone" />
 </FrameLayout>

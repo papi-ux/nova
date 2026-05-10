@@ -28,6 +28,7 @@ import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisGame
+import com.papi.nova.utils.UiHelper
 
 /**
  * Bottom sheet showing game details, tuning, and explicit launch modes.
@@ -151,11 +152,17 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             catBadge.visibility = View.GONE
         }
 
-        // Genre chips
+        // Genre and runtime chips
         val genreContainer = view.findViewById<LinearLayout>(R.id.detail_genres)
-        if (game.genres.isNotEmpty()) {
+        val detailChips = mutableListOf<String>()
+        detailChips += game.genres
+        if (game.platformLabel.isNotEmpty()) detailChips += game.platformLabel
+        if (game.runtimeLabel.isNotEmpty() && !detailChips.any { it.equals(game.runtimeLabel, ignoreCase = true) }) {
+            detailChips += game.runtimeLabel
+        }
+        if (detailChips.isNotEmpty()) {
             genreContainer.visibility = View.VISIBLE
-            for (genre in game.genres) {
+            for (genre in detailChips) {
                 val chip = TextView(requireContext()).apply {
                     text = genre
                     textSize = 11f
@@ -412,6 +419,22 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         }
         gpuButton.setOnClickListener {
             launchWithSyncedMode(game, PolarisClientSettings.MODE_GPU_NATIVE_TEST)
+        }
+
+        if (UiHelper.isTvDevice(requireContext())) {
+            val launchButtonsByMode = mapOf(
+                PolarisClientSettings.MODE_HEADLESS_STREAM to headlessButton,
+                PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY to virtualButton,
+                PolarisClientSettings.MODE_DESKTOP_DISPLAY to desktopButton,
+                PolarisClientSettings.MODE_GPU_NATIVE_TEST to gpuButton
+            )
+            launchButtonsByMode.values.forEach { UiHelper.applyTvFocusStyle(it) }
+            view.post {
+                val preferredButton = launchButtonsByMode[recommendedMode]
+                val focusTarget = preferredButton?.takeIf { it.isEnabled && it.visibility == View.VISIBLE }
+                    ?: launchButtonsByMode.values.firstOrNull { it.isEnabled && it.visibility == View.VISIBLE }
+                focusTarget?.requestFocus()
+            }
         }
     }
 

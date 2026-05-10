@@ -2,11 +2,15 @@ package com.papi.nova;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
+import com.papi.nova.api.PolarisApiClient;
+import com.papi.nova.api.PolarisGame;
 import com.papi.nova.computers.ComputerManagerListener;
 import com.papi.nova.computers.ComputerManagerService;
 import com.papi.nova.grid.AppGridAdapter;
@@ -65,6 +69,10 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     private boolean inForeground;
     private boolean showHiddenApps;
     private final HashSet<Integer> hiddenAppIds = new HashSet<>();
+    private final Object polarisMetadataLock = new Object();
+    private Map<String, PolarisGame> polarisGamesByUuid = new HashMap<>();
+    private Map<Integer, PolarisGame> polarisGamesByAppId = new HashMap<>();
+    private boolean polarisMetadataRefreshInFlight;
 
     private PreferenceConfiguration prefConfig;
 
@@ -299,6 +307,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
         androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh = findViewById(R.id.appSwipeRefresh);
         if (swipeRefresh != null) {
+            if (UiHelper.isTvDevice(this)) {
+                swipeRefresh.setEnabled(false);
+            }
             swipeRefresh.setColorSchemeColors(androidx.core.content.ContextCompat.getColor(this, R.color.nova_accent));
             swipeRefresh.setProgressBackgroundColorSchemeColor(androidx.core.content.ContextCompat.getColor(this, R.color.nova_bg_elevated));
             swipeRefresh.setOnRefreshListener(() -> {
@@ -566,6 +577,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         }
 
         card.setVisibility(View.VISIBLE);
+        UiHelper.applyTvFocusStyle(this, card);
         TextView nameView = findViewById(R.id.recently_played_name);
         TextView kickerView = findViewById(R.id.recently_played_kicker);
         TextView metaView = findViewById(R.id.recently_played_meta);
@@ -584,9 +596,12 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     : (appIsRunning ? R.string.applist_hero_live : R.string.applist_hero_continue));
         }
         if (metaView != null) {
-            metaView.setText(appOwnedByAnotherClient
-                    ? R.string.applist_hero_summary_watch
-                    : (appIsRunning ? R.string.applist_hero_summary_resume : R.string.applist_hero_summary_continue));
+            String metadata = targetApp.app.getMetadataLabel();
+            metaView.setText(!metadata.isEmpty()
+                    ? metadata
+                    : getString(appOwnedByAnotherClient
+                            ? R.string.applist_hero_summary_watch
+                            : (appIsRunning ? R.string.applist_hero_summary_resume : R.string.applist_hero_summary_continue)));
         }
         if (actionView != null) {
             actionView.setText(appOwnedByAnotherClient
@@ -623,6 +638,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             // Build a map of incoming apps by ID for O(1) lookup
             java.util.HashMap<Integer, NvApp> incomingMap = new java.util.HashMap<>(appList.size());
             for (NvApp app : appList) {
+                applyPolarisMetadata(app);
                 incomingMap.put(app.getAppId(), app);
             }
 
@@ -643,6 +659,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     // Update name if changed
                     if (!existing.app.getAppName().equals(app.getAppName())) {
                         existing.app.setAppName(app.getAppName());
+                        updated = true;
+                    }
+                    if (applyPolarisMetadata(existing.app)) {
                         updated = true;
                     }
                 } else {
@@ -672,6 +691,8 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             if (searchView != null) {
                 searchView.setVisibility(appGridAdapter.getTotalAppCount() > 5 ? View.VISIBLE : View.GONE);
             }
+
+            refreshPolarisGameMetadataAsync();
         });
     }
 
@@ -838,6 +859,90 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         return fallbackApp;
     }
 
+    private boolean applyPolarisMetadata(NvApp app) {
+        if (app == null) {
+            return false;
+        }
+
+        PolarisGame metadata = null;
+        if (app.getAppUUID() != null && !app.getAppUUID().isEmpty()) {
+            metadata = polarisGamesByUuid.get(app.getAppUUID().toLowerCase(java.util.Locale.US));
+        }
+        if (metadata == null && app.getAppId() != 0) {
+            metadata = polarisGamesByAppId.get(app.getAppId());
+        }
+        return metadata != null && app.applyPolarisMetadata(metadata);
+    }
+
+    private boolean applyPolarisMetadataToVisibleApps() {
+        if (appGridAdapter == null) {
+            return false;
+        }
+
+        boolean changed = false;
+        for (int i = 0; i < appGridAdapter.getItemCount(); i++) {
+            Object item = appGridAdapter.getItem(i);
+            if (item instanceof AppObject) {
+                changed |= applyPolarisMetadata(((AppObject) item).app);
+            }
+        }
+        return changed;
+    }
+
+    private void refreshPolarisGameMetadataAsync() {
+        ComputerDetails.AddressTuple address = computer == null ? null :
+                (computer.activeAddress != null ? computer.activeAddress : computer.localAddress);
+        if (address == null || computer.httpsPort <= 0) {
+            return;
+        }
+
+        synchronized (polarisMetadataLock) {
+            if (polarisMetadataRefreshInFlight) {
+                return;
+            }
+            polarisMetadataRefreshInFlight = true;
+        }
+
+        final String host = address.address;
+        final int httpsPort = computer.httpsPort;
+        final java.security.cert.X509Certificate serverCert = computer.serverCert;
+
+        new Thread(() -> {
+            try {
+                PolarisApiClient client = new PolarisApiClient(AppView.this, host, httpsPort, serverCert);
+                List<PolarisGame> games = client.getGames("", "", 500);
+                if (games.isEmpty()) {
+                    return;
+                }
+
+                HashMap<String, PolarisGame> byUuid = new HashMap<>();
+                HashMap<Integer, PolarisGame> byAppId = new HashMap<>();
+                for (PolarisGame game : games) {
+                    if (game.getId() != null && !game.getId().isEmpty()) {
+                        byUuid.put(game.getId().toLowerCase(java.util.Locale.US), game);
+                    }
+                    if (game.getAppId() != 0) {
+                        byAppId.put(game.getAppId(), game);
+                    }
+                }
+
+                runOnUiThread(() -> {
+                    polarisGamesByUuid = byUuid;
+                    polarisGamesByAppId = byAppId;
+                    if (applyPolarisMetadataToVisibleApps()) {
+                        appGridAdapter.notifyDataSetChanged();
+                        updateRecentlyPlayedCard();
+                    }
+                });
+            } catch (Exception e) {
+                LimeLog.warning("Nova: Polaris game metadata fetch failed: " + e.getMessage());
+            } finally {
+                synchronized (polarisMetadataLock) {
+                    polarisMetadataRefreshInFlight = false;
+                }
+            }
+        }, "PolarisGameMetadata").start();
+    }
     @Override
     public int getAdapterFragmentLayoutId() {
         return R.layout.app_grid_view;
@@ -846,6 +951,10 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     @Override
     public void receiveAbsListView(View gridView) {
         if (gridView instanceof androidx.recyclerview.widget.RecyclerView rv) {
+            if (appGridAdapter == null || prefConfig == null) {
+                LimeLog.warning("App grid view attached before AppView was ready; waiting for service binding");
+                return;
+            }
             int widthDp = prefConfig.smallIconMode ? 110 : 170;
             int spanCount = Math.max(1, getResources().getDisplayMetrics().widthPixels / (int)(widthDp * getResources().getDisplayMetrics().density));
             rv.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, spanCount));

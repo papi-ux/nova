@@ -24,6 +24,7 @@ import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.manager.PolarisSettingsSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.utils.UiHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -150,6 +151,15 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
             PolarisClientSettings.MODE_GPU_NATIVE_TEST to view.findViewById(R.id.polaris_sync_gpu)
         )
 
+        if (UiHelper.isTvDevice(requireContext())) {
+            (modeButtons.values + listOf(
+                matchNovaButton,
+                sendNovaButton,
+                usePolarisButton,
+                clearProfileButton
+            )).forEach { UiHelper.applyTvFocusStyle(it) }
+        }
+
         modeButtons.forEach { (mode, button) ->
             button.setOnClickListener { updatePolarisSettings(streamDisplayMode = mode) }
         }
@@ -168,6 +178,7 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
         })
         currentSettings = initialSettings
         render(initialSettings)
+        requestInitialTvFocus(view)
 
         settingsSync = PolarisSettingsSyncManager(client) { settings ->
             if (settings != null) {
@@ -181,6 +192,16 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
             render(renderedSettings)
             settings?.let { maybeAutoSync(it) }
         }.also { it.start(immediate = true) }
+    }
+
+    private fun requestInitialTvFocus(root: View) {
+        if (!UiHelper.isTvDevice(requireContext())) return
+
+        root.post {
+            val modeButton = modeButtons.values.firstOrNull { it.isEnabled && it.visibility == View.VISIBLE }
+            val focusTarget = modeButton ?: sendNovaButton.takeIf { it.isEnabled && it.visibility == View.VISIBLE }
+            focusTarget?.requestFocus()
+        }
     }
 
     override fun onDestroyView() {

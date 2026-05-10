@@ -281,6 +281,8 @@ public class PolarisApiClientParsingTest {
     public void parseGameResponse_includesLaunchModeContract() throws Exception {
         JSONObject json = new JSONObject(
                 "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Steam Big Picture\"," +
+                        "\"source\":\"lutris\",\"launcher_source\":\"lutris\",\"launcher_detail\":\"wine\"," +
+                        "\"platform\":\"windows\",\"runtime\":\"wine\"," +
                         "\"launch_mode\":{\"preferred_mode\":\"host_virtual_display\",\"recommended_mode\":\"headless_stream\"," +
                         "\"allowed_modes\":[\"headless_stream\",\"host_virtual_display\"]," +
                         "\"mode_reason\":\"Headless is recommended because this Polaris host is already configured for headless streaming.\"}}"
@@ -289,6 +291,14 @@ public class PolarisApiClientParsingTest {
         PolarisGame game = PolarisGame.Companion.fromJson(json);
 
         assertEquals("game-uuid", game.getId());
+        assertEquals("lutris", game.getLauncherSource());
+        assertEquals("wine", game.getLauncherDetail());
+        assertEquals("windows", game.getPlatform());
+        assertEquals("wine", game.getRuntime());
+        assertEquals("Lutris", game.getSourceLabel());
+        assertEquals("Windows", game.getPlatformLabel());
+        assertEquals("Wine", game.getRuntimeLabel());
+        assertEquals("Lutris · Windows · Wine", game.getSourceRuntimeLabel());
         assertEquals("host_virtual_display", game.getLaunchMode().getPreferredMode());
         assertEquals("headless_stream", game.getLaunchMode().getRecommendedMode());
         assertTrue(game.getLaunchMode().getAllowedModes().contains("headless_stream"));

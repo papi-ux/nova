@@ -9,6 +9,9 @@
 
     <string name="menu_button">Menu</string>
     <string name="quick_menu_title">Quick Menu</string>
+    <string name="server_library_label">Server Library</string>
+    <string name="server_library_search_hint">Search games…</string>
+    <string name="badge_streaming">Streaming</string>
     <string name="configuration_mode_move_buttons">Move buttons mode</string>
     <string name="configuration_mode_resize_buttons">Resize buttons mode</string>
     <string name="configuration_mode_disable_enable_buttons">Enable/Disable buttons mode</string>
@@ -583,6 +586,10 @@
     <string name="nova_quick_menu_owner_only_caption">owner controls host tuning</string>
     <string name="nova_quick_menu_host_controls_unavailable_caption">host controls unavailable</string>
     <string name="nova_quick_menu_session_ending_caption">session ending</string>
+    <string name="nova_quick_menu_controller_mouse_title">Controller Mouse</string>
+    <string name="nova_quick_menu_touch_mouse_title">Touch Mouse</string>
+    <string name="nova_controller_mouse_enabled">Controller mouse enabled. Move with the sticks; A clicks and B right-clicks.</string>
+    <string name="nova_controller_mouse_disabled">Controller mouse disabled</string>
     <string name="nova_quick_menu_mode_unknown">Checking stream mode</string>
     <string name="nova_quick_menu_mode_format">%1$s session</string>
     <string name="nova_session_mode_headless">Headless Stream</string>

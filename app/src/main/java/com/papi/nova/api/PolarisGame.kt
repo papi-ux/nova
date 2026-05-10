@@ -5,6 +5,12 @@ data class PolarisGame(
     val appId: Int = 0,
     val name: String,
     val source: String = "other",
+    val launcherSource: String = source,
+    val launcherDetail: String = "",
+    val platform: String = "unknown",
+    val runtime: String = "unknown",
+    val platformLabelFromServer: String = "",
+    val runtimeLabelFromServer: String = "",
     val steamAppid: String = "",
     val category: String = "",
     val installed: Boolean = true,
@@ -53,6 +59,12 @@ data class PolarisGame(
                 appId = json.optString("app_id", "").toIntOrNull() ?: json.optInt("app_id", 0),
                 name = json.optString("name", ""),
                 source = json.optString("source", "other"),
+                launcherSource = json.optString("launcher_source", json.optString("source", "other")),
+                launcherDetail = json.optString("launcher_detail", ""),
+                platform = json.optString("platform", "unknown").lowercase(),
+                runtime = json.optString("runtime", "unknown").lowercase(),
+                platformLabelFromServer = json.optString("platform_label", ""),
+                runtimeLabelFromServer = json.optString("runtime_label", ""),
                 steamAppid = json.optString("steam_appid", ""),
                 category = json.optString("category", ""),
                 installed = json.optBoolean("installed", true),
@@ -67,7 +79,7 @@ data class PolarisGame(
     }
 
     val isSteamBigPicture get() = name.equals("Steam Big Picture", ignoreCase = true)
-    val isProtonGame get() = source == "steam" && steamAppid.isNotEmpty()
+    val isProtonGame get() = runtime == "proton" || (runtime == "unknown" && source == "steam" && steamAppid.isNotEmpty())
     val hasMangoHudCompatibilityRisk get() = isSteamBigPicture || isProtonGame
     val categoryLabel get() = when (category) {
         "fast_action" -> "Action"
@@ -80,6 +92,34 @@ data class PolarisGame(
         "steam" -> "Steam"
         "lutris" -> "Lutris"
         "heroic" -> "Heroic"
+        "manual" -> "Manual"
         else -> ""
+    }
+    val platformLabel get() = platformLabelFromServer.ifBlank {
+        when (platform) {
+            "linux" -> "Linux"
+            "windows" -> "Windows"
+            "macos" -> "macOS"
+            else -> ""
+        }
+    }
+    val runtimeLabel get() = runtimeLabelFromServer.ifBlank {
+        when (runtime) {
+            "native" -> "Native"
+            "proton" -> "Proton"
+            "wine" -> "Wine"
+            "steam" -> "Steam"
+            "umu" -> "UMU"
+            else -> ""
+        }
+    }
+    val sourceRuntimeLabel: String get() {
+        val parts = mutableListOf<String>()
+        if (sourceLabel.isNotEmpty()) parts += sourceLabel
+        if (platformLabel.isNotEmpty()) parts += platformLabel
+        if (runtimeLabel.isNotEmpty() && !parts.any { it.equals(runtimeLabel, ignoreCase = true) }) {
+            parts += runtimeLabel
+        }
+        return parts.joinToString(" · ")
     }
 }

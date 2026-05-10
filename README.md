@@ -43,12 +43,12 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 1. Download the latest release from GitHub Releases, add Nova to Obtainium, or open it in GitHub Store on Android.
 2. Install the APK that matches your Android device.
-   Most phones and handhelds use `Nova-Android-arm64-v8a.apk`; x86_64 Android devices and emulators use `Nova-Android-x86_64.apk`.
+   Most phones, handhelds, and Android TV devices use `Nova-Android-arm64-v8a.apk`; x86_64 Android devices and emulators use `Nova-Android-x86_64.apk`.
 3. Open Nova, add or discover your host, then pair it.
 
 | Public release asset | Use it for |
 |---|---|
-| `Nova-Android-arm64-v8a.apk` | Recommended Android install for phones and handhelds |
+| `Nova-Android-arm64-v8a.apk` | Recommended Android install for phones, handhelds, and Android TV devices such as NVIDIA Shield |
 | `Nova-Android-x86_64.apk` | Android x86_64 devices and emulators |
 | `*.apk.sha256` | Integrity checks for the public APKs |
 
@@ -69,6 +69,8 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, and `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
+
+**Android TV:** Nova ships Android TV support in the same APK. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces.
 
 ## Quick Start
 
@@ -109,6 +111,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 |---|---|---|
 | Android handhelds | Primary target | Designed first for landscape handheld use |
 | Android phones and tablets | Supported | Works well, but the UX is tuned most heavily for handhelds |
+| Android TV | Supported | Uses the normal ARM64 APK with Leanback launcher support and D-pad/controller-friendly browsing |
 | Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, and live-session integration |
 | Other Moonlight-compatible hosts | Compatible | Standard Moonlight-compatible client flow |
 | Wake-on-LAN | Supported | Sends UDP magic packets directly from Android and supports manual MAC entry when the host does not report one |

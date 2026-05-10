@@ -12,6 +12,7 @@ import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.papi.nova.R;
+import com.papi.nova.utils.UiHelper;
 
 import java.util.ArrayList;
 
@@ -104,6 +105,7 @@ public abstract class GenericGridAdapter<T> extends RecyclerView.Adapter<Generic
     public void onBindViewHolder(ViewHolder holder, int position) {
         T item = itemList.get(position);
         populateView(holder.itemView, holder.imgView, holder.gridMask, holder.prgView, holder.txtView, holder.overlayView, item);
+        UiHelper.applyTvFocusStyle(context, holder.itemView);
         
         holder.itemView.setOnClickListener(v -> {
             if (clickListener != null) {
