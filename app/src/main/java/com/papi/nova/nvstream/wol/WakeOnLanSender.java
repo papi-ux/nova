@@ -4,9 +4,8 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.util.Scanner;
+import java.util.Locale;
 
-import com.papi.nova.LimeLog;
 import com.papi.nova.nvstream.http.ComputerDetails;
 
 public class WakeOnLanSender {
@@ -110,25 +109,49 @@ public class WakeOnLanSender {
         }
     }
     
-    private static byte[] macStringToBytes(String macAddress) {
+    public static String normalizeMacAddress(String macAddress) {
+        if (macAddress == null) {
+            return null;
+        }
+
+        String compactMacAddress = macAddress.trim()
+                .replace(":", "")
+                .replace("-", "")
+                .replace(".", "");
+
+        if (!compactMacAddress.matches("(?i)[0-9a-f]{12}")) {
+            return null;
+        }
+
+        compactMacAddress = compactMacAddress.toUpperCase(Locale.US);
+        StringBuilder normalized = new StringBuilder(17);
+        for (int i = 0; i < compactMacAddress.length(); i += 2) {
+            if (i > 0) {
+                normalized.append(':');
+            }
+            normalized.append(compactMacAddress, i, i + 2);
+        }
+
+        return normalized.toString();
+    }
+
+    private static byte[] macStringToBytes(String macAddress) throws IOException {
+        String normalizedMacAddress = normalizeMacAddress(macAddress);
+        if (normalizedMacAddress == null) {
+            throw new IOException("Invalid Wake-on-LAN MAC address");
+        }
+
         byte[] macBytes = new byte[6];
 
-        try (@SuppressWarnings("resource")
-             final Scanner scan = new Scanner(macAddress).useDelimiter(":")
-        ) {
-            for (int i = 0; i < macBytes.length && scan.hasNext(); i++) {
-                try {
-                    macBytes[i] = (byte) Integer.parseInt(scan.next(), 16);
-                } catch (NumberFormatException e) {
-                    LimeLog.warning("Malformed MAC address: " + macAddress + " (index: " + i + ")");
-                    break;
-                }
-            }
-            return macBytes;
+        for (int i = 0; i < macBytes.length; i++) {
+            int segmentStart = i * 3;
+            macBytes[i] = (byte) Integer.parseInt(normalizedMacAddress.substring(segmentStart, segmentStart + 2), 16);
         }
+
+        return macBytes;
     }
-    
-    private static byte[] createWolPayload(ComputerDetails computer) {
+
+    private static byte[] createWolPayload(ComputerDetails computer) throws IOException {
         byte[] payload = new byte[102];
         byte[] macAddress = macStringToBytes(computer.macAddress);
         int i;
