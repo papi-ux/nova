@@ -66,7 +66,7 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, and `v1.0.2` hardens the security surfaces found during public scanner review. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, and `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
@@ -82,6 +82,8 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
    - **Manual PIN** pairing for standard Moonlight servers
 4. **Launch a game** from the game grid or the Polaris library.
 5. **Use the quick menu** for stream tuning, overlays, controller actions, and quit/disconnect controls.
+
+Wake-on-LAN uses UDP magic packets sent directly from Nova. If a host does not report its MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address for the server and reuses it when sending future wake requests, which helps remote setups such as WireGuard where discovery metadata may be incomplete.
 
 ### If you use Polaris
 
@@ -108,6 +110,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 | Android phones and tablets | Supported | Works well, but the UX is tuned most heavily for handhelds |
 | Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, and live-session integration |
 | Other Moonlight-compatible hosts | Compatible | Standard Moonlight-compatible client flow |
+| Wake-on-LAN | Supported | Sends UDP magic packets directly from Android and supports manual MAC entry when the host does not report one |
 | High refresh devices | Supported | Nova can request 90/120 Hz when the device display and host both support it |
 | Official release assets | `arm64-v8a`, `x86_64` | Public GitHub Releases ship separate APKs per Android ABI |
 
@@ -294,6 +297,13 @@ Trusted Pair is Nova’s TOFU flow. If Polaris trusts the subnet you are on, Nov
 <summary><b>What is the difference between Headless and Virtual Display?</b></summary>
 
 **Headless** launches against Polaris’ isolated compositor path without touching your physical desktop layout. **Virtual Display** asks the host for a virtual display-backed launch instead. Nova’s Polaris library now shows what the host recommends, what the app prefers, and which modes are currently allowed.
+
+</details>
+
+<details>
+<summary><b>Does Wake-on-LAN work over WireGuard or another VPN?</b></summary>
+
+It can, as long as the network path forwards the UDP wake packet to a host or subnet that can reach the sleeping PC. Nova sends Wake-on-LAN packets directly from Android. If the server did not provide a MAC address during discovery or pairing, use **Edit Wake-on-LAN MAC** in the host menu and enter the PC network adapter MAC address manually.
 
 </details>
 

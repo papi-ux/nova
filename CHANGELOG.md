@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3 - 2026-05-09
+
+- Added manual Wake-on-LAN MAC entry for hosts that do not report a MAC address.
+- Normalized common MAC address formats before sending Wake-on-LAN packets.
+- Updated public README guidance for Wake-on-LAN, VPN, and remote-host setup.
+
 ## 1.0.2 - 2026-04-28
 
 - Hardened externally supplied host, URI, and cache path handling found during CodeQL/security review.

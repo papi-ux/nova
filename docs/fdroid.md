@@ -23,7 +23,7 @@ The metadata is intentionally written for public stores and app-index mirrors:
 - title and short description are store-sized
 - full description avoids marketing-only language and names the Polaris relationship clearly
 - screenshots are copied from `docs/screenshots/`
-- changelog `17.txt` matches Nova `versionCode = 17`
+- changelog `18.txt` matches Nova `versionCode = 18`
 
 ## APK Scan and Security Notes
 
@@ -88,9 +88,9 @@ RepoType: git
 Repo: https://github.com/papi-ux/nova.git
 
 Builds:
-  - versionName: 1.0.2
-    versionCode: 17
-    commit: v1.0.2
+  - versionName: 1.0.3
+    versionCode: 18
+    commit: v1.0.3
     subdir: .
     gradle:
       - nonRoot_gameRelease
@@ -100,11 +100,11 @@ Builds:
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-CurrentVersion: 1.0.2
-CurrentVersionCode: 17
+CurrentVersion: 1.0.3
+CurrentVersionCode: 18
 ```
 
-`v1.0.2` contains the F-Droid build switch, store metadata, and public scanner hardening. Official F-Droid main still needs the source-built native dependency path described above; do not submit this sample against `v1.0.0` because that tag predates the packaging prep.
+`v1.0.3` contains the F-Droid build switch, store metadata, public scanner hardening, and the latest Wake-on-LAN setup fixes. Official F-Droid main still needs the source-built native dependency path described above; do not submit this sample against `v1.0.0` because that tag predates the packaging prep.
 
 ## Future IzzyOnDroid Checklist
 

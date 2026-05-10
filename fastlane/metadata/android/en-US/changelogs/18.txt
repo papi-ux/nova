@@ -1,0 +1,5 @@
+Nova 1.0.3
+
+- Added manual Wake-on-LAN MAC entry for hosts that do not report a MAC address.
+- Improved Wake-on-LAN MAC validation and normalization.
+- Updated public setup guidance for Wake-on-LAN and VPN-based host access.
