@@ -95,6 +95,7 @@ Nova gets the best experience when the host is Polaris:
 - watch active stream without stealing ownership
 - owner-aware quit and resume
 - clear **Baseline / AI tune / Cached AI / Recovery tune** labels in Polaris-backed flows
+- bidirectional **Polaris Sync** for pushing Nova stream defaults to Polaris or pulling Polaris' current stream profile back into Nova
 - live host tuning for Adaptive Bitrate, AI Optimizer, and MangoHud
 - richer library metadata, cover art, and per-game recommendations
 
@@ -141,6 +142,7 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | Watch Stream | Join an active session as a passive viewer instead of taking ownership |
 | Session truth | HUD and quick menu show the live mode, owner/viewer role, and negotiated stream state |
 | AI state | Library and quick menu can distinguish baseline device tuning, live AI, cached AI, recovery tuning, and host-adjusted recommendations |
+| Polaris Sync | Push Nova's stream profile to Polaris, pull Polaris' current profile back into Nova, or keep Polaris matched to Nova defaults |
 | Stream tuning | Toggle Adaptive Bitrate, AI Optimizer, and MangoHud from the quick menu |
 | Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
 
@@ -148,7 +150,7 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 
 - **Streaming and HUD**: H.264, HEVC, and AV1 decode; full, banner, and FPS-only HUD modes; actual vs target FPS labels; reconnect overlay; quality presets for quick setup
 - **Input**: gyro aim, audio haptics, broad controller support, Direct/Trackpad/Relative mouse modes, and compact handheld on-screen controls
-- **Polaris flow**: host-backed library, Continue/watch flows, explicit Headless vs Virtual Display launches, AI source labels, live tuning, and warnings before risky MangoHud launches
+- **Polaris flow**: host-backed library, Continue/watch flows, explicit Headless vs Virtual Display launches, bidirectional Polaris Sync, AI source labels, live tuning, and warnings before risky MangoHud launches
 
 ## Screenshots
 
@@ -304,6 +306,13 @@ Trusted Pair is Nova’s TOFU flow. If Polaris trusts the subnet you are on, Nov
 <summary><b>Does Wake-on-LAN work over WireGuard or another VPN?</b></summary>
 
 It can, as long as the network path forwards the UDP wake packet to a host or subnet that can reach the sleeping PC. Nova sends Wake-on-LAN packets directly from Android. If the server did not provide a MAC address during discovery or pairing, use **Edit Wake-on-LAN MAC** in the host menu and enter the PC network adapter MAC address manually.
+
+</details>
+
+<details>
+<summary><b>What does Polaris Sync do?</b></summary>
+
+Polaris Sync is a bidirectional settings flow for Polaris hosts. Nova can push its local stream profile to Polaris, pull Polaris' current stream profile back into Nova, or keep the Polaris profile matched to Nova defaults so launch settings stay predictable across devices.
 
 </details>
 
