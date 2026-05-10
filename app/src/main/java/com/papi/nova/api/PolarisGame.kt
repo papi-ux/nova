@@ -79,7 +79,8 @@ data class PolarisGame(
     }
 
     val isSteamBigPicture get() = name.equals("Steam Big Picture", ignoreCase = true)
-    val isProtonGame get() = runtime == "proton" || (runtime == "unknown" && source == "steam" && steamAppid.isNotEmpty())
+    val effectiveSource get() = launcherSource.ifBlank { source }
+    val isProtonGame get() = runtime == "proton" || (runtime == "unknown" && effectiveSource == "steam" && steamAppid.isNotEmpty())
     val hasMangoHudCompatibilityRisk get() = isSteamBigPicture || isProtonGame
     val categoryLabel get() = when (category) {
         "fast_action" -> "Action"
@@ -88,7 +89,7 @@ data class PolarisGame(
         "vr" -> "VR"
         else -> ""
     }
-    val sourceLabel get() = when (source) {
+    val sourceLabel get() = when (effectiveSource) {
         "steam" -> "Steam"
         "lutris" -> "Lutris"
         "heroic" -> "Heroic"

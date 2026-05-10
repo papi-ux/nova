@@ -199,6 +199,36 @@
                     android:text="@string/nova_library_filter_steam" />
 
                 <TextView
+                    android:id="@+id/filter_lutris"
+                    style="@style/NovaFilterChip"
+                    android:text="@string/nova_library_filter_lutris" />
+
+                <TextView
+                    android:id="@+id/filter_heroic"
+                    style="@style/NovaFilterChip"
+                    android:text="@string/nova_library_filter_heroic" />
+
+                <TextView
+                    android:id="@+id/filter_linux"
+                    style="@style/NovaFilterChip"
+                    android:text="@string/nova_library_filter_linux" />
+
+                <TextView
+                    android:id="@+id/filter_windows"
+                    style="@style/NovaFilterChip"
+                    android:text="@string/nova_library_filter_windows" />
+
+                <TextView
+                    android:id="@+id/filter_proton"
+                    style="@style/NovaFilterChip"
+                    android:text="@string/nova_library_filter_proton" />
+
+                <TextView
+                    android:id="@+id/filter_wine"
+                    style="@style/NovaFilterChip"
+                    android:text="@string/nova_library_filter_wine" />
+
+                <TextView
                     android:id="@+id/filter_action"
                     style="@style/NovaFilterChip"
                     android:text="@string/nova_library_filter_action" />

@@ -293,6 +293,7 @@ public class PolarisApiClientParsingTest {
         assertEquals("game-uuid", game.getId());
         assertEquals("lutris", game.getLauncherSource());
         assertEquals("wine", game.getLauncherDetail());
+        assertEquals("lutris", game.getEffectiveSource());
         assertEquals("windows", game.getPlatform());
         assertEquals("wine", game.getRuntime());
         assertEquals("Lutris", game.getSourceLabel());
@@ -303,5 +304,26 @@ public class PolarisApiClientParsingTest {
         assertEquals("headless_stream", game.getLaunchMode().getRecommendedMode());
         assertTrue(game.getLaunchMode().getAllowedModes().contains("headless_stream"));
         assertTrue(game.getLaunchMode().getAllowedModes().contains("host_virtual_display"));
+    }
+
+    @Test
+    public void parseGameResponse_prefersLauncherSourceAndFallsBackForOlderHosts() throws Exception {
+        PolarisGame launcherGame = PolarisGame.Companion.fromJson(new JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":43,\"name\":\"Wine Game\"," +
+                        "\"source\":\"manual\",\"launcher_source\":\"lutris\",\"launcher_detail\":\"wine\"," +
+                        "\"platform\":\"windows\",\"runtime\":\"wine\"}"
+        ));
+        assertEquals("lutris", launcherGame.getEffectiveSource());
+        assertEquals("Lutris", launcherGame.getSourceLabel());
+        assertEquals("Lutris · Windows · Wine", launcherGame.getSourceRuntimeLabel());
+
+        PolarisGame olderHostGame = PolarisGame.Companion.fromJson(new JSONObject(
+                "{\"id\":\"older-game\",\"app_id\":44,\"name\":\"Older Host Game\",\"source\":\"steam\"}"
+        ));
+        assertEquals("steam", olderHostGame.getEffectiveSource());
+        assertEquals("Steam", olderHostGame.getSourceLabel());
+        assertEquals("", olderHostGame.getPlatformLabel());
+        assertEquals("", olderHostGame.getRuntimeLabel());
+        assertEquals("Steam", olderHostGame.getSourceRuntimeLabel());
     }
 }
