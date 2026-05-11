@@ -99,13 +99,13 @@ class NovaGameAdapter(
                 sourceBadge.text = srcLabel
                 sourceBadge.visibility = View.VISIBLE
                 // Color-code by source
-                val bgColor = when (game.source) {
+                val bgColor = when (game.effectiveSource) {
                     "steam" -> 0x1A3B82F6.toInt()  // blue/10
                     "lutris" -> 0x1AF97316.toInt()  // orange/10
                     "heroic" -> 0x1AA855F7.toInt()  // purple/10
                     else -> 0x1A6B7280.toInt()
                 }
-                val textColor = when (game.source) {
+                val textColor = when (game.effectiveSource) {
                     "steam" -> 0xFF60A5FA.toInt()    // blue-400
                     "lutris" -> 0xFFFB923C.toInt()   // orange-400
                     "heroic" -> 0xFFC084FC.toInt()   // purple-400

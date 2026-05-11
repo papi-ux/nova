@@ -108,6 +108,12 @@
     <string name="nova_library_filter_all">All</string>
     <string name="nova_library_filter_recent">Recent</string>
     <string name="nova_library_filter_steam">Steam</string>
+    <string name="nova_library_filter_lutris">Lutris</string>
+    <string name="nova_library_filter_heroic">Heroic</string>
+    <string name="nova_library_filter_linux">Linux</string>
+    <string name="nova_library_filter_windows">Windows</string>
+    <string name="nova_library_filter_proton">Proton</string>
+    <string name="nova_library_filter_wine">Wine</string>
     <string name="nova_library_filter_action">Action</string>
     <string name="nova_library_filter_cinematic">Cinematic</string>
     <string name="nova_library_empty_title_default">No games found</string>

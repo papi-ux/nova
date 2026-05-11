@@ -193,6 +193,12 @@ class NovaLibraryActivity : AppCompatActivity() {
         setupFilterTab(R.id.filter_all, "")
         setupFilterTab(R.id.filter_recent, "recent")
         setupFilterTab(R.id.filter_steam, "steam")
+        setupFilterTab(R.id.filter_lutris, "lutris")
+        setupFilterTab(R.id.filter_heroic, "heroic")
+        setupFilterTab(R.id.filter_linux, "linux")
+        setupFilterTab(R.id.filter_windows, "windows")
+        setupFilterTab(R.id.filter_proton, "proton")
+        setupFilterTab(R.id.filter_wine, "wine")
         setupFilterTab(R.id.filter_action, "fast_action")
         setupFilterTab(R.id.filter_cinematic, "cinematic")
         setupTvNavigation()
@@ -272,6 +278,12 @@ class NovaLibraryActivity : AppCompatActivity() {
             R.id.filter_all,
             R.id.filter_recent,
             R.id.filter_steam,
+            R.id.filter_lutris,
+            R.id.filter_heroic,
+            R.id.filter_linux,
+            R.id.filter_windows,
+            R.id.filter_proton,
+            R.id.filter_wine,
             R.id.filter_action,
             R.id.filter_cinematic,
             R.id.nova_empty_retry
@@ -285,7 +297,12 @@ class NovaLibraryActivity : AppCompatActivity() {
 
         // Text search
         if (search.isNotEmpty()) {
-            filtered = filtered.filter { it.name.contains(search, ignoreCase = true) }
+            filtered = filtered.filter { game ->
+                game.name.contains(search, ignoreCase = true) ||
+                    game.sourceRuntimeLabel.contains(search, ignoreCase = true) ||
+                    game.categoryLabel.contains(search, ignoreCase = true) ||
+                    game.genres.any { it.contains(search, ignoreCase = true) }
+            }
         }
 
         // "Recent" sort — show only played games, sorted by most recent
@@ -294,9 +311,12 @@ class NovaLibraryActivity : AppCompatActivity() {
                 .filter { it.lastLaunched > 0 }
                 .sortedByDescending { it.lastLaunched }
         } else if (currentFilter.isNotEmpty()) {
-            // Category/source filter
+            // Category/source/platform/runtime filter
             filtered = filtered.filter {
-                it.source == currentFilter || it.category == currentFilter
+                it.effectiveSource == currentFilter ||
+                    it.category == currentFilter ||
+                    it.platform == currentFilter ||
+                    it.runtime == currentFilter
             }
         }
 
@@ -362,6 +382,8 @@ class NovaLibraryActivity : AppCompatActivity() {
     // Filter tab IDs in order for bumper switching
     private val filterTabIds = listOf(
         R.id.filter_all, R.id.filter_recent, R.id.filter_steam,
+        R.id.filter_lutris, R.id.filter_heroic, R.id.filter_linux,
+        R.id.filter_windows, R.id.filter_proton, R.id.filter_wine,
         R.id.filter_action, R.id.filter_cinematic
     )
     private var activeTabIndex = 0
