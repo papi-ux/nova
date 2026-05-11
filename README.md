@@ -99,7 +99,7 @@ Nova gets the best experience when the host is Polaris:
 - clear **Baseline / AI tune / Cached AI / Recovery tune** labels in Polaris-backed flows
 - bidirectional **Polaris Sync** for pushing Nova stream defaults to Polaris or pulling Polaris' current stream profile back into Nova
 - live host tuning for Adaptive Bitrate, AI Optimizer, and MangoHud
-- richer library metadata, cover art, and per-game recommendations
+- richer library metadata, cover art, source/runtime filters, and per-game recommendations
 
 ### If you use another compatible host
 
@@ -147,13 +147,13 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | AI state | Library and quick menu can distinguish baseline device tuning, live AI, cached AI, recovery tuning, and host-adjusted recommendations |
 | Polaris Sync | Push Nova's stream profile to Polaris, pull Polaris' current profile back into Nova, or keep Polaris matched to Nova defaults |
 | Stream tuning | Toggle Adaptive Bitrate, AI Optimizer, and MangoHud from the quick menu |
-| Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
+| Library | Cover art, genres, source badges, Steam/Lutris/Heroic filters, Linux/Windows/Proton/Wine filters, recommendations, and per-game launch guidance |
 
 ## Core Features
 
 - **Streaming and HUD**: H.264, HEVC, and AV1 decode; full, banner, and FPS-only HUD modes; actual vs target FPS labels; reconnect overlay; quality presets for quick setup
 - **Input**: gyro aim, audio haptics, broad controller support, Direct/Trackpad/Relative mouse modes, and compact handheld on-screen controls
-- **Polaris flow**: host-backed library, Continue/watch flows, explicit Headless vs Virtual Display launches, bidirectional Polaris Sync, AI source labels, live tuning, and warnings before risky MangoHud launches
+- **Polaris flow**: host-backed library, Continue/watch flows, Steam/Lutris/Heroic and Linux/Windows/Proton/Wine filtering, explicit Headless vs Virtual Display launches, bidirectional Polaris Sync, AI source labels, live tuning, and warnings before risky MangoHud launches
 
 ## Screenshots
 
@@ -164,7 +164,7 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 </tr>
 <tr>
 <td><img src="docs/screenshots/nova-home.png" width="400" alt="Games home"/><br/><sub>Games home with Continue rail and host shortcuts</sub></td>
-<td><img src="docs/screenshots/nova-library-grid.png" width="400" alt="Library grid"/><br/><sub>Polaris library with filters, search, and HDR-ready badges</sub></td>
+<td><img src="docs/screenshots/nova-library-grid.png" width="400" alt="Library grid"/><br/><sub>Polaris library with source/runtime filters, search, and HDR-ready badges</sub></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/nova-library-detail.png" width="400" alt="Library detail sheet"/><br/><sub>Per-game launch modes and next-launch tuning</sub></td>

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Added Polaris library filters for Steam, Lutris, Heroic, Linux, Windows, Proton, and Wine.
+- Updated Nova library search to match source, runtime, category, and genre metadata.
+- Preferred Polaris `launcher_source` metadata for game labels while keeping older-host fallback behavior.
+
+## 1.0.4 - 2026-05-10
+
+- Added Android TV launcher support and D-pad/controller-friendly focus behavior for server browsing, library views, launch sheets, and Polaris Sync.
+- Polished the Nova Library and Polaris-backed game cards with cleaner presentation, source badges, and launch guidance.
+- Added bidirectional Polaris Sync so Nova can push its stream profile to Polaris, pull Polaris' current stream profile back into Nova, or keep Polaris matched to Nova defaults.
+
 ## 1.0.3 - 2026-05-09
 
 - Added manual Wake-on-LAN MAC entry for hosts that do not report a MAC address.
