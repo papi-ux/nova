@@ -66,11 +66,22 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, and `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, and `v1.0.5` adds the first unified Auto Quality experience with Polaris. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
 **Android TV:** Nova ships Android TV support in the same APK. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces.
+
+## What's New in v1.0.5
+
+Nova `v1.0.5` makes stream tuning feel less like a pile of expert toggles and more like one coordinated Auto Quality system.
+
+- **Auto Quality drawer**: AI Optimizer and Adaptive Bitrate are presented as one stream-quality system, with clearer state, target FPS, safe FPS, low FPS, 1% low, bitrate, and recovery labels.
+- **Better Polaris launches**: Nova asks Polaris for the launch recommendation before the stream starts, then applies the safer or higher-quality profile that Polaris will actually enforce.
+- **Quality preference support**: users can start from a higher-quality preference, while Polaris and Nova still have room to recover if the host, network, or decoder cannot hold the target.
+- **Bidirectional profile sync**: Nova can push its stream defaults to Polaris or pull Polaris' active profile back into Nova, making manual control clearer when users want it.
+- **Game profile controls**: Polaris-backed game detail screens can expose per-game optimization state and profile reset tools when a game needs a fresh start.
+- **Cleaner live feedback**: the HUD and quick menu now show whether the session is using baseline tuning, cached AI, recovery tuning, host-adjusted recommendations, or an active Auto Quality policy.
 
 ## Quick Start
 
@@ -96,9 +107,9 @@ Nova gets the best experience when the host is Polaris:
 - live **ACT / TGT FPS** HUD readouts
 - watch active stream without stealing ownership
 - owner-aware quit and resume
-- clear **Baseline / AI tune / Cached AI / Recovery tune** labels in Polaris-backed flows
+- clear **Baseline / AI tune / Cached AI / Recovery tune / Auto Quality** labels in Polaris-backed flows
 - bidirectional **Polaris Sync** for pushing Nova stream defaults to Polaris or pulling Polaris' current stream profile back into Nova
-- live host tuning for Adaptive Bitrate, AI Optimizer, and MangoHud
+- live host tuning for Auto Quality and MangoHud
 - richer library metadata, cover art, and per-game recommendations
 
 ### If you use another compatible host
@@ -144,16 +155,16 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | 10-bit opt-in | Enabling HDR can request a 10-bit stream even on SDR handheld displays |
 | Watch Stream | Join an active session as a passive viewer instead of taking ownership |
 | Session truth | HUD and quick menu show the live mode, owner/viewer role, and negotiated stream state |
-| AI state | Library and quick menu can distinguish baseline device tuning, live AI, cached AI, recovery tuning, and host-adjusted recommendations |
+| Auto Quality state | Library and quick menu can distinguish baseline device tuning, live AI, cached AI, recovery tuning, host-adjusted recommendations, and the active target profile |
 | Polaris Sync | Push Nova's stream profile to Polaris, pull Polaris' current profile back into Nova, or keep Polaris matched to Nova defaults |
-| Stream tuning | Toggle Adaptive Bitrate, AI Optimizer, and MangoHud from the quick menu |
+| Stream tuning | Toggle Auto Quality and MangoHud from the quick menu |
 | Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
 
 ## Core Features
 
 - **Streaming and HUD**: H.264, HEVC, and AV1 decode; full, banner, and FPS-only HUD modes; actual vs target FPS labels; reconnect overlay; quality presets for quick setup
 - **Input**: gyro aim, audio haptics, broad controller support, Direct/Trackpad/Relative mouse modes, and compact handheld on-screen controls
-- **Polaris flow**: host-backed library, Continue/watch flows, explicit Headless vs Virtual Display launches, bidirectional Polaris Sync, AI source labels, live tuning, and warnings before risky MangoHud launches
+- **Polaris flow**: host-backed library, Continue/watch flows, explicit Headless vs Virtual Display launches, bidirectional Polaris Sync, Auto Quality source labels, live tuning, and warnings before risky MangoHud launches
 
 ## Screenshots
 
