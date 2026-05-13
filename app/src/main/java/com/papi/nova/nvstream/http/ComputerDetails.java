@@ -12,6 +12,10 @@ public class ComputerDetails {
         ONLINE, OFFLINE, UNKNOWN
     }
 
+    public enum LibraryState {
+        UNKNOWN, AVAILABLE, UNAVAILABLE
+    }
+
     public static class AddressTuple {
         public String address;
         public int port;
@@ -85,6 +89,7 @@ public class ComputerDetails {
     public String rawAppList;
     public boolean nvidiaServer;
     public int serverMaxLaunchRefreshRate;
+    public LibraryState libraryState = LibraryState.UNKNOWN;
 
     // VDisplay info
     public boolean vDisplaySupported = false;
@@ -168,6 +173,11 @@ public class ComputerDetails {
         this.nvidiaServer = details.nvidiaServer;
         this.rawAppList = details.rawAppList;
         this.serverMaxLaunchRefreshRate = details.serverMaxLaunchRefreshRate;
+        if (details.libraryState != LibraryState.UNKNOWN ||
+                this.state != State.ONLINE ||
+                this.pairState != PairingManager.PairState.PAIRED) {
+            this.libraryState = details.libraryState;
+        }
 
         this.vDisplayDriverReady = details.vDisplayDriverReady;
         this.vDisplaySupported = details.vDisplaySupported;

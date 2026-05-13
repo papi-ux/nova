@@ -21,9 +21,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="@dimen/nova_spacing_xxl"
+            android:paddingStart="@dimen/nova_spacing_lg"
             android:paddingTop="@dimen/nova_spacing_sm"
-            android:paddingEnd="@dimen/nova_spacing_xxl">
+            android:paddingEnd="@dimen/nova_spacing_lg">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -37,7 +37,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
                     android:minWidth="0dp"
-                    android:text="@string/pcview_mode_servers"
+                    android:text="@string/nova_library_switch_server"
                     android:textAllCaps="false"
                     android:textColor="@color/nova_text_primary"
                     app:backgroundTint="@color/nova_badge_bg"
@@ -64,7 +64,6 @@
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
-                    android:layout_marginEnd="8dp"
                     android:minWidth="0dp"
                     android:text="@string/nova_refresh"
                     android:textAllCaps="false"
@@ -74,20 +73,18 @@
                     app:elevation="0dp" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/nova_library_polaris_sync"
+                    android:id="@+id/nova_library_manage"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
                     android:minWidth="0dp"
-                    android:text="@string/nova_library_sync"
+                    android:text="@string/nova_library_manage"
                     android:textAllCaps="false"
                     android:textColor="@color/nova_text_primary"
                     app:backgroundTint="@color/nova_badge_bg"
                     app:cornerRadius="14dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_settings"
-                    app:iconPadding="6dp"
-                    app:iconTint="@color/nova_text_primary" />
+                    app:elevation="0dp" />
             </LinearLayout>
 
             <TextView
@@ -97,9 +94,9 @@
                 android:layout_marginTop="@dimen/nova_spacing_xs"
                 android:text="@string/nova_library_title"
                 android:textColor="@color/nova_ice"
-                android:textSize="@dimen/nova_text_header"
+                android:textSize="22sp"
                 android:fontFamily="sans-serif-medium"
-                android:letterSpacing="0" />
+                android:letterSpacing="0.02" />
 
             <TextView
                 android:id="@+id/nova_library_context"
@@ -124,7 +121,7 @@
                 android:id="@+id/nova_search"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/nova_search_height"
-                android:layout_marginTop="@dimen/nova_spacing_sm"
+                android:layout_marginTop="@dimen/nova_spacing_xs"
                 android:background="@drawable/nova_search_bg"
                 android:drawableStart="@android:drawable/ic_menu_search"
                 android:drawablePadding="12dp"
@@ -141,7 +138,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/nova_spacing_sm"
+                android:layout_marginTop="@dimen/nova_spacing_xs"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -173,7 +170,7 @@
             android:paddingStart="@dimen/nova_spacing_md"
             android:paddingTop="@dimen/nova_spacing_xs"
             android:paddingEnd="@dimen/nova_spacing_md"
-            android:paddingBottom="@dimen/nova_spacing_sm"
+            android:paddingBottom="@dimen/nova_spacing_xs"
             android:scrollbars="none">
 
             <LinearLayout
@@ -197,36 +194,6 @@
                     android:id="@+id/filter_steam"
                     style="@style/NovaFilterChip"
                     android:text="@string/nova_library_filter_steam" />
-
-                <TextView
-                    android:id="@+id/filter_lutris"
-                    style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_lutris" />
-
-                <TextView
-                    android:id="@+id/filter_heroic"
-                    style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_heroic" />
-
-                <TextView
-                    android:id="@+id/filter_linux"
-                    style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_linux" />
-
-                <TextView
-                    android:id="@+id/filter_windows"
-                    style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_windows" />
-
-                <TextView
-                    android:id="@+id/filter_proton"
-                    style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_proton" />
-
-                <TextView
-                    android:id="@+id/filter_wine"
-                    style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_wine" />
 
                 <TextView
                     android:id="@+id/filter_action"
@@ -260,9 +227,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:clipToPadding="false"
-                    android:paddingStart="@dimen/nova_spacing_md"
-                    android:paddingTop="@dimen/nova_spacing_sm"
-                    android:paddingEnd="@dimen/nova_spacing_md"
+                    android:paddingStart="6dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="6dp"
                     android:paddingBottom="@dimen/nova_spacing_huge" />
 
             </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

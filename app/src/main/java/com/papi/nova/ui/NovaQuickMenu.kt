@@ -79,7 +79,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         } }
 
         val stabilityRow = sheet.findViewById<View>(R.id.action_stability_mode)
-        val adaptiveRow = sheet.findViewById<View>(R.id.toggle_adaptive_bitrate)
+        val bidirectionalSyncRow = sheet.findViewById<View>(R.id.action_bidirectional_sync)
+        val advancedTuningRow = sheet.findViewById<View>(R.id.action_advanced_tuning)
+        val advancedTuningGroup = sheet.findViewById<View>(R.id.advanced_tuning_group)
         val aiRow = sheet.findViewById<View>(R.id.toggle_ai_optimizer)
         val mangoRow = sheet.findViewById<View>(R.id.toggle_mangohud)
         val hudRow = sheet.findViewById<View>(R.id.toggle_hud)
@@ -95,8 +97,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         val stabilityCaption = sheet.findViewById<TextView>(R.id.stability_mode_caption)
         val stabilityState = sheet.findViewById<TextView>(R.id.stability_mode_state)
-        val adaptiveCaption = sheet.findViewById<TextView>(R.id.adaptive_bitrate_caption)
-        val adaptiveState = sheet.findViewById<TextView>(R.id.adaptive_bitrate_state)
+        val bidirectionalSyncCaption = sheet.findViewById<TextView>(R.id.bidirectional_sync_caption)
+        val bidirectionalSyncState = sheet.findViewById<TextView>(R.id.bidirectional_sync_state)
+        val advancedTuningState = sheet.findViewById<TextView>(R.id.advanced_tuning_state)
         val aiCaption = sheet.findViewById<TextView>(R.id.ai_optimizer_caption)
         val aiState = sheet.findViewById<TextView>(R.id.ai_optimizer_state)
         val mangoCaption = sheet.findViewById<TextView>(R.id.mangohud_caption)
@@ -108,7 +111,6 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         val perfState = sheet.findViewById<TextView>(R.id.perf_state)
         val oscState = sheet.findViewById<TextView>(R.id.osc_state)
         val keyboardState = sheet.findViewById<TextView>(R.id.keyboard_state)
-        val mouseModeTitle = sheet.findViewById<TextView>(R.id.mouse_mode_title)
         val mouseModeState = sheet.findViewById<TextView>(R.id.mouse_mode_label)
 
         val apiClient = game.novaApiClient ?: getServerAddress()?.let {
@@ -127,16 +129,19 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         var mangoToggleAllowed = false
         var mangoRiskMessageRes: Int? = null
         var stabilityApplied = false
+        var advancedTuningVisible = false
 
         fun syncSessionDerivedState() {
             viewerSession = sessionStatus?.isViewer == true
             canAdjustHostTuning = sessionStatus?.canAdjustHostTuning == true
-            adaptiveEnabled = sessionStatus?.clientSettings?.effective?.adaptiveBitrateEnabled == true ||
-                sessionStatus?.tuning?.adaptiveBitrateEnabled == true ||
+            adaptiveEnabled = sessionStatus?.tuning?.adaptiveBitrateEnabled == true ||
                 sessionStatus?.adaptiveBitrateEnabled == true
-            aiEnabled = sessionStatus?.clientSettings?.effective?.aiOptimizerEnabled == true ||
+            aiEnabled = sessionStatus?.autoQuality?.enabled == true ||
+                sessionStatus?.tuning?.aiAutoQualityEnabled == true ||
+                sessionStatus?.aiAutoQualityEnabled == true ||
                 sessionStatus?.tuning?.aiOptimizerEnabled == true ||
-                sessionStatus?.aiOptimizerEnabled == true
+                sessionStatus?.aiOptimizerEnabled == true ||
+                adaptiveEnabled
 
             val currentGameUuid = sessionStatus?.gameUuid?.takeIf { it.isNotEmpty() } ?: getRunningGameUuid()
             mangoToggleAllowed = canAdjustHostTuning && !currentGameUuid.isNullOrEmpty()
@@ -150,12 +155,15 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         fun baseSessionModeLabel(status: PolarisSessionStatus?): String {
-            val mode = status?.sessionModeLabel?.takeIf { it.isNotBlank() }
-                ?: game.getString(R.string.nova_quick_menu_mode_unknown)
+            val mode = when {
+                status == null -> game.getString(R.string.nova_quick_menu_mode_unknown)
+                status.isHeadlessMode -> game.getString(R.string.nova_session_mode_headless)
+                status.isVirtualDisplayMode -> game.getString(R.string.nova_session_mode_virtual_display)
+                else -> game.getString(R.string.nova_session_mode_host_display)
+            }
             val source = when (status?.displayMode?.requested) {
                 "auto" -> "Auto"
-                "headless", "virtual_display", "headless_stream", "host_virtual_display",
-                "desktop_display", "windowed_stream" -> "Explicit"
+                "headless", "virtual_display" -> "Explicit"
                 else -> ""
             }
             return listOf(mode, source).filter { it.isNotBlank() }.joinToString(" · ")
@@ -195,19 +203,45 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             ).joinToString(" · ")
         }
 
+        fun streamPolicy(status: PolarisSessionStatus?): StreamPolicyUiState {
+            return StreamPolicyUiState.from(
+                status,
+                game.prefConfig.bitrate,
+                game.configuredHudTargetFps.toDouble()
+            )
+        }
+
         fun currentSessionBitrate(status: PolarisSessionStatus?): Int {
-            val adaptiveTarget = status?.tuning?.adaptiveTargetBitrateKbps ?: 0
-            if (adaptiveTarget > 0) return adaptiveTarget
-            return status?.encoder?.bitrateKbps ?: 0
+            return streamPolicy(status).effectiveBitrateKbps
         }
 
         fun healthSummaryText(status: PolarisSessionStatus?): String {
             return when {
                 status == null -> "Checking session health"
                 status.health.summary.isNotBlank() -> status.health.summary
+                status.isHostRenderLimited -> "Host render is missing the stream FPS target."
                 status.hasHealthConcerns -> "Session needs attention."
                 else -> "Session looks steady."
             }
+        }
+
+        fun autoQualityTone(tone: AutoQualityUiState.Tone): ChipTone {
+            return when (tone) {
+                AutoQualityUiState.Tone.STABLE -> ChipTone.ACTIVE
+                AutoQualityUiState.Tone.INFO -> ChipTone.ACTIVE
+                AutoQualityUiState.Tone.WARNING -> ChipTone.WARNING
+                AutoQualityUiState.Tone.DANGER -> ChipTone.WARNING
+                AutoQualityUiState.Tone.MUTED -> ChipTone.MUTED
+            }
+        }
+
+        fun refreshAdvancedTuningState() {
+            advancedTuningGroup?.visibility = if (advancedTuningVisible) View.VISIBLE else View.GONE
+            updateStateChip(
+                advancedTuningState,
+                if (advancedTuningVisible) "Hide" else "Show",
+                if (advancedTuningVisible) ChipTone.ACTIVE else ChipTone.INACTIVE
+            )
         }
 
         fun refreshHealthSummary() {
@@ -237,41 +271,90 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     "Stream controls, tuning, and session actions for headless streaming"
                 sessionStatus?.isVirtualDisplayMode == true ->
                     "Stream controls, tuning, and session actions for a virtual display session"
-                else -> "Stream controls, tuning, and session actions"
+                else -> "Auto Quality, controls, and session actions"
             }
         }
 
         fun refreshStabilityState() {
             val status = sessionStatus
             val safeBitrate = status?.health?.safeBitrateKbps ?: 0
+            val policy = streamPolicy(status)
             val liveBitrate = currentSessionBitrate(status)
-            val canLowerBitrate = safeBitrate > 0 && liveBitrate > 0 && safeBitrate < liveBitrate
-            val canEnableAdaptive = status?.canAdjustHostTuning == true && !adaptiveEnabled
-            val relaunchOnly = status?.health?.relaunchRecommended == true && !canLowerBitrate && !canEnableAdaptive
+            val autoQuality = AutoQualityUiState.from(status)
+            val autoPolicy = status?.autoQuality
+            val qualityBlocked = autoPolicy?.isBlocked == true || status?.isHostRenderLimited == true
+            val upgradeAvailable = autoPolicy?.let { it.isUpgradeAvailable && it.relaunchRequired } == true
+            val canLowerBitrate = !qualityBlocked && safeBitrate > 0 && liveBitrate > 0 && safeBitrate < liveBitrate
+            val canEnableAdaptive = !qualityBlocked && status?.canAdjustHostTuning == true && !aiEnabled
+            val relaunchOnly = !qualityBlocked &&
+                (upgradeAvailable || status?.health?.relaunchRecommended == true) &&
+                !canLowerBitrate &&
+                !canEnableAdaptive
             val rowEnabled = status?.canAdjustHostTuning == true && (canLowerBitrate || canEnableAdaptive || relaunchOnly)
 
-            setRowEnabled(stabilityRow, rowEnabled)
+            stabilityRow?.isEnabled = rowEnabled
+            stabilityRow?.isClickable = rowEnabled
+            stabilityRow?.alpha = 1f
             stabilityCaption?.text = when {
                 status == null -> "Checking host state"
-                status.health.summary.isNotBlank() -> status.health.summary
-                else -> "Safer live fallback"
+                autoQuality.targetSummary.isNotBlank() -> "${autoQuality.detail} · ${policy.targetSummary}"
+                else -> autoQuality.detail
             }
 
             when {
                 status == null -> updateStateChip(stabilityState, "Loading", ChipTone.MUTED)
                 !rowEnabled && viewerSession -> updateStateChip(stabilityState, "Owner", ChipTone.MUTED)
-                !rowEnabled -> updateStateChip(
-                    stabilityState,
-                    status.healthToneLabel,
-                    if (status.hasHealthConcerns) ChipTone.WARNING else ChipTone.MUTED
-                )
+                !rowEnabled -> updateStateChip(stabilityState, autoQuality.label, autoQualityTone(autoQuality.tone))
                 stabilityApplied -> updateStateChip(stabilityState, "Applied", ChipTone.ACTIVE)
                 relaunchOnly -> updateStateChip(stabilityState, "Relaunch", ChipTone.WARNING)
                 else -> updateStateChip(
                     stabilityState,
-                    "Ready",
-                    if (status.hasHealthConcerns) ChipTone.WARNING else ChipTone.INACTIVE
+                    autoQuality.label,
+                    autoQualityTone(autoQuality.tone)
                 )
+            }
+        }
+
+        fun refreshBidirectionalSyncState() {
+            val status = sessionStatus
+            val presentationStatus = status?.clientPresentation?.status.orEmpty().lowercase()
+            val syncStatus = status?.syncStatus
+            val syncState = syncStatus?.state.orEmpty().lowercase()
+            val policy = streamPolicy(status)
+            val syncLabel = when {
+                status == null -> "Checking"
+                syncStatus?.isManualOverride == true -> "Manual"
+                syncStatus?.needsRelaunch == true -> "Relaunch"
+                syncStatus?.isFailed == true -> "Attention"
+                syncStatus?.isApplying == true -> "Applying"
+                presentationStatus == "blocked" -> "Blocked"
+                presentationStatus == "pending" -> "Pending"
+                policy.adaptiveTargetBitrateKbps > 0 -> "Auto Safe"
+                syncStatus?.isSynced == true -> "Synced"
+                status.isClientPresentationSynced -> "Synced"
+                status.isStreaming -> "Live"
+                else -> "Ready"
+            }
+            val tone = when (syncLabel) {
+                "Synced", "Auto Safe", "Live" -> ChipTone.ACTIVE
+                "Pending", "Blocked", "Relaunch", "Attention", "Applying", "Manual" -> ChipTone.WARNING
+                "Ready" -> ChipTone.INACTIVE
+                else -> ChipTone.MUTED
+            }
+
+            updateStateChip(bidirectionalSyncState, syncLabel, tone)
+            bidirectionalSyncCaption?.text = when {
+                status == null -> "checking host and client settings"
+                policy.adaptiveTargetBitrateKbps > 0 -> policy.statusCaption
+                syncStatus?.message?.isNotBlank() == true -> syncStatus.message
+                syncState == "manual_override" -> "manual client tuning is active"
+                syncState == "needs_relaunch" -> "saved settings apply on next launch"
+                syncState == "applying" -> "Nova is reporting applied stream settings"
+                presentationStatus == "blocked" -> "client could not apply the requested display sync"
+                presentationStatus == "pending" -> "waiting for Nova to report display sync"
+                status.isClientPresentationSynced && status.clientPresentation.appliedRefreshRateHz > 0.0 ->
+                    "Retroid display ${status.clientPresentation.appliedRefreshRateHz.toInt()} Hz matches stream"
+                else -> "host and client settings"
             }
         }
 
@@ -296,18 +379,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 if (game.isKeyboardLayoutVisible() == true) "Shown" else "Hidden",
                 if (game.isKeyboardLayoutVisible() == true) ChipTone.ACTIVE else ChipTone.INACTIVE
             )
-            if (device?.supportsControllerMouseEmulation() == true) {
-                val active = device.isControllerMouseEmulationActive()
-                mouseModeTitle?.setText(R.string.nova_quick_menu_controller_mouse_title)
-                updateStateChip(
-                    mouseModeState,
-                    if (active) "On" else "Off",
-                    if (active) ChipTone.ACTIVE else ChipTone.INACTIVE
-                )
-            } else {
-                mouseModeTitle?.setText(R.string.nova_quick_menu_touch_mouse_title)
-                updateStateChip(mouseModeState, game.currentMouseModeLabel, ChipTone.INACTIVE)
-            }
+            updateStateChip(mouseModeState, game.currentMouseModeLabel, ChipTone.INACTIVE)
         }
 
         fun refreshTuningStates() {
@@ -315,57 +387,35 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             val shutdownInProgress = sessionStatus?.isShuttingDown == true ||
                 sessionStatus?.controls?.shutdownInProgress == true
 
-            setRowEnabled(adaptiveRow, adaptiveSupported && canAdjustHostTuning)
-            setRowEnabled(aiRow, aiSupported && canAdjustHostTuning)
+            setRowEnabled(aiRow, (aiSupported || adaptiveSupported) && canAdjustHostTuning)
             setRowEnabled(mangoRow, mangoToggleAllowed)
 
-            val adaptiveTone = when {
-                !adaptiveSupported -> ChipTone.MUTED
-                adaptiveEnabled -> ChipTone.ACTIVE
-                else -> ChipTone.INACTIVE
-            }
-            updateStateChip(
-                adaptiveState,
-                when {
-                    !adaptiveSupported -> "N/A"
-                    adaptiveEnabled -> "On"
-                    else -> "Off"
-                },
-                adaptiveTone
-            )
-
-            val adaptiveLabel = when {
-                !adaptiveSupported -> "server unavailable"
-                shutdownInProgress -> "session ending"
-                !canAdjustHostTuning && viewerSession -> "owner controls host tuning"
-                !canAdjustHostTuning -> "host controls unavailable"
-                sessionStatus?.tuning?.adaptiveTargetBitrateKbps ?: 0 > 0 && adaptiveEnabled ->
-                    "live · ${(sessionStatus?.tuning?.adaptiveTargetBitrateKbps ?: 0) / 1000} Mbps target"
-                else -> "live network response"
-            }
-            adaptiveCaption?.text = adaptiveLabel
-
             val aiTone = when {
-                !aiSupported -> ChipTone.MUTED
+                !aiSupported && !adaptiveSupported -> ChipTone.MUTED
                 aiEnabled -> ChipTone.ACTIVE
                 else -> ChipTone.INACTIVE
             }
             updateStateChip(
                 aiState,
                 when {
-                    !aiSupported -> "N/A"
+                    !aiSupported && !adaptiveSupported -> "N/A"
                     aiEnabled -> "On"
                     else -> "Off"
                 },
                 aiTone
             )
 
+            val policy = streamPolicy(sessionStatus)
+            val autoQuality = AutoQualityUiState.from(sessionStatus)
             aiCaption?.text = when {
-                !aiSupported -> "server unavailable"
+                !aiSupported && !adaptiveSupported -> "server unavailable"
                 shutdownInProgress -> "session ending"
                 !canAdjustHostTuning && viewerSession -> "owner controls host tuning"
                 !canAdjustHostTuning -> "host controls unavailable"
-                else -> optimizationRuntimeCaption(sessionStatus) ?: "next launch"
+                aiEnabled && policy.adaptiveTargetBitrateKbps > 0 ->
+                    "${autoQuality.detail} · ${policy.adaptiveTargetLabel} live bitrate"
+                aiEnabled -> autoQuality.detail.ifBlank { optimizationRuntimeCaption(sessionStatus) ?: "balancing FPS, bitrate, and smoothness" }
+                else -> "manual stream tuning"
             }
 
             val mangoTone = when {
@@ -403,8 +453,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         fun refreshInputAvailability() {
             val ownerInputAllowed = !viewerSession
-            val controllerMouseSupported = device?.supportsControllerMouseEmulation() == true
-            setRowEnabled(mouseRow, ownerInputAllowed && (controllerMouseSupported || game.allowChangeMouseMode))
+            setRowEnabled(mouseRow, ownerInputAllowed && game.allowChangeMouseMode)
             setRowEnabled(oscRow, ownerInputAllowed)
             setRowEnabled(keyboardRow, ownerInputAllowed)
             setRowEnabled(pasteRow, ownerInputAllowed)
@@ -422,16 +471,25 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         refreshOverlayStates()
         refreshHealthSummary()
         updateStateChip(stabilityState, "Loading", ChipTone.MUTED)
-        updateStateChip(adaptiveState, "Loading", ChipTone.MUTED)
+        updateStateChip(bidirectionalSyncState, "Checking", ChipTone.MUTED)
         updateStateChip(aiState, "Loading", ChipTone.MUTED)
         updateStateChip(mangoState, "Loading", ChipTone.MUTED)
+        refreshAdvancedTuningState()
         stabilityCaption?.text = "checking host state"
-        adaptiveCaption?.text = "checking host state"
+        bidirectionalSyncCaption?.text = "checking host and client settings"
         aiCaption?.text = "checking host state"
         mangoCaption?.setText(R.string.nova_mangohud_quick_menu_caption_default)
         refreshSessionModeState()
         refreshStabilityState()
+        refreshBidirectionalSyncState()
         refreshInputAvailability()
+
+        advancedTuningRow?.let { row ->
+            hapticClick(row) {
+                advancedTuningVisible = !advancedTuningVisible
+                refreshAdvancedTuningState()
+            }
+        }
 
         hudRow?.let { hapticClick(it) {
             val existingHud = getNovaHud()
@@ -459,23 +517,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             refreshOverlayStates()
         } }
 
-        mouseRow?.let { hapticClick(it) {
-            val controllerMouseDevice = device?.takeIf { it.supportsControllerMouseEmulation() }
-            if (controllerMouseDevice != null) {
-                val next = !controllerMouseDevice.isControllerMouseEmulationActive()
-                controllerMouseDevice.setControllerMouseEmulationActive(next)
-                refreshOverlayStates()
-                dismiss()
-                Toast.makeText(
-                    game,
-                    if (next) R.string.nova_controller_mouse_enabled else R.string.nova_controller_mouse_disabled,
-                    if (next) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
-                ).show()
-            } else if (game.allowChangeMouseMode) {
+        if (game.allowChangeMouseMode) {
+            mouseRow?.let { hapticClick(it) {
                 dismiss()
                 game.selectMouseMode(game)
-            }
-        } }
+            } }
+        }
 
         oscRow?.let { hapticClick(it) {
             dismiss()
@@ -540,12 +587,15 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
                 val safeBitrate = status.health.safeBitrateKbps
                 val liveBitrate = currentSessionBitrate(status)
-                val shouldLowerBitrate = safeBitrate > 0 && liveBitrate > 0 && safeBitrate < liveBitrate
-                val shouldEnableAdaptive = !adaptiveEnabled
+                val qualityBlocked = status.autoQuality.isBlocked || status.isHostRenderLimited
+                val shouldLowerBitrate = !qualityBlocked && safeBitrate > 0 && liveBitrate > 0 && safeBitrate < liveBitrate
+                val shouldEnableAutoQuality = !qualityBlocked && !aiEnabled
 
-                if (!shouldLowerBitrate && !shouldEnableAdaptive) {
-                    if (status.health.relaunchRecommended) {
-                        Toast.makeText(game, "Relaunch to apply safer codec, HDR, or display mode changes", Toast.LENGTH_SHORT).show()
+                if (!shouldLowerBitrate && !shouldEnableAutoQuality) {
+                    if (!qualityBlocked && (status.autoQuality.relaunchRequired || status.health.relaunchRecommended)) {
+                        dismiss()
+                        Toast.makeText(game, "Relaunching stream to apply Auto Quality settings", Toast.LENGTH_SHORT).show()
+                        game.relaunchStream()
                     }
                     return@hapticClick
                 }
@@ -553,11 +603,13 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 updateStateChip(stabilityState, "Applying", ChipTone.WARNING)
 
                 Thread {
-                    val confirmed = apiClient.updateClientSettings(
-                        adaptiveBitrateEnabled = if (shouldEnableAdaptive) true else null,
-                        targetBitrateKbps = if (shouldLowerBitrate) safeBitrate else null
-                    )
-                    val success = confirmed != null
+                    var success = true
+                    if (shouldEnableAutoQuality) {
+                        success = apiClient.setAiAutoQualityEnabled(true) && success
+                    }
+                    if (shouldLowerBitrate) {
+                        success = apiClient.setBitrate(safeBitrate) && success
+                    }
                     if (success) {
                         sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                         syncSessionDerivedState()
@@ -587,29 +639,24 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             }
         }
 
-        adaptiveRow?.let { row ->
+        bidirectionalSyncRow?.let { row ->
             hapticClick(row) {
-                if (!adaptiveSupported || !canAdjustHostTuning || apiClient == null) return@hapticClick
-                val next = !adaptiveEnabled
-                adaptiveEnabled = next
-                updateStateChip(adaptiveState, if (next) "On" else "Off", if (next) ChipTone.ACTIVE else ChipTone.INACTIVE)
+                if (apiClient == null) return@hapticClick
+                if (sessionStatus?.syncStatus?.needsRelaunch == true) {
+                    dismiss()
+                    Toast.makeText(game, "Relaunching stream to apply synced settings", Toast.LENGTH_SHORT).show()
+                    game.relaunchStream()
+                    return@hapticClick
+                }
+                updateStateChip(bidirectionalSyncState, "Checking", ChipTone.MUTED)
                 Thread {
-                    val success = apiClient.updateClientSettings(adaptiveBitrateEnabled = next) != null
-                    if (success) {
-                        sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
-                        syncSessionDerivedState()
-                    }
+                    sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                     game.runOnUiThread {
-                        if (!success) {
-                            adaptiveEnabled = !next
-                            refreshTuningStates()
-                            refreshStabilityState()
-                            Toast.makeText(game, "Adaptive Bitrate toggle failed", Toast.LENGTH_SHORT).show()
-                        } else {
-                            refreshTuningStates()
-                            refreshHealthSummary()
-                            refreshStabilityState()
-                        }
+                        refreshSessionModeState()
+                        refreshHealthSummary()
+                        refreshBidirectionalSyncState()
+                        refreshTuningStates()
+                        refreshStabilityState()
                     }
                 }.start()
             }
@@ -617,12 +664,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         aiRow?.let { row ->
             hapticClick(row) {
-                if (!aiSupported || !canAdjustHostTuning || apiClient == null) return@hapticClick
+                if ((!aiSupported && !adaptiveSupported) || !canAdjustHostTuning || apiClient == null) return@hapticClick
                 val next = !aiEnabled
                 aiEnabled = next
                 updateStateChip(aiState, if (next) "On" else "Off", if (next) ChipTone.ACTIVE else ChipTone.INACTIVE)
                 Thread {
-                    val success = apiClient.updateClientSettings(aiOptimizerEnabled = next) != null
+                    val success = apiClient.setAiAutoQualityEnabled(next)
                     if (success) {
                         sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                         syncSessionDerivedState()
@@ -632,7 +679,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             aiEnabled = !next
                             refreshTuningStates()
                             refreshStabilityState()
-                            Toast.makeText(game, "AI Optimizer toggle failed", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(game, "AI Auto Quality toggle failed", Toast.LENGTH_SHORT).show()
                         } else {
                             refreshTuningStates()
                             refreshHealthSummary()
@@ -679,15 +726,17 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     capabilities = apiClient.getCapabilities()
                     sessionStatus = apiClient.getSessionStatus()
 
-                    adaptiveSupported = capabilities?.features?.adaptiveBitrateControl == true ||
-                        capabilities?.features?.clientSettings == true
-                    aiSupported = capabilities?.features?.aiOptimizerControl == true ||
-                        capabilities?.features?.clientSettings == true
+                    val polarisSessionApiAvailable = sessionStatus != null
+                    adaptiveSupported = capabilities?.features?.adaptiveBitrateControl == true || polarisSessionApiAvailable
+                    aiSupported = capabilities?.features?.aiAutoQualityControl == true ||
+                        capabilities?.features?.aiOptimizerControl == true ||
+                        polarisSessionApiAvailable
                     syncSessionDerivedState()
 
                     game.runOnUiThread {
                         refreshSessionModeState()
                         refreshHealthSummary()
+                        refreshBidirectionalSyncState()
                         refreshTuningStates()
                         refreshStabilityState()
                         refreshInputAvailability()
@@ -697,28 +746,29 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     game.runOnUiThread {
                         refreshSessionModeState()
                         refreshHealthSummary()
-                        updateStateChip(adaptiveState, "Unavailable", ChipTone.MUTED)
+                        refreshBidirectionalSyncState()
                         updateStateChip(aiState, "Unavailable", ChipTone.MUTED)
                         updateStateChip(mangoState, "Unavailable", ChipTone.MUTED)
                         updateStateChip(stabilityState, "Unavailable", ChipTone.MUTED)
-                        adaptiveCaption?.text = "host state unavailable"
+                        updateStateChip(bidirectionalSyncState, "Unavailable", ChipTone.MUTED)
                         aiCaption?.text = "host state unavailable"
                         mangoCaption?.text = "host state unavailable"
                         stabilityCaption?.text = "host state unavailable"
+                        bidirectionalSyncCaption?.text = "host state unavailable"
                     }
                 }
             }.start()
         } else {
             refreshSessionModeState()
             refreshHealthSummary()
-            updateStateChip(adaptiveState, "N/A", ChipTone.MUTED)
             updateStateChip(aiState, "N/A", ChipTone.MUTED)
             updateStateChip(mangoState, "N/A", ChipTone.MUTED)
             updateStateChip(stabilityState, "N/A", ChipTone.MUTED)
-            adaptiveCaption?.text = "not a Polaris session"
+            updateStateChip(bidirectionalSyncState, "N/A", ChipTone.MUTED)
             aiCaption?.text = "not a Polaris session"
             mangoCaption?.text = "not a Polaris session"
             stabilityCaption?.text = "not a Polaris session"
+            bidirectionalSyncCaption?.text = "not a Polaris session"
         }
 
         dialog = sheet

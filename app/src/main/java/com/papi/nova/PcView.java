@@ -9,19 +9,22 @@ import java.net.UnknownHostException;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.papi.nova.binding.PlatformBinding;
 import com.papi.nova.binding.crypto.AndroidCryptoProvider;
 import com.papi.nova.computers.ComputerManagerService;
 import com.papi.nova.grid.PcGridAdapter;
 import com.papi.nova.grid.assets.DiskAssetLoader;
 import com.papi.nova.api.PolarisApiClient;
+import com.papi.nova.api.PolarisCapabilities;
 import com.papi.nova.nvstream.http.ComputerDetails;
 import com.papi.nova.nvstream.http.NvApp;
 import com.papi.nova.nvstream.http.NvHTTP;
 import com.papi.nova.nvstream.http.PairingManager;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import com.papi.nova.nvstream.http.PairingManager.PairState;
 
 import androidx.lifecycle.ViewModelProvider;
@@ -34,7 +37,6 @@ import com.papi.nova.profiles.ProfilesManager;
 import com.papi.nova.ui.AdapterFragment;
 import com.papi.nova.ui.SpaceParticleView;
 import com.papi.nova.ui.AdapterFragmentCallbacks;
-import com.papi.nova.ui.NovaPolarisSyncSheet;
 import com.papi.nova.utils.Dialog;
 import com.papi.nova.utils.HelpLauncher;
 import com.papi.nova.utils.ServerHelper;
@@ -90,6 +92,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private static final int FILTER_ONLINE = 1;
     private static final int FILTER_STREAMING = 2;
     private static final int FILTER_NEEDS_PAIRING = 3;
+    private static final String PREF_LAST_LIBRARY_PC_UUID = "nova_last_library_pc_uuid";
 
     private View noPcFoundLayout;
     private PcGridAdapter pcGridAdapter;
@@ -100,6 +103,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private ComputerDetails.AddressTuple pendingPairingAddress;
     private String pendingPairingPin, pendingPairingPassphrase;
     private int currentServerFilter = FILTER_ALL;
+    private final Set<String> libraryProbeInFlight = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private void clearPendingPairing() {
         pendingPairingAddress = null;
@@ -136,7 +140,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 continue;
             }
 
-            if (details.pairState == PairState.PAIRED) {
+            if (details.pairState == PairState.PAIRED && hasPinnedServerCert(details)) {
                 clearPendingPairing();
                 return;
             }
@@ -167,11 +171,12 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                     // Wait for the binder to be ready
                     localBinder.waitForReady();
 
-                    // Now make the binder visible
-                    managerBinder = localBinder;
-
-                    // Start updates
-                    viewModel.startPolling(localBinder);
+                    // Now make the binder visible and let the normal foreground
+                    // lifecycle decide whether polling should be running.
+                    runOnUiThread(() -> {
+                        managerBinder = localBinder;
+                        startComputerUpdates();
+                    });
 
                     // Force a keypair to be generated early to avoid discovery delays
                     new AndroidCryptoProvider(PcView.this).getClientCertificate();
@@ -231,6 +236,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.nova_bg_elevated));
             swipeRefresh.setOnRefreshListener(() -> {
                 // Restart computer polling to force a fresh discovery
+                resetLibraryReadiness();
                 stopComputerUpdates(false);
                 startComputerUpdates();
                 // Auto-dismiss after a short delay
@@ -255,7 +261,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         View addServerAction = findViewById(R.id.actionAddServer);
         View scanPairAction = findViewById(R.id.actionScanPair);
         View themeAction = findViewById(R.id.actionTheme);
-        View polarisSyncAction = findViewById(R.id.actionPolarisSync);
         View settingsAction = findViewById(R.id.actionSettings);
         View helpAction = findViewById(R.id.actionHelp);
         TextView emptyRefresh = findViewById(R.id.emptyRefresh);
@@ -289,12 +294,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 cycleTheme();
             });
         }
-        if (polarisSyncAction != null) {
-            polarisSyncAction.setOnClickListener(v -> {
-                v.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM);
-                launchPolarisSync();
-            });
-        }
         if (settingsAction != null) {
             settingsAction.setOnClickListener(v -> {
                 startActivity(new Intent(PcView.this, StreamSettings.class));
@@ -306,6 +305,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
         if (emptyRefresh != null) {
             emptyRefresh.setOnClickListener(v -> {
+                resetLibraryReadiness();
                 stopComputerUpdates(false);
                 startComputerUpdates();
             });
@@ -348,26 +348,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             }
         }
 
-        applyTvNavigationMode(
-                modeServers,
-                modeLibrary,
-                addServerAction,
-                scanPairAction,
-                themeAction,
-                polarisSyncAction,
-                settingsAction,
-                helpAction,
-                emptyRefresh,
-                emptyAddServer,
-                emptyScanPair,
-                emptyHelp,
-                filterAllServers,
-                filterOnlineServers,
-                filterStreamingServers,
-                filterNeedsPairingServers,
-                profilesButton
-        );
-
         applyThemeToServerBrowser();
         updateModeTabs();
         updateServerFilterTabs();
@@ -379,38 +359,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout);
         updateEmptyState();
-    }
-
-    private void applyTvNavigationMode(View... focusTargets) {
-        if (!UiHelper.isTvDevice(this)) {
-            return;
-        }
-
-        androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh = findViewById(R.id.swipe_refresh);
-        if (swipeRefresh != null) {
-            swipeRefresh.setEnabled(false);
-        }
-
-        if (!UiHelper.hasCamera(this)) {
-            View scanPairAction = findViewById(R.id.actionScanPair);
-            if (scanPairAction != null) {
-                scanPairAction.setVisibility(View.GONE);
-            }
-            View emptyScanPair = findViewById(R.id.emptyScanPair);
-            if (emptyScanPair != null) {
-                emptyScanPair.setVisibility(View.GONE);
-            }
-        }
-
-        for (View target : focusTargets) {
-            UiHelper.applyTvFocusStyle(target);
-        }
-
-        View initialFocus = findViewById(R.id.modeServers);
-        if (initialFocus == null || initialFocus.getVisibility() != View.VISIBLE) {
-            initialFocus = findViewById(R.id.actionAddServer);
-        }
-        UiHelper.requestInitialTvFocus(this, initialFocus);
     }
 
     private void applyThemeToServerBrowser() {
@@ -472,8 +420,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         styleActionButton(findViewById(R.id.actionAddServer), ColorUtils.blendARGB(surface, accent, 0.26f), textPrimary);
         styleActionButton(findViewById(R.id.actionScanPair), surface, textPrimary);
-        styleActionButton(findViewById(R.id.actionPolarisSync), ColorUtils.blendARGB(surface, accent, 0.28f), accent);
-        styleActionButton(findViewById(R.id.actionSettings), surface, textPrimary);
+        styleActionButton(findViewById(R.id.actionSettings), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary);
 
         tintChipRow(new int[] {
                 R.id.actionTheme,
@@ -587,9 +534,139 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         return switch (currentServerFilter) {
             case FILTER_ONLINE -> computer.details.state != ComputerDetails.State.OFFLINE;
             case FILTER_STREAMING -> computer.details.runningGameId != 0;
-            case FILTER_NEEDS_PAIRING -> computer.details.pairState != PairState.PAIRED;
+            case FILTER_NEEDS_PAIRING -> needsPairing(computer.details);
             default -> true;
         };
+    }
+
+    private boolean canUseLibrary(ComputerDetails details) {
+        return details.state == ComputerDetails.State.ONLINE &&
+                !needsPairing(details) &&
+                details.activeAddress != null &&
+                details.libraryState == ComputerDetails.LibraryState.AVAILABLE;
+    }
+
+    private boolean canProbeLibrary(ComputerDetails details) {
+        return details.state == ComputerDetails.State.ONLINE &&
+                !needsPairing(details) &&
+                details.activeAddress != null &&
+                details.libraryState == ComputerDetails.LibraryState.UNKNOWN;
+    }
+
+    private void resetLibraryReadiness() {
+        List<ComputerObject> computers = viewModel != null ? viewModel.getComputersLiveData().getValue() : null;
+        if (computers == null) {
+            return;
+        }
+        libraryProbeInFlight.clear();
+        for (ComputerObject computer : computers) {
+            computer.details.libraryState = ComputerDetails.LibraryState.UNKNOWN;
+        }
+    }
+
+    private byte[] encodeServerCert(ComputerDetails details) {
+        try {
+            return details.serverCert != null ? details.serverCert.getEncoded() : null;
+        } catch (java.security.cert.CertificateEncodingException e) {
+            LimeLog.warning("Nova: Failed to encode server cert for Polaris probe: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean hasPinnedServerCert(ComputerDetails details) {
+        return details != null && details.serverCert != null;
+    }
+
+    private boolean needsPairing(ComputerDetails details) {
+        return details == null ||
+                details.pairState != PairState.PAIRED ||
+                !hasPinnedServerCert(details);
+    }
+
+    private void maybeProbeLibraryReadiness(ComputerObject computer) {
+        ComputerDetails details = computer.details;
+        if (!canProbeLibrary(details) || details.uuid == null || libraryProbeInFlight.contains(details.uuid)) {
+            return;
+        }
+
+        libraryProbeInFlight.add(details.uuid);
+        final String uuid = details.uuid;
+        final String host = details.activeAddress.address;
+        final int httpsPort = details.httpsPort > 0 ? details.httpsPort : 47984;
+        final byte[] serverCert = encodeServerCert(details);
+
+        new Thread(() -> {
+            ComputerDetails.LibraryState state = ComputerDetails.LibraryState.UNAVAILABLE;
+            try {
+                PolarisApiClient client = new PolarisApiClient(PcView.this, host, httpsPort, serverCert);
+                PolarisCapabilities capabilities = client.getCapabilities();
+                if (capabilities != null) {
+                    state = capabilities.getFeatures().getGameLibrary() ?
+                            ComputerDetails.LibraryState.AVAILABLE :
+                            ComputerDetails.LibraryState.UNAVAILABLE;
+                } else if (client.getSessionStatus() != null) {
+                    state = ComputerDetails.LibraryState.UNAVAILABLE;
+                    LimeLog.info("Nova: Polaris session API detected without game-library capability on " + host);
+                }
+            } catch (Exception e) {
+                LimeLog.warning("Nova: Library capability probe failed for " + host + ": " + e.getMessage());
+            }
+
+            final ComputerDetails.LibraryState finalState = state;
+            runOnUiThread(() -> {
+                libraryProbeInFlight.remove(uuid);
+                List<ComputerObject> computers = viewModel != null ? viewModel.getComputersLiveData().getValue() : null;
+                if (computers != null) {
+                    for (ComputerObject candidate : computers) {
+                        if (uuid.equals(candidate.details.uuid)) {
+                            candidate.details.libraryState = finalState;
+                            break;
+                        }
+                    }
+                }
+                syncComputerList();
+                checkAutoNavigation(computers);
+            });
+        }, "NovaLibraryProbe").start();
+    }
+
+    private ComputerObject findComputerObject(String uuid) {
+        if (uuid == null || viewModel == null) {
+            return null;
+        }
+        List<ComputerObject> computers = viewModel.getComputersLiveData().getValue();
+        if (computers == null) {
+            return null;
+        }
+        for (ComputerObject computer : computers) {
+            if (uuid.equals(computer.details.uuid)) {
+                return computer;
+            }
+        }
+        return null;
+    }
+
+    private void openBestPlaySurface(ComputerDetails computer) {
+        if (computer.runningGameId != 0) {
+            resumeOrWatchRunningGame(computer);
+            return;
+        }
+
+        if (computer.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
+            doNovaLibrary(computer);
+            return;
+        }
+
+        if (computer.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
+            ComputerObject object = findComputerObject(computer.uuid);
+            if (object != null) {
+                maybeProbeLibraryReadiness(object);
+            }
+            Toast.makeText(this, R.string.pcview_library_checking, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        doAppList(computer, false, false);
     }
 
     private void syncComputerList() {
@@ -610,12 +687,13 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         int libraryReadyCount = 0;
 
         for (ComputerObject computer : allComputers) {
+            if (canProbeLibrary(computer.details)) {
+                maybeProbeLibraryReadiness(computer);
+            }
             if (computer.details.state == ComputerDetails.State.ONLINE) {
                 onlineCount++;
             }
-            if (computer.details.state == ComputerDetails.State.ONLINE &&
-                    computer.details.pairState == PairState.PAIRED &&
-                    computer.details.activeAddress != null) {
+            if (canUseLibrary(computer.details)) {
                 libraryReadyCount++;
             }
 
@@ -707,92 +785,36 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     }
 
     private void launchQuickLibrary() {
-        java.util.ArrayList<ComputerObject> candidates = getPairedOnlineServers();
-
-        if (candidates.isEmpty()) {
+        ComputerObject selected = selectPreferredLibraryComputer(
+                viewModel != null ? viewModel.getComputersLiveData().getValue() : null
+        );
+        if (selected == null) {
             Toast.makeText(this, R.string.pcview_library_no_server, Toast.LENGTH_SHORT).show();
             return;
         }
-
-        if (candidates.size() == 1) {
-            doNovaLibrary(candidates.get(0).details);
-            return;
-        }
-
-        CharSequence[] names = new CharSequence[candidates.size()];
-        for (int i = 0; i < candidates.size(); i++) {
-            names[i] = candidates.get(i).details.name;
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.pcview_library_choose_server)
-                .setItems(names, (dialog, which) -> doNovaLibrary(candidates.get(which).details))
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+        doNovaLibrary(selected.details);
     }
 
-    private void launchPolarisSync() {
-        java.util.ArrayList<ComputerObject> candidates = getPairedOnlineServers();
-
-        if (candidates.isEmpty()) {
-            Toast.makeText(this, R.string.pcview_sync_no_server, Toast.LENGTH_SHORT).show();
-            return;
+    private ComputerObject selectPreferredLibraryComputer(List<ComputerObject> computers) {
+        if (computers == null || computers.isEmpty()) {
+            return null;
         }
 
-        if (candidates.size() == 1) {
-            showPolarisSync(candidates.get(0).details);
-            return;
-        }
-
-        CharSequence[] names = new CharSequence[candidates.size()];
-        for (int i = 0; i < candidates.size(); i++) {
-            names[i] = candidates.get(i).details.name;
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.pcview_sync_choose_server)
-                .setItems(names, (dialog, which) -> showPolarisSync(candidates.get(which).details))
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
-    }
-
-    private java.util.ArrayList<ComputerObject> getPairedOnlineServers() {
-        java.util.ArrayList<ComputerObject> candidates = new java.util.ArrayList<>();
-        List<ComputerObject> allComputers = viewModel.getComputersLiveData().getValue();
-        if (allComputers == null) {
-            return candidates;
-        }
-
-        for (ComputerObject candidate : allComputers) {
-            if (candidate.details.state == ComputerDetails.State.ONLINE &&
-                    candidate.details.pairState == PairState.PAIRED &&
-                    candidate.details.activeAddress != null) {
-                candidates.add(candidate);
+        String rememberedUuid = PreferenceManager.getDefaultSharedPreferences(this)
+                .getString(PREF_LAST_LIBRARY_PC_UUID, null);
+        ComputerObject firstReady = null;
+        for (ComputerObject candidate : computers) {
+            if (!canUseLibrary(candidate.details)) {
+                continue;
+            }
+            if (firstReady == null) {
+                firstReady = candidate;
+            }
+            if (rememberedUuid != null && rememberedUuid.equals(candidate.details.uuid)) {
+                return candidate;
             }
         }
-        return candidates;
-    }
-
-    private void showPolarisSync(ComputerDetails computer) {
-        if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
-            Toast.makeText(PcView.this, getResources().getString(R.string.error_pc_offline), Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        dismissPolarisSyncSheet();
-        PolarisApiClient client = new PolarisApiClient(this, computer.activeAddress.address, computer.httpsPort, computer.serverCert);
-        String label = computer.name != null && !computer.name.isEmpty()
-                ? computer.name
-                : computer.activeAddress.address;
-        NovaPolarisSyncSheet.newInstance(client, label, computer.uuid, null)
-                .show(getSupportFragmentManager(), "polaris_sync");
-    }
-
-    private void dismissPolarisSyncSheet() {
-        androidx.fragment.app.Fragment existing = getSupportFragmentManager().findFragmentByTag("polaris_sync");
-        if (existing instanceof BottomSheetDialogFragment) {
-            ((BottomSheetDialogFragment) existing).dismissAllowingStateLoss();
-        }
+        return firstReady;
     }
 
     private String appliedTheme;
@@ -837,19 +859,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         // between binding to CMS and onResume()
         inForeground = true;
 
-        // On first launch, show onboarding before creating the temporary GL surface used
-        // for renderer detection. Some Android TV builds do not like that surface being
-        // backgrounded immediately by the welcome activity.
-        if (UiHelper.isTvDevice(this) && com.papi.nova.ui.NovaWelcomeActivity.Companion.shouldShow(this)) {
-            Intent welcomeIntent = new Intent(this, com.papi.nova.ui.NovaWelcomeActivity.class);
-            if (getIntent().getExtras() != null) {
-                welcomeIntent.putExtras(getIntent().getExtras());
-            }
-            startActivity(welcomeIntent);
-            finish();
-            return;
-        }
-
         // Create a GLSurfaceView to fetch GLRenderer unless we have
         // a cached result already.
         final GlPreferences glPrefs = GlPreferences.readPreferences(this);
@@ -878,6 +887,11 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
     private void completeOnCreate() {
         completeOnCreateCalled = true;
+
+        // Show welcome screen on first launch
+        if (com.papi.nova.ui.NovaWelcomeActivity.Companion.shouldShow(this)) {
+            startActivity(new Intent(this, com.papi.nova.ui.NovaWelcomeActivity.class));
+        }
 
         shortcutHelper = new ShortcutHelper(this);
 
@@ -994,7 +1008,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     protected void onStop() {
         super.onStop();
 
-        dismissPolarisSyncSheet();
         Dialog.closeDialogs();
     }
 
@@ -1028,7 +1041,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 doWakeOnLan(computer.details);
             });
         }
-        else if (computer.details.pairState != PairState.PAIRED) {
+        else if (needsPairing(computer.details)) {
             // "Trusted Pair" attempts TOFU first if supported, then falls back to PIN pairing
             addPcSheetAction(actions, getString(R.string.pcview_menu_pair_pc), () -> {
                 sheet.dismiss();
@@ -1055,6 +1068,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             }
         }
         else {
+            addPcSheetSection(actions, getString(R.string.pcview_menu_section_play));
             if (computer.details.runningGameId != 0) {
                 if (Boolean.FALSE.equals(computer.details.currentGameOwnedByClient)) {
                     addPcSheetAction(actions, getString(R.string.applist_menu_watch), () -> {
@@ -1064,9 +1078,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 } else {
                     addPcSheetAction(actions, getString(R.string.applist_menu_resume), () -> {
                         sheet.dismiss();
-                        NvApp runningApp = new NvApp();
-                        runningApp.setAppId(computer.details.runningGameId);
-                        ServerHelper.doStart(this, runningApp, computer.details, managerBinder, false);
+                        resumeOrWatchRunningGame(computer.details);
                     });
                     addPcSheetAction(actions, getString(R.string.applist_menu_quit), () -> {
                         sheet.dismiss();
@@ -1076,13 +1088,22 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                     });
                 }
             }
+            if (computer.details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
+                addPcSheetAction(actions, getString(R.string.pcview_menu_nova_library), () -> {
+                    sheet.dismiss();
+                    doNovaLibrary(computer.details);
+                });
+            } else if (computer.details.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
+                addPcSheetAction(actions, getString(R.string.pcview_library_checking), () -> {
+                    sheet.dismiss();
+                    maybeProbeLibraryReadiness(computer);
+                });
+            }
+
+            addPcSheetSection(actions, getString(R.string.pcview_menu_section_manage));
             addPcSheetAction(actions, getString(R.string.pcview_menu_app_list), () -> {
                 sheet.dismiss();
                 doAppList(computer.details, false, false);
-            });
-            addPcSheetAction(actions, getString(R.string.pcview_menu_nova_library), () -> {
-                sheet.dismiss();
-                doNovaLibrary(computer.details);
             });
             if (!computer.details.nvidiaServer) {
                 addPcSheetAction(actions, getString(R.string.pcview_menu_open_management_page), () -> {
@@ -1104,10 +1125,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         addPcSheetAction(actions, getString(R.string.pcview_menu_details), () -> {
             sheet.dismiss();
             Dialog.displayDialog(this, getString(R.string.title_details), computer.details.toString(), false);
-        });
-        addPcSheetAction(actions, getString(R.string.pcview_menu_edit_wol_mac), () -> {
-            sheet.dismiss();
-            showWakeMacDialog(computer.details, false);
         });
 
         // Delete at the bottom — dangerous action
@@ -1134,6 +1151,22 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         return new NvApp(getString(R.string.applist_menu_watch_active_name), details.runningGameUUID, details.runningGameId, false);
     }
 
+    private void resumeOrWatchRunningGame(ComputerDetails computer) {
+        if (managerBinder == null) {
+            Toast.makeText(PcView.this, getResources().getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if (Boolean.FALSE.equals(computer.currentGameOwnedByClient)) {
+            ServerHelper.doWatch(this, createWatchTargetApp(computer), computer, managerBinder);
+            return;
+        }
+
+        NvApp runningApp = new NvApp();
+        runningApp.setAppId(computer.runningGameId);
+        ServerHelper.doStart(this, runningApp, computer, managerBinder, false);
+    }
+
     private void addPcSheetAction(android.widget.LinearLayout container, String label, Runnable action) {
         android.widget.TextView item = new android.widget.TextView(this);
         item.setText(label);
@@ -1146,6 +1179,18 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
         item.setBackgroundResource(outValue.resourceId);
         item.setOnClickListener(v -> action.run());
+        container.addView(item);
+    }
+
+    private void addPcSheetSection(android.widget.LinearLayout container, String label) {
+        android.widget.TextView item = new android.widget.TextView(this);
+        item.setText(label);
+        item.setTextSize(11);
+        item.setAllCaps(true);
+        item.setLetterSpacing(0.05f);
+        item.setTextColor(com.papi.nova.ui.NovaThemeManager.INSTANCE.getTextMutedColor(this));
+        int pad = (int) UiHelper.dpToPx(this, 24);
+        item.setPadding(pad, (int) UiHelper.dpToPx(this, 14), pad, (int) UiHelper.dpToPx(this, 4));
         container.addView(item);
     }
 
@@ -1225,12 +1270,19 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                     httpConn = new NvHTTP(ServerHelper.getCurrentAddressFromComputer(computer),
                             computer.httpsPort, managerBinder.getUniqueId(), computer.serverCert,
                             PlatformBinding.getCryptoProvider(PcView.this));
-                    if (httpConn.getPairState() == PairState.PAIRED) {
-                        // Don't display any toast, but open the app list
+
+                    PairState existingPairState = httpConn.getPairState();
+                    if (existingPairState == PairState.PAIRED && hasPinnedServerCert(computer)) {
+                        // Don't display any toast, but open the best play surface.
+                        computer.pairState = PairState.PAIRED;
+                        managerBinder.persistComputer(computer);
                         message = null;
                         success = true;
                     }
                     else {
+                        if (existingPairState == PairState.PAIRED) {
+                            LimeLog.warning("Nova: Server reports paired, but no pinned certificate is saved. Repairing pairing before launch.");
+                        }
                         PairingManager pm = httpConn.getPairingManager();
                         String serverInfo = httpConn.getServerInfo(true);
 
@@ -1244,13 +1296,22 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                                     message = null;
                                     success = true;
                                     pairedComputer = applyPairedCertificate(computer, pm);
+                                    if (pairedComputer == null) {
+                                        message = getResources().getString(R.string.pair_fail);
+                                        success = false;
+                                    }
 
                                     Dialog.closeDialogs();
                                     final ComputerDetails launchedComputer = pairedComputer;
                                     runOnUiThread(() -> {
-                                        com.papi.nova.ui.NovaSnackbar.INSTANCE.showSuccess(
-                                                PcView.this, "Paired successfully via TOFU");
-                                        doAppList(launchedComputer, true, false);
+                                        if (launchedComputer != null) {
+                                            com.papi.nova.ui.NovaSnackbar.INSTANCE.showSuccess(
+                                                    PcView.this, "Paired successfully via TOFU");
+                                            openBestPlaySurface(launchedComputer);
+                                        } else {
+                                            Toast.makeText(PcView.this, R.string.pair_fail, Toast.LENGTH_LONG).show();
+                                            startComputerUpdates();
+                                        }
                                     });
                                     return;
                                 }
@@ -1299,9 +1360,14 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                         }
                         else if (pairState == PairState.PAIRED) {
                             // Just navigate to the app view without displaying a toast
-                            message = null;
-                            success = true;
                             pairedComputer = applyPairedCertificate(computer, pm);
+                            if (pairedComputer != null) {
+                                message = null;
+                                success = true;
+                            } else {
+                                message = getResources().getString(R.string.pair_fail);
+                                success = false;
+                            }
                         }
                         else {
                             // Should be no other values
@@ -1328,8 +1394,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                     }
 
                     if (toastSuccess) {
-                        // Open the app list after a successful pairing attempt
-                        doAppList(launchedComputer, true, false);
+                        openBestPlaySurface(launchedComputer);
                     }
                     else {
                         // Start polling again if we're still in the foreground
@@ -1341,6 +1406,11 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
     private ComputerDetails applyPairedCertificate(ComputerDetails computer, PairingManager pm) {
         java.security.cert.X509Certificate pairedCert = pm.getPairedCert();
+        if (pairedCert == null) {
+            LimeLog.warning("Nova: Pairing completed without a server certificate; refusing to mark host as paired.");
+            return null;
+        }
+
         ComputerDetails managedComputer = managerBinder.getComputer(computer.uuid);
 
         computer.serverCert = pairedCert;
@@ -1410,13 +1480,9 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             return;
         }
 
-        String normalizedMacAddress = WakeOnLanSender.normalizeMacAddress(computer.macAddress);
-        if (normalizedMacAddress == null) {
-            showWakeMacDialog(computer, true);
+        if (computer.macAddress == null) {
+            com.papi.nova.ui.NovaSnackbar.INSTANCE.showError(PcView.this, getResources().getString(R.string.wol_no_mac));
             return;
-        }
-        if (!normalizedMacAddress.equals(computer.macAddress)) {
-            saveWakeMacAddress(computer, normalizedMacAddress);
         }
 
         new Thread(() -> {
@@ -1431,76 +1497,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 final String snackMessage = message;
                 runOnUiThread(() -> com.papi.nova.ui.NovaSnackbar.INSTANCE.show(PcView.this, snackMessage));
         }).start();
-    }
-
-    private void showWakeMacDialog(final ComputerDetails computer, boolean wakeAfterSave) {
-        if (managerBinder == null) {
-            Toast.makeText(this, R.string.error_manager_not_running, Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        EditText macInput = new EditText(this);
-        macInput.setSingleLine(true);
-        macInput.setHint(R.string.wol_mac_hint);
-        macInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        macInput.setFilters(new InputFilter[] { new InputFilter.LengthFilter(17) });
-
-        String normalizedMacAddress = WakeOnLanSender.normalizeMacAddress(computer.macAddress);
-        if (normalizedMacAddress != null) {
-            macInput.setText(normalizedMacAddress);
-            macInput.setSelection(macInput.getText().length());
-        }
-
-        int padding = (int) UiHelper.dpToPx(this, 24);
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(padding, padding / 2, padding, 0);
-        layout.addView(macInput);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.wol_mac_title)
-                .setMessage(R.string.wol_mac_message)
-                .setView(layout)
-                .setPositiveButton(wakeAfterSave ? R.string.wol_mac_save_and_wake : R.string.save, null)
-                .setNegativeButton(R.string.cancel, (d, which) -> d.dismiss())
-                .create();
-
-        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String normalized = WakeOnLanSender.normalizeMacAddress(macInput.getText().toString());
-            if (normalized == null) {
-                macInput.setError(getString(R.string.wol_mac_invalid));
-                return;
-            }
-
-            saveWakeMacAddress(computer, normalized);
-            dialog.dismiss();
-
-            if (wakeAfterSave) {
-                doWakeOnLan(computer);
-            }
-            else {
-                com.papi.nova.ui.NovaSnackbar.INSTANCE.showSuccess(PcView.this, getString(R.string.wol_mac_saved));
-            }
-        }));
-
-        dialog.show();
-    }
-
-    private void saveWakeMacAddress(final ComputerDetails computer, String normalizedMacAddress) {
-        computer.macAddress = normalizedMacAddress;
-
-        if (managerBinder == null) {
-            return;
-        }
-
-        ComputerDetails managedComputer = managerBinder.getComputer(computer.uuid);
-        if (managedComputer != null) {
-            managedComputer.macAddress = normalizedMacAddress;
-            managerBinder.persistComputer(managedComputer);
-        }
-        else {
-            managerBinder.persistComputer(computer);
-        }
     }
 
 
@@ -1533,6 +1529,11 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             return;
         }
 
+        PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .putString(PREF_LAST_LIBRARY_PC_UUID, computer.uuid)
+                .apply();
+
         Intent i = new Intent(this, com.papi.nova.ui.NovaLibraryActivity.class);
         i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_HOST, computer.activeAddress.address);
         i.putExtra(com.papi.nova.ui.NovaLibraryActivity.EXTRA_SERVER_NAME, computer.name);
@@ -1554,6 +1555,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             LimeLog.warning("Nova: Failed to encode server cert for library launch: " + e.getMessage());
         }
         startActivity(i);
+        com.papi.nova.ui.NovaThemeManager.INSTANCE.applyForwardTransition(this);
     }
 
     // onContextItemSelected removed — all actions handled by showServerBottomSheet()
@@ -1579,27 +1581,45 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     // private final java.util.HashMap<String, ComputerObject> computerMap = ...;
 
     private void checkAutoNavigation(List<ComputerObject> computers) {
-        boolean autoConnectEnabled = androidx.preference.PreferenceManager
-                .getDefaultSharedPreferences(this).getBoolean("nova_auto_connect", false);
-        if (autoConnectEnabled && !autoNavigated && pendingPairingAddress == null) {
-            int pairedOnlineCount = 0;
-            ComputerObject singleServer = null;
-            for (ComputerObject c : computers) {
-                if (c.details.state == ComputerDetails.State.ONLINE &&
-                    c.details.pairState == PairState.PAIRED) {
-                    pairedOnlineCount++;
-                    singleServer = c;
+        if (autoNavigated || pendingPairingAddress != null || computers == null) {
+            return;
+        }
+
+        ComputerObject libraryTarget = selectPreferredLibraryComputer(computers);
+        if (libraryTarget != null) {
+            autoNavigated = true;
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (inForeground && !isFinishing()) {
+                    doNovaLibrary(libraryTarget.details);
                 }
+            }, 400);
+            return;
+        }
+
+        boolean autoConnectEnabled = PreferenceManager
+                .getDefaultSharedPreferences(this).getBoolean("nova_auto_connect", false);
+        if (!autoConnectEnabled) {
+            return;
+        }
+
+        int pairedOnlineCount = 0;
+        ComputerObject singleServer = null;
+        for (ComputerObject c : computers) {
+            if (c.details.state == ComputerDetails.State.ONLINE &&
+                    !needsPairing(c.details) &&
+                    c.details.libraryState == ComputerDetails.LibraryState.UNAVAILABLE) {
+                pairedOnlineCount++;
+                singleServer = c;
             }
-            if (pairedOnlineCount == 1) {
-                autoNavigated = true;
-                final ComputerObject target = singleServer;
-                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                    if (inForeground && !isFinishing()) {
-                        doAppList(target.details, false, false);
-                    }
-                }, 400);
-            }
+        }
+        if (pairedOnlineCount == 1) {
+            autoNavigated = true;
+            final ComputerObject target = singleServer;
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (inForeground && !isFinishing()) {
+                    doAppList(target.details, false, false);
+                }
+            }, 400);
         }
     }
 
@@ -1617,17 +1637,17 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 if (computer.details.state == ComputerDetails.State.UNKNOWN ||
                     computer.details.state == ComputerDetails.State.OFFLINE) {
                     showServerBottomSheet(computer);
-                } else if (computer.details.pairState != PairState.PAIRED) {
+                } else if (needsPairing(computer.details)) {
                     showServerBottomSheet(computer);
                 } else {
-                    doAppList(computer.details, false, false);
+                    openBestPlaySurface(computer.details);
                 }
             });
             // Long click handler
             rv.addOnItemTouchListener(new com.papi.nova.grid.RecyclerItemClickListener(this, rv, new com.papi.nova.grid.RecyclerItemClickListener.OnItemClickListener() {
                 @Override
                 public void onItemClick(View view, int position) {}
-                
+
                 @Override
                 public void onLongItemClick(View view, int position) {
                     ComputerObject computer = pcGridAdapter.getItem(position);

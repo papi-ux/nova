@@ -2,6 +2,8 @@ package com.papi.nova.ui
 
 import android.graphics.drawable.GradientDrawable
 import android.app.Dialog
+import android.content.Context
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.content.res.Configuration
 import android.view.LayoutInflater
@@ -13,6 +15,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import android.text.format.DateUtils
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
@@ -28,7 +31,7 @@ import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisGame
-import com.papi.nova.utils.UiHelper
+import com.papi.nova.utils.DeviceUtils
 
 /**
  * Bottom sheet showing game details, tuning, and explicit launch modes.
@@ -40,7 +43,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     private var apiClient: PolarisApiClient? = null
     private var defaultToVirtualDisplay: Boolean = false
     private var clientSettings: PolarisClientSettings? = null
-    private var onLaunch: ((PolarisGame, String) -> Unit)? = null
+    private var onLaunch: ((PolarisGame, Boolean) -> Unit)? = null
 
     companion object {
         fun newInstance(
@@ -48,7 +51,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             apiClient: PolarisApiClient,
             defaultToVirtualDisplay: Boolean,
             clientSettings: PolarisClientSettings?,
-            onLaunch: (PolarisGame, String) -> Unit
+            onLaunch: (PolarisGame, Boolean) -> Unit
         ): NovaGameDetailSheet {
             return NovaGameDetailSheet().apply {
                 this.game = game
@@ -83,30 +86,13 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
         val game = this.game ?: return
         val apiClient = this.apiClient ?: return
+        val deviceName = DeviceUtils.getModel()
         val launchContract = game.launchMode
-        val syncedMode = clientSettings?.desired?.streamDisplayMode?.takeIf { it.isNotBlank() }
-        val fallbackMode = syncedMode ?: if (defaultToVirtualDisplay) {
-            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
-        } else {
-            PolarisClientSettings.MODE_HEADLESS_STREAM
-        }
-        val preferredMode = normalizeMode(launchContract?.preferredMode?.takeIf { it.isNotBlank() } ?: fallbackMode)
-        val recommendedMode = normalizeMode(launchContract?.recommendedMode?.takeIf { it.isNotBlank() } ?: preferredMode)
-        val availableModes = clientSettings?.capabilities?.modes
-            ?.filter { it.available }
-            ?.map { it.value }
-            ?.toSet()
-            ?.takeIf { it.isNotEmpty() }
-            ?: setOf(
-                PolarisClientSettings.MODE_HEADLESS_STREAM,
-                PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
-                PolarisClientSettings.MODE_DESKTOP_DISPLAY,
-                PolarisClientSettings.MODE_GPU_NATIVE_TEST
-            )
-        val headlessAllowed = availableModes.contains(PolarisClientSettings.MODE_HEADLESS_STREAM)
-        val virtualAllowed = availableModes.contains(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY)
-        val desktopAllowed = availableModes.contains(PolarisClientSettings.MODE_DESKTOP_DISPLAY)
-        val gpuAllowed = availableModes.contains(PolarisClientSettings.MODE_GPU_NATIVE_TEST)
+        val launchChoice = game.resolveLaunchModeChoice(defaultToVirtualDisplay, clientSettings)
+        val preferredMode = launchChoice.preferredMode
+        val recommendedMode = launchChoice.recommendedMode
+        val headlessAllowed = launchChoice.headlessAllowed
+        val virtualAllowed = launchChoice.virtualDisplayAllowed
 
         // Apply OLED theme to sheet background
         if (NovaThemeManager.isOled(requireContext())) {
@@ -116,7 +102,10 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         view.findViewById<TextView>(R.id.detail_launch_intro).text = buildLaunchIntro(
             preferredMode = preferredMode,
             recommendedMode = recommendedMode,
-            serverReason = launchContract?.modeReason
+            serverReason = launchChoice.hostModeReason.takeIf { it.isNotBlank() }
+                ?: launchContract?.modeReason,
+            virtualDisplayUnavailable = launchChoice.virtualDisplayUnavailable,
+            virtualDisplayUnavailableReason = launchChoice.virtualDisplayUnavailableReason
         )
 
         val launchModeTitle = view.findViewById<TextView>(R.id.detail_default_mode_badge)
@@ -125,7 +114,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             modeBadgeLabel(recommendedMode)
         )
 
-        if (!headlessAllowed && !virtualAllowed && !desktopAllowed && !gpuAllowed) {
+        if (!headlessAllowed && !virtualAllowed) {
             launchModeTitle.visibility = View.GONE
         }
 
@@ -152,17 +141,11 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             catBadge.visibility = View.GONE
         }
 
-        // Genre and runtime chips
+        // Genre chips
         val genreContainer = view.findViewById<LinearLayout>(R.id.detail_genres)
-        val detailChips = mutableListOf<String>()
-        detailChips += game.genres
-        if (game.platformLabel.isNotEmpty()) detailChips += game.platformLabel
-        if (game.runtimeLabel.isNotEmpty() && !detailChips.any { it.equals(game.runtimeLabel, ignoreCase = true) }) {
-            detailChips += game.runtimeLabel
-        }
-        if (detailChips.isNotEmpty()) {
+        if (game.genres.isNotEmpty()) {
             genreContainer.visibility = View.VISIBLE
-            for (genre in detailChips) {
+            for (genre in game.genres) {
                 val chip = TextView(requireContext()).apply {
                     text = genre
                     textSize = 11f
@@ -198,7 +181,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         val coverArt = view.findViewById<ImageView>(R.id.detail_cover)
         apiClient.loadCoverInto(coverArt, game)
 
-        // AI optimization recommendation
+        // Auto Quality launch recommendation
         val aiCard = view.findViewById<View>(R.id.detail_ai_card)
         val aiLabel = view.findViewById<TextView>(R.id.detail_ai_label)
         val aiSettings = view.findViewById<TextView>(R.id.detail_ai_settings)
@@ -208,46 +191,76 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         val stabilityLabel = view.findViewById<TextView>(R.id.detail_stability_label)
         val stabilitySettings = view.findViewById<TextView>(R.id.detail_stability_settings)
         val stabilityReasoning = view.findViewById<TextView>(R.id.detail_stability_reasoning)
+        val preferenceButton = view.findViewById<MaterialButton>(R.id.detail_profile_preference_btn)
+        var profilePreference = loadProfilePreference(game)
+        configureProfilePreferenceButton(preferenceButton, profilePreference)
+        preferenceButton.setOnClickListener {
+            showProfilePreferenceOptions(game, preferenceButton) { selected ->
+                profilePreference = selected
+            }
+        }
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val deviceName = android.os.Build.MODEL
-                val opt = withContext(Dispatchers.IO) { apiClient.getOptimization(deviceName, game.name) }
+                val opt = withContext(Dispatchers.IO) { apiClient.getOptimization(deviceName, game.name, profilePreference) }
                 if (opt != null) {
+                    val profileState = opt.optJSONObject("profile_state")
+                    val currentProfile = profileState?.optJSONObject("current_profile")
+                    val lastResult = profileState?.optJSONObject("last_result")
                     val source = opt.optString("source", "")
                     val confidence = opt.optString("confidence", "")
                     val cacheStatus = opt.optString("cache_status", "")
-                    val displayMode = opt.optString("display_mode", "")
-                    val bitrate = opt.optInt("target_bitrate_kbps", 0)
-                    val codec = opt.optString("preferred_codec", "")
+                    val displayMode = currentProfile
+                        ?.optString("display_mode", "")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: opt.optString("display_mode", "")
+                    val bitrate = currentProfile
+                        ?.optInt("target_bitrate_kbps", 0)
+                        ?.takeIf { it > 0 }
+                        ?: opt.optInt("target_bitrate_kbps", 0)
+                    val targetFps = currentProfile?.optDouble("target_fps", 0.0) ?: 0.0
+                    val codec = currentProfile
+                        ?.optString("preferred_codec", "")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: opt.optString("preferred_codec", "")
                     val reasoning = opt.optString("reasoning", "")
                     val normalizationReason = opt.optString("normalization_reason", "")
                     val generatedAt = opt.optLong("generated_at", 0L)
 
-                    if (displayMode.isNotEmpty() || codec.isNotEmpty()) {
+                    if (displayMode.isNotEmpty() || codec.isNotEmpty() || profileState != null) {
                         val parts = mutableListOf<String>()
-                        if (codec.isNotEmpty()) parts.add(codec.uppercase())
-                        if (bitrate > 0) parts.add("${bitrate / 1000} Mbps")
                         if (displayMode.isNotEmpty()) parts.add(displayMode)
-                        val settingsText = parts.joinToString(" · ")
+                        if (displayMode.isEmpty() && targetFps > 0.0) parts.add("${formatFps(targetFps)} FPS")
+                        if (codec.isNotEmpty()) parts.add(codec.uppercase())
+                        if (bitrate > 0) parts.add("up to ${bitrate / 1000} Mbps")
+                        val settingsText = parts.joinToString(" · ").ifBlank { "Profile is being learned" }
 
-                        val titleLabel = when {
+                        val titleLabel = profileState
+                            ?.optString("label", "")
+                            ?.takeIf { it.isNotBlank() }
+                            ?: when {
                             source.contains("ai_live") && cacheStatus.equals("invalidated", ignoreCase = true) ->
-                                getString(R.string.nova_library_ai_recovery_label)
-                            source.contains("ai_cached") -> getString(R.string.nova_library_ai_cached_label)
-                            source.contains("ai_live") -> getString(R.string.nova_library_ai_live_label)
-                            source.contains("device_db") -> getString(R.string.nova_library_ai_baseline_label)
-                            else -> getString(R.string.nova_library_ai_recommended_label)
+                                "Auto Quality Recovery"
+                            source.contains("ai_cached") -> "Auto Quality Ready"
+                            source.contains("ai_live") -> "Auto Quality Optimized"
+                            source.contains("device_db") -> "Auto Quality Baseline"
+                            else -> "Auto Quality"
                         }
                         val sourceLabel = when {
                             source.contains("ai_live") && cacheStatus.equals("invalidated", ignoreCase = true) ->
-                                getString(R.string.nova_library_ai_recovery_label)
-                            source.contains("ai_cached") -> getString(R.string.nova_library_ai_cached_label)
-                            source.contains("ai_live") -> getString(R.string.nova_library_ai_live_label)
+                                "Recovery"
+                            source.contains("ai_cached") -> "Cached profile"
+                            source.contains("ai_live") -> "Fresh profile"
                             source.contains("device_db") -> getString(R.string.nova_library_ai_baseline_source_label)
                             else -> source
                         }
+                        val profileStateLabel = profileState
+                            ?.optString("state", "")
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { profileStateLabel(it) }
+                            .orEmpty()
                         val stateLabel = when {
+                            profileStateLabel.isNotBlank() -> profileStateLabel
                             normalizationReason.isNotBlank() -> getString(R.string.nova_optimization_host_adjusted)
                             cacheStatus.equals("hit", ignoreCase = true) -> getString(R.string.nova_optimization_cached)
                             cacheStatus.equals("invalidated", ignoreCase = true) -> getString(R.string.nova_optimization_recovery)
@@ -255,6 +268,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             source.contains("device_db") -> getString(R.string.nova_optimization_device_tune)
                             else -> ""
                         }
+                        val lastResultText = buildLastResultText(lastResult)
                         val generatedLabel = if (generatedAt > 0) {
                             DateUtils.getRelativeTimeSpanString(
                                 generatedAt * 1000,
@@ -267,19 +281,40 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                         }
 
                         aiLabel.text = titleLabel
+                        aiLabel.setTextColor(
+                            ContextCompat.getColor(
+                                requireContext(),
+                                if (cacheStatus.equals("invalidated", ignoreCase = true)) {
+                                    R.color.nova_warning
+                                } else {
+                                    R.color.nova_accent
+                                }
+                            )
+                        )
                         aiSettings.text = settingsText
-                        aiSource.text = listOf(
+                        val sourceText = listOf(
                             stateLabel.takeIf { it.isNotBlank() },
+                            profileState?.optString("preference_label", "")?.takeIf { it.isNotBlank() },
+                            lastResultText.takeIf { it.isNotBlank() },
                             sourceLabel.takeIf { it.isNotBlank() && sourceLabel != titleLabel },
                             confidence.takeIf { it.isNotBlank() }?.lowercase()?.plus(" confidence"),
                             generatedLabel.takeIf { it.isNotBlank() }
                         ).filter { !it.isNullOrBlank() }.joinToString(" · ")
-                        val fullReasoning = listOf(reasoning, normalizationReason)
+                        aiSource.text = sourceText
+                        aiSource.visibility = if (sourceText.isBlank()) View.GONE else View.VISIBLE
+                        val profileReason = profileState?.optString("reason", "").orEmpty()
+                        val preferenceNote = profileState
+                            ?.optString("preference_note", "")
+                            ?.takeIf { profilePreference != "auto" }
+                            .orEmpty()
+                        val fullReasoning = listOf(profileReason, preferenceNote, reasoning, normalizationReason)
                             .filter { it.isNotBlank() }
                             .joinToString(" ")
                         if (fullReasoning.isNotEmpty()) {
                             aiReasoning.text = fullReasoning
                             aiReasoning.visibility = View.VISIBLE
+                        } else {
+                            aiReasoning.visibility = View.GONE
                         }
                         aiCard.visibility = View.VISIBLE
                     }
@@ -326,7 +361,12 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                         if (safeProfileParts.isNotEmpty() || stabilityDetails.isNotBlank()) {
                             val isStabilityFirst = stabilityMode.equals("stability_first", ignoreCase = true) ||
                                 opt.optInt("consecutive_poor_outcomes", 0) > 0
-                            stabilityLabel.text = if (isStabilityFirst) "Stability first" else "Safe fallback"
+                            val relaunchRequired = stability.optBoolean("relaunch_required", false)
+                            stabilityLabel.text = when {
+                                isStabilityFirst -> "Recovery Profile"
+                                relaunchRequired -> "Recovery Queued"
+                                else -> "Safer Fallback"
+                            }
                             stabilityLabel.setTextColor(
                                 ContextCompat.getColor(
                                     requireContext(),
@@ -378,148 +418,265 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         }
 
         // Launch buttons
-        val headlessButton = view.findViewById<MaterialButton>(R.id.detail_launch_headless_btn)
-        val virtualButton = view.findViewById<MaterialButton>(R.id.detail_launch_virtual_btn)
-        val desktopButton = view.findViewById<MaterialButton>(R.id.detail_launch_desktop_btn)
-        val gpuButton = view.findViewById<MaterialButton>(R.id.detail_launch_gpu_btn)
-
-        configureLaunchButton(
-            button = headlessButton,
-            isRecommended = recommendedMode == PolarisClientSettings.MODE_HEADLESS_STREAM,
-            isAvailable = headlessAllowed,
-            labelRes = R.string.nova_library_launch_headless
-        )
-        configureLaunchButton(
-            button = virtualButton,
-            isRecommended = recommendedMode == PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
-            isAvailable = virtualAllowed,
-            labelRes = R.string.nova_library_launch_virtual_display
-        )
-        configureLaunchButton(
-            button = desktopButton,
-            isRecommended = recommendedMode == PolarisClientSettings.MODE_DESKTOP_DISPLAY,
-            isAvailable = desktopAllowed,
-            labelRes = R.string.nova_library_launch_desktop_display
-        )
-        configureLaunchButton(
-            button = gpuButton,
-            isRecommended = recommendedMode == PolarisClientSettings.MODE_GPU_NATIVE_TEST,
-            isAvailable = gpuAllowed,
-            labelRes = R.string.nova_library_launch_gpu_native_test
-        )
-
-        headlessButton.setOnClickListener {
-            launchWithSyncedMode(game, PolarisClientSettings.MODE_HEADLESS_STREAM)
-        }
-        virtualButton.setOnClickListener {
-            launchWithSyncedMode(game, PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY)
-        }
-        desktopButton.setOnClickListener {
-            launchWithSyncedMode(game, PolarisClientSettings.MODE_DESKTOP_DISPLAY)
-        }
-        gpuButton.setOnClickListener {
-            launchWithSyncedMode(game, PolarisClientSettings.MODE_GPU_NATIVE_TEST)
+        val playButton = view.findViewById<MaterialButton>(R.id.detail_launch_headless_btn)
+        val optionsButton = view.findViewById<MaterialButton>(R.id.detail_launch_virtual_btn)
+        val resetProfileButton = view.findViewById<MaterialButton>(R.id.detail_reset_profile_btn)
+        val playMode = when {
+            recommendedMode == "virtual_display" && virtualAllowed -> "virtual_display"
+            recommendedMode == "headless" && headlessAllowed -> "headless"
+            headlessAllowed -> "headless"
+            virtualAllowed -> "virtual_display"
+            else -> ""
         }
 
-        if (UiHelper.isTvDevice(requireContext())) {
-            val launchButtonsByMode = mapOf(
-                PolarisClientSettings.MODE_HEADLESS_STREAM to headlessButton,
-                PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY to virtualButton,
-                PolarisClientSettings.MODE_DESKTOP_DISPLAY to desktopButton,
-                PolarisClientSettings.MODE_GPU_NATIVE_TEST to gpuButton
-            )
-            launchButtonsByMode.values.forEach { UiHelper.applyTvFocusStyle(it) }
-            view.post {
-                val preferredButton = launchButtonsByMode[recommendedMode]
-                val focusTarget = preferredButton?.takeIf { it.isEnabled && it.visibility == View.VISIBLE }
-                    ?: launchButtonsByMode.values.firstOrNull { it.isEnabled && it.visibility == View.VISIBLE }
-                focusTarget?.requestFocus()
+        configurePrimaryPlayButton(playButton, playMode.isNotBlank())
+        configureOptionsButton(optionsButton, headlessAllowed || virtualAllowed)
+        configureResetProfileButton(resetProfileButton, false)
+
+        playButton.setOnClickListener {
+            if (playMode.isBlank()) {
+                return@setOnClickListener
             }
-        }
-    }
-
-    private fun launchWithSyncedMode(game: PolarisGame, mode: String) {
-        val apiClient = this.apiClient ?: return
-        viewLifecycleOwner.lifecycleScope.launch {
-            val confirmed = withContext(Dispatchers.IO) {
-                apiClient.updateClientSettings(streamDisplayMode = mode)
-            }
-            if (confirmed == null) {
-                Toast.makeText(requireContext(), "Could not sync Polaris launch mode", Toast.LENGTH_SHORT).show()
-                return@launch
-            }
-            clientSettings = confirmed
-            onLaunch?.invoke(game, mode)
+            onLaunch?.invoke(game, playMode == "virtual_display")
             dismiss()
         }
+        optionsButton.setOnClickListener {
+            showLaunchOptions(game, headlessAllowed, virtualAllowed, recommendedMode)
+        }
+        resetProfileButton.setOnClickListener {
+            configureResetProfileButton(resetProfileButton, true)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val cleared = withContext(Dispatchers.IO) {
+                    apiClient.clearOptimizerProfile(deviceName, game.name)
+                }
+                val sheetContext = context ?: return@launch
+                if (cleared == true) {
+                    aiCard.visibility = View.GONE
+                    stabilityCard.visibility = View.GONE
+                }
+                val message = when (cleared) {
+                    true -> R.string.nova_library_reset_game_profile_cleared
+                    false -> R.string.nova_library_reset_game_profile_empty
+                    null -> R.string.nova_library_reset_game_profile_failed
+                }
+                Toast.makeText(sheetContext, message, Toast.LENGTH_SHORT).show()
+                configureResetProfileButton(resetProfileButton, false)
+            }
+        }
     }
 
-    private fun configureLaunchButton(
-        button: MaterialButton,
-        isRecommended: Boolean,
-        isAvailable: Boolean,
-        labelRes: Int
-    ) {
-        val label = if (!isAvailable) {
-            getString(R.string.nova_library_launch_mode_unavailable_format, getString(labelRes))
-        } else {
-            getString(labelRes)
-        }
-        button.text = label
+    private fun configurePrimaryPlayButton(button: MaterialButton, isAvailable: Boolean) {
+        button.text = getString(R.string.nova_library_play)
         button.isEnabled = isAvailable
         button.alpha = if (isAvailable) 1f else 0.45f
-        if (isRecommended && isAvailable) {
-            button.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_accent))
+        if (isAvailable) {
+            button.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_accent))
             button.setTextColor(ContextCompat.getColor(requireContext(), R.color.nova_ice))
             button.strokeWidth = 0
         } else {
-            button.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_badge_bg))
+            button.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_badge_bg))
             button.setTextColor(ContextCompat.getColor(requireContext(), R.color.nova_text_primary))
-            button.strokeColor = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_divider))
+            button.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_divider))
             button.strokeWidth = 2
         }
     }
 
+    private fun configureOptionsButton(button: MaterialButton, isAvailable: Boolean) {
+        button.text = getString(R.string.nova_library_launch_options)
+        button.isEnabled = isAvailable
+        button.alpha = if (isAvailable) 1f else 0.45f
+        button.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_badge_bg))
+        button.setTextColor(ContextCompat.getColor(requireContext(), R.color.nova_text_primary))
+        button.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_divider))
+        button.strokeWidth = 2
+    }
+
+    private fun configureResetProfileButton(button: MaterialButton, isWorking: Boolean) {
+        button.text = getString(
+            if (isWorking) {
+                R.string.nova_library_reset_game_profile_working
+            } else {
+                R.string.nova_library_reset_game_profile
+            }
+        )
+        button.isEnabled = !isWorking
+        button.alpha = if (isWorking) 0.55f else 0.9f
+        button.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), android.R.color.transparent))
+        button.setTextColor(ContextCompat.getColor(requireContext(), R.color.nova_text_secondary))
+        button.strokeWidth = 0
+    }
+
+    private fun loadProfilePreference(game: PolarisGame): String {
+        return requireContext()
+            .getSharedPreferences("nova_prefs", Context.MODE_PRIVATE)
+            .getString(profilePreferenceKey(game.name), "auto")
+            ?.takeIf { it in profilePreferenceValues() }
+            ?: "auto"
+    }
+
+    private fun saveProfilePreference(game: PolarisGame, preference: String) {
+        requireContext()
+            .getSharedPreferences("nova_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString(profilePreferenceKey(game.name), preference)
+            .apply()
+    }
+
+    private fun profilePreferenceKey(gameName: String): String {
+        return "ai_profile_preference_name_$gameName"
+    }
+
+    private fun profilePreferenceValues(): Array<String> {
+        return arrayOf("auto", "quality", "high_fps", "stability")
+    }
+
+    private fun configureProfilePreferenceButton(button: MaterialButton, preference: String) {
+        button.text = getString(
+            when (preference) {
+                "quality" -> R.string.nova_library_profile_preference_quality
+                "high_fps" -> R.string.nova_library_profile_preference_high_fps
+                "stability" -> R.string.nova_library_profile_preference_stability
+                else -> R.string.nova_library_profile_preference_auto
+            }
+        )
+        button.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), android.R.color.transparent))
+        button.setTextColor(ContextCompat.getColor(requireContext(), R.color.nova_text_primary))
+        button.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_divider))
+        button.strokeWidth = 1
+    }
+
+    private fun showProfilePreferenceOptions(
+        game: PolarisGame,
+        button: MaterialButton,
+        onChanged: (String) -> Unit
+    ) {
+        val values = profilePreferenceValues()
+        val labels = values.map {
+            when (it) {
+                "quality" -> "Prefer Quality"
+                "high_fps" -> "Prefer High FPS"
+                "stability" -> "Prefer Stability"
+                else -> "Auto"
+            }
+        }.toTypedArray()
+        val checked = values.indexOf(loadProfilePreference(game)).coerceAtLeast(0)
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.nova_library_profile_preference_title)
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                val selected = values[which]
+                saveProfilePreference(game, selected)
+                configureProfilePreferenceButton(button, selected)
+                onChanged(selected)
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun profileStateLabel(state: String): String {
+        return when (state.lowercase()) {
+            "manual_override" -> "Manual"
+            "upgrade_available" -> "Ready"
+            "recovering" -> "Recovery"
+            "blocked" -> "Holding"
+            "learning" -> "Learning"
+            "stable" -> "Stable"
+            else -> state.replace('_', ' ').replaceFirstChar { it.uppercase() }
+        }
+    }
+
+    private fun formatFps(fps: Double): String {
+        val rounded = kotlin.math.round(fps)
+        return if (kotlin.math.abs(fps - rounded) < 0.01) {
+            rounded.toInt().toString()
+        } else {
+            String.format(java.util.Locale.US, "%.1f", fps)
+        }
+    }
+
+    private fun buildLastResultText(lastResult: org.json.JSONObject?): String {
+        if (lastResult == null) return ""
+        val grade = lastResult.optString("grade", "")
+        val delivered = lastResult.optDouble("delivered_fps", 0.0)
+        val target = lastResult.optDouble("target_fps", 0.0)
+        val fpsText = if (delivered > 0.0 && target > 0.0) {
+            "${formatFps(delivered)}/${formatFps(target)} FPS"
+        } else {
+            ""
+        }
+        return listOf(
+            grade.takeIf { it.isNotBlank() }?.let { "Last $it" },
+            fpsText.takeIf { it.isNotBlank() }
+        ).filterNotNull().joinToString(" · ")
+    }
+
+    private fun showLaunchOptions(
+        game: PolarisGame,
+        headlessAllowed: Boolean,
+        virtualAllowed: Boolean,
+        recommendedMode: String
+    ) {
+        val options = mutableListOf<Pair<String, Boolean>>()
+        if (headlessAllowed) {
+            options += optionLabel("headless", recommendedMode) to false
+        }
+        if (virtualAllowed) {
+            options += optionLabel("virtual_display", recommendedMode) to true
+        }
+
+        if (options.isEmpty()) {
+            Toast.makeText(requireContext(), R.string.nova_library_no_launch_modes, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.nova_library_launch_options_title)
+            .setItems(options.map { it.first }.toTypedArray()) { _, which ->
+                onLaunch?.invoke(game, options[which].second)
+                dismiss()
+            }
+            .show()
+    }
+
+    private fun optionLabel(mode: String, recommendedMode: String): String {
+        val label = modeLabel(mode)
+        return if (mode == recommendedMode) {
+            getString(R.string.nova_library_launch_recommended_format, label)
+        } else {
+            label
+        }
+    }
+
     private fun modeLabel(mode: String): String {
-        return when (normalizeMode(mode)) {
-            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
-            PolarisClientSettings.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
-            PolarisClientSettings.MODE_GPU_NATIVE_TEST -> getString(R.string.nova_library_launch_gpu_native_test)
+        return when (mode) {
+            "virtual_display" -> getString(R.string.nova_library_launch_virtual_display)
             else -> getString(R.string.nova_library_launch_headless)
         }
     }
 
     private fun modeBadgeLabel(mode: String): String {
-        return when (normalizeMode(mode)) {
-            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_short)
-            PolarisClientSettings.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
-            PolarisClientSettings.MODE_GPU_NATIVE_TEST -> getString(R.string.nova_library_launch_gpu_native_test)
-            else -> getString(R.string.nova_library_launch_headless)
-        }
-    }
-
-    private fun normalizeMode(mode: String): String {
         return when (mode) {
-            "virtual_display" -> PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
-            "headless" -> PolarisClientSettings.MODE_HEADLESS_STREAM
-            else -> mode
+            "virtual_display" -> getString(R.string.nova_library_launch_virtual_short)
+            else -> getString(R.string.nova_library_launch_headless)
         }
     }
 
     private fun buildLaunchIntro(
         preferredMode: String,
         recommendedMode: String,
-        serverReason: String?
+        serverReason: String?,
+        virtualDisplayUnavailable: Boolean,
+        virtualDisplayUnavailableReason: String
     ): String {
         val parts = mutableListOf<String>()
         if (preferredMode != recommendedMode) {
             parts += getString(R.string.nova_library_launch_preferred_mode_format, modeLabel(preferredMode))
         }
         parts += when {
+            virtualDisplayUnavailable -> virtualDisplayUnavailableReason
+                .takeIf { it.isNotBlank() }
+                ?: getString(R.string.nova_library_launch_intro_virtual_unavailable)
             !serverReason.isNullOrBlank() -> serverReason
-            recommendedMode == PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_intro_virtual_default)
-            recommendedMode == PolarisClientSettings.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_intro_desktop_default)
-            recommendedMode == PolarisClientSettings.MODE_GPU_NATIVE_TEST -> getString(R.string.nova_library_launch_intro_gpu_native_default)
+            recommendedMode == "virtual_display" -> getString(R.string.nova_library_launch_intro_virtual_default)
             else -> getString(R.string.nova_library_launch_intro_headless_default)
         }
         return parts.joinToString(" ")

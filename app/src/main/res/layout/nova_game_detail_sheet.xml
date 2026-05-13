@@ -158,22 +158,16 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:orientation="vertical">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
                         android:orientation="horizontal">
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/detail_launch_headless_btn"
                             style="@style/Widget.Material3.Button"
                             android:layout_width="0dp"
-                            android:layout_height="42dp"
+                            android:layout_height="38dp"
                             android:layout_weight="1"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
-                            android:textSize="11sp"
                             android:textAllCaps="false"
                             app:cornerRadius="14dp" />
 
@@ -181,48 +175,40 @@
                             android:id="@+id/detail_launch_virtual_btn"
                             style="@style/Widget.Material3.Button"
                             android:layout_width="0dp"
-                            android:layout_height="42dp"
+                            android:layout_height="38dp"
                             android:layout_marginStart="12dp"
                             android:layout_weight="1"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
-                            android:textSize="11sp"
                             android:textAllCaps="false"
                             app:cornerRadius="14dp" />
                     </LinearLayout>
 
-                    <LinearLayout
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/detail_profile_preference_btn"
+                        style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:orientation="horizontal">
+                        android:layout_height="34dp"
+                        android:layout_marginTop="6dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:text="@string/nova_library_profile_preference_auto"
+                        android:textAllCaps="false"
+                        android:textSize="12sp"
+                        app:cornerRadius="12dp" />
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/detail_launch_desktop_btn"
-                            style="@style/Widget.Material3.Button"
-                            android:layout_width="0dp"
-                            android:layout_height="42dp"
-                            android:layout_weight="1"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:textSize="11sp"
-                            android:textAllCaps="false"
-                            app:cornerRadius="14dp" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/detail_launch_gpu_btn"
-                            style="@style/Widget.Material3.Button"
-                            android:layout_width="0dp"
-                            android:layout_height="42dp"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:textSize="11sp"
-                            android:textAllCaps="false"
-                            app:cornerRadius="14dp" />
-                    </LinearLayout>
-                    </LinearLayout>
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/detail_reset_profile_btn"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:layout_marginTop="2dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:text="@string/nova_library_reset_game_profile"
+                        android:textAllCaps="false"
+                        android:textSize="12sp"
+                        app:cornerRadius="12dp" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>

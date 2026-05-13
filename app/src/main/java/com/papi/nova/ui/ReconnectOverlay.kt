@@ -86,14 +86,22 @@ class ReconnectOverlay(private val activity: Activity) {
 
     fun dismiss() {
         activity.runOnUiThread {
-            overlayView?.let { view ->
-                val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
-                rootView.removeView(view)
+            val view = overlayView
+            overlayView = null
+            view?.let {
+                safeRemoveFromParent(it)
                 LimeLog.info("Nova: Reconnect overlay dismissed")
             }
-            overlayView = null
             statusText = null
             attemptText = null
+        }
+    }
+
+    private fun safeRemoveFromParent(view: View) {
+        val parent = view.parent as? ViewGroup ?: return
+        parent.post {
+            val currentParent = view.parent as? ViewGroup
+            currentParent?.removeView(view)
         }
     }
 

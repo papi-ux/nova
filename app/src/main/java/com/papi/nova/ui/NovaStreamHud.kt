@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.app.Activity
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -8,7 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
-import android.os.Looper
 import androidx.preference.PreferenceManager
 import com.papi.nova.R
 import com.papi.nova.api.PolarisSessionStatus
@@ -45,6 +45,8 @@ class NovaStreamHud(private val activity: Activity) {
     private var fpsLowText: TextView? = null
     private var codecLabel: TextView? = null
     private var streamModeText: TextView? = null
+    private var autopilotText: TextView? = null
+    private var statusDot: View? = null
     private var activeCodecLabel = ""
     private var sessionModeLabel = ""
     private var targetFps = 0.0
@@ -53,16 +55,28 @@ class NovaStreamHud(private val activity: Activity) {
     private var recommendationVersion = 0
     private var healthGrade = ""
     private var healthPrimaryIssue = ""
+    private var healthLimitingFactor = ""
+    private var healthAutoAction = ""
     private var healthIssues: List<String> = emptyList()
     private var decoderRisk = ""
     private var hdrRisk = ""
     private var networkRisk = ""
+    private var hostRenderLimited = false
     private var capturePath = ""
     private var safeBitrateKbps = 0
     private var safeCodec = ""
     private var safeDisplayMode = ""
+    private var safeTargetFps = 0.0
     private var safeHdr: Boolean? = null
     private var relaunchRecommended = false
+    private var clientPresentationStatus = ""
+    private var clientPresentationAppliedRefreshRateHz = 0.0
+    private var clientPresentationTargetRefreshRateHz = 0.0
+    private var optimizerSyncState = ""
+    private var optimizerSyncLabel = ""
+    private var optimizerSyncMessage = ""
+    private var lastSessionStatus: PolarisSessionStatus? = null
+    private var autoQualityState = AutoQualityUiState.from(null)
 
     // Mode cycling: full → banner → fps_only → full
     private val modes = listOf("full", "banner", "fps_only")
@@ -75,15 +89,10 @@ class NovaStreamHud(private val activity: Activity) {
     private var recoveredFrames = 0      // consecutive healthy samples
     private var currentBitrateKbps = 0   // last known bitrate
     private var bitrateReduced = false
+    private var hostAdaptiveBitrateActive = false
+    private var hostAdaptiveTargetBitrateKbps = 0
+    private var streamPolicy = StreamPolicyUiState.from(null)
     var onBitrateAdjust: ((Int) -> Unit)? = null  // callback to adjust bitrate via API
-
-    private fun runOnMain(block: () -> Unit) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            block()
-        } else {
-            activity.runOnUiThread { block() }
-        }
-    }
 
     // Session stats accumulator for end-of-session report
     private var sessionFpsSum = 0.0
@@ -92,8 +101,13 @@ class NovaStreamHud(private val activity: Activity) {
     private var sessionPacketLossSamples = 0
     private var sessionSamples = 0
     private var sessionStartTime = 0L
+    private var sessionMinFps = 0.0
+    private var sessionLowOnePercentFps = 0.0
+    private var sessionBadPacingSamples = 0
     var lastCodec = ""
     var lastBitrateKbps = 0
+    private var sessionBitrateSum = 0L
+    private var sessionBitrateSamples = 0
 
     // Drag state
     private var dragStartX = 0f
@@ -108,8 +122,24 @@ class NovaStreamHud(private val activity: Activity) {
 
     private val currentMode get() = modes[currentModeIndex]
 
+    private fun resetSessionStats() {
+        sessionFpsSum = 0.0
+        sessionLatencySum = 0.0
+        sessionPacketLossSum = 0.0
+        sessionPacketLossSamples = 0
+        sessionSamples = 0
+        sessionStartTime = 0L
+        sessionMinFps = 0.0
+        sessionLowOnePercentFps = 0.0
+        sessionBadPacingSamples = 0
+        sessionBitrateSum = 0L
+        sessionBitrateSamples = 0
+        sparklineData.clear()
+    }
+
     fun show() {
         if (hudView != null) return
+        resetSessionStats()
 
         activity.runOnUiThread {
             val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
@@ -155,6 +185,8 @@ class NovaStreamHud(private val activity: Activity) {
         fpsLowText = hudView?.findViewById(R.id.hud_fps_low)
         codecLabel = hudView?.findViewById(R.id.hud_codec_label)
         streamModeText = hudView?.findViewById(R.id.hud_stream_mode)
+        autopilotText = hudView?.findViewById(R.id.hud_autopilot)
+        statusDot = hudView?.findViewById(R.id.hud_status_dot)
 
         // Restore sparkline data if switching modes
         sparkline?.let { sv ->
@@ -163,6 +195,7 @@ class NovaStreamHud(private val activity: Activity) {
 
         renderTargetFps()
         renderStreamMode()
+        renderAutopilotIndicator()
         if (activeCodecLabel.isNotBlank()) {
             applyCodecLabel(activeCodecLabel)
         }
@@ -247,20 +280,20 @@ class NovaStreamHud(private val activity: Activity) {
      * Parse key metrics from Moonlight's performance overlay text.
      */
     fun updateFromPerfText(text: String) {
-        runOnMain {
-            if (hudView == null) return@runOnMain
+        activity.runOnUiThread {
+            if (hudView == null) return@runOnUiThread
 
             // FPS
-            val fpsMatch = FPS_SUFFIX_REGEX.find(text)
-                ?: FPS_PREFIX_REGEX.find(text)
-                ?: FPS_FIRST_LINE_REGEX.find(text.lines().firstOrNull() ?: "")
+            val fpsMatch = Regex("""(\d+(?:\.\d+)?)\s*(?:fps|FPS)""", RegexOption.IGNORE_CASE).find(text)
+                ?: Regex("""FPS[:\s]+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE).find(text)
+                ?: Regex("""(\d+\.\d)\s*$""", RegexOption.MULTILINE).find(text.lines().firstOrNull() ?: "")
             if (fpsMatch != null) {
                 updateFps(fpsMatch.groupValues[1].toDoubleOrNull() ?: 0.0)
             }
 
             // Resolution (not in fps_only mode)
             if (currentMode != "fps_only") {
-                val resMatch = RESOLUTION_REGEX.find(text)
+                val resMatch = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""").find(text)
                 if (resMatch != null) {
                     resolutionText?.text = if (currentMode == "banner") "  ${resMatch.groupValues[2]}p"
                         else "${resMatch.groupValues[1]}×${resMatch.groupValues[2]}"
@@ -269,7 +302,7 @@ class NovaStreamHud(private val activity: Activity) {
 
             // Latency
             if (currentMode != "fps_only") {
-                val latMatch = LATENCY_REGEX.find(text)
+                val latMatch = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE).find(text)
                 if (latMatch != null) {
                     updateLatency(latMatch.groupValues[1].toIntOrNull() ?: 0)
                 }
@@ -277,7 +310,7 @@ class NovaStreamHud(private val activity: Activity) {
 
             // Codec
             if (currentMode != "fps_only") {
-                val codecMatch = CODEC_REGEX.find(text)
+                val codecMatch = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE).find(text)
                 if (codecMatch != null) {
                     val codec = codecMatch.groupValues[1].uppercase()
                     lastCodec = codec
@@ -286,8 +319,11 @@ class NovaStreamHud(private val activity: Activity) {
             }
 
             // Packet loss / net drops
-            val packetLossMatch = PACKET_LOSS_PREFIX_REGEX.find(text)
-                ?: PACKET_LOSS_SUFFIX_REGEX.find(text)
+            val packetLossMatch = Regex(
+                """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*(\d+(?:\.\d+)?)\s*%""",
+                RegexOption.IGNORE_CASE
+            ).find(text)
+                ?: Regex("""(\d+(?:\.\d+)?)\s*%\s*(?:packet loss|netdrops)""", RegexOption.IGNORE_CASE).find(text)
             if (packetLossMatch != null) {
                 val packetLossPct = packetLossMatch.groupValues[1].toDoubleOrNull() ?: 0.0
                 sessionPacketLossSum += packetLossPct
@@ -299,6 +335,8 @@ class NovaStreamHud(private val activity: Activity) {
     fun setTargetBitrateKbps(bitrateKbps: Int) {
         currentBitrateKbps = bitrateKbps
         lastBitrateKbps = bitrateKbps
+        streamPolicy = StreamPolicyUiState.from(lastSessionStatus, bitrateKbps, targetFps)
+        renderBitrate(streamPolicy.effectiveBitrateKbps)
     }
 
     fun setTargetFps(fps: Double) {
@@ -307,17 +345,27 @@ class NovaStreamHud(private val activity: Activity) {
         }
 
         targetFps = fps
-        runOnMain { renderTargetFps() }
+        activity.runOnUiThread { renderTargetFps() }
     }
 
     fun update(fps: Double, codec: String, bitrateKbps: Int, width: Int, height: Int, latencyMs: Double) {
-        runOnMain {
+        activity.runOnUiThread {
             updateFps(fps)
             if (currentMode != "fps_only") {
                 val codecStr = normalizeCodecLabel(codec)
                 applyCodecLabel(codecStr)
-                bitrateText?.text = if (currentMode == "banner") "  ${bitrateKbps / 1000}Mbps"
-                    else "${bitrateKbps / 1000} Mbps"
+                streamPolicy = StreamPolicyUiState.from(
+                    lastSessionStatus,
+                    if (bitrateKbps > 0) bitrateKbps else lastBitrateKbps,
+                    targetFps
+                )
+                val displayBitrate = streamPolicy.effectiveBitrateKbps.takeIf { it > 0 } ?: bitrateKbps
+                if (displayBitrate > 0) {
+                    currentBitrateKbps = displayBitrate
+                    sessionBitrateSum += displayBitrate.toLong()
+                    sessionBitrateSamples++
+                }
+                renderBitrate(displayBitrate)
                 resolutionText?.text = if (currentMode == "banner") "  ${height}p" else "${width}×${height}"
                 updateLatency(latencyMs.toInt())
             }
@@ -325,7 +373,8 @@ class NovaStreamHud(private val activity: Activity) {
     }
 
     fun applySessionStatus(status: PolarisSessionStatus?) {
-        runOnMain {
+        activity.runOnUiThread {
+            lastSessionStatus = status
             val resolvedTargetFps = status?.let(::resolveTargetFps) ?: 0.0
             if (resolvedTargetFps > 0) {
                 targetFps = resolvedTargetFps
@@ -335,22 +384,48 @@ class NovaStreamHud(private val activity: Activity) {
             recommendationVersion = status?.encoder?.recommendationVersion ?: 0
             healthGrade = status?.health?.grade.orEmpty()
             healthPrimaryIssue = status?.health?.primaryIssue.orEmpty()
+            healthLimitingFactor = status?.health?.limitingFactor.orEmpty()
+            healthAutoAction = status?.health?.autoAction.orEmpty()
             healthIssues = status?.health?.issues ?: emptyList()
             decoderRisk = status?.health?.decoderRisk.orEmpty()
             hdrRisk = status?.health?.hdrRisk.orEmpty()
             networkRisk = status?.health?.networkRisk.orEmpty()
+            hostRenderLimited = status?.isHostRenderLimited == true
             safeBitrateKbps = status?.health?.safeBitrateKbps ?: 0
             safeCodec = status?.health?.safeCodec.orEmpty()
             safeDisplayMode = status?.health?.safeDisplayMode.orEmpty()
+            safeTargetFps = status?.health?.safeTargetFps ?: 0.0
             safeHdr = status?.health?.safeHdr
             relaunchRecommended = status?.health?.relaunchRecommended == true
+            hostAdaptiveBitrateActive = status?.tuning?.adaptiveBitrateEnabled == true || status?.adaptiveBitrateEnabled == true
+            hostAdaptiveTargetBitrateKbps = status?.tuning?.adaptiveTargetBitrateKbps
+                ?: status?.adaptiveTargetBitrateKbps
+                ?: 0
+            streamPolicy = StreamPolicyUiState.from(status, lastBitrateKbps, targetFps)
+            if (streamPolicy.effectiveBitrateKbps > 0) {
+                currentBitrateKbps = streamPolicy.effectiveBitrateKbps
+                renderBitrate(streamPolicy.effectiveBitrateKbps)
+            }
             capturePath = resolveCapturePath(status)
+            clientPresentationStatus = status?.clientPresentation?.status.orEmpty()
+            clientPresentationAppliedRefreshRateHz = status?.clientPresentation?.appliedRefreshRateHz ?: 0.0
+            optimizerSyncState = status?.syncStatus?.state.orEmpty()
+            optimizerSyncLabel = status?.syncStatus?.label.orEmpty()
+            optimizerSyncMessage = status?.syncStatus?.message.orEmpty()
+            val reportedTargetRefresh = status?.clientPresentation?.targetRefreshRateHz ?: 0.0
+            clientPresentationTargetRefreshRateHz = if (reportedTargetRefresh > 0.0) {
+                reportedTargetRefresh
+            } else {
+                status?.presentationPolicy?.targetRefreshRateHz ?: 0.0
+            }
+            autoQualityState = AutoQualityUiState.from(status, targetFps, lastFps)
             sessionModeLabel = status?.let(::buildSessionModeLabel) ?: ""
             renderTargetFps()
             renderStreamMode()
+            renderAutopilotIndicator()
 
             if (currentMode == "fps_only") {
-                return@runOnMain
+                return@runOnUiThread
             }
 
             if (activeCodecLabel.isNotBlank()) {
@@ -366,8 +441,6 @@ class NovaStreamHud(private val activity: Activity) {
             return ""
         }
         return when {
-            status.capture.path.isNotBlank() -> status.capture.path
-            status.capture.gpuNative -> "gpu_native"
             status.isVirtualDisplayMode -> "virtual_display"
             status.capture.transport.equals("shm", ignoreCase = true) ||
                 status.capture.residency.equals("cpu", ignoreCase = true) ||
@@ -387,7 +460,11 @@ class NovaStreamHud(private val activity: Activity) {
     }
 
     private fun buildSessionModeLabel(status: PolarisSessionStatus): String {
-        val mode = status.sessionModeLabel.ifBlank { activity.getString(R.string.nova_session_mode_host_display) }
+        val mode = when {
+            status.isHeadlessMode -> activity.getString(R.string.nova_session_mode_headless)
+            status.isVirtualDisplayMode -> activity.getString(R.string.nova_session_mode_virtual_display)
+            else -> activity.getString(R.string.nova_session_mode_host_display)
+        }
         val bitDepth = if (status.isTenBitActive) "10b" else "8b"
         val path = when {
             status.isGpuPath -> "GPU"
@@ -396,8 +473,7 @@ class NovaStreamHud(private val activity: Activity) {
         }
         val modeSource = when (status.displayMode.requested) {
             "auto" -> "AUTO"
-            "headless", "virtual_display", "headless_stream", "host_virtual_display",
-            "desktop_display", "windowed_stream" -> "EXP"
+            "headless", "virtual_display" -> "EXP"
             else -> ""
         }
         val lifecycle = when {
@@ -476,6 +552,95 @@ class NovaStreamHud(private val activity: Activity) {
         streamModeText?.visibility = if (sessionModeLabel.isNotBlank()) View.VISIBLE else View.GONE
     }
 
+    private data class AutopilotIndicator(
+        val fullLabel: String,
+        val compactLabel: String,
+        val color: Int
+    )
+
+    private fun renderAutopilotIndicator() {
+        val indicator = buildAutopilotIndicator()
+        autopilotText?.text = when (currentMode) {
+            "fps_only" -> indicator.compactLabel
+            else -> indicator.fullLabel
+        }
+        autopilotText?.setTextColor(indicator.color)
+        setStatusDotColor(indicator.color)
+    }
+
+    private fun renderBitrate(bitrateKbps: Int) {
+        if (bitrateKbps <= 0) {
+            return
+        }
+        val label = StreamPolicyUiState.formatMbps(bitrateKbps)
+        bitrateText?.text = if (currentMode == "banner") {
+            "  ${label.replace(" ", "")}"
+        } else {
+            label
+        }
+    }
+
+    private fun buildAutopilotIndicator(): AutopilotIndicator {
+        val red = 0xFFf87171.toInt()
+        val amber = 0xFFfbbf24.toInt()
+        val green = 0xFF4ade80.toInt()
+        val blue = 0xFF38bdf8.toInt()
+        val muted = 0xFF94a3b8.toInt()
+
+        val state = AutoQualityUiState.from(lastSessionStatus, targetFps, lastFps)
+        autoQualityState = state
+        val color = when (state.tone) {
+            AutoQualityUiState.Tone.DANGER -> red
+            AutoQualityUiState.Tone.WARNING -> amber
+            AutoQualityUiState.Tone.INFO -> blue
+            AutoQualityUiState.Tone.STABLE -> green
+            AutoQualityUiState.Tone.MUTED -> muted
+        }
+        return AutopilotIndicator(state.label, state.compactLabel, color)
+    }
+
+    private fun isHostRenderLimited(): Boolean {
+        return hostRenderLimited ||
+            healthLimitingFactor.equals("host_render", ignoreCase = true) ||
+            healthPrimaryIssue.equals("host_render_limited", ignoreCase = true) ||
+            healthIssues.any { it.equals("host_render_limited", ignoreCase = true) }
+    }
+
+    private fun formatRefreshRateLabel(): String {
+        val refresh = when {
+            clientPresentationAppliedRefreshRateHz > 0.0 -> clientPresentationAppliedRefreshRateHz
+            clientPresentationTargetRefreshRateHz > 0.0 -> clientPresentationTargetRefreshRateHz
+            targetFps > 0.0 -> targetFps
+            else -> 0.0
+        }
+        if (refresh <= 0.0) {
+            return "Display"
+        }
+        return "${refresh.toInt()} Hz"
+    }
+
+    private fun isBelowTargetFps(): Boolean {
+        if (targetFps <= 0.0 || lastFps <= 0.0) {
+            return false
+        }
+        return lastFps < targetFps - 4.0
+    }
+
+    private fun isSeverelyBelowTargetFps(): Boolean {
+        if (targetFps <= 0.0 || lastFps <= 0.0) {
+            return false
+        }
+        return lastFps < targetFps * 0.75
+    }
+
+    private fun setStatusDotColor(color: Int) {
+        val dot = statusDot ?: return
+        dot.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+        }
+    }
+
     private fun updateFps(fps: Double) {
         val fpsInt = fps.toInt()
         fpsText?.text = if (currentMode == "banner") "  $fpsInt" else "$fpsInt"
@@ -495,13 +660,31 @@ class NovaStreamHud(private val activity: Activity) {
 
         // Update 1% low metric (stutter detection)
         val low1 = sparkline?.get1PercentLow()?.toInt() ?: 0
-        if (low1 > 0) fpsLowText?.text = "1%: $low1"
+        if (low1 > 0) {
+            sessionLowOnePercentFps = low1.toDouble()
+            fpsLowText?.text = "1%: $low1"
+        }
 
         // Accumulate session stats
         lastFps = fps
         sessionFpsSum += fps
         sessionSamples++
+        if (fps > 0.0 && (sessionMinFps <= 0.0 || fps < sessionMinFps)) {
+            sessionMinFps = fps
+        }
+        if (targetFps > 0.0 && fps > 0.0 && fps < targetFps * 0.85) {
+            sessionBadPacingSamples++
+        }
         if (sessionStartTime == 0L) sessionStartTime = System.currentTimeMillis()
+        autoQualityState = AutoQualityUiState.from(lastSessionStatus, targetFps, fps)
+        renderAutopilotIndicator()
+
+        if (hostAdaptiveBitrateActive) {
+            degradedFrames = 0
+            recoveredFrames = 0
+            bitrateReduced = false
+            return
+        }
 
         // Proactive quality monitor: detect sustained degradation
         if (fpsInt < 45 || lastLatency > 50) {
@@ -542,12 +725,18 @@ class NovaStreamHud(private val activity: Activity) {
 
     fun dismiss() {
         activity.runOnUiThread {
-            hudView?.let { view ->
-                val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
-                rootView.removeView(view)
-            }
+            val view = hudView
             hudView = null
             sparklineData.clear()
+            view?.let { safeRemoveFromParent(it) }
+        }
+    }
+
+    private fun safeRemoveFromParent(view: View) {
+        val parent = view.parent as? ViewGroup ?: return
+        parent.post {
+            val currentParent = view.parent as? ViewGroup
+            currentParent?.removeView(view)
         }
     }
 
@@ -555,12 +744,57 @@ class NovaStreamHud(private val activity: Activity) {
     fun getSessionSummary(): Map<String, Any> {
         val durationS = if (sessionStartTime > 0)
             ((System.currentTimeMillis() - sessionStartTime) / 1000).toInt() else 0
+        val avgFps = if (sessionSamples > 0) sessionFpsSum / sessionSamples else 0.0
+        val badPacingPct = if (sessionSamples > 0)
+            (sessionBadPacingSamples.toDouble() / sessionSamples.toDouble()) * 100.0 else 0.0
+        val lowSignalFps = when {
+            sessionLowOnePercentFps > 0.0 -> sessionLowOnePercentFps
+            sessionMinFps > 0.0 -> sessionMinFps
+            else -> avgFps
+        }
+        val severePacing = targetFps >= 55.0 && sessionSamples >= 10 &&
+                (
+                    badPacingPct >= 18.0 ||
+                    (lowSignalFps > 0.0 && lowSignalFps < targetFps * 0.72) ||
+                    (avgFps > 0.0 && avgFps < targetFps * 0.82)
+                )
+        val moderatePacing = targetFps >= 55.0 && sessionSamples >= 10 &&
+                (
+                    badPacingPct >= 8.0 ||
+                    (lowSignalFps > 0.0 && lowSignalFps < targetFps * 0.85) ||
+                    (avgFps > 0.0 && avgFps < targetFps * 0.90)
+                )
+        val canHoldStable40 = targetFps in 55.0..75.0 &&
+                avgFps > 0.0 &&
+                avgFps >= targetFps * 0.82 &&
+                lowSignalFps > 0.0 &&
+                lowSignalFps >= targetFps * 0.70
+        val highRefreshPacing = targetFps >= 90.0 && (severePacing || moderatePacing)
+        val canHoldStable60 = highRefreshPacing &&
+                avgFps >= 58.0 &&
+                lowSignalFps >= 45.0 &&
+                badPacingPct < 18.0
+        val derivedSafeTargetFps = when {
+            safeTargetFps > 0.0 -> safeTargetFps
+            highRefreshPacing && canHoldStable60 -> 60.0
+            highRefreshPacing -> 30.0
+            severePacing -> 30.0
+            moderatePacing && canHoldStable40 -> 40.0
+            moderatePacing -> 30.0
+            else -> 0.0
+        }
+        val derivedRelaunchRecommended = relaunchRecommended ||
+                (
+                    derivedSafeTargetFps > 0.0 &&
+                    targetFps > 0.0 &&
+                    derivedSafeTargetFps < targetFps
+                )
         val summary = mutableMapOf<String, Any>(
-            "avg_fps" to if (sessionSamples > 0) sessionFpsSum / sessionSamples else 0.0,
+            "avg_fps" to avgFps,
             "target_fps" to targetFps,
             "avg_latency_ms" to if (sessionSamples > 0) sessionLatencySum / sessionSamples else 0.0,
             "packet_loss_pct" to if (sessionPacketLossSamples > 0) sessionPacketLossSum / sessionPacketLossSamples else 0.0,
-            "avg_bitrate_kbps" to lastBitrateKbps,
+            "avg_bitrate_kbps" to if (sessionBitrateSamples > 0) (sessionBitrateSum / sessionBitrateSamples).toInt() else lastBitrateKbps,
             "codec" to lastCodec,
             "duration_s" to durationS,
             "samples" to sessionSamples,
@@ -568,9 +802,23 @@ class NovaStreamHud(private val activity: Activity) {
             "optimization_confidence" to optimizationConfidence,
             "recommendation_version" to recommendationVersion
         )
+        if (sessionLowOnePercentFps > 0.0) summary["low_1_percent_fps"] = sessionLowOnePercentFps
+        if (sessionMinFps > 0.0) summary["min_fps"] = sessionMinFps
+        if (badPacingPct > 0.0) summary["frame_pacing_bad_pct"] = badPacingPct
+        if (derivedSafeTargetFps > 0.0) summary["safe_target_fps"] = derivedSafeTargetFps
         if (healthGrade.isNotBlank()) summary["health_grade"] = healthGrade
-        if (healthPrimaryIssue.isNotBlank()) summary["primary_issue"] = healthPrimaryIssue
-        if (healthIssues.isNotEmpty()) summary["issues"] = healthIssues
+        val summaryPrimaryIssue = when {
+            isHostRenderLimited() -> "host_render_limited"
+            healthPrimaryIssue.isNotBlank() -> healthPrimaryIssue
+            else -> ""
+        }
+        val summaryIssues = if (isHostRenderLimited() && healthIssues.none { it.equals("host_render_limited", ignoreCase = true) }) {
+            healthIssues + "host_render_limited"
+        } else {
+            healthIssues
+        }
+        if (summaryPrimaryIssue.isNotBlank()) summary["primary_issue"] = summaryPrimaryIssue
+        if (summaryIssues.isNotEmpty()) summary["issues"] = summaryIssues
         if (decoderRisk.isNotBlank()) summary["decoder_risk"] = decoderRisk
         if (hdrRisk.isNotBlank()) summary["hdr_risk"] = hdrRisk
         if (networkRisk.isNotBlank()) summary["network_risk"] = networkRisk
@@ -579,28 +827,13 @@ class NovaStreamHud(private val activity: Activity) {
         if (safeCodec.isNotBlank()) summary["safe_codec"] = safeCodec
         if (safeDisplayMode.isNotBlank()) summary["safe_display_mode"] = safeDisplayMode
         safeHdr?.let { summary["safe_hdr"] = it }
-        if (relaunchRecommended) summary["relaunch_recommended"] = true
+        if (derivedRelaunchRecommended) summary["relaunch_recommended"] = true
         return summary
     }
 
     val isShowing get() = hudView != null
 
     companion object {
-        private val FPS_SUFFIX_REGEX = Regex("""(\d+(?:\.\d+)?)\s*(?:fps|FPS)""", RegexOption.IGNORE_CASE)
-        private val FPS_PREFIX_REGEX = Regex("""FPS[:\s]+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
-        private val FPS_FIRST_LINE_REGEX = Regex("""(\d+\.\d)\s*$""", RegexOption.MULTILINE)
-        private val RESOLUTION_REGEX = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""")
-        private val LATENCY_REGEX = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE)
-        private val CODEC_REGEX = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE)
-        private val PACKET_LOSS_PREFIX_REGEX = Regex(
-            """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*(\d+(?:\.\d+)?)\s*%""",
-            RegexOption.IGNORE_CASE
-        )
-        private val PACKET_LOSS_SUFFIX_REGEX = Regex(
-            """(\d+(?:\.\d+)?)\s*%\s*(?:packet loss|netdrops)""",
-            RegexOption.IGNORE_CASE
-        )
-
         fun isEnabled(activity: Activity): Boolean {
             return PreferenceManager.getDefaultSharedPreferences(activity)
                 .getBoolean("nova_polaris_hud", false)

@@ -54,6 +54,7 @@ public class MediaCodecHelper {
     private static boolean isLowEndSnapdragon = false;
     private static boolean isAdreno620 = false;
     private static boolean initialized = false;
+    private static boolean preferStabilityDecoders = false;
 
     static {
         directSubmitPrefixes = new LinkedList<>();
@@ -952,6 +953,13 @@ public class MediaCodecHelper {
         return false;
     }
 
+    public static void setPreferStabilityDecoders(boolean preferStability) {
+        preferStabilityDecoders = preferStability;
+        if (preferStability) {
+            LimeLog.info("Nova: Stability decoder preference enabled");
+        }
+    }
+
     public static MediaCodecInfo findFirstDecoder(String mimeType) {
         for (MediaCodecInfo codecInfo : getMediaCodecList()) {
             // Skip encoders
@@ -1040,6 +1048,15 @@ public class MediaCodecHelper {
                         }
 
                         CodecCapabilities caps = codecInfo.getCapabilitiesForType(mime);
+                        String decoderName = codecInfo.getName();
+
+                        if (preferStabilityDecoders &&
+                                i == 0 &&
+                                decoderName != null &&
+                                decoderName.toLowerCase(Locale.US).contains("low_latency")) {
+                            LimeLog.info("Skipping low-latency decoder for Auto Safe stability: " + decoderName);
+                            continue;
+                        }
 
                         if (i == 0 && !decoderSupportsAndroidRLowLatency(codecInfo, mime)) {
                             LimeLog.info("Skipping decoder that lacks FEATURE_LowLatency for round 1");
@@ -1086,10 +1103,10 @@ public class MediaCodecHelper {
 
     public static boolean isExynos4Device() {
         try {
-            // Try reading CPU info too look for 
+            // Try reading CPU info too look for
             String cpuInfo = readCpuinfo();
 
-            // SMDK4xxx is Exynos 4 
+            // SMDK4xxx is Exynos 4
             if (stringContainsIgnoreCase(cpuInfo, "SMDK4")) {
                 LimeLog.info("Found SMDK4 in /proc/cpuinfo");
                 return true;

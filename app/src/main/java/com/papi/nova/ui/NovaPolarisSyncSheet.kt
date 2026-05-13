@@ -52,7 +52,6 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
     private lateinit var novaProfileText: TextView
     private lateinit var polarisProfileText: TextView
     private lateinit var profileStateText: TextView
-    private lateinit var adaptiveSwitch: SwitchMaterial
     private lateinit var aiSwitch: SwitchMaterial
     private lateinit var autoSyncSwitch: SwitchMaterial
     private lateinit var matchNovaButton: MaterialButton
@@ -137,7 +136,6 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
         novaProfileText = view.findViewById(R.id.polaris_sync_nova_profile)
         polarisProfileText = view.findViewById(R.id.polaris_sync_polaris_profile)
         profileStateText = view.findViewById(R.id.polaris_sync_profile_state)
-        adaptiveSwitch = view.findViewById(R.id.polaris_sync_adaptive)
         aiSwitch = view.findViewById(R.id.polaris_sync_ai)
         autoSyncSwitch = view.findViewById(R.id.polaris_sync_auto)
         matchNovaButton = view.findViewById(R.id.polaris_sync_match_nova)
@@ -170,11 +168,8 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
             updatePolarisSettings(clearDisplayMode = true, clearTargetBitrate = true, successMessage = R.string.nova_polaris_sync_cleared)
         }
 
-        adaptiveSwitch.setOnCheckedChangeListener(toggleListener { checked ->
-            updatePolarisSettings(adaptiveBitrateEnabled = checked)
-        })
         aiSwitch.setOnCheckedChangeListener(toggleListener { checked ->
-            updatePolarisSettings(aiOptimizerEnabled = checked)
+            updatePolarisSettings(aiAutoQualityEnabled = checked)
         })
         currentSettings = initialSettings
         render(initialSettings)
@@ -297,13 +292,14 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
     }
 
     private fun renderToggles(settings: PolarisClientSettings?) {
-        val adaptiveAvailable = settings?.capabilities?.adaptiveBitrateControl == true
-        val aiAvailable = settings?.capabilities?.aiOptimizerControl == true
-        setSwitchState(adaptiveSwitch, settings?.effective?.adaptiveBitrateEnabled == true, adaptiveAvailable && !busy) {
-            updatePolarisSettings(adaptiveBitrateEnabled = it)
-        }
-        setSwitchState(aiSwitch, settings?.effective?.aiOptimizerEnabled == true, aiAvailable && !busy) {
-            updatePolarisSettings(aiOptimizerEnabled = it)
+        val aiAvailable = settings?.capabilities?.aiAutoQualityControl == true ||
+            settings?.capabilities?.aiOptimizerControl == true ||
+            settings?.capabilities?.adaptiveBitrateControl == true
+        val enabled = settings?.effective?.aiAutoQualityEnabled == true ||
+            settings?.effective?.aiOptimizerEnabled == true ||
+            settings?.effective?.adaptiveBitrateEnabled == true
+        setSwitchState(aiSwitch, enabled, aiAvailable && !busy) {
+            updatePolarisSettings(aiAutoQualityEnabled = it)
         }
     }
 
@@ -352,6 +348,7 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
         clearTargetBitrate: Boolean = false,
         adaptiveBitrateEnabled: Boolean? = null,
         aiOptimizerEnabled: Boolean? = null,
+        aiAutoQualityEnabled: Boolean? = null,
         successMessage: Int = R.string.nova_polaris_sync_saved_to_polaris,
         showToast: Boolean = true
     ) {
@@ -366,7 +363,8 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                     targetBitrateKbps = targetBitrateKbps,
                     clearTargetBitrate = clearTargetBitrate,
                     adaptiveBitrateEnabled = adaptiveBitrateEnabled,
-                    aiOptimizerEnabled = aiOptimizerEnabled
+                    aiOptimizerEnabled = aiOptimizerEnabled,
+                    aiAutoQualityEnabled = aiAutoQualityEnabled
                 )
             }
             setBusy(false)

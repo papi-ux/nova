@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jcodec.codecs.h264.H264Utils;
@@ -56,8 +57,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     // Decode latency tracking: map PTS(us) -> enqueue time (ns)
     private final LongSparseArray<Long> enqueueNsByPtsUs = new LongSparseArray<>();
 
-    // When preferLowerDelays=true we use this configurable timeout (µs) for output dequeue.
-// When preferLowerDelays=false we force 0µs (non-blocking, latest-frame rendering).
+    // When preferLowerDelays=true we use this configurable timeout (us) for output dequeue.
+    // Balanced pacing should stay on the Choreographer path instead of latest-frame rendering.
     private volatile int preferLowerDelaysTimeoutUs = 2000;
     public void setPreferLowerDelaysTimeoutUs(int us) { this.preferLowerDelaysTimeoutUs = Math.max(0, us); }
 
@@ -147,6 +148,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int initialWidth, initialHeight;
     private boolean invertResolution;
     private int videoFormat;
+    private volatile String activeDecoderName = "";
     private Surface renderTarget;
     private volatile boolean stopping;
     private CrashListener crashListener;
@@ -202,6 +204,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private long lastRenderedFrameTimeNanos;
     private HandlerThread choreographerHandlerThread;
     private Handler choreographerHandler;
+    private final AtomicBoolean stopPrepared = new AtomicBoolean(false);
 
     private int numSpsIn;
     private int numPpsIn;
@@ -547,6 +550,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return this.videoFormat;
     }
 
+    public String getActiveDecoderName() {
+        return activeDecoderName;
+    }
+
     private MediaFormat createBaseMediaFormat(String mimeType) {
         MediaFormat videoFormat = MediaFormat.createVideoFormat(mimeType, initialWidth, initialHeight);
 
@@ -764,6 +771,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
         adaptivePlayback = MediaCodecHelper.decoderSupportsAdaptivePlayback(selectedDecoderInfo, mimeType);
         fusedIdrFrame = MediaCodecHelper.decoderSupportsFusedIdrFrame(selectedDecoderInfo, mimeType);
+        activeDecoderName = selectedDecoderInfo.getName();
 
         for (int tryNumber = 0;; tryNumber++) {
             LimeLog.info("Decoder configuration try: "+tryNumber);
@@ -961,19 +969,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
 
         return true;
-    }
-
-    private void requestWatchdogFlush() {
-        if (stopping || !foreground || videoDecoder == null) {
-            return;
-        }
-
-        if (codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_FLUSH)) {
-            LimeLog.warning("Decoder watchdog: no output >1.2s, requesting coordinated codec flush...");
-            synchronized (codecRecoveryMonitor) {
-                codecRecoveryMonitor.notifyAll();
-            }
-        }
     }
 
     // Returns true if the exception is transient
@@ -1212,7 +1207,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 long lastOutputNs = System.nanoTime();
                 while (!stopping) {
                     /* LATEST_ONLY_LOW_LATENCY */
-                    if (!preferLowerDelays) {
+                    if (preferLowerDelays && prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
                         try {
                             android.media.MediaCodec.BufferInfo __tmpInfo = new android.media.MediaCodec.BufferInfo();
                             int __idx = videoDecoder.dequeueOutputBuffer(__tmpInfo, 0);
@@ -1408,8 +1403,16 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 /* WATCHDOG_C2_SLEEP */
                 try {
                     final long __nowNs = System.nanoTime();
-                    if (__nowNs - lastOutputNs > 1_200_000_000L) {
-                        requestWatchdogFlush();
+                    if (__nowNs - lastOutputNs > 1_200_000_000L) { // ~1.2s without output → likely C2 sleep
+                        LimeLog.warning("Decoder watchdog: no output >1.2s, flushing codec to recover...");
+                        try {
+                            videoDecoder.flush();
+                        } catch (Throwable ignored) {}
+                        try {
+                            android.os.Bundle __poke = new android.os.Bundle();
+                            __poke.putInt("priority", 0);
+                            videoDecoder.setParameters(__poke);
+                        } catch (Throwable ignored) {}
                         lastOutputNs = __nowNs;
                     }
                 } catch (Throwable ignored) {}
@@ -1494,6 +1497,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Let the decoding code know to ignore codec exceptions now
         stopping = true;
 
+        if (!stopPrepared.compareAndSet(false, true)) {
+            return;
+        }
+
         // Halt the rendering thread
         if (rendererThread != null) {
             rendererThread.interrupt();
@@ -1509,18 +1516,19 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         Handler handler = choreographerHandler;
         HandlerThread handlerThread = choreographerHandlerThread;
         if (handler != null && handlerThread != null && handlerThread.isAlive()) {
-            handler.post(new Runnable() {
+            boolean posted = handler.post(new Runnable() {
                 @Override
                 public void run() {
-                    // Don't allow any further messages to be queued
-                    handlerThread.quit();
-
                     // Deregister the frame callback (if registered)
                     Choreographer.getInstance().removeFrameCallback(MediaCodecDecoderRenderer.this);
+
+                    // Don't allow any further messages to be queued
+                    handlerThread.quit();
                 }
             });
-        } else if (handlerThread != null) {
-            handlerThread.quit();
+            if (!posted) {
+                handlerThread.quit();
+            }
         }
     }
 
@@ -1530,9 +1538,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         prepareForStop();
 
         // Wait for the Choreographer looper to shut down (if we have one)
-        if (choreographerHandlerThread != null) {
+        HandlerThread handlerThread = choreographerHandlerThread;
+        if (handlerThread != null) {
             try {
-                choreographerHandlerThread.join();
+                handlerThread.join();
             } catch (InterruptedException e) {
                 e.printStackTrace();
 
@@ -1541,18 +1550,24 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 // status back to true.
                 Thread.currentThread().interrupt();
             }
+            choreographerHandlerThread = null;
+            choreographerHandler = null;
         }
 
         // Wait for the renderer thread to shut down
-        try {
-            rendererThread.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        Thread renderer = rendererThread;
+        if (renderer != null) {
+            try {
+                renderer.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
 
-            // InterruptedException clears the thread's interrupt status. Since we can't
-            // handle that here, we will re-interrupt the thread to set the interrupt
-            // status back to true.
-            Thread.currentThread().interrupt();
+                // InterruptedException clears the thread's interrupt status. Since we can't
+                // handle that here, we will re-interrupt the thread to set the interrupt
+                // status back to true.
+                Thread.currentThread().interrupt();
+            }
+            rendererThread = null;
         }
     }
 
@@ -2302,13 +2317,45 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         try {
             // API 30+ supports Surface.setFrameRate; for older, attempt View-based call elsewhere.
             if (android.os.Build.VERSION.SDK_INT >= 30) {
-                surface.setFrameRate((float) targetFps,
+                float surfaceFrameRate = chooseSurfaceFrameRateHint(targetFps);
+                surface.setFrameRate(surfaceFrameRate,
                         android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
-                LimeLog.info("Applied Surface frame rate: " + targetFps + " Hz");
+                LimeLog.info("Applied Surface frame rate: " + surfaceFrameRate + " Hz for " + targetFps + " FPS stream");
             }
         } catch (Throwable t) {
             // best-effort
         }
+    }
+
+    private float chooseSurfaceFrameRateHint(int targetFps) {
+        if (targetFps <= 0) return 60f;
+
+        float displayHz = 60f;
+        try {
+            if (context != null) {
+                android.view.WindowManager windowManager =
+                        (android.view.WindowManager) context.getSystemService(android.content.Context.WINDOW_SERVICE);
+                android.view.Display display = windowManager != null ? windowManager.getDefaultDisplay() : null;
+                if (display != null && display.getRefreshRate() > 0f) {
+                    displayHz = display.getRefreshRate();
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        if (displayHz > targetFps + 0.5f && isWholeRefreshMultiple(displayHz, targetFps)) {
+            return displayHz;
+        }
+        return Math.min(targetFps, displayHz);
+    }
+
+    private boolean isWholeRefreshMultiple(float displayHz, int targetFps) {
+        if (displayHz <= 0f || targetFps <= 0 || displayHz < targetFps) {
+            return false;
+        }
+
+        double ratio = displayHz / (double) targetFps;
+        double nearestWhole = Math.rint(ratio);
+        return nearestWhole >= 1.0 && Math.abs(ratio - nearestWhole) <= 0.05;
     }
 
 

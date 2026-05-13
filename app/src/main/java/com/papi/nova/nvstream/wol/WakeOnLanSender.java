@@ -4,8 +4,9 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.util.Locale;
+import java.util.Scanner;
 
+import com.papi.nova.LimeLog;
 import com.papi.nova.nvstream.http.ComputerDetails;
 
 public class WakeOnLanSender {
@@ -56,7 +57,7 @@ public class WakeOnLanSender {
             throw lastException;
         }
     }
-    
+
     public static void sendWolPacket(ComputerDetails computer) throws IOException {
         byte[] payload = createWolPayload(computer);
         IOException lastException = null;
@@ -108,65 +109,70 @@ public class WakeOnLanSender {
             throw lastException;
         }
     }
-    
+
     public static String normalizeMacAddress(String macAddress) {
         if (macAddress == null) {
             return null;
         }
 
-        String compactMacAddress = macAddress.trim()
+        String hex = macAddress.trim()
                 .replace(":", "")
                 .replace("-", "")
                 .replace(".", "");
-
-        if (!compactMacAddress.matches("(?i)[0-9a-f]{12}")) {
+        if (hex.length() != 12) {
             return null;
         }
 
-        compactMacAddress = compactMacAddress.toUpperCase(Locale.US);
         StringBuilder normalized = new StringBuilder(17);
-        for (int i = 0; i < compactMacAddress.length(); i += 2) {
-            if (i > 0) {
+        for (int i = 0; i < hex.length(); i += 2) {
+            int high = Character.digit(hex.charAt(i), 16);
+            int low = Character.digit(hex.charAt(i + 1), 16);
+            if (high < 0 || low < 0) {
+                return null;
+            }
+            if (normalized.length() > 0) {
                 normalized.append(':');
             }
-            normalized.append(compactMacAddress, i, i + 2);
+            normalized.append(Character.toUpperCase(hex.charAt(i)));
+            normalized.append(Character.toUpperCase(hex.charAt(i + 1)));
         }
-
         return normalized.toString();
     }
 
-    private static byte[] macStringToBytes(String macAddress) throws IOException {
-        String normalizedMacAddress = normalizeMacAddress(macAddress);
-        if (normalizedMacAddress == null) {
-            throw new IOException("Invalid Wake-on-LAN MAC address");
-        }
-
+    private static byte[] macStringToBytes(String macAddress) {
         byte[] macBytes = new byte[6];
 
-        for (int i = 0; i < macBytes.length; i++) {
-            int segmentStart = i * 3;
-            macBytes[i] = (byte) Integer.parseInt(normalizedMacAddress.substring(segmentStart, segmentStart + 2), 16);
+        try (@SuppressWarnings("resource")
+             final Scanner scan = new Scanner(macAddress).useDelimiter(":")
+        ) {
+            for (int i = 0; i < macBytes.length && scan.hasNext(); i++) {
+                try {
+                    macBytes[i] = (byte) Integer.parseInt(scan.next(), 16);
+                } catch (NumberFormatException e) {
+                    LimeLog.warning("Malformed MAC address: " + macAddress + " (index: " + i + ")");
+                    break;
+                }
+            }
+            return macBytes;
         }
-
-        return macBytes;
     }
 
-    private static byte[] createWolPayload(ComputerDetails computer) throws IOException {
+    private static byte[] createWolPayload(ComputerDetails computer) {
         byte[] payload = new byte[102];
         byte[] macAddress = macStringToBytes(computer.macAddress);
         int i;
-        
+
         // 6 bytes of FF
         for (i = 0; i < 6; i++) {
             payload[i] = (byte)0xFF;
         }
-        
+
         // 16 repetitions of the MAC address
         for (int j = 0; j < 16; j++) {
             System.arraycopy(macAddress, 0, payload, i, macAddress.length);
             i += macAddress.length;
         }
-        
+
         return payload;
     }
 }

@@ -154,7 +154,7 @@ public class ShortcutTrampoline extends AppCompatActivity {
                                         }
 
                                         if (details.state == ComputerDetails.State.ONLINE && details.pairState == PairingManager.PairState.PAIRED) {
-                                            
+
                                             // Launch game if provided app ID, otherwise launch app view
                                             if (app != null) {
                                                 if (details.runningGameId == 0 || details.runningGameId == app.getAppId() || Objects.equals(details.runningGameUUID, app.getAppUUID())) {
@@ -214,7 +214,7 @@ public class ShortcutTrampoline extends AppCompatActivity {
                                                 // Now start the activities
                                                 startActivities(intentStack.toArray(new Intent[]{}));
                                             }
-                                            
+
                                         }
                                         else if (details.state == ComputerDetails.State.OFFLINE) {
                                             // Computer offline - display an error dialog
@@ -497,6 +497,14 @@ public class ShortcutTrampoline extends AppCompatActivity {
         setIntent(new Intent(getIntent()).putExtra(AppView.UUID_EXTRA, uuidString));
 
         if (validateAppInput(appUUID, appIDStr, appName)) {
+            if ((appName == null || appName.isEmpty()) &&
+                    ((appUUID != null && !appUUID.isEmpty()) || (appIDStr != null && !appIDStr.isEmpty()))) {
+                String cachedName = findCachedAppName(uuidString, appUUID, appIDStr);
+                if (cachedName != null && !cachedName.isEmpty()) {
+                    appName = cachedName;
+                }
+            }
+
             // If app data came from .art file or was determined by appNameString from extras
             if (appUUID != null && !appUUID.isEmpty()) {
                 app = new NvApp(appName, // appName can be null if only UUID is provided
@@ -572,6 +580,46 @@ public class ShortcutTrampoline extends AppCompatActivity {
 
         blockingLoadSpinner = SpinnerDialog.displayDialog(this, getResources().getString(R.string.conn_establishing_title),
                 getResources().getString(R.string.applist_connect_msg), true);
+    }
+
+    private String findCachedAppName(String hostUUID, String appUUID, String appIDStr) {
+        if (hostUUID == null || hostUUID.isEmpty()) {
+            return null;
+        }
+
+        int appID = -1;
+        if (appIDStr != null && !appIDStr.isEmpty()) {
+            try {
+                appID = Integer.parseInt(appIDStr);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        try {
+            String rawAppList = CacheHelper.readInputStreamToString(
+                    CacheHelper.openCacheFileForInput(getCacheDir(), "applist", hostUUID));
+            if (rawAppList == null || rawAppList.isEmpty()) {
+                return null;
+            }
+
+            List<NvApp> applist = NvHTTP.getAppListByReader(new StringReader(rawAppList));
+            for (NvApp candidate : applist) {
+                if (candidate == null) {
+                    continue;
+                }
+                if (appUUID != null && !appUUID.isEmpty() &&
+                        appUUID.equalsIgnoreCase(candidate.getAppUUID())) {
+                    return candidate.getAppName();
+                }
+                if (appID >= 0 && candidate.getAppId() == appID) {
+                    return candidate.getAppName();
+                }
+            }
+        } catch (IOException | XmlPullParserException e) {
+            Log.w(TAG, "Unable to resolve shortcut app name from cache", e);
+        }
+
+        return null;
     }
 
     @Override

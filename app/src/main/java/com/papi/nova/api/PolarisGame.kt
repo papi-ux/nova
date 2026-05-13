@@ -30,7 +30,145 @@ data class PolarisGame(
         fun allows(mode: String): Boolean = allowedModes.contains(mode)
     }
 
+    data class LaunchModeChoice(
+        val preferredMode: String = "",
+        val recommendedMode: String = "",
+        val headlessAllowed: Boolean = true,
+        val virtualDisplayAllowed: Boolean = true,
+        val virtualDisplayUnavailable: Boolean = false,
+        val virtualDisplayUnavailableReason: String = "",
+        val hostDefaultMode: String = "",
+        val hostModeReason: String = ""
+    )
+
+    fun resolveLaunchModeChoice(
+        defaultToVirtualDisplay: Boolean,
+        clientSettings: PolarisClientSettings? = null
+    ): LaunchModeChoice {
+        val contract = launchMode
+        val headlessAvailable = modeAvailability(clientSettings, "headless")
+        val virtualAvailable = modeAvailability(clientSettings, "virtual_display")
+        val headlessAllowed = (contract?.allows("headless") ?: true) && headlessAvailable != false
+        val virtualDisplayAllowed =
+            (contract?.allows("virtual_display") ?: true) && virtualAvailable != false
+        val hostDefaultMode = resolveLaunchMode(
+            clientSettings?.desired?.streamDisplayMode?.takeIf { it.isNotBlank() }
+                ?: clientSettings?.effective?.streamDisplayMode
+                ?: "",
+            headlessAllowed,
+            virtualDisplayAllowed
+        )
+
+        val fallbackMode = if (defaultToVirtualDisplay && virtualDisplayAllowed) {
+            "virtual_display"
+        } else {
+            "headless"
+        }
+        val preferredMode = resolveLaunchMode(
+            contract?.preferredMode?.takeIf { it.isNotBlank() } ?: fallbackMode,
+            headlessAllowed,
+            virtualDisplayAllowed
+        )
+        val recommendedMode = resolveLaunchMode(
+            hostDefaultMode.takeIf { it.isNotBlank() }
+                ?: contract?.recommendedMode?.takeIf { it.isNotBlank() }
+                ?: preferredMode,
+            headlessAllowed,
+            virtualDisplayAllowed
+        )
+        val virtualUnavailableReason = modeUnavailableReason(clientSettings, "virtual_display")
+
+        return LaunchModeChoice(
+            preferredMode = preferredMode,
+            recommendedMode = recommendedMode,
+            headlessAllowed = headlessAllowed,
+            virtualDisplayAllowed = virtualDisplayAllowed,
+            virtualDisplayUnavailable = (contract?.allows("virtual_display") ?: defaultToVirtualDisplay) &&
+                virtualAvailable == false,
+            virtualDisplayUnavailableReason = virtualUnavailableReason,
+            hostDefaultMode = hostDefaultMode,
+            hostModeReason = clientSettings?.desired?.streamDisplayModeReason?.takeIf { it.isNotBlank() }
+                ?: clientSettings?.effective?.streamDisplayModeReason
+                ?: ""
+        )
+    }
+
     companion object {
+        private val HEADLESS_MODE_ALIASES = setOf(
+            "headless",
+            "headless_stream",
+            "desktop_display",
+            "windowed_stream",
+            "host_display"
+        )
+        private val VIRTUAL_DISPLAY_MODE_ALIASES = setOf(
+            "virtual_display",
+            "host_virtual_display"
+        )
+
+        private fun normalizeLaunchMode(mode: String): String {
+            return when (mode) {
+                "headless", "headless_stream", "desktop_display", "windowed_stream", "host_display" -> "headless"
+                "virtual_display", "host_virtual_display" -> "virtual_display"
+                else -> mode
+            }
+        }
+
+        private fun resolveLaunchMode(
+            mode: String,
+            headlessAllowed: Boolean,
+            virtualDisplayAllowed: Boolean
+        ): String {
+            return when (normalizeLaunchMode(mode)) {
+                "virtual_display" -> when {
+                    virtualDisplayAllowed -> "virtual_display"
+                    headlessAllowed -> "headless"
+                    else -> ""
+                }
+                "headless" -> when {
+                    headlessAllowed -> "headless"
+                    virtualDisplayAllowed -> "virtual_display"
+                    else -> ""
+                }
+                else -> when {
+                    headlessAllowed -> "headless"
+                    virtualDisplayAllowed -> "virtual_display"
+                    else -> ""
+                }
+            }
+        }
+
+        private fun modeAvailability(
+            clientSettings: PolarisClientSettings?,
+            mode: String
+        ): Boolean? {
+            val modes = clientSettings?.capabilities?.modes ?: return null
+            val aliases = aliasesForMode(mode)
+            val matches = modes.filter { it.value in aliases }
+            if (matches.isEmpty()) {
+                return null
+            }
+            return matches.any { it.available }
+        }
+
+        private fun modeUnavailableReason(
+            clientSettings: PolarisClientSettings?,
+            mode: String
+        ): String {
+            val modes = clientSettings?.capabilities?.modes ?: return ""
+            val aliases = aliasesForMode(mode)
+            return modes.firstOrNull { it.value in aliases && !it.available }
+                ?.reason
+                .orEmpty()
+        }
+
+        private fun aliasesForMode(mode: String): Set<String> {
+            return when (normalizeLaunchMode(mode)) {
+                "virtual_display" -> VIRTUAL_DISPLAY_MODE_ALIASES
+                else -> HEADLESS_MODE_ALIASES
+            }
+        }
+
         fun fromJson(json: org.json.JSONObject): PolarisGame {
             val genreList = mutableListOf<String>()
             val genreArr = json.optJSONArray("genres")
@@ -40,17 +178,25 @@ data class PolarisGame(
                 }
             }
             val launchMode = json.optJSONObject("launch_mode")?.let { modeJson ->
-                val allowedModes = mutableListOf<String>()
+                val allowedModes = linkedSetOf<String>()
                 val allowedArr = modeJson.optJSONArray("allowed_modes")
                 if (allowedArr != null) {
                     for (i in 0 until allowedArr.length()) {
-                        allowedArr.optString(i)?.takeIf { it.isNotBlank() }?.let { allowedModes.add(it) }
+                        allowedArr.optString(i)
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { normalizeLaunchMode(it) }
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { allowedModes.add(it) }
                     }
                 }
+                if (allowedModes.isEmpty()) {
+                    allowedModes.add("headless")
+                    allowedModes.add("virtual_display")
+                }
                 LaunchModeContract(
-                    preferredMode = modeJson.optString("preferred_mode", ""),
-                    recommendedMode = modeJson.optString("recommended_mode", ""),
-                    allowedModes = allowedModes,
+                    preferredMode = normalizeLaunchMode(modeJson.optString("preferred_mode", "")),
+                    recommendedMode = normalizeLaunchMode(modeJson.optString("recommended_mode", "")),
+                    allowedModes = allowedModes.toList(),
                     modeReason = modeJson.optString("mode_reason", "")
                 )
             }
