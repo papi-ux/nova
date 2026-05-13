@@ -1,0 +1,7 @@
+Nova 1.0.5
+
+- Merges adaptive bitrate into AI Auto Quality.
+- Adds richer Polaris sync and applied settings feedback.
+- Improves the stream HUD with target FPS, 1% lows, pacing, and Auto Quality status.
+- Adds per-game AI profile clearing from Nova.
+- Polishes the handheld library, quick menu, sync, reconnect, and lock-screen flows.

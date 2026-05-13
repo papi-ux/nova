@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.5 - 2026-05-13
+
+- Merged adaptive bitrate into Nova's AI Auto Quality controls so users have one primary quality automation surface.
+- Added richer Polaris launch sync, applied settings reporting, presentation status, and stream policy feedback.
+- Improved the in-stream HUD with target FPS, 1% low FPS, pacing/host-limit indicators, Auto Quality state, and optimizer sync status.
+- Added per-game profile controls, including clearing learned AI profile data from Nova.
+- Improved Polaris-backed library, quick-menu, sync sheet, reconnect, and lock-screen flows for handheld use.
+
 ## 1.0.3 - 2026-05-09
 
 - Added manual Wake-on-LAN MAC entry for hosts that do not report a MAC address.

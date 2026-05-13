@@ -14,6 +14,7 @@ data class PolarisClientSettings(
         val streamDisplayModeReason: String = "",
         val displayMode: String = "",
         val targetBitrateKbps: Int = 0,
+        val aiAutoQualityEnabled: Boolean = false,
         val adaptiveBitrateEnabled: Boolean = false,
         val aiOptimizerEnabled: Boolean = false,
         val disconnectResumeTimeoutSeconds: Int = 300
@@ -25,6 +26,7 @@ data class PolarisClientSettings(
         val streamDisplayModeReason: String = "",
         val displayMode: String = "",
         val targetBitrateKbps: Int = 0,
+        val aiAutoQualityEnabled: Boolean = false,
         val adaptiveBitrateEnabled: Boolean = false,
         val adaptiveTargetBitrateKbps: Int = 0,
         val aiOptimizerEnabled: Boolean = false,
@@ -37,6 +39,7 @@ data class PolarisClientSettings(
         val modes: List<ModeOption> = emptyList(),
         val displayModeOverride: Boolean = false,
         val targetBitrateOverride: Boolean = false,
+        val aiAutoQualityControl: Boolean = false,
         val adaptiveBitrateControl: Boolean = false,
         val aiOptimizerControl: Boolean = false,
         val disconnectResumeTimeoutControl: Boolean = false

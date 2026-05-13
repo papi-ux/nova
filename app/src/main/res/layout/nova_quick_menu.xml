@@ -171,7 +171,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
-                    android:text="Stream Tuning"
+                    android:text="Auto Quality"
                     android:textColor="@color/nova_text_muted"
                     android:textSize="12sp" />
 
@@ -198,7 +198,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Stability Mode"
+                            android:text="Auto Quality"
                             android:textColor="@color/nova_text_primary"
                             android:textSize="14sp" />
 
@@ -207,7 +207,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Safer live fallback"
+                            android:text="Watching stream quality"
                             android:textColor="@color/nova_text_muted"
                             android:textSize="10sp" />
                     </LinearLayout>
@@ -219,7 +219,7 @@
                 </LinearLayout>
 
                 <LinearLayout
-                    android:id="@+id/toggle_adaptive_bitrate"
+                    android:id="@+id/action_bidirectional_sync"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
@@ -241,33 +241,34 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Adaptive Bitrate"
+                            android:text="Sync Status"
                             android:textColor="@color/nova_text_primary"
                             android:textSize="14sp" />
 
                         <TextView
-                            android:id="@+id/adaptive_bitrate_caption"
+                            android:id="@+id/bidirectional_sync_caption"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="live network response"
+                            android:text="Nova and Polaris profile match"
                             android:textColor="@color/nova_text_muted"
                             android:textSize="10sp" />
                     </LinearLayout>
 
                     <TextView
-                        android:id="@+id/adaptive_bitrate_state"
+                        android:id="@+id/bidirectional_sync_state"
                         style="@style/NovaQuickMenuState"
-                        android:text="Off" />
+                        android:text="Checking" />
                 </LinearLayout>
 
                 <LinearLayout
-                    android:id="@+id/toggle_ai_optimizer"
+                    android:id="@+id/action_advanced_tuning"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:minHeight="52dp"
+                    android:layout_marginTop="8dp"
                     android:background="?attr/selectableItemBackground"
                     android:gravity="center_vertical"
+                    android:minHeight="52dp"
                     android:orientation="horizontal"
                     android:paddingTop="6dp"
                     android:paddingBottom="6dp"
@@ -283,66 +284,117 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="AI Optimizer"
+                            android:text="Advanced Tuning"
                             android:textColor="@color/nova_text_primary"
                             android:textSize="14sp" />
 
                         <TextView
-                            android:id="@+id/ai_optimizer_caption"
+                            android:id="@+id/advanced_tuning_caption"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="next launch"
+                            android:text="Manual bitrate, AI, and host tools"
                             android:textColor="@color/nova_text_muted"
                             android:textSize="10sp" />
                     </LinearLayout>
 
                     <TextView
-                        android:id="@+id/ai_optimizer_state"
+                        android:id="@+id/advanced_tuning_state"
                         style="@style/NovaQuickMenuState"
-                        android:text="Off" />
+                        android:text="Show" />
                 </LinearLayout>
 
                 <LinearLayout
-                    android:id="@+id/toggle_mangohud"
+                    android:id="@+id/advanced_tuning_group"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:minHeight="52dp"
-                    android:background="?attr/selectableItemBackground"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingTop="6dp"
-                    android:paddingBottom="6dp"
-                    android:paddingStart="2dp"
-                    android:paddingEnd="2dp">
+                    android:orientation="vertical"
+                    android:visibility="gone">
 
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:id="@+id/toggle_ai_optimizer"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:layout_marginTop="8dp"
+                        android:minHeight="52dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:paddingStart="2dp"
+                        android:paddingEnd="2dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="AI Auto Quality"
+                                android:textColor="@color/nova_text_primary"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:id="@+id/ai_optimizer_caption"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="balancing FPS, bitrate, and smoothness"
+                                android:textColor="@color/nova_text_muted"
+                                android:textSize="10sp" />
+                        </LinearLayout>
 
                         <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="MangoHud"
-                            android:textColor="@color/nova_text_primary"
-                            android:textSize="14sp" />
-
-                        <TextView
-                            android:id="@+id/mangohud_caption"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="@string/nova_mangohud_quick_menu_caption_default"
-                            android:textColor="@color/nova_text_muted"
-                            android:textSize="10sp" />
+                            android:id="@+id/ai_optimizer_state"
+                            style="@style/NovaQuickMenuState"
+                            android:text="Off" />
                     </LinearLayout>
 
-                    <TextView
-                        android:id="@+id/mangohud_state"
-                        style="@style/NovaQuickMenuState"
-                        android:text="Queued" />
+                    <LinearLayout
+                        android:id="@+id/toggle_mangohud"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="52dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:paddingStart="2dp"
+                        android:paddingEnd="2dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="MangoHud"
+                                android:textColor="@color/nova_text_primary"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:id="@+id/mangohud_caption"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/nova_mangohud_quick_menu_caption_default"
+                                android:textColor="@color/nova_text_muted"
+                                android:textSize="10sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/mangohud_state"
+                            style="@style/NovaQuickMenuState"
+                            android:text="Queued" />
+                    </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
 
@@ -451,11 +503,10 @@
                     android:paddingEnd="2dp">
 
                     <TextView
-                        android:id="@+id/mouse_mode_title"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/nova_quick_menu_touch_mouse_title"
+                        android:text="Mouse"
                         android:textColor="@color/nova_text_primary"
                         android:textSize="14sp" />
 

@@ -155,6 +155,24 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:text="| "
+        android:textSize="10sp"
+        android:textColor="#44c8d6e5"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:id="@+id/hud_autopilot"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="READY"
+        android:textSize="9sp"
+        android:textColor="#FF4ade80"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:text=" | "
         android:textSize="10sp"
         android:textColor="#44c8d6e5"

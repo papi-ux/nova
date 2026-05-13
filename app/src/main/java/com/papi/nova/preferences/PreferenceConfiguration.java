@@ -72,8 +72,6 @@ public class PreferenceConfiguration {
     private static final String LEGACY_DISABLE_FRAME_DROP_PREF_STRING = "checkbox_disable_frame_drop";
     private static final String ENABLE_HDR_PREF_STRING = "checkbox_enable_hdr";
     private static final String ENABLE_PIP_PREF_STRING = "checkbox_enable_pip";
-    private static final String KEEP_STREAM_ALIVE_PREF_STRING = "nova_keep_stream_alive";
-    private static final String DISCONNECT_RESUME_TIMEOUT_PREF_STRING = "nova_disconnect_resume_timeout_seconds";
     private static final String ENABLE_PERF_OVERLAY_STRING = "checkbox_enable_perf_overlay";
     private static final String ENABLE_PERF_LOGGING = "checkbox_enable_perf_logging";
     private static final String BIND_ALL_USB_STRING = "checkbox_usb_bind_all";
@@ -170,8 +168,6 @@ public class PreferenceConfiguration {
     private static final boolean SHOW_GUIDE_BUTTON_DEFAULT = true;
     private static final boolean DEFAULT_ENABLE_HDR = false;
     private static final boolean DEFAULT_ENABLE_PIP = false;
-    private static final boolean DEFAULT_KEEP_STREAM_ALIVE = true;
-    private static final int DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS = 300;
     private static final boolean DEFAULT_ENABLE_PERF_OVERLAY = false;
     private static final boolean DEFAULT_PERF_OVERLAY_BOTTOM = false;
     private static final boolean DEFAULT_ENABLE_PERF_LOGGING = false;
@@ -273,8 +269,6 @@ public class PreferenceConfiguration {
     public boolean showGuideButton;
     public boolean enableHdr;
     public boolean enablePip;
-    public boolean keepStreamAlive;
-    public int disconnectResumeTimeoutSeconds;
 
     public boolean enablePerfOverlay;
     public boolean enablePerfLogging;
@@ -495,69 +489,6 @@ public class PreferenceConfiguration {
         }
     }
 
-    private static String formatFpsValue(float fps) {
-        int rounded = Math.round(fps);
-        if (Math.abs(fps - rounded) < 0.01f) {
-            return Integer.toString(rounded);
-        }
-        return String.format(Locale.US, "%.3f", fps)
-                .replaceAll("0+$", "")
-                .replaceAll("\\.$", "");
-    }
-
-    public static String formatStreamingDisplayMode(int width, int height, float fps) {
-        return width + "x" + height + "x" + formatFpsValue(fps);
-    }
-
-    public static String formatCurrentStreamingDisplayMode(Context context) {
-        PreferenceConfiguration config = readPreferences(context);
-        return formatStreamingDisplayMode(config.width, config.height, config.fps);
-    }
-
-    public static boolean applyPolarisStreamingProfile(Context context, String displayMode, int bitrateKbps) {
-        SharedPreferences prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context);
-        SharedPreferences.Editor editor = prefs.edit();
-        boolean changed = false;
-
-        if (displayMode != null && !displayMode.trim().isEmpty()) {
-            String[] segments = displayMode.trim().split("x");
-            if (segments.length != 3) {
-                return false;
-            }
-
-            try {
-                int width = Integer.parseInt(segments[0]);
-                int height = Integer.parseInt(segments[1]);
-                float fps = Float.parseFloat(segments[2]);
-                if (width <= 0 || height <= 0 || fps <= 0f) {
-                    return false;
-                }
-
-                String resolution = width + "x" + height;
-                String fpsValue = formatFpsValue(fps);
-                editor.putString(CUSTOM_RESOLUTION_PREF_STRING, resolution);
-                editor.putString(RESOLUTION_PREF_STRING, resolution);
-                editor.putString(CUSTOM_REFRESH_RATE_PREF_STRING, fpsValue);
-                editor.putString(FPS_PREF_STRING, fpsValue);
-                changed = true;
-            } catch (NumberFormatException e) {
-                return false;
-            }
-        }
-
-        if (bitrateKbps > 0) {
-            editor.putInt(BITRATE_PREF_STRING, bitrateKbps);
-            changed = true;
-        }
-
-        if (!changed) {
-            return false;
-        }
-
-        editor.apply();
-        return true;
-    }
-
     public static int getDefaultBitrate(String resString, String fpsString) {
         int width = getWidthFromResolutionString(resString);
         int height = getHeightFromResolutionString(resString);
@@ -700,7 +631,7 @@ public class PreferenceConfiguration {
         return prefs.getString(FRAME_PACING_PREF_STRING, DEFAULT_FRAME_PACING);
     }
 
-    
+
     public static boolean getPreferLowerDelays(Context context) {
         SharedPreferences prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context);
         // default true: favor lower delay unless user opts out
@@ -766,6 +697,83 @@ private static int getFramePacingValue(Context context) {
                 .remove(UNLOCK_FPS_STRING)
                 .remove(FULL_RANGE_PREF_STRING)
                 .apply();
+    }
+
+    public static String formatStreamingDisplayMode(int width, int height, float fps) {
+        return width + "x" + height + "x" + formatFpsValue(fps);
+    }
+
+    public static String formatCurrentStreamingDisplayMode(Context context) {
+        PreferenceConfiguration config = readPreferences(context);
+        return formatStreamingDisplayMode(config.width, config.height, config.fps);
+    }
+
+    public static boolean applyPolarisStreamingProfile(Context context, String displayMode, int bitrateKbps) {
+        ParsedDisplayMode mode = parseStreamingDisplayMode(displayMode);
+        if (mode == null && bitrateKbps <= 0) {
+            return false;
+        }
+
+        SharedPreferences.Editor editor = ProfilesManager.getInstance()
+                .getOverlayingSharedPreferences(context)
+                .edit();
+        if (mode != null) {
+            editor.putString(RESOLUTION_PREF_STRING, mode.width + "x" + mode.height);
+            editor.putString(FPS_PREF_STRING, formatFpsValue(mode.fps));
+        }
+        if (bitrateKbps > 0) {
+            editor.putInt(BITRATE_PREF_STRING, bitrateKbps);
+        }
+        editor.apply();
+        return true;
+    }
+
+    private static String formatFpsValue(float fps) {
+        int rounded = Math.round(fps);
+        if (Math.abs(fps - rounded) < 0.01f) {
+            return String.valueOf(rounded);
+        }
+        return String.format(Locale.US, "%.2f", fps);
+    }
+
+    private static ParsedDisplayMode parseStreamingDisplayMode(String displayMode) {
+        if (displayMode == null || displayMode.trim().isEmpty()) {
+            return null;
+        }
+
+        String normalized = displayMode.trim()
+                .replace("@", "x")
+                .replace("Hz", "")
+                .replace("hz", "")
+                .replace(" ", "");
+        String[] parts = normalized.split("[xX]");
+        if (parts.length < 3) {
+            return null;
+        }
+
+        try {
+            int width = Integer.parseInt(parts[0]);
+            int height = Integer.parseInt(parts[1]);
+            float fps = Float.parseFloat(parts[2]);
+            if (width <= 0 || height <= 0 || fps <= 0) {
+                return null;
+            }
+            return new ParsedDisplayMode(width, height, fps);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static final class ParsedDisplayMode {
+        final int width;
+        final int height;
+        final float fps;
+
+        ParsedDisplayMode(int width, int height, float fps) {
+            this.width = width;
+            this.height = height;
+            this.fps = fps;
+        }
     }
 
 //    public static void completeLanguagePreferenceMigration(Context context) {
@@ -997,16 +1005,6 @@ private static int getFramePacingValue(Context context) {
         config.showGuideButton = prefs.getBoolean(SHOW_GUIDE_BUTTON_PREF_STRING, SHOW_GUIDE_BUTTON_DEFAULT);
         config.enableHdr = prefs.getBoolean(ENABLE_HDR_PREF_STRING, DEFAULT_ENABLE_HDR) && !isShieldAtvFirmwareWithBrokenHdr();
         config.enablePip = prefs.getBoolean(ENABLE_PIP_PREF_STRING, DEFAULT_ENABLE_PIP);
-        config.keepStreamAlive = prefs.getBoolean(KEEP_STREAM_ALIVE_PREF_STRING, DEFAULT_KEEP_STREAM_ALIVE);
-        try {
-            config.disconnectResumeTimeoutSeconds = Integer.parseInt(
-                    prefs.getString(DISCONNECT_RESUME_TIMEOUT_PREF_STRING, String.valueOf(DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS)));
-        } catch (NumberFormatException e) {
-            config.disconnectResumeTimeoutSeconds = DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS;
-        }
-        if (config.disconnectResumeTimeoutSeconds < 0 || config.disconnectResumeTimeoutSeconds > 24 * 60 * 60) {
-            config.disconnectResumeTimeoutSeconds = DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS;
-        }
         config.enablePerfOverlay = prefs.getBoolean(ENABLE_PERF_OVERLAY_STRING, DEFAULT_ENABLE_PERF_OVERLAY);
         config.enablePerfLogging = prefs.getBoolean(ENABLE_PERF_LOGGING, DEFAULT_ENABLE_PERF_LOGGING);
         config.enablePerfOverlayLite = prefs.getBoolean("checkbox_enable_perf_overlay_lite",DEFAULT_ENABLE_PERF_OVERLAY);

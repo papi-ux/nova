@@ -58,7 +58,8 @@ class PolarisSettingsSyncManager(
         targetBitrateKbps: Int? = null,
         clearTargetBitrate: Boolean = false,
         adaptiveBitrateEnabled: Boolean? = null,
-        aiOptimizerEnabled: Boolean? = null
+        aiOptimizerEnabled: Boolean? = null,
+        aiAutoQualityEnabled: Boolean? = null
     ) {
         submit {
             apiClient.updateClientSettings(
@@ -68,7 +69,8 @@ class PolarisSettingsSyncManager(
                 targetBitrateKbps = targetBitrateKbps,
                 clearTargetBitrate = clearTargetBitrate,
                 adaptiveBitrateEnabled = adaptiveBitrateEnabled,
-                aiOptimizerEnabled = aiOptimizerEnabled
+                aiOptimizerEnabled = aiOptimizerEnabled,
+                aiAutoQualityEnabled = aiAutoQualityEnabled
             )
         }
     }

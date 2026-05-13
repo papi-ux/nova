@@ -1,5 +1,7 @@
 package com.papi.nova.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -9,7 +11,6 @@ import android.text.TextWatcher
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
-import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -31,7 +32,6 @@ import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisGame
-import com.papi.nova.manager.PolarisSettingsSyncManager
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.utils.ServerHelper
@@ -69,9 +69,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     private var streamPcName: String = ""
     private var streamServerCommands: ArrayList<String>? = null
     private var streamServerCert: ByteArray? = null
-    private var settingsSync: PolarisSettingsSyncManager? = null
-    private var currentClientSettings: PolarisClientSettings? = null
-    private var tvInitialFocusRequested = false
+    private var clientSettings: PolarisClientSettings? = null
 
     companion object {
         const val EXTRA_HOST = "host"
@@ -88,7 +86,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_nova_library)
-        UiHelper.notifyNewRootView(this)
         applyHeaderInsets()
         if (savedInstanceState != null) {
             dismissOpenGameDetail()
@@ -110,9 +107,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         streamServerCert = intent.getByteArrayExtra(EXTRA_SERVER_CERT)
 
         apiClient = PolarisApiClient(this, host, httpsPort, streamServerCert)
-        settingsSync = PolarisSettingsSyncManager(apiClient) { settings ->
-            currentClientSettings = settings
-        }.also { it.start(immediate = true) }
 
         // Enable dense particles (nebulae + shooting stars) for library
         findViewById<SpaceParticleView>(R.id.space_particles_dense)?.dense = true
@@ -133,15 +127,11 @@ class NovaLibraryActivity : AppCompatActivity() {
             getString(R.string.nova_library_server_context, serverName)
         }
 
-        val columns = if (UiHelper.isTvDevice(this)) {
-            (resources.configuration.screenWidthDp / 230).coerceIn(4, 6)
-        } else {
-            when (resources.configuration.screenWidthDp) {
-                in 960..Int.MAX_VALUE -> 5
-                in 720..959 -> 4
-                in 600..719 -> 3
-                else -> 2
-            }
+        val columns = when (resources.configuration.screenWidthDp) {
+            in 960..Int.MAX_VALUE -> 5
+            in 720..959 -> 4
+            in 600..719 -> 3
+            else -> 2
         }
         gameGrid.layoutManager = GridLayoutManager(this, columns)
 
@@ -155,9 +145,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         // Swipe to refresh
         swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.nova_accent))
         swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.nova_bg_elevated))
-        if (UiHelper.isTvDevice(this)) {
-            swipeRefresh.isEnabled = false
-        }
         swipeRefresh.setOnRefreshListener {
             swipeRefresh.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             loadGames()
@@ -172,9 +159,10 @@ class NovaLibraryActivity : AppCompatActivity() {
             v.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
             loadGames()
         }
-        findViewById<MaterialButton>(R.id.nova_library_polaris_sync).setOnClickListener { v ->
-            v.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-            showPolarisSync()
+
+        findViewById<MaterialButton>(R.id.nova_library_manage).setOnClickListener { v ->
+            v.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+            openServerManagement()
         }
 
         // Search
@@ -193,15 +181,8 @@ class NovaLibraryActivity : AppCompatActivity() {
         setupFilterTab(R.id.filter_all, "")
         setupFilterTab(R.id.filter_recent, "recent")
         setupFilterTab(R.id.filter_steam, "steam")
-        setupFilterTab(R.id.filter_lutris, "lutris")
-        setupFilterTab(R.id.filter_heroic, "heroic")
-        setupFilterTab(R.id.filter_linux, "linux")
-        setupFilterTab(R.id.filter_windows, "windows")
-        setupFilterTab(R.id.filter_proton, "proton")
-        setupFilterTab(R.id.filter_wine, "wine")
         setupFilterTab(R.id.filter_action, "fast_action")
         setupFilterTab(R.id.filter_cinematic, "cinematic")
-        setupTvNavigation()
 
         // Retry button
         findViewById<MaterialButton>(R.id.nova_empty_retry).setOnClickListener { loadGames() }
@@ -221,7 +202,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 val child = tabContainer.getChildAt(i)
                 child.setBackgroundResource(
                     if (child.id == id) R.drawable.nova_chip_selected
-                    else R.drawable.nova_chip_default
+                    else 0 // transparent — style handles default
                 )
             }
             filterGames(searchBar.text.toString())
@@ -239,7 +220,18 @@ class NovaLibraryActivity : AppCompatActivity() {
             swipeRefresh.isRefreshing = true
         }
         lifecycleScope.launch {
-            val games = withContext(Dispatchers.IO) { apiClient.getGames(limit = 100) }
+            val result = withContext(Dispatchers.IO) {
+                val games = apiClient.getGames(limit = 100)
+                val settings = try {
+                    apiClient.getClientSettings()
+                } catch (e: Exception) {
+                    LimeLog.warning("Nova: Failed to load Polaris client settings for library launch modes: ${e.message}")
+                    null
+                }
+                games to settings
+            }
+            val games = result.first
+            result.second?.let { clientSettings = it }
             apiClient.clearCoverCache()
             allGames = games
             updateLibraryStats()
@@ -263,46 +255,12 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupTvNavigation() {
-        if (!UiHelper.isTvDevice(this)) return
-
-        gameGrid.isFocusable = true
-        gameGrid.isFocusableInTouchMode = false
-        gameGrid.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
-        searchBar.isFocusableInTouchMode = false
-
-        intArrayOf(
-            R.id.nova_library_back,
-            R.id.nova_library_refresh,
-            R.id.nova_library_polaris_sync,
-            R.id.filter_all,
-            R.id.filter_recent,
-            R.id.filter_steam,
-            R.id.filter_lutris,
-            R.id.filter_heroic,
-            R.id.filter_linux,
-            R.id.filter_windows,
-            R.id.filter_proton,
-            R.id.filter_wine,
-            R.id.filter_action,
-            R.id.filter_cinematic,
-            R.id.nova_empty_retry
-        ).forEach { id ->
-            findViewById<View>(id)?.let { UiHelper.applyTvFocusStyle(it) }
-        }
-    }
-
     private fun filterGames(search: String, forceCoverRefresh: Boolean = false) {
         var filtered = allGames
 
         // Text search
         if (search.isNotEmpty()) {
-            filtered = filtered.filter { game ->
-                game.name.contains(search, ignoreCase = true) ||
-                    game.sourceRuntimeLabel.contains(search, ignoreCase = true) ||
-                    game.categoryLabel.contains(search, ignoreCase = true) ||
-                    game.genres.any { it.contains(search, ignoreCase = true) }
-            }
+            filtered = filtered.filter { it.name.contains(search, ignoreCase = true) }
         }
 
         // "Recent" sort — show only played games, sorted by most recent
@@ -311,12 +269,9 @@ class NovaLibraryActivity : AppCompatActivity() {
                 .filter { it.lastLaunched > 0 }
                 .sortedByDescending { it.lastLaunched }
         } else if (currentFilter.isNotEmpty()) {
-            // Category/source/platform/runtime filter
+            // Category/source filter
             filtered = filtered.filter {
-                it.effectiveSource == currentFilter ||
-                    it.category == currentFilter ||
-                    it.platform == currentFilter ||
-                    it.runtime == currentFilter
+                it.source == currentFilter || it.category == currentFilter
             }
         }
 
@@ -327,26 +282,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         resultsSummary.text = getString(R.string.nova_library_results_format, filtered.size)
         updateEmptyState(search)
         emptyText.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
-        requestInitialTvLibraryFocus(filtered.isEmpty())
-    }
-
-    private fun requestInitialTvLibraryFocus(isEmpty: Boolean) {
-        if (!UiHelper.isTvDevice(this) || tvInitialFocusRequested) return
-
-        tvInitialFocusRequested = true
-        if (isEmpty) {
-            UiHelper.requestInitialTvFocus(this, findViewById(R.id.nova_empty_retry))
-            return
-        }
-
-        gameGrid.postDelayed({
-            val firstCard = gameGrid.findViewHolderForAdapterPosition(0)?.itemView
-            if (firstCard != null && firstCard.isShown) {
-                firstCard.requestFocus()
-            } else {
-                gameGrid.requestFocus()
-            }
-        }, 140L)
     }
 
     private fun updateLibraryStats() {
@@ -382,8 +317,6 @@ class NovaLibraryActivity : AppCompatActivity() {
     // Filter tab IDs in order for bumper switching
     private val filterTabIds = listOf(
         R.id.filter_all, R.id.filter_recent, R.id.filter_steam,
-        R.id.filter_lutris, R.id.filter_heroic, R.id.filter_linux,
-        R.id.filter_windows, R.id.filter_proton, R.id.filter_wine,
         R.id.filter_action, R.id.filter_cinematic
     )
     private var activeTabIndex = 0
@@ -408,35 +341,15 @@ class NovaLibraryActivity : AppCompatActivity() {
     private fun showGameDetail(game: PolarisGame) {
         dismissOpenGameDetail()
         val defaultToVirtualDisplay = PreferenceConfiguration.readPreferences(this).useVirtualDisplay
-        settingsSync?.refresh()
-        val sheet = NovaGameDetailSheet.newInstance(game, apiClient, defaultToVirtualDisplay, currentClientSettings) { g, mode ->
-            launchGame(g, mode)
+        val sheet = NovaGameDetailSheet.newInstance(game, apiClient, defaultToVirtualDisplay, clientSettings) { g, withVirtualDisplay ->
+            launchGame(g, withVirtualDisplay)
         }
         sheet.show(supportFragmentManager, "game_detail")
     }
 
-    private fun showPolarisSync() {
-        dismissOpenGameDetail()
-        (supportFragmentManager.findFragmentByTag("polaris_sync") as? BottomSheetDialogFragment)
-            ?.dismissAllowingStateLoss()
-        settingsSync?.refresh()
-        val label = streamPcName.ifBlank { streamHost }
-        NovaPolarisSyncSheet.newInstance(apiClient, label, streamPcUuid, currentClientSettings) { settings ->
-            currentClientSettings = settings
-        }.show(supportFragmentManager, "polaris_sync")
-    }
-
     override fun onStop() {
         dismissOpenGameDetail()
-        (supportFragmentManager.findFragmentByTag("polaris_sync") as? BottomSheetDialogFragment)
-            ?.dismissAllowingStateLoss()
         super.onStop()
-    }
-
-    override fun onDestroy() {
-        settingsSync?.close()
-        settingsSync = null
-        super.onDestroy()
     }
 
     private fun dismissOpenGameDetail() {
@@ -466,7 +379,18 @@ class NovaLibraryActivity : AppCompatActivity() {
         header.requestApplyInsets()
     }
 
-    private fun launchGame(game: PolarisGame, streamDisplayMode: String) {
+    private fun openServerManagement() {
+        val managementPort = if (streamHttpPort > 0) streamHttpPort + 1 else 47990
+        val url = "https://$streamHost:$managementPort"
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Failed to open Polaris management page $url: ${e.message}")
+            Toast.makeText(this, R.string.nova_library_manage_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun launchGame(game: PolarisGame, withVirtualDisplay: Boolean) {
         if (game.appId <= 0) {
             Toast.makeText(this, "This game entry is missing a launch ID", Toast.LENGTH_SHORT).show()
             return
@@ -477,9 +401,9 @@ class NovaLibraryActivity : AppCompatActivity() {
             return
         }
 
-        val normalizedMode = normalizeLaunchMode(streamDisplayMode)
-        val withVirtualDisplay = normalizedMode == PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
-        val modeLabel = PolarisClientSettings.labelForMode(normalizedMode).ifBlank {
+        val modeLabel = if (withVirtualDisplay) {
+            getString(R.string.nova_library_launch_virtual_display)
+        } else {
             getString(R.string.nova_library_launch_headless)
         }
         Toast.makeText(this, getString(R.string.nova_library_launching_mode, game.name, modeLabel), Toast.LENGTH_SHORT).show()
@@ -502,13 +426,5 @@ class NovaLibraryActivity : AppCompatActivity() {
             false,
             streamServerCert
         )
-    }
-
-    private fun normalizeLaunchMode(mode: String): String {
-        return when (mode) {
-            "virtual_display" -> PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
-            "headless" -> PolarisClientSettings.MODE_HEADLESS_STREAM
-            else -> mode
-        }
     }
 }

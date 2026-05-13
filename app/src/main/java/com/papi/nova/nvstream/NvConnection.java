@@ -70,7 +70,7 @@ public class NvConnection {
 
         this.isMonkey = ActivityManager.isUserAMonkey();
     }
-    
+
     private static SecretKey generateRiAesKey() {
         try {
             KeyGenerator keyGen = KeyGenerator.getInstance("AES");
@@ -84,7 +84,7 @@ public class NvConnection {
             throw new RuntimeException(e);
         }
     }
-    
+
     private static int generateRiKeyId() {
         return new SecureRandom().nextInt();
     }
@@ -229,13 +229,13 @@ public class NvConnection {
         // If we can't determine the connection type, let moonlight-common-c decide.
         return StreamConfiguration.STREAM_CFG_AUTO;
     }
-    
+
     private boolean startApp() throws XmlPullParserException, IOException
     {
         NvHTTP h = new NvHTTP(context.serverAddress, context.httpsPort, uniqueId, context.serverCert, cryptoProvider);
 
         String serverInfo = h.getServerInfo(true);
-        
+
         context.serverAppVersion = h.getServerVersion(serverInfo);
         if (context.serverAppVersion == null) {
             context.connListener.displayMessage("Server version malformed");
@@ -249,7 +249,7 @@ public class NvConnection {
 
         // May be missing for older servers
         context.serverGfeVersion = h.getGfeVersion(serverInfo);
-                
+
         if (h.getPairState(serverInfo) != PairingManager.PairState.PAIRED) {
             context.connListener.displayMessage("Device not paired with computer");
             return false;
@@ -265,11 +265,11 @@ public class NvConnection {
             context.connListener.displayTransientMessage("Your PC GPU does not support streaming HDR. The stream will be SDR.");
             context.negotiatedHdr = false;
         }
-        
+
         //
         // Decide on negotiated stream parameters now
         //
-        
+
         // Check for a supported stream resolution
         if ((context.streamConfig.getWidth() > 4096 || context.streamConfig.getHeight() > 4096) &&
                 (h.getServerCodecModeSupport(serverInfo) & 0x200) == 0 && context.isNvidiaServerSoftware) {
@@ -284,7 +284,7 @@ public class NvConnection {
         else if (context.streamConfig.getHeight() >= 2160 && !h.supports4K(serverInfo)) {
             // Client wants 4K but the server can't do it
             context.connListener.displayTransientMessage("You must update GeForce Experience to stream in 4K. The stream will be 1080p.");
-            
+
             // Lower resolution to 1080p
             context.negotiatedWidth = 1920;
             context.negotiatedHeight = 1080;
@@ -306,13 +306,13 @@ public class NvConnection {
             context.negotiatedRemoteStreaming = context.streamConfig.getRemote();
             context.negotiatedPacketSize = context.streamConfig.getMaxPacketSize();
         }
-        
+
         //
         // Video stream format will be decided during the RTSP handshake
         //
-        
+
         NvApp app = context.streamConfig.getApp();
-        
+
         // If the client did not provide an exact app ID, do a lookup with the applist
         if (!context.streamConfig.getApp().isInitialized()) {
             LimeLog.info("Using deprecated app lookup method - Please specify an app ID in your StreamConfiguration instead");
@@ -322,7 +322,7 @@ public class NvConnection {
                 return false;
             }
         }
-        
+
         // If there's a game running, resume it
         if (h.getCurrentGame(serverInfo) != 0 || (h.getCurrentGameUUID(serverInfo) != null && !h.getCurrentGameUUID(serverInfo).isEmpty())) {
             try {
@@ -338,6 +338,10 @@ public class NvConnection {
                     else if (context.watchOnlyRequested) {
                         context.connListener.displayMessage("This stream is already owned by this device. Resume it instead of watching.");
                         return false;
+                    }
+                    if (context.streamConfig.getForceFreshLaunch()) {
+                        LimeLog.info("Nova: Auto Safe requested fresh launch; replacing paused session instead of resuming");
+                        return quitAndLaunch(h, context);
                     }
                     if (!h.launchApp(context, "resume", app.getAppUUID(), app.getAppId(), context.negotiatedHdr, context.watchOnlyRequested)) {
                         context.connListener.displayMessage(context.watchOnlyRequested ?
@@ -388,7 +392,7 @@ public class NvConnection {
                     throw e;
                 }
             }
-            
+
             LimeLog.info("Resumed existing game session");
             return true;
         }
@@ -419,7 +423,7 @@ public class NvConnection {
             if (!h.quitApp(context.sessionToken)) {
                 context.connListener.displayMessage("Failed to quit previous session! You must quit it manually");
                 return false;
-            } 
+            }
         } catch (HostHttpResponseException e) {
             if (e.getErrorCode() == 470 || e.getErrorCode() == 599) {
                 context.connListener.displayMessage("This session wasn't started by this device," +
@@ -438,7 +442,7 @@ public class NvConnection {
     public String getSessionToken() {
         return context.sessionToken;
     }
-    
+
     private boolean launchNotRunningApp(NvHTTP h, ConnectionContext context)
             throws IOException, XmlPullParserException {
         if (context.watchOnlyRequested) {
@@ -462,9 +466,9 @@ public class NvConnection {
             context.connListener.displayMessage("Failed to launch application");
             return false;
         }
-        
+
         LimeLog.info("Launched new game session");
-        
+
         return true;
     }
 
@@ -573,7 +577,7 @@ public class NvConnection {
             MoonBridge.sendExecServerCmd(cmdId);
         }
     }
-    
+
     public void sendMouseMove(final short deltaX, final short deltaY)
     {
         if (!isMonkey) {
@@ -601,14 +605,14 @@ public class NvConnection {
             MoonBridge.sendMouseButton(MouseButtonPacket.PRESS_EVENT, mouseButton);
         }
     }
-    
+
     public void sendMouseButtonUp(final byte mouseButton)
     {
         if (!isMonkey) {
             MoonBridge.sendMouseButton(MouseButtonPacket.RELEASE_EVENT, mouseButton);
         }
     }
-    
+
     public void sendControllerInput(final short controllerNumber,
             final short activeGamepadMask, final int buttonFlags,
             final byte leftTrigger, final byte rightTrigger,
@@ -626,7 +630,7 @@ public class NvConnection {
             MoonBridge.sendKeyboardInput(keyMap, keyDirection, modifier, flags);
         }
     }
-    
+
     public void sendMouseScroll(final byte scrollClicks) {
         if (!isMonkey) {
             MoonBridge.sendMouseHighResScroll((short)(scrollClicks * 120)); // WHEEL_DELTA

@@ -46,6 +46,8 @@ class LockScreenOverlay(
                 text = "Tap to Unlock"
                 textSize = 18f
                 setOnClickListener {
+                    isEnabled = false
+                    text = "Unlocking..."
                     Thread {
                         val unlocked = try {
                             LimeLog.info("Nova: Requesting unlock...")
@@ -56,10 +58,13 @@ class LockScreenOverlay(
                         }
 
                         activity.runOnUiThread {
-                            if (!unlocked) {
+                            if (unlocked) {
+                                dismiss()
+                            } else {
+                                isEnabled = true
+                                text = "Tap to Unlock"
                                 Toast.makeText(activity, "Unlock request failed", Toast.LENGTH_SHORT).show()
                             }
-                            // The SSE/session poll path will dismiss this when the server reports unlocked.
                         }
                     }.start()
                 }
@@ -81,12 +86,20 @@ class LockScreenOverlay(
 
     fun dismiss() {
         activity.runOnUiThread {
-            overlayView?.let { view ->
-                val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
-                rootView.removeView(view)
+            val view = overlayView
+            overlayView = null
+            view?.let {
+                safeRemoveFromParent(it)
                 LimeLog.info("Nova: Lock screen overlay dismissed")
             }
-            overlayView = null
+        }
+    }
+
+    private fun safeRemoveFromParent(view: View) {
+        val parent = view.parent as? ViewGroup ?: return
+        parent.post {
+            val currentParent = view.parent as? ViewGroup
+            currentParent?.removeView(view)
         }
     }
 

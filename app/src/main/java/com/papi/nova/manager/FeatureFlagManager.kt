@@ -26,30 +26,58 @@ object FeatureFlagManager {
     val hasGameLibrary: Boolean get() = capabilities?.features?.gameLibrary == true
     val hasSessionLifecycle: Boolean get() = capabilities?.features?.sessionLifecycle == true
     val hasDeviceProfiles: Boolean get() = capabilities?.features?.deviceProfiles == true
+    val hasStreamPolicy: Boolean get() = capabilities?.features?.streamPolicy == true
     val hasClientSettings: Boolean get() = capabilities?.features?.clientSettings == true
+    val hasOptimizerSync: Boolean get() = capabilities?.features?.optimizerSync == true
     val hasLockScreenControl: Boolean get() = capabilities?.features?.lockScreenControl == true
     val hasCursorVisibilityControl: Boolean get() = capabilities?.features?.cursorVisibilityControl == true
-    val hasDisconnectResume: Boolean get() = capabilities?.features?.disconnectResume == true
 
     // Capture info
     val captureBackend: String get() = capabilities?.capture?.backend ?: ""
     val supportedCodecs: List<String> get() = capabilities?.capture?.codecs ?: emptyList()
 
     /**
-     * Probe the server for Polaris capabilities.
-     * Call this after the standard Moonlight NVHTTP handshake succeeds.
-     * Safe to call from any thread (OkHttp handles threading).
-     */
+	 * Probe the server for Polaris capabilities.
+	 * Call this after the standard Moonlight NVHTTP handshake succeeds.
+	 * Performs network I/O; call from a background thread.
+	 */
     fun probe(client: PolarisApiClient) {
         capabilities = client.getCapabilities()
+        if (capabilities == null) {
+            capabilities = client.getSessionStatus()?.let {
+                LimeLog.info("Nova: Polaris session API detected; using session-status feature fallback")
+                PolarisCapabilities(
+                    server = "polaris",
+                    version = "",
+                    features = PolarisCapabilities.Features(
+                        aiOptimizer = it.aiOptimizerEnabled || it.tuning.aiOptimizerEnabled,
+                        aiAutoQuality = it.aiAutoQualityEnabled || it.tuning.aiAutoQualityEnabled ||
+                            it.aiOptimizerEnabled || it.adaptiveBitrateEnabled,
+                        aiAutoQualityControl = true,
+                        aiOptimizerControl = true,
+                        adaptiveBitrateControl = true,
+                        sessionLifecycle = true,
+                        streamPolicy = true,
+                        clientSettings = true,
+                        optimizerSync = true,
+                        cursorVisibilityControl = true,
+                        lockScreenControl = true
+                    ),
+                    capture = PolarisCapabilities.CaptureInfo(
+                        backend = it.capture.backend,
+                        compositor = it.displayMode.selection,
+                        codecs = listOfNotNull(it.encoder.codec.takeIf { codec -> codec.isNotBlank() })
+                    )
+                )
+            }
+        }
 
         if (isPolarisServer) {
             LimeLog.info("Nova: Polaris server detected — v$serverVersion")
             LimeLog.info("Nova: Features: AI=${hasAiOptimizer} GameLib=${hasGameLibrary} " +
                 "AIControl=${hasAiOptimizerControl} Adaptive=${hasAdaptiveBitrateControl} " +
                 "Session=${hasSessionLifecycle} Devices=${hasDeviceProfiles} Lock=${hasLockScreenControl} " +
-                "Cursor=${hasCursorVisibilityControl} ClientSettings=${hasClientSettings} " +
-                "DisconnectResume=${hasDisconnectResume}")
+                "Cursor=${hasCursorVisibilityControl} Sync=${hasOptimizerSync}")
             LimeLog.info("Nova: Capture: ${captureBackend}, codecs: ${supportedCodecs}")
         } else {
             LimeLog.info("Nova: Standard Sunshine/Apollo server (no Polaris features)")

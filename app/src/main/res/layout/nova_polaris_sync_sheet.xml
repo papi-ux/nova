@@ -308,27 +308,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/nova_polaris_sync_adaptive_bitrate"
-                    android:textColor="@color/nova_text_primary"
-                    android:textSize="13sp" />
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/polaris_sync_adaptive"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/nova_polaris_sync_ai_optimizer"
+                    android:text="@string/nova_polaris_sync_ai_auto_quality"
                     android:textColor="@color/nova_text_primary"
                     android:textSize="13sp" />
 

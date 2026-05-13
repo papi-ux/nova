@@ -44,6 +44,7 @@ import com.papi.nova.ui.ExternalControllerView;
 import com.papi.nova.ui.GameGestures;
 import com.papi.nova.ui.StreamContainer;
 import com.papi.nova.utils.Dialog;
+import com.papi.nova.utils.DeviceUtils;
 import com.papi.nova.utils.ExternalDisplayControlActivity;
 import com.papi.nova.utils.MouseModeOption;
 import com.papi.nova.utils.PanZoomHandler;
@@ -52,6 +53,8 @@ import com.papi.nova.utils.ServerHelper;
 import com.papi.nova.utils.ShortcutHelper;
 import com.papi.nova.utils.SpinnerDialog;
 import com.papi.nova.utils.UiHelper;
+
+import org.json.JSONObject;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
@@ -145,15 +148,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         OnSystemUiVisibilityChangeListener, GameGestures, StreamContainer.InputCallbacks,
         ExternalControllerView.InputCallbacks,
         PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {
-    private static final String SESSION_END_REASON_DISCONNECT = "disconnect";
-    private static final String SESSION_END_REASON_BACKGROUND_DETACH = "background_detach";
-    private static final String SESSION_END_REASON_END = "end";
-
     public static Game instance;
     public static volatile boolean isStreamActive = false;
 
     private com.papi.nova.ui.NovaStreamHud novaHud;
     private float configuredHudTargetFps = 0f;
+    private float configuredStreamFrameRateFps = 0f;
+    private int configuredStreamBitrateKbps = 0;
+    private boolean preferStableRefreshMultipleForAutoSafe = false;
     private com.papi.nova.ui.AudioHapticEngine audioHapticEngine;
     private com.papi.nova.ui.GyroAimController gyroAimController;
     private android.content.BroadcastReceiver novaDisconnectReceiver;
@@ -203,12 +205,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private com.papi.nova.api.PolarisApiClient novaApiClient;
     private volatile com.papi.nova.api.PolarisSessionStatus lastPolarisSessionStatus;
     private final AtomicBoolean polarisSessionStatusRefreshInFlight = new AtomicBoolean(false);
-    private volatile long lastPolarisSessionStatusRefreshMs = 0L;
-    private final ExecutorService polarisSessionExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "NovaPolarisSession");
-        thread.setDaemon(true);
-        return thread;
-    });
     private com.papi.nova.manager.ConnectionResilienceManager novaResilienceManager;
     private com.papi.nova.api.PolarisEventSource novaEventSource;
     private com.papi.nova.ui.SessionProgressOverlay novaProgressOverlay;
@@ -222,9 +218,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean surfaceCreated = false;
     private boolean attemptedConnection = false;
     private int suppressPipRefCount = 0;
-    private String pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
-    private boolean backgroundDetachPending = false;
-    private boolean explicitSessionEndRequested = false;
     private String pcName;
     private String appName;
     private NvApp app;
@@ -235,6 +228,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean grabbedInput = true;
     private boolean cursorVisible = false;
     private int currentMouseModeIndex = 0;
+    private int streamingDisplayId = Display.DEFAULT_DISPLAY;
+    private volatile float lastClientPresentationRefreshRate = 0f;
+    private volatile int lastClientPresentationDisplayModeId = 0;
+    private volatile String lastClientPresentationDisplayMode = "";
+    private volatile String lastReportedClientPresentationKey = "";
+    private volatile JSONObject lastPolarisDeviceCapabilities;
+    private volatile JSONObject lastPolarisAppliedStreamSettings;
+    private final AtomicBoolean clientPresentationReportInFlight = new AtomicBoolean(false);
     private final Object cursorVisibilitySyncLock = new Object();
     private final ExecutorService cursorVisibilitySyncExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "NovaCursorSync");
@@ -250,14 +251,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean waitingForAllModifiersUp = false;
     private int specialKeyCode = KeyEvent.KEYCODE_UNKNOWN;
     private static final long POLARIS_SESSION_STATUS_REFRESH_MS = 15000L;
-    private static final long POLARIS_SESSION_STATUS_MIN_REFRESH_MS = 3000L;
     private final Runnable polarisSessionStatusRefreshTick = new Runnable() {
         @Override
         public void run() {
             if (!connected || !isStreamActive || timerHandler == null) {
                 return;
             }
-            refreshPolarisLiveSessionStatus(false);
+            refreshPolarisLiveSessionStatus();
             timerHandler.postDelayed(this, POLARIS_SESSION_STATUS_REFRESH_MS);
         }
     };
@@ -514,14 +514,15 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         Display currentDisplay = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            int displayId = getIntent().getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY);
-            currentDisplay = getSystemService(DisplayManager.class).getDisplay(displayId);
+            streamingDisplayId = getIntent().getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY);
+            currentDisplay = getSystemService(DisplayManager.class).getDisplay(streamingDisplayId);
         }
 
         if (currentDisplay == null) {
             currentDisplay = getWindowManager().getDefaultDisplay();
         }
 
+        streamingDisplayId = currentDisplay.getDisplayId();
         onExternelDisplay = currentDisplay.getDisplayId() != Display.DEFAULT_DISPLAY;
 
         boolean shouldInvertDecoderResolution = false;
@@ -711,9 +712,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             e.printStackTrace();
         }
 
-        // Nova: probe Polaris capabilities and set up resilience + overlays
+        // Nova: set up Polaris integration without blocking stream startup on REST probes.
+        com.papi.nova.manager.FeatureFlagManager.INSTANCE.reset();
         novaApiClient = new com.papi.nova.api.PolarisApiClient(this, host, httpsPort, serverCert);
-        com.papi.nova.manager.FeatureFlagManager.INSTANCE.probe(novaApiClient);
         novaProgressOverlay = new com.papi.nova.ui.SessionProgressOverlay(this);
         novaLockScreenOverlay = new com.papi.nova.ui.LockScreenOverlay(this, novaApiClient);
         novaReconnectOverlay = new com.papi.nova.ui.ReconnectOverlay(this);
@@ -723,49 +724,25 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             }
         );
         com.papi.nova.jni.PolarisNativeHook.INSTANCE.register(novaResilienceManager);
-
-        // Start SSE event stream if this is a Polaris server
-        if (com.papi.nova.manager.FeatureFlagManager.INSTANCE.isPolarisServer()) {
-            novaProgressOverlay.show();
-            novaEventSource = new com.papi.nova.api.PolarisEventSource(host,
-                new com.papi.nova.api.PolarisEventSource.EventListener() {
-                    @Override
-                    public void onSessionEvent(String event, String state, String message) {
-                        LimeLog.info("Nova SSE: " + event + " [" + state + "] " + message);
-                        novaProgressOverlay.updateState(state, message);
-                    }
-                    @Override
-                    public void onStateUpdate(String sessionState, boolean cageRunning, boolean screenLocked) {
-                        novaProgressOverlay.updateState(sessionState, "");
-                        if ("streaming".equals(sessionState)) {
-                            schedulePolarisLiveSessionStatusRefresh(true);
-                        }
-                        if (com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasLockScreenControl()) {
-                            if (screenLocked) {
-                                novaLockScreenOverlay.show();
-                            } else {
-                                novaLockScreenOverlay.dismiss();
-                            }
-                        }
-                    }
-                    @Override
-                    public void onConnectionLost() {
-                        LimeLog.warning("Nova SSE: Connection lost");
-                    }
-                },
-                novaApiClient.client  // Share TLS config and connection pool
-            );
-            novaEventSource.start();
-        }
+        startNovaFeatureProbe();
 
         if (appId == StreamConfiguration.INVALID_APP_ID) {
             finish();
             return;
         }
 
+        JSONObject launchOptimization = loadLaunchOptimization(appName);
+
         // Initialize the MediaCodec helper before creating the decoder
         GlPreferences glPrefs = GlPreferences.readPreferences(this);
         MediaCodecHelper.initialize(this, glPrefs.glRenderer);
+        MediaCodecHelper.setPreferStabilityDecoders(
+                com.papi.nova.manager.StreamSyncManager.shouldPreferStabilityDecoder(launchOptimization)
+        );
+        boolean forceFreshLaunch = com.papi.nova.manager.StreamSyncManager.shouldForceFreshLaunch(launchOptimization);
+        if (forceFreshLaunch) {
+            LimeLog.info("Nova: Auto Safe requires fresh launch before streaming");
+        }
 
         // Check if the user has enabled HDR
         boolean displaySupportsHdr10 = false;
@@ -911,6 +888,43 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             gamepadMask |= 1;
         }
 
+        float launchRefreshRate = prefConfig.fps;
+        float maxSupportedLaunchRefreshRate = getMaxSupportedRefreshRate(currentDisplay);
+        if (maxSupportedLaunchRefreshRate > 0 &&
+                launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f) {
+            LimeLog.info("Clamping launch refresh rate from " + launchRefreshRate +
+                    " to display max " + maxSupportedLaunchRefreshRate);
+            launchRefreshRate = maxSupportedLaunchRefreshRate;
+        }
+        float autoSafeTargetFps = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeTargetFps(
+                launchRefreshRate,
+                launchOptimization
+        );
+        if (autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate) {
+            float displayCompatibleTargetFps =
+                    com.papi.nova.manager.StreamSyncManager.resolveDisplayCompatibleAutoSafeTargetFps(
+                            autoSafeTargetFps,
+                            getMaxAllowedRefreshRate(currentDisplay),
+                            getSupportedRefreshRates(currentDisplay)
+                    );
+            if (displayCompatibleTargetFps > 0f &&
+                    displayCompatibleTargetFps + 0.5f < autoSafeTargetFps) {
+                LimeLog.info("Nova: Auto Safe display cadence fallback FPS " +
+                        autoSafeTargetFps + " -> " + displayCompatibleTargetFps);
+                autoSafeTargetFps = displayCompatibleTargetFps;
+            }
+        }
+        if (autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate) {
+            configuredStreamFrameRateFps = autoSafeTargetFps;
+        } else {
+            configuredStreamFrameRateFps = launchRefreshRate;
+        }
+        preferStableRefreshMultipleForAutoSafe =
+                com.papi.nova.manager.StreamSyncManager.shouldPreferStableRefreshMultiple(
+                        launchOptimization,
+                        configuredStreamFrameRateFps
+                );
+
         // Set to the optimal mode for streaming
         float displayRefreshRate = prepareDisplayForRendering(currentDisplay);
         LimeLog.info("Display refresh rate: "+displayRefreshRate);
@@ -918,10 +932,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // If the user requested frame pacing using a capped FPS, we will need to change our
         // desired FPS setting here in accordance with the active display refresh rate.
         int roundedRefreshRate = Math.round(displayRefreshRate);
-        float chosenFrameRate = prefConfig.fps;
+        float chosenFrameRate = configuredStreamFrameRateFps > 0f ? configuredStreamFrameRateFps : prefConfig.fps;
         if (prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_CAP_FPS) {
-            if (prefConfig.fps >= roundedRefreshRate) {
-                if (prefConfig.fps > roundedRefreshRate + 3) {
+            if (chosenFrameRate >= roundedRefreshRate) {
+                if (chosenFrameRate > roundedRefreshRate + 3) {
                     // Use frame drops when rendering above the screen frame rate
                     prefConfig.framePacing = PreferenceConfiguration.FRAME_PACING_BALANCED;
                     LimeLog.info("Using drop mode for FPS > Hz");
@@ -941,18 +955,57 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             chosenFrameRate *= prefConfig.framePacingWarpFactor;
         }
 
-        float launchRefreshRate = prefConfig.fps;
-        float maxSupportedLaunchRefreshRate = getMaxSupportedRefreshRate(currentDisplay);
-        if (maxSupportedLaunchRefreshRate > 0 &&
-                launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f) {
-            LimeLog.info("Clamping launch refresh rate from " + launchRefreshRate +
-                    " to display max " + maxSupportedLaunchRefreshRate);
-            launchRefreshRate = maxSupportedLaunchRefreshRate;
+        configuredStreamBitrateKbps = isMetered ? prefConfig.meteredBitrate : prefConfig.bitrate;
+        int autoSafeBitrateKbps = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
+                configuredStreamBitrateKbps,
+                launchOptimization
+        );
+        if (autoSafeBitrateKbps > 0 && autoSafeBitrateKbps != configuredStreamBitrateKbps) {
+            LimeLog.info("Nova: Auto Safe launch bitrate " + configuredStreamBitrateKbps +
+                    " -> " + autoSafeBitrateKbps + " kbps");
+            configuredStreamBitrateKbps = autoSafeBitrateKbps;
         }
+        com.papi.nova.manager.StreamSyncManager.StreamResolution autoSafeResolution =
+                com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
+                        displayWidth,
+                        displayHeight,
+                        launchOptimization
+                );
+        if (autoSafeResolution.isValid() &&
+                (autoSafeResolution.width != displayWidth || autoSafeResolution.height != displayHeight)) {
+            LimeLog.info("Nova: Auto Safe launch resolution " + displayWidth + "x" + displayHeight +
+                    " -> " + autoSafeResolution.width + "x" + autoSafeResolution.height);
+            displayWidth = autoSafeResolution.width;
+            displayHeight = autoSafeResolution.height;
+        }
+        if (autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate) {
+            LimeLog.info("Nova: Auto Safe launch FPS " + launchRefreshRate +
+                    " -> " + autoSafeTargetFps);
+            launchRefreshRate = autoSafeTargetFps;
+            chosenFrameRate = Math.min(chosenFrameRate, autoSafeTargetFps);
+        }
+        configuredStreamFrameRateFps = chosenFrameRate;
         configuredHudTargetFps = launchRefreshRate;
-
-        final int configuredBitrateKbps = isMetered ? prefConfig.meteredBitrate : prefConfig.bitrate;
-        final String polarisLaunchDisplayMode = formatPolarisDisplayMode(displayWidth, displayHeight, launchRefreshRate);
+        lastPolarisDeviceCapabilities = com.papi.nova.manager.StreamSyncManager.buildDeviceCapabilities(
+                this,
+                currentDisplay,
+                decoderRenderer,
+                supportedVideoFormats,
+                displaySupportsHdr10,
+                onExternelDisplay
+        );
+        lastPolarisAppliedStreamSettings = com.papi.nova.manager.StreamSyncManager.buildAppliedStreamSettings(
+                configuredStreamBitrateKbps,
+                displayWidth,
+                displayHeight,
+                launchRefreshRate,
+                chosenFrameRate,
+                vDisplay,
+                willStreamHdr,
+                supportedVideoFormats,
+                prefConfig.videoFormat,
+                displayModeExplicit
+        );
 
         StreamConfiguration config = new StreamConfiguration.Builder()
                 .setResolution(
@@ -966,7 +1019,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 .setResolutionScaleFactor(prefConfig.resolutionScaleFactor)
                 .setApp(app)
                 .setEnableUltraLowLatency(prefConfig.enableUltraLowLatency)
-                .setBitrate(configuredBitrateKbps)
+                .setForceFreshLaunch(forceFreshLaunch)
+                .setBitrate(configuredStreamBitrateKbps)
                 .setEnableSops(prefConfig.enableSops)
                 .enableLocalAudioPlayback(prefConfig.playHostAudio)
                 .setMaxPacketSize(1392)
@@ -979,6 +1033,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 .setColorRange(decoderRenderer.getPreferredColorRange())
                 .setPersistGamepadsAfterDisconnect(!prefConfig.multiController)
                 .build();
+
+        queuePolarisClientSettingsSnapshot(null);
 
         // Initialize the connection
         conn = new NvConnection(getApplicationContext(),
@@ -1052,7 +1108,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 // Der Decoder erhält die jeweils aktive Oberfläche vom Container
                 decoderRenderer.setRenderTarget(streamContainer.getSurface());
 
-                startConnectionAfterPolarisLaunchProfileSync(polarisLaunchDisplayMode, configuredBitrateKbps);
+                // Starten Sie die NvConnection
+                conn.start(new AndroidAudioRenderer(Game.this, prefConfig.playHostAudio),
+                        decoderRenderer, Game.this);
             }
         });
 
@@ -1108,7 +1166,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         }
                     } catch (Throwable ignored) {}
 
-                    float targetFps = (prefConfig != null && prefConfig.fps > 0) ? prefConfig.fps : displayHz;
+                    float targetFps = chosenFrameRate > 0f ? chosenFrameRate :
+                            ((prefConfig != null && prefConfig.fps > 0) ? prefConfig.fps : displayHz);
 
                     boolean isMTKDevice;
                     try {
@@ -1117,13 +1176,16 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         isMTKDevice = sum.contains("mtk") || sum.contains("mediatek");
                     } catch (Throwable t) { isMTKDevice = false; }
 
-                    int compat = isMTKDevice
-                            ? Surface.FRAME_RATE_COMPATIBILITY_DEFAULT
-                            : Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE;
+                    float surfaceFrameRate = chooseSurfaceFrameRateHint(targetFps, displayHz);
+                    int compat = chooseSurfaceFrameRateCompatibility(targetFps, displayHz, isMTKDevice);
 
                     try {
                         java.lang.reflect.Method m = SurfaceView.class.getMethod("setFrameRate", float.class, int.class);
-                        m.invoke(streamSurfaceView, Math.min(targetFps, displayHz), compat);
+                        m.invoke(streamSurfaceView, surfaceFrameRate, compat);
+                        if (Math.abs(surfaceFrameRate - targetFps) > 0.5f) {
+                            LimeLog.info("Nova: Surface frame-rate hint " + surfaceFrameRate +
+                                    " Hz for " + targetFps + " FPS stream on " + displayHz + " Hz display");
+                        }
                     } catch (Throwable ignored) {}
                 }
             }
@@ -1569,11 +1631,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public void onUserLeaveHint() {
         super.onUserLeaveHint();
 
-        if (connected && prefConfig != null && prefConfig.keepStreamAlive && !quitOnStop) {
-            backgroundDetachPending = true;
-            pendingSessionEndReason = SESSION_END_REASON_BACKGROUND_DETACH;
-        }
-
         // PiP is only supported on Oreo and later, and we don't need to manually enter PiP on
         // Android S and later. On Android R, we will use onPictureInPictureRequested() instead.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
@@ -1614,13 +1671,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private boolean isRefreshRateEqualMatch(float refreshRate) {
-        return refreshRate >= prefConfig.fps &&
-                refreshRate <= prefConfig.fps + 3;
+        float streamFps = getConfiguredStreamFrameRateFps();
+        return refreshRate >= streamFps &&
+                refreshRate <= streamFps + 3;
     }
 
     private boolean isRefreshRateGoodMatch(float refreshRate) {
-        return refreshRate >= prefConfig.fps &&
-                Math.round(refreshRate) % prefConfig.fps <= 3;
+        float streamFps = getConfiguredStreamFrameRateFps();
+        return isWholeRefreshMultiple(refreshRate, streamFps);
     }
 
     private boolean shouldIgnoreInsetsForResolution(int width, int height) {
@@ -1649,6 +1707,55 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 (prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_BALANCED && prefConfig.reduceRefreshRate);
     }
 
+    private boolean shouldPreferExactRefreshRateForStream() {
+        return prefConfig != null &&
+                getConfiguredStreamFrameRateFps() > 0f &&
+                getConfiguredStreamFrameRateFps() <= 60f &&
+                !preferStableRefreshMultipleForAutoSafe &&
+                !isOnExternalDisplay();
+    }
+
+    private JSONObject loadLaunchOptimization(String appName) {
+        if (novaApiClient == null) {
+            return null;
+        }
+
+        final JSONObject[] result = new JSONObject[1];
+        final Exception[] failure = new Exception[1];
+        Thread thread = new Thread(() -> {
+            try {
+                String safeAppName = appName != null ? appName : "";
+                String preference = getSharedPreferences("nova_prefs", MODE_PRIVATE)
+                        .getString("ai_profile_preference_name_" + safeAppName, "auto");
+                result[0] = novaApiClient.getOptimization(DeviceUtils.getModel(), safeAppName, preference != null ? preference : "auto");
+            } catch (Exception e) {
+                failure[0] = e;
+            }
+        }, "NovaLaunchOptimization");
+        thread.start();
+
+        try {
+            thread.join(4500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+
+        if (thread.isAlive()) {
+            LimeLog.warning("Nova: Launch optimization query timed out after 4500ms; starting with local defaults");
+            return null;
+        }
+        if (failure[0] != null) {
+            LimeLog.warning("Nova: Launch optimization query failed: " + failure[0].getMessage());
+            return null;
+        }
+        if (result[0] != null) {
+            LimeLog.info("Nova: Launch optimization loaded source=" + result[0].optString("source", "unknown") +
+                    " mode=" + result[0].optString("display_mode", ""));
+        }
+        return result[0];
+    }
+
     public boolean isOnExternalDisplay() {
         return onExternelDisplay;
     }
@@ -1670,6 +1777,83 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         return maxRefreshRate;
     }
 
+    private float getMaxAllowedRefreshRate(Display display) {
+        float maxSupportedRefreshRate = getMaxSupportedRefreshRate(display);
+        float peakRefreshRate = getSystemRefreshRateSetting("peak_refresh_rate");
+        if (peakRefreshRate > 0f && maxSupportedRefreshRate > 0f) {
+            return Math.min(maxSupportedRefreshRate, peakRefreshRate);
+        }
+        return peakRefreshRate > 0f ? peakRefreshRate : maxSupportedRefreshRate;
+    }
+
+    private float getSystemRefreshRateSetting(String key) {
+        try {
+            return android.provider.Settings.System.getFloat(getContentResolver(), key);
+        } catch (Exception ignored) {
+            return 0f;
+        }
+    }
+
+    private float[] getSupportedRefreshRates(Display display) {
+        if (display == null) {
+            return new float[0];
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Display.Mode[] modes = display.getSupportedModes();
+            float[] refreshRates = new float[modes.length];
+            for (int i = 0; i < modes.length; i++) {
+                refreshRates[i] = modes[i].getRefreshRate();
+            }
+            return refreshRates;
+        }
+
+        return display.getSupportedRefreshRates();
+    }
+
+    private Display getStreamingDisplay() {
+        Display display = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            DisplayManager displayManager = getSystemService(DisplayManager.class);
+            if (displayManager != null) {
+                display = displayManager.getDisplay(streamingDisplayId);
+            }
+        }
+        return display != null ? display : getWindowManager().getDefaultDisplay();
+    }
+
+    private float getConfiguredStreamFrameRateFps() {
+        if (configuredStreamFrameRateFps > 0f) {
+            return configuredStreamFrameRateFps;
+        }
+        if (prefConfig != null && prefConfig.fps > 0) {
+            return prefConfig.fps;
+        }
+        return desiredRefreshRate > 0f ? desiredRefreshRate : 60f;
+    }
+
+    private float chooseSurfaceFrameRateHint(float streamFps, float displayHz) {
+        if (streamFps <= 0f) {
+            return displayHz > 0f ? displayHz : 60f;
+        }
+        if (displayHz > 0f &&
+                displayHz > streamFps + 0.5f &&
+                isWholeRefreshMultiple(displayHz, streamFps)) {
+            return displayHz;
+        }
+        return displayHz > 0f ? Math.min(streamFps, displayHz) : streamFps;
+    }
+
+    private int chooseSurfaceFrameRateCompatibility(float streamFps, float displayHz, boolean isMTKDevice) {
+        if (isMTKDevice ||
+                (displayHz > 0f &&
+                        displayHz > streamFps + 0.5f &&
+                        isWholeRefreshMultiple(displayHz, streamFps))) {
+            return Surface.FRAME_RATE_COMPATIBILITY_DEFAULT;
+        }
+        return Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE;
+    }
+
     private float prepareDisplayForRendering(Display currentDisplay) {
         WindowManager.LayoutParams windowLayoutParams = getWindow().getAttributes();
         float displayRefreshRate;
@@ -1678,11 +1862,19 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Display.Mode bestMode = currentDisplay.getMode();
             boolean isNativeResolutionStream = PreferenceConfiguration.isNativeResolution(prefConfig.width, prefConfig.height);
+            boolean preferExactRefreshRate = shouldPreferExactRefreshRateForStream();
+            boolean preferStableRefreshMultiple = preferStableRefreshMultipleForAutoSafe && !isOnExternalDisplay();
             boolean refreshRateIsGood = isRefreshRateGoodMatch(bestMode.getRefreshRate());
             boolean refreshRateIsEqual = isRefreshRateEqualMatch(bestMode.getRefreshRate());
 
             LimeLog.info("Current display mode: "+bestMode.getPhysicalWidth()+"x"+
                     bestMode.getPhysicalHeight()+"x"+bestMode.getRefreshRate());
+            if (preferExactRefreshRate) {
+                LimeLog.info("Preferring exact display refresh rate for "+getConfiguredStreamFrameRateFps()+" FPS stream");
+            } else if (preferStableRefreshMultiple) {
+                LimeLog.info("Preferring lowest stable display refresh multiple for Auto Safe "+
+                        getConfiguredStreamFrameRateFps()+" FPS stream");
+            }
 
             for (Display.Mode candidate : currentDisplay.getSupportedModes()) {
                 boolean refreshRateReduced = candidate.getRefreshRate() < bestMode.getRefreshRate();
@@ -1690,6 +1882,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         candidate.getPhysicalHeight() < bestMode.getPhysicalHeight();
                 boolean resolutionFitsStream = candidate.getPhysicalWidth() >= prefConfig.width &&
                         candidate.getPhysicalHeight() >= prefConfig.height;
+                boolean candidateRefreshRateIsGood = isRefreshRateGoodMatch(candidate.getRefreshRate());
+                boolean candidateRefreshRateIsEqual = isRefreshRateEqualMatch(candidate.getRefreshRate());
 
                 LimeLog.info("Examining display mode: "+candidate.getPhysicalWidth()+"x"+
                         candidate.getPhysicalHeight()+"x"+candidate.getRefreshRate());
@@ -1724,11 +1918,30 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 else if (refreshRateIsGood) {
                     // We've already got a good match, so if this one isn't also good, it's not
                     // worth considering at all.
-                    if (!isRefreshRateGoodMatch(candidate.getRefreshRate())) {
+                    if (!candidateRefreshRateIsGood) {
                         continue;
                     }
 
-                    if (mayReduceRefreshRate()) {
+                    if (preferStableRefreshMultiple) {
+                        if (candidate.getRefreshRate() >= bestMode.getRefreshRate() - 0.5f) {
+                            continue;
+                        }
+                    }
+                    else if (preferExactRefreshRate) {
+                        if (refreshRateIsEqual && !candidateRefreshRateIsEqual) {
+                            continue;
+                        }
+
+                        if (refreshRateIsEqual && candidateRefreshRateIsEqual) {
+                            if (candidate.getRefreshRate() > bestMode.getRefreshRate()) {
+                                continue;
+                            }
+                        }
+                        else if (!candidateRefreshRateIsEqual && refreshRateReduced) {
+                            continue;
+                        }
+                    }
+                    else if (mayReduceRefreshRate()) {
                         // User asked for the lowest possible refresh rate, so don't raise it if we
                         // have a good match already
                         if (candidate.getRefreshRate() > bestMode.getRefreshRate()) {
@@ -1743,7 +1956,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         }
                     }
                 }
-                else if (!isRefreshRateGoodMatch(candidate.getRefreshRate())) {
+                else if (!candidateRefreshRateIsGood) {
                     // We didn't have a good match and this match isn't good either, so just don't
                     // reduce the refresh rate.
                     if (refreshRateReduced) {
@@ -1763,6 +1976,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
             LimeLog.info("Best display mode: "+bestMode.getPhysicalWidth()+"x"+
                     bestMode.getPhysicalHeight()+"x"+bestMode.getRefreshRate());
+            lastClientPresentationRefreshRate = bestMode.getRefreshRate();
+            lastClientPresentationDisplayModeId = bestMode.getModeId();
+            lastClientPresentationDisplayMode = bestMode.getPhysicalWidth()+"x"+
+                    bestMode.getPhysicalHeight()+"x"+bestMode.getRefreshRate();
 
             // Only apply new window layout parameters if we've actually changed the display mode
             if (currentDisplay.getMode().getModeId() != bestMode.getModeId()) {
@@ -1770,6 +1987,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 // use that instead of using preferredDisplayModeId to avoid the possibility of triggering
                 // bugs that can cause the system to switch from 4K60 to 4K24 on Chromecast 4K.
                 if (prefConfig.enforceDisplayMode ||
+                        preferStableRefreshMultiple ||
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
                         currentDisplay.getMode().getPhysicalWidth() != bestMode.getPhysicalWidth() ||
                         currentDisplay.getMode().getPhysicalHeight() != bestMode.getPhysicalHeight()) {
@@ -1806,6 +2024,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             }
 
             LimeLog.info("Selected refresh rate: "+bestRefreshRate);
+            lastClientPresentationRefreshRate = bestRefreshRate;
+            lastClientPresentationDisplayModeId = 0;
+            lastClientPresentationDisplayMode = "refresh_rate:"+bestRefreshRate;
             windowLayoutParams.preferredRefreshRate = bestRefreshRate;
             displayRefreshRate = bestRefreshRate;
 
@@ -1923,7 +2144,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // Nova: clean up Polaris integration
         stopPolarisLiveSessionStatusRefresh();
         stopCursorVisibilitySync();
-        polarisSessionExecutor.shutdownNow();
         if (novaEventSource != null) novaEventSource.stop();
         if (novaProgressOverlay != null) novaProgressOverlay.dismiss();
         if (novaLockScreenOverlay != null) novaLockScreenOverlay.dismiss();
@@ -1984,26 +2204,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         super.onNewIntent(intent);
 
         if (isDisconnectIntent(intent)) {
-            pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
-            backgroundDetachPending = false;
             disconnect();
             return;
         }
 
         setIntent(intent);
-    }
-
-    private boolean isInPipMode() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode();
-    }
-
-    private boolean shouldDetachOnStopForResume() {
-        return conn != null &&
-                prefConfig != null &&
-                prefConfig.keepStreamAlive &&
-                !explicitSessionEndRequested &&
-                !quitOnStop &&
-                !isInPipMode();
     }
 
     @Override
@@ -2025,31 +2230,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     protected void onStop() {
         super.onStop();
 
-        boolean detachForResume = shouldDetachOnStopForResume();
-        String sessionEndReason = detachForResume ?
-                SESSION_END_REASON_BACKGROUND_DETACH :
-                pendingSessionEndReason;
-        LimeLog.info("Nova: onStop detach=" + detachForResume +
-                " connected=" + connected +
-                " connecting=" + connecting +
-                " conn=" + (conn != null) +
-                " explicitEnd=" + explicitSessionEndRequested +
-                " finishing=" + isFinishing() +
-                " quitOnStop=" + quitOnStop);
-        if (detachForResume) {
-            backgroundDetachPending = true;
-            pendingSessionEndReason = SESSION_END_REASON_BACKGROUND_DETACH;
-            LimeLog.info("Nova: Detaching stream for background resume");
-            com.papi.nova.service.NovaStreamKeepAlive.Companion.start(
-                    this,
-                    prefConfig.disconnectResumeTimeoutSeconds,
-                    appName,
-                    pcName);
-        } else {
-            backgroundDetachPending = false;
-            com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(this);
-        }
-
         SpinnerDialog.closeDialogs(this);
         Dialog.closeDialogs();
 
@@ -2068,7 +2248,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             int videoFormat = decoderRenderer.getActiveVideoFormat();
 
             displayedFailureDialog = true;
-            stopConnection(sessionEndReason);
+            stopConnection();
             String message = null;
             String selectedVideoFormat = "";
 
@@ -2108,7 +2288,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 message += selectedVideoFormat;
             }
 
-            if (message != null && !detachForResume) {
+            if (message != null) {
                 if (prefConfig.enableLatencyToast) {
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 }
@@ -3756,10 +3936,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void stopConnection() {
-        stopConnection(backgroundDetachPending ? SESSION_END_REASON_BACKGROUND_DETACH : pendingSessionEndReason);
-    }
-
-    private void stopConnection(String sessionEndReason) {
         if (connecting || connected) {
             connecting = connected = false;
             isStreamActive = false;
@@ -3767,23 +3943,28 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // Send AI session report before dismissing HUD
             if (novaHud != null && host != null) {
                 final java.util.Map<String, Object> summary = novaHud.getSessionSummary();
-                final String reportDevice = android.os.Build.MODEL;
+                final String reportHost = host;
+                final String reportDevice = DeviceUtils.getModel();
                 final String reportGame = appName != null ? appName : "";
-                executePolarisSessionTask(() -> {
+                new Thread(() -> {
                     try {
-                        if (novaApiClient == null) {
-                            return;
-                        }
-                        novaApiClient.sendSessionReport(
+                        com.papi.nova.api.PolarisApiClient client =
+                            new com.papi.nova.api.PolarisApiClient(Game.this, reportHost, httpsPort, serverCert);
+                        client.sendSessionReport(
                             reportDevice, uniqueId, reportGame,
                             getSummaryDouble(summary, "avg_fps", 0.0),
                             getSummaryDouble(summary, "target_fps", 0.0),
+                            getSummaryDouble(summary, "low_1_percent_fps", 0.0),
+                            getSummaryDouble(summary, "min_fps", 0.0),
+                            getSummaryDouble(summary, "frame_pacing_bad_pct", 0.0),
+                            getSummaryDouble(summary, "safe_target_fps", 0.0),
                             getSummaryDouble(summary, "avg_latency_ms", 0.0),
                             getSummaryInt(summary, "avg_bitrate_kbps", 0),
                             getSummaryDouble(summary, "packet_loss_pct", 0.0),
                             getSummaryString(summary, "codec"),
                             getSummaryInt(summary, "duration_s", 0),
-                            sessionEndReason,
+                            getSummaryInt(summary, "samples", 0),
+                            "disconnect",
                             getSummaryString(summary, "optimization_source"),
                             getSummaryString(summary, "optimization_confidence"),
                             getSummaryInt(summary, "recommendation_version", 0),
@@ -3803,7 +3984,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     } catch (Exception e) {
                         com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e.getMessage());
                     }
-                });
+                }).start();
                 novaHud.dismiss();
                 novaHud = null;
             } else if (novaHud != null) {
@@ -3831,9 +4012,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // thread to keep things smooth for the UI. Inside moonlight-common,
             // we prevent another thread from starting a connection before and
             // during the process of stopping this one.
-            if (decoderRenderer != null) {
-                decoderRenderer.prepareForStop();
-            }
             new Thread() {
                 public void run() {
                     conn.stop();
@@ -4021,7 +4199,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 }
 
                 if (connectionStatus == MoonBridge.CONN_STATUS_POOR) {
-                    if (prefConfig.bitrate > 5000) {
+                    if (configuredStreamBitrateKbps > 5000) {
                         notificationOverlayView.setText(getResources().getString(R.string.slow_connection_msg));
                     }
                     else {
@@ -4058,25 +4236,24 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     novaHud = new com.papi.nova.ui.NovaStreamHud(Game.this);
                     novaHud.show();
                     novaHud.setTargetFps(configuredHudTargetFps);
+                    novaHud.setTargetBitrateKbps(configuredStreamBitrateKbps);
                     if (lastPolarisSessionStatus != null) {
                         novaHud.applySessionStatus(lastPolarisSessionStatus);
                     }
-                    ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-                    boolean isMeteredConnection = connMgr != null && connMgr.isActiveNetworkMetered();
-                    novaHud.setTargetBitrateKbps(isMeteredConnection ? prefConfig.meteredBitrate : prefConfig.bitrate);
 
                     // Wire proactive bitrate adjustment — HUD monitors quality and auto-adjusts
+                    final String streamHost = host;
                     novaHud.setOnBitrateAdjust(newBitrate -> {
-                        executePolarisSessionTask(() -> {
+                        new Thread(() -> {
                             try {
-                                if (novaApiClient != null) {
-                                    novaApiClient.setClientTargetBitrate(newBitrate);
-                                }
+                                com.papi.nova.api.PolarisApiClient client =
+                                    new com.papi.nova.api.PolarisApiClient(Game.this, streamHost, httpsPort, serverCert);
+                                client.setBitrate(newBitrate);
                                 com.papi.nova.LimeLog.info("Nova: Proactive bitrate adjust → " + newBitrate + " kbps");
                             } catch (Exception e) {
                                 com.papi.nova.LimeLog.warning("Nova: Bitrate adjust failed: " + e.getMessage());
                             }
-                        });
+                        }).start();
                         return null;
                     });
                     schedulePolarisLiveSessionStatusRefresh(true);
@@ -4097,11 +4274,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 });
                 gyroAimController.start();
 
-                com.papi.nova.service.NovaStreamNotification.INSTANCE.dismiss(Game.this);
-                com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(Game.this);
-                backgroundDetachPending = false;
-                explicitSessionEndRequested = false;
-                pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
+                com.papi.nova.service.NovaStreamNotification.INSTANCE.show(
+                    Game.this,
+                    appName != null ? appName : "Streaming",
+                    pcName != null ? pcName : "Server"
+                );
                 updatePipAutoEnter();
 
                 // Hide the mouse cursor now after a short delay.
@@ -4243,8 +4420,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // FPS value if there's no suitable matching refresh rate. In that case, Android could try to
         // select a lower refresh rate that avoids uneven pull-down (ex: 30 Hz for a 60 FPS stream on
         // a display that maxes out at 50 Hz).
-        if (mayReduceRefreshRate() || desiredRefreshRate < prefConfig.fps) {
-            desiredFrameRate = prefConfig.fps;
+        float streamFrameRate = getConfiguredStreamFrameRateFps();
+        if (mayReduceRefreshRate() || desiredRefreshRate < streamFrameRate) {
+            desiredFrameRate = streamFrameRate;
         }
         else {
             // Otherwise, we will pretend that our frame rate matches the refresh rate we picked in
@@ -4252,6 +4430,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // frame rate evenly divides into, which ensures the lowest possible display latency.
             desiredFrameRate = desiredRefreshRate;
         }
+        desiredFrameRate = chooseSurfaceFrameRateHint(streamFrameRate, desiredFrameRate);
+        int frameRateCompatibility = chooseSurfaceFrameRateCompatibility(streamFrameRate, desiredFrameRate, false);
 
         // Tell the OS about our frame rate to allow it to adapt the display refresh rate appropriately
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -4259,12 +4439,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // will not set the display mode on S+ if it only differs by the refresh rate. It depends
             // on us to trigger the frame rate switch here.
             holder.getSurface().setFrameRate(desiredFrameRate,
-                    Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+                    frameRateCompatibility,
                     Surface.CHANGE_FRAME_RATE_ALWAYS);
         }
         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             holder.getSurface().setFrameRate(desiredFrameRate,
-                    Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
+                    frameRateCompatibility);
         }
     }
 
@@ -4423,10 +4603,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             showGameMenu(null);
             return;
         }
-        explicitSessionEndRequested = true;
-        pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
-        backgroundDetachPending = false;
-        com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(this);
         super.onBackPressed();
     }
 
@@ -4675,56 +4851,70 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         cursorVisibilitySyncExecutor.shutdownNow();
     }
 
-    private boolean executePolarisSessionTask(Runnable task) {
-        try {
-            polarisSessionExecutor.execute(task);
-            return true;
-        } catch (RejectedExecutionException e) {
-            LimeLog.warning("Nova: Polaris session executor rejected task: " + e.getMessage());
-            return false;
-        }
-    }
-
-    private static String formatPolarisDisplayMode(int width, int height, float fps) {
-        String fpsText;
-        if (Math.abs(fps - Math.round(fps)) < 0.001f) {
-            fpsText = Integer.toString(Math.round(fps));
-        } else {
-            fpsText = String.format(Locale.US, "%.3f", fps)
-                    .replaceAll("0+$", "")
-                    .replaceAll("\\.$", "");
-        }
-        return width + "x" + height + "x" + fpsText;
-    }
-
-    private void startConnectionAfterPolarisLaunchProfileSync(String displayMode, int bitrateKbps) {
-        Runnable startConnection = () -> conn.start(
-                new AndroidAudioRenderer(Game.this, prefConfig.playHostAudio),
-                decoderRenderer,
-                Game.this
-        );
-
-        if (novaApiClient == null ||
-                !com.papi.nova.manager.FeatureFlagManager.INSTANCE.isPolarisServer()) {
-            startConnection.run();
+    private void startNovaFeatureProbe() {
+        com.papi.nova.api.PolarisApiClient client = novaApiClient;
+        if (client == null) {
             return;
         }
 
-        if (!executePolarisSessionTask(() -> {
-            try {
-                if (prefConfig.keepStreamAlive &&
-                        com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasDisconnectResume()) {
-                    novaApiClient.setDisconnectResumeTimeout(prefConfig.disconnectResumeTimeoutSeconds);
+        new Thread(() -> {
+            com.papi.nova.manager.FeatureFlagManager.INSTANCE.probe(client);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
                 }
-                novaApiClient.setLaunchProfile(displayMode, bitrateKbps);
-            } catch (Exception e) {
-                LimeLog.warning("Nova: Polaris launch profile sync failed: " + e.getMessage());
-            } finally {
-                runOnUiThread(startConnection);
-            }
-        })) {
-            startConnection.run();
+                startNovaEventSourceIfSupported();
+                if (com.papi.nova.manager.FeatureFlagManager.INSTANCE.isPolarisServer()) {
+                    queuePolarisClientSettingsSnapshot(null);
+                    schedulePolarisLiveSessionStatusRefresh(true);
+                }
+            });
+        }, "NovaFeatureProbe").start();
+    }
+
+    private void startNovaEventSourceIfSupported() {
+        if (novaEventSource != null ||
+                novaApiClient == null ||
+                !com.papi.nova.manager.FeatureFlagManager.INSTANCE.isPolarisServer()) {
+            return;
         }
+
+        novaProgressOverlay.show();
+        novaEventSource = new com.papi.nova.api.PolarisEventSource(host,
+            new com.papi.nova.api.PolarisEventSource.EventListener() {
+                @Override
+                public void onSessionEvent(String event, String state, String message) {
+                    LimeLog.info("Nova SSE: " + event + " [" + state + "] " + message);
+                    novaProgressOverlay.updateState(state, message);
+                }
+
+                @Override
+                public void onStateUpdate(String sessionState, boolean cageRunning, boolean screenLocked) {
+                    novaProgressOverlay.updateState(sessionState, "");
+                    if ("streaming".equals(sessionState)) {
+                        schedulePolarisLiveSessionStatusRefresh(true);
+                    }
+                    if (com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasLockScreenControl()) {
+                        boolean shouldShowLockOverlay = screenLocked && !cageRunning;
+                        if (screenLocked && cageRunning) {
+                            LimeLog.info("Nova SSE: ignoring host lock flag while stream compositor is running");
+                        }
+                        if (shouldShowLockOverlay) {
+                            novaLockScreenOverlay.show();
+                        } else {
+                            novaLockScreenOverlay.dismiss();
+                        }
+                    }
+                }
+
+                @Override
+                public void onConnectionLost() {
+                    LimeLog.warning("Nova SSE: Connection lost");
+                }
+            },
+            novaApiClient.client
+        );
+        novaEventSource.start();
     }
 
     private void schedulePolarisLiveSessionStatusRefresh(boolean immediate) {
@@ -4733,7 +4923,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
         timerHandler.removeCallbacks(polarisSessionStatusRefreshTick);
         if (immediate) {
-            refreshPolarisLiveSessionStatus(true);
+            refreshPolarisLiveSessionStatus();
         }
         timerHandler.postDelayed(polarisSessionStatusRefreshTick, POLARIS_SESSION_STATUS_REFRESH_MS);
     }
@@ -4745,18 +4935,182 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         polarisSessionStatusRefreshInFlight.set(false);
     }
 
-    private void refreshPolarisLiveSessionStatus(boolean force) {
+    private void queuePolarisClientSettingsSnapshot(JSONObject clientPresentation) {
+        if (novaApiClient == null ||
+                !com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasClientSettings()) {
+            return;
+        }
+        new Thread(() -> reportPolarisClientSettingsSnapshot(clientPresentation), "NovaClientSettingsSync").start();
+    }
+
+    private boolean reportPolarisClientSettingsSnapshot(JSONObject clientPresentation) {
+        if (novaApiClient == null ||
+                !com.papi.nova.manager.FeatureFlagManager.INSTANCE.getHasClientSettings()) {
+            return false;
+        }
+
+        JSONObject runtime = com.papi.nova.manager.StreamSyncManager.buildClientRuntime(
+                this,
+                decoderRenderer,
+                lastClientPresentationRefreshRate > 0f ? lastClientPresentationRefreshRate : desiredRefreshRate,
+                lastClientPresentationDisplayModeId,
+                lastClientPresentationDisplayMode,
+                prefConfig != null ? prefConfig.framePacing : 0
+        );
+
+        com.papi.nova.api.PolarisSessionStatus.SyncStatus syncStatus =
+                novaApiClient.reportClientSettings(
+                        com.papi.nova.manager.StreamSyncManager.SYNC_MODE_AUTO_SAFE,
+                        false,
+                        lastPolarisDeviceCapabilities,
+                        runtime,
+                        lastPolarisAppliedStreamSettings,
+                        clientPresentation
+                );
+        if (syncStatus != null) {
+            LimeLog.info("Nova: Client settings sync → " + syncStatus.getLabel());
+            return true;
+        }
+
+        LimeLog.warning("Nova: Client settings sync failed");
+        return false;
+    }
+
+    private void updateAppliedStreamSettingsFromStatus(com.papi.nova.api.PolarisSessionStatus status) {
+        if (status == null || lastPolarisAppliedStreamSettings == null) {
+            return;
+        }
+        try {
+            JSONObject applied = new JSONObject(lastPolarisAppliedStreamSettings.toString());
+            int adaptiveTarget = status.getTuning().getAdaptiveTargetBitrateKbps() > 0 ?
+                    status.getTuning().getAdaptiveTargetBitrateKbps() :
+                    status.getAdaptiveTargetBitrateKbps();
+            int effectiveBitrate = adaptiveTarget > 0 ? adaptiveTarget : status.getEncoder().getBitrateKbps();
+            if (effectiveBitrate > 0) applied.put("target_bitrate_kbps", effectiveBitrate);
+            if (adaptiveTarget > 0) applied.put("adaptive_target_bitrate_kbps", adaptiveTarget);
+            applied.put("adaptive_bitrate_enabled",
+                    status.getTuning().getAdaptiveBitrateEnabled() || status.getAdaptiveBitrateEnabled());
+            applied.put("ai_optimizer_enabled",
+                    status.getTuning().getAiOptimizerEnabled() || status.getAiOptimizerEnabled());
+            if (status.getEncoder().getCodec() != null && !status.getEncoder().getCodec().isEmpty()) {
+                applied.put("active_codec", status.getEncoder().getCodec());
+            }
+            lastPolarisAppliedStreamSettings = applied;
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void reportClientPresentationIfNeeded(com.papi.nova.api.PolarisSessionStatus status) {
+        if (status == null || !status.isStreaming() || novaApiClient == null) {
+            return;
+        }
+        updateAppliedStreamSettingsFromStatus(status);
+
+        com.papi.nova.api.PolarisSessionStatus.PresentationPolicy policy = status.getPresentationPolicy();
+        double targetRefreshRate = policy.getTargetRefreshRateHz();
+        String refreshPolicy = policy.getRefreshRatePolicy();
+        float appliedRefreshRate = 0f;
+        int displayModeId = 0;
+        String displayMode = "";
+        Display activeDisplay = getStreamingDisplay();
+        if (activeDisplay != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Display.Mode activeMode = activeDisplay.getMode();
+                appliedRefreshRate = activeMode.getRefreshRate();
+                displayModeId = activeMode.getModeId();
+                displayMode = activeMode.getPhysicalWidth() + "x" +
+                        activeMode.getPhysicalHeight() + "x" + activeMode.getRefreshRate();
+            } else {
+                appliedRefreshRate = activeDisplay.getRefreshRate();
+                displayMode = "refresh_rate:" + appliedRefreshRate;
+            }
+        }
+        if (appliedRefreshRate <= 0f) {
+            appliedRefreshRate = lastClientPresentationRefreshRate > 0f ?
+                    lastClientPresentationRefreshRate : desiredRefreshRate;
+            displayModeId = lastClientPresentationDisplayModeId;
+            displayMode = lastClientPresentationDisplayMode;
+        }
+        String decoderName = decoderRenderer != null ? decoderRenderer.getActiveDecoderName() : "";
+
+        String presentationStatus = "synced";
+        String reason = "Nova presentation state matches the stream policy";
+        if (policy.getAllowDisplayModeChange() && targetRefreshRate > 0.0) {
+            if (appliedRefreshRate <= 0f) {
+                presentationStatus = "pending";
+                reason = "Nova has not selected a display refresh rate yet";
+            } else if (Math.abs(appliedRefreshRate - targetRefreshRate) <= 0.75) {
+                presentationStatus = "synced";
+                reason = "Nova matched the internal display refresh rate to the stream FPS";
+            } else if (isWholeRefreshMultiple(appliedRefreshRate, targetRefreshRate)) {
+                presentationStatus = "synced";
+                reason = "Nova selected a display refresh rate that is an even multiple of the stream FPS";
+            } else {
+                presentationStatus = "blocked";
+                reason = "Android did not expose an exact refresh-rate match for this stream";
+            }
+        } else if (!policy.getAllowDisplayModeChange()) {
+            reason = "Polaris did not request a client display-mode change";
+        }
+
+        String reportKey = status.getSessionToken()+"|"+
+                targetRefreshRate+"|"+
+                refreshPolicy+"|"+
+                appliedRefreshRate+"|"+
+                displayModeId+"|"+
+                displayMode+"|"+
+                decoderName+"|"+
+                presentationStatus+"|"+
+                status.getTuning().getAdaptiveTargetBitrateKbps()+"|"+
+                status.getEncoder().getBitrateKbps();
+        if (reportKey.equals(lastReportedClientPresentationKey) ||
+                !clientPresentationReportInFlight.compareAndSet(false, true)) {
+            return;
+        }
+
+        try {
+            JSONObject presentation = new JSONObject();
+            try {
+                presentation.put("status", presentationStatus);
+                if (appliedRefreshRate > 0f) presentation.put("applied_refresh_rate_hz", appliedRefreshRate);
+                if (displayModeId > 0) presentation.put("display_mode_id", displayModeId);
+                if (displayMode != null && !displayMode.isEmpty()) presentation.put("display_mode", displayMode);
+                if (decoderName != null && !decoderName.isEmpty()) presentation.put("decoder", decoderName);
+                if (reason != null && !reason.isEmpty()) presentation.put("reason", reason);
+                if (targetRefreshRate > 0.0) presentation.put("target_refresh_rate_hz", targetRefreshRate);
+                if (refreshPolicy != null && !refreshPolicy.isEmpty()) presentation.put("refresh_rate_policy", refreshPolicy);
+            } catch (Exception ignored) {
+            }
+
+            boolean success = reportPolarisClientSettingsSnapshot(presentation);
+            if (success) {
+                lastReportedClientPresentationKey = reportKey;
+                com.papi.nova.LimeLog.info("Nova: Client presentation synced → " +
+                        presentationStatus + " @ " + appliedRefreshRate + " Hz");
+            } else {
+                com.papi.nova.LimeLog.warning("Nova: Client presentation sync failed");
+            }
+        } finally {
+            clientPresentationReportInFlight.set(false);
+        }
+    }
+
+    private boolean isWholeRefreshMultiple(float appliedRefreshRate, double targetRefreshRate) {
+        if (appliedRefreshRate <= 0f || targetRefreshRate <= 0.0 || appliedRefreshRate < targetRefreshRate) {
+            return false;
+        }
+
+        double ratio = appliedRefreshRate / targetRefreshRate;
+        double nearestWhole = Math.rint(ratio);
+        return nearestWhole >= 1.0 && Math.abs(ratio - nearestWhole) <= 0.05;
+    }
+
+    private void refreshPolarisLiveSessionStatus() {
         if (novaApiClient == null || !polarisSessionStatusRefreshInFlight.compareAndSet(false, true)) {
             return;
         }
-        long now = android.os.SystemClock.elapsedRealtime();
-        if (!force && now - lastPolarisSessionStatusRefreshMs < POLARIS_SESSION_STATUS_MIN_REFRESH_MS) {
-            polarisSessionStatusRefreshInFlight.set(false);
-            return;
-        }
-        lastPolarisSessionStatusRefreshMs = now;
 
-        if (!executePolarisSessionTask(() -> {
+        new Thread(() -> {
             try {
                 com.papi.nova.api.PolarisSessionStatus status = novaApiClient.getSessionStatus();
                 if (status != null) {
@@ -4764,15 +5118,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     if (novaHud != null) {
                         novaHud.applySessionStatus(status);
                     }
+                    reportClientPresentationIfNeeded(status);
                 }
             } catch (Exception e) {
                 com.papi.nova.LimeLog.warning("Nova: Live session status refresh failed: " + e.getMessage());
             } finally {
                 polarisSessionStatusRefreshInFlight.set(false);
             }
-        })) {
-            polarisSessionStatusRefreshInFlight.set(false);
-        }
+        }, "NovaSessionStatus").start();
     }
 
     private void applyMouseMode(int mode) {
@@ -4850,15 +5203,24 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void disconnect() {
-        pendingSessionEndReason = SESSION_END_REASON_DISCONNECT;
-        backgroundDetachPending = false;
-        explicitSessionEndRequested = true;
-        quitOnStop = false;
-        com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(this);
         if (prefConfig.smartClipboardSync) {
             getClipboard(-1);
         }
         finish();
+    }
+
+    public void relaunchStream() {
+        final Intent relaunchIntent = new Intent(getIntent());
+        relaunchIntent.setClass(getApplicationContext(), Game.class);
+        relaunchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        if (prefConfig.smartClipboardSync) {
+            getClipboard(-1);
+        }
+        finish();
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            getApplicationContext().startActivity(relaunchIntent);
+            overridePendingTransition(0, 0);
+        }, 900);
     }
 
     public void quit() {
@@ -4874,10 +5236,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         builder.setPositiveButton(getString(R.string.yes), (dialog, which) -> {
             quitOnStop = true;
-            pendingSessionEndReason = SESSION_END_REASON_END;
-            backgroundDetachPending = false;
-            explicitSessionEndRequested = true;
-            com.papi.nova.service.NovaStreamKeepAlive.Companion.stop(this);
             dialog.dismiss();
             finish();
         });

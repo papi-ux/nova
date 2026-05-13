@@ -1,11 +1,5 @@
 package com.papi.nova.api;
 
-import android.content.Context;
-
-import androidx.test.core.app.ApplicationProvider;
-
-import com.papi.nova.manager.PolarisProfileSync;
-
 import org.json.JSONObject;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,7 +18,8 @@ public class PolarisApiClientParsingTest {
     public void parseCapabilitiesResponse_includesCursorVisibilityControl() throws Exception {
         JSONObject json = new JSONObject(
                 "{\"server\":\"polaris\",\"version\":\"1.0.0\"," +
-                        "\"features\":{\"ai_optimizer\":true,\"cursor_visibility_control\":true,\"client_settings_v1\":true}," +
+                        "\"features\":{\"ai_optimizer\":true,\"ai_optimizer_control\":true,\"cursor_visibility_control\":true," +
+                        "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true}," +
                         "\"capture\":{\"backend\":\"wayland\",\"codecs\":[\"hevc\"]}}"
         );
 
@@ -32,167 +27,12 @@ public class PolarisApiClientParsingTest {
 
         assertEquals("polaris", capabilities.getServer());
         assertTrue(capabilities.getFeatures().getAiOptimizer());
+        assertTrue(capabilities.getFeatures().getAiAutoQuality());
+        assertTrue(capabilities.getFeatures().getAiAutoQualityControl());
         assertTrue(capabilities.getFeatures().getCursorVisibilityControl());
+        assertTrue(capabilities.getFeatures().getStreamPolicy());
         assertTrue(capabilities.getFeatures().getClientSettings());
-    }
-
-    @Test
-    public void parseClientSettingsResponse_includesBidirectionalSettings() throws Exception {
-        JSONObject json = new JSONObject(
-                "{\"status\":true,\"client_settings\":{\"version\":1,\"revision\":\"abc\"," +
-                        "\"desired\":{\"stream_display_mode\":\"headless_stream\",\"stream_display_mode_label\":\"Headless Stream\"," +
-                        "\"display_mode\":\"1920x1080x120\",\"target_bitrate_kbps\":25000," +
-                        "\"adaptive_bitrate_enabled\":true,\"ai_optimizer_enabled\":false}," +
-                        "\"effective\":{\"stream_display_mode\":\"windowed_stream\",\"stream_display_mode_label\":\"GPU-Native Test\"," +
-                        "\"display_mode\":\"1920x1080x120\",\"target_bitrate_kbps\":22000," +
-                        "\"adaptive_bitrate_enabled\":true,\"adaptive_target_bitrate_kbps\":22000," +
-                        "\"ai_optimizer_enabled\":false,\"capture_path\":\"gpu_native\",\"capture_gpu_native\":true}," +
-                        "\"capabilities\":{\"display_mode_override\":true,\"target_bitrate_override\":true," +
-                        "\"adaptive_bitrate_control\":true,\"ai_optimizer_control\":true," +
-                        "\"modes\":[{\"value\":\"headless_stream\",\"label\":\"Headless Stream\",\"available\":true}]}," +
-                        "\"relaunch_required\":true}}"
-        );
-
-        PolarisClientSettings settings = PolarisApiClient.parseClientSettingsResponse(json);
-
-        assertEquals("abc", settings.getRevision());
-        assertEquals("headless_stream", settings.getDesired().getStreamDisplayMode());
-        assertEquals("Headless Stream", settings.getDesiredModeLabel());
-        assertEquals(25000, settings.getDesired().getTargetBitrateKbps());
-        assertTrue(settings.getDesired().getAdaptiveBitrateEnabled());
-        assertFalse(settings.getDesired().getAiOptimizerEnabled());
-        assertEquals("windowed_stream", settings.getEffective().getStreamDisplayMode());
-        assertEquals("GPU-Native Test", settings.getEffectiveModeLabel());
-        assertTrue(settings.getEffective().getAdaptiveBitrateEnabled());
-        assertEquals(22000, settings.getEffective().getAdaptiveTargetBitrateKbps());
-        assertFalse(settings.getEffective().getAiOptimizerEnabled());
-        assertTrue(settings.getEffective().getCaptureGpuNative());
-        assertTrue(settings.getCapabilities().getAdaptiveBitrateControl());
-        assertTrue(settings.getCapabilities().getAiOptimizerControl());
-        assertTrue(settings.getCapabilities().getTargetBitrateOverride());
-        assertTrue(settings.getRelaunchRequired());
-    }
-
-    @Test
-    public void comparePolarisProfile_reportsMatchedDifferentAndUnset() throws Exception {
-        PolarisClientSettings matched = PolarisApiClient.parseClientSettingsResponse(new JSONObject(
-                "{\"status\":true,\"client_settings\":{\"desired\":{\"display_mode\":\"1920x1080x60\"," +
-                        "\"target_bitrate_kbps\":30000,\"adaptive_bitrate_enabled\":false,\"ai_optimizer_enabled\":false}," +
-                        "\"effective\":{\"adaptive_bitrate_enabled\":true,\"adaptive_target_bitrate_kbps\":12000," +
-                        "\"ai_optimizer_enabled\":true},\"capabilities\":{}}}"
-        ));
-        PolarisClientSettings different = PolarisApiClient.parseClientSettingsResponse(new JSONObject(
-                "{\"status\":true,\"client_settings\":{\"desired\":{\"display_mode\":\"1280x720x60\"," +
-                        "\"target_bitrate_kbps\":10000},\"effective\":{},\"capabilities\":{}}}"
-        ));
-        PolarisClientSettings unset = PolarisApiClient.parseClientSettingsResponse(new JSONObject(
-                "{\"status\":true,\"client_settings\":{\"desired\":{},\"effective\":{},\"capabilities\":{}}}"
-        ));
-
-        assertEquals(
-                PolarisProfileSync.ProfileState.MATCHED,
-                PolarisProfileSync.compare("1920x1080x60", 30000, matched)
-        );
-        assertEquals(
-                PolarisProfileSync.ProfileState.DIFFERENT,
-                PolarisProfileSync.compare("1920x1080x60", 30000, different)
-        );
-        assertEquals(
-                PolarisProfileSync.ProfileState.POLARIS_UNSET,
-                PolarisProfileSync.compare("1920x1080x60", 30000, unset)
-        );
-        assertEquals(
-                PolarisProfileSync.ProfileState.UNAVAILABLE,
-                PolarisProfileSync.compare("1920x1080x60", 30000, null)
-        );
-    }
-
-    @Test
-    public void comparePolarisProfile_ignoresLiveHostTuningFields() throws Exception {
-        PolarisClientSettings settings = PolarisApiClient.parseClientSettingsResponse(new JSONObject(
-                "{\"status\":true,\"client_settings\":{\"desired\":{\"display_mode\":\"1920x1080x60\"," +
-                        "\"target_bitrate_kbps\":30000,\"adaptive_bitrate_enabled\":false," +
-                        "\"ai_optimizer_enabled\":false},\"effective\":{\"display_mode\":\"1920x1080x60\"," +
-                        "\"target_bitrate_kbps\":30000,\"adaptive_bitrate_enabled\":true," +
-                        "\"adaptive_target_bitrate_kbps\":12000,\"ai_optimizer_enabled\":true}," +
-                        "\"capabilities\":{\"adaptive_bitrate_control\":true,\"ai_optimizer_control\":true}}}"
-        ));
-
-        assertEquals(
-                PolarisProfileSync.ProfileState.MATCHED,
-                PolarisProfileSync.compare("1920x1080x60", 30000, settings)
-        );
-    }
-
-    @Test
-    public void buildClientSettingsUpdateBody_profileDoesNotIncludeHostTuning() {
-        JSONObject body = PolarisApiClient.buildClientSettingsUpdateBody(
-                null,
-                "1920x1080x60",
-                false,
-                30000,
-                false,
-                null,
-                null,
-                null
-        );
-
-        assertEquals("1920x1080x60", body.optString("display_mode"));
-        assertEquals(30000, body.optInt("target_bitrate_kbps"));
-        assertFalse(body.has("adaptive_bitrate_enabled"));
-        assertFalse(body.has("ai_optimizer_enabled"));
-    }
-
-    @Test
-    public void buildClientSettingsUpdateBody_adaptiveOnlyPostsAdaptiveFlag() {
-        JSONObject body = PolarisApiClient.buildClientSettingsUpdateBody(
-                null,
-                null,
-                false,
-                null,
-                false,
-                true,
-                null,
-                null
-        );
-
-        assertEquals(1, body.length());
-        assertTrue(body.optBoolean("adaptive_bitrate_enabled"));
-    }
-
-    @Test
-    public void buildClientSettingsUpdateBody_aiOnlyPostsAiFlag() {
-        JSONObject body = PolarisApiClient.buildClientSettingsUpdateBody(
-                null,
-                null,
-                false,
-                null,
-                false,
-                null,
-                true,
-                null
-        );
-
-        assertEquals(1, body.length());
-        assertTrue(body.optBoolean("ai_optimizer_enabled"));
-    }
-
-    @Test
-    public void autoSyncPreference_isScopedPerServer() {
-        Context context = ApplicationProvider.getApplicationContext();
-        context.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit().clear().commit();
-
-        assertFalse(PolarisProfileSync.isAutoSyncEnabled(context, null));
-        assertFalse(PolarisProfileSync.isAutoSyncEnabled(context, "server-a"));
-        assertFalse(PolarisProfileSync.isAutoSyncEnabled(context, "server-b"));
-
-        PolarisProfileSync.setAutoSyncEnabled(context, "server-a", true);
-
-        assertTrue(PolarisProfileSync.isAutoSyncEnabled(context, "server-a"));
-        assertFalse(PolarisProfileSync.isAutoSyncEnabled(context, "server-b"));
-
-        PolarisProfileSync.setAutoSyncEnabled(context, "server-a", false);
-        assertFalse(PolarisProfileSync.isAutoSyncEnabled(context, "server-a"));
+        assertTrue(capabilities.getFeatures().getOptimizerSync());
     }
 
     @Test
@@ -202,17 +42,18 @@ public class PolarisApiClientParsingTest {
                         "\"game_id\":123,\"game_uuid\":\"game-uuid\"," +
                         "\"session_token\":\"token-123\",\"owner_unique_id\":\"owner-uuid\"," +
                         "\"owner_device_name\":\"Retroid\",\"client_role\":\"viewer\",\"viewer_count\":2,\"owned_by_client\":true," +
-                        "\"cursor_visible\":true,\"dynamic_range\":1,\"mangohud_configured\":true," +
+                        "\"cursor_visible\":true,\"dynamic_range\":1,\"mangohud_configured\":true,\"ai_auto_quality_enabled\":true," +
                         "\"controls\":{\"host_tuning_allowed\":false,\"quit_allowed\":false,\"shutdown_in_progress\":false," +
                         "\"client_commands_enabled\":true,\"device_commands_enabled\":true}," +
                         "\"tuning\":{\"adaptive_bitrate_enabled\":true,\"adaptive_target_bitrate_kbps\":18000," +
-                        "\"ai_optimizer_enabled\":true,\"mangohud_configured\":true}," +
+                        "\"adaptive_base_bitrate_kbps\":20000,\"adaptive_min_bitrate_kbps\":2000," +
+                        "\"adaptive_max_bitrate_kbps\":30000,\"adaptive_bitrate_state\":\"network_pressure\"," +
+                        "\"adaptive_bitrate_reason\":\"packet_loss\"," +
+                        "\"ai_auto_quality_enabled\":true,\"ai_optimizer_enabled\":true,\"mangohud_configured\":true}," +
                         "\"display_mode\":{\"label\":\"Headless\",\"selection\":\"headless\",\"requested\":\"auto\"," +
                         "\"explicit_choice\":false,\"virtual_display\":false,\"requested_headless\":true,\"effective_headless\":true}," +
                         "\"capture\":{\"backend\":\"wayland\",\"resolution\":\"1920x1080\"," +
-                        "\"transport\":\"dmabuf\",\"residency\":\"gpu\",\"format\":\"bgra8\"," +
-                        "\"path\":\"gpu_native\",\"reason\":\"gpu_native\",\"reason_message\":\"Capture and encoder conversion are GPU-resident.\"," +
-                        "\"gpu_native\":true}," +
+                        "\"transport\":\"dmabuf\",\"residency\":\"gpu\",\"format\":\"bgra8\"}," +
                         "\"encoder\":{\"codec\":\"hevc_nvenc\",\"bitrate_kbps\":20000,\"fps\":60.0," +
                         "\"requested_client_fps\":60.0,\"session_target_fps\":60.0," +
                         "\"encode_target_fps\":60.0,\"pacing_policy\":\"client_fps_limit\",\"optimization_source\":\"ai_cached\"," +
@@ -222,14 +63,42 @@ public class PolarisApiClientParsingTest {
                         "\"recommendation_version\":2," +
                         "\"target_device\":\"cuda\"," +
                         "\"target_residency\":\"gpu\",\"target_format\":\"p010\"}," +
+                        "\"profile_state\":{\"state\":\"stable\",\"label\":\"Stable\",\"reason\":\"Auto Quality is holding the current profile.\"," +
+                        "\"source\":\"ai_cached\",\"cache_status\":\"hit\",\"confidence\":\"medium\"," +
+                        "\"preference\":\"high_fps\",\"preference_label\":\"Prefer High FPS\",\"preference_applied\":false," +
+                        "\"current_profile\":{\"display_mode\":\"1280x720x120\",\"target_bitrate_kbps\":60000," +
+                        "\"target_fps\":120.0,\"preferred_codec\":\"hevc\",\"hdr\":false}," +
+                        "\"last_result\":{\"grade\":\"A\",\"session_count\":3,\"delivered_fps\":118.0,\"target_fps\":120.0," +
+                        "\"low_1_percent_fps\":104.0,\"min_fps\":88.0,\"frame_pacing_bad_pct\":1.5," +
+                        "\"primary_issue\":\"steady\",\"sample_confidence\":\"high\",\"updated_at\":1770000000}," +
+                        "\"actions\":{\"can_reset\":true,\"can_retry_quality\":false,\"can_keep_recovery\":false," +
+                        "\"can_change_preference\":true}}," +
                         "\"health\":{\"grade\":\"watch\",\"summary\":\"Network jitter is the most likely source of the hitching.\"," +
                         "\"primary_issue\":\"network_jitter\",\"issues\":[\"network_jitter\",\"frame_pacing\"]," +
                         "\"recommendations\":[\"Lower bitrate or keep Adaptive Bitrate enabled.\"]," +
                         "\"safe_bitrate_kbps\":15000,\"safe_codec\":\"hevc\",\"safe_display_mode\":\"headless\"," +
                         "\"safe_hdr\":false,\"decoder_risk\":\"normal\",\"hdr_risk\":\"normal\",\"network_risk\":\"elevated\"," +
                         "\"relaunch_recommended\":true}," +
-                        "\"client_settings\":{\"desired\":{\"stream_display_mode\":\"headless_stream\",\"stream_display_mode_label\":\"Headless Stream\"}," +
-                        "\"effective\":{\"stream_display_mode\":\"headless_stream\",\"stream_display_mode_label\":\"Headless Stream\"}}}"
+                        "\"client_settings\":{\"desired\":{\"sync_mode\":\"auto_safe\",\"target_bitrate_kbps\":6000," +
+                        "\"adaptive_bitrate_enabled\":true,\"ai_optimizer_enabled\":true}," +
+                        "\"effective\":{\"target_bitrate_kbps\":6000,\"adaptive_target_bitrate_kbps\":5200," +
+                        "\"adaptive_bitrate_enabled\":true,\"ai_optimizer_enabled\":true," +
+                        "\"applied_stream_settings\":{\"target_bitrate_kbps\":6000,\"display_mode\":\"1280x720x60\"," +
+                        "\"preferred_codec\":\"hevc\",\"hdr\":false}}," +
+                        "\"sync_status\":{\"available\":true,\"version\":1,\"state\":\"synced\"," +
+                        "\"legacy_state\":\"adaptive_active\",\"sync_mode\":\"auto_safe\",\"manual_override\":false," +
+                        "\"message\":\"Auto Safe is active\"," +
+                        "\"applied_stream_settings\":{\"target_bitrate_kbps\":6000,\"display_mode\":\"1280x720x60\"," +
+                        "\"preferred_codec\":\"hevc\",\"hdr\":false}," +
+                        "\"fields\":{\"client_presentation\":{\"status\":\"synced\"," +
+                        "\"desired\":{\"target_refresh_rate_hz\":60.0,\"refresh_rate_policy\":\"exact_match_internal\"}," +
+                        "\"effective\":{\"status\":\"synced\",\"applied_refresh_rate_hz\":60.0,\"target_refresh_rate_hz\":60.0," +
+                        "\"refresh_rate_policy\":\"exact_match_internal\",\"display_mode\":\"refresh_rate:60.0\"," +
+                        "\"decoder\":\"c2.qti.hevc.decoder.low_latency\",\"frame_pacing_state\":\"steady\"," +
+                        "\"reason\":\"Nova matched the internal display refresh rate to the stream FPS\"}}}}}," +
+                        "\"stream_policy\":{\"presentation_policy\":{\"version\":1,\"target_refresh_rate_hz\":60.0," +
+                        "\"refresh_rate_policy\":\"exact_match_internal\",\"allow_display_mode_change\":true," +
+                        "\"internal_display_only\":true,\"reason\":\"Match internal handheld displays.\"}}}"
         );
 
         PolarisSessionStatus status = PolarisApiClient.parseSessionStatusResponse(json);
@@ -248,7 +117,14 @@ public class PolarisApiClientParsingTest {
         assertTrue(status.getMangohudConfigured());
         assertEquals(false, status.getControls().getShutdownInProgress());
         assertTrue(status.getTuning().getAdaptiveBitrateEnabled());
+        assertTrue(status.getAiAutoQualityEnabled());
+        assertTrue(status.getTuning().getAiAutoQualityEnabled());
         assertEquals(18000, status.getTuning().getAdaptiveTargetBitrateKbps());
+        assertEquals(20000, status.getTuning().getAdaptiveBaseBitrateKbps());
+        assertEquals(2000, status.getTuning().getAdaptiveMinBitrateKbps());
+        assertEquals(30000, status.getTuning().getAdaptiveMaxBitrateKbps());
+        assertEquals("network_pressure", status.getTuning().getAdaptiveBitrateState());
+        assertEquals("packet_loss", status.getTuning().getAdaptiveBitrateReason());
         assertEquals("auto", status.getDisplayMode().getRequested());
         assertEquals("ai_cached", status.getEncoder().getOptimizationSource());
         assertEquals("medium", status.getEncoder().getOptimizationConfidence());
@@ -257,8 +133,6 @@ public class PolarisApiClientParsingTest {
         assertEquals(2, status.getEncoder().getRecommendationVersion());
         assertEquals("1920x1080", status.getCapture().getResolution());
         assertEquals("dmabuf", status.getCapture().getTransport());
-        assertEquals("gpu_native", status.getCapture().getPath());
-        assertEquals("Capture and encoder conversion are GPU-resident.", status.getCapture().getReasonMessage());
         assertEquals("gpu", status.getEncoder().getTargetResidency());
         assertEquals("p010", status.getEncoder().getTargetFormat());
         assertEquals("watch", status.getHealth().getGrade());
@@ -271,59 +145,197 @@ public class PolarisApiClientParsingTest {
         assertTrue(status.getHasHealthConcerns());
         assertTrue(status.isTenBitActive());
         assertTrue(status.isGpuPath());
-        assertEquals("Headless Stream", status.getClientSettings().getDesiredModeLabel());
         assertTrue(status.isViewer());
         assertEquals("Cached AI", status.getOptimizationSourceLabel());
         assertEquals("MEDIUM", status.getOptimizationConfidenceLabel());
+        assertEquals(60.0, status.getPresentationPolicy().getTargetRefreshRateHz(), 0.01);
+        assertEquals("exact_match_internal", status.getPresentationPolicy().getRefreshRatePolicy());
+        assertTrue(status.getPresentationPolicy().getAllowDisplayModeChange());
+        assertTrue(status.isClientPresentationSynced());
+        assertEquals("synced", status.getClientPresentation().getStatus());
+        assertEquals(60.0, status.getClientPresentation().getAppliedRefreshRateHz(), 0.01);
+        assertEquals("c2.qti.hevc.decoder.low_latency", status.getClientPresentation().getDecoder());
+        assertTrue(status.getHasOptimizerSync());
+        assertEquals("synced", status.getSyncStatus().getState());
+        assertEquals("adaptive_active", status.getSyncStatus().getLegacyState());
+        assertEquals("auto_safe", status.getSyncStatus().getSyncMode());
+        assertTrue(status.getSyncStatus().isSynced());
+        assertEquals("Synced", status.getSyncStatus().getLabel());
+        assertEquals(6000, status.getSyncStatus().getEffective().getTargetBitrateKbps());
+        assertEquals(5200, status.getSyncStatus().getEffective().getAdaptiveTargetBitrateKbps());
+        assertEquals("1280x720x60", status.getSyncStatus().getApplied().getDisplayMode());
+        assertEquals("hevc", status.getSyncStatus().getApplied().getPreferredCodec());
+        assertEquals("stable", status.getProfileState().getState());
+        assertEquals("Stable", status.getProfileState().getLabel());
+        assertEquals("Prefer High FPS", status.getProfileState().getPreferenceLabel());
+        assertFalse(status.getProfileState().getPreferenceApplied());
+        assertEquals("1280x720x120", status.getProfileState().getCurrentProfile().getDisplayMode());
+        assertEquals(60000, status.getProfileState().getCurrentProfile().getTargetBitrateKbps());
+        assertEquals(120.0, status.getProfileState().getCurrentProfile().getTargetFps(), 0.01);
+        assertEquals("hevc", status.getProfileState().getCurrentProfile().getPreferredCodec());
+        assertEquals(Boolean.FALSE, status.getProfileState().getCurrentProfile().getHdr());
+        assertEquals("A", status.getProfileState().getLastResult().getGrade());
+        assertEquals(3, status.getProfileState().getLastResult().getSessionCount());
+        assertEquals(118.0, status.getProfileState().getLastResult().getDeliveredFps(), 0.01);
+        assertTrue(status.getProfileState().getActions().getCanReset());
+    }
+
+    @Test
+    public void parseSessionStatusResponse_includesHostRenderLimitedHealth() throws Exception {
+        JSONObject json = new JSONObject(
+                "{\"state\":\"streaming\",\"streaming_active\":true," +
+                        "\"auto_quality\":{\"enabled\":true,\"state\":\"recovery_queued\",\"blocked_reason\":\"none\"," +
+                        "\"live_bitrate_kbps\":4707,\"quality_cap_kbps\":50000," +
+                        "\"relaunch_required\":true,\"suggested_profile\":{\"target_fps\":30}," +
+                        "\"summary\":\"AI Recovery Profile ready for the next launch.\"}," +
+                        "\"health\":{\"auto_mode\":true,\"limiting_factor\":\"host_render\",\"auto_action\":\"lower_render_profile\"," +
+                        "\"grade\":\"watch\",\"summary\":\"Host render is missing the stream FPS target.\"," +
+                        "\"primary_issue\":\"host_render_limited\",\"issues\":[\"host_render_limited\"]," +
+                        "\"host_render_limited\":true,\"safe_target_fps\":30,\"recovery_profile\":\"host_render_limited\"," +
+                        "\"render_fps_gap\":4.0,\"relaunch_recommended\":true}," +
+                        "\"encoder\":{\"requested_client_fps\":30.0,\"session_target_fps\":30.0,\"encode_target_fps\":30.0}}"
+        );
+
+        PolarisSessionStatus status = PolarisApiClient.parseSessionStatusResponse(json);
+
+        assertTrue(status.isHostRenderLimited());
+        assertEquals("Host render", status.getHealthToneLabel());
+        assertEquals("host_render_limited", status.getHealth().getPrimaryIssue());
+        assertEquals(4.0, status.getHealth().getRenderFpsGap(), 0.01);
+        assertTrue(status.getHealth().getAutoMode());
+        assertEquals("host_render", status.getHealth().getLimitingFactor());
+        assertEquals("lower_render_profile", status.getHealth().getAutoAction());
+        assertEquals("host_render_limited", status.getHealth().getRecoveryProfile());
+        assertEquals(30.0, status.getHealth().getSafeTargetFps(), 0.01);
+        assertTrue(status.getHealth().getRelaunchRecommended());
+        assertEquals("recovery_queued", status.getAutoQuality().getState());
+        assertEquals("none", status.getAutoQuality().getBlockedReason());
+        assertEquals(30.0, status.getAutoQuality().getSuggestedTargetFps(), 0.01);
+        assertEquals(4707, status.getAutoQuality().getLiveBitrateKbps());
+        assertEquals(50000, status.getAutoQuality().getQualityCapKbps());
+        assertTrue(status.getAutoQuality().getEnabled());
+        assertTrue(status.getAutoQuality().isRecoveryQueued());
+    }
+
+    @Test
+    public void buildClientSettingsUpdateBody_mapsAiAutoQualityToLegacyFields() throws Exception {
+        JSONObject body = PolarisApiClient.buildClientSettingsUpdateBody(
+                null,
+                null,
+                false,
+                null,
+                false,
+                null,
+                null,
+                true,
+                null
+        );
+
+        assertTrue(body.getBoolean("ai_auto_quality_enabled"));
+        assertTrue(body.getBoolean("ai_optimizer_enabled"));
+        assertTrue(body.getBoolean("adaptive_bitrate_enabled"));
+    }
+
+    @Test
+    public void buildOptimizerProfileClearBody_includesDeviceAndGame() throws Exception {
+        JSONObject body = PolarisApiClient.buildOptimizerProfileClearBody(
+                "Retroid Pocket 6",
+                "Black Myth: Wukong"
+        );
+
+        assertEquals("Retroid Pocket 6", body.getString("device"));
+        assertEquals("Black Myth: Wukong", body.getString("game"));
     }
 
     @Test
     public void parseGameResponse_includesLaunchModeContract() throws Exception {
         JSONObject json = new JSONObject(
                 "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Steam Big Picture\"," +
-                        "\"source\":\"lutris\",\"launcher_source\":\"lutris\",\"launcher_detail\":\"wine\"," +
-                        "\"platform\":\"windows\",\"runtime\":\"wine\"," +
                         "\"launch_mode\":{\"preferred_mode\":\"host_virtual_display\",\"recommended_mode\":\"headless_stream\"," +
-                        "\"allowed_modes\":[\"headless_stream\",\"host_virtual_display\"]," +
+                        "\"allowed_modes\":[\"headless_stream\",\"desktop_display\",\"windowed_stream\",\"host_virtual_display\"]," +
                         "\"mode_reason\":\"Headless is recommended because this Polaris host is already configured for headless streaming.\"}}"
         );
 
         PolarisGame game = PolarisGame.Companion.fromJson(json);
 
         assertEquals("game-uuid", game.getId());
-        assertEquals("lutris", game.getLauncherSource());
-        assertEquals("wine", game.getLauncherDetail());
-        assertEquals("lutris", game.getEffectiveSource());
-        assertEquals("windows", game.getPlatform());
-        assertEquals("wine", game.getRuntime());
-        assertEquals("Lutris", game.getSourceLabel());
-        assertEquals("Windows", game.getPlatformLabel());
-        assertEquals("Wine", game.getRuntimeLabel());
-        assertEquals("Lutris · Windows · Wine", game.getSourceRuntimeLabel());
-        assertEquals("host_virtual_display", game.getLaunchMode().getPreferredMode());
-        assertEquals("headless_stream", game.getLaunchMode().getRecommendedMode());
-        assertTrue(game.getLaunchMode().getAllowedModes().contains("headless_stream"));
-        assertTrue(game.getLaunchMode().getAllowedModes().contains("host_virtual_display"));
+        assertEquals("virtual_display", game.getLaunchMode().getPreferredMode());
+        assertEquals("headless", game.getLaunchMode().getRecommendedMode());
+        assertTrue(game.getLaunchMode().getAllowedModes().contains("headless"));
+        assertTrue(game.getLaunchMode().getAllowedModes().contains("virtual_display"));
     }
 
     @Test
-    public void parseGameResponse_prefersLauncherSourceAndFallsBackForOlderHosts() throws Exception {
-        PolarisGame launcherGame = PolarisGame.Companion.fromJson(new JSONObject(
-                "{\"id\":\"game-uuid\",\"app_id\":43,\"name\":\"Wine Game\"," +
-                        "\"source\":\"manual\",\"launcher_source\":\"lutris\",\"launcher_detail\":\"wine\"," +
-                        "\"platform\":\"windows\",\"runtime\":\"wine\"}"
-        ));
-        assertEquals("lutris", launcherGame.getEffectiveSource());
-        assertEquals("Lutris", launcherGame.getSourceLabel());
-        assertEquals("Lutris · Windows · Wine", launcherGame.getSourceRuntimeLabel());
+    public void parseGameResponse_emptyAllowedLaunchModesDefaultsAvailable() throws Exception {
+        JSONObject json = new JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Game\"," +
+                        "\"launch_mode\":{\"preferred_mode\":\"headless_stream\",\"recommended_mode\":\"headless_stream\"," +
+                        "\"allowed_modes\":[],\"mode_reason\":\"Default launch mode.\"}}"
+        );
 
-        PolarisGame olderHostGame = PolarisGame.Companion.fromJson(new JSONObject(
-                "{\"id\":\"older-game\",\"app_id\":44,\"name\":\"Older Host Game\",\"source\":\"steam\"}"
-        ));
-        assertEquals("steam", olderHostGame.getEffectiveSource());
-        assertEquals("Steam", olderHostGame.getSourceLabel());
-        assertEquals("", olderHostGame.getPlatformLabel());
-        assertEquals("", olderHostGame.getRuntimeLabel());
-        assertEquals("Steam", olderHostGame.getSourceRuntimeLabel());
+        PolarisGame game = PolarisGame.Companion.fromJson(json);
+
+        assertEquals("headless", game.getLaunchMode().getPreferredMode());
+        assertTrue(game.getLaunchMode().getAllowedModes().contains("headless"));
+        assertTrue(game.getLaunchMode().getAllowedModes().contains("virtual_display"));
+    }
+
+    @Test
+    public void launchModeChoice_forcesHeadlessWhenVirtualDisplayUnavailable() throws Exception {
+        JSONObject settingsJson = new JSONObject(
+                "{\"version\":1,\"desired\":{},\"effective\":{},\"capabilities\":{\"modes\":[" +
+                        "{\"value\":\"headless_stream\",\"label\":\"Headless Stream\",\"available\":true}," +
+                        "{\"value\":\"host_virtual_display\",\"label\":\"Host Virtual Display\",\"available\":false," +
+                        "\"reason\":\"Virtual display output is not configured.\"}]}}"
+        );
+        PolarisClientSettings settings = PolarisApiClient.parseClientSettingsResponse(settingsJson);
+        JSONObject gameJson = new JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Game\"," +
+                        "\"launch_mode\":{\"preferred_mode\":\"host_virtual_display\",\"recommended_mode\":\"host_virtual_display\"," +
+                        "\"allowed_modes\":[\"headless_stream\",\"host_virtual_display\"]," +
+                        "\"mode_reason\":\"Virtual display preferred.\"}}"
+        );
+
+        PolarisGame game = PolarisGame.Companion.fromJson(gameJson);
+        PolarisGame.LaunchModeChoice choice = game.resolveLaunchModeChoice(true, settings);
+
+        assertEquals("headless", choice.getPreferredMode());
+        assertEquals("headless", choice.getRecommendedMode());
+        assertTrue(choice.getHeadlessAllowed());
+        assertFalse(choice.getVirtualDisplayAllowed());
+        assertTrue(choice.getVirtualDisplayUnavailable());
+        assertEquals("Virtual display output is not configured.", choice.getVirtualDisplayUnavailableReason());
+    }
+
+    @Test
+    public void launchModeChoice_usesHostStreamModeOverGameVirtualPreference() throws Exception {
+        JSONObject settingsJson = new JSONObject(
+                "{\"version\":1," +
+                        "\"desired\":{\"stream_display_mode\":\"headless_stream\"," +
+                        "\"stream_display_mode_reason\":\"Polaris will stream from the private headless compositor runtime.\"}," +
+                        "\"effective\":{},\"capabilities\":{\"modes\":[" +
+                        "{\"value\":\"headless_stream\",\"label\":\"Headless Stream\",\"available\":true}," +
+                        "{\"value\":\"host_virtual_display\",\"label\":\"Host Virtual Display\",\"available\":true}]}}"
+        );
+        PolarisClientSettings settings = PolarisApiClient.parseClientSettingsResponse(settingsJson);
+        JSONObject gameJson = new JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Game\"," +
+                        "\"launch_mode\":{\"preferred_mode\":\"host_virtual_display\",\"recommended_mode\":\"host_virtual_display\"," +
+                        "\"allowed_modes\":[\"headless_stream\",\"host_virtual_display\"]," +
+                        "\"mode_reason\":\"This app is configured to prefer a dedicated virtual display on the host.\"}}"
+        );
+
+        PolarisGame game = PolarisGame.Companion.fromJson(gameJson);
+        PolarisGame.LaunchModeChoice choice = game.resolveLaunchModeChoice(true, settings);
+
+        assertEquals("virtual_display", choice.getPreferredMode());
+        assertEquals("headless", choice.getRecommendedMode());
+        assertEquals("headless", choice.getHostDefaultMode());
+        assertTrue(choice.getVirtualDisplayAllowed());
+        assertFalse(choice.getVirtualDisplayUnavailable());
+        assertEquals(
+                "Polaris will stream from the private headless compositor runtime.",
+                choice.getHostModeReason()
+        );
     }
 }

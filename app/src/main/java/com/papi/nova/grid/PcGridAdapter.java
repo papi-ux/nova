@@ -95,8 +95,14 @@ public class PcGridAdapter extends GenericGridAdapter<PcViewModel.ComputerObject
                 statusDot.setBackgroundResource(R.drawable.nova_status_online);
             }
             if (statusText != null) {
-                if (obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
-                    statusText.setText("Online \u00b7 Not Paired");
+                if (obj.details.pairState == PairingManager.PairState.PAIRED && obj.details.serverCert == null) {
+                    statusText.setText("Repair pair");
+                    statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_warning));
+                    if (primaryAction != null) {
+                        primaryAction.setText(R.string.pcview_card_action_pair);
+                    }
+                } else if (obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
+                    statusText.setText(obj.details.serverCert == null ? "Pair required" : "Repair pair");
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_warning));
                     if (primaryAction != null) {
                         primaryAction.setText(R.string.pcview_card_action_pair);
@@ -105,11 +111,26 @@ public class PcGridAdapter extends GenericGridAdapter<PcViewModel.ComputerObject
                     statusText.setText("Streaming");
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_success));
                     if (primaryAction != null) {
-                        primaryAction.setText(R.string.pcview_card_action_resume);
+                        primaryAction.setText(Boolean.FALSE.equals(obj.details.currentGameOwnedByClient) ?
+                                R.string.applist_menu_watch :
+                                R.string.pcview_card_action_resume);
+                    }
+                } else if (obj.details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
+                    String addr = obj.details.activeAddress != null ? obj.details.activeAddress.address : "";
+                    statusText.setText("Library ready \u00b7 " + addr);
+                    statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
+                    if (primaryAction != null) {
+                        primaryAction.setText(R.string.pcview_card_action_open_library);
+                    }
+                } else if (obj.details.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
+                    statusText.setText("Checking library");
+                    statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
+                    if (primaryAction != null) {
+                        primaryAction.setText(R.string.pcview_card_action_checking_library);
                     }
                 } else {
                     String addr = obj.details.activeAddress != null ? obj.details.activeAddress.address : "";
-                    statusText.setText("Ready \u00b7 " + addr);
+                    statusText.setText("Compatibility mode \u00b7 " + addr);
                     statusText.setTextColor(NovaThemeManager.INSTANCE.getTextMutedColor(context));
                     if (primaryAction != null) {
                         primaryAction.setText(R.string.pcview_card_action_open_apps);
@@ -160,7 +181,8 @@ public class PcGridAdapter extends GenericGridAdapter<PcViewModel.ComputerObject
             overlayView.setVisibility(View.VISIBLE);
         }
         else if (obj.details.state == ComputerDetails.State.ONLINE &&
-                obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
+                (obj.details.pairState == PairingManager.PairState.NOT_PAIRED ||
+                        (obj.details.pairState == PairingManager.PairState.PAIRED && obj.details.serverCert == null))) {
             overlayView.setImageResource(R.drawable.ic_lock);
             overlayView.setAlpha(1.0f);
             overlayView.setVisibility(View.VISIBLE);
