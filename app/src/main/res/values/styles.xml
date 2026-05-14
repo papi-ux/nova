@@ -126,11 +126,6 @@
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
         <item name="android:textColorSecondary">@color/nova_text_secondary</item>
         <item name="colorAccent">@color/nova_accent</item>
-        <item name="android:colorControlHighlight">@color/nova_accent_surface</item>
-        <item name="colorControlHighlight">@color/nova_accent_surface</item>
-        <item name="android:listChoiceBackgroundIndicator">@drawable/nova_dialog_choice_bg</item>
-        <item name="listChoiceBackgroundIndicator">@drawable/nova_dialog_choice_bg</item>
-        <item name="android:listSelector">@drawable/nova_dialog_choice_bg</item>
         <item name="buttonBarPositiveButtonStyle">@style/NovaDialogButton</item>
         <item name="buttonBarNegativeButtonStyle">@style/NovaDialogButton</item>
         <item name="buttonBarNeutralButtonStyle">@style/NovaDialogButton</item>
@@ -165,7 +160,7 @@
         <item name="android:textColor">@color/nova_text_primary</item>
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:background">@drawable/nova_chip_default</item>
+        <item name="android:background">@drawable/nova_badge_bg</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
     </style>
@@ -219,7 +214,7 @@
     <!-- Nova quick menu hotkey button -->
     <style name="NovaQuickKey" parent="Widget.MaterialComponents.Button.OutlinedButton">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">38dp</item>
+        <item name="android:layout_height">36dp</item>
         <item name="android:layout_margin">3dp</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textColor">@color/nova_ice</item>
@@ -228,22 +223,96 @@
         <item name="android:minWidth">0dp</item>
         <item name="android:paddingStart">6dp</item>
         <item name="android:paddingEnd">6dp</item>
-        <item name="strokeColor">@color/nova_divider</item>
-        <item name="cornerRadius">10dp</item>
-        <item name="backgroundTint">@color/nova_accent_surface</item>
+        <item name="strokeColor">#2638BDF8</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="backgroundTint">#C9141822</item>
         <item name="rippleColor">@color/nova_accent_glow</item>
+    </style>
+
+    <style name="NovaQuickMenuSegment" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">2dp</item>
+        <item name="android:paddingEnd">2dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="backgroundTint">#99151A25</item>
+        <item name="strokeColor">#2638BDF8</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="rippleColor">@color/nova_accent_glow</item>
+    </style>
+
+    <style name="NovaQuickMenuCardTitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">#FF8FA3AD</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+
+    <style name="NovaQuickMenuRow">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">2dp</item>
+        <item name="android:paddingEnd">2dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+    </style>
+
+    <style name="NovaQuickMenuCompactRow">
+        <item name="android:layout_height">42dp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">2dp</item>
+        <item name="android:paddingEnd">2dp</item>
+    </style>
+
+    <style name="NovaQuickMenuRowTitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="NovaQuickMenuRowCaption">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:textColor">@color/nova_text_muted</item>
+        <item name="android:textSize">9sp</item>
+    </style>
+
+    <style name="NovaQuickMenuTextAction">
+        <item name="android:layout_height">38dp</item>
+        <item name="android:background">@drawable/nova_quick_text_action_bg</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">6dp</item>
+        <item name="android:paddingEnd">6dp</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textSize">12sp</item>
     </style>
 
     <style name="NovaQuickMenuState">
         <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">24dp</item>
-        <item name="android:minWidth">52dp</item>
+        <item name="android:layout_height">22dp</item>
+        <item name="android:minWidth">50dp</item>
         <item name="android:gravity">center</item>
         <item name="android:textColor">@color/nova_text_secondary</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textSize">10sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:paddingStart">10dp</item>
-        <item name="android:paddingEnd">10dp</item>
-        <item name="android:background">@drawable/nova_badge_bg</item>
+        <item name="android:paddingStart">9dp</item>
+        <item name="android:paddingEnd">9dp</item>
+        <item name="android:background">@drawable/nova_quick_chip_bg</item>
     </style>
 </resources>
