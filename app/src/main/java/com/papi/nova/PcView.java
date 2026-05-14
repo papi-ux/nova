@@ -57,16 +57,19 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.text.InputFilter;
 import android.text.InputType;
+import android.os.SystemClock;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.TextView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 import android.content.res.ColorStateList;
 
-import android.util.TypedValue;
-
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -103,7 +106,107 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private ComputerDetails.AddressTuple pendingPairingAddress;
     private String pendingPairingPin, pendingPairingPassphrase;
     private int currentServerFilter = FILTER_ALL;
+    private long lastServerFilterFocusMs;
     private final Set<String> libraryProbeInFlight = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN) {
+            View focus = getCurrentFocus();
+            if (isServerFilterFocus(focus) ||
+                    (isHeaderFocusFallback(focus) && wasServerFilterFocusedRecently())) {
+                scheduleServerRowFocus(focus);
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    private boolean isServerFilterFocus(View focus) {
+        if (focus == null) {
+            return false;
+        }
+        int id = focus.getId();
+        return id == R.id.filterAllServers ||
+                id == R.id.filterOnlineServers ||
+                id == R.id.filterStreamingServers ||
+                id == R.id.filterNeedsPairingServers;
+    }
+
+    private void bindServerFilterFocusFallback() {
+        View root = getWindow().getDecorView();
+        if (root == null) {
+            return;
+        }
+
+        root.getViewTreeObserver().addOnGlobalFocusChangeListener((oldFocus, newFocus) -> {
+            if (isServerFilterFocus(newFocus)) {
+                lastServerFilterFocusMs = SystemClock.uptimeMillis();
+            }
+            if (newFocus != null && newFocus.getId() == R.id.serverListFocusBridge) {
+                scheduleServerRowFocus(newFocus);
+                return;
+            }
+            if (isServerFilterFocus(oldFocus) &&
+                    isHeaderFocusFallback(newFocus) &&
+                    wasServerFilterFocusedRecently()) {
+                scheduleServerRowFocus(newFocus);
+                return;
+            }
+            if (!isServerListFocus(newFocus)) {
+                setHeaderQuickActionsFocusable(true);
+            }
+        });
+    }
+
+    private boolean wasServerFilterFocusedRecently() {
+        return lastServerFilterFocusMs != 0 &&
+                SystemClock.uptimeMillis() - lastServerFilterFocusMs < 500;
+    }
+
+    private boolean isHeaderFocusFallback(View focus) {
+        if (focus == null) {
+            return false;
+        }
+        int id = focus.getId();
+        return id == R.id.profilesButton || id == R.id.actionSettings;
+    }
+
+    private void scheduleServerRowFocus(View anchor) {
+        View target = anchor != null ? anchor : getWindow().getDecorView();
+        if (target == null) {
+            return;
+        }
+
+        setHeaderQuickActionsFocusable(false);
+        target.post(() -> moveFocusToFirstServerRow());
+        target.postDelayed(() -> moveFocusToFirstServerRow(), 150);
+        target.postDelayed(() -> moveFocusToFirstServerRow(), 500);
+        target.postDelayed(() -> moveFocusToFirstServerRow(), 1000);
+        target.postDelayed(() -> setHeaderQuickActionsFocusable(true), 1200);
+    }
+
+    private boolean isServerListFocus(View focus) {
+        View current = focus;
+        while (current != null) {
+            if (isServerFilterFocus(current)) {
+                return true;
+            }
+
+            int id = current.getId();
+            if (id == R.id.fragmentView ||
+                    id == R.id.pcFragmentContainer ||
+                    id == R.id.serverListFocusBridge ||
+                    id == R.id.serverFilterTabs) {
+                return true;
+            }
+
+            ViewParent parent = current.getParent();
+            current = parent instanceof View ? (View) parent : null;
+        }
+        return false;
+    }
 
     private void clearPendingPairing() {
         pendingPairingAddress = null;
@@ -271,6 +374,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         TextView filterOnlineServers = findViewById(R.id.filterOnlineServers);
         TextView filterStreamingServers = findViewById(R.id.filterStreamingServers);
         TextView filterNeedsPairingServers = findViewById(R.id.filterNeedsPairingServers);
+        View serverListFocusBridge = findViewById(R.id.serverListFocusBridge);
         MaterialButton profilesButton = findViewById(R.id.profilesButton);
 
         if (modeServers != null) {
@@ -334,6 +438,15 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
         if (filterNeedsPairingServers != null) {
             filterNeedsPairingServers.setOnClickListener(v -> setServerFilter(FILTER_NEEDS_PAIRING));
+        }
+        bindServerFilterFocusDown(filterAllServers, filterOnlineServers, filterStreamingServers, filterNeedsPairingServers);
+        bindServerFilterFocusFallback();
+        if (serverListFocusBridge != null) {
+            serverListFocusBridge.setOnFocusChangeListener((view, hasFocus) -> {
+                if (hasFocus) {
+                    moveFocusToFirstServerRow();
+                }
+            });
         }
 
         // Amazon review didn't like the help button because the wiki was not entirely
@@ -442,6 +555,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         button.setBackgroundTintList(ColorStateList.valueOf(backgroundColor));
         button.setTextColor(foregroundColor);
         button.setIconTint(ColorStateList.valueOf(foregroundColor));
+        button.setStrokeColor(ContextCompat.getColorStateList(this, R.color.nova_focus_stroke_selector));
+        button.setStrokeWidth((int) UiHelper.dpToPx(this, 2));
     }
 
     private void styleDestinationCard(MaterialCardView card, boolean active, int accent, int surface,
@@ -451,8 +566,9 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         }
 
         card.setCardBackgroundColor(active ? ColorUtils.blendARGB(surface, accent, 0.12f) : surface);
-        card.setStrokeColor(active ? accent : divider);
-        card.setStrokeWidth((int) UiHelper.dpToPx(this, 1));
+        updateDestinationCardStroke(card, active || card.hasFocus(), accent, divider);
+        card.setOnFocusChangeListener((view, hasFocus) ->
+                updateDestinationCardStroke(card, active || hasFocus, accent, divider));
 
         View content = card.getChildAt(0);
         if (!(content instanceof LinearLayout)) {
@@ -473,6 +589,11 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         title.setTextColor(textPrimary);
         summary.setTextColor(textSecondary);
         meta.setTextColor(active ? textPrimary : textMuted);
+    }
+
+    private void updateDestinationCardStroke(MaterialCardView card, boolean highlighted, int accent, int divider) {
+        card.setStrokeColor(highlighted ? accent : divider);
+        card.setStrokeWidth((int) UiHelper.dpToPx(this, highlighted ? 2 : 1));
     }
 
     private void tintChipRow(int[] ids, int color) {
@@ -528,6 +649,86 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         currentServerFilter = filter;
         updateServerFilterTabs();
         syncComputerList();
+    }
+
+    private void bindServerFilterFocusDown(View... filters) {
+        for (View filter : filters) {
+            if (filter == null) {
+                continue;
+            }
+            filter.setOnFocusChangeListener((view, hasFocus) -> {
+                if (hasFocus) {
+                    lastServerFilterFocusMs = SystemClock.uptimeMillis();
+                }
+            });
+            filter.setOnKeyListener((view, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                        keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    scheduleServerRowFocus(view);
+                    return true;
+                }
+                return false;
+            });
+        }
+    }
+
+    private boolean moveFocusToFirstServerRow() {
+        RecyclerView rv = findViewById(R.id.fragmentView);
+        if (rv == null) {
+            return false;
+        }
+
+        setHeaderQuickActionsFocusable(false);
+        rv.postDelayed(() -> setHeaderQuickActionsFocusable(true), 600);
+        rv.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        if (rv.getChildCount() == 0) {
+            rv.requestFocus();
+            return false;
+        }
+
+        View firstRow = rv.getChildAt(0);
+        UiHelper.applyTvFocusStyle(firstRow);
+        setServerFilterNextFocusDown(firstRow);
+        firstRow.requestFocus();
+        return firstRow.hasFocus();
+    }
+
+    private void setHeaderQuickActionsFocusable(boolean focusable) {
+        setFocusable(R.id.profilesButton, focusable);
+        setFocusable(R.id.actionSettings, focusable);
+    }
+
+    private void setFocusable(int viewId, boolean focusable) {
+        View view = findViewById(viewId);
+        if (view == null) {
+            return;
+        }
+        view.setFocusable(focusable);
+        view.setFocusableInTouchMode(false);
+    }
+
+    private void setServerFilterNextFocusDown(View firstRow) {
+        if (firstRow == null) {
+            return;
+        }
+
+        int targetId = firstRow.getId();
+        if (targetId == View.NO_ID) {
+            targetId = View.generateViewId();
+            firstRow.setId(targetId);
+        }
+
+        setNextFocusDown(R.id.filterAllServers, targetId);
+        setNextFocusDown(R.id.filterOnlineServers, targetId);
+        setNextFocusDown(R.id.filterStreamingServers, targetId);
+        setNextFocusDown(R.id.filterNeedsPairingServers, targetId);
+    }
+
+    private void setNextFocusDown(int viewId, int targetId) {
+        View view = findViewById(viewId);
+        if (view != null) {
+            view.setNextFocusDownId(targetId);
+        }
     }
 
     private boolean matchesCurrentFilter(ComputerObject computer) {
@@ -1135,9 +1336,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         int pad = (int) UiHelper.dpToPx(this, 24);
         int padV = (int) UiHelper.dpToPx(this, 14);
         deleteItem.setPadding(pad, padV, pad, padV);
-        TypedValue outValue = new TypedValue();
-        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
-        deleteItem.setBackgroundResource(outValue.resourceId);
+        deleteItem.setBackgroundResource(R.drawable.nova_dialog_choice_bg);
+        UiHelper.applyTvFocusStyle(deleteItem);
         deleteItem.setOnClickListener(v -> {
             sheet.dismiss();
             UiHelper.displayDeletePcConfirmationDialog(this, computer.details, () -> removeComputer(computer.details), null);
@@ -1175,9 +1375,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         int pad = (int) UiHelper.dpToPx(this, 24);
         int padV = (int) UiHelper.dpToPx(this, 14);
         item.setPadding(pad, padV, pad, padV);
-        TypedValue outValue = new TypedValue();
-        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
-        item.setBackgroundResource(outValue.resourceId);
+        item.setBackgroundResource(R.drawable.nova_dialog_choice_bg);
+        UiHelper.applyTvFocusStyle(item);
         item.setOnClickListener(v -> action.run());
         container.addView(item);
     }
@@ -1630,9 +1829,28 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
     @Override
     public void receiveAbsListView(View gridView) {
-        if (gridView instanceof androidx.recyclerview.widget.RecyclerView rv) {
+        if (gridView instanceof RecyclerView rv) {
             rv.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 1));
             rv.setAdapter(pcGridAdapter);
+            rv.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+            rv.setOnFocusChangeListener((view, hasFocus) -> {
+                if (hasFocus) {
+                    moveFocusToFirstServerRow();
+                }
+            });
+            rv.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
+                @Override
+                public void onChildViewAttachedToWindow(@NonNull View firstRow) {
+                    UiHelper.applyTvFocusStyle(firstRow);
+                    if (rv.getChildAdapterPosition(firstRow) == 0) {
+                        setServerFilterNextFocusDown(firstRow);
+                    }
+                }
+
+                @Override
+                public void onChildViewDetachedFromWindow(@NonNull View view) {
+                }
+            });
             pcGridAdapter.setOnItemClickListener(computer -> {
                 if (computer.details.state == ComputerDetails.State.UNKNOWN ||
                     computer.details.state == ComputerDetails.State.OFFLINE) {
@@ -1655,6 +1873,15 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 }
             }));
             UiHelper.applyStatusBarPadding(rv);
+            rv.post(() -> {
+                for (int i = 0; i < rv.getChildCount(); i++) {
+                    UiHelper.applyTvFocusStyle(rv.getChildAt(i));
+                }
+                if (rv.getChildCount() > 0) {
+                    View firstRow = rv.getChildAt(0);
+                    setServerFilterNextFocusDown(firstRow);
+                }
+            });
         }
     }
 }

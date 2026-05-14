@@ -50,12 +50,15 @@ app/.externalNativeBuild/
 # agent files
 AGENTS.md
 CLAUDE.md
+.githooks/
 .codex
 .claude/
 .private/
 .envrc
 .direnv/
 *.code-workspace
+superpowers/
+docs/superpowers/
 docs/.claude/
 docs/session-notes-*.md
 # Nova signing
