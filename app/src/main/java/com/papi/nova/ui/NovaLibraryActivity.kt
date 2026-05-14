@@ -21,6 +21,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.TextViewCompat
 import androidx.lifecycle.lifecycleScope
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.button.MaterialButton
@@ -771,7 +772,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         )
         searchBar.setTextColor(textPrimary)
         searchBar.setHintTextColor(textMuted)
-        searchBar.compoundDrawableTintList = ColorStateList.valueOf(textMuted)
+        TextViewCompat.setCompoundDrawableTintList(searchBar, ColorStateList.valueOf(textMuted))
 
         findViewById<TextView>(R.id.nova_library_title)?.setTextColor(textPrimary)
         serverContext.setTextColor(textMuted)
