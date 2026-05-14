@@ -293,6 +293,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
                 android:paddingBottom="4dp"
                 android:scrollbars="none">
 
@@ -345,6 +347,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
                 android:paddingBottom="12dp"
                 android:scrollbars="none">
 
@@ -360,24 +364,36 @@
                         android:id="@+id/filterAllServers"
                         style="@style/NovaMaterialChip"
                         android:checked="true"
+                        android:nextFocusDown="@id/serverListFocusBridge"
                         android:text="@string/pcview_filter_all" />
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/filterOnlineServers"
                         style="@style/NovaMaterialChip"
+                        android:nextFocusDown="@id/serverListFocusBridge"
                         android:text="@string/pcview_filter_online" />
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/filterStreamingServers"
                         style="@style/NovaMaterialChip"
+                        android:nextFocusDown="@id/serverListFocusBridge"
                         android:text="@string/pcview_filter_streaming" />
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/filterNeedsPairingServers"
                         style="@style/NovaMaterialChip"
+                        android:nextFocusDown="@id/serverListFocusBridge"
                         android:text="@string/pcview_filter_needs_pairing" />
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
+
+            <View
+                android:id="@+id/serverListFocusBridge"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:importantForAccessibility="no" />
         </LinearLayout>
 
         <androidx.swiperefreshlayout.widget.SwipeRefreshLayout

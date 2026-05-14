@@ -4,9 +4,9 @@
         <shape android:shape="rectangle">
             <solid android:color="@color/nova_badge_bg" />
             <stroke
-                android:width="2dp"
+                android:width="3dp"
                 android:color="@color/nova_accent" />
-            <corners android:radius="8dp" />
+            <corners android:radius="12dp" />
         </shape>
     </item>
     <item>
