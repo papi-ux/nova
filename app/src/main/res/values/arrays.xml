@@ -24,19 +24,6 @@
         <item>0</item>
     </string-array>
 
-    <string-array name="nova_disconnect_resume_timeout_names">
-        <item>1 minute</item>
-        <item>5 minutes (default)</item>
-        <item>10 minutes</item>
-        <item>30 minutes</item>
-    </string-array>
-    <string-array name="nova_disconnect_resume_timeout_values">
-        <item>60</item>
-        <item>300</item>
-        <item>600</item>
-        <item>1800</item>
-    </string-array>
-
     <string-array name="nova_hud_position_names">
         <item>Top Left</item>
         <item>Top Right</item>
@@ -75,9 +62,9 @@
     </string-array>
 
     <string-array name="nova_hud_mode_names">
-        <item>Full (sparkline + stats)</item>
-        <item>Banner (MangoHud-style strip)</item>
-        <item>FPS Only (tiny pill)</item>
+        <item>Command HUD (full stats)</item>
+        <item>Stream Strip</item>
+        <item>NanoHUD (compact stats)</item>
     </string-array>
     <string-array name="nova_hud_mode_values">
         <item>full</item>

@@ -1,187 +1,116 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Nova Performance HUD — MangoHud-style single-line banner -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
+    android:alpha="0.96"
     android:background="@drawable/nova_hud_banner_bg"
-    android:paddingStart="10dp"
-    android:paddingEnd="6dp"
-    android:paddingTop="3dp"
-    android:paddingBottom="3dp"
     android:gravity="center_vertical"
-    android:alpha="0.95">
+    android:minHeight="30dp"
+    android:orientation="horizontal"
+    android:paddingStart="8dp"
+    android:paddingTop="5dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="5dp">
 
-    <!-- Codec label + value -->
-    <TextView
-        android:id="@+id/hud_codec_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="HEVC"
-        android:textSize="10sp"
-        android:textColor="#FF4ade80"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <!-- Pipe separator -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=" | "
-        android:textSize="10sp"
-        android:textColor="#44c8d6e5"
-        android:includeFontPadding="false" />
-
-    <!-- FPS label -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="FPS"
-        android:textSize="9sp"
-        android:textColor="#FFc084fc"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <!-- FPS value -->
-    <TextView
-        android:id="@+id/hud_fps"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="  60"
-        android:textSize="10sp"
-        android:textColor="#FFe8edf3"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false"
-        android:minWidth="24dp" />
-
-    <TextView
-        android:id="@+id/hud_target_fps"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="/120"
-        android:textSize="9sp"
-        android:textColor="#99a8b0b8"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="| "
-        android:textSize="10sp"
-        android:textColor="#44c8d6e5"
-        android:includeFontPadding="false" />
-
-    <!-- RTT label -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="RTT"
-        android:textSize="9sp"
-        android:textColor="#FFfbbf24"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <!-- RTT value -->
-    <TextView
-        android:id="@+id/hud_latency"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="  12ms"
-        android:textSize="10sp"
-        android:textColor="#FFe8edf3"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false"
-        android:minWidth="36dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="| "
-        android:textSize="10sp"
-        android:textColor="#44c8d6e5"
-        android:includeFontPadding="false" />
-
-    <!-- Bitrate label -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="BIT"
-        android:textSize="9sp"
-        android:textColor="#FF38bdf8"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <!-- Bitrate value -->
-    <TextView
-        android:id="@+id/hud_bitrate"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="  50Mbps"
-        android:textSize="10sp"
-        android:textColor="#FFe8edf3"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="| "
-        android:textSize="10sp"
-        android:textColor="#44c8d6e5"
-        android:includeFontPadding="false" />
-
-    <!-- Resolution label -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="RES"
-        android:textSize="9sp"
-        android:textColor="#FFf472b6"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <!-- Resolution value -->
-    <TextView
-        android:id="@+id/hud_resolution"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="  1080p"
-        android:textSize="10sp"
-        android:textColor="#FFe8edf3"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="| "
-        android:textSize="10sp"
-        android:textColor="#44c8d6e5"
-        android:includeFontPadding="false" />
+    <View
+        android:id="@+id/hud_status_dot"
+        android:layout_width="4dp"
+        android:layout_height="20dp"
+        android:background="@drawable/nova_dot_green" />
 
     <TextView
         android:id="@+id/hud_autopilot"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="READY"
-        android:textSize="9sp"
-        android:textColor="#FF4ade80"
+        android:layout_marginStart="7dp"
+        android:ellipsize="end"
         android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:minWidth="36dp"
+        android:text="AUTO"
+        android:textColor="#FF4ade80"
+        android:textSize="9sp" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="16dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:background="#3348BDF8" />
 
     <TextView
+        android:id="@+id/hud_fps"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text=" | "
-        android:textSize="10sp"
-        android:textColor="#44c8d6e5"
-        android:includeFontPadding="false" />
+        android:fontFamily="sans-serif-condensed"
+        android:includeFontPadding="false"
+        android:minWidth="28dp"
+        android:text="60"
+        android:textColor="#FFE8EDF3"
+        android:textSize="15sp"
+        android:textStyle="bold" />
 
-    <!-- Inline sparkline -->
+    <TextView
+        android:id="@+id/hud_target_fps"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="1dp"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:text="/120"
+        android:textColor="#99A8B0B8"
+        android:textSize="9sp" />
+
+    <TextView
+        android:id="@+id/hud_latency"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="9dp"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:minWidth="36dp"
+        android:text="--ms"
+        android:textColor="#FFfbbf24"
+        android:textSize="10sp" />
+
+    <TextView
+        android:id="@+id/hud_bitrate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="9dp"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:minWidth="34dp"
+        android:text="--M"
+        android:textColor="#FF38bdf8"
+        android:textSize="10sp" />
+
+    <TextView
+        android:id="@+id/hud_resolution"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="9dp"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:text="1080p"
+        android:textColor="#CCD4DDE8"
+        android:textSize="10sp" />
+
+    <TextView
+        android:id="@+id/hud_codec_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="9dp"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:text="HEVC"
+        android:textColor="#99A8B0B8"
+        android:textSize="9sp" />
+
     <com.papi.nova.ui.SparklineView
         android:id="@+id/hud_sparkline"
-        android:layout_width="64dp"
-        android:layout_height="14dp" />
-
+        android:layout_width="54dp"
+        android:layout_height="15dp"
+        android:layout_marginStart="9dp" />
 </LinearLayout>

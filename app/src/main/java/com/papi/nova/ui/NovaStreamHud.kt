@@ -24,7 +24,7 @@ import kotlin.math.abs
  * Modes:
  *   - "full"     — panel with sparkline, stat grid, per-stat colors
  *   - "banner"   — MangoHud-style one-line strip with inline sparkline
- *   - "fps_only" — tiny floating FPS counter only
+ *   - "fps_only" — NanoHUD compact stats capsule
  *
  * Per-stat dynamic colors:
  *   FPS:     green >= 55, amber 30-54, red < 30
@@ -206,7 +206,7 @@ class NovaStreamHud(private val activity: Activity) {
         // Position — use absolute positioning for drag support
         val margin = (12 * activity.resources.displayMetrics.density).toInt()
         val width = if (currentMode == "full") {
-            (232 * activity.resources.displayMetrics.density).toInt()
+            (236 * activity.resources.displayMetrics.density).toInt()
         } else {
             ViewGroup.LayoutParams.WRAP_CONTENT
         }
@@ -291,31 +291,24 @@ class NovaStreamHud(private val activity: Activity) {
                 updateFps(fpsMatch.groupValues[1].toDoubleOrNull() ?: 0.0)
             }
 
-            // Resolution (not in fps_only mode)
-            if (currentMode != "fps_only") {
-                val resMatch = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""").find(text)
-                if (resMatch != null) {
-                    resolutionText?.text = if (currentMode == "banner") "  ${resMatch.groupValues[2]}p"
-                        else "${resMatch.groupValues[1]}×${resMatch.groupValues[2]}"
-                }
+            val resMatch = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""").find(text)
+            if (resMatch != null) {
+                resolutionText?.text = if (currentMode == "banner") "${resMatch.groupValues[2]}p"
+                    else "${resMatch.groupValues[1]}×${resMatch.groupValues[2]}"
             }
 
             // Latency
-            if (currentMode != "fps_only") {
-                val latMatch = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE).find(text)
-                if (latMatch != null) {
-                    updateLatency(latMatch.groupValues[1].toIntOrNull() ?: 0)
-                }
+            val latMatch = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE).find(text)
+            if (latMatch != null) {
+                updateLatency(latMatch.groupValues[1].toIntOrNull() ?: 0)
             }
 
             // Codec
-            if (currentMode != "fps_only") {
-                val codecMatch = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE).find(text)
-                if (codecMatch != null) {
-                    val codec = codecMatch.groupValues[1].uppercase()
-                    lastCodec = codec
-                    applyCodecLabel(codec)
-                }
+            val codecMatch = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE).find(text)
+            if (codecMatch != null) {
+                val codec = codecMatch.groupValues[1].uppercase()
+                lastCodec = codec
+                applyCodecLabel(codec)
             }
 
             // Packet loss / net drops
@@ -351,24 +344,22 @@ class NovaStreamHud(private val activity: Activity) {
     fun update(fps: Double, codec: String, bitrateKbps: Int, width: Int, height: Int, latencyMs: Double) {
         activity.runOnUiThread {
             updateFps(fps)
-            if (currentMode != "fps_only") {
-                val codecStr = normalizeCodecLabel(codec)
-                applyCodecLabel(codecStr)
-                streamPolicy = StreamPolicyUiState.from(
-                    lastSessionStatus,
-                    if (bitrateKbps > 0) bitrateKbps else lastBitrateKbps,
-                    targetFps
-                )
-                val displayBitrate = streamPolicy.effectiveBitrateKbps.takeIf { it > 0 } ?: bitrateKbps
-                if (displayBitrate > 0) {
-                    currentBitrateKbps = displayBitrate
-                    sessionBitrateSum += displayBitrate.toLong()
-                    sessionBitrateSamples++
-                }
-                renderBitrate(displayBitrate)
-                resolutionText?.text = if (currentMode == "banner") "  ${height}p" else "${width}×${height}"
-                updateLatency(latencyMs.toInt())
+            val codecStr = normalizeCodecLabel(codec)
+            applyCodecLabel(codecStr)
+            streamPolicy = StreamPolicyUiState.from(
+                lastSessionStatus,
+                if (bitrateKbps > 0) bitrateKbps else lastBitrateKbps,
+                targetFps
+            )
+            val displayBitrate = streamPolicy.effectiveBitrateKbps.takeIf { it > 0 } ?: bitrateKbps
+            if (displayBitrate > 0) {
+                currentBitrateKbps = displayBitrate
+                sessionBitrateSum += displayBitrate.toLong()
+                sessionBitrateSamples++
             }
+            renderBitrate(displayBitrate)
+            resolutionText?.text = if (currentMode == "banner") "${height}p" else "${width}×${height}"
+            updateLatency(latencyMs.toInt())
         }
     }
 
@@ -561,7 +552,7 @@ class NovaStreamHud(private val activity: Activity) {
     private fun renderAutopilotIndicator() {
         val indicator = buildAutopilotIndicator()
         autopilotText?.text = when (currentMode) {
-            "fps_only" -> indicator.compactLabel
+            "banner", "fps_only" -> indicator.compactLabel
             else -> indicator.fullLabel
         }
         autopilotText?.setTextColor(indicator.color)
@@ -573,8 +564,8 @@ class NovaStreamHud(private val activity: Activity) {
             return
         }
         val label = StreamPolicyUiState.formatMbps(bitrateKbps)
-        bitrateText?.text = if (currentMode == "banner") {
-            "  ${label.replace(" ", "")}"
+        bitrateText?.text = if (currentMode == "banner" || currentMode == "fps_only") {
+            label.replace(" Mbps", "M").replace(" ", "")
         } else {
             label
         }
@@ -643,7 +634,7 @@ class NovaStreamHud(private val activity: Activity) {
 
     private fun updateFps(fps: Double) {
         val fpsInt = fps.toInt()
-        fpsText?.text = if (currentMode == "banner") "  $fpsInt" else "$fpsInt"
+        fpsText?.text = "$fpsInt"
 
         val color = when {
             fpsInt >= 55 -> 0xFF4ade80.toInt()  // green
@@ -715,7 +706,7 @@ class NovaStreamHud(private val activity: Activity) {
     private fun updateLatency(ms: Int) {
         lastLatency = ms.toDouble()
         sessionLatencySum += ms.toDouble()
-        latencyText?.text = if (currentMode == "banner") "  ${ms}ms" else "${ms}ms"
+        latencyText?.text = "${ms}ms"
         latencyText?.setTextColor(when {
             ms <= 20 -> 0xFF4ade80.toInt()
             ms <= 50 -> 0xFFfbbf24.toInt()
