@@ -1,6 +1,11 @@
 package com.papi.nova.ui
 
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -19,12 +24,15 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.papi.nova.LimeLog
@@ -46,8 +54,12 @@ class NovaLibraryActivity : AppCompatActivity() {
 
     private lateinit var apiClient: PolarisApiClient
     private lateinit var adapter: NovaGameAdapter
+    private lateinit var recentAdapter: NovaGameAdapter
     private lateinit var searchBar: EditText
     private lateinit var gameGrid: RecyclerView
+    private lateinit var recentSection: View
+    private lateinit var recentList: RecyclerView
+    private lateinit var recentSummary: TextView
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var emptyText: View
     private lateinit var emptyTitle: TextView
@@ -55,10 +67,12 @@ class NovaLibraryActivity : AppCompatActivity() {
     private lateinit var serverContext: TextView
     private lateinit var librarySummary: TextView
     private lateinit var resultsSummary: TextView
+    private lateinit var autoQualityState: TextView
+    private lateinit var modeState: TextView
     private lateinit var shimmer: ShimmerFrameLayout
 
     private var allGames = listOf<PolarisGame>()
-    private var currentFilter = ""
+    private var filterState = LibraryFilterState()
     private val searchHandler = Handler(Looper.getMainLooper())
     private var searchRunnable: Runnable? = null
     private lateinit var streamHost: String
@@ -70,6 +84,31 @@ class NovaLibraryActivity : AppCompatActivity() {
     private var streamServerCommands: ArrayList<String>? = null
     private var streamServerCert: ByteArray? = null
     private var clientSettings: PolarisClientSettings? = null
+
+    private enum class PrimaryFilter {
+        ALL,
+        RECENT,
+        SOURCES,
+        HDR,
+        MORE
+    }
+
+    private data class LibraryFilterState(
+        val primary: PrimaryFilter = PrimaryFilter.ALL,
+        val source: String = "",
+        val category: String = "",
+        val genre: String = ""
+    ) {
+        val hasActiveConstraint: Boolean
+            get() = primary != PrimaryFilter.ALL
+    }
+
+    private data class FilterChoice(
+        val title: String,
+        val subtitle: String = "",
+        val selected: Boolean = false,
+        val onSelect: () -> Unit
+    )
 
     companion object {
         const val EXTRA_HOST = "host"
@@ -113,6 +152,9 @@ class NovaLibraryActivity : AppCompatActivity() {
 
         searchBar = findViewById(R.id.nova_search)
         gameGrid = findViewById(R.id.nova_game_grid)
+        recentSection = findViewById(R.id.nova_recent_section)
+        recentList = findViewById(R.id.nova_recent_list)
+        recentSummary = findViewById(R.id.nova_recent_summary)
         swipeRefresh = findViewById(R.id.nova_swipe_refresh)
         emptyText = findViewById(R.id.nova_empty_text)
         emptyTitle = findViewById(R.id.nova_empty_title)
@@ -121,19 +163,18 @@ class NovaLibraryActivity : AppCompatActivity() {
         serverContext = findViewById(R.id.nova_library_context)
         librarySummary = findViewById(R.id.nova_library_summary)
         resultsSummary = findViewById(R.id.nova_library_results)
+        autoQualityState = findViewById(R.id.nova_library_auto_quality_state)
+        modeState = findViewById(R.id.nova_library_mode_state)
         serverContext.text = if (serverName.isNullOrBlank()) {
             getString(R.string.nova_library_server_context_fallback)
         } else {
             getString(R.string.nova_library_server_context, serverName)
         }
+        applyLibraryTheme()
 
-        val columns = when (resources.configuration.screenWidthDp) {
-            in 960..Int.MAX_VALUE -> 5
-            in 720..959 -> 4
-            in 600..719 -> 3
-            else -> 2
-        }
+        val columns = computeGridColumns()
         gameGrid.layoutManager = GridLayoutManager(this, columns)
+        recentList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
         adapter = NovaGameAdapter(
             apiClient,
@@ -141,10 +182,17 @@ class NovaLibraryActivity : AppCompatActivity() {
             onGameLongClick = { game -> showGameDetail(game) }
         )
         gameGrid.adapter = adapter
+        recentAdapter = NovaGameAdapter(
+            apiClient,
+            onGameClick = { game -> showGameDetail(game) },
+            onGameLongClick = { game -> showGameDetail(game) },
+            cardLayoutRes = R.layout.nova_recent_game_card
+        )
+        recentList.adapter = recentAdapter
 
         // Swipe to refresh
-        swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.nova_accent))
-        swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.nova_bg_elevated))
+        swipeRefresh.setColorSchemeColors(NovaThemeManager.getAccentColor(this))
+        swipeRefresh.setProgressBackgroundColorSchemeColor(NovaThemeManager.getCardBackgroundColor(this))
         swipeRefresh.setOnRefreshListener {
             swipeRefresh.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             loadGames()
@@ -177,12 +225,13 @@ class NovaLibraryActivity : AppCompatActivity() {
             }
         })
 
-        // Filter tabs
-        setupFilterTab(R.id.filter_all, "")
-        setupFilterTab(R.id.filter_recent, "recent")
-        setupFilterTab(R.id.filter_steam, "steam")
-        setupFilterTab(R.id.filter_action, "fast_action")
-        setupFilterTab(R.id.filter_cinematic, "cinematic")
+        // Smart browse filters
+        setupFilterTab(R.id.filter_all, PrimaryFilter.ALL)
+        setupFilterTab(R.id.filter_recent, PrimaryFilter.RECENT)
+        setupFilterTab(R.id.filter_sources, PrimaryFilter.SOURCES)
+        setupFilterTab(R.id.filter_hdr, PrimaryFilter.HDR)
+        setupFilterTab(R.id.filter_more, PrimaryFilter.MORE)
+        updateFilterTabs()
 
         // Retry button
         findViewById<MaterialButton>(R.id.nova_empty_retry).setOnClickListener { loadGames() }
@@ -191,22 +240,48 @@ class NovaLibraryActivity : AppCompatActivity() {
         loadGames()
     }
 
-    private fun setupFilterTab(id: Int, filter: String) {
+    private fun computeGridColumns(): Int {
+        val widthDp = resources.configuration.screenWidthDp
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        return if (isLandscape) {
+            when {
+                widthDp >= 1200 -> 5
+                widthDp >= 960 -> 4
+                widthDp >= 720 -> 3
+                else -> 2
+            }
+        } else {
+            when {
+                widthDp >= 960 -> 5
+                widthDp >= 720 -> 4
+                widthDp >= 600 -> 3
+                else -> 2
+            }
+        }
+    }
+
+    private fun setupFilterTab(id: Int, filter: PrimaryFilter) {
         findViewById<TextView>(id).setOnClickListener { v ->
             v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-            currentFilter = filter
-            activeTabIndex = filterTabIds.indexOf(id).coerceAtLeast(0)
-            // Update visual state — selected chip gets accent background
-            val tabContainer = findViewById<LinearLayout>(R.id.nova_filter_tabs)
-            for (i in 0 until tabContainer.childCount) {
-                val child = tabContainer.getChildAt(i)
-                child.setBackgroundResource(
-                    if (child.id == id) R.drawable.nova_chip_selected
-                    else 0 // transparent — style handles default
-                )
+            when (filter) {
+                PrimaryFilter.SOURCES -> showSourceFilterSheet()
+                PrimaryFilter.MORE -> showMoreFilterSheet()
+                else -> applyFilterState(LibraryFilterState(primary = filter))
             }
-            filterGames(searchBar.text.toString())
         }
+    }
+
+    private fun applyFilterState(state: LibraryFilterState) {
+        filterState = state
+        activeTabIndex = when (state.primary) {
+            PrimaryFilter.ALL -> filterTabIds.indexOf(R.id.filter_all)
+            PrimaryFilter.RECENT -> filterTabIds.indexOf(R.id.filter_recent)
+            PrimaryFilter.SOURCES -> filterTabIds.indexOf(R.id.filter_sources)
+            PrimaryFilter.HDR -> filterTabIds.indexOf(R.id.filter_hdr)
+            PrimaryFilter.MORE -> filterTabIds.indexOf(R.id.filter_more)
+        }.coerceAtLeast(0)
+        updateFilterTabs()
+        filterGames(searchBar.text.toString())
     }
 
     private var isInitialLoad = true
@@ -231,10 +306,12 @@ class NovaLibraryActivity : AppCompatActivity() {
                 games to settings
             }
             val games = result.first
-            result.second?.let { clientSettings = it }
+            clientSettings = result.second
             apiClient.clearCoverCache()
             allGames = games
             updateLibraryStats()
+            updateStreamStatus()
+            updateRecentRail()
             // Hide shimmer, show content
             if (shimmer.visibility == View.VISIBLE) {
                 shimmer.stopShimmer()
@@ -263,16 +340,22 @@ class NovaLibraryActivity : AppCompatActivity() {
             filtered = filtered.filter { it.name.contains(search, ignoreCase = true) }
         }
 
-        // "Recent" sort — show only played games, sorted by most recent
-        if (currentFilter == "recent") {
-            filtered = filtered
+        filtered = when (filterState.primary) {
+            PrimaryFilter.RECENT -> filtered
                 .filter { it.lastLaunched > 0 }
                 .sortedByDescending { it.lastLaunched }
-        } else if (currentFilter.isNotEmpty()) {
-            // Category/source filter
-            filtered = filtered.filter {
-                it.source == currentFilter || it.category == currentFilter
+            PrimaryFilter.SOURCES -> filtered.filter { it.source == filterState.source }
+            PrimaryFilter.HDR -> filtered.filter { it.hdrSupported }
+            PrimaryFilter.MORE -> {
+                when {
+                    filterState.category.isNotBlank() -> filtered.filter { it.category == filterState.category }
+                    filterState.genre.isNotBlank() -> filtered.filter { game ->
+                        game.genres.any { it.equals(filterState.genre, ignoreCase = true) }
+                    }
+                    else -> filtered
+                }
             }
+            PrimaryFilter.ALL -> filtered
         }
 
         adapter.updateGames(filtered)
@@ -282,6 +365,30 @@ class NovaLibraryActivity : AppCompatActivity() {
         resultsSummary.text = getString(R.string.nova_library_results_format, filtered.size)
         updateEmptyState(search)
         emptyText.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun updateRecentRail() {
+        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            recentSection.visibility = View.GONE
+            recentAdapter.updateGames(emptyList())
+            return
+        }
+
+        val recentGames = allGames
+            .filter { it.lastLaunched > 0 }
+            .sortedByDescending { it.lastLaunched }
+            .take(6)
+
+        recentSection.visibility = if (recentGames.isEmpty()) View.GONE else View.VISIBLE
+        recentSummary.text = if (recentGames.isEmpty()) {
+            getString(R.string.nova_library_continue_empty)
+        } else {
+            getString(R.string.nova_library_continue_count, recentGames.size)
+        }
+        recentAdapter.updateGames(recentGames)
+        if (recentGames.isNotEmpty()) {
+            recentAdapter.reloadAllCovers()
+        }
     }
 
     private fun updateLibraryStats() {
@@ -297,13 +404,37 @@ class NovaLibraryActivity : AppCompatActivity() {
         resultsSummary.text = getString(R.string.nova_library_results_format, allGames.size)
     }
 
+    private fun updateStreamStatus() {
+        val settings = clientSettings
+        val aiEnabled = settings?.effective?.aiAutoQualityEnabled == true ||
+            settings?.desired?.aiAutoQualityEnabled == true ||
+            settings?.effective?.adaptiveBitrateEnabled == true ||
+            settings?.desired?.adaptiveBitrateEnabled == true ||
+            settings?.effective?.aiOptimizerEnabled == true ||
+            settings?.desired?.aiOptimizerEnabled == true
+
+        autoQualityState.setText(
+            when {
+                settings == null -> R.string.nova_library_status_checking
+                aiEnabled -> R.string.nova_library_auto_quality_on
+                else -> R.string.nova_library_auto_quality_off
+            }
+        )
+
+        val modeLabel = settings?.effectiveModeLabel
+            ?.takeIf { it.isNotBlank() }
+            ?: settings?.desiredModeLabel?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.nova_library_mode_checking)
+        modeState.text = modeLabel
+    }
+
     private fun updateEmptyState(search: String) {
         when {
-            currentFilter == "recent" -> {
+            filterState.primary == PrimaryFilter.RECENT -> {
                 emptyTitle.setText(R.string.nova_library_empty_title_recent)
                 emptyHint.setText(R.string.nova_library_empty_hint_recent)
             }
-            search.isNotBlank() || currentFilter.isNotEmpty() -> {
+            search.isNotBlank() || filterState.hasActiveConstraint -> {
                 emptyTitle.setText(R.string.nova_library_empty_title_filtered)
                 emptyHint.setText(R.string.nova_library_empty_hint_filtered)
             }
@@ -316,8 +447,8 @@ class NovaLibraryActivity : AppCompatActivity() {
 
     // Filter tab IDs in order for bumper switching
     private val filterTabIds = listOf(
-        R.id.filter_all, R.id.filter_recent, R.id.filter_steam,
-        R.id.filter_action, R.id.filter_cinematic
+        R.id.filter_all, R.id.filter_recent, R.id.filter_sources,
+        R.id.filter_hdr, R.id.filter_more
     )
     private var activeTabIndex = 0
 
@@ -337,6 +468,393 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
         return super.onKeyDown(keyCode, event)
     }
+
+    private fun updateFilterTabs() {
+        val tabContainer = findViewById<LinearLayout>(R.id.nova_filter_tabs) ?: return
+        findViewById<TextView>(R.id.filter_sources)?.text = filterState.source
+            .takeIf { filterState.primary == PrimaryFilter.SOURCES && it.isNotBlank() }
+            ?.let { sourceLabelFor(it) }
+            ?: getString(R.string.nova_library_filter_sources)
+        findViewById<TextView>(R.id.filter_more)?.text = when {
+            filterState.primary != PrimaryFilter.MORE -> getString(R.string.nova_library_filter_more)
+            filterState.category.isNotBlank() -> categoryLabelFor(filterState.category)
+            filterState.genre.isNotBlank() -> filterState.genre
+            else -> getString(R.string.nova_library_filter_more)
+        }
+
+        val accent = NovaThemeManager.getAccentColor(this)
+        val surface = NovaThemeManager.getCardBackgroundColor(this)
+        val divider = NovaThemeManager.getDividerColor(this)
+        val textPrimary = NovaThemeManager.getTextPrimaryColor(this)
+        val textSecondary = NovaThemeManager.getTextSecondaryColor(this)
+        val selectedFill = ColorUtils.blendARGB(surface, accent, 0.28f)
+        val defaultFill = ColorUtils.blendARGB(surface, NovaThemeManager.getWindowBackgroundColor(this), 0.18f)
+
+        for (i in 0 until tabContainer.childCount) {
+            val child = tabContainer.getChildAt(i) as? TextView ?: continue
+            val selected = child.id == filterTabIds.getOrNull(activeTabIndex)
+            child.background = roundedDrawable(
+                if (selected) selectedFill else defaultFill,
+                if (selected) accent else divider,
+                8f,
+                if (selected) 1.5f else 1f
+            )
+            child.setTextColor(if (selected) textPrimary else textSecondary)
+            child.typeface = Typeface.create("sans-serif-medium", if (selected) Typeface.BOLD else Typeface.NORMAL)
+        }
+    }
+
+    private fun showSourceFilterSheet() {
+        val sources = allGames
+            .map { it.source }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sortedWith(compareBy({ sourceSortOrder(it) }, { sourceLabelFor(it) }))
+
+        val choices = mutableListOf(
+            FilterChoice(
+                title = getString(R.string.nova_library_filter_all_sources),
+                subtitle = getString(R.string.nova_library_filter_all_sources_hint),
+                selected = filterState.primary == PrimaryFilter.ALL
+            ) {
+                applyFilterState(LibraryFilterState())
+            }
+        )
+        sources.forEach { source ->
+            choices += FilterChoice(
+                title = sourceLabelFor(source),
+                subtitle = getString(
+                    R.string.nova_library_filter_source_count,
+                    allGames.count { it.source == source }
+                ),
+                selected = filterState.primary == PrimaryFilter.SOURCES && filterState.source == source
+            ) {
+                applyFilterState(LibraryFilterState(primary = PrimaryFilter.SOURCES, source = source))
+            }
+        }
+        showFilterChoiceSheet(
+            getString(R.string.nova_library_filter_sheet_sources),
+            getString(R.string.nova_library_filter_sheet_sources_hint),
+            choices
+        )
+    }
+
+    private fun showMoreFilterSheet() {
+        val choices = mutableListOf(
+            FilterChoice(
+                title = getString(R.string.nova_library_filter_clear_more),
+                subtitle = getString(R.string.nova_library_filter_clear_more_hint),
+                selected = filterState.primary == PrimaryFilter.ALL
+            ) {
+                applyFilterState(LibraryFilterState())
+            }
+        )
+
+        val categories = listOf("fast_action", "cinematic", "desktop", "vr")
+            .filter { category -> allGames.any { it.category == category } }
+        categories.forEach { category ->
+            choices += FilterChoice(
+                title = categoryLabelFor(category),
+                subtitle = getString(R.string.nova_library_filter_category),
+                selected = filterState.primary == PrimaryFilter.MORE && filterState.category == category
+            ) {
+                applyFilterState(LibraryFilterState(primary = PrimaryFilter.MORE, category = category))
+            }
+        }
+
+        val genres = allGames
+            .flatMap { it.genres }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .sorted()
+            .take(10)
+        genres.forEach { genre ->
+            choices += FilterChoice(
+                title = genre,
+                subtitle = getString(R.string.nova_library_filter_genre),
+                selected = filterState.primary == PrimaryFilter.MORE && filterState.genre.equals(genre, ignoreCase = true)
+            ) {
+                applyFilterState(LibraryFilterState(primary = PrimaryFilter.MORE, genre = genre))
+            }
+        }
+
+        showFilterChoiceSheet(
+            getString(R.string.nova_library_filter_sheet_more),
+            getString(R.string.nova_library_filter_sheet_more_hint),
+            choices
+        )
+    }
+
+    private fun showFilterChoiceSheet(title: String, hint: String, choices: List<FilterChoice>) {
+        val dialog = BottomSheetDialog(this, R.style.NovaBottomSheet)
+        val content = layoutInflater.inflate(R.layout.nova_library_filter_sheet, null, false)
+        val accent = NovaThemeManager.getAccentColor(this)
+        val surface = NovaThemeManager.getCardBackgroundColor(this)
+        val dialogSurface = NovaThemeManager.getDialogBackgroundColor(this)
+        val divider = NovaThemeManager.getDividerColor(this)
+        val textPrimary = NovaThemeManager.getTextPrimaryColor(this)
+        val textSecondary = NovaThemeManager.getTextSecondaryColor(this)
+        val textMuted = NovaThemeManager.getTextMutedColor(this)
+
+        content.findViewById<View>(R.id.nova_filter_sheet_root)?.background = topRoundedDrawable(
+            dialogSurface,
+            ColorUtils.blendARGB(divider, accent, 0.18f),
+            18f
+        )
+        content.findViewById<View>(R.id.nova_filter_sheet_panel)?.background = roundedDrawable(
+            ColorUtils.blendARGB(surface, dialogSurface, 0.12f),
+            ColorUtils.blendARGB(divider, accent, 0.16f),
+            8f
+        )
+        content.findViewById<TextView>(R.id.nova_filter_sheet_title)?.apply {
+            text = title
+            setTextColor(textPrimary)
+        }
+        content.findViewById<TextView>(R.id.nova_filter_sheet_hint)?.apply {
+            text = hint
+            setTextColor(textMuted)
+        }
+
+        val choicesContainer = content.findViewById<LinearLayout>(R.id.nova_filter_sheet_choices)
+        choicesContainer.removeAllViews()
+        choices.forEach { choice ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                isClickable = true
+                isFocusable = true
+                isSelected = choice.selected
+                minimumHeight = dp(52)
+                setPadding(dp(11), dp(8), dp(11), dp(8))
+                background = roundedDrawable(
+                    if (choice.selected) ColorUtils.blendARGB(surface, accent, 0.16f) else Color.TRANSPARENT,
+                    if (choice.selected) ColorUtils.setAlphaComponent(accent, 120) else Color.TRANSPARENT,
+                    8f,
+                    if (choice.selected) 1f else 0f
+                )
+                setOnClickListener {
+                    it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    dialog.dismiss()
+                    choice.onSelect()
+                }
+
+                addView(LinearLayout(this@NovaLibraryActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(TextView(this@NovaLibraryActivity).apply {
+                        text = choice.title
+                        setTextColor(textPrimary)
+                        textSize = 13f
+                        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                    })
+                    if (choice.subtitle.isNotBlank()) {
+                        addView(TextView(this@NovaLibraryActivity).apply {
+                            text = choice.subtitle
+                            setTextColor(textSecondary)
+                            textSize = 10f
+                            setPadding(0, dp(2), 0, 0)
+                        })
+                    }
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+                if (choice.selected) {
+                    addView(TextView(this@NovaLibraryActivity).apply {
+                        text = getString(R.string.nova_library_filter_selected)
+                        setTextColor(accent)
+                        textSize = 10f
+                        typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+                        background = roundedDrawable(
+                            ColorUtils.blendARGB(surface, accent, 0.18f),
+                            ColorUtils.setAlphaComponent(accent, 95),
+                            8f
+                        )
+                        setPadding(dp(9), dp(4), dp(9), dp(4))
+                    })
+                }
+            }
+            choicesContainer.addView(
+                row,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(2)
+                }
+            )
+        }
+
+        dialog.setContentView(content)
+        dialog.setOnShowListener {
+            val sheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+            sheet?.setBackgroundColor(Color.TRANSPARENT)
+            if (sheet != null) {
+                BottomSheetBehavior.from(sheet).apply {
+                    skipCollapsed = true
+                    state = BottomSheetBehavior.STATE_EXPANDED
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun sourceSortOrder(source: String): Int {
+        return when (source) {
+            "steam" -> 0
+            "lutris" -> 1
+            "heroic" -> 2
+            else -> 3
+        }
+    }
+
+    private fun sourceLabelFor(source: String): String {
+        return when (source) {
+            "steam" -> "Steam"
+            "lutris" -> "Lutris"
+            "heroic" -> "Heroic"
+            else -> source
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .split(' ')
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { token ->
+                    token.replaceFirstChar { char ->
+                        if (char.isLowerCase()) char.titlecase() else char.toString()
+                    }
+                }
+                .ifBlank { getString(R.string.nova_library_filter_other_source) }
+        }
+    }
+
+    private fun categoryLabelFor(category: String): String {
+        return when (category) {
+            "fast_action" -> getString(R.string.nova_library_filter_action)
+            "cinematic" -> getString(R.string.nova_library_filter_cinematic)
+            "desktop" -> getString(R.string.nova_library_filter_desktop)
+            "vr" -> getString(R.string.nova_library_filter_vr)
+            else -> getString(R.string.nova_library_filter_more)
+        }
+    }
+
+    private fun applyLibraryTheme() {
+        val background = NovaThemeManager.getWindowBackgroundColor(this)
+        val surface = NovaThemeManager.getCardBackgroundColor(this)
+        val dialogSurface = NovaThemeManager.getDialogBackgroundColor(this)
+        val accent = NovaThemeManager.getAccentColor(this)
+        val divider = NovaThemeManager.getDividerColor(this)
+        val textPrimary = NovaThemeManager.getTextPrimaryColor(this)
+        val textSecondary = NovaThemeManager.getTextSecondaryColor(this)
+        val textMuted = NovaThemeManager.getTextMutedColor(this)
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+        findViewById<View>(R.id.nova_library_root)?.setBackgroundColor(background)
+        findViewById<View>(R.id.nova_library_panel)?.background = roundedDrawable(
+            ColorUtils.blendARGB(dialogSurface, background, 0.12f),
+            ColorUtils.blendARGB(divider, accent, 0.18f),
+            8f
+        )
+        findViewById<View>(R.id.nova_library_status_panel)?.background = if (isLandscape) {
+            null
+        } else {
+            roundedDrawable(
+                ColorUtils.blendARGB(surface, accent, 0.08f),
+                ColorUtils.blendARGB(divider, accent, 0.16f),
+                8f
+            )
+        }
+        findViewById<View>(R.id.nova_recent_section)?.background = roundedDrawable(surface, divider, 8f)
+        findViewById<View>(R.id.nova_empty_panel)?.background = roundedDrawable(surface, divider, 8f)
+
+        searchBar.background = roundedDrawable(
+            ColorUtils.blendARGB(surface, background, 0.18f),
+            ColorUtils.blendARGB(divider, accent, 0.18f),
+            8f
+        )
+        searchBar.setTextColor(textPrimary)
+        searchBar.setHintTextColor(textMuted)
+        searchBar.compoundDrawableTintList = ColorStateList.valueOf(textMuted)
+
+        findViewById<TextView>(R.id.nova_library_title)?.setTextColor(textPrimary)
+        serverContext.setTextColor(textMuted)
+        librarySummary.setTextColor(textMuted)
+        resultsSummary.setTextColor(textSecondary)
+        findViewById<TextView>(R.id.nova_recent_label)?.setTextColor(textPrimary)
+        recentSummary.setTextColor(textSecondary)
+        emptyTitle.setTextColor(textPrimary)
+        emptyHint.setTextColor(textMuted)
+
+        styleStatePill(autoQualityState, accent, surface, textPrimary)
+        styleStatePill(modeState, accent, surface, textSecondary)
+        styleStatePill(recentSummary, accent, surface, textSecondary)
+
+        styleActionButton(
+            findViewById(R.id.nova_library_back),
+            ColorUtils.blendARGB(surface, accent, 0.14f),
+            textPrimary,
+            ColorUtils.blendARGB(divider, accent, 0.35f)
+        )
+        styleActionButton(
+            findViewById(R.id.nova_library_refresh),
+            ColorUtils.blendARGB(surface, accent, if (isLandscape) 0.11f else 0.06f),
+            textPrimary,
+            ColorUtils.blendARGB(divider, accent, if (isLandscape) 0.32f else 0.18f)
+        )
+        styleActionButton(
+            findViewById(R.id.nova_library_manage),
+            ColorUtils.blendARGB(surface, accent, if (isLandscape) 0.11f else 0.06f),
+            textPrimary,
+            ColorUtils.blendARGB(divider, accent, if (isLandscape) 0.32f else 0.18f)
+        )
+        styleActionButton(
+            findViewById(R.id.nova_empty_retry),
+            ColorUtils.blendARGB(surface, accent, 0.16f),
+            textPrimary,
+            ColorUtils.blendARGB(divider, accent, 0.35f)
+        )
+
+        swipeRefresh.setColorSchemeColors(accent)
+        swipeRefresh.setProgressBackgroundColorSchemeColor(surface)
+    }
+
+    private fun styleActionButton(button: MaterialButton?, backgroundColor: Int, textColor: Int, strokeColor: Int) {
+        if (button == null) return
+        button.backgroundTintList = ColorStateList.valueOf(backgroundColor)
+        button.strokeColor = ColorStateList.valueOf(strokeColor)
+        button.strokeWidth = dp(1)
+        button.setTextColor(textColor)
+        button.iconTint = ColorStateList.valueOf(textColor)
+        button.rippleColor = ColorStateList.valueOf(ColorUtils.setAlphaComponent(textColor, 34))
+    }
+
+    private fun styleStatePill(view: TextView, accent: Int, surface: Int, textColor: Int) {
+        view.background = roundedDrawable(
+            ColorUtils.blendARGB(surface, accent, 0.10f),
+            ColorUtils.setAlphaComponent(accent, 70),
+            8f
+        )
+        view.setTextColor(textColor)
+    }
+
+    private fun roundedDrawable(fillColor: Int, strokeColor: Int, radiusDp: Float, strokeDp: Float = 1f): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = UiHelper.dpToPx(this@NovaLibraryActivity, radiusDp)
+            setColor(fillColor)
+            val strokePx = UiHelper.dpToPx(this@NovaLibraryActivity, strokeDp).toInt()
+            setStroke(strokePx.coerceAtLeast(0), strokeColor)
+        }
+    }
+
+    private fun topRoundedDrawable(fillColor: Int, strokeColor: Int, radiusDp: Float): GradientDrawable {
+        val radius = UiHelper.dpToPx(this, radiusDp)
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+            setColor(fillColor)
+            setStroke(UiHelper.dpToPx(this@NovaLibraryActivity, 1f).toInt().coerceAtLeast(1), strokeColor)
+        }
+    }
+
+    private fun dp(value: Int): Int = UiHelper.dpToPx(this, value.toFloat()).toInt()
 
     private fun showGameDetail(game: PolarisGame) {
         dismissOpenGameDetail()

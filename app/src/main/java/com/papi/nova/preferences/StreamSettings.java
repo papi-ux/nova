@@ -416,25 +416,11 @@ public class StreamSettings extends AppCompatActivity {
             }
 
             // All input, gamepad, and OSC settings are now in category_input and category_overlays.
-            // Hide touch-only overlay controls on non-touchscreen devices.
-            // Remove dependent preferences with their parent toggles or AndroidX
-            // Preference throws while binding the screen.
+            // Hide touch-only overlay controls on non-touchscreen devices
             if (!pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
                 PreferenceCategory overlays = findPreference("category_overlays");
                 if (overlays != null) {
-                    removeIfExists(overlays, "list_onscreen_controls_layout_preset");
-                    removeIfExists(overlays, "checkbox_hide_osc_when_has_gamepad");
-                    removeIfExists(overlays, "checkbox_vibrate_osc");
-                    removeIfExists(overlays, "seekbar_osc_opacity");
-                    removeIfExists(overlays, "checkbox_only_show_L3R3");
-                    removeIfExists(overlays, "checkbox_show_guide_button");
-                    removeIfExists(overlays, "seekbar_osc_free_analog_stick_opacity");
-                    removeIfExists(overlays, "checkbox_enable_analog_stick_new");
-                    removeIfExists(overlays, "option_reset_osc_preference");
                     removeIfExists(overlays, "checkbox_show_onscreen_controls");
-                    removeIfExists(overlays, "keyboard_axi_list");
-                    removeIfExists(overlays, "import_keyboard_file");
-                    removeIfExists(overlays, "export_keyboard_file");
                     removeIfExists(overlays, "checkbox_enable_keyboard");
                 }
             }
@@ -501,7 +487,7 @@ public class StreamSettings extends AppCompatActivity {
                     }
                 }
             }
-            
+
             // Check custom refresh rate
             String customRefreshRateStr = prevPrefConfig.customRefreshRate;
             if (customRefreshRateStr != null && !customRefreshRateStr.isEmpty()) {
@@ -981,7 +967,7 @@ public class StreamSettings extends AppCompatActivity {
                     try {
                         int width = Integer.parseInt(resolutionSegments[0]);
                         int height = Integer.parseInt(resolutionSegments[1]);
-                        
+
                         if (width <= 0 || height <= 0) {
                             Toast.makeText(getActivity(), getString(R.string.pref_error_occurred), Toast.LENGTH_SHORT).show();
                             return false;
@@ -1014,7 +1000,7 @@ public class StreamSettings extends AppCompatActivity {
                         Toast.makeText(getActivity(), getString(R.string.pref_enter_value_0_9999), Toast.LENGTH_SHORT).show();
                         return false;
                     }
-                    
+
                     try {
                         float refreshRate = Float.parseFloat(value);
                         if (refreshRate <= 0) {
@@ -1139,10 +1125,6 @@ public class StreamSettings extends AppCompatActivity {
                 dialogFragment.show(getFragmentManager(), null);
             } else if (preference instanceof ConfirmDeleteKeyboardPreference) {
                 DialogFragment dialogFragment = ConfirmDeleteKeyboardPreference.DialogFragmentCompat.newInstance(preference.getKey());
-                dialogFragment.setTargetFragment(this, 0);
-                dialogFragment.show(getFragmentManager(), null);
-            } else if (preference instanceof ListPreference) {
-                DialogFragment dialogFragment = NovaListPreferenceDialogFragment.newInstance(preference.getKey());
                 dialogFragment.setTargetFragment(this, 0);
                 dialogFragment.show(getFragmentManager(), null);
             } else super.onDisplayPreferenceDialog(preference);

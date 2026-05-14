@@ -56,10 +56,6 @@ public class UiHelper {
         view.setClickable(true);
     }
 
-    public static void applyTvFocusStyle(Context context, View view) {
-        applyTvFocusStyle(view);
-    }
-
     private static void setGameModeStatus(Context context, boolean streaming, boolean interruptible) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             GameManager gameManager = context.getSystemService(GameManager.class);

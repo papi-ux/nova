@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <dimen name="nova_game_card_cover_height">180dp</dimen>
+    <dimen name="nova_game_card_cover_height">156dp</dimen>
+    <dimen name="nova_library_landscape_rail_width">236dp</dimen>
+    <dimen name="nova_search_height">36dp</dimen>
 </resources>

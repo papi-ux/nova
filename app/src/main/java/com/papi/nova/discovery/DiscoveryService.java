@@ -4,11 +4,9 @@ import java.util.List;
 
 import com.papi.nova.nvstream.mdns.MdnsComputer;
 import com.papi.nova.nvstream.mdns.JmDNSDiscoveryAgent;
-import com.papi.nova.nvstream.mdns.LegacyNsdManagerDiscoveryAgent;
 import com.papi.nova.nvstream.mdns.MdnsDiscoveryAgent;
 import com.papi.nova.nvstream.mdns.MdnsDiscoveryListener;
 import com.papi.nova.nvstream.mdns.NsdManagerDiscoveryAgent;
-import com.papi.nova.utils.UiHelper;
 
 import android.app.Service;
 import android.content.Intent;
@@ -65,11 +63,8 @@ public class DiscoveryService extends Service {
         //
         // As such, we use the jmDNS-based MdnsDiscoveryAgent prior to Android 14 and NsdManager
         // on Android 14 and above.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !UiHelper.isTvDevice(this)) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             discoveryAgent = new JmDNSDiscoveryAgent(getApplicationContext(), listener);
-        }
-        else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            discoveryAgent = new LegacyNsdManagerDiscoveryAgent(getApplicationContext(), listener);
         }
         else {
             discoveryAgent = new NsdManagerDiscoveryAgent(getApplicationContext(), listener);

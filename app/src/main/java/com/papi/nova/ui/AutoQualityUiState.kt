@@ -44,7 +44,7 @@ data class AutoQualityUiState(
             if (status == null) {
                 return AutoQualityUiState(
                     state = State.WATCHING,
-                    label = "Auto Quality checking",
+                    label = "Checking",
                     compactLabel = "AUTO",
                     detail = "Waiting for Polaris session status",
                     targetSummary = "",
@@ -119,7 +119,7 @@ data class AutoQualityUiState(
             if (!autoEnabled && !manualOverride) {
                 return AutoQualityUiState(
                     state = State.OFF,
-                    label = "Auto Quality Off",
+                    label = "Off",
                     compactLabel = "OFF",
                     detail = "Manual stream tuning is active",
                     targetSummary = streamPolicy.targetSummary,
@@ -180,7 +180,7 @@ data class AutoQualityUiState(
                     autoPolicy.normalizedBlockedReason == "network" -> "Network limited"
                     autoPolicy.normalizedBlockedReason == "encoder" -> "Encoder limited"
                     autoPolicy.normalizedBlockedReason == "decoder" -> "Decoder limited"
-                    else -> "Auto Quality holding"
+                    else -> "Holding"
                 }
                 return AutoQualityUiState(
                     state = State.BLOCKED,
@@ -231,7 +231,7 @@ data class AutoQualityUiState(
                     compactLabel = "ATTN",
                     detail = status.health.summary.takeIf { it.isNotBlank() }
                         ?: status.syncStatus.message.takeIf { it.isNotBlank() }
-                        ?: "Auto Quality needs a stream setting check",
+                        ?: "AI Auto Quality needs a stream setting check",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.DANGER,
                     enabled = true
@@ -241,7 +241,7 @@ data class AutoQualityUiState(
             if (autoPolicy.isRecoveringBitrate) {
                 return AutoQualityUiState(
                     state = State.RECOVERING,
-                    label = "Recovering bitrate",
+                    label = "Recovering",
                     compactLabel = streamPolicy.adaptiveTargetLabel
                         .takeIf { it.isNotBlank() }
                         ?.replace(" Mbps", "M")
@@ -259,7 +259,7 @@ data class AutoQualityUiState(
             if (autoPolicy.isUpgradeAvailable) {
                 return AutoQualityUiState(
                     state = State.UPGRADE_AVAILABLE,
-                    label = "Higher quality ready",
+                    label = "Quality Available",
                     compactLabel = "UP",
                     detail = autoPolicy.summary.takeIf { it.isNotBlank() }
                         ?: if (autoPolicy.relaunchRequired) {
@@ -284,7 +284,7 @@ data class AutoQualityUiState(
             ) {
                 return AutoQualityUiState(
                     state = State.OPTIMIZING,
-                    label = "Auto Quality optimizing",
+                    label = "Optimizing",
                     compactLabel = "AUTO",
                     detail = "Selecting the best launch profile",
                     targetSummary = streamPolicy.targetSummary,
@@ -305,10 +305,10 @@ data class AutoQualityUiState(
             ) {
                 val label = when {
                     hostRenderLimited -> "Host render limited"
-                    adaptiveLowered -> "Auto Safe capped"
+                    adaptiveLowered -> "Recovering"
                     safeFpsApplied -> "Recovering FPS"
                     status.health.relaunchRecommended -> "Recovery queued"
-                    else -> "Auto Quality recovering"
+                    else -> "Recovering"
                 }
                 val detail = status.health.summary.takeIf { it.isNotBlank() }
                     ?: when {
@@ -337,7 +337,7 @@ data class AutoQualityUiState(
             if (manualOverride) {
                 return AutoQualityUiState(
                     state = State.STABLE,
-                    label = "Quality Preset",
+                    label = "Manual Override",
                     compactLabel = "QLTY",
                     detail = status.syncStatus.message.takeIf { it.isNotBlank() }
                         ?: streamPolicy.statusCaption,
@@ -351,7 +351,7 @@ data class AutoQualityUiState(
             if (!status.isStreaming) {
                 return AutoQualityUiState(
                     state = State.WATCHING,
-                    label = "Auto Quality Watching",
+                    label = "Watching",
                     compactLabel = "AUTO",
                     detail = "Ready for the next stream",
                     targetSummary = streamPolicy.targetSummary,
@@ -362,7 +362,7 @@ data class AutoQualityUiState(
 
             return AutoQualityUiState(
                 state = State.STABLE,
-                label = if (autoPolicy.isAtQualityCap) "Auto Quality at cap" else "Auto Quality Stable",
+                label = if (autoPolicy.isAtQualityCap) "At Quality Cap" else "Stable",
                 compactLabel = "OK",
                 detail = autoPolicy.summary.takeIf { it.isNotBlank() }
                     ?: status.health.summary.takeIf { it.isNotBlank() }

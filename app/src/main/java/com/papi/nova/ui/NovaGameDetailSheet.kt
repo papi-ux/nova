@@ -2,7 +2,6 @@ package com.papi.nova.ui
 
 import android.graphics.drawable.GradientDrawable
 import android.app.Dialog
-import android.content.Context
 import android.content.res.ColorStateList
 import android.os.Bundle
 import android.content.res.Configuration
@@ -96,7 +95,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
         // Apply OLED theme to sheet background
         if (NovaThemeManager.isOled(requireContext())) {
-            view.setBackgroundResource(R.drawable.nova_sheet_bg_oled)
+            view.setBackgroundResource(R.drawable.nova_quick_menu_bg)
         }
 
         view.findViewById<TextView>(R.id.detail_launch_intro).text = buildLaunchIntro(
@@ -507,38 +506,19 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     }
 
     private fun loadProfilePreference(game: PolarisGame): String {
-        return requireContext()
-            .getSharedPreferences("nova_prefs", Context.MODE_PRIVATE)
-            .getString(profilePreferenceKey(game.name), "auto")
-            ?.takeIf { it in profilePreferenceValues() }
-            ?: "auto"
+        return AutoQualityProfilePreferences.load(requireContext(), game.name)
     }
 
     private fun saveProfilePreference(game: PolarisGame, preference: String) {
-        requireContext()
-            .getSharedPreferences("nova_prefs", Context.MODE_PRIVATE)
-            .edit()
-            .putString(profilePreferenceKey(game.name), preference)
-            .apply()
-    }
-
-    private fun profilePreferenceKey(gameName: String): String {
-        return "ai_profile_preference_name_$gameName"
+        AutoQualityProfilePreferences.save(requireContext(), game.name, preference)
     }
 
     private fun profilePreferenceValues(): Array<String> {
-        return arrayOf("auto", "quality", "high_fps", "stability")
+        return AutoQualityProfilePreferences.values()
     }
 
     private fun configureProfilePreferenceButton(button: MaterialButton, preference: String) {
-        button.text = getString(
-            when (preference) {
-                "quality" -> R.string.nova_library_profile_preference_quality
-                "high_fps" -> R.string.nova_library_profile_preference_high_fps
-                "stability" -> R.string.nova_library_profile_preference_stability
-                else -> R.string.nova_library_profile_preference_auto
-            }
-        )
+        button.text = getString(AutoQualityProfilePreferences.labelRes(preference))
         button.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), android.R.color.transparent))
         button.setTextColor(ContextCompat.getColor(requireContext(), R.color.nova_text_primary))
         button.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.nova_divider))
@@ -552,12 +532,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     ) {
         val values = profilePreferenceValues()
         val labels = values.map {
-            when (it) {
-                "quality" -> "Prefer Quality"
-                "high_fps" -> "Prefer High FPS"
-                "stability" -> "Prefer Stability"
-                else -> "Auto"
-            }
+            getString(AutoQualityProfilePreferences.shortLabelRes(it))
         }.toTypedArray()
         val checked = values.indexOf(loadProfilePreference(game)).coerceAtLeast(0)
         AlertDialog.Builder(requireContext())
@@ -687,9 +662,9 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         val contentView = view ?: return
         sheet.setBackgroundResource(
             if (NovaThemeManager.isOled(requireContext())) {
-                R.drawable.nova_sheet_bg_oled
+                R.drawable.nova_quick_menu_bg
             } else {
-                R.drawable.nova_sheet_bg
+                R.drawable.nova_quick_menu_bg
             }
         )
         contentView.post {

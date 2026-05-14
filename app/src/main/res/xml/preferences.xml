@@ -10,8 +10,8 @@
          ═══════════════════════════════════════════════════════════ -->
     <PreferenceCategory
         android:key="category_stream_quality"
-        android:title="Client Stream Defaults"
-        android:summary="Nova defaults for resolution, FPS, codec, and bitrate"
+        android:title="Stream Quality"
+        android:summary="Resolution, FPS, codec, and bitrate"
         app:iconSpaceReserved="false">
 
         <!-- Preset quick-switch -->
@@ -620,21 +620,19 @@
             android:summary="Vibration on taps and menu actions"
             android:defaultValue="true"
             app:iconSpaceReserved="false" />
+        <CheckBoxPreference
+            android:key="nova_stream_notification"
+            android:title="Streaming Notification"
+            android:summary="Show persistent notification while streaming"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
         <!-- Keep stream alive in background -->
         <CheckBoxPreference
             android:key="nova_keep_stream_alive"
             android:title="Keep Stream in Background"
-            android:summary="Show a resumable-session notification when switching apps"
+            android:summary="Don't disconnect when switching apps (auto-stops after 5 min)"
             android:defaultValue="true"
-            app:iconSpaceReserved="false" />
-        <ListPreference
-            android:key="nova_disconnect_resume_timeout_seconds"
-            android:title="Background Resume Timeout"
-            android:summary="%s"
-            android:entries="@array/nova_disconnect_resume_timeout_names"
-            android:entryValues="@array/nova_disconnect_resume_timeout_values"
-            android:defaultValue="300"
-            android:dependency="nova_keep_stream_alive"
             app:iconSpaceReserved="false" />
 
         <!-- Polaris server features -->

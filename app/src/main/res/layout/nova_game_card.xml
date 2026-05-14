@@ -3,11 +3,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="6dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="0dp"
-    app:cardBackgroundColor="@color/nova_bg_card"
-    android:foreground="@drawable/nova_ripple_accent">
+    android:layout_margin="5dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="@drawable/nova_library_card_foreground"
+    app:cardBackgroundColor="#D9111620"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="0dp">
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -36,7 +38,7 @@
                 android:layout_height="match_parent"
                 android:gravity="bottom"
                 android:orientation="vertical"
-                android:padding="@dimen/nova_spacing_md">
+                android:padding="10dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -46,47 +48,24 @@
 
                     <TextView
                         android:id="@+id/nova_source_badge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/nova_badge_bg"
-                        android:paddingStart="8dp"
-                        android:paddingTop="3dp"
-                        android:paddingEnd="8dp"
-                        android:paddingBottom="3dp"
-                        android:textColor="@color/nova_text_muted"
-                        android:textSize="10sp"
-                        android:fontFamily="sans-serif-medium"
+                        style="@style/NovaQuickMenuState"
+                        android:minWidth="0dp"
                         android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/nova_category_badge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
-                        android:background="@drawable/nova_badge_bg"
-                        android:paddingStart="8dp"
-                        android:paddingTop="3dp"
-                        android:paddingEnd="8dp"
-                        android:paddingBottom="3dp"
-                        android:textColor="@color/nova_text_secondary"
-                        android:textSize="10sp"
-                        android:fontFamily="sans-serif-medium"
+                        style="@style/NovaQuickMenuState"
+                        android:minWidth="0dp"
                         android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/nova_hdr_badge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
-                        android:background="@drawable/nova_badge_bg"
-                        android:paddingStart="8dp"
-                        android:paddingTop="3dp"
-                        android:paddingEnd="8dp"
-                        android:paddingBottom="3dp"
+                        style="@style/NovaQuickMenuState"
+                        android:minWidth="0dp"
                         android:text="@string/badge_hdr"
                         android:textColor="@color/nova_accent"
-                        android:textSize="10sp"
-                        android:fontFamily="sans-serif-medium"
                         android:visibility="gone" />
                 </LinearLayout>
 
@@ -99,7 +78,7 @@
                     android:fontFamily="sans-serif-medium"
                     android:maxLines="2"
                     android:textColor="@color/nova_ice"
-                    android:textSize="14sp" />
+                    android:textSize="13sp" />
 
                 <TextView
                     android:id="@+id/nova_game_meta"
@@ -112,12 +91,5 @@
                     android:textSize="11sp" />
             </LinearLayout>
         </FrameLayout>
-
-        <View
-            android:id="@+id/nova_focus_ring"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/nova_game_card_cover_height"
-            android:background="@drawable/nova_card_focus_ring"
-            android:visibility="gone" />
     </FrameLayout>
 </androidx.cardview.widget.CardView>

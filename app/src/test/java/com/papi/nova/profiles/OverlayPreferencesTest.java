@@ -126,39 +126,4 @@ public class OverlayPreferencesTest {
         assertEquals(0.25f, cfg2.panOffsetX, 0.0001f);
         assertEquals(0.25f, cfg2.panOffsetY, 0.0001f);
     }
-
-    @Test
-    public void applyPolarisStreamingProfile_updatesStreamingPreferences() {
-        androidx.preference.PreferenceManager.getDefaultSharedPreferences(ctx)
-                .edit()
-                .clear()
-                .commit();
-        ProfilesManager pm = ProfilesManager.getInstance();
-        pm.load(ctx);
-
-        assertTrue(PreferenceConfiguration.applyPolarisStreamingProfile(ctx, "1920x1080x119.88", 45000));
-
-        PreferenceConfiguration cfg = PreferenceConfiguration.readPreferences(ctx);
-        assertEquals(1920, cfg.width);
-        assertEquals(1080, cfg.height);
-        assertEquals(119.88f, cfg.fps, 0.001f);
-        assertEquals(45000, cfg.bitrate);
-        assertEquals("1920x1080x119.88", PreferenceConfiguration.formatCurrentStreamingDisplayMode(ctx));
-    }
-
-    @Test
-    public void applyPolarisStreamingProfile_rejectsInvalidDisplayMode() {
-        androidx.preference.PreferenceManager.getDefaultSharedPreferences(ctx)
-                .edit()
-                .clear()
-                .commit();
-        ProfilesManager pm = ProfilesManager.getInstance();
-        pm.load(ctx);
-
-        assertFalse(PreferenceConfiguration.applyPolarisStreamingProfile(ctx, "1920x1080", 0));
-
-        PreferenceConfiguration cfg = PreferenceConfiguration.readPreferences(ctx);
-        assertEquals(1280, cfg.width);
-        assertEquals(720, cfg.height);
-    }
 }

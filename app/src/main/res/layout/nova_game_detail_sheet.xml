@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/nova_sheet_bg"
+    android:background="@drawable/nova_quick_menu_bg"
     android:fillViewport="false"
     android:paddingBottom="12dp">
 
@@ -13,27 +13,29 @@
         android:orientation="vertical">
 
         <View
-            android:layout_width="40dp"
+            android:layout_width="36dp"
             android:layout_height="4dp"
             android:layout_gravity="center_horizontal"
-            android:layout_marginTop="12dp"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/nova_drag_handle" />
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/nova_quick_handle" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/nova_library_panel_bg"
             android:gravity="top"
             android:orientation="horizontal"
-            android:paddingStart="22dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="22dp">
+            android:padding="12dp">
 
             <androidx.cardview.widget.CardView
-                android:layout_width="84dp"
-                android:layout_height="112dp"
+                android:layout_width="88dp"
+                android:layout_height="118dp"
+                android:foreground="@drawable/nova_library_card_foreground"
                 app:cardBackgroundColor="@color/nova_deep"
-                app:cardCornerRadius="14dp"
+                app:cardCornerRadius="8dp"
                 app:cardElevation="0dp">
 
                 <ImageView
@@ -48,7 +50,7 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
+                android:layout_marginStart="13dp"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
@@ -56,48 +58,35 @@
                     android:id="@+id/detail_name"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:ellipsize="end"
                     android:fontFamily="sans-serif-medium"
                     android:maxLines="3"
                     android:textColor="@color/nova_ice"
-                    android:textSize="18sp" />
+                    android:textSize="17sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="8dp"
                     android:orientation="horizontal">
 
                     <TextView
                         android:id="@+id/detail_source"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/nova_badge_bg"
-                        android:paddingStart="9dp"
-                        android:paddingTop="3dp"
-                        android:paddingEnd="9dp"
-                        android:paddingBottom="3dp"
-                        android:textColor="@color/nova_silver"
-                        android:textSize="11sp" />
+                        style="@style/NovaQuickMenuState"
+                        android:minWidth="0dp" />
 
                     <TextView
                         android:id="@+id/detail_category"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:background="@drawable/nova_badge_bg"
-                        android:paddingStart="9dp"
-                        android:paddingTop="3dp"
-                        android:paddingEnd="9dp"
-                        android:paddingBottom="3dp"
-                        android:textColor="@color/nova_silver"
-                        android:textSize="11sp" />
+                        style="@style/NovaQuickMenuState"
+                        android:layout_marginStart="7dp"
+                        android:minWidth="0dp" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/detail_genres"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="7dp"
                     android:orientation="horizontal"
                     android:visibility="gone" />
 
@@ -105,126 +94,22 @@
                     android:id="@+id/detail_last_played"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="7dp"
                     android:textColor="@color/nova_text_muted"
                     android:textSize="10sp"
                     android:visibility="gone" />
-
-                <TextView
-                    android:id="@+id/detail_launch_intro"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:maxLines="2"
-                    android:textColor="@color/nova_text_secondary"
-                    android:textSize="11sp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="vertical"
-                    android:paddingTop="2dp">
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="sans-serif-medium"
-                            android:text="@string/nova_library_launch_mode_title"
-                            android:textColor="@color/nova_text_primary"
-                            android:textSize="14sp" />
-
-                        <TextView
-                            android:id="@+id/detail_default_mode_badge"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:background="@drawable/nova_badge_bg"
-                            android:paddingStart="8dp"
-                            android:paddingTop="3dp"
-                            android:paddingEnd="8dp"
-                            android:paddingBottom="3dp"
-                            android:textColor="@color/nova_text_secondary"
-                            android:textSize="9sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/detail_launch_headless_btn"
-                            style="@style/Widget.Material3.Button"
-                            android:layout_width="0dp"
-                            android:layout_height="38dp"
-                            android:layout_weight="1"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:textAllCaps="false"
-                            app:cornerRadius="14dp" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/detail_launch_virtual_btn"
-                            style="@style/Widget.Material3.Button"
-                            android:layout_width="0dp"
-                            android:layout_height="38dp"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:textAllCaps="false"
-                            app:cornerRadius="14dp" />
-                    </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/detail_profile_preference_btn"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="34dp"
-                        android:layout_marginTop="6dp"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
-                        android:text="@string/nova_library_profile_preference_auto"
-                        android:textAllCaps="false"
-                        android:textSize="12sp"
-                        app:cornerRadius="12dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/detail_reset_profile_btn"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="34dp"
-                        android:layout_marginTop="2dp"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
-                        android:text="@string/nova_library_reset_game_profile"
-                        android:textAllCaps="false"
-                        android:textSize="12sp"
-                        app:cornerRadius="12dp" />
-                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="22dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="22dp"
-            android:background="@drawable/nova_badge_bg"
+            android:layout_marginStart="14dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/nova_auto_quality_panel_bg"
             android:orientation="vertical"
-            android:paddingStart="12dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="8dp">
+            android:padding="13dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -232,52 +117,107 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <LinearLayout
+                <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/nova_library_launch_mode_title"
+                    android:textColor="@color/nova_ice"
+                    android:textSize="15sp" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/nova_mangohud_detail_label"
-                        android:textColor="@color/nova_text_primary"
-                        android:textSize="13sp" />
-
-                    <TextView
-                        android:id="@+id/detail_mangohud_caption"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/nova_mangohud_detail_caption"
-                        android:textColor="@color/nova_text_secondary"
-                        android:textSize="10sp"
-                        android:maxLines="2" />
-                </LinearLayout>
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/detail_mangohud_toggle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp" />
+                <TextView
+                    android:id="@+id/detail_default_mode_badge"
+                    style="@style/NovaQuickMenuState"
+                    android:textColor="@color/nova_success" />
             </LinearLayout>
 
+            <TextView
+                android:id="@+id/detail_launch_intro"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:maxLines="3"
+                android:textColor="@color/nova_text_muted"
+                android:textSize="10sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="11dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/detail_launch_headless_btn"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/nova_library_primary_action_bg"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:textAllCaps="false"
+                    android:textSize="12sp"
+                    app:elevation="0dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/detail_launch_virtual_btn"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/nova_library_tool_action_bg"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:textAllCaps="false"
+                    android:textSize="12sp"
+                    app:elevation="0dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/detail_profile_preference_btn"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/nova_library_tool_action_bg"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/nova_library_profile_preference_auto"
+                    android:textAllCaps="false"
+                    android:textSize="11sp"
+                    app:elevation="0dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/detail_reset_profile_btn"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/nova_library_tool_action_bg"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/nova_library_reset_game_profile"
+                    android:textAllCaps="false"
+                    android:textSize="11sp"
+                    app:elevation="0dp" />
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/detail_ai_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="20dp"
-            android:background="@drawable/nova_badge_bg"
+            android:layout_marginStart="14dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/nova_auto_quality_panel_bg"
             android:orientation="vertical"
-            android:paddingStart="12dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="10dp"
+            android:padding="12dp"
             android:visibility="gone">
 
             <LinearLayout
@@ -288,33 +228,25 @@
 
                 <TextView
                     android:id="@+id/detail_ai_label"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.04"
                     android:text="@string/nova_library_ai_recommended_label"
                     android:textColor="@color/nova_accent"
-                    android:textSize="11sp" />
+                    android:textSize="14sp" />
 
                 <TextView
                     android:id="@+id/detail_ai_source"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:background="@drawable/nova_badge_bg"
-                    android:paddingStart="8dp"
-                    android:paddingTop="2dp"
-                    android:paddingEnd="8dp"
-                    android:paddingBottom="2dp"
-                    android:textColor="@color/nova_text_muted"
-                    android:textSize="9sp" />
+                    style="@style/NovaQuickMenuState"
+                    android:maxLines="1" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/detail_ai_settings"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="5dp"
+                android:layout_marginTop="6dp"
                 android:fontFamily="sans-serif-medium"
                 android:textColor="@color/nova_ice"
                 android:textSize="12sp" />
@@ -323,7 +255,7 @@
                 android:id="@+id/detail_ai_reasoning"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="4dp"
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:textColor="@color/nova_text_muted"
@@ -334,15 +266,12 @@
             android:id="@+id/detail_stability_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="20dp"
-            android:background="@drawable/nova_badge_bg"
+            android:layout_marginStart="14dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/nova_command_status_bg"
             android:orientation="vertical"
-            android:paddingStart="12dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="10dp"
+            android:padding="12dp"
             android:visibility="gone">
 
             <TextView
@@ -350,10 +279,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
-                android:letterSpacing="0.04"
                 android:text="Stability first"
                 android:textColor="@color/nova_warning"
-                android:textSize="11sp" />
+                android:textSize="13sp" />
 
             <TextView
                 android:id="@+id/detail_stability_settings"
@@ -373,6 +301,53 @@
                 android:maxLines="3"
                 android:textColor="@color/nova_text_muted"
                 android:textSize="10sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/nova_command_panel_bg"
+            android:gravity="center_vertical"
+            android:minHeight="54dp"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingTop="9dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="9dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/nova_mangohud_detail_label"
+                    android:textColor="@color/nova_text_primary"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/detail_mangohud_caption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:maxLines="2"
+                    android:text="@string/nova_mangohud_detail_caption"
+                    android:textColor="@color/nova_text_muted"
+                    android:textSize="9sp" />
+            </LinearLayout>
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/detail_mangohud_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp" />
         </LinearLayout>
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

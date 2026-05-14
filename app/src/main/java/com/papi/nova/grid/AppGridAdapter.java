@@ -5,7 +5,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -71,8 +70,8 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         for (AppView.AppObject app : allApps) {
             app.isHidden = hiddenAppIds.contains(app.app.getAppId());
             if (app.isHidden && !showHiddenApps) continue;
-            String searchableText = (app.app.getAppName() + " " + app.app.getMetadataLabel()).toLowerCase();
-            if (!searchFilter.isEmpty() && !searchableText.contains(searchFilter)) continue;
+            if (!searchFilter.isEmpty() &&
+                !app.app.getAppName().toLowerCase().contains(searchFilter)) continue;
             newList.add(app);
         }
         sortList(newList);
@@ -266,8 +265,7 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
                 && a.isRunning == b.isRunning
                 && a.isHidden == b.isHidden
                 && a.isPinned == b.isPinned
-                && a.app.getAppName().equals(b.app.getAppName())
-                && a.app.getMetadataKey().equals(b.app.getMetadataKey());
+                && a.app.getAppName().equals(b.app.getAppName());
         }
     }
 
@@ -278,21 +276,11 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
 
         // Running state indicators
         TextView hdrBadge = parentView.findViewById(R.id.hdr_badge);
-        TextView sourceBadge = parentView.findViewById(R.id.grid_source_badge);
-        TextView metaView = parentView.findViewById(R.id.grid_meta);
         View runningBadge = parentView.findViewById(R.id.running_badge);
         View runningBorder = parentView.findViewById(R.id.running_border);
 
         if (hdrBadge != null) {
             hdrBadge.setVisibility(showHdrBadges && obj.app.isHdrSupported() ? View.VISIBLE : View.GONE);
-        }
-
-        bindSourceBadge(sourceBadge, obj.app.getSourceLabel(), obj.app.getSource());
-
-        if (metaView != null) {
-            String metadata = obj.app.getMetadataLabel();
-            metaView.setText(metadata);
-            metaView.setVisibility(metadata.isEmpty() ? View.GONE : View.VISIBLE);
         }
 
         if (obj.isRunning) {
@@ -319,45 +307,5 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
 
     public void populateFeaturedArt(AppView.AppObject obj, ImageView imageView) {
         loader.populateImageView(obj.app, imageView);
-    }
-
-    private void bindSourceBadge(TextView badge, String label, String source) {
-        if (badge == null) {
-            return;
-        }
-        if (label == null || label.isEmpty()) {
-            badge.setVisibility(View.GONE);
-            return;
-        }
-
-        badge.setText(label);
-        badge.setVisibility(View.VISIBLE);
-
-        int bgColor;
-        int textColor;
-        switch (source) {
-            case "steam":
-                bgColor = 0x1A3B82F6;
-                textColor = 0xFF60A5FA;
-                break;
-            case "lutris":
-                bgColor = 0x1AF97316;
-                textColor = 0xFFFB923C;
-                break;
-            case "heroic":
-                bgColor = 0x1AA855F7;
-                textColor = 0xFFC084FC;
-                break;
-            default:
-                bgColor = 0x1A6B7280;
-                textColor = 0xFF9CA3AF;
-                break;
-        }
-
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(context.getResources().getDisplayMetrics().density * 8f);
-        bg.setColor(bgColor);
-        badge.setTextColor(textColor);
-        badge.setBackground(bg);
     }
 }

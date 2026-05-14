@@ -43,12 +43,12 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 1. Download the latest release from GitHub Releases, add Nova to Obtainium, or open it in GitHub Store on Android.
 2. Install the APK that matches your Android device.
-   Most phones, handhelds, and Android TV devices use `Nova-Android-arm64-v8a.apk`; x86_64 Android devices and emulators use `Nova-Android-x86_64.apk`.
+   Most phones and handhelds use `Nova-Android-arm64-v8a.apk`; x86_64 Android devices and emulators use `Nova-Android-x86_64.apk`.
 3. Open Nova, add or discover your host, then pair it.
 
 | Public release asset | Use it for |
 |---|---|
-| `Nova-Android-arm64-v8a.apk` | Recommended Android install for phones, handhelds, and Android TV devices such as NVIDIA Shield |
+| `Nova-Android-arm64-v8a.apk` | Recommended Android install for phones and handhelds |
 | `Nova-Android-x86_64.apk` | Android x86_64 devices and emulators |
 | `*.apk.sha256` | Integrity checks for the public APKs |
 
@@ -66,22 +66,9 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, and `v1.0.5` adds the first unified Auto Quality experience with Polaris. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, and `v1.0.2` hardens the security surfaces found during public scanner review. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
-
-**Android TV:** Nova ships Android TV support in the same APK. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces.
-
-## What's New in v1.0.5
-
-Nova `v1.0.5` makes stream tuning feel less like a pile of expert toggles and more like one coordinated Auto Quality system.
-
-- **Auto Quality drawer**: AI Optimizer and Adaptive Bitrate are presented as one stream-quality system, with clearer state, target FPS, safe FPS, low FPS, 1% low, bitrate, and recovery labels.
-- **Better Polaris launches**: Nova asks Polaris for the launch recommendation before the stream starts, then applies the safer or higher-quality profile that Polaris will actually enforce.
-- **Quality preference support**: users can start from a higher-quality preference, while Polaris and Nova still have room to recover if the host, network, or decoder cannot hold the target.
-- **Bidirectional profile sync**: Nova can push its stream defaults to Polaris or pull Polaris' active profile back into Nova, making manual control clearer when users want it.
-- **Game profile controls**: Polaris-backed game detail screens can expose per-game optimization state and profile reset tools when a game needs a fresh start.
-- **Cleaner live feedback**: the HUD and quick menu now show whether the session is using baseline tuning, cached AI, recovery tuning, host-adjusted recommendations, or an active Auto Quality policy.
 
 ## Quick Start
 
@@ -96,8 +83,6 @@ Nova `v1.0.5` makes stream tuning feel less like a pile of expert toggles and mo
 4. **Launch a game** from the game grid or the Polaris library.
 5. **Use the quick menu** for stream tuning, overlays, controller actions, and quit/disconnect controls.
 
-Wake-on-LAN uses UDP magic packets sent directly from Nova. If a host does not report its MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address for the server and reuses it when sending future wake requests, which helps remote setups such as WireGuard where discovery metadata may be incomplete.
-
 ### If you use Polaris
 
 Nova gets the best experience when the host is Polaris:
@@ -107,9 +92,8 @@ Nova gets the best experience when the host is Polaris:
 - live **ACT / TGT FPS** HUD readouts
 - watch active stream without stealing ownership
 - owner-aware quit and resume
-- clear **Baseline / AI tune / Cached AI / Recovery tune / Auto Quality** labels in Polaris-backed flows
-- bidirectional **Polaris Sync** for pushing Nova stream defaults to Polaris or pulling Polaris' current stream profile back into Nova
-- live host tuning for Auto Quality and MangoHud
+- clear **Baseline / AI tune / Cached AI / Recovery tune** labels in Polaris-backed flows
+- live host tuning for Adaptive Bitrate, AI Optimizer, and MangoHud
 - richer library metadata, cover art, and per-game recommendations
 
 ### If you use another compatible host
@@ -122,10 +106,8 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 |---|---|---|
 | Android handhelds | Primary target | Designed first for landscape handheld use |
 | Android phones and tablets | Supported | Works well, but the UX is tuned most heavily for handhelds |
-| Android TV | Supported | Uses the normal ARM64 APK with Leanback launcher support and D-pad/controller-friendly browsing |
 | Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, and live-session integration |
 | Other Moonlight-compatible hosts | Compatible | Standard Moonlight-compatible client flow |
-| Wake-on-LAN | Supported | Sends UDP magic packets directly from Android and supports manual MAC entry when the host does not report one |
 | High refresh devices | Supported | Nova can request 90/120 Hz when the device display and host both support it |
 | Official release assets | `arm64-v8a`, `x86_64` | Public GitHub Releases ship separate APKs per Android ABI |
 
@@ -155,16 +137,15 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | 10-bit opt-in | Enabling HDR can request a 10-bit stream even on SDR handheld displays |
 | Watch Stream | Join an active session as a passive viewer instead of taking ownership |
 | Session truth | HUD and quick menu show the live mode, owner/viewer role, and negotiated stream state |
-| Auto Quality state | Library and quick menu can distinguish baseline device tuning, live AI, cached AI, recovery tuning, host-adjusted recommendations, and the active target profile |
-| Polaris Sync | Push Nova's stream profile to Polaris, pull Polaris' current profile back into Nova, or keep Polaris matched to Nova defaults |
-| Stream tuning | Toggle Auto Quality and MangoHud from the quick menu |
+| AI state | Library and quick menu can distinguish baseline device tuning, live AI, cached AI, recovery tuning, and host-adjusted recommendations |
+| Stream tuning | Toggle Adaptive Bitrate, AI Optimizer, and MangoHud from the quick menu |
 | Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
 
 ## Core Features
 
 - **Streaming and HUD**: H.264, HEVC, and AV1 decode; full, banner, and FPS-only HUD modes; actual vs target FPS labels; reconnect overlay; quality presets for quick setup
 - **Input**: gyro aim, audio haptics, broad controller support, Direct/Trackpad/Relative mouse modes, and compact handheld on-screen controls
-- **Polaris flow**: host-backed library, Continue/watch flows, explicit Headless vs Virtual Display launches, bidirectional Polaris Sync, Auto Quality source labels, live tuning, and warnings before risky MangoHud launches
+- **Polaris flow**: host-backed library, Continue/watch flows, explicit Headless vs Virtual Display launches, AI source labels, live tuning, and warnings before risky MangoHud launches
 
 ## Screenshots
 
@@ -313,20 +294,6 @@ Trusted Pair is Nova’s TOFU flow. If Polaris trusts the subnet you are on, Nov
 <summary><b>What is the difference between Headless and Virtual Display?</b></summary>
 
 **Headless** launches against Polaris’ isolated compositor path without touching your physical desktop layout. **Virtual Display** asks the host for a virtual display-backed launch instead. Nova’s Polaris library now shows what the host recommends, what the app prefers, and which modes are currently allowed.
-
-</details>
-
-<details>
-<summary><b>Does Wake-on-LAN work over WireGuard or another VPN?</b></summary>
-
-It can, as long as the network path forwards the UDP wake packet to a host or subnet that can reach the sleeping PC. Nova sends Wake-on-LAN packets directly from Android. If the server did not provide a MAC address during discovery or pairing, use **Edit Wake-on-LAN MAC** in the host menu and enter the PC network adapter MAC address manually.
-
-</details>
-
-<details>
-<summary><b>What does Polaris Sync do?</b></summary>
-
-Polaris Sync is a bidirectional settings flow for Polaris hosts. Nova can push its local stream profile to Polaris, pull Polaris' current stream profile back into Nova, or keep the Polaris profile matched to Nova defaults so launch settings stay predictable across devices.
 
 </details>
 

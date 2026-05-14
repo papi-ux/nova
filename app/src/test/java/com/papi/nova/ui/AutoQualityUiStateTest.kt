@@ -28,7 +28,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Auto Quality Stable", state.label)
+        assertEquals("Stable", state.label)
         assertTrue(state.targetSummary.contains("HEVC"))
     }
 
@@ -46,7 +46,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("Auto Safe capped", state.label)
+        assertEquals("Recovering", state.label)
         assertTrue(state.targetSummary.contains("12 Mbps live / 30 Mbps limit"))
     }
 
@@ -89,7 +89,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Quality Preset", state.label)
+        assertEquals("Manual Override", state.label)
         assertTrue(state.manualOverride)
     }
 
@@ -180,7 +180,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("Recovering bitrate", state.label)
+        assertEquals("Recovering", state.label)
         assertTrue(state.recovering)
         assertTrue(state.targetSummary.contains("12 Mbps live / 30 Mbps limit"))
     }
@@ -198,7 +198,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.UPGRADE_AVAILABLE, state.state)
-        assertEquals("Higher quality ready", state.label)
+        assertEquals("Quality Available", state.label)
         assertEquals("UP", state.compactLabel)
     }
 
@@ -226,7 +226,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.OFF, state.state)
-        assertEquals("Auto Quality Off", state.label)
+        assertEquals("Off", state.label)
     }
 
     private fun status(

@@ -26,11 +26,6 @@
                 android:transitionName="game_cover_art"
                 android:contentDescription="@string/nova_a11y_game_cover" />
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/nova_cover_scrim" />
-
             <!-- Running overlay + play icon -->
             <RelativeLayout
                 android:id="@+id/grid_mask"
@@ -44,45 +39,24 @@
                     android:layout_centerInParent="true" />
             </RelativeLayout>
 
-            <LinearLayout
+            <!-- Running indicator badge (top-right) -->
+            <TextView
+                android:id="@+id/hdr_badge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="top|start"
                 android:layout_margin="8dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/grid_source_badge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/nova_badge_bg"
-                    android:fontFamily="sans-serif-medium"
-                    android:paddingStart="7dp"
-                    android:paddingTop="2dp"
-                    android:paddingEnd="7dp"
-                    android:paddingBottom="2dp"
-                    android:textColor="@color/nova_text_primary"
-                    android:textSize="9sp"
-                    android:visibility="gone" />
-
-                <TextView
-                    android:id="@+id/hdr_badge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:text="@string/badge_hdr"
-                    android:textSize="9sp"
-                    android:textColor="@color/nova_ice"
-                    android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.05"
-                    android:background="@drawable/nova_badge_bg"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:paddingTop="2dp"
-                    android:paddingBottom="2dp"
-                    android:visibility="gone" />
-            </LinearLayout>
+                android:text="@string/badge_hdr"
+                android:textSize="9sp"
+                android:textColor="@color/nova_ice"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.05"
+                android:background="@drawable/nova_badge_bg"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/running_badge"
@@ -90,12 +64,12 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="top|end"
                 android:layout_margin="8dp"
-                android:text="@string/badge_streaming"
+                android:text="STREAMING"
                 android:textSize="9sp"
                 android:textColor="@color/nova_bg_window"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.05"
-                android:background="@drawable/nova_streaming_badge_bg"
+                android:background="@color/nova_success"
                 android:paddingStart="6dp"
                 android:paddingEnd="6dp"
                 android:paddingTop="2dp"
@@ -120,17 +94,6 @@
                     android:fontFamily="sans-serif-medium"
                     android:maxLines="2"
                     android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/grid_meta"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
-                    android:textColor="@color/nova_text_muted"
-                    android:textSize="10sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:visibility="gone" />
             </LinearLayout>
 
         </FrameLayout>
@@ -142,13 +105,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/nova_running_border"
-        android:visibility="gone" />
-
-    <View
-        android:id="@+id/nova_focus_ring"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/nova_card_focus_ring"
         android:visibility="gone" />
 
 </FrameLayout>

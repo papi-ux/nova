@@ -703,13 +703,8 @@ private static int getFramePacingValue(Context context) {
         return width + "x" + height + "x" + formatFpsValue(fps);
     }
 
-    public static String formatCurrentStreamingDisplayMode(Context context) {
-        PreferenceConfiguration config = readPreferences(context);
-        return formatStreamingDisplayMode(config.width, config.height, config.fps);
-    }
-
     public static boolean applyPolarisStreamingProfile(Context context, String displayMode, int bitrateKbps) {
-        ParsedDisplayMode mode = parseStreamingDisplayMode(displayMode);
+        int[] mode = parseStreamingDisplayMode(displayMode);
         if (mode == null && bitrateKbps <= 0) {
             return false;
         }
@@ -718,8 +713,8 @@ private static int getFramePacingValue(Context context) {
                 .getOverlayingSharedPreferences(context)
                 .edit();
         if (mode != null) {
-            editor.putString(RESOLUTION_PREF_STRING, mode.width + "x" + mode.height);
-            editor.putString(FPS_PREF_STRING, formatFpsValue(mode.fps));
+            editor.putString(RESOLUTION_PREF_STRING, mode[0] + "x" + mode[1]);
+            editor.putString(FPS_PREF_STRING, formatFpsValue(mode[2]));
         }
         if (bitrateKbps > 0) {
             editor.putInt(BITRATE_PREF_STRING, bitrateKbps);
@@ -736,7 +731,7 @@ private static int getFramePacingValue(Context context) {
         return String.format(Locale.US, "%.2f", fps);
     }
 
-    private static ParsedDisplayMode parseStreamingDisplayMode(String displayMode) {
+    private static int[] parseStreamingDisplayMode(String displayMode) {
         if (displayMode == null || displayMode.trim().isEmpty()) {
             return null;
         }
@@ -754,25 +749,13 @@ private static int getFramePacingValue(Context context) {
         try {
             int width = Integer.parseInt(parts[0]);
             int height = Integer.parseInt(parts[1]);
-            float fps = Float.parseFloat(parts[2]);
+            int fps = Math.round(Float.parseFloat(parts[2]));
             if (width <= 0 || height <= 0 || fps <= 0) {
                 return null;
             }
-            return new ParsedDisplayMode(width, height, fps);
+            return new int[] { width, height, fps };
         } catch (NumberFormatException e) {
             return null;
-        }
-    }
-
-    private static final class ParsedDisplayMode {
-        final int width;
-        final int height;
-        final float fps;
-
-        ParsedDisplayMode(int width, int height, float fps) {
-            this.width = width;
-            this.height = height;
-            this.fps = fps;
         }
     }
 
