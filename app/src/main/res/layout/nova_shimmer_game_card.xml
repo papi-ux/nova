@@ -4,8 +4,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    app:cardCornerRadius="14dp"
+    android:layout_margin="5dp"
+    app:cardCornerRadius="8dp"
     app:cardElevation="0dp"
     app:cardBackgroundColor="@color/nova_bg_card">
 
@@ -17,7 +17,7 @@
         <!-- Cover art placeholder -->
         <View
             android:layout_width="match_parent"
-            android:layout_height="200dp"
+            android:layout_height="@dimen/nova_game_card_cover_height"
             android:background="@color/nova_deep" />
 
         <!-- Info placeholder -->

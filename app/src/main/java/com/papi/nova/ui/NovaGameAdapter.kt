@@ -12,7 +12,8 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.content.ContextCompat
+import androidx.cardview.widget.CardView
+import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.papi.nova.R
@@ -22,7 +23,8 @@ import com.papi.nova.api.PolarisGame
 class NovaGameAdapter(
     private val apiClient: PolarisApiClient,
     private val onGameClick: (PolarisGame) -> Unit,
-    private val onGameLongClick: ((PolarisGame) -> Unit)? = null
+    private val onGameLongClick: ((PolarisGame) -> Unit)? = null,
+    private val cardLayoutRes: Int = R.layout.nova_game_card
 ) : RecyclerView.Adapter<NovaGameAdapter.ViewHolder>() {
     companion object {
         private const val PAYLOAD_REFRESH_COVER = "refresh_cover"
@@ -58,7 +60,7 @@ class NovaGameAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.nova_game_card, parent, false)
+            .inflate(cardLayoutRes, parent, false)
         return ViewHolder(view)
     }
 
@@ -86,9 +88,9 @@ class NovaGameAdapter(
         private val categoryBadge: TextView = itemView.findViewById(R.id.nova_category_badge)
         private val sourceBadge: TextView = itemView.findViewById(R.id.nova_source_badge)
         private val hdrBadge: TextView = itemView.findViewById(R.id.nova_hdr_badge)
-        private val focusRing: View = itemView.findViewById(R.id.nova_focus_ring)
 
         fun bind(game: PolarisGame) {
+            applyTheme()
             gameName.text = game.name
             itemView.contentDescription = game.name
             coverArt.contentDescription = "${game.name} cover art"
@@ -99,13 +101,13 @@ class NovaGameAdapter(
                 sourceBadge.text = srcLabel
                 sourceBadge.visibility = View.VISIBLE
                 // Color-code by source
-                val bgColor = when (game.effectiveSource) {
+                val bgColor = when (game.source) {
                     "steam" -> 0x1A3B82F6.toInt()  // blue/10
                     "lutris" -> 0x1AF97316.toInt()  // orange/10
                     "heroic" -> 0x1AA855F7.toInt()  // purple/10
                     else -> 0x1A6B7280.toInt()
                 }
-                val textColor = when (game.effectiveSource) {
+                val textColor = when (game.source) {
                     "steam" -> 0xFF60A5FA.toInt()    // blue-400
                     "lutris" -> 0xFFFB923C.toInt()   // orange-400
                     "heroic" -> 0xFFC084FC.toInt()   // purple-400
@@ -113,24 +115,26 @@ class NovaGameAdapter(
                 }
                 sourceBadge.setTextColor(textColor)
                 val bg = GradientDrawable()
-                bg.cornerRadius = 8f
+                bg.cornerRadius = 8f * itemView.resources.displayMetrics.density
                 bg.setColor(bgColor)
                 sourceBadge.background = bg
             } else {
                 sourceBadge.visibility = View.GONE
             }
 
-            // Category badge
+            // Category is secondary metadata now; only show it as a badge when no source exists.
             val catLabel = game.categoryLabel
-            if (catLabel.isNotEmpty()) {
+            if (catLabel.isNotEmpty() && srcLabel.isEmpty()) {
                 categoryBadge.text = catLabel
                 categoryBadge.visibility = View.VISIBLE
+                styleMutedBadge(categoryBadge)
             } else {
                 categoryBadge.visibility = View.GONE
             }
 
             if (game.hdrSupported) {
                 hdrBadge.visibility = View.VISIBLE
+                styleHdrBadge(hdrBadge)
             } else {
                 hdrBadge.visibility = View.GONE
             }
@@ -185,19 +189,12 @@ class NovaGameAdapter(
             itemView.isFocusableInTouchMode = false
             itemView.setOnFocusChangeListener { v, hasFocus ->
                 val card = v as? androidx.cardview.widget.CardView ?: return@setOnFocusChangeListener
-                focusRing.visibility = if (hasFocus) View.VISIBLE else View.GONE
                 if (hasFocus) {
-                    card.cardElevation = 8f
-                    card.setCardBackgroundColor(
-                        ContextCompat.getColor(v.context, R.color.nova_twilight)
-                    )
-                    v.scaleX = 1.03f
-                    v.scaleY = 1.03f
+                    card.cardElevation = 0f
+                    v.scaleX = 1.025f
+                    v.scaleY = 1.025f
                 } else {
                     card.cardElevation = 0f
-                    card.setCardBackgroundColor(
-                        ContextCompat.getColor(v.context, R.color.nova_bg_card)
-                    )
                     v.scaleX = 1.0f
                     v.scaleY = 1.0f
                 }
@@ -206,6 +203,46 @@ class NovaGameAdapter(
 
         fun refreshCover(game: PolarisGame) {
             apiClient.loadCoverInto(coverArt, game)
+        }
+
+        private fun applyTheme() {
+            val context = itemView.context
+            val surface = NovaThemeManager.getCardBackgroundColor(context)
+            val divider = NovaThemeManager.getDividerColor(context)
+            (itemView as? CardView)?.setCardBackgroundColor(surface)
+            coverArt.setBackgroundColor(ColorUtils.blendARGB(surface, divider, 0.24f))
+        }
+
+        private fun styleHdrBadge(view: TextView) {
+            val context = itemView.context
+            val accent = NovaThemeManager.getAccentColor(context)
+            val surface = NovaThemeManager.getCardBackgroundColor(context)
+            view.setTextColor(accent)
+            view.background = roundedBadge(
+                ColorUtils.blendARGB(surface, accent, 0.16f),
+                ColorUtils.setAlphaComponent(accent, 110)
+            )
+        }
+
+        private fun styleMutedBadge(view: TextView) {
+            val context = itemView.context
+            val surface = NovaThemeManager.getCardBackgroundColor(context)
+            val divider = NovaThemeManager.getDividerColor(context)
+            view.setTextColor(NovaThemeManager.getTextSecondaryColor(context))
+            view.background = roundedBadge(
+                ColorUtils.blendARGB(surface, divider, 0.18f),
+                divider
+            )
+        }
+
+        private fun roundedBadge(fillColor: Int, strokeColor: Int): GradientDrawable {
+            val density = itemView.resources.displayMetrics.density
+            return GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 8f * density
+                setColor(fillColor)
+                setStroke((1f * density).toInt().coerceAtLeast(1), strokeColor)
+            }
         }
 
         private fun buildMetaLine(game: PolarisGame): String {
@@ -225,12 +262,6 @@ class NovaGameAdapter(
             } else {
                 if (game.sourceLabel.isNotEmpty()) parts += game.sourceLabel
                 if (game.categoryLabel.isNotEmpty()) parts += game.categoryLabel
-            }
-            if (game.platformLabel.isNotEmpty() && !parts.any { it.equals(game.platformLabel, ignoreCase = true) }) {
-                parts += game.platformLabel
-            }
-            if (game.runtimeLabel.isNotEmpty() && !parts.any { it.equals(game.runtimeLabel, ignoreCase = true) }) {
-                parts += game.runtimeLabel
             }
 
             return if (parts.isEmpty()) {

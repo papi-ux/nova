@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nova_library_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:colorBackground">
 
-    <!-- Animated space particle background (dense: nebulae + shooting stars) -->
     <com.papi.nova.ui.SpaceParticleView
         android:id="@+id/space_particles_dense"
         android:layout_width="match_parent"
@@ -21,156 +21,178 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="@dimen/nova_spacing_lg"
-            android:paddingTop="@dimen/nova_spacing_sm"
-            android:paddingEnd="@dimen/nova_spacing_lg">
+            android:paddingStart="14dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="14dp">
 
             <LinearLayout
+                android:id="@+id/nova_library_panel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:background="@drawable/nova_library_panel_bg"
+                android:orientation="vertical"
+                android:paddingStart="12dp"
+                android:paddingTop="11dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="12dp">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/nova_library_back"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:minWidth="0dp"
-                    android:text="@string/nova_library_switch_server"
-                    android:textAllCaps="false"
-                    android:textColor="@color/nova_text_primary"
-                    app:backgroundTint="@color/nova_badge_bg"
-                    app:cornerRadius="14dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_close"
-                    app:iconPadding="8dp"
-                    app:iconTint="@color/nova_text_primary" />
-
-                <TextView
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/nova_spacing_md"
-                    android:layout_weight="1"
-                    android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.04"
-                    android:text="@string/nova_library_browse_label"
-                    android:textAllCaps="true"
-                    android:textColor="@color/nova_text_muted"
-                    android:textSize="@dimen/nova_text_badge" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/nova_library_refresh"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:minWidth="0dp"
-                    android:text="@string/nova_refresh"
-                    android:textAllCaps="false"
-                    android:textColor="@color/nova_text_primary"
-                    app:backgroundTint="@color/nova_badge_bg"
-                    app:cornerRadius="14dp"
-                    app:elevation="0dp" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/nova_library_back"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="11dp"
+                        android:background="@drawable/nova_library_tool_action_bg"
+                        android:text="@string/nova_library_switch_server"
+                        android:textAllCaps="false"
+                        android:textColor="@color/nova_text_primary"
+                        android:textSize="11sp"
+                        app:elevation="0dp"
+                        app:icon="@drawable/ic_close"
+                        app:iconPadding="7dp"
+                        app:iconTint="@color/nova_text_primary" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/nova_library_manage"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:layout_marginStart="8dp"
-                    android:minWidth="0dp"
-                    android:text="@string/nova_library_manage"
-                    android:textAllCaps="false"
-                    android:textColor="@color/nova_text_primary"
-                    app:backgroundTint="@color/nova_badge_bg"
-                    app:cornerRadius="14dp"
-                    app:elevation="0dp" />
-            </LinearLayout>
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/nova_library_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/nova_spacing_xs"
-                android:text="@string/nova_library_title"
-                android:textColor="@color/nova_ice"
-                android:textSize="22sp"
-                android:fontFamily="sans-serif-medium"
-                android:letterSpacing="0.02" />
+                        <TextView
+                            android:id="@+id/nova_library_title"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/nova_library_title"
+                            android:textColor="@color/nova_ice"
+                            android:textSize="19sp" />
 
-            <TextView
-                android:id="@+id/nova_library_context"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="@string/nova_library_server_context_fallback"
-                android:textColor="@color/nova_text_muted"
-                android:textSize="@dimen/nova_text_label"
-                android:fontFamily="sans-serif-medium" />
+                        <TextView
+                            android:id="@+id/nova_library_context"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:text="@string/nova_library_server_context_fallback"
+                            android:textColor="@color/nova_text_muted"
+                            android:textSize="10sp" />
+                    </LinearLayout>
 
-            <TextView
-                android:id="@+id/nova_library_summary"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="@string/nova_library_summary_placeholder"
-                android:textColor="@color/nova_text_secondary"
-                android:textSize="12sp" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/nova_library_refresh"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:background="@drawable/nova_library_tool_action_bg"
+                        android:text="@string/nova_refresh"
+                        android:textAllCaps="false"
+                        android:textColor="@color/nova_text_primary"
+                        android:textSize="11sp"
+                        app:elevation="0dp" />
 
-            <EditText
-                android:id="@+id/nova_search"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/nova_search_height"
-                android:layout_marginTop="@dimen/nova_spacing_xs"
-                android:background="@drawable/nova_search_bg"
-                android:drawableStart="@android:drawable/ic_menu_search"
-                android:drawablePadding="12dp"
-                android:drawableTint="@color/nova_text_muted"
-                android:hint="@string/nova_library_search_hint"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:singleLine="true"
-                android:textColor="@color/nova_text_primary"
-                android:textColorHint="@color/nova_text_muted" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/nova_library_manage"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="6dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:background="@drawable/nova_library_tool_action_bg"
+                        android:text="@string/nova_library_manage"
+                        android:textAllCaps="false"
+                        android:textColor="@color/nova_text_primary"
+                        android:textSize="11sp"
+                        app:elevation="0dp" />
+                </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/nova_spacing_xs"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/nova_library_filter_label"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:id="@+id/nova_library_status_panel"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.03"
-                    android:text="@string/nova_library_browse_label"
-                    android:textColor="@color/nova_text_primary"
-                    android:textSize="@dimen/nova_text_label" />
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/nova_command_status_bg"
+                    android:gravity="center_vertical"
+                    android:minHeight="38dp"
+                    android:orientation="horizontal"
+                    android:paddingStart="9dp"
+                    android:paddingTop="7dp"
+                    android:paddingEnd="9dp"
+                    android:paddingBottom="7dp">
 
-                <TextView
-                    android:id="@+id/nova_library_results"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-medium"
-                    android:text="@string/nova_library_results_format"
-                    android:textColor="@color/nova_text_muted"
-                    android:textSize="@dimen/nova_text_caption" />
+                    <TextView
+                        android:id="@+id/nova_library_auto_quality_state"
+                        style="@style/NovaQuickMenuState"
+                        android:text="@string/nova_library_status_checking" />
+
+                    <TextView
+                        android:id="@+id/nova_library_mode_state"
+                        style="@style/NovaQuickMenuState"
+                        android:layout_marginStart="7dp"
+                        android:text="@string/nova_library_mode_checking" />
+
+                    <TextView
+                        android:id="@+id/nova_library_summary"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="9dp"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="@string/nova_library_summary_placeholder"
+                        android:textColor="@color/nova_text_muted"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:id="@+id/nova_library_results"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/nova_library_results_format"
+                        android:textColor="@color/nova_text_secondary"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/nova_search"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/nova_search_height"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/nova_library_search_bg"
+                    android:drawableStart="@android:drawable/ic_menu_search"
+                    android:drawablePadding="10dp"
+                    android:drawableTint="@color/nova_text_muted"
+                    android:hint="@string/nova_library_search_hint"
+                    android:imeOptions="actionSearch"
+                    android:inputType="text"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:singleLine="true"
+                    android:textColor="@color/nova_text_primary"
+                    android:textColorHint="@color/nova_text_muted"
+                    android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>
 
         <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingStart="@dimen/nova_spacing_md"
-            android:paddingTop="@dimen/nova_spacing_xs"
-            android:paddingEnd="@dimen/nova_spacing_md"
-            android:paddingBottom="@dimen/nova_spacing_xs"
+            android:paddingStart="14dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="7dp"
             android:scrollbars="none">
 
             <LinearLayout
@@ -191,21 +213,69 @@
                     android:text="@string/nova_library_filter_recent" />
 
                 <TextView
-                    android:id="@+id/filter_steam"
+                    android:id="@+id/filter_sources"
                     style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_steam" />
+                    android:text="@string/nova_library_filter_sources" />
 
                 <TextView
-                    android:id="@+id/filter_action"
+                    android:id="@+id/filter_hdr"
                     style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_action" />
+                    android:text="@string/nova_library_filter_hdr" />
 
                 <TextView
-                    android:id="@+id/filter_cinematic"
+                    android:id="@+id/filter_more"
                     style="@style/NovaFilterChip"
-                    android:text="@string/nova_library_filter_cinematic" />
+                    android:text="@string/nova_library_filter_more" />
             </LinearLayout>
         </HorizontalScrollView>
+
+        <LinearLayout
+            android:id="@+id/nova_recent_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/nova_command_panel_bg"
+            android:orientation="vertical"
+            android:paddingStart="10dp"
+            android:paddingTop="9dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="10dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/nova_recent_label"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/nova_library_continue_label"
+                    android:textColor="@color/nova_text_primary"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/nova_recent_summary"
+                    style="@style/NovaQuickMenuState"
+                    android:text="@string/nova_library_continue_empty" />
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/nova_recent_list"
+                android:layout_width="match_parent"
+                android:layout_height="128dp"
+                android:layout_marginTop="8dp"
+                android:clipToPadding="false"
+                android:orientation="horizontal"
+                android:overScrollMode="never"
+                android:paddingEnd="2dp" />
+        </LinearLayout>
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -227,9 +297,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:clipToPadding="false"
-                    android:paddingStart="6dp"
-                    android:paddingTop="4dp"
-                    android:paddingEnd="6dp"
+                    android:paddingStart="9dp"
+                    android:paddingTop="0dp"
+                    android:paddingEnd="9dp"
                     android:paddingBottom="@dimen/nova_spacing_huge" />
 
             </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
@@ -240,44 +310,60 @@
                 android:layout_height="match_parent"
                 android:gravity="center"
                 android:orientation="vertical"
+                android:padding="28dp"
                 android:visibility="gone">
 
-                <ImageView
-                    android:layout_width="64dp"
-                    android:layout_height="64dp"
-                    android:alpha="0.35"
-                    android:src="@drawable/ic_nova_star_foreground" />
-
-                <TextView
-                    android:id="@+id/nova_empty_title"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:id="@+id/nova_empty_panel"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/nova_spacing_md"
-                    android:text="@string/nova_library_empty_title_default"
-                    android:textColor="@color/nova_text_muted"
-                    android:textSize="@dimen/nova_text_title" />
+                    android:background="@drawable/nova_command_panel_bg"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="18dp">
 
-                <TextView
-                    android:id="@+id/nova_empty_hint"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/nova_spacing_xs"
-                    android:text="@string/nova_library_empty_hint_default"
-                    android:textColor="@color/nova_text_muted"
-                    android:textSize="@dimen/nova_text_body" />
+                    <ImageView
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:alpha="0.42"
+                        android:src="@drawable/ic_nova_star_foreground" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/nova_empty_retry"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/nova_spacing_lg"
-                    android:text="@string/nova_retry"
-                    android:textColor="@color/nova_accent"
-                    app:cornerRadius="12dp"
-                    app:strokeColor="@color/nova_accent" />
+                    <TextView
+                        android:id="@+id/nova_empty_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/nova_library_empty_title_default"
+                        android:textColor="@color/nova_text_primary"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/nova_empty_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:gravity="center"
+                        android:text="@string/nova_library_empty_hint_default"
+                        android:textColor="@color/nova_text_muted"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/nova_empty_retry"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:layout_marginTop="14dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:background="@drawable/nova_library_tool_action_bg"
+                        android:text="@string/nova_retry"
+                        android:textAllCaps="false"
+                        android:textColor="@color/nova_text_primary"
+                        android:textSize="12sp"
+                        app:elevation="0dp" />
+                </LinearLayout>
             </LinearLayout>
         </FrameLayout>
-
     </LinearLayout>
 </FrameLayout>
