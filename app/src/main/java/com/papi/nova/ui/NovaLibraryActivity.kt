@@ -14,6 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +40,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -52,21 +56,34 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -556,6 +573,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusGroup()
                     .verticalScroll(rememberScrollState())
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -792,6 +810,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         )
     }
 
+    @OptIn(ExperimentalComposeUiApi::class)
     @Composable
     private fun NovaSearchField(
         value: String,
@@ -800,23 +819,81 @@ class NovaLibraryActivity : AppCompatActivity() {
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
+        val focusManager = LocalFocusManager.current
+        val keyboardController = LocalSoftwareKeyboardController.current
+        val searchFocusRequester = remember { FocusRequester() }
         var focused by remember { mutableStateOf(false) }
+        var searchEditing by remember { mutableStateOf(false) }
+
+        fun beginSearchEditing() {
+            searchEditing = true
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+
+        fun leaveSearchEditing(direction: FocusDirection? = null): Boolean {
+            searchEditing = false
+            keyboardController?.hide()
+            direction?.let { focusManager.moveFocus(it) }
+            return true
+        }
+
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
+            readOnly = !searchEditing,
             singleLine = true,
             textStyle = TextStyle(color = colors.textPrimary, fontSize = 14.sp),
             cursorBrush = SolidColor(colors.accent),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    searchEditing = false
+                    keyboardController?.hide()
+                    focusManager.clearFocus(force = true)
+                }
+            ),
             modifier = modifier
+                .focusRequester(searchFocusRequester)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) {
+                        return@onPreviewKeyEvent false
+                    }
+                    when (event.key) {
+                        Key.Enter, Key.NumPadEnter -> {
+                            if (!searchEditing) {
+                                beginSearchEditing()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        Key.DirectionCenter -> true
+                        Key.DirectionDown -> leaveSearchEditing(FocusDirection.Down)
+                        Key.DirectionUp -> leaveSearchEditing(FocusDirection.Up)
+                        Key.DirectionLeft -> leaveSearchEditing(FocusDirection.Left)
+                        Key.DirectionRight -> leaveSearchEditing(FocusDirection.Right)
+                        else -> false
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { beginSearchEditing() })
+                }
                 .height(44.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(surfaces.control)
                 .border(
-                    width = if (focused) 2.dp else 1.dp,
+                    width = if (focused) 3.dp else 1.dp,
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
                     shape = RoundedCornerShape(14.dp)
                 )
-                .onFocusChanged { focused = it.isFocused }
+                .onFocusChanged {
+                    focused = it.isFocused
+                    if (!it.isFocused && searchEditing) {
+                        searchEditing = false
+                        keyboardController?.hide()
+                    }
+                }
                 .semantics {
                     contentDescription = getString(R.string.nova_library_search_hint)
                 },
@@ -985,13 +1062,13 @@ class NovaLibraryActivity : AppCompatActivity() {
                 .fillMaxWidth()
                 .height(cardHeight)
                 .graphicsLayer {
-                    scaleX = if (focused) 1.025f else 1f
-                    scaleY = if (focused) 1.025f else 1f
+                    scaleX = if (focused) 1.035f else 1f
+                    scaleY = if (focused) 1.035f else 1f
                 }
                 .clip(RoundedCornerShape(14.dp))
                 .background(if (focused) surfaces.tile.copy(alpha = 1f) else surfaces.tile)
                 .border(
-                    width = if (focused) 2.dp else 1.dp,
+                    width = if (focused) 3.dp else 1.dp,
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
                     shape = RoundedCornerShape(14.dp)
                 )
@@ -1035,7 +1112,9 @@ class NovaLibraryActivity : AppCompatActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .border(3.dp, surfaces.focusHalo, RoundedCornerShape(14.dp))
+                        .border(4.dp, surfaces.focusRing, RoundedCornerShape(14.dp))
+                        .padding(4.dp)
+                        .border(2.dp, surfaces.focusRing.copy(alpha = 0.48f), RoundedCornerShape(10.dp))
                 )
             }
             Row(
