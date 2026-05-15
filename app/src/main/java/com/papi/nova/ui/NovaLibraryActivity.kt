@@ -760,9 +760,9 @@ class NovaLibraryActivity : AppCompatActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         Column(
             modifier = modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(8.dp))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
                 .padding(horizontal = 10.dp, vertical = 9.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -808,12 +808,12 @@ class NovaLibraryActivity : AppCompatActivity() {
             cursorBrush = SolidColor(colors.accent),
             modifier = modifier
                 .height(44.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(surfaces.control)
                 .border(
                     width = if (focused) 2.dp else 1.dp,
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(14.dp)
                 )
                 .onFocusChanged { focused = it.isFocused }
                 .semantics {
@@ -829,7 +829,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                     if (value.isBlank()) {
                         Text(
                             text = stringResource(R.string.nova_library_search_hint),
-                            color = colors.textMuted,
+                            color = colors.textSecondary,
                             fontSize = 14.sp
                         )
                     }
@@ -987,12 +987,12 @@ class NovaLibraryActivity : AppCompatActivity() {
                     scaleX = if (focused) 1.025f else 1f
                     scaleY = if (focused) 1.025f else 1f
                 }
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(if (focused) surfaces.tile.copy(alpha = 1f) else surfaces.tile)
                 .border(
                     width = if (focused) 2.dp else 1.dp,
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(14.dp)
                 )
                 .combinedClickable(
                     onClick = onOpenDetail,
@@ -1034,7 +1034,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .border(3.dp, surfaces.focusHalo, RoundedCornerShape(8.dp))
+                        .border(3.dp, surfaces.focusHalo, RoundedCornerShape(14.dp))
                 )
             }
             Row(
@@ -1117,9 +1117,9 @@ class NovaLibraryActivity : AppCompatActivity() {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(if (isLandscape) 164.dp else 184.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(8.dp))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
         ) {
             Box(
                 modifier = Modifier
@@ -1190,8 +1190,10 @@ class NovaLibraryActivity : AppCompatActivity() {
         ModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
             containerColor = surfaces.panel,
-            contentColor = colors.textPrimary
+            contentColor = colors.textPrimary,
+            scrimColor = surfaces.backgroundScrim.copy(alpha = 0.30f)
         ) {
             Column(
                 modifier = Modifier
@@ -1294,11 +1296,11 @@ class NovaLibraryActivity : AppCompatActivity() {
         Row(
             modifier = modifier
                 .height(42.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(
                     if (selected) surfaces.selectedControl else surfaces.control
                 )
-                .border(if (focused) 2.dp else 1.dp, stroke, RoundedCornerShape(8.dp))
+                .border(if (focused) 2.dp else 1.dp, stroke, RoundedCornerShape(14.dp))
                 .combinedClickable(onClick = onClick)
                 .onFocusChanged { focused = it.isFocused }
                 .focusable()
@@ -1333,11 +1335,11 @@ class NovaLibraryActivity : AppCompatActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         Surface(
             modifier = modifier,
-            shape = RoundedCornerShape(8.dp),
-            color = if (subtle) surfaces.panel.copy(alpha = 0.42f) else surfaces.panel,
+            shape = RoundedCornerShape(18.dp),
+            color = if (subtle) surfaces.panel.copy(alpha = 0.34f) else surfaces.panel,
             border = BorderStroke(
                 1.dp,
-                if (subtle) surfaces.panelBorder.copy(alpha = 0.36f) else surfaces.panelBorder
+                if (subtle) surfaces.panelBorder.copy(alpha = 0.30f) else surfaces.panelBorder
             ),
             content = content
         )

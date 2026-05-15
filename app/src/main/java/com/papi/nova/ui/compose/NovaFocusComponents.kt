@@ -44,7 +44,7 @@ fun NovaBadge(
     Text(
         text = text,
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(surfaces.control)
             .padding(horizontal = 8.dp, vertical = 3.dp),
         color = color,
@@ -64,8 +64,8 @@ fun NovaFocusableCard(
     content: @Composable BoxScope.() -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
+    val shape = RoundedCornerShape(14.dp)
     val borderWidth = if (focused) 2.dp else 1.dp
     val borderColor = if (focused) surfaces.focusRing else surfaces.tileBorder
     val clickableModifier = if (onClick != null) {
@@ -90,9 +90,9 @@ fun NovaFocusableCard(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(shape)
             .background(surfaces.tile)
-            .border(borderWidth, borderColor, RoundedCornerShape(8.dp))
+            .border(borderWidth, borderColor, shape)
             .then(semanticsModifier)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .then(clickableModifier)
@@ -111,7 +111,7 @@ fun NovaActionButton(
     primary: Boolean = false,
     contentDescription: String = text,
     minHeight: Dp = 38.dp,
-    cornerRadius: Dp = 10.dp,
+    cornerRadius: Dp = 14.dp,
     fontSize: TextUnit = 13.sp,
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
 ) {

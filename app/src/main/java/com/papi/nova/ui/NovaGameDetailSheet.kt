@@ -60,6 +60,7 @@ import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaComposeTheme
@@ -688,12 +689,14 @@ fun NovaGameDetailSheetContent(
     modifier: Modifier = Modifier
 ) {
     val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
     val verticalScroll = rememberScrollState()
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.dialog)
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(surfaces.panel)
             .verticalScroll(verticalScroll)
             .padding(bottom = 12.dp)
     ) {
@@ -757,15 +760,16 @@ private fun NovaDetailPanel(
     content: @Composable () -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
-    val shape = RoundedCornerShape(8.dp)
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val shape = RoundedCornerShape(14.dp)
     val backgroundColor = when {
         warning -> colors.warning.copy(alpha = 0.12f)
         accent -> colors.accentSurface
-        else -> colors.card
+        else -> surfaces.tile
     }
     val borderColor = when {
         warning -> colors.warning.copy(alpha = 0.55f)
-        else -> colors.divider
+        else -> surfaces.tileBorder
     }
     val semanticsModifier = if (contentDescription != null) {
         Modifier.semantics {
@@ -820,9 +824,9 @@ private fun GameDetailsPanel(
                 modifier = Modifier
                     .width(88.dp)
                     .aspectRatio(88f / 118f)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(colors.window)
-                    .border(1.dp, colors.divider, RoundedCornerShape(8.dp))
+                    .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
                     .semantics { contentDescription = coverContentDescription }
             )
 

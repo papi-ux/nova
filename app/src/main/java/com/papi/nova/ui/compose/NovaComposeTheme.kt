@@ -82,30 +82,30 @@ fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
             else -> window.copy(alpha = 0.56f)
         },
         panel = when {
-            isOled -> dialog.copy(alpha = 0.92f)
-            isMaterialYou -> card.copy(alpha = 0.88f)
-            else -> dialog.copy(alpha = 0.78f)
+            isOled -> dialog.copy(alpha = 0.88f)
+            isMaterialYou -> card.copy(alpha = 0.76f)
+            else -> dialog.copy(alpha = 0.64f)
         },
         panelBorder = when {
-            isOled -> divider.copy(alpha = 0.88f)
-            isMaterialYou -> divider.copy(alpha = 0.58f)
-            else -> divider.copy(alpha = 0.52f)
+            isOled -> divider.copy(alpha = 0.78f)
+            isMaterialYou -> divider.copy(alpha = 0.46f)
+            else -> divider.copy(alpha = 0.44f)
         },
         tile = when {
-            isOled -> card.copy(alpha = 0.94f)
-            isMaterialYou -> card.copy(alpha = 0.90f)
-            else -> card.copy(alpha = 0.82f)
+            isOled -> card.copy(alpha = 0.90f)
+            isMaterialYou -> card.copy(alpha = 0.78f)
+            else -> card.copy(alpha = 0.74f)
         },
         tileBorder = when {
-            isOled -> divider.copy(alpha = 0.92f)
-            else -> divider.copy(alpha = 0.64f)
+            isOled -> divider.copy(alpha = 0.78f)
+            else -> divider.copy(alpha = 0.50f)
         },
         control = when {
-            isOled -> card.copy(alpha = 0.86f)
-            isMaterialYou -> card.copy(alpha = 0.82f)
-            else -> badge.copy(alpha = 0.92f)
+            isOled -> card.copy(alpha = 0.78f)
+            isMaterialYou -> card.copy(alpha = 0.70f)
+            else -> card.copy(alpha = 0.72f)
         },
-        selectedControl = accent.copy(alpha = if (isOled) 0.18f else 0.14f),
+        selectedControl = accent.copy(alpha = if (isOled) 0.22f else 0.18f),
         focusRing = accent,
         focusHalo = accent.copy(alpha = if (isOled) 0.24f else 0.18f),
         mediaPlaceholder = when {
@@ -114,9 +114,9 @@ fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
             else -> divider.copy(alpha = 1f)
         },
         mediaScrimTop = Color.Transparent,
-        mediaScrimBottom = Color.Black.copy(alpha = if (isOled) 0.86f else 0.78f),
+        mediaScrimBottom = Color.Black.copy(alpha = if (isOled) 0.88f else 0.84f),
         onMedia = Color.White,
-        onMediaSecondary = Color.White.copy(alpha = 0.76f),
+        onMediaSecondary = Color.White.copy(alpha = 0.86f),
         particlesEnabled = !isOled,
         particleAlpha = when {
             isOled -> 0f
