@@ -134,7 +134,7 @@ class StreamSettings : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        finish()
+        super.onBackPressed()
 
         val newPrefs = PreferenceConfiguration.readPreferences(this)
         if (newPrefs.language != previousPrefs.language) {
