@@ -152,15 +152,15 @@
     <!-- Nova game library filter chips -->
     <style name="NovaFilterChip">
         <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">32dp</item>
-        <item name="android:paddingStart">15dp</item>
-        <item name="android:paddingEnd">15dp</item>
-        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:paddingStart">18dp</item>
+        <item name="android:paddingEnd">18dp</item>
+        <item name="android:layout_marginEnd">10dp</item>
         <item name="android:gravity">center</item>
         <item name="android:textColor">@color/nova_text_primary</item>
-        <item name="android:textSize">12sp</item>
+        <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:background">@drawable/nova_chip_default</item>
+        <item name="android:background">@drawable/nova_badge_bg</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
     </style>
@@ -172,7 +172,8 @@
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="chipBackgroundColor">@color/nova_chip_bg_selector</item>
-        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipStrokeColor">@color/nova_focus_stroke_selector</item>
+        <item name="chipStrokeWidth">2dp</item>
         <item name="chipCornerRadius">12dp</item>
         <item name="android:checkable">true</item>
         <item name="android:layout_marginEnd">4dp</item>
@@ -185,7 +186,8 @@
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="chipBackgroundColor">@color/nova_badge_bg</item>
-        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipStrokeColor">@color/nova_focus_stroke_selector</item>
+        <item name="chipStrokeWidth">2dp</item>
         <item name="chipCornerRadius">12dp</item>
         <item name="android:checkable">false</item>
         <item name="android:layout_marginEnd">4dp</item>
