@@ -47,6 +47,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -1004,19 +1005,19 @@ class NovaLibraryActivity : AppCompatActivity() {
                     contentDescription = title
                 }
         ) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    ImageView(context).apply {
-                        scaleType = ImageView.ScaleType.CENTER_CROP
-                        setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
-                        contentDescription = context.getString(R.string.nova_a11y_game_cover)
+            key(game.id, game.coverUrl) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { context ->
+                        ImageView(context).apply {
+                            scaleType = ImageView.ScaleType.CENTER_CROP
+                            setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
+                            contentDescription = context.getString(R.string.nova_a11y_game_cover)
+                            apiClient.loadCoverInto(this, game)
+                        }
                     }
-                },
-                update = { imageView ->
-                    apiClient.loadCoverInto(imageView, game)
-                }
-            )
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1198,6 +1199,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 18.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {

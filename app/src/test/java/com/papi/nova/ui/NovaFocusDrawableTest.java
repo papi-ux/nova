@@ -47,6 +47,24 @@ public class NovaFocusDrawableTest {
     }
 
     @Test
+    public void appViewAndServerCardResourcesStayScopedFromComposeLibraryChanges() throws Exception {
+        Document dimens = parseDrawable("src/main/res/values/dimens.xml");
+        Document landDimens = parseDrawable("src/main/res/values-land/dimens.xml");
+        Document ripple = parseDrawable("src/main/res/drawable/nova_ripple_accent.xml");
+
+        assertTrue("AppView search height should keep the established portrait height",
+                hasDimen(dimens, "nova_search_height", "48dp"));
+        assertTrue("shared card radius should remain available for XML View surfaces",
+                hasDimen(dimens, "nova_card_corner_radius", "14dp"));
+        assertTrue("large shared card radius should remain available for XML View surfaces",
+                hasDimen(dimens, "nova_card_corner_radius_lg", "16dp"));
+        assertTrue("landscape game cover height resource should remain available for XML View surfaces",
+                hasDimen(landDimens, "nova_game_card_cover_height", "180dp"));
+        assertTrue("server card ripple should continue to follow the shared card radius",
+                hasCorners(ripple, "@dimen/nova_card_corner_radius"));
+    }
+
+    @Test
     public void serverGridDefersFocusToRows() throws Exception {
         Document doc = parseDrawable("src/main/res/layout/pc_grid_view.xml");
 
@@ -124,6 +142,29 @@ public class NovaFocusDrawableTest {
             org.w3c.dom.Element stroke = (org.w3c.dom.Element) strokes.item(i);
             if (width.equals(stroke.getAttribute("android:width"))
                     && color.equals(stroke.getAttribute("android:color"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasCorners(Document doc, String radius) {
+        NodeList corners = doc.getElementsByTagName("corners");
+        for (int i = 0; i < corners.getLength(); i++) {
+            org.w3c.dom.Element corner = (org.w3c.dom.Element) corners.item(i);
+            if (radius.equals(corner.getAttribute("android:radius"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasDimen(Document doc, String name, String value) {
+        NodeList dimens = doc.getElementsByTagName("dimen");
+        for (int i = 0; i < dimens.getLength(); i++) {
+            org.w3c.dom.Element dimen = (org.w3c.dom.Element) dimens.item(i);
+            if (name.equals(dimen.getAttribute("name"))
+                    && value.equals(dimen.getTextContent())) {
                 return true;
             }
         }
