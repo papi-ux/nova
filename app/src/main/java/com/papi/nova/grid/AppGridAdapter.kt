@@ -179,7 +179,7 @@ class AppGridAdapter(
     override fun populateView(
         parentView: View,
         imgView: ImageView,
-        gridMask: RelativeLayout,
+        gridMask: RelativeLayout?,
         prgView: ProgressBar,
         txtView: TextView,
         overlayView: ImageView,
@@ -209,12 +209,12 @@ class AppGridAdapter(
         if (obj.isRunning) {
             overlayView.setImageResource(R.drawable.ic_play)
             overlayView.visibility = View.VISIBLE
-            gridMask.setBackgroundColor(0x44000000)
+            gridMask?.setBackgroundColor(0x44000000)
             runningBadge?.visibility = View.VISIBLE
             runningBorder?.visibility = View.VISIBLE
         } else {
             overlayView.visibility = View.GONE
-            gridMask.setBackgroundColor(0x00000000)
+            gridMask?.setBackgroundColor(0x00000000)
             runningBadge?.visibility = View.GONE
             runningBorder?.visibility = View.GONE
         }
