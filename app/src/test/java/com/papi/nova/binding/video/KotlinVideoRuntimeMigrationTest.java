@@ -26,7 +26,8 @@ public class KotlinVideoRuntimeMigrationTest {
     @Test
     public void mediaCodecRuntimeClassesAreKotlinSources() {
         String[] names = {
-                "MediaCodecHelper"
+                "MediaCodecHelper",
+                "MediaCodecDecoderRenderer"
         };
 
         for (String name : names) {
