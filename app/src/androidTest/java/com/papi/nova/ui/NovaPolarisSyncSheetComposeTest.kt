@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.ui.compose.NovaComposeTheme
 import org.junit.Rule
@@ -53,7 +54,7 @@ class NovaPolarisSyncSheetComposeTest {
         composeRule.onNodeWithText("Pull Polaris").assertIsDisplayed().assertHasClickAction()
         composeRule.onNodeWithText("Clear Profile").assertIsDisplayed().assertHasClickAction()
         composeRule.onNodeWithText("Auto match this server").assertIsDisplayed()
-        composeRule.onNodeWithText("AI Auto Quality").assertIsDisplayed()
+        composeRule.onNodeWithText("AI Auto Quality").performScrollTo().assertIsDisplayed()
     }
 
     private fun settings() = PolarisClientSettings(

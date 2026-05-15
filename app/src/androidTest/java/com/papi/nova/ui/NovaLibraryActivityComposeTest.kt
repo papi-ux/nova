@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.platform.ComposeView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -77,10 +78,11 @@ class NovaLibraryActivityComposeTest {
                 .assertIsDisplayed()
                 .assertHasClickAction()
             composeRule.onNodeWithContentDescription("Switch")
+                .performScrollTo()
                 .assertIsDisplayed()
                 .assertHasClickAction()
-            composeRule.onNodeWithText("All").assertIsDisplayed()
-            composeRule.onNodeWithText("HDR").assertIsDisplayed()
+            composeRule.onNodeWithText("All").performScrollTo().assertIsDisplayed()
+            composeRule.onNodeWithText("HDR").performScrollTo().assertIsDisplayed()
         }
     }
 }
