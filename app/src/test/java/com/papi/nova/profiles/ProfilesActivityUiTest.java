@@ -11,6 +11,7 @@ import android.widget.RadioButton;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ApplicationProvider;
 
+import com.papi.nova.EditProfileActivity;
 import com.papi.nova.ProfilesActivity;
 import com.papi.nova.R;
 import com.papi.nova.TestLogSuppressor;
@@ -62,6 +63,15 @@ public class ProfilesActivityUiTest {
         Intent next = Shadows.shadowOf(activity).getNextStartedActivity();
         assertNotNull("FAB should launch EditProfileActivity", next);
         assertEquals("com.papi.nova.EditProfileActivity", next.getComponent().getClassName());
+    }
+
+    @Test
+    public void editProfileActivity_startsWithoutCrashForNewProfile() {
+        ActivityController<EditProfileActivity> controller = Robolectric.buildActivity(EditProfileActivity.class).setup();
+        EditProfileActivity activity = controller.get();
+
+        assertNotNull(activity);
+        assertNotNull(activity.getInMemoryPrefs());
     }
 
     @Test

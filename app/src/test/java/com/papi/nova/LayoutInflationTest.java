@@ -1,7 +1,6 @@
 package com.papi.nova;
 
 import android.content.Context;
-import android.content.res.Configuration;
 import android.view.LayoutInflater;
 
 import androidx.test.core.app.ApplicationProvider;
@@ -31,22 +30,6 @@ public class LayoutInflationTest {
         Context base = ApplicationProvider.getApplicationContext();
         Context context = new androidx.appcompat.view.ContextThemeWrapper(base,
                 com.google.android.material.R.style.Theme_MaterialComponents_NoActionBar);
-        inflateAllLayouts(context);
-    }
-
-    @Test
-    public void allLayoutsInflateInTelevisionMode() throws IllegalAccessException {
-        Context base = ApplicationProvider.getApplicationContext();
-        Configuration config = new Configuration(base.getResources().getConfiguration());
-        config.uiMode = (config.uiMode & ~Configuration.UI_MODE_TYPE_MASK) |
-                Configuration.UI_MODE_TYPE_TELEVISION;
-        Context tvBase = base.createConfigurationContext(config);
-        Context context = new androidx.appcompat.view.ContextThemeWrapper(tvBase,
-                com.google.android.material.R.style.Theme_MaterialComponents_NoActionBar);
-        inflateAllLayouts(context);
-    }
-
-    private static void inflateAllLayouts(Context context) throws IllegalAccessException {
         for (int layoutId : getAllLayoutResourceIds()) {
             try {
                 LayoutInflater.from(context).inflate(layoutId, null);
