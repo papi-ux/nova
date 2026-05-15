@@ -3,6 +3,8 @@ package com.papi.nova.grid.assets;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -41,7 +43,8 @@ public class KotlinGridAssetsMigrationTest {
                 "ScaledBitmap",
                 "MemoryAssetLoader",
                 "NetworkAssetLoader",
-                "DiskAssetLoader"
+                "DiskAssetLoader",
+                "CachedAppAssetLoader"
         };
 
         for (String name : names) {
@@ -78,6 +81,18 @@ public class KotlinGridAssetsMigrationTest {
         DiskAssetLoader.class.getMethod("deleteAssetsForComputer", String.class);
         DiskAssetLoader.class.getMethod("populateCacheWithStream", CachedAppAssetLoader.LoaderTuple.class, InputStream.class);
         DiskAssetLoader.class.getMethod("calculateInSampleSize", BitmapFactory.Options.class, int.class, int.class);
+
+        CachedAppAssetLoader.class.getConstructor(ComputerDetails.class, double.class, NetworkAssetLoader.class, MemoryAssetLoader.class, DiskAssetLoader.class, Bitmap.class);
+        CachedAppAssetLoader.class.getMethod("cancelBackgroundLoads");
+        CachedAppAssetLoader.class.getMethod("cancelForegroundLoads");
+        CachedAppAssetLoader.class.getMethod("freeCacheMemory");
+        CachedAppAssetLoader.class.getMethod("queueCacheLoad", NvApp.class);
+        assertEquals(boolean.class, CachedAppAssetLoader.class.getMethod("populateImageView", NvApp.class, ImageView.class).getReturnType());
+        assertEquals(boolean.class, CachedAppAssetLoader.class.getMethod("populateImageView", NvApp.class, ImageView.class, TextView.class).getReturnType());
+
+        CachedAppAssetLoader.LoaderTuple.class.getConstructor(ComputerDetails.class, NvApp.class);
+        CachedAppAssetLoader.LoaderTuple.class.getField("computer");
+        CachedAppAssetLoader.LoaderTuple.class.getField("app");
     }
 
     @Test
@@ -152,6 +167,22 @@ public class KotlinGridAssetsMigrationTest {
 
         assertEquals(4, DiskAssetLoader.calculateInSampleSize(options, 300, 400));
         assertEquals(1, DiskAssetLoader.calculateInSampleSize(options, 900, 1200));
+    }
+
+    @Test
+    public void loaderTupleKeepsJavaFieldAndEqualityContract() {
+        CachedAppAssetLoader.LoaderTuple tuple = createTuple("computer-tuple", 7);
+        CachedAppAssetLoader.LoaderTuple sameKey = createTuple("computer-tuple", 7);
+        CachedAppAssetLoader.LoaderTuple differentComputer = createTuple("computer-other", 7);
+        CachedAppAssetLoader.LoaderTuple differentApp = createTuple("computer-tuple", 8);
+
+        assertEquals("computer-tuple", tuple.computer.uuid);
+        assertEquals(7, tuple.app.getAppId());
+        assertEquals(tuple, sameKey);
+        assertFalse(tuple.equals(differentComputer));
+        assertFalse(tuple.equals(differentApp));
+        assertFalse(tuple.equals("not-a-loader-tuple"));
+        assertEquals("(computer-tuple, 7)", tuple.toString());
     }
 
     @Test
