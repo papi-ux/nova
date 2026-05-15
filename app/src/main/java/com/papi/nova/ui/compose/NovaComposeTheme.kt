@@ -27,8 +27,28 @@ data class NovaComposeColors(
     val onAccent: Color
 )
 
-val LocalNovaComposeColors = staticCompositionLocalOf {
-    NovaComposeColors(
+@Immutable
+data class NovaLibrarySurfaces(
+    val backgroundScrim: Color,
+    val panel: Color,
+    val panelBorder: Color,
+    val tile: Color,
+    val tileBorder: Color,
+    val control: Color,
+    val selectedControl: Color,
+    val focusRing: Color,
+    val focusHalo: Color,
+    val mediaPlaceholder: Color,
+    val mediaScrimTop: Color,
+    val mediaScrimBottom: Color,
+    val onMedia: Color,
+    val onMediaSecondary: Color,
+    val particlesEnabled: Boolean,
+    val particleAlpha: Float
+)
+
+private fun defaultNovaComposeColors(): NovaComposeColors {
+    return NovaComposeColors(
         window = Color(0xFF1A1A2E),
         card = Color(0xCC232340),
         dialog = Color(0xFF232340),
@@ -44,9 +64,72 @@ val LocalNovaComposeColors = staticCompositionLocalOf {
     )
 }
 
+val LocalNovaComposeColors = staticCompositionLocalOf {
+    defaultNovaComposeColors()
+}
+
+val LocalNovaLibrarySurfaces = staticCompositionLocalOf {
+    defaultNovaComposeColors().librarySurfaces(NovaThemeManager.THEME_POLARIS)
+}
+
+fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
+    val isOled = theme == NovaThemeManager.THEME_OLED
+    val isMaterialYou = theme == NovaThemeManager.THEME_MATERIAL_YOU
+    return NovaLibrarySurfaces(
+        backgroundScrim = when {
+            isOled -> Color.Transparent
+            isMaterialYou -> window.copy(alpha = 0.28f)
+            else -> window.copy(alpha = 0.56f)
+        },
+        panel = when {
+            isOled -> dialog.copy(alpha = 0.92f)
+            isMaterialYou -> card.copy(alpha = 0.88f)
+            else -> dialog.copy(alpha = 0.78f)
+        },
+        panelBorder = when {
+            isOled -> divider.copy(alpha = 0.88f)
+            isMaterialYou -> divider.copy(alpha = 0.58f)
+            else -> divider.copy(alpha = 0.52f)
+        },
+        tile = when {
+            isOled -> card.copy(alpha = 0.94f)
+            isMaterialYou -> card.copy(alpha = 0.90f)
+            else -> card.copy(alpha = 0.82f)
+        },
+        tileBorder = when {
+            isOled -> divider.copy(alpha = 0.92f)
+            else -> divider.copy(alpha = 0.64f)
+        },
+        control = when {
+            isOled -> card.copy(alpha = 0.86f)
+            isMaterialYou -> card.copy(alpha = 0.82f)
+            else -> badge.copy(alpha = 0.92f)
+        },
+        selectedControl = accent.copy(alpha = if (isOled) 0.18f else 0.14f),
+        focusRing = accent,
+        focusHalo = accent.copy(alpha = if (isOled) 0.24f else 0.18f),
+        mediaPlaceholder = when {
+            isOled -> Color(0xFF08080C)
+            isMaterialYou -> card.copy(alpha = 1f)
+            else -> divider.copy(alpha = 1f)
+        },
+        mediaScrimTop = Color.Transparent,
+        mediaScrimBottom = Color.Black.copy(alpha = if (isOled) 0.86f else 0.78f),
+        onMedia = Color.White,
+        onMediaSecondary = Color.White.copy(alpha = 0.76f),
+        particlesEnabled = !isOled,
+        particleAlpha = when {
+            isOled -> 0f
+            isMaterialYou -> 0.42f
+            else -> 1f
+        }
+    )
+}
+
 @Composable
 fun NovaComposeTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
+    val theme = NovaThemeManager.getTheme(context)
     val colors = NovaComposeColors(
         window = Color(NovaThemeManager.getWindowBackgroundColor(context)),
         card = Color(NovaThemeManager.getCardBackgroundColor(context)),
@@ -61,8 +144,12 @@ fun NovaComposeTheme(content: @Composable () -> Unit) {
         textMuted = Color(NovaThemeManager.getTextMutedColor(context)),
         onAccent = Color(ContextCompat.getColor(context, R.color.nova_ice))
     )
+    val librarySurfaces = colors.librarySurfaces(theme)
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalNovaComposeColors provides colors) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalNovaComposeColors provides colors,
+        LocalNovaLibrarySurfaces provides librarySurfaces
+    ) {
         MaterialTheme(
             colorScheme = darkColorScheme(
                 primary = colors.accent,

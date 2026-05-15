@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisGame
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NovaLibraryUiStateTest {
@@ -108,6 +109,25 @@ class NovaLibraryUiStateTest {
         assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 720, isLandscape = true))
         assertEquals(4, NovaLibraryUiStateMapper.gridColumns(widthDp = 960, isLandscape = true))
         assertEquals(5, NovaLibraryUiStateMapper.gridColumns(widthDp = 1200, isLandscape = true))
+    }
+
+    @Test
+    fun landscapeGridColumnsUseContentWidthAfterRail() {
+        assertEquals(4, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 1200, isLandscape = true))
+        assertEquals(3, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 960, isLandscape = true))
+        assertEquals(2, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 720, isLandscape = true))
+        assertEquals(5, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 960, isLandscape = false))
+    }
+
+    @Test
+    fun filterChipWidthsKeepPortraitLabelsVisible() {
+        val widths = NovaLibraryPrimaryFilter.entries.associateWith {
+            NovaLibraryUiStateMapper.filterChipWidthDp(it)
+        }
+
+        assertTrue(widths.values.all { it >= 112 })
+        assertTrue(widths.getValue(NovaLibraryPrimaryFilter.SOURCES) > widths.getValue(NovaLibraryPrimaryFilter.ALL))
+        assertTrue(widths.getValue(NovaLibraryPrimaryFilter.RECENT) > widths.getValue(NovaLibraryPrimaryFilter.HDR))
     }
 
     private fun game(

@@ -43,6 +43,8 @@ data class NovaLibraryUiModel(
 
 object NovaLibraryUiStateMapper {
     private const val RECENT_LIMIT = 6
+    private const val LANDSCAPE_OUTER_PADDING_DP = 20
+    private const val LANDSCAPE_RAIL_GAP_DP = 10
 
     fun build(
         games: List<PolarisGame>,
@@ -129,6 +131,40 @@ object NovaLibraryUiStateMapper {
                 widthDp >= 600 -> 3
                 else -> 2
             }
+        }
+    }
+
+    fun gridColumnsForScreen(widthDp: Int, isLandscape: Boolean): Int {
+        val contentWidth = contentWidthDp(widthDp, isLandscape)
+        return if (isLandscape) {
+            when {
+                contentWidth >= 1320 -> 6
+                contentWidth >= 900 -> 4
+                contentWidth >= 660 -> 3
+                else -> 2
+            }
+        } else {
+            gridColumns(contentWidth, isLandscape = false)
+        }
+    }
+
+    fun contentWidthDp(widthDp: Int, isLandscape: Boolean): Int {
+        if (!isLandscape) return widthDp
+        return (widthDp - LANDSCAPE_OUTER_PADDING_DP - LANDSCAPE_RAIL_GAP_DP - railWidthDp(widthDp))
+            .coerceAtLeast(0)
+    }
+
+    fun railWidthDp(widthDp: Int): Int {
+        return if (widthDp >= 1200) 268 else 236
+    }
+
+    fun filterChipWidthDp(filter: NovaLibraryPrimaryFilter): Int {
+        return when (filter) {
+            NovaLibraryPrimaryFilter.ALL -> 112
+            NovaLibraryPrimaryFilter.RECENT -> 132
+            NovaLibraryPrimaryFilter.SOURCES -> 144
+            NovaLibraryPrimaryFilter.HDR -> 112
+            NovaLibraryPrimaryFilter.MORE -> 120
         }
     }
 

@@ -8,7 +8,6 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -39,6 +38,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -52,12 +52,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -81,6 +82,7 @@ import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.utils.ServerHelper
 import com.papi.nova.ui.SpaceParticleView
 import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaComposeTheme
 import kotlinx.coroutines.Dispatchers
@@ -402,24 +404,30 @@ class NovaLibraryActivity : AppCompatActivity() {
     ) {
         val configuration = LocalConfiguration.current
         val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
-        val columns = NovaLibraryUiStateMapper.gridColumns(configuration.screenWidthDp, isLandscape)
+        val columns = NovaLibraryUiStateMapper.gridColumnsForScreen(configuration.screenWidthDp, isLandscape)
+        val railWidth = NovaLibraryUiStateMapper.railWidthDp(configuration.screenWidthDp).dp
         val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(colors.window)
         ) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    SpaceParticleView(context).apply { dense = true }
-                }
-            )
+            if (surfaces.particlesEnabled) {
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(surfaces.particleAlpha),
+                    factory = { context ->
+                        SpaceParticleView(context).apply { dense = true }
+                    }
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(colors.window.copy(alpha = 0.62f))
+                    .background(surfaces.backgroundScrim)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(if (isLandscape) 10.dp else 8.dp)
             ) {
@@ -430,7 +438,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                     ) {
                         NovaLibraryRail(
                             modifier = Modifier
-                                .width(if (configuration.screenWidthDp >= 1200) 282.dp else 250.dp)
+                                .width(railWidth)
                                 .fillMaxHeight(),
                             serverName = serverName,
                             serverHost = serverHost,
@@ -445,17 +453,29 @@ class NovaLibraryActivity : AppCompatActivity() {
                             onPrimaryFilter = onPrimaryFilter,
                             sourceLabel = { sourceLabelFor(it) }
                         )
-                        NovaLibraryContent(
+                        Column(
                             modifier = Modifier.weight(1f),
-                            model = model,
-                            columns = columns,
-                            isLandscape = true,
-                            isInitialLoading = isInitialLoading,
-                            isRefreshing = isRefreshing,
-                            apiClient = apiClient,
-                            onRefresh = onRefresh,
-                            onOpenDetail = onOpenDetail
-                        )
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (model.recentGames.isNotEmpty()) {
+                                NovaLibraryRecentRail(
+                                    games = model.recentGames,
+                                    apiClient = apiClient,
+                                    onOpenDetail = onOpenDetail
+                                )
+                            }
+                            NovaLibraryContent(
+                                modifier = Modifier.weight(1f),
+                                model = model,
+                                columns = columns,
+                                isLandscape = true,
+                                isInitialLoading = isInitialLoading,
+                                isRefreshing = isRefreshing,
+                                apiClient = apiClient,
+                                onRefresh = onRefresh,
+                                onOpenDetail = onOpenDetail
+                            )
+                        }
                     }
                 } else {
                     Column(
@@ -534,9 +554,10 @@ class NovaLibraryActivity : AppCompatActivity() {
         NovaLibraryPanel(modifier = modifier) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 NovaLibraryTitle(serverName, serverHost)
                 NovaLibraryStatus(settings = clientSettings)
@@ -551,23 +572,23 @@ class NovaLibraryActivity : AppCompatActivity() {
                         text = stringResource(R.string.nova_refresh),
                         onClick = onRefresh,
                         modifier = Modifier.weight(1f),
-                        minHeight = 42.dp,
-                        fontSize = 13.sp
+                        minHeight = 38.dp,
+                        fontSize = 12.sp
                     )
                     NovaActionButton(
                         text = stringResource(R.string.nova_library_manage),
                         onClick = onManageServer,
                         modifier = Modifier.weight(1f),
-                        minHeight = 42.dp,
-                        fontSize = 13.sp
+                        minHeight = 38.dp,
+                        fontSize = 12.sp
                     )
                 }
                 NovaActionButton(
                     text = stringResource(R.string.nova_library_switch_server),
                     onClick = onBack,
                     modifier = Modifier.fillMaxWidth(),
-                    minHeight = 42.dp,
-                    fontSize = 13.sp
+                    minHeight = 38.dp,
+                    fontSize = 12.sp
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     NovaLibraryPrimaryFilter.entries.forEach { filter ->
@@ -582,7 +603,6 @@ class NovaLibraryActivity : AppCompatActivity() {
                         )
                     }
                 }
-                Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = stringResource(R.string.nova_library_results_format, model.resultCount),
                     color = LocalNovaComposeColors.current.textSecondary,
@@ -634,6 +654,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                     )
                 }
                 NovaLibraryStatus(settings = clientSettings)
+                NovaLibrarySummary(model = model)
                 NovaSearchField(
                     value = searchQuery,
                     onValueChange = onSearchChange,
@@ -652,6 +673,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                             count = filterCount(filter, model),
                             filterState = filterState,
                             sourceLabel = sourceLabel,
+                            modifier = Modifier.width(NovaLibraryUiStateMapper.filterChipWidthDp(filter).dp),
                             onClick = { onPrimaryFilter(filter) }
                         )
                     }
@@ -735,15 +757,16 @@ class NovaLibraryActivity : AppCompatActivity() {
     @Composable
     private fun NovaMetricBox(label: String, value: String, modifier: Modifier = Modifier) {
         val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         Column(
             modifier = modifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(colors.card.copy(alpha = 0.82f))
-                .border(1.dp, colors.divider.copy(alpha = 0.72f), RoundedCornerShape(8.dp))
-                .padding(10.dp),
+                .background(surfaces.tile)
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 9.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(text = value, color = colors.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(text = value, color = colors.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(text = label, color = colors.textSecondary, fontSize = 11.sp, maxLines = 1)
         }
     }
@@ -751,8 +774,9 @@ class NovaLibraryActivity : AppCompatActivity() {
     @Composable
     private fun NovaStatusPill(text: String, enabled: Boolean) {
         val colors = LocalNovaComposeColors.current
-        val fill = if (enabled) colors.accent.copy(alpha = 0.14f) else colors.card.copy(alpha = 0.76f)
-        val stroke = if (enabled) colors.accent.copy(alpha = 0.68f) else colors.divider.copy(alpha = 0.68f)
+        val surfaces = LocalNovaLibrarySurfaces.current
+        val fill = if (enabled) surfaces.selectedControl else surfaces.control
+        val stroke = if (enabled) colors.accent.copy(alpha = 0.68f) else surfaces.tileBorder
         Text(
             text = text,
             color = if (enabled) colors.accent else colors.textSecondary,
@@ -774,6 +798,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         modifier: Modifier = Modifier
     ) {
         val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         var focused by remember { mutableStateOf(false) }
         BasicTextField(
             value = value,
@@ -784,10 +809,10 @@ class NovaLibraryActivity : AppCompatActivity() {
             modifier = modifier
                 .height(44.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(colors.card.copy(alpha = 0.86f))
+                .background(surfaces.control)
                 .border(
                     width = if (focused) 2.dp else 1.dp,
-                    color = if (focused) colors.accent else colors.divider.copy(alpha = 0.78f),
+                    color = if (focused) surfaces.focusRing else surfaces.tileBorder,
                     shape = RoundedCornerShape(8.dp)
                 )
                 .onFocusChanged { focused = it.isFocused }
@@ -847,7 +872,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         onRefresh: () -> Unit,
         onOpenDetail: (PolarisGame) -> Unit
     ) {
-        NovaLibraryPanel(modifier = modifier) {
+        NovaLibraryPanel(modifier = modifier, subtle = true) {
             if (isInitialLoading && model.allGames.isEmpty()) {
                 NovaLibraryLoadingGrid(columns = columns, isLandscape = isLandscape)
             } else {
@@ -901,13 +926,13 @@ class NovaLibraryActivity : AppCompatActivity() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(R.string.nova_library_filter_recent),
+                        text = stringResource(R.string.nova_library_continue_label),
                         color = LocalNovaComposeColors.current.textPrimary,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp
                     )
                     Text(
-                        text = games.size.toString(),
+                        text = stringResource(R.string.nova_library_continue_count, games.size),
                         color = LocalNovaComposeColors.current.textSecondary,
                         fontSize = 12.sp
                     )
@@ -941,12 +966,12 @@ class NovaLibraryActivity : AppCompatActivity() {
         modifier: Modifier = Modifier,
         onOpenDetail: () -> Unit
     ) {
-        val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         var focused by remember { mutableStateOf(false) }
         val cardHeight = when {
-            compact -> 132.dp
-            isLandscape -> 168.dp
-            else -> 190.dp
+            compact -> 126.dp
+            isLandscape -> 164.dp
+            else -> 184.dp
         }
         val title = game.name.ifBlank { "Unknown game" }
         val meta = listOfNotNull(
@@ -963,10 +988,10 @@ class NovaLibraryActivity : AppCompatActivity() {
                     scaleY = if (focused) 1.025f else 1f
                 }
                 .clip(RoundedCornerShape(8.dp))
-                .background(colors.card.copy(alpha = 0.84f))
+                .background(if (focused) surfaces.tile.copy(alpha = 1f) else surfaces.tile)
                 .border(
                     width = if (focused) 2.dp else 1.dp,
-                    color = if (focused) colors.accent else colors.divider.copy(alpha = 0.78f),
+                    color = if (focused) surfaces.focusRing else surfaces.tileBorder,
                     shape = RoundedCornerShape(8.dp)
                 )
                 .combinedClickable(
@@ -984,7 +1009,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 factory = { context ->
                     ImageView(context).apply {
                         scaleType = ImageView.ScaleType.CENTER_CROP
-                        setBackgroundColor(ContextCompat.getColor(context, R.color.nova_deep))
+                        setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
                         contentDescription = context.getString(R.string.nova_a11y_game_cover)
                     }
                 },
@@ -998,13 +1023,20 @@ class NovaLibraryActivity : AppCompatActivity() {
                     .background(
                         Brush.verticalGradient(
                             colorStops = arrayOf(
-                                0.0f to Color.Transparent,
-                                0.54f to Color.Transparent,
-                                1.0f to Color.Black.copy(alpha = 0.82f)
+                                0.0f to surfaces.mediaScrimTop,
+                                0.50f to surfaces.mediaScrimTop,
+                                1.0f to surfaces.mediaScrimBottom
                             )
                         )
                     )
             )
+            if (focused) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(3.dp, surfaces.focusHalo, RoundedCornerShape(8.dp))
+                )
+            }
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -1027,7 +1059,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             ) {
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = surfaces.onMedia,
                     fontSize = if (compact) 13.sp else 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = if (compact) 1 else 2,
@@ -1036,7 +1068,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 if (meta.isNotBlank()) {
                     Text(
                         text = meta,
-                        color = Color.White.copy(alpha = 0.78f),
+                        color = surfaces.onMediaSecondary,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1048,15 +1080,16 @@ class NovaLibraryActivity : AppCompatActivity() {
 
     @Composable
     private fun NovaMiniBadge(text: String) {
+        val surfaces = LocalNovaLibrarySurfaces.current
         Text(
             text = text,
-            color = Color.White,
+            color = surfaces.onMedia,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(Color.Black.copy(alpha = 0.62f))
-                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(999.dp))
+                .background(surfaces.mediaScrimBottom.copy(alpha = 0.68f))
+                .border(1.dp, surfaces.onMedia.copy(alpha = 0.22f), RoundedCornerShape(999.dp))
                 .padding(horizontal = 7.dp, vertical = 3.dp)
         )
     }
@@ -1079,13 +1112,14 @@ class NovaLibraryActivity : AppCompatActivity() {
     @Composable
     private fun NovaLoadingCard(isLandscape: Boolean) {
         val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (isLandscape) 168.dp else 190.dp)
+                .height(if (isLandscape) 164.dp else 184.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(colors.card.copy(alpha = 0.72f))
-                .border(1.dp, colors.divider.copy(alpha = 0.52f), RoundedCornerShape(8.dp))
+                .background(surfaces.tile)
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(8.dp))
         ) {
             Box(
                 modifier = Modifier
@@ -1151,11 +1185,13 @@ class NovaLibraryActivity : AppCompatActivity() {
         categoryLabel: (String) -> String
     ) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         ModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
-            containerColor = LocalNovaComposeColors.current.dialog,
-            contentColor = LocalNovaComposeColors.current.textPrimary
+            containerColor = surfaces.panel,
+            contentColor = colors.textPrimary
         ) {
             Column(
                 modifier = Modifier
@@ -1169,7 +1205,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                     } else {
                         stringResource(R.string.nova_library_filter_sheet_more)
                     },
-                    color = LocalNovaComposeColors.current.textPrimary,
+                    color = colors.textPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1179,7 +1215,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                     } else {
                         stringResource(R.string.nova_library_filter_sheet_more_hint)
                     },
-                    color = LocalNovaComposeColors.current.textSecondary,
+                    color = colors.textSecondary,
                     fontSize = 12.sp
                 )
                 if (sheet == LibraryFilterSheet.SOURCES) {
@@ -1248,19 +1284,19 @@ class NovaLibraryActivity : AppCompatActivity() {
         onClick: () -> Unit
     ) {
         val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         var focused by remember { mutableStateOf(false) }
         val stroke = when {
-            focused -> colors.accent
+            focused -> surfaces.focusRing
             selected -> colors.accent.copy(alpha = 0.72f)
-            else -> colors.divider.copy(alpha = 0.72f)
+            else -> surfaces.tileBorder
         }
         Row(
             modifier = modifier
                 .height(42.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(
-                    if (selected) colors.accent.copy(alpha = 0.13f)
-                    else colors.card.copy(alpha = 0.82f)
+                    if (selected) surfaces.selectedControl else surfaces.control
                 )
                 .border(if (focused) 2.dp else 1.dp, stroke, RoundedCornerShape(8.dp))
                 .combinedClickable(onClick = onClick)
@@ -1291,14 +1327,18 @@ class NovaLibraryActivity : AppCompatActivity() {
     @Composable
     private fun NovaLibraryPanel(
         modifier: Modifier = Modifier,
+        subtle: Boolean = false,
         content: @Composable () -> Unit
     ) {
-        val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         Surface(
             modifier = modifier,
             shape = RoundedCornerShape(8.dp),
-            color = colors.dialog.copy(alpha = 0.84f),
-            border = BorderStroke(1.dp, colors.divider.copy(alpha = 0.58f)),
+            color = if (subtle) surfaces.panel.copy(alpha = 0.42f) else surfaces.panel,
+            border = BorderStroke(
+                1.dp,
+                if (subtle) surfaces.panelBorder.copy(alpha = 0.36f) else surfaces.panelBorder
+            ),
             content = content
         )
     }

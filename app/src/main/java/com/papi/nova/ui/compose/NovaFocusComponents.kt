@@ -40,11 +40,12 @@ fun NovaBadge(
     modifier: Modifier = Modifier,
     color: Color = LocalNovaComposeColors.current.textSecondary
 ) {
+    val surfaces = LocalNovaLibrarySurfaces.current
     Text(
         text = text,
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(LocalNovaComposeColors.current.badge)
+            .background(surfaces.control)
             .padding(horizontal = 8.dp, vertical = 3.dp),
         color = color,
         fontSize = 10.sp,
@@ -64,8 +65,9 @@ fun NovaFocusableCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
     val borderWidth = if (focused) 2.dp else 1.dp
-    val borderColor = if (focused) colors.accent else colors.divider
+    val borderColor = if (focused) surfaces.focusRing else surfaces.tileBorder
     val clickableModifier = if (onClick != null) {
         Modifier.clickable(
             enabled = enabled,
@@ -89,7 +91,7 @@ fun NovaFocusableCard(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(colors.badge)
+            .background(surfaces.tile)
             .border(borderWidth, borderColor, RoundedCornerShape(8.dp))
             .then(semanticsModifier)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
@@ -115,10 +117,12 @@ fun NovaActionButton(
 ) {
     var focused by remember { mutableStateOf(false) }
     val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(cornerRadius)
     val container = when {
         primary && enabled -> colors.accent
-        else -> colors.badge
+        focused -> surfaces.selectedControl
+        else -> surfaces.control
     }
     val contentColor = when {
         primary && enabled -> colors.onAccent
@@ -127,9 +131,9 @@ fun NovaActionButton(
     }
     val borderColor = when {
         focused && primary -> colors.onAccent
-        focused -> colors.accent
-        !primary -> colors.divider
-        else -> colors.divider
+        focused -> surfaces.focusRing
+        !primary -> surfaces.tileBorder
+        else -> surfaces.tileBorder
     }
     val borderWidth = when {
         focused -> 2.dp

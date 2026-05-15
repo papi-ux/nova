@@ -26,6 +26,31 @@ class NovaLibraryActivityComposeTest {
     @Test
     fun libraryShellShowsTvControls() {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        launchLibraryAndAssertShell(context)
+    }
+
+    @Test
+    fun libraryShellShowsControlsAcrossNovaThemes() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val themes = buildList {
+            add(NovaThemeManager.THEME_POLARIS)
+            add(NovaThemeManager.THEME_OLED)
+            if (NovaThemeManager.isMaterialYouAvailable()) {
+                add(NovaThemeManager.THEME_MATERIAL_YOU)
+            }
+        }
+
+        try {
+            themes.forEach { theme ->
+                NovaThemeManager.setTheme(context, theme)
+                launchLibraryAndAssertShell(context)
+            }
+        } finally {
+            NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
+        }
+    }
+
+    private fun launchLibraryAndAssertShell(context: Context) {
         val intent = Intent(context, NovaLibraryActivity::class.java).apply {
             putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
             putExtra(NovaLibraryActivity.EXTRA_SERVER_NAME, "Test Server")
