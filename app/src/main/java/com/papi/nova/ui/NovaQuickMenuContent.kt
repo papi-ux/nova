@@ -1,0 +1,626 @@
+package com.papi.nova.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.papi.nova.R
+import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.NovaActionButton
+import androidx.compose.ui.res.stringResource
+
+data class NovaQuickMenuCallbacks(
+    val onDisconnect: () -> Unit = {},
+    val onEndStream: () -> Unit = {},
+    val onStability: () -> Unit = {},
+    val onSyncStatus: () -> Unit = {},
+    val onToggleAdvanced: () -> Unit = {},
+    val onAiAutoQuality: () -> Unit = {},
+    val onClearGameProfile: () -> Unit = {},
+    val onMangoHud: () -> Unit = {},
+    val onProfilePreference: (String) -> Unit = {},
+    val onQuickKey: (NovaQuickMenuActionId) -> Unit = {},
+    val onOverlayAction: (NovaQuickMenuActionId) -> Unit = {},
+    val onControlAction: (NovaQuickMenuActionId) -> Unit = {},
+    val onSessionAction: (NovaQuickMenuActionId) -> Unit = {}
+) {
+    fun perform(action: NovaQuickMenuAction) {
+        when (action.id) {
+            NovaQuickMenuActionId.DISCONNECT -> onDisconnect()
+            NovaQuickMenuActionId.END_STREAM -> onEndStream()
+            NovaQuickMenuActionId.STABILITY -> onStability()
+            NovaQuickMenuActionId.SYNC_STATUS -> onSyncStatus()
+            NovaQuickMenuActionId.ADVANCED_TUNING -> onToggleAdvanced()
+            NovaQuickMenuActionId.AI_AUTO_QUALITY -> onAiAutoQuality()
+            NovaQuickMenuActionId.CLEAR_GAME_PROFILE -> onClearGameProfile()
+            NovaQuickMenuActionId.MANGOHUD -> onMangoHud()
+            NovaQuickMenuActionId.QUICK_ESC,
+            NovaQuickMenuActionId.QUICK_ALT_ENTER,
+            NovaQuickMenuActionId.QUICK_ALT_F4,
+            NovaQuickMenuActionId.QUICK_F11,
+            NovaQuickMenuActionId.QUICK_META,
+            NovaQuickMenuActionId.QUICK_CTRL_V -> onQuickKey(action.id)
+            NovaQuickMenuActionId.NOVA_HUD,
+            NovaQuickMenuActionId.PERF_STATS -> onOverlayAction(action.id)
+            NovaQuickMenuActionId.MOUSE_MODE,
+            NovaQuickMenuActionId.CONTROLLER,
+            NovaQuickMenuActionId.KEYBOARD -> onControlAction(action.id)
+            NovaQuickMenuActionId.PASTE_CLIPBOARD,
+            NovaQuickMenuActionId.ROTATE_SCREEN,
+            NovaQuickMenuActionId.MORE_KEYS -> onSessionAction(action.id)
+        }
+    }
+}
+
+@Composable
+fun NovaQuickMenuContent(
+    state: NovaQuickMenuUiState,
+    callbacks: NovaQuickMenuCallbacks,
+    modifier: Modifier = Modifier
+) {
+    val configuration = LocalConfiguration.current
+    val isWide = configuration.screenWidthDp >= 560
+    val maxHeight = (configuration.screenHeightDp * 0.92f).dp
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val overlaysTitle = stringResource(R.string.nova_quick_menu_overlays)
+    val controlsTitle = stringResource(R.string.nova_quick_menu_controls)
+    val sessionTitle = stringResource(R.string.nova_quick_menu_session)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(max = maxHeight)
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(surfaces.panel.copy(alpha = 0.90f))
+            .border(
+                width = 1.dp,
+                color = surfaces.panelBorder,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            )
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(38.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(colors.textMuted.copy(alpha = 0.42f))
+                .align(Alignment.CenterHorizontally)
+        )
+        Spacer(Modifier.height(10.dp))
+        NovaQuickMenuHeader(state, callbacks)
+        Spacer(Modifier.height(8.dp))
+        NovaQuickMenuSessionStrip(state)
+        Spacer(Modifier.height(10.dp))
+        NovaQuickMenuStabilityCard(state.stability, callbacks)
+        Spacer(Modifier.height(10.dp))
+        if (isWide) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                NovaQuickMenuInfoCard(
+                    action = state.sync,
+                    modifier = Modifier.weight(1f),
+                    callbacks = callbacks
+                )
+                NovaQuickMenuInfoCard(
+                    action = state.advancedToggle,
+                    modifier = Modifier.weight(1f),
+                    callbacks = callbacks
+                )
+            }
+        } else {
+            NovaQuickMenuInfoCard(action = state.sync, callbacks = callbacks)
+            Spacer(Modifier.height(8.dp))
+            NovaQuickMenuInfoCard(action = state.advancedToggle, callbacks = callbacks)
+        }
+        if (state.advancedExpanded) {
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuPanel(title = null) {
+                state.advancedRows.forEach { row ->
+                    NovaQuickMenuRow(action = row, callbacks = callbacks)
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        NovaQuickKeys(state.quickKeys, callbacks)
+        Spacer(Modifier.height(10.dp))
+        if (isWide) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                NovaQuickMenuPanel(
+                    title = overlaysTitle,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    state.overlayRows.forEach { row ->
+                        NovaQuickMenuRow(action = row, callbacks = callbacks)
+                    }
+                }
+                NovaQuickMenuPanel(
+                    title = controlsTitle,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    state.controlRows.forEach { row ->
+                        NovaQuickMenuRow(action = row, callbacks = callbacks)
+                    }
+                }
+            }
+        } else {
+            NovaQuickMenuPanel(title = overlaysTitle) {
+                state.overlayRows.forEach { row ->
+                    NovaQuickMenuRow(action = row, callbacks = callbacks)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuPanel(title = controlsTitle) {
+                state.controlRows.forEach { row ->
+                    NovaQuickMenuRow(action = row, callbacks = callbacks)
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        NovaQuickMenuPanel(title = sessionTitle) {
+            state.sessionRows.filter { it.visible }.forEach { row ->
+                NovaQuickMenuRow(action = row, callbacks = callbacks)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickMenuHeader(state: NovaQuickMenuUiState, callbacks: NovaQuickMenuCallbacks) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val configuration = LocalConfiguration.current
+    val compact = configuration.screenWidthDp < 430
+
+    NovaQuickMenuPanel(title = null, contentPadding = PaddingValues(12.dp)) {
+        if (compact) {
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                NovaQuickMenuTitleBlock(state)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NovaQuickMenuHeaderButton(state.disconnectAction, callbacks, Modifier.weight(1f))
+                    NovaQuickMenuHeaderButton(state.endAction, callbacks, Modifier.weight(1f))
+                }
+            }
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                NovaQuickMenuTitleBlock(state, Modifier.weight(1f))
+                NovaQuickMenuHeaderButton(state.disconnectAction, callbacks)
+                NovaQuickMenuHeaderButton(state.endAction, callbacks)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickMenuTitleBlock(state: NovaQuickMenuUiState, modifier: Modifier = Modifier) {
+    val colors = LocalNovaComposeColors.current
+    Column(modifier = modifier) {
+        Text(
+            text = state.title,
+            color = colors.textPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = state.subtitle,
+            color = colors.textMuted,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun NovaQuickMenuHeaderButton(
+    action: NovaQuickMenuAction,
+    callbacks: NovaQuickMenuCallbacks,
+    modifier: Modifier = Modifier
+) {
+    NovaActionButton(
+        text = action.label,
+        onClick = { callbacks.perform(action) },
+        modifier = modifier.widthIn(min = 84.dp),
+        enabled = action.enabled,
+        primary = !action.destructive,
+        cornerRadius = 12.dp,
+        minHeight = 34.dp,
+        fontSize = 12.sp,
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
+    )
+}
+
+@Composable
+private fun NovaQuickMenuSessionStrip(state: NovaQuickMenuUiState) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(surfaces.control.copy(alpha = 0.70f))
+            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        NovaQuickMenuChipView(state.sessionMode)
+        Text(
+            text = state.healthSummary,
+            color = toneColor(state.healthTone),
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun NovaQuickMenuStabilityCard(
+    stability: NovaQuickMenuStabilityState,
+    callbacks: NovaQuickMenuCallbacks
+) {
+    val colors = LocalNovaComposeColors.current
+    val action = NovaQuickMenuAction(
+        id = NovaQuickMenuActionId.STABILITY,
+        label = stability.title,
+        enabled = stability.enabled
+    )
+
+    NovaQuickMenuClickableSurface(
+        enabled = stability.enabled,
+        onClick = { callbacks.perform(action) },
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(14.dp),
+        contentDescription = stability.title
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stability.title,
+                    color = colors.textPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                NovaQuickMenuChipView(stability.chip)
+            }
+            Text(
+                text = stability.caption,
+                color = colors.textPrimary,
+                fontSize = 12.sp,
+                lineHeight = 15.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Text(
+                text = stability.targetSummary,
+                color = colors.textMuted,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 12.dp)
+            ) {
+                Text(
+                    text = stability.profileTitle,
+                    color = colors.textSecondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stability.profileCaption,
+                    color = colors.textMuted,
+                    fontSize = 9.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .weight(1f)
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                stability.profileOptions.forEach { option ->
+                    NovaQuickMenuPreferenceButton(
+                        option = option,
+                        modifier = Modifier.weight(1f),
+                        onClick = { callbacks.onProfilePreference(option.value) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickMenuPreferenceButton(
+    option: NovaQuickMenuPreferenceOption,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    NovaActionButton(
+        text = option.label,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = option.enabled,
+        primary = option.selected,
+        cornerRadius = 9.dp,
+        minHeight = 34.dp,
+        fontSize = 10.sp,
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 7.dp)
+    )
+}
+
+@Composable
+private fun NovaQuickMenuInfoCard(
+    action: NovaQuickMenuAction,
+    callbacks: NovaQuickMenuCallbacks,
+    modifier: Modifier = Modifier
+) {
+    NovaQuickMenuClickableSurface(
+        enabled = action.enabled,
+        onClick = { callbacks.perform(action) },
+        modifier = modifier,
+        contentPadding = PaddingValues(11.dp),
+        contentDescription = action.label
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = action.label,
+                    color = LocalNovaComposeColors.current.textPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                action.chip?.let { NovaQuickMenuChipView(it) }
+            }
+            if (action.caption.isNotBlank()) {
+                Text(
+                    text = action.caption,
+                    color = LocalNovaComposeColors.current.textMuted,
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickKeys(actions: List<NovaQuickMenuAction>, callbacks: NovaQuickMenuCallbacks) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        actions.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                row.forEach { action ->
+                    NovaActionButton(
+                        text = action.label,
+                        onClick = { callbacks.perform(action) },
+                        modifier = Modifier.weight(1f),
+                        enabled = action.enabled,
+                        cornerRadius = 9.dp,
+                        minHeight = 36.dp,
+                        fontSize = 11.sp,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                    )
+                }
+                repeat(3 - row.size) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickMenuPanel(
+    title: String?,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(11.dp),
+    content: @Composable () -> Unit
+) {
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val colors = LocalNovaComposeColors.current
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(surfaces.tile.copy(alpha = 0.72f))
+            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
+            .padding(contentPadding)
+    ) {
+        if (!title.isNullOrBlank()) {
+            Text(
+                text = title,
+                color = colors.textMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+        }
+        content()
+    }
+}
+
+@Composable
+private fun NovaQuickMenuRow(action: NovaQuickMenuAction, callbacks: NovaQuickMenuCallbacks) {
+    NovaQuickMenuClickableSurface(
+        enabled = action.enabled,
+        onClick = { callbacks.perform(action) },
+        modifier = Modifier.fillMaxWidth(),
+        flat = true,
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 7.dp),
+        contentDescription = action.label
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = action.label,
+                    color = LocalNovaComposeColors.current.textPrimary,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (action.caption.isNotBlank()) {
+                    Text(
+                        text = action.caption,
+                        color = LocalNovaComposeColors.current.textMuted,
+                        fontSize = 9.sp,
+                        lineHeight = 12.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+            action.chip?.let {
+                Spacer(Modifier.width(8.dp))
+                NovaQuickMenuChipView(it)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickMenuClickableSurface(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    flat: Boolean = false,
+    contentPadding: PaddingValues = PaddingValues(10.dp),
+    contentDescription: String,
+    content: @Composable () -> Unit
+) {
+    var focused by remember { mutableStateOf(false) }
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val shape = RoundedCornerShape(if (flat) 10.dp else 14.dp)
+    val base = if (flat) Color.Transparent else surfaces.tile
+    val focusedBackground = if (focused) surfaces.selectedControl else base
+    val borderColor = when {
+        focused -> surfaces.focusRing
+        flat -> Color.Transparent
+        else -> surfaces.tileBorder
+    }
+    val borderWidth = if (focused) 2.dp else if (flat) 0.dp else 1.dp
+
+    Box(
+        modifier = modifier
+            .alpha(if (enabled) 1f else 0.45f)
+            .clip(shape)
+            .background(focusedBackground.copy(alpha = if (flat && !focused) 0f else focusedBackground.alpha))
+            .border(borderWidth, borderColor, shape)
+            .semantics {
+                this.contentDescription = contentDescription
+                role = Role.Button
+            }
+            .onFocusChanged { focused = it.isFocused || it.hasFocus }
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick
+            )
+            .focusable(enabled = enabled)
+            .padding(contentPadding)
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun NovaQuickMenuChipView(chip: NovaQuickMenuChip) {
+    val bg = toneColor(chip.tone).copy(alpha = if (chip.tone == NovaQuickMenuTone.INACTIVE) 0.16f else 0.20f)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(99.dp))
+            .background(bg)
+            .padding(horizontal = 9.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = chip.label,
+            color = toneColor(chip.tone),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun toneColor(tone: NovaQuickMenuTone): Color {
+    val colors = LocalNovaComposeColors.current
+    return when (tone) {
+        NovaQuickMenuTone.ACTIVE -> Color(0xFF4ADE80)
+        NovaQuickMenuTone.INACTIVE -> colors.textSecondary
+        NovaQuickMenuTone.MUTED -> colors.textMuted
+        NovaQuickMenuTone.WARNING -> colors.warning
+        NovaQuickMenuTone.DANGER -> Color(0xFFF87171)
+    }
+}
