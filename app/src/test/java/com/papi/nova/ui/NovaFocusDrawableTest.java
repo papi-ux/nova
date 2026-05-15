@@ -108,14 +108,14 @@ public class NovaFocusDrawableTest {
     @Test
     public void serverFiltersUseRuntimeDownFocusBridge() throws Exception {
         String source = new String(
-                Files.readAllBytes(Paths.get("src/main/java/com/papi/nova/PcView.java")),
+                Files.readAllBytes(Paths.get("src/main/java/com/papi/nova/PcView.kt")),
                 StandardCharsets.UTF_8);
 
         assertTrue("server filters should bind DPAD down to the first visible host row",
                 source.contains("bindServerFilterFocusDown(filterAllServers")
-                        && source.contains("boolean dispatchKeyEvent(KeyEvent event)")
+                        && source.contains("override fun dispatchKeyEvent(event: KeyEvent): Boolean")
                         && source.contains("KeyEvent.KEYCODE_DPAD_DOWN")
-                        && source.contains("serverListFocusBridge.setOnFocusChangeListener")
+                        && source.contains("serverListFocusBridge?.setOnFocusChangeListener")
                         && source.contains("addOnGlobalFocusChangeListener")
                         && source.contains("setHeaderQuickActionsFocusable(false)")
                         && source.contains("setServerFilterNextFocusDown(firstRow")
