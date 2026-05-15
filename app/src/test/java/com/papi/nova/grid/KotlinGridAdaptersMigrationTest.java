@@ -11,6 +11,7 @@ import android.widget.TextView;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.papi.nova.AppView;
+import com.papi.nova.PcViewModel;
 import com.papi.nova.R;
 import com.papi.nova.nvstream.http.ComputerDetails;
 import com.papi.nova.preferences.PreferenceConfiguration;
@@ -45,7 +46,8 @@ public class KotlinGridAdaptersMigrationTest {
     public void appGridAdapterIsKotlinSource() {
         String[] names = {
                 "AppGridAdapter",
-                "GenericGridAdapter"
+                "GenericGridAdapter",
+                "PcGridAdapter"
         };
 
         for (String name : names) {
@@ -79,6 +81,24 @@ public class KotlinGridAdaptersMigrationTest {
                 TextView.class,
                 ImageView.class,
                 AppView.AppObject.class
+        );
+    }
+
+    @Test
+    public void pcGridAdapterKeepsJavaCompatibleApis() throws NoSuchMethodException {
+        PcGridAdapter.class.getConstructor(Context.class, PreferenceConfiguration.class);
+        PcGridAdapter.class.getMethod("updateLayoutWithPreferences", Context.class, PreferenceConfiguration.class);
+        PcGridAdapter.class.getMethod("addComputer", PcViewModel.ComputerObject.class);
+        assertEquals(boolean.class, PcGridAdapter.class.getMethod("removeComputer", PcViewModel.ComputerObject.class).getReturnType());
+        PcGridAdapter.class.getMethod(
+                "populateView",
+                View.class,
+                ImageView.class,
+                RelativeLayout.class,
+                ProgressBar.class,
+                TextView.class,
+                ImageView.class,
+                PcViewModel.ComputerObject.class
         );
     }
 
@@ -126,11 +146,35 @@ public class KotlinGridAdaptersMigrationTest {
         assertFalse(adapter.isAppPinned(99));
     }
 
+    @Test
+    public void pcGridAdapterSortsComputersByNameAndRemovesItems() {
+        Context context = ApplicationProvider.getApplicationContext();
+        PcGridAdapter adapter = new PcGridAdapter(context, new PreferenceConfiguration());
+        PcViewModel.ComputerObject beta = createComputerObject("server-beta");
+        PcViewModel.ComputerObject alpha = createComputerObject("server-alpha");
+
+        adapter.addComputer(beta);
+        adapter.addComputer(alpha);
+
+        assertEquals(alpha, adapter.getItem(0));
+        assertEquals(beta, adapter.getItem(1));
+        assertTrue(adapter.removeComputer(alpha));
+        assertEquals(beta, adapter.getItem(0));
+        assertFalse(adapter.removeComputer(alpha));
+    }
+
     private static AppGridAdapter createAdapter() {
         Context context = ApplicationProvider.getApplicationContext();
         PreferenceConfiguration prefs = new PreferenceConfiguration();
         ComputerDetails computer = new ComputerDetails();
         computer.uuid = "adapter-test-computer";
         return new AppGridAdapter(context, prefs, computer, "adapter-test", false);
+    }
+
+    private static PcViewModel.ComputerObject createComputerObject(String name) {
+        ComputerDetails details = new ComputerDetails();
+        details.uuid = name + "-uuid";
+        details.name = name;
+        return new PcViewModel.ComputerObject(details);
     }
 }
