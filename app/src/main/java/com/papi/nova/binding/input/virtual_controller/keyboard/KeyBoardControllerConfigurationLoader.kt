@@ -10,7 +10,7 @@ import androidx.preference.PreferenceManager
 import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.R
-import com.papi.nova.binding.input.KeyboardTranslator.getModifier
+import com.papi.nova.binding.input.KeyboardTranslator
 import com.papi.nova.nvstream.NvConnection
 import com.papi.nova.nvstream.input.KeyboardPacket
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -201,7 +201,7 @@ object KeyBoardControllerConfigurationLoader {
                     val modifier = byteArrayOf(0)
                     for (key in keys) {
                         conn?.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], 0.toByte())
-                        modifier[0] = (modifier[0].toInt() or getModifier(key).toInt()).toByte()
+                        modifier[0] = (modifier[0].toInt() or KeyboardTranslator.getModifier(key).toInt()).toByte()
                     }
                 }
 
@@ -215,7 +215,7 @@ object KeyBoardControllerConfigurationLoader {
 
                     val modifier = byteArrayOf(0)
                     for (i in keys.indices.reversed()) {
-                        modifier[0] = (modifier[0].toInt() and getModifier(keys[i]).toInt().inv()).toByte()
+                        modifier[0] = (modifier[0].toInt() and KeyboardTranslator.getModifier(keys[i]).toInt().inv()).toByte()
                         conn?.sendKeyboardInput(keys[i], KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
                     }
                 }
@@ -229,7 +229,7 @@ object KeyBoardControllerConfigurationLoader {
                     modifier[0] = 0
                     for (key in keys) {
                         conn?.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], 0.toByte())
-                        modifier[0] = (modifier[0].toInt() or getModifier(key).toInt()).toByte()
+                        modifier[0] = (modifier[0].toInt() or KeyboardTranslator.getModifier(key).toInt()).toByte()
                     }
                 }
 
@@ -239,7 +239,7 @@ object KeyBoardControllerConfigurationLoader {
                     controller.vibrate(KeyEvent.ACTION_UP)
                     for (i in keys.indices.reversed()) {
                         val key = keys[i]
-                        modifier[0] = (modifier[0].toInt() and getModifier(key).toInt().inv()).toByte()
+                        modifier[0] = (modifier[0].toInt() and KeyboardTranslator.getModifier(key).toInt().inv()).toByte()
                         conn?.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
                     }
                 }
