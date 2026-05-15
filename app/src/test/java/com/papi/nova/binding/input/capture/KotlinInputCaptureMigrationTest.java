@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@Config(sdk = {33})
 @RunWith(RobolectricTestRunner.class)
 public class KotlinInputCaptureMigrationTest {
     @Test
