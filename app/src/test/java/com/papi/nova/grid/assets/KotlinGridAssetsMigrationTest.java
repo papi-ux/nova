@@ -2,6 +2,7 @@ package com.papi.nova.grid.assets;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -15,6 +16,8 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import java.io.File;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
 import static org.junit.Assert.assertEquals;
@@ -37,7 +40,8 @@ public class KotlinGridAssetsMigrationTest {
         String[] names = {
                 "ScaledBitmap",
                 "MemoryAssetLoader",
-                "NetworkAssetLoader"
+                "NetworkAssetLoader",
+                "DiskAssetLoader"
         };
 
         for (String name : names) {
@@ -66,6 +70,14 @@ public class KotlinGridAssetsMigrationTest {
         NetworkAssetLoader.class.getMethod("release", CachedAppAssetLoader.LoaderTuple.class);
         assertEquals(InputStream.class, NetworkAssetLoader.class.getMethod("getBitmapStream", CachedAppAssetLoader.LoaderTuple.class).getReturnType());
         NetworkAssetLoader.class.getMethod("invalidate");
+
+        DiskAssetLoader.class.getConstructor(Context.class);
+        DiskAssetLoader.class.getMethod("checkCacheExists", CachedAppAssetLoader.LoaderTuple.class);
+        DiskAssetLoader.class.getMethod("loadBitmapFromCache", CachedAppAssetLoader.LoaderTuple.class, int.class);
+        DiskAssetLoader.class.getMethod("getFile", String.class, int.class);
+        DiskAssetLoader.class.getMethod("deleteAssetsForComputer", String.class);
+        DiskAssetLoader.class.getMethod("populateCacheWithStream", CachedAppAssetLoader.LoaderTuple.class, InputStream.class);
+        DiskAssetLoader.class.getMethod("calculateInSampleSize", BitmapFactory.Options.class, int.class, int.class);
     }
 
     @Test
@@ -108,6 +120,38 @@ public class KotlinGridAssetsMigrationTest {
 
         loader.invalidate();
         assertTrue(loader.tryAcquire(tuple));
+    }
+
+    @Test
+    public void diskAssetLoaderStoresAndDeletesCachedStreams() {
+        Context context = ApplicationProvider.getApplicationContext();
+        DiskAssetLoader loader = new DiskAssetLoader(context);
+        CachedAppAssetLoader.LoaderTuple tuple = createTuple("computer-disk", 99);
+        loader.deleteAssetsForComputer(tuple.computer.uuid);
+
+        assertFalse(loader.checkCacheExists(tuple));
+
+        Bitmap bitmap = Bitmap.createBitmap(3, 4, Bitmap.Config.ARGB_8888);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output));
+
+        loader.populateCacheWithStream(tuple, new ByteArrayInputStream(output.toByteArray()));
+
+        assertTrue(loader.checkCacheExists(tuple));
+        assertTrue(loader.getFile(tuple.computer.uuid, tuple.app.getAppId()).exists());
+
+        loader.deleteAssetsForComputer(tuple.computer.uuid);
+        assertFalse(loader.checkCacheExists(tuple));
+    }
+
+    @Test
+    public void diskAssetLoaderKeepsSampleSizeCalculation() {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.outWidth = 1200;
+        options.outHeight = 1600;
+
+        assertEquals(4, DiskAssetLoader.calculateInSampleSize(options, 300, 400));
+        assertEquals(1, DiskAssetLoader.calculateInSampleSize(options, 900, 1200));
     }
 
     @Test
