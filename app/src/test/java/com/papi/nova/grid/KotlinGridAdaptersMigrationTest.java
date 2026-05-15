@@ -8,6 +8,7 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.papi.nova.AppView;
@@ -47,7 +48,8 @@ public class KotlinGridAdaptersMigrationTest {
         String[] names = {
                 "AppGridAdapter",
                 "GenericGridAdapter",
-                "PcGridAdapter"
+                "PcGridAdapter",
+                "RecyclerItemClickListener"
         };
 
         for (String name : names) {
@@ -100,6 +102,18 @@ public class KotlinGridAdaptersMigrationTest {
                 ImageView.class,
                 PcViewModel.ComputerObject.class
         );
+    }
+
+    @Test
+    public void recyclerItemClickListenerKeepsJavaCompatibleApis() throws NoSuchMethodException {
+        assertTrue(RecyclerView.OnItemTouchListener.class.isAssignableFrom(RecyclerItemClickListener.class));
+        RecyclerItemClickListener.class.getConstructor(
+                Context.class,
+                RecyclerView.class,
+                RecyclerItemClickListener.OnItemClickListener.class
+        );
+        RecyclerItemClickListener.OnItemClickListener.class.getMethod("onItemClick", View.class, int.class);
+        RecyclerItemClickListener.OnItemClickListener.class.getMethod("onLongItemClick", View.class, int.class);
     }
 
     @Test
