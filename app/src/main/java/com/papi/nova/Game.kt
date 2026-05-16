@@ -2225,7 +2225,7 @@ if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
             var screenSize:Point = Point(0, 0)
 currentDisplay!!.getSize(screenSize)
 
-var screenAspectRatio:Double = (screenSize.y as Double) / screenSize.x
+	var screenAspectRatio:Double = screenSize.y.toDouble() / screenSize.x
 var streamAspectRatio:Double = (displayHeight.toDouble()) / displayWidth
 if (Math.abs(screenAspectRatio - streamAspectRatio) < 0.001 || isOnExternalDisplay)
 {
@@ -3481,8 +3481,8 @@ changedButtons = buttonState xor lastButtonState
                 if (inputCaptureProvider!!.eventHasRelativeMouseAxes(event))
 {
  // Send the deltas straight from the motion event
-                    var deltaX:Short = inputCaptureProvider!!.getRelativeAxisX(event) as Short
-var deltaY:Short = inputCaptureProvider!!.getRelativeAxisY(event) as Short
+	                    var deltaX:Short = inputCaptureProvider!!.getRelativeAxisX(event).toInt().toShort()
+	var deltaY:Short = inputCaptureProvider!!.getRelativeAxisY(event).toInt().toShort()
 
 if (deltaX.toInt() != 0 || deltaY.toInt() != 0)
 {
@@ -3490,7 +3490,7 @@ if (prefConfig!!.absoluteMouseMode)
 {
  // NB: view may be null, but we can unconditionally use streamView because we don't need to adjust
                             // relative axis deltas for the position of the streamView within the parent's coordinate system.
-                            conn!!.sendMouseMoveAsMousePosition(deltaX, deltaY, streamContainer!!.getWidth() as Short, streamContainer!!.getHeight() as Short)
+	                            conn!!.sendMouseMoveAsMousePosition(deltaX, deltaY, streamContainer!!.getWidth().toShort(), streamContainer!!.getHeight().toShort())
 }
 else
 {
@@ -3654,8 +3654,8 @@ updateMousePosition(view, event)
 if (event!!.getActionMasked() == MotionEvent.ACTION_SCROLL)
 {
  // Send the vertical scroll packet
-                    conn!!.sendMouseHighResScroll((event!!.getAxisValue(MotionEvent.AXIS_VSCROLL) * 120) as Short)
-conn!!.sendMouseHighResHScroll((event!!.getAxisValue(MotionEvent.AXIS_HSCROLL) * 120) as Short)
+	                    conn!!.sendMouseHighResScroll((event!!.getAxisValue(MotionEvent.AXIS_VSCROLL) * 120).toInt().toShort())
+	conn!!.sendMouseHighResHScroll((event!!.getAxisValue(MotionEvent.AXIS_HSCROLL) * 120).toInt().toShort())
 }
 
 if ((changedButtons and MotionEvent.BUTTON_PRIMARY) != 0)
@@ -3858,8 +3858,8 @@ for (aTouchContextMap:TouchContext? in inputContextMap!!)
 if (aTouchContextMap!!.getActionIndex() < pointerCount)
 {
 var aActionIndex:Int = if (shouldDuplicateMovement) 0 else aTouchContextMap!!.getActionIndex()
-var historicalX:Int = event!!.getHistoricalX(aActionIndex, i) as Int
-var historicalY:Int = event!!.getHistoricalY(aActionIndex, i) as Int
+	var historicalX:Int = event!!.getHistoricalX(aActionIndex, i).toInt()
+	var historicalY:Int = event!!.getHistoricalY(aActionIndex, i).toInt()
 if (isTouchScreen)
 {
 var normalizedCoords:FloatArray? = getNormalizedCoordinates(streamContainer, historicalX.toFloat(), historicalY.toFloat())
@@ -3898,8 +3898,8 @@ event!!.getHistoricalEventTime(i)
 if (aTouchContextMap!!.getActionIndex() < pointerCount)
 {
 var aActionIndex:Int = if (shouldDuplicateMovement) 0 else aTouchContextMap!!.getActionIndex()
-var currentX:Int = event!!.getX(aActionIndex) as Int
-var currentY:Int = event!!.getY(aActionIndex) as Int
+	var currentX:Int = event!!.getX(aActionIndex).toInt()
+	var currentY:Int = event!!.getY(aActionIndex).toInt()
 if (isTouchScreen)
 {
 var normalizedCoords:FloatArray? = getNormalizedCoordinates(streamContainer, currentX.toFloat(), currentY.toFloat())
@@ -3929,8 +3929,8 @@ event!!.getEventTime())
 return true
 }
 
-var eventX:Int = event!!.getX(actualActionIndex) as Int
-var eventY:Int = event!!.getY(actualActionIndex) as Int
+	var eventX:Int = event!!.getX(actualActionIndex).toInt()
+	var eventY:Int = event!!.getY(actualActionIndex).toInt()
 
  // Handle view scaling
         if (isTouchScreen)
@@ -3992,8 +3992,8 @@ touchContext!!.setPointerCount(pointerCount - 1)
 if (actionIndex == 0 && pointerCount > 1 && !context!!.isCancelled())
 {
  // The original secondary touch now becomes primary
-                    var pointer1X:Int = event!!.getX(1) as Int
-var pointer1Y:Int = event!!.getY(1) as Int
+	                    var pointer1X:Int = event!!.getX(1).toInt()
+	var pointer1Y:Int = event!!.getY(1).toInt()
 if (isTouchScreen)
 {
 var normalizedCoords:FloatArray? = getNormalizedCoordinates(streamContainer, pointer1X.toFloat(), pointer1Y.toFloat())

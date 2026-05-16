@@ -26,6 +26,9 @@ import org.junit.Test;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -127,5 +130,33 @@ public class KotlinGameRuntimeMigrationTest {
         Game.GameMenuCallbacks.class.getMethod("showMenu", GameInputDevice.class);
         Game.GameMenuCallbacks.class.getMethod("hideMenu");
         assertEquals(boolean.class, Game.GameMenuCallbacks.class.getMethod("isMenuOpen").getReturnType());
+    }
+
+    @Test
+    public void gameTouchInputUsesNumericConversionsInsteadOfRuntimeCasts() throws Exception {
+        String source = readGameSource();
+        String touchInput = source.substring(
+                source.indexOf("private fun handleTouchInput("),
+                source.indexOf("private fun handleMultiTouchGesture("));
+
+        assertFalse("MotionEvent Float coordinates must not be runtime-cast to Int",
+                touchInput.contains(" as Int"));
+        assertTrue(touchInput.contains("event!!.getHistoricalX(aActionIndex, i).toInt()"));
+        assertTrue(touchInput.contains("event!!.getHistoricalY(aActionIndex, i).toInt()"));
+        assertTrue(touchInput.contains("event!!.getX(aActionIndex).toInt()"));
+        assertTrue(touchInput.contains("event!!.getY(aActionIndex).toInt()"));
+        assertTrue(touchInput.contains("event!!.getX(actualActionIndex).toInt()"));
+        assertTrue(touchInput.contains("event!!.getY(actualActionIndex).toInt()"));
+        assertTrue(touchInput.contains("event!!.getX(1).toInt()"));
+        assertTrue(touchInput.contains("event!!.getY(1).toInt()"));
+        assertTrue(source.contains("getRelativeAxisX(event).toInt().toShort()"));
+        assertTrue(source.contains("getRelativeAxisY(event).toInt().toShort()"));
+        assertTrue(source.contains("getAxisValue(MotionEvent.AXIS_VSCROLL) * 120).toInt().toShort()"));
+        assertTrue(source.contains("getAxisValue(MotionEvent.AXIS_HSCROLL) * 120).toInt().toShort()"));
+    }
+
+    private static String readGameSource() throws Exception {
+        return new String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/Game.kt")),
+                StandardCharsets.UTF_8);
     }
 }
