@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -77,6 +78,7 @@ private fun NovaStreamHudFull(state: NovaHudUiState, modifier: Modifier) {
                             text = state.targetFpsLabel,
                             color = LocalNovaComposeColors.current.textSecondary,
                             fontSize = 10.sp,
+                            lineHeight = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(start = 3.dp, bottom = 2.dp),
                             maxLines = 1
@@ -89,6 +91,7 @@ private fun NovaStreamHudFull(state: NovaHudUiState, modifier: Modifier) {
                     text = state.autopilotLabel,
                     color = state.statusTone.hudColor(),
                     fontSize = 10.sp,
+                    lineHeight = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -98,6 +101,7 @@ private fun NovaStreamHudFull(state: NovaHudUiState, modifier: Modifier) {
                         text = state.streamModeLabel,
                         color = LocalNovaComposeColors.current.textMuted,
                         fontSize = 9.sp,
+                        lineHeight = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 4.dp)
@@ -163,6 +167,7 @@ private fun NovaStreamHudBanner(state: NovaHudUiState, modifier: Modifier) {
                     text = state.targetFpsLabel,
                     color = LocalNovaComposeColors.current.textMuted,
                     fontSize = 9.sp,
+                    lineHeight = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 1.dp)
                 )
@@ -205,6 +210,7 @@ private fun NovaStreamHudFpsOnly(state: NovaHudUiState, modifier: Modifier) {
                             text = state.targetFpsLabel,
                             color = LocalNovaComposeColors.current.textMuted,
                             fontSize = 8.sp,
+                            lineHeight = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(start = 1.dp, bottom = 2.dp)
                         )
@@ -231,6 +237,7 @@ private fun NovaStreamHudFpsOnly(state: NovaHudUiState, modifier: Modifier) {
                     text = state.autopilotCompactLabel,
                     color = state.statusTone.hudColor(),
                     fontSize = 8.sp,
+                    lineHeight = 10.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     modifier = Modifier.padding(top = 3.dp)
@@ -268,7 +275,7 @@ private fun HudMetric(
     val surfaces = LocalNovaLibrarySurfaces.current
     Column(
         modifier = modifier
-            .height(40.dp)
+            .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(surfaces.control.copy(alpha = 0.82f))
             .padding(horizontal = 7.dp, vertical = 5.dp),
@@ -279,6 +286,7 @@ private fun HudMetric(
             text = value,
             color = valueTone.hudColor(),
             fontSize = 10.sp,
+            lineHeight = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -292,6 +300,7 @@ private fun HudTinyLabel(text: String) {
         text = text,
         color = LocalNovaComposeColors.current.textMuted,
         fontSize = 7.sp,
+        lineHeight = 8.sp,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
@@ -304,6 +313,7 @@ private fun HudValueText(text: String, tone: NovaHudTone, size: Int) {
         text = text,
         color = tone.hudColor(),
         fontSize = size.sp,
+        lineHeight = (size + 2).sp,
         fontWeight = FontWeight.Bold,
         fontFamily = FontFamily.SansSerif,
         maxLines = 1,
@@ -322,6 +332,7 @@ private fun HudCompactText(
         text = text,
         color = tone.hudColor(),
         fontSize = 10.sp,
+        lineHeight = 12.sp,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
