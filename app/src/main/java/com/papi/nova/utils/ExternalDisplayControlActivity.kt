@@ -453,6 +453,8 @@ class ExternalDisplayControlActivity :
         }
 
         val broadcastIntent = Intent(this, StartExternalDisplayControlReceiver::class.java)
+            .setAction(StartExternalDisplayControlReceiver.ACTION_START_EXTERNAL_DISPLAY_CONTROL)
+            .setPackage(packageName)
         val pendingIntent = PendingIntent.getBroadcast(
             this,
             0,

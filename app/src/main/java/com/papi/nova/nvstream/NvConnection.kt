@@ -281,7 +281,7 @@ class NvConnection(
                             },
                         )
                     }
-                } else if (Objects.equals(NvApp.REMOTE_INPUT_UUID, app!!.appUUID)) {
+                } else if (Objects.equals(NvApp.REMOTE_INPUT_UUID, app.appUUID)) {
                     return launchNotRunningApp(h, context)
                 } else {
                     if (context.watchOnlyRequested) {
@@ -434,7 +434,7 @@ class NvConnection(
                     connectionListener.stageComplete(appName)
                 } catch (e: HostHttpResponseException) {
                     e.printStackTrace()
-                    connectionListener.displayMessage(e.message ?: e.toString())
+                    connectionListener.displayMessage(e.message)
                     retry = connectionListener.stageFailed(appName, 0, e.getErrorCode())
                     if (!retry) {
                         return@Thread

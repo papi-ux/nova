@@ -3,6 +3,7 @@ package com.papi.nova.utils
 import android.app.Activity
 import android.content.Context
 import android.view.View
+import com.papi.nova.StartExternalDisplayControlReceiver
 import com.papi.nova.nvstream.http.ComputerDetails
 import java.io.File
 import java.lang.reflect.Modifier
@@ -31,8 +32,19 @@ class KotlinExternalDisplayUiMigrationTest {
     fun externalDisplayUiHelpersKeepJavaCompatibleApis() {
         assertEquals("launchIntent", ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT)
         assertEquals(1, ExternalDisplayControlActivity.SECONDARY_SCREEN_NOTIFICATION_ID)
+        assertEquals(
+            "com.papi.nova.action.START_EXTERNAL_DISPLAY_CONTROL",
+            StartExternalDisplayControlReceiver.ACTION_START_EXTERNAL_DISPLAY_CONTROL
+        )
         assertTrue(Modifier.isStatic(ExternalDisplayControlActivity::class.java.getField("EXTRA_LAUNCH_INTENT").modifiers))
         assertTrue(Modifier.isStatic(ExternalDisplayControlActivity::class.java.getField("instance").modifiers))
+        assertTrue(
+            Modifier.isStatic(
+                StartExternalDisplayControlReceiver::class.java
+                    .getField("ACTION_START_EXTERNAL_DISPLAY_CONTROL")
+                    .modifiers
+            )
+        )
         ExternalDisplayControlActivity::class.java.getConstructor()
         ExternalDisplayControlActivity::class.java.getMethod("closeExternalDisplayControl")
         ExternalDisplayControlActivity::class.java.getMethod("toggleKeyboard")
@@ -84,5 +96,15 @@ class KotlinExternalDisplayUiMigrationTest {
             Runnable::class.java
         )
         UiHelper::class.java.getMethod("dpToPx", Context::class.java, Float::class.javaPrimitiveType!!)
+    }
+
+    @Test
+    fun externalDisplayReceiverIsPrivateInManifest() {
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        assertTrue(
+            Regex(
+                """<receiver\s+android:name="\.StartExternalDisplayControlReceiver"\s+android:exported="false"\s*/>"""
+            ).containsMatchIn(manifest)
+        )
     }
 }

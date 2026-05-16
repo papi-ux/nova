@@ -23,6 +23,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -151,6 +152,42 @@ class KotlinLaunchHelpersMigrationTest {
         assertEquals("nova", channel.getAsString("internal_provider_id"))
     }
 
+    @Test
+    fun artFileUrisRejectPrivateAndInternalContentTargets() {
+        val activity = Robolectric.buildActivity(ShortcutTrampoline::class.java).get()
+
+        assertFalse(
+            isSafeArtFileUri(
+                activity,
+                Uri.parse("file:///data/data/com.papi.nova/private.art")
+            )
+        )
+        assertFalse(
+            isSafeArtFileUri(
+                activity,
+                Uri.parse("content://${BuildConfig.APPLICATION_ID}.fileprovider/cache/private.art")
+            )
+        )
+        assertFalse(
+            isSafeArtFileUri(
+                activity,
+                Uri.parse("content://${PosterContentProvider.AUTHORITY}/boxart/host/private.art")
+            )
+        )
+        assertFalse(
+            isSafeArtFileUri(
+                activity,
+                Uri.parse("content://com.example.provider/document/not-art.txt")
+            )
+        )
+        assertTrue(
+            isSafeArtFileUri(
+                activity,
+                Uri.parse("file:///sdcard/Download/game.art")
+            )
+        )
+    }
+
     private fun newPrivateBuilder(className: String): Any {
         return try {
             val constructor: Constructor<*> = Class.forName(className).getDeclaredConstructor()
@@ -168,6 +205,16 @@ class KotlinLaunchHelpersMigrationTest {
             method.invoke(target, value)
         } catch (e: Exception) {
             throw AssertionError("Unable to call $methodName", e)
+        }
+    }
+
+    private fun isSafeArtFileUri(activity: ShortcutTrampoline, uri: Uri): Boolean {
+        return try {
+            val method = ShortcutTrampoline::class.java.getDeclaredMethod("isSafeArtFileUri", Uri::class.java)
+            method.isAccessible = true
+            method.invoke(activity, uri) as Boolean
+        } catch (e: Exception) {
+            throw AssertionError("Unable to call isSafeArtFileUri", e)
         }
     }
 

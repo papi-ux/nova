@@ -17,7 +17,6 @@ import android.os.HandlerThread
 import android.os.Process
 import android.os.SystemClock
 import android.util.LongSparseArray
-import android.util.Range
 import android.view.Choreographer
 import android.view.Surface
 import android.view.WindowManager
@@ -167,6 +166,7 @@ class MediaCodecDecoderRenderer(
     private var foreground = true
 
     private val codecRecoveryType = AtomicInteger(CR_RECOVERY_TYPE_NONE)
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
     private val codecRecoveryMonitor = Object()
     private var codecRecoveryThreadQuiescedFlags = 0
     private var codecRecoveryAttempts = 0
@@ -288,9 +288,13 @@ class MediaCodecDecoderRenderer(
 
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private fun decoderCanMeetPerformancePoint(
-        caps: MediaCodecInfo.VideoCapabilities,
+        caps: MediaCodecInfo.VideoCapabilities?,
         prefs: PreferenceConfiguration,
     ): Boolean {
+        if (caps == null) {
+            return false
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val targetPerfPoint = MediaCodecInfo.VideoCapabilities.PerformancePoint(
                 initialWidth,
@@ -539,9 +543,10 @@ class MediaCodecDecoderRenderer(
 
     private fun configureAndStartDecoder(format: MediaFormat) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            if (currentHdrMetadata != null) {
+            val hdrMetadataBytes = currentHdrMetadata
+            if (hdrMetadataBytes != null) {
                 val hdrStaticInfo = ByteBuffer.allocate(25).order(ByteOrder.LITTLE_ENDIAN)
-                val hdrMetadata = ByteBuffer.wrap(currentHdrMetadata).order(ByteOrder.LITTLE_ENDIAN)
+                val hdrMetadata = ByteBuffer.wrap(hdrMetadataBytes).order(ByteOrder.LITTLE_ENDIAN)
 
                 hdrStaticInfo.put(0.toByte())
                 hdrStaticInfo.putShort(hdrMetadata.short)
@@ -599,8 +604,8 @@ class MediaCodecDecoderRenderer(
         try {
             val inF = videoDecoder!!.inputFormat
             val outF = videoDecoder!!.outputFormat
-            LimeLog.info("Decoder input format: " + (inF?.toString() ?: "<null>"))
-            LimeLog.info("Decoder output format: " + (outF?.toString() ?: "<null>"))
+            LimeLog.info("Decoder input format: " + inF.toString())
+            LimeLog.info("Decoder output format: " + outF.toString())
         } catch (_: Throwable) {
             LimeLog.info("Decoder formats unavailable after start")
         }
@@ -997,7 +1002,7 @@ class MediaCodecDecoderRenderer(
             val vsyncPeriodNs = (1_000_000_000L / displayHz).toLong()
 
             val tfps = if (targetFps > 0) targetFps else 60
-            val streamPeriodNs = (1_000_000_000L / max(1, tfps)).toLong()
+            val streamPeriodNs = 1_000_000_000L / max(1, tfps)
             val periodNs = if (preferLowerDelays) vsyncPeriodNs else max(vsyncPeriodNs, streamPeriodNs)
 
             val ewmaAlpha = 0.25
@@ -1827,6 +1832,36 @@ class MediaCodecDecoderRenderer(
         return minDecodeTimeFullLog
     }
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private fun appendDecoderCapabilities(
+        append: (String) -> Unit,
+        label: String,
+        mimeType: String,
+        decoder: MediaCodecInfo?,
+    ) {
+        if (decoder == null) {
+            return
+        }
+
+        val videoCapabilities = decoder.getCapabilitiesForType(mimeType).videoCapabilities
+        if (videoCapabilities == null) {
+            append("$label capabilities: UNAVAILABLE" + RendererException.DELIMITER)
+            return
+        }
+
+        append("$label supported width range: ${videoCapabilities.supportedWidths}" + RendererException.DELIMITER)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            append(
+                try {
+                    val fpsRange = videoCapabilities.getAchievableFrameRatesFor(initialWidth, initialHeight)
+                    "$label achievable FPS range: $fpsRange" + RendererException.DELIMITER
+                } catch (_: IllegalArgumentException) {
+                    "$label achievable FPS range: UNSUPPORTED!" + RendererException.DELIMITER
+                },
+            )
+        }
+    }
+
     class DecoderHungException(private val hangTimeMs: Int) : RuntimeException() {
         override fun toString(): String {
             var str = ""
@@ -1868,50 +1903,10 @@ class MediaCodecDecoderRenderer(
             str += "AVC Decoder: " + (renderer.avcDecoder?.name ?: "(none)") + DELIMITER
             str += "HEVC Decoder: " + (renderer.hevcDecoder?.name ?: "(none)") + DELIMITER
             str += "AV1 Decoder: " + (renderer.av1Decoder?.name ?: "(none)") + DELIMITER
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && renderer.avcDecoder != null) {
-                val avcWidthRange: Range<Int> =
-                    renderer.avcDecoder!!.getCapabilitiesForType("video/avc").videoCapabilities.supportedWidths
-                str += "AVC supported width range: " + avcWidthRange + DELIMITER
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    str += try {
-                        val avcFpsRange =
-                            renderer.avcDecoder!!.getCapabilitiesForType("video/avc").videoCapabilities
-                                .getAchievableFrameRatesFor(renderer.initialWidth, renderer.initialHeight)
-                        "AVC achievable FPS range: " + avcFpsRange + DELIMITER
-                    } catch (_: IllegalArgumentException) {
-                        "AVC achievable FPS range: UNSUPPORTED!" + DELIMITER
-                    }
-                }
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && renderer.hevcDecoder != null) {
-                val hevcWidthRange: Range<Int> =
-                    renderer.hevcDecoder!!.getCapabilitiesForType("video/hevc").videoCapabilities.supportedWidths
-                str += "HEVC supported width range: " + hevcWidthRange + DELIMITER
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    str += try {
-                        val hevcFpsRange =
-                            renderer.hevcDecoder!!.getCapabilitiesForType("video/hevc").videoCapabilities
-                                .getAchievableFrameRatesFor(renderer.initialWidth, renderer.initialHeight)
-                        "HEVC achievable FPS range: " + hevcFpsRange + DELIMITER
-                    } catch (_: IllegalArgumentException) {
-                        "HEVC achievable FPS range: UNSUPPORTED!" + DELIMITER
-                    }
-                }
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && renderer.av1Decoder != null) {
-                val av1WidthRange: Range<Int> =
-                    renderer.av1Decoder!!.getCapabilitiesForType("video/av01").videoCapabilities.supportedWidths
-                str += "AV1 supported width range: " + av1WidthRange + DELIMITER
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    str += try {
-                        val av1FpsRange =
-                            renderer.av1Decoder!!.getCapabilitiesForType("video/av01").videoCapabilities
-                                .getAchievableFrameRatesFor(renderer.initialWidth, renderer.initialHeight)
-                        "AV1 achievable FPS range: " + av1FpsRange + DELIMITER
-                    } catch (_: IllegalArgumentException) {
-                        "AV1 achievable FPS range: UNSUPPORTED!" + DELIMITER
-                    }
-                }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                renderer.appendDecoderCapabilities(append = { str += it }, "AVC", "video/avc", renderer.avcDecoder)
+                renderer.appendDecoderCapabilities(append = { str += it }, "HEVC", "video/hevc", renderer.hevcDecoder)
+                renderer.appendDecoderCapabilities(append = { str += it }, "AV1", "video/av01", renderer.av1Decoder)
             }
             str += "Configured format: " + renderer.configuredFormat + DELIMITER
             str += "Input format: " + renderer.inputFormat + DELIMITER

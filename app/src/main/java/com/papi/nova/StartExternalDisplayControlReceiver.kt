@@ -16,10 +16,17 @@ import com.papi.nova.utils.ExternalDisplayControlActivity
 class StartExternalDisplayControlReceiver : BroadcastReceiver() {
     @RequiresApi(api = Build.VERSION_CODES.O)
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION_START_EXTERNAL_DISPLAY_CONTROL) {
+            return
+        }
+
         requestFocusToGameActivity(true)
     }
 
     companion object {
+        const val ACTION_START_EXTERNAL_DISPLAY_CONTROL =
+            "com.papi.nova.action.START_EXTERNAL_DISPLAY_CONTROL"
+
         private const val TIMEOUT_MS = 300L
         private val handler = Handler(Looper.getMainLooper())
         private var isTimeoutActive = false

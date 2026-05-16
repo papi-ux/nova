@@ -312,22 +312,40 @@ class ShortcutTrampoline : AppCompatActivity() {
         }
 
         val authority = fileUri.authority
-        if (ContentResolver.SCHEME_CONTENT == scheme && authority.isNullOrEmpty()) {
-            return false
+        if (ContentResolver.SCHEME_CONTENT == scheme) {
+            if (authority.isNullOrEmpty() || isNovaInternalContentAuthority(authority)) {
+                return false
+            }
         }
 
-        try {
-            val normalizedPath = File(path).canonicalPath
-            for (prefix in DISALLOWED_ART_FILE_PATH_PREFIXES) {
-                if (normalizedPath == prefix || normalizedPath.startsWith(prefix + File.separator)) {
-                    return false
-                }
-            }
+        val canonicalPath = try {
+            File(path).canonicalPath
         } catch (_: IOException) {
             return false
         }
 
+        if (canonicalPath == "/data" || canonicalPath.startsWith("/data/")) {
+            return false
+        }
+        if (canonicalPath == "/proc" || canonicalPath.startsWith("/proc/")) {
+            return false
+        }
+        if (canonicalPath == "/sys" || canonicalPath.startsWith("/sys/")) {
+            return false
+        }
+        if (canonicalPath == "/dev" || canonicalPath.startsWith("/dev/")) {
+            return false
+        }
+        if (canonicalPath == "/acct" || canonicalPath.startsWith("/acct/")) {
+            return false
+        }
+
         return true
+    }
+
+    private fun isNovaInternalContentAuthority(authority: String): Boolean {
+        return authority == BuildConfig.APPLICATION_ID + ".fileprovider" ||
+            authority == PosterContentProvider.AUTHORITY
     }
 
     private fun parseArtFileData(fileUri: Uri?): Map<String, String>? {
@@ -641,13 +659,6 @@ class ShortcutTrampoline : AppCompatActivity() {
 
     companion object {
         private const val MAX_ART_FILE_CHARS = 64 * 1024
-        private val DISALLOWED_ART_FILE_PATH_PREFIXES = arrayOf(
-            "/data",
-            "/proc",
-            "/sys",
-            "/dev",
-            "/acct",
-        )
         private const val TAG = "ShortcutTrampoline"
     }
 }

@@ -61,7 +61,7 @@ class NvHTTP @Throws(IOException::class) constructor(
 ) {
     private val deviceName: String = DeviceUtils.getModel()
     private val pm: PairingManager
-    private lateinit var baseUrlHttp: HttpUrl
+    private val baseUrlHttp: HttpUrl
 
     private lateinit var httpClientLongConnectTimeout: OkHttpClient
     private lateinit var httpClientLongConnectNoReadTimeout: OkHttpClient
@@ -79,7 +79,7 @@ class NvHTTP @Throws(IOException::class) constructor(
             if (addressString.contains(":") && addressString.contains(".")) {
                 val addr = InetAddress.getByName(addressString)
                 if (addr is Inet4Address) {
-                    addressString = addr.hostAddress
+                    addressString = addr.hostAddress ?: addressString
                 }
             }
 
@@ -319,13 +319,24 @@ class NvHTTP @Throws(IOException::class) constructor(
             throw IllegalArgumentException("Unexpected NvHTTP path")
         }
 
-        return baseUrl.newBuilder()
+        val completeUrl = baseUrl.newBuilder()
             .addPathSegments(path)
             .query(query)
             .addQueryParameter("devicename", deviceName)
             .addQueryParameter("uniqueid", uniqueId)
             .addQueryParameter("uuid", UUID.randomUUID().toString())
             .build()
+        if (!isExpectedNvHttpUrl(completeUrl, path)) {
+            throw IllegalArgumentException("Unexpected NvHTTP URL")
+        }
+        return completeUrl
+    }
+
+    private fun isExpectedNvHttpUrl(url: HttpUrl, path: String): Boolean {
+        return isExpectedBaseUrl(url) &&
+            url.encodedPath == "/$path" &&
+            url.username.isEmpty() &&
+            url.password.isEmpty()
     }
 
     @Throws(IOException::class)
@@ -341,6 +352,9 @@ class NvHTTP @Throws(IOException::class) constructor(
         }
 
         val completeUrl = getCompleteUrl(baseUrl, path, query)
+        if (!isExpectedNvHttpUrl(completeUrl, path)) {
+            throw IOException("Unexpected NvHTTP target")
+        }
         val builder = Request.Builder().url(completeUrl)
         val request = if (requestBody == null) {
             builder.get().build()
@@ -986,7 +1000,7 @@ class NvHTTP @Throws(IOException::class) constructor(
                         }
                     }
                     XmlPullParser.TEXT -> {
-                        val app = appList.last
+                        val app = appList.last()
                         when (currentTag.peek()) {
                             "AppTitle" -> app.appName = xpp.text
                             "UUID" -> app.appUUID = xpp.text
