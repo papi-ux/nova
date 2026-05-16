@@ -74,6 +74,7 @@ data class NovaHudUiState(
     val lowOnePercentLabel: String,
     val streamModeLabel: String,
     val autopilotLabel: String,
+    val autopilotHudLabel: String,
     val autopilotCompactLabel: String,
     val fpsTone: NovaHudTone,
     val latencyTone: NovaHudTone,
@@ -159,6 +160,7 @@ data class NovaHudUiState(
                 lowOnePercentLabel = lowOnePercentFps.takeIf { it > 0.0 }?.roundToInt()?.let { "1%: $it" } ?: "--",
                 streamModeLabel = status?.let(::buildSessionModeLabel).orEmpty(),
                 autopilotLabel = autoQuality.label,
+                autopilotHudLabel = autoQuality.hudLabel(),
                 autopilotCompactLabel = autoQuality.compactLabel,
                 fpsTone = toneForFps(fps, targetFps),
                 latencyTone = toneForLatency(latencyMs),
@@ -274,6 +276,37 @@ data class NovaHudUiState(
             return listOf(mode, bitDepth, path, modeSource, lifecycle, optimization, normalized)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
+        }
+
+        private fun AutoQualityUiState.hudLabel(): String = when (state) {
+            AutoQualityUiState.State.OFF -> "Auto Off"
+            AutoQualityUiState.State.WATCHING -> "Auto Check"
+            AutoQualityUiState.State.OPTIMIZING -> "Optimizing"
+            AutoQualityUiState.State.STABLE -> when {
+                manualOverride -> "Quality Preset"
+                label.contains("cap", ignoreCase = true) -> "Auto Cap"
+                else -> "Auto Stable"
+            }
+            AutoQualityUiState.State.RECOVERING -> when {
+                compactLabel == "HOST" -> "AI Recovery"
+                label.contains("bitrate", ignoreCase = true) -> "Bitrate Recovery"
+                label.contains("FPS", ignoreCase = true) -> "FPS Recovery"
+                else -> "Recovering"
+            }
+            AutoQualityUiState.State.BLOCKED -> when {
+                label.contains("host", ignoreCase = true) -> "Host Limited"
+                label.contains("network", ignoreCase = true) -> "Network Limited"
+                label.contains("encoder", ignoreCase = true) -> "Encoder Limited"
+                label.contains("decoder", ignoreCase = true) -> "Decoder Limited"
+                else -> "Holding"
+            }
+            AutoQualityUiState.State.UPGRADE_AVAILABLE -> "Quality Ready"
+            AutoQualityUiState.State.MANUAL_OVERRIDE -> "Manual"
+            AutoQualityUiState.State.NEEDS_ATTENTION -> when {
+                label.contains("sync", ignoreCase = true) -> "Sync Attention"
+                label.contains("decoder", ignoreCase = true) -> "Decoder Pressure"
+                else -> "Attention"
+            }
         }
 
         private fun AutoQualityUiState.Tone.toHudTone(): NovaHudTone = when (this) {

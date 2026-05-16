@@ -88,11 +88,12 @@ private fun NovaStreamHudFull(state: NovaHudUiState, modifier: Modifier) {
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = state.autopilotLabel,
+                    text = state.autopilotHudLabel,
                     color = state.statusTone.hudColor(),
                     fontSize = 10.sp,
                     lineHeight = 12.sp,
                     fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.widthIn(max = 96.dp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -144,23 +145,28 @@ private fun NovaStreamHudFull(state: NovaHudUiState, modifier: Modifier) {
 @Composable
 private fun NovaStreamHudBanner(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
-        modifier = modifier.widthIn(min = 0.dp),
+        modifier = modifier.width(320.dp),
         cornerRadius = 16.dp,
         padding = 8.dp
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             HudStatusDot(state.statusTone, height = 20.dp)
             Text(
                 text = state.autopilotCompactLabel,
                 color = state.statusTone.hudColor(),
                 fontSize = 9.sp,
+                lineHeight = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
-                    .padding(start = 7.dp)
-                    .widthIn(min = 36.dp),
-                maxLines = 1
+                    .padding(start = 5.dp)
+                    .widthIn(min = 28.dp, max = 42.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            HudDivider()
+            HudDivider(horizontalPadding = 5.dp)
             HudValueText(state.fpsLabel, state.fpsTone, size = 15)
             if (state.targetFpsLabel.isNotBlank()) {
                 Text(
@@ -169,19 +175,21 @@ private fun NovaStreamHudBanner(state: NovaHudUiState, modifier: Modifier) {
                     fontSize = 9.sp,
                     lineHeight = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 1.dp)
+                    modifier = Modifier.padding(start = 1.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            HudCompactText(state.latencyLabel, state.latencyTone, minWidth = 36.dp)
-            HudCompactText(state.bitrateLabel, NovaHudTone.INFO, minWidth = 34.dp)
-            HudCompactText(state.resolutionLabel, NovaHudTone.MUTED)
-            HudCompactText(state.codecLabel, NovaHudTone.MUTED)
+            HudCompactText(state.latencyLabel, state.latencyTone, minWidth = 34.dp, startPadding = 5.dp)
+            HudCompactText(state.bitrateLabel, NovaHudTone.INFO, minWidth = 34.dp, startPadding = 5.dp)
+            HudCompactText(state.resolutionLabel, NovaHudTone.MUTED, minWidth = 34.dp, startPadding = 5.dp)
+            HudCompactText(state.codecLabel, NovaHudTone.MUTED, minWidth = 28.dp, startPadding = 5.dp)
             NovaHudSparkline(
                 samples = state.sparklineSamples,
                 tone = state.fpsTone,
                 modifier = Modifier
-                    .padding(start = 9.dp)
-                    .width(54.dp)
+                    .padding(start = 5.dp)
+                    .width(40.dp)
                     .height(15.dp)
             )
         }
@@ -354,10 +362,10 @@ private fun HudStatusDot(tone: NovaHudTone, height: Dp) {
 }
 
 @Composable
-private fun HudDivider() {
+private fun HudDivider(horizontalPadding: Dp = 8.dp) {
     Spacer(
         modifier = Modifier
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = horizontalPadding)
             .width(1.dp)
             .height(16.dp)
             .background(LocalNovaComposeColors.current.accent.copy(alpha = 0.35f))

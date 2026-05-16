@@ -148,6 +148,40 @@ class NovaComposeSourceGuardTest {
         )
     }
 
+    @Test
+    fun streamHudUsesCompactBoundedLabels() {
+        val source = readNovaStreamHudContent()
+        val fullHud = source.section(
+            "private fun NovaStreamHudFull(",
+            "@Composable\nprivate fun NovaStreamHudBanner("
+        )
+        val banner = source.section(
+            "private fun NovaStreamHudBanner(",
+            "@Composable\nprivate fun NovaStreamHudFpsOnly("
+        )
+
+        assertTrue(
+            "full HUD should use the shorter HUD-specific status label",
+            fullHud.contains("text = state.autopilotHudLabel")
+        )
+        assertTrue(
+            "full HUD status label should have a max width so it cannot crowd the FPS label",
+            fullHud.contains(".widthIn(max = 96.dp)")
+        )
+        assertTrue(
+            "banner HUD should use a stable overlay width instead of unconstrained wrap content",
+            banner.contains("modifier = modifier.width(320.dp)")
+        )
+        assertTrue(
+            "banner compact status should be horizontally bounded",
+            banner.contains(".widthIn(min = 28.dp, max = 42.dp)")
+        )
+        assertTrue(
+            "banner HUD should use explicit compact line height for the status chip",
+            banner.contains("lineHeight = 11.sp")
+        )
+    }
+
     private fun readNovaLibraryActivity(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
 
