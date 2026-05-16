@@ -355,7 +355,19 @@ class NvHTTP @Throws(IOException::class) constructor(
         if (!isExpectedNvHttpUrl(completeUrl, path)) {
             throw IOException("Unexpected NvHTTP target")
         }
-        val builder = Request.Builder().url(completeUrl)
+        val baseUri = baseUrl.toUri()
+        val completeUri = completeUrl.toUri()
+        val requestUrl = if (
+            baseUri.host != null &&
+            baseUri.host.equals(completeUri.host) &&
+            baseUri.scheme.equals(completeUri.scheme) &&
+            baseUri.port == completeUri.port
+        ) {
+            completeUri.toURL()
+        } else {
+            throw IOException("Unexpected NvHTTP target")
+        }
+        val builder = Request.Builder().url(requestUrl)
         val request = if (requestBody == null) {
             builder.get().build()
         } else {
