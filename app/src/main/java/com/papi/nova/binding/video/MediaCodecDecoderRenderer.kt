@@ -1038,6 +1038,7 @@ class MediaCodecDecoderRenderer(
 
                         if (last >= 0) {
                             val nowNs = System.nanoTime()
+                            lastOutputNs = nowNs
                             presentFrame(last, nowNs)
 
                             if (lastPtsUs >= 0) {
@@ -1073,6 +1074,7 @@ class MediaCodecDecoderRenderer(
                         var presentationTimeUs = info.presentationTimeUs
                         var lastIndex = outIndex
 
+                        lastOutputNs = System.nanoTime()
                         numFramesOut++
 
                         if (lastDecoderPtsUs != 0L) {

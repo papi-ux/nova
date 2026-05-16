@@ -111,11 +111,31 @@ public class KotlinVideoRuntimeMigrationTest {
 
     @Test
     public void mediaCodecDecoderWatchdogUsesQuiescedRecoveryFlush() throws Exception {
-        String source = new String(Files.readAllBytes(
-                Path.of("src/main/java/com/papi/nova/binding/video/MediaCodecDecoderRenderer.kt")),
-                StandardCharsets.UTF_8);
+        String source = readMediaCodecDecoderRendererSource();
 
         assertTrue(source.contains("Decoder watchdog: no output >1.2s, scheduling codec flush to recover"));
         assertTrue(source.contains("codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_FLUSH)"));
+    }
+
+    @Test
+    public void mediaCodecDecoderRefreshesWatchdogOnOutputBuffers() throws Exception {
+        String source = readMediaCodecDecoderRendererSource();
+
+        int latestTimestamp = source.indexOf("lastOutputNs = nowNs");
+        int latestPresent = source.indexOf("presentFrame(last, nowNs)");
+        assertTrue("latest-only output path must refresh watchdog before presenting",
+                latestTimestamp > 0 && latestTimestamp < latestPresent);
+
+        int normalOutput = source.indexOf("var lastIndex = outIndex");
+        int normalTimestamp = source.indexOf("lastOutputNs = System.nanoTime()", normalOutput);
+        int frameCount = source.indexOf("numFramesOut++", normalOutput);
+        assertTrue("normal output path must refresh watchdog before counting output frames",
+                normalOutput > 0 && normalTimestamp > normalOutput && normalTimestamp < frameCount);
+    }
+
+    private static String readMediaCodecDecoderRendererSource() throws Exception {
+        return new String(Files.readAllBytes(
+                Path.of("src/main/java/com/papi/nova/binding/video/MediaCodecDecoderRenderer.kt")),
+                StandardCharsets.UTF_8);
     }
 }
