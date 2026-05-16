@@ -68,6 +68,59 @@ class LockScreenOverlayTest {
         assertEquals("Tap to Unlock", button.text.toString())
     }
 
+    @Test
+    fun successfulUnlockDismissesOverlay() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val client = Mockito.mock(PolarisApiClient::class.java)
+        Mockito.`when`(client.unlockScreen()).thenReturn(true)
+
+        val overlay = LockScreenOverlay(activity, client)
+        overlay.show()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        overlayRoot(activity).performClick()
+
+        verify(client, timeout(1000)).unlockScreen()
+        repeat(20) {
+            shadowOf(Looper.getMainLooper()).idle()
+            if (!overlay.isShowing) return@repeat
+            Thread.sleep(50)
+        }
+
+        assertFalse(overlay.isShowing)
+    }
+
+    @Test
+    fun dismissedOverlayIgnoresLateUnlockFailure() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val client = Mockito.mock(PolarisApiClient::class.java)
+        val unlockStarted = CountDownLatch(1)
+        val finishUnlock = CountDownLatch(1)
+
+        Mockito.doAnswer {
+            unlockStarted.countDown()
+            assertTrue(finishUnlock.await(1, TimeUnit.SECONDS))
+            false
+        }.`when`(client).unlockScreen()
+
+        val overlay = LockScreenOverlay(activity, client)
+        overlay.show()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        overlayRoot(activity).performClick()
+        assertTrue(unlockStarted.await(1, TimeUnit.SECONDS))
+
+        overlay.dismiss()
+        shadowOf(Looper.getMainLooper()).idle()
+        finishUnlock.countDown()
+        repeat(10) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(25)
+        }
+
+        assertFalse(overlay.isShowing)
+    }
+
     private fun overlayRoot(activity: Activity): ViewGroup {
         val content = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
         return content.getChildAt(content.childCount - 1) as ViewGroup

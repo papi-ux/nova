@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
 import android.util.AttributeSet
+import android.util.Property
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.LinearLayout
@@ -69,7 +70,7 @@ class ApertureViewGroup @JvmOverloads constructor(
             typedArray.recycle()
         }
 
-        animator = ObjectAnimator.ofFloat(this, "currentSpeed", 0f, 360f).apply {
+        animator = ObjectAnimator.ofFloat(this, CURRENT_SPEED_PROPERTY, 0f, 360f).apply {
             repeatCount = ObjectAnimator.INFINITE
             repeatMode = ObjectAnimator.RESTART
             interpolator = null
@@ -138,5 +139,18 @@ class ApertureViewGroup @JvmOverloads constructor(
 
         canvas.restore()
         super.dispatchDraw(canvas)
+    }
+
+    private companion object {
+        val CURRENT_SPEED_PROPERTY = object : Property<ApertureViewGroup, Float>(
+            Float::class.java,
+            "currentSpeed"
+        ) {
+            override fun get(view: ApertureViewGroup): Float = view.currentSpeed
+
+            override fun set(view: ApertureViewGroup, value: Float?) {
+                view.currentSpeed = value ?: 0f
+            }
+        }
     }
 }

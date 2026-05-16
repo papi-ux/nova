@@ -202,7 +202,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         return@haptic
                     }
 
-                    Thread {
+                    game.launchRuntimeIo("NovaQuickMenuStability") {
                         var success = true
                         if (shouldEnableAutoQuality) {
                             success = apiClient.setAiAutoQualityEnabled(true) && success
@@ -214,7 +214,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                             syncSessionDerivedState()
                         }
-                        game.runOnUiThread {
+                        game.runOnMainIfRuntimeActive {
                             if (!success) {
                                 stabilityApplied = false
                                 Toast.makeText(game, R.string.nova_quick_menu_stability_failed, Toast.LENGTH_SHORT).show()
@@ -232,7 +232,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             }
                             refreshState()
                         }
-                    }.start()
+                    }
                 }
             },
             onSyncStatus = {
@@ -244,14 +244,14 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         game.relaunchStream()
                         return@haptic
                     }
-                    Thread {
+                    game.launchRuntimeIo("NovaQuickMenuSyncStatus") {
                         sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
-                        game.runOnUiThread {
+                        game.runOnMainIfRuntimeActive {
                             syncSessionDerivedState()
                             hostStateUnavailable = false
                             refreshState()
                         }
-                    }.start()
+                    }
                 }
             },
             onToggleAdvanced = {
@@ -269,20 +269,20 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     val next = !aiEnabled
                     aiEnabled = next
                     refreshState()
-                    Thread {
+                    game.launchRuntimeIo("NovaQuickMenuAiAutoQuality") {
                         val success = apiClient.setAiAutoQualityEnabled(next)
                         if (success) {
                             sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                             syncSessionDerivedState()
                         }
-                        game.runOnUiThread {
+                        game.runOnMainIfRuntimeActive {
                             if (!success) {
                                 aiEnabled = !next
                                 Toast.makeText(game, R.string.nova_quick_menu_ai_toggle_failed, Toast.LENGTH_SHORT).show()
                             }
                             refreshState()
                         }
-                    }.start()
+                    }
                 }
             },
             onClearGameProfile = {
@@ -294,13 +294,13 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     }
                     profileClearInProgress = true
                     refreshState()
-                    Thread {
+                    game.launchRuntimeIo("NovaQuickMenuClearProfile") {
                         val cleared = apiClient.clearOptimizerProfile(DeviceUtils.getModel(), gameName)
                         if (cleared == true) {
                             sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                             syncSessionDerivedState()
                         }
-                        game.runOnUiThread {
+                        game.runOnMainIfRuntimeActive {
                             profileClearInProgress = false
                             val message = when (cleared) {
                                 true -> R.string.nova_library_reset_game_profile_cleared
@@ -310,7 +310,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             Toast.makeText(game, message, Toast.LENGTH_SHORT).show()
                             refreshState()
                         }
-                    }.start()
+                    }
                 }
             },
             onMangoHud = {
@@ -326,20 +326,20 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     if (next && status.game.equals("Steam Big Picture", ignoreCase = true)) {
                         Toast.makeText(game, R.string.nova_mangohud_warning_big_picture, Toast.LENGTH_LONG).show()
                     }
-                    Thread {
+                    game.launchRuntimeIo("NovaQuickMenuMangoHud") {
                         val success = apiClient.setMangoHud(gameUuid, next)
                         if (success) {
                             sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
                             syncSessionDerivedState()
                         }
-                        game.runOnUiThread {
+                        game.runOnMainIfRuntimeActive {
                             if (!success) {
                                 mangoHudEnabled = !next
                                 Toast.makeText(game, R.string.nova_quick_menu_mangohud_failed, Toast.LENGTH_SHORT).show()
                             }
                             refreshState()
                         }
-                    }.start()
+                    }
                 }
             },
             onProfilePreference = { preference ->
@@ -440,7 +440,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         if (apiClient != null) {
-            Thread {
+            game.launchRuntimeIo("NovaQuickMenuStateRefresh") {
                 try {
                     capabilities = apiClient.getCapabilities()
                     sessionStatus = apiClient.getSessionStatus()
@@ -453,13 +453,15 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     hostStateUnavailable = false
                     syncSessionDerivedState()
 
-                    game.runOnUiThread { refreshState() }
+                    game.runOnMainIfRuntimeActive { refreshState() }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: Quick menu state refresh failed: ${e.message}")
                     hostStateUnavailable = true
-                    game.runOnUiThread { refreshState() }
+                    game.runOnMainIfRuntimeActive { refreshState() }
                 }
-            }.start()
+            }
         } else {
             refreshState()
         }
