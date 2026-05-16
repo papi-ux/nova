@@ -59,6 +59,7 @@ class ComputerManagerService : Service() {
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var discoveryBinder: DiscoveryService.DiscoveryBinder? = null
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
     private val discoveryServiceLock = Object()
     private val discoveryServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, binder: IBinder) {
@@ -622,6 +623,7 @@ class ComputerManagerService : Service() {
         val address: ComputerDetails.AddressTuple?,
         val existingDetails: ComputerDetails,
     ) {
+        @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
         val completionLock = Object()
         var complete = false
         var pollingThread: Thread? = null
@@ -833,6 +835,7 @@ class ComputerManagerService : Service() {
 
     inner class ApplistPoller(private val computer: ComputerDetails) {
         private var thread: Thread? = null
+        @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
         private val pollEvent = Object()
         private var receivedAppList = false
 
@@ -992,7 +995,7 @@ class PollingTuple(@JvmField val computer: ComputerDetails) {
     var future: ScheduledFuture<*>? = null
 
     @JvmField
-    val networkLock: Any = Object()
+    val networkLock: Any = Any()
 
     @JvmField
     var lastSuccessfulPollMs: Long = 0

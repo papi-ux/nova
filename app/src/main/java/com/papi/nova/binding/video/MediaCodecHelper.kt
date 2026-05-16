@@ -997,7 +997,6 @@ class MediaCodecHelper {
 
                             if (preferStabilityDecoders &&
                                 i == 0 &&
-                                decoderName != null &&
                                 decoderName.lowercase(Locale.US).contains("low_latency")
                             ) {
                                 LimeLog.info("Skipping low-latency decoder for Auto Safe stability: $decoderName")

@@ -68,7 +68,9 @@
             android:enabled="true"
             android:exported="true">
         </provider>
-        <receiver android:name=".StartExternalDisplayControlReceiver" />
+        <receiver
+            android:name=".StartExternalDisplayControlReceiver"
+            android:exported="false" />
         <!-- Samsung multi-window support -->
         <uses-library
             android:name="com.sec.android.app.multiwindow"

@@ -12,19 +12,38 @@ import java.io.InputStreamReader
 import java.io.OutputStream
 
 object CacheHelper {
-    private fun isSafePathComponent(component: String?): Boolean {
-        return component != null &&
-            component.isNotEmpty() &&
-            component != "." &&
-            !component.contains("..") &&
-            component.indexOf('/') == -1 &&
-            component.indexOf('\\') == -1
-    }
-
     private fun isUnderRoot(root: File, file: File): Boolean {
         val rootPath = root.path
         val filePath = file.path
         return filePath == rootPath || filePath.startsWith(rootPath + File.separator)
+    }
+
+    @Throws(IOException::class)
+    private fun resolveCacheFile(root: File, path: Array<out String?>): File {
+        val canonicalRoot = root.canonicalFile
+        var file = canonicalRoot
+
+        for (component in path) {
+            val safeComponent = component
+            if (
+                safeComponent == null ||
+                safeComponent.isEmpty() ||
+                safeComponent == "." ||
+                safeComponent.contains("..") ||
+                safeComponent.indexOf('/') != -1 ||
+                safeComponent.indexOf('\\') != -1
+            ) {
+                throw FileNotFoundException("Invalid cache path component")
+            }
+            file = File(file, safeComponent)
+        }
+
+        val canonicalFile = file.canonicalFile
+        if (!isUnderRoot(canonicalRoot, canonicalFile)) {
+            throw FileNotFoundException("Cache path escapes root")
+        }
+
+        return canonicalFile
     }
 
     @JvmStatic
@@ -37,28 +56,35 @@ object CacheHelper {
             throw IllegalArgumentException("Unable to resolve cache root", e)
         }
 
-        var file = nonNullRoot
+        var file = canonicalRoot
         path.forEachIndexed { index, component ->
-            if (!isSafePathComponent(component)) {
+            val safeComponent = component
+            if (
+                safeComponent == null ||
+                safeComponent.isEmpty() ||
+                safeComponent == "." ||
+                safeComponent.contains("..") ||
+                safeComponent.indexOf('/') != -1 ||
+                safeComponent.indexOf('\\') != -1
+            ) {
                 throw IllegalArgumentException("Invalid cache path component")
             }
 
             if (index == path.lastIndex && createPath) {
                 file.mkdirs()
             }
-            file = File(file, component!!)
+            file = File(file, safeComponent)
         }
 
-        try {
+        return try {
             val canonicalFile = file.canonicalFile
             if (!isUnderRoot(canonicalRoot, canonicalFile)) {
                 throw IllegalArgumentException("Cache path escapes root")
             }
+            canonicalFile
         } catch (e: IOException) {
             throw IllegalArgumentException("Unable to resolve cache path", e)
         }
-
-        return file
     }
 
     @JvmStatic
@@ -79,40 +105,14 @@ object CacheHelper {
     @JvmStatic
     @Throws(IOException::class)
     fun openCacheFileForInput(root: File, vararg path: String?): InputStream {
-        val canonicalRoot = root.canonicalFile
-        var file = canonicalRoot
-        for (component in path) {
-            if (!isSafePathComponent(component)) {
-                throw FileNotFoundException("Invalid cache path component")
-            }
-            file = File(file, component!!)
-        }
-
-        val canonicalFile = file.canonicalFile
-        if (!isUnderRoot(canonicalRoot, canonicalFile)) {
-            throw FileNotFoundException("Cache path escapes root")
-        }
-
+        val canonicalFile = resolveCacheFile(root, path)
         return BufferedInputStream(FileInputStream(canonicalFile))
     }
 
     @JvmStatic
     @Throws(IOException::class)
     fun openCacheFileForOutput(root: File, vararg path: String?): OutputStream {
-        val canonicalRoot = root.canonicalFile
-        var file = canonicalRoot
-        for (component in path) {
-            if (!isSafePathComponent(component)) {
-                throw FileNotFoundException("Invalid cache path component")
-            }
-            file = File(file, component!!)
-        }
-
-        val canonicalFile = file.canonicalFile
-        if (!isUnderRoot(canonicalRoot, canonicalFile)) {
-            throw FileNotFoundException("Cache path escapes root")
-        }
-
+        val canonicalFile = resolveCacheFile(root, path)
         val parent = canonicalFile.parentFile
         if (parent == null || (!parent.isDirectory && !parent.mkdirs())) {
             throw FileNotFoundException("Unable to create cache parent path")
