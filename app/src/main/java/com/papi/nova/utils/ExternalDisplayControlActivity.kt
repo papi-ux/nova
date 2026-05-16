@@ -240,7 +240,7 @@ class ExternalDisplayControlActivity :
         val game = Game.instance
         if (game != null && game.isKeyboardLayoutVisible) {
             toggleFullKeyboard()
-        } else if (gameMenu != null && gameMenu?.isMenuOpen == false && game != null) {
+        } else if (gameMenu != null && gameMenu?.isMenuOpen() == false && game != null) {
             game.onBackPressed()
         } else {
             @Suppress("DEPRECATION")
@@ -253,7 +253,7 @@ class ExternalDisplayControlActivity :
     }
 
     private fun initializeComponents() {
-        gameMenu = GameMenu(Game.instance, this)
+        gameMenu = GameMenu(Game.instance ?: return, this)
     }
 
     override fun onConfigurationChanged(@NonNull newConfig: Configuration) {
@@ -340,7 +340,7 @@ class ExternalDisplayControlActivity :
         val topLeftButtons = createButtonContainer(Gravity.TOP or Gravity.START)
         topLeftButtons.isFocusable = false
         zoomButton = createImageButton(R.drawable.ic_zoom_toggle) { toggleZoomMode(true) }
-        if (Game.instance != null && Game.instance.isZoomModeEnabled) {
+        if (Game.instance?.isZoomModeEnabled == true) {
             zoomButton.alpha = 1.0f
         } else {
             zoomButton.alpha = 0.5f
