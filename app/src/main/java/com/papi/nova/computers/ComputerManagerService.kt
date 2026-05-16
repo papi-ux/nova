@@ -588,7 +588,7 @@ class ComputerManagerService : Service() {
             if (returnedUuid == null) {
                 LimeLog.severe("Polling returned no UUID!")
                 null
-            } else if (expectedUuid != null && expectedUuid != returnedUuid) {
+            } else if (!isExpectedComputerUuid(expectedUuid, returnedUuid)) {
                 // We got the wrong PC!
                 LimeLog.info("Polling returned the wrong PC!")
                 null
@@ -612,6 +612,10 @@ class ComputerManagerService : Service() {
                 null
             }
         }
+    }
+
+    private fun isExpectedComputerUuid(expectedUuid: String?, returnedUuid: String?): Boolean {
+        return returnedUuid != null && (expectedUuid.isNullOrEmpty() || expectedUuid == returnedUuid)
     }
 
     private class ParallelPollTuple(

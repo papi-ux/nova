@@ -289,6 +289,9 @@ private var uniqueId:String? = null
 private var serverCert:X509Certificate? = null
 private var vDisplay:Boolean = false
 private var watchOnlyRequested:Boolean = false
+private var watchStreamWidth:Int = 0
+private var watchStreamHeight:Int = 0
+private var watchStreamFps:Float = 0f
 private var backgroundResumePrepared:Boolean = false
 private var disconnectResumeTimeoutSynced:Boolean = false
  var serverCmds:ArrayList<String> = ArrayList()
@@ -524,12 +527,18 @@ displayWidth = if (shouldInvertDecoderResolution) prefConfig!!.height else prefC
 displayHeight = if (shouldInvertDecoderResolution) prefConfig!!.width else prefConfig!!.height
 
  // Enter landscape unless we're on a square screen
-            setPreferredOrientationForActivity()
+	            setPreferredOrientationForActivity()
+	}
+
+if (watchOnlyRequested && watchStreamWidth > 0 && watchStreamHeight > 0)
+{
+LimeLog.info("Nova: Watch mode using active stream resolution " + watchStreamWidth + "x" + watchStreamHeight)
+displayWidth = watchStreamWidth
+displayHeight = watchStreamHeight
 }
 
-
-if ((prefConfig!!.videoScaleMode == PreferenceConfiguration.ScaleMode.STRETCH || shouldIgnoreInsetsForResolution(displayWidth, displayHeight)))
-{
+	if ((prefConfig!!.videoScaleMode == PreferenceConfiguration.ScaleMode.STRETCH || shouldIgnoreInsetsForResolution(displayWidth, displayHeight)))
+	{
  // Allow the activity to layout under notches if the fill-screen option
             // was turned on by the user or it's a full-screen native resolution
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
@@ -678,6 +687,9 @@ uniqueId = this@Game.getIntent().getStringExtra(EXTRA_UNIQUEID)
 vDisplay = this@Game.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false)
 var displayModeExplicit:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false)
 watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
+watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
+watchStreamHeight = this@Game.getIntent().getIntExtra(EXTRA_STREAM_HEIGHT, 0)
+watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)
 serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
 var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
 var derCertData:ByteArray? = this@Game.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT)
@@ -717,7 +729,7 @@ finish()
 return
 }
 
-var launchOptimization:JSONObject? = loadLaunchOptimization(appName)
+var launchOptimization:JSONObject? = if (watchOnlyRequested) null else loadLaunchOptimization(appName)
 
  // Initialize the MediaCodec helper before creating the decoder
         var glPrefs:GlPreferences? = GlPreferences.readPreferences(this)
@@ -725,7 +737,7 @@ MediaCodecHelper.initialize(this, glPrefs!!.glRenderer)
 MediaCodecHelper.setPreferStabilityDecoders(
 com.papi.nova.manager.StreamSyncManager.shouldPreferStabilityDecoder(launchOptimization)
 )
-var forceFreshLaunch:Boolean = com.papi.nova.manager.StreamSyncManager.shouldForceFreshLaunch(launchOptimization)
+var forceFreshLaunch:Boolean = !watchOnlyRequested && com.papi.nova.manager.StreamSyncManager.shouldForceFreshLaunch(launchOptimization)
 if (forceFreshLaunch)
 {
 LimeLog.info("Nova: Auto Safe requires fresh launch before streaming")
@@ -910,13 +922,18 @@ if (prefConfig!!.onscreenController)
             gamepadMask = gamepadMask or 1
 }
 
-var launchRefreshRate:Float = prefConfig!!.fps
+var watchStreamFpsOverride:Boolean = watchOnlyRequested && watchStreamFps > 0f
+var launchRefreshRate:Float = if (watchStreamFpsOverride) watchStreamFps else prefConfig!!.fps
 var maxSupportedLaunchRefreshRate:Float = getMaxSupportedRefreshRate(currentDisplay)
-if ((maxSupportedLaunchRefreshRate > 0 && launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f))
+if (!watchStreamFpsOverride && (maxSupportedLaunchRefreshRate > 0 && launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f))
 {
 LimeLog.info(("Clamping launch refresh rate from " + launchRefreshRate +
 " to display max " + maxSupportedLaunchRefreshRate))
 launchRefreshRate = maxSupportedLaunchRefreshRate
+}
+if (watchStreamFpsOverride)
+{
+LimeLog.info("Nova: Watch mode using active stream FPS " + watchStreamFps)
 }
 var autoSafeTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeTargetFps(
 launchRefreshRate,
@@ -5108,10 +5125,10 @@ schedulePolarisLiveSessionStatusRefresh(true)
 }
 if (com.papi.nova.manager.FeatureFlagManager.hasLockScreenControl)
 {
-var shouldShowLockOverlay:Boolean = screenLocked && !cageRunning
-if (screenLocked && cageRunning)
+var shouldShowLockOverlay:Boolean = shouldShowPolarisLockOverlay(screenLocked, cageRunning)
+if (shouldShowLockOverlay && cageRunning)
 {
-LimeLog.info("Nova SSE: ignoring host lock flag while stream compositor is running")
+LimeLog.info("Nova SSE: host lock flag received while stream compositor is running; showing unlock overlay")
 }
 if (shouldShowLockOverlay)
 {
@@ -5699,6 +5716,9 @@ companion object {
  const val EXTRA_VDISPLAY:String = "VirtualDisplay"
  const val EXTRA_DISPLAY_MODE_EXPLICIT:String = "DisplayModeExplicit"
  const val EXTRA_WATCH_ONLY:String = "WatchOnly"
+ const val EXTRA_STREAM_WIDTH:String = "StreamWidth"
+ const val EXTRA_STREAM_HEIGHT:String = "StreamHeight"
+ const val EXTRA_STREAM_FPS:String = "StreamFps"
  const val EXTRA_SERVER_COMMANDS:String = "ServerCommands"
  const val EXTRA_DISPLAY_ID:String = "DisplayID"
 
@@ -5769,6 +5789,10 @@ sdkInt:Int):Boolean {
 return (prefEnableHdr &&
 !onExternalDisplay &&
 sdkInt < Build.VERSION_CODES.N)
+}
+
+ @JvmStatic fun shouldShowPolarisLockOverlay(screenLocked:Boolean, cageRunning:Boolean):Boolean {
+return screenLocked
 }
 
 private fun isDisconnectIntent(intent:Intent?):Boolean {

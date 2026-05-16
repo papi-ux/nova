@@ -221,9 +221,12 @@ class KotlinNvstreamRuntimeMigrationTest {
         )
         NvConnection::class.java.getMethod("sendUtf8Text", String::class.java)
         NvConnection::class.java.getMethod("findExternalAddressForMdns", String::class.java, intType)
+        NvConnection::class.java.getMethod("shouldReplaceCurrentSession", booleanType, booleanType)
 
         assertEquals(60.0f, NvConnection.negotiateLaunchRefreshRate(120.0f, 60), 0.001f)
         assertEquals(75.0f, NvConnection.negotiateLaunchRefreshRate(75.0f, 120), 0.001f)
+        assertTrue(NvConnection.shouldReplaceCurrentSession(true, false))
+        assertFalse(NvConnection.shouldReplaceCurrentSession(true, true))
     }
 
     private fun readSource(path: String): String =

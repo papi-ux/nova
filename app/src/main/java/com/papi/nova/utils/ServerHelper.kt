@@ -109,6 +109,9 @@ object ServerHelper {
         watchOnly: Boolean,
         serverCommands: ArrayList<String>?,
         serverCert: ByteArray?,
+        streamWidth: Int = 0,
+        streamHeight: Int = 0,
+        streamFps: Float = 0f,
     ): Intent {
         val prefConfig = PreferenceConfiguration.readPreferences(parent)
         val gameIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && prefConfig.enableFullExDisplay) {
@@ -137,6 +140,13 @@ object ServerHelper {
         gameIntent.putExtra(Game.EXTRA_VDISPLAY, withVDisplay)
         gameIntent.putExtra(Game.EXTRA_DISPLAY_MODE_EXPLICIT, displayModeExplicit)
         gameIntent.putExtra(Game.EXTRA_WATCH_ONLY, watchOnly)
+        if (streamWidth > 0 && streamHeight > 0) {
+            gameIntent.putExtra(Game.EXTRA_STREAM_WIDTH, streamWidth)
+            gameIntent.putExtra(Game.EXTRA_STREAM_HEIGHT, streamHeight)
+        }
+        if (streamFps > 0f) {
+            gameIntent.putExtra(Game.EXTRA_STREAM_FPS, streamFps)
+        }
 
         if (serverCommands != null) {
             gameIntent.putStringArrayListExtra(Game.EXTRA_SERVER_COMMANDS, serverCommands)
@@ -247,6 +257,51 @@ object ServerHelper {
             withVDisplay,
             displayModeExplicit,
             watchOnly,
+        )
+        parent.startActivity(intent)
+        NovaThemeManager.applyFadeTransition(parent)
+    }
+
+    @JvmStatic
+    fun doStart(
+        parent: Activity,
+        app: NvApp,
+        host: String,
+        port: Int,
+        httpsPort: Int,
+        uniqueId: String,
+        pcUuid: String,
+        pcName: String,
+        serverCommands: ArrayList<String>?,
+        withVDisplay: Boolean,
+        displayModeExplicit: Boolean,
+        watchOnly: Boolean,
+        serverCert: ByteArray?,
+        streamWidth: Int,
+        streamHeight: Int,
+        streamFps: Float,
+    ) {
+        parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
+            .putInt("last_played_$pcUuid", app.appId)
+            .apply()
+
+        val intent = createStartIntent(
+            parent,
+            app,
+            host,
+            port,
+            httpsPort,
+            uniqueId,
+            pcUuid,
+            pcName,
+            withVDisplay,
+            displayModeExplicit,
+            watchOnly,
+            serverCommands,
+            serverCert,
+            streamWidth,
+            streamHeight,
+            streamFps,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)

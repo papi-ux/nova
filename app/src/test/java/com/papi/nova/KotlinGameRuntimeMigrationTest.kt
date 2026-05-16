@@ -50,6 +50,9 @@ class KotlinGameRuntimeMigrationTest {
         assertEquals("VirtualDisplay", Game.EXTRA_VDISPLAY)
         assertEquals("DisplayModeExplicit", Game.EXTRA_DISPLAY_MODE_EXPLICIT)
         assertEquals("WatchOnly", Game.EXTRA_WATCH_ONLY)
+        assertEquals("StreamWidth", Game.EXTRA_STREAM_WIDTH)
+        assertEquals("StreamHeight", Game.EXTRA_STREAM_HEIGHT)
+        assertEquals("StreamFps", Game.EXTRA_STREAM_FPS)
         assertEquals("ServerCommands", Game.EXTRA_SERVER_COMMANDS)
         assertEquals("DisplayID", Game.EXTRA_DISPLAY_ID)
         assertEquals("ArtemisStreaming", Game.CLIPBOARD_IDENTIFIER)
@@ -64,6 +67,8 @@ class KotlinGameRuntimeMigrationTest {
         assertTrue(Game.shouldRequestHdrStream(true, false, Build.VERSION_CODES.TIRAMISU, false))
         assertTrue(Game.shouldShowSdr10BitOptInToast(true, false, Build.VERSION_CODES.TIRAMISU, false))
         assertTrue(Game.shouldShowHdrRequiresAndroidNToast(true, false, Build.VERSION_CODES.M))
+        assertTrue(Game.shouldShowPolarisLockOverlay(true, true))
+        assertFalse(Game.shouldShowPolarisLockOverlay(false, true))
         assertEquals(SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date(0)), Game.formatCurrentTime(0))
     }
 

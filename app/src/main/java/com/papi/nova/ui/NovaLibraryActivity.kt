@@ -413,10 +413,13 @@ class NovaLibraryActivity : AppCompatActivity() {
             pcUuid,
             streamPcName,
             streamServerCommands,
-            false,
-            false,
+            session.virtualDisplay,
+            session.displayModeExplicit,
             session.watchOnly,
-            serverCert
+            serverCert,
+            session.streamWidth,
+            session.streamHeight,
+            session.streamFps
         )
     }
 

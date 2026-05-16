@@ -257,7 +257,7 @@ class NvConnection(
                         listener.displayMessage("This stream is already owned by this device. Resume it instead of watching.")
                         return false
                     }
-                    if (streamConfig.getForceFreshLaunch()) {
+                    if (shouldReplaceCurrentSession(streamConfig.getForceFreshLaunch(), context.watchOnlyRequested)) {
                         LimeLog.info("Nova: Auto Safe requested fresh launch; replacing paused session instead of resuming")
                         return quitAndLaunch(h, context)
                     }
@@ -752,6 +752,11 @@ class NvConnection(
             }
 
             return min(requestedLaunchRefreshRate, serverMaxLaunchRefreshRate.toFloat())
+        }
+
+        @JvmStatic
+        fun shouldReplaceCurrentSession(forceFreshLaunch: Boolean, watchOnlyRequested: Boolean): Boolean {
+            return forceFreshLaunch && !watchOnlyRequested
         }
 
         @JvmStatic

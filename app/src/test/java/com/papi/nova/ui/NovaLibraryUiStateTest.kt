@@ -169,7 +169,17 @@ class NovaLibraryUiStateTest {
                 ownerDeviceName = "Pixel",
                 clientRole = "viewer",
                 viewerCount = 2,
-                ownedByClient = false
+                ownedByClient = false,
+                displayMode = PolarisSessionStatus.DisplayModeStatus(
+                    explicitChoice = true,
+                    virtualDisplay = true
+                ),
+                syncStatus = PolarisSessionStatus.SyncStatus(
+                    applied = PolarisSessionStatus.SyncValues(
+                        streamDisplayMode = "host_virtual_display",
+                        displayMode = "1920x1080x30"
+                    )
+                )
             )
         )
 
@@ -177,6 +187,33 @@ class NovaLibraryUiStateTest {
         assertFalse(session.ownedByClient)
         assertTrue(session.watchOnly)
         assertEquals(2, session.viewerCount)
+        assertTrue(session.virtualDisplay)
+        assertTrue(session.displayModeExplicit)
+        assertEquals(1920, session.streamWidth)
+        assertEquals(1080, session.streamHeight)
+        assertEquals(30.0f, session.streamFps, 0.001f)
+    }
+
+    @Test
+    fun activeSessionFallsBackWhenAppliedStreamProfileIsMissing() {
+        val session = NovaLibraryActiveSessionUiState.from(
+            PolarisSessionStatus(
+                state = "streaming",
+                streamingActive = true,
+                game = "Portal",
+                gameId = 24,
+                gameUuid = "portal-uuid",
+                ownedByClient = true,
+                syncStatus = PolarisSessionStatus.SyncStatus(
+                    effective = PolarisSessionStatus.SyncValues(displayMode = "1280x720x60")
+                )
+            )
+        )
+
+        requireNotNull(session)
+        assertEquals(1280, session.streamWidth)
+        assertEquals(720, session.streamHeight)
+        assertEquals(60.0f, session.streamFps, 0.001f)
     }
 
     @Test

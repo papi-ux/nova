@@ -92,6 +92,23 @@ class KotlinComputerServiceMigrationTest {
     }
 
     @Test
+    fun blankUuidManualPollAcceptsReturnedComputerUuid() {
+        val service = ComputerManagerService()
+        val matcher = ComputerManagerService::class.java.getDeclaredMethod(
+            "isExpectedComputerUuid",
+            String::class.java,
+            String::class.java
+        )
+        matcher.isAccessible = true
+
+        assertEquals(true, matcher.invoke(service, null, "server-uuid"))
+        assertEquals(true, matcher.invoke(service, "", "server-uuid"))
+        assertEquals(true, matcher.invoke(service, "server-uuid", "server-uuid"))
+        assertEquals(false, matcher.invoke(service, "other-uuid", "server-uuid"))
+        assertEquals(false, matcher.invoke(service, "", null))
+    }
+
+    @Test
     fun pollingTupleAndReachabilityTupleKeepJavaFieldShape() {
         val computer = ComputerDetails()
         computer.uuid = "service-test"
