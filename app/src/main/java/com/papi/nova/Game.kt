@@ -289,6 +289,8 @@ private var uniqueId:String? = null
 private var serverCert:X509Certificate? = null
 private var vDisplay:Boolean = false
 private var watchOnlyRequested:Boolean = false
+private var backgroundResumePrepared:Boolean = false
+private var disconnectResumeTimeoutSynced:Boolean = false
  var serverCmds:ArrayList<String> = ArrayList()
 
 private var rootView:ViewParent? = null
@@ -706,6 +708,7 @@ novaResilienceManager = com.papi.nova.manager.ConnectionResilienceManager(
 novaApiClient!!, { LimeLog.info("Nova: Attempting reconnect...") }
 )
 com.papi.nova.jni.PolarisNativeHook.register(novaResilienceManager!!)
+syncDisconnectResumeTimeoutPolicy()
 startNovaFeatureProbe()
 
 if (appId == StreamConfiguration.INVALID_APP_ID)
@@ -2424,6 +2427,7 @@ if (conn != null)
 var videoFormat:Int = decoderRenderer!!.activeVideoFormat
 
 displayedFailureDialog = true
+prepareBackgroundResumeWindow()
 stopConnection()
 var message:String? = null
 var selectedVideoFormat:String = ""
@@ -4577,10 +4581,12 @@ if (appName != null)
             shortcutHelper.reportGameLaunched(computer, app!!)
 }
 }
- fun handleStreamStartedState() {
+fun handleStreamStartedState() {
 connected = true
 connecting = false
 isStreamActive = true
+stopBackgroundResumeWindow()
+syncDisconnectResumeTimeoutPolicy()
 syncPolarisCursorVisibility()
 schedulePolarisLiveSessionStatusRefresh(true)
 }
@@ -5452,7 +5458,61 @@ performanceOverlayView!!.setVisibility(View.GONE)
  fun switchTouchSensitivity() {
 prefConfig!!.enableTouchSensitivity = !prefConfig!!.enableTouchSensitivity
 }
+private fun syncDisconnectResumeTimeoutPolicy() {
+if (!::prefConfig.isInitialized || watchOnlyRequested || !prefConfig.keepStreamAlive || disconnectResumeTimeoutSynced)
+{
+return
+}
+val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: return
+val timeoutSeconds:Int = prefConfig.disconnectResumeTimeoutSeconds
+disconnectResumeTimeoutSynced = true
+Thread({ try
+{
+client.updateClientSettings(disconnectResumeTimeoutSeconds = timeoutSeconds)
+LimeLog.info("Nova: Synced disconnect resume timeout: " + timeoutSeconds + "s")
+}
+catch (e:Exception) {
+LimeLog.warning("Nova: Failed to sync disconnect resume timeout: " + e!!.message)
+}
+}, "NovaResumePolicy").start()
+}
+
+private fun prepareBackgroundResumeWindow() {
+if (backgroundResumePrepared || !::prefConfig.isInitialized || quitOnStop || watchOnlyRequested || !prefConfig.keepStreamAlive)
+{
+return
+}
+backgroundResumePrepared = true
+val timeoutSeconds:Int = prefConfig.disconnectResumeTimeoutSeconds
+syncDisconnectResumeTimeoutPolicy()
+try
+{
+com.papi.nova.service.NovaStreamKeepAlive.start(
+this,
+timeoutSeconds,
+appName,
+pcName
+)
+LimeLog.info("Nova: Background resume window prepared for " + timeoutSeconds + "s")
+}
+catch (e:Exception) {
+LimeLog.warning("Nova: Failed to start background resume service: " + e!!.message)
+}
+}
+
+private fun stopBackgroundResumeWindow() {
+backgroundResumePrepared = false
+try
+{
+com.papi.nova.service.NovaStreamKeepAlive.stop(this)
+}
+catch (e:Exception) {
+LimeLog.warning("Nova: Failed to stop background resume service: " + e!!.message)
+}
+}
+
  fun disconnect() {
+prepareBackgroundResumeWindow()
 if (prefConfig!!.smartClipboardSync)
 {
 getClipboard(-1)

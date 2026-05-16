@@ -167,6 +167,31 @@ public class KotlinGameRuntimeMigrationTest {
         assertFalse(keyboardAction.contains("game.toggleKeyboard()"));
     }
 
+    @Test
+    public void disconnectStartsBackgroundResumePolicyWithoutQuitFlag() throws Exception {
+        String source = readGameSource();
+        String disconnect = source.substring(
+                source.indexOf("fun disconnect()"),
+                source.indexOf("fun relaunchStream()"));
+        String onStop = source.substring(
+                source.indexOf("override fun onStop()"),
+                source.indexOf("private fun setInputGrabState("));
+        String resumePolicy = source.substring(
+                source.indexOf("private fun prepareBackgroundResumeWindow("),
+                source.indexOf("fun disconnect()"));
+
+        assertTrue("explicit disconnect should prepare the Polaris resume window",
+                disconnect.contains("prepareBackgroundResumeWindow()"));
+        assertFalse("disconnect must not take the quit path",
+                disconnect.contains("quitOnStop = true"));
+        assertTrue("backgrounding the stream should also preserve the resume window",
+                onStop.contains("prepareBackgroundResumeWindow()"));
+        assertTrue("resume policy should use the existing foreground keep-alive service",
+                resumePolicy.contains("NovaStreamKeepAlive.start"));
+        assertTrue("resume policy should sync the Polaris timeout preference",
+                resumePolicy.contains("disconnectResumeTimeoutSeconds"));
+    }
+
     private static String readGameSource() throws Exception {
         return new String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/Game.kt")),
                 StandardCharsets.UTF_8);

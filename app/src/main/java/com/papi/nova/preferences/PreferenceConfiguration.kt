@@ -92,6 +92,8 @@ class PreferenceConfiguration {
     @JvmField var autoInvertVideoResolution = false
     @JvmField var resolutionScaleFactor = 0
     @JvmField var resumeWithoutConfirm = false
+    @JvmField var keepStreamAlive = true
+    @JvmField var disconnectResumeTimeoutSeconds = 300
     @JvmField var autoOrientation = false
     @JvmField var enableKeyboard = false
     @JvmField var enableJoyConFix = false
@@ -169,6 +171,8 @@ class PreferenceConfiguration {
         private const val AUTO_INVERT_VIDEO_RESOLUTION_PREF_STRING = "checkbox_auto_invert_video_resolution"
         private const val RESOLUTION_SCALE_FACTOR_PREF_STRING = "seekbar_resolution_scale_factor"
         private const val RESUME_WITHOUT_CONFIRM_PREF_STRING = "checkbox_resume_without_confirm"
+        private const val KEEP_STREAM_ALIVE_PREF_STRING = "nova_keep_stream_alive"
+        private const val DISCONNECT_RESUME_TIMEOUT_PREF_STRING = "nova_disconnect_resume_timeout_seconds"
         private const val VIDEO_SCALE_MODE_PREF_STRING = "list_video_scale_mode"
         private const val SOPS_PREF_STRING = "checkbox_enable_sops"
         private const val DISABLE_TOASTS_PREF_STRING = "checkbox_disable_warnings"
@@ -250,6 +254,8 @@ class PreferenceConfiguration {
         private const val DEFAULT_AUTO_INVERT_VIDEO_RESOLUTION = true
         private const val DEFAULT_RESOLUTION_SCALE_FACTOR = 100
         private const val DEFAULT_RESUME_WITHOUT_CONFIRM = false
+        private const val DEFAULT_KEEP_STREAM_ALIVE = true
+        private const val DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS = 300
         private const val DEFAULT_SOPS = true
         private const val DEFAULT_DISABLE_TOASTS = false
         private const val DEFAULT_HOST_AUDIO = false
@@ -852,6 +858,11 @@ class PreferenceConfiguration {
                 prefs.getInt(RESOLUTION_SCALE_FACTOR_PREF_STRING, DEFAULT_RESOLUTION_SCALE_FACTOR)
             config.resumeWithoutConfirm =
                 prefs.getBoolean(RESUME_WITHOUT_CONFIRM_PREF_STRING, DEFAULT_RESUME_WITHOUT_CONFIRM)
+            config.keepStreamAlive = prefs.getBoolean(KEEP_STREAM_ALIVE_PREF_STRING, DEFAULT_KEEP_STREAM_ALIVE)
+            config.disconnectResumeTimeoutSeconds = prefs.getString(
+                DISCONNECT_RESUME_TIMEOUT_PREF_STRING,
+                DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS.toString(),
+            )?.toIntOrNull()?.coerceAtLeast(0) ?: DEFAULT_DISCONNECT_RESUME_TIMEOUT_SECONDS
             config.enableKeyboard = prefs.getBoolean(CHECKBOX_ENABLE_KEYBOARD, false)
             config.enableKeyboardVibrate = prefs.getBoolean(CHECKBOX_ENABLE_KEYBOARD_VIBRATE, false)
             config.enableJoyConFix = prefs.getBoolean("checkbox_joycon_fix", false)
