@@ -430,7 +430,8 @@ class ControllerHandler(
             }
         }
 
-        if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ||
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ||
                 (Build.VERSION.SDK_INT == Build.VERSION_CODES.S &&
                     (context.vendorId == 0x054c || context.vendorId == 0x057e))) &&
             prefConfig.gamepadMotionSensors

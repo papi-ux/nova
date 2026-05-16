@@ -419,7 +419,7 @@ return getString(R.string.mouse_mode_absolute_touch)
 	 fun isMenuOpen():Boolean
 	}
 
-	@SuppressLint("MissingInflatedId", "ClickableViewAccessibility")
+	@SuppressLint("MissingInflatedId", "ClickableViewAccessibility", "UnspecifiedRegisterReceiverFlag")
 override fun onCreate(savedInstanceState:Bundle?) {
 super.onCreate(savedInstanceState)
 
