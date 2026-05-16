@@ -180,6 +180,12 @@ class KotlinLaunchHelpersMigrationTest {
                 Uri.parse("content://com.example.provider/document/not-art.txt")
             )
         )
+        assertFalse(
+            isSafeArtFileUri(
+                activity,
+                Uri.parse("content://com.example.provider/document/game.art")
+            )
+        )
         assertTrue(
             isSafeArtFileUri(
                 activity,

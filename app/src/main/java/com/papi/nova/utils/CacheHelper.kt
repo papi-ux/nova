@@ -12,12 +12,6 @@ import java.io.InputStreamReader
 import java.io.OutputStream
 
 object CacheHelper {
-    private fun isUnderRoot(root: File, file: File): Boolean {
-        val rootPath = root.path
-        val filePath = file.path
-        return filePath == rootPath || filePath.startsWith(rootPath + File.separator)
-    }
-
     @JvmStatic
     fun openPath(createPath: Boolean, root: File?, vararg path: String?): File {
         val nonNullRoot = requireNotNull(root) { "Root cannot be null" }
@@ -50,7 +44,9 @@ object CacheHelper {
 
         return try {
             val canonicalFile = file.canonicalFile
-            if (!isUnderRoot(canonicalRoot, canonicalFile)) {
+            val rootPath = canonicalRoot.path
+            val filePath = canonicalFile.path
+            if (filePath != rootPath && !filePath.startsWith(rootPath + File.separator)) {
                 throw IllegalArgumentException("Cache path escapes root")
             }
             canonicalFile
@@ -95,7 +91,9 @@ object CacheHelper {
         }
 
         val canonicalFile = file.canonicalFile
-        if (!isUnderRoot(canonicalRoot, canonicalFile)) {
+        val rootPath = canonicalRoot.path
+        val filePath = canonicalFile.path
+        if (filePath != rootPath && !filePath.startsWith(rootPath + File.separator)) {
             throw FileNotFoundException("Cache path escapes root")
         }
 
@@ -123,7 +121,9 @@ object CacheHelper {
         }
 
         val canonicalFile = file.canonicalFile
-        if (!isUnderRoot(canonicalRoot, canonicalFile)) {
+        val rootPath = canonicalRoot.path
+        val filePath = canonicalFile.path
+        if (filePath != rootPath && !filePath.startsWith(rootPath + File.separator)) {
             throw FileNotFoundException("Cache path escapes root")
         }
 

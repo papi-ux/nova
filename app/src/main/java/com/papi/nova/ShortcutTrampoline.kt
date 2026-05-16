@@ -28,6 +28,7 @@ import com.papi.nova.utils.UiHelper
 import org.xmlpull.v1.XmlPullParserException
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
 import java.io.InputStreamReader
 import java.io.StringReader
@@ -302,20 +303,13 @@ class ShortcutTrampoline : AppCompatActivity() {
         }
 
         val scheme = fileUri.scheme
-        if (ContentResolver.SCHEME_CONTENT != scheme && ContentResolver.SCHEME_FILE != scheme) {
+        if (ContentResolver.SCHEME_FILE != scheme) {
             return false
         }
 
         val path = fileUri.path
         if (path == null || !path.lowercase(Locale.US).endsWith(".art")) {
             return false
-        }
-
-        val authority = fileUri.authority
-        if (ContentResolver.SCHEME_CONTENT == scheme) {
-            if (authority.isNullOrEmpty() || isNovaInternalContentAuthority(authority)) {
-                return false
-            }
         }
 
         val canonicalPath = try {
@@ -343,11 +337,6 @@ class ShortcutTrampoline : AppCompatActivity() {
         return true
     }
 
-    private fun isNovaInternalContentAuthority(authority: String): Boolean {
-        return authority == BuildConfig.APPLICATION_ID + ".fileprovider" ||
-            authority == PosterContentProvider.AUTHORITY
-    }
-
     private fun parseArtFileData(fileUri: Uri?): Map<String, String>? {
         if (fileUri == null) {
             return null
@@ -355,15 +344,10 @@ class ShortcutTrampoline : AppCompatActivity() {
 
         val scheme = fileUri.scheme
         val path = fileUri.path
-        val authority = fileUri.authority
         val canonicalPath = if (
-            (ContentResolver.SCHEME_CONTENT == scheme || ContentResolver.SCHEME_FILE == scheme) &&
+            ContentResolver.SCHEME_FILE == scheme &&
             path != null &&
-            path.lowercase(Locale.US).endsWith(".art") &&
-            (
-                ContentResolver.SCHEME_FILE == scheme ||
-                    (!authority.isNullOrEmpty() && !isNovaInternalContentAuthority(authority))
-                )
+            path.lowercase(Locale.US).endsWith(".art")
         ) {
             try {
                 File(path).canonicalPath
@@ -399,11 +383,7 @@ class ShortcutTrampoline : AppCompatActivity() {
         val artData = HashMap<String, String>()
 
         try {
-            contentResolver.openInputStream(fileUri).use { inputStream ->
-                if (inputStream == null) {
-                    throw IOException("Unable to open .art file")
-                }
-
+            FileInputStream(File(canonicalPath)).use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream)).use { reader ->
                     var charsRead = 0
                     while (true) {
