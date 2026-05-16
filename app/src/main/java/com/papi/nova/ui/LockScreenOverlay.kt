@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.app.Activity
+import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -9,8 +10,18 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.papi.nova.LimeLog
 import com.papi.nova.api.PolarisApiClient
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Overlay shown when the server's screen is locked.
@@ -22,6 +33,8 @@ class LockScreenOverlay(
 ) {
     private var overlayView: View? = null
     @Volatile private var unlockInProgress = false
+    private val fallbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var unlockJob: Job? = null
 
     fun show() {
         if (overlayView != null) return
@@ -78,7 +91,8 @@ class LockScreenOverlay(
         unlockBtn.isEnabled = false
         unlockBtn.text = "Unlocking..."
         LimeLog.info("Nova: Requesting unlock...")
-        Thread {
+        unlockJob?.cancel()
+        unlockJob = unlockScope().launch(Dispatchers.IO + CoroutineName("NovaUnlockScreen")) {
             val unlocked = try {
                 apiClient.unlockScreen()
             } catch (e: Exception) {
@@ -86,9 +100,12 @@ class LockScreenOverlay(
                 false
             }
 
-            activity.runOnUiThread {
+            withContext(Dispatchers.Main.immediate) {
+                if (!isActivityUsable() || overlayView == null) {
+                    return@withContext
+                }
                 if (unlocked) {
-                    dismiss()
+                    dismiss(cancelUnlock = false)
                 } else {
                     unlockInProgress = false
                     unlockBtn.isEnabled = true
@@ -96,10 +113,18 @@ class LockScreenOverlay(
                     Toast.makeText(activity, "Unlock request failed", Toast.LENGTH_SHORT).show()
                 }
             }
-        }.start()
+        }
     }
 
     fun dismiss() {
+        dismiss(cancelUnlock = true)
+    }
+
+    private fun dismiss(cancelUnlock: Boolean) {
+        if (cancelUnlock) {
+            unlockJob?.cancel()
+            unlockJob = null
+        }
         activity.runOnUiThread {
             unlockInProgress = false
             val view = overlayView
@@ -111,6 +136,12 @@ class LockScreenOverlay(
         }
     }
 
+    fun destroy() {
+        unlockJob?.cancel()
+        unlockJob = null
+        fallbackScope.cancel()
+    }
+
     private fun safeRemoveFromParent(view: View) {
         val parent = view.parent as? ViewGroup ?: return
         parent.post {
@@ -118,6 +149,12 @@ class LockScreenOverlay(
             currentParent?.removeView(view)
         }
     }
+
+    private fun unlockScope(): CoroutineScope =
+        (activity as? LifecycleOwner)?.lifecycleScope ?: fallbackScope
+
+    private fun isActivityUsable(): Boolean =
+        !activity.isFinishing && (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1 || !activity.isDestroyed)
 
     val isShowing get() = overlayView != null
 }

@@ -36,6 +36,8 @@ import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.GlPreferences
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.profiles.ProfilesManager
+import com.papi.nova.runtime.BackgroundResumePolicy
+import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.StreamContainer
@@ -138,6 +140,7 @@ import android.view.ViewGroup
 
  class Game:AppCompatActivity(), SurfaceHolder.Callback, OnGenericMotionListener, OnTouchListener, NvConnectionListener, EvdevListener, OnSystemUiVisibilityChangeListener, GameGestures, StreamContainer.InputCallbacks, ExternalControllerView.InputCallbacks, PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {
 
+private val runtimeTasks:NovaRuntimeTasks = NovaRuntimeTasks(this, "Nova runtime")
 private var novaHud:com.papi.nova.ui.NovaStreamHud? = null
  var configuredHudTargetFps:Float = 0f
 private var configuredStreamFrameRateFps:Float = 0f
@@ -2321,10 +2324,14 @@ super.onDestroy()
 
  // Nova: clean up Polaris integration
         stopPolarisLiveSessionStatusRefresh()
+runtimeTasks.cancelAll()
 stopCursorVisibilitySync()
 if (novaEventSource != null) novaEventSource!!.stop()
 if (novaProgressOverlay != null) novaProgressOverlay!!.dismiss()
-if (novaLockScreenOverlay != null) novaLockScreenOverlay!!.dismiss()
+if (novaLockScreenOverlay != null) {
+novaLockScreenOverlay!!.dismiss()
+novaLockScreenOverlay!!.destroy()
+}
 if (novaReconnectOverlay != null) novaReconnectOverlay!!.dismiss()
 com.papi.nova.jni.PolarisNativeHook.unregister()
 com.papi.nova.manager.FeatureFlagManager.reset()
@@ -5082,6 +5089,19 @@ cursorVisibilitySyncScheduled = false
 cursorVisibilitySyncExecutor!!.shutdownNow()
 }
 
+internal fun launchRuntimeIo(name:String, block:suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
+runtimeTasks.launchIo(name, block)
+}
+
+internal suspend fun runOnMainIfRuntimeActive(block:() -> Unit) {
+runtimeTasks.runOnMainIfActive {
+if (!isFinishing && !isDestroyed)
+{
+block()
+}
+}
+}
+
 private fun startNovaFeatureProbe() {
 var client:com.papi.nova.api.PolarisApiClient? = novaApiClient
 if (client == null)
@@ -5089,17 +5109,21 @@ if (client == null)
 return
 }
 
-Thread({ com.papi.nova.manager.FeatureFlagManager.probe(client)
-runOnUiThread({ if (isFinishing() || isDestroyed())
+runtimeTasks.launchIo("NovaFeatureProbe") {
+com.papi.nova.manager.FeatureFlagManager.probe(client)
+runtimeTasks.runOnMainIfActive {
+if (isFinishing || isDestroyed)
 {
-return@runOnUiThread
+return@runOnMainIfActive
 }
 startNovaEventSourceIfSupported()
 if (com.papi.nova.manager.FeatureFlagManager.isPolarisServer)
 {
 queuePolarisClientSettingsSnapshot(null)
 schedulePolarisLiveSessionStatusRefresh(true)
-} }) }, "NovaFeatureProbe").start()
+}
+}
+}
 }
 
 private fun startNovaEventSourceIfSupported() {
@@ -5168,6 +5192,7 @@ if (timerHandler != null)
 timerHandler!!.removeCallbacks(polarisSessionStatusRefreshTick)
 }
 polarisSessionStatusRefreshInFlight.set(false)
+runtimeTasks.cancel("NovaSessionStatus")
 }
 
 private fun queuePolarisClientSettingsSnapshot(clientPresentation:JSONObject?) {
@@ -5175,7 +5200,9 @@ if ((novaApiClient == null || !com.papi.nova.manager.FeatureFlagManager.hasClien
 {
 return
 }
-Thread({ reportPolarisClientSettingsSnapshot(clientPresentation) }, "NovaClientSettingsSync").start()
+runtimeTasks.launchIo("NovaClientSettingsSync") {
+reportPolarisClientSettingsSnapshot(clientPresentation)
+}
 }
 
 private fun reportPolarisClientSettingsSnapshot(clientPresentation:JSONObject?):Boolean {
@@ -5377,7 +5404,7 @@ if (novaApiClient == null || !polarisSessionStatusRefreshInFlight.compareAndSet(
 return
 }
 
-Thread({ try
+runtimeTasks.launchIo("NovaSessionStatus") { try
 {
 var status:com.papi.nova.api.PolarisSessionStatus? = novaApiClient!!.getSessionStatus()
 if (status != null)
@@ -5385,10 +5412,19 @@ if (status != null)
 lastPolarisSessionStatus = status
 if (novaHud != null)
 {
+runtimeTasks.runOnMainIfActive {
+if (isFinishing || isDestroyed)
+{
+return@runOnMainIfActive
+}
 novaHud!!.applySessionStatus(status)
+}
 }
 reportClientPresentationIfNeeded(status)
 }
+}
+catch (e:kotlinx.coroutines.CancellationException) {
+throw e
 }
 catch (e:Exception) {
 com.papi.nova.LimeLog.warning("Nova: Live session status refresh failed: " + e!!.message)
@@ -5396,7 +5432,7 @@ com.papi.nova.LimeLog.warning("Nova: Live session status refresh failed: " + e!!
 finally
 {
 polarisSessionStatusRefreshInFlight.set(false)
-} }, "NovaSessionStatus").start()
+} }
 }
 
 private fun applyMouseMode(mode:Int) {
@@ -5476,14 +5512,21 @@ performanceOverlayView!!.setVisibility(View.GONE)
 prefConfig!!.enableTouchSensitivity = !prefConfig!!.enableTouchSensitivity
 }
 private fun syncDisconnectResumeTimeoutPolicy() {
-if (!::prefConfig.isInitialized || watchOnlyRequested || !prefConfig.keepStreamAlive || disconnectResumeTimeoutSynced)
+val preferencesReady:Boolean = ::prefConfig.isInitialized
+val keepAlive:Boolean = preferencesReady && prefConfig.keepStreamAlive
+if (!BackgroundResumePolicy.shouldSyncDisconnectTimeout(
+preferencesReady,
+watchOnlyRequested,
+keepAlive,
+disconnectResumeTimeoutSynced
+))
 {
 return
 }
 val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: return
 val timeoutSeconds:Int = prefConfig.disconnectResumeTimeoutSeconds
 disconnectResumeTimeoutSynced = true
-Thread({ try
+runtimeTasks.launchIo("NovaResumePolicy") { try
 {
 client.updateClientSettings(disconnectResumeTimeoutSeconds = timeoutSeconds)
 LimeLog.info("Nova: Synced disconnect resume timeout: " + timeoutSeconds + "s")
@@ -5491,11 +5534,19 @@ LimeLog.info("Nova: Synced disconnect resume timeout: " + timeoutSeconds + "s")
 catch (e:Exception) {
 LimeLog.warning("Nova: Failed to sync disconnect resume timeout: " + e!!.message)
 }
-}, "NovaResumePolicy").start()
+}
 }
 
 private fun prepareBackgroundResumeWindow() {
-if (backgroundResumePrepared || !::prefConfig.isInitialized || quitOnStop || watchOnlyRequested || !prefConfig.keepStreamAlive)
+val preferencesReady:Boolean = ::prefConfig.isInitialized
+val keepAlive:Boolean = preferencesReady && prefConfig.keepStreamAlive
+if (!BackgroundResumePolicy.shouldPrepareResumeWindow(
+backgroundResumePrepared,
+preferencesReady,
+quitOnStop,
+watchOnlyRequested,
+keepAlive
+))
 {
 return
 }
