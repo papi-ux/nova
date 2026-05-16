@@ -53,6 +53,7 @@ class NovaHudUiStateTest {
         assertEquals("1920×1080", state.resolutionLabel)
         assertEquals("HEVC", state.codecLabel)
         assertEquals("Auto Quality Stable", state.autopilotLabel)
+        assertEquals("Auto Stable", state.autopilotHudLabel)
         assertEquals("OK", state.autopilotCompactLabel)
         assertEquals(NovaHudTone.STABLE, state.fpsTone)
         assertEquals(NovaHudTone.STABLE, state.latencyTone)
@@ -114,9 +115,65 @@ class NovaHudUiStateTest {
         )
 
         assertEquals("AI Recovery Profile", state.autopilotLabel)
+        assertEquals("AI Recovery", state.autopilotHudLabel)
         assertEquals("HOST", state.autopilotCompactLabel)
         assertEquals(NovaHudTone.WARNING, state.statusTone)
         assertEquals(NovaHudTone.WARNING, state.fpsTone)
+    }
+
+    @Test
+    fun hudLabelsStayCompactForSpaceConstrainedOverlay() {
+        val stable = NovaHudUiState.from(
+            mode = NovaHudMode.FULL,
+            fps = 118.7,
+            targetFps = 120.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 30000,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = emptyList()
+        )
+        val upgrade = NovaHudUiState.from(
+            mode = NovaHudMode.FULL,
+            fps = 118.7,
+            targetFps = 120.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 30000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
+                    state = "upgrade_available"
+                )
+            ),
+            sparklineSamples = emptyList()
+        )
+        val attention = NovaHudUiState.from(
+            mode = NovaHudMode.FULL,
+            fps = 118.7,
+            targetFps = 120.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 30000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(targetResidency = "cpu")
+            ),
+            sparklineSamples = emptyList()
+        )
+
+        assertEquals("Auto Stable", stable.autopilotHudLabel)
+        assertEquals("Quality Ready", upgrade.autopilotHudLabel)
+        assertEquals("Attention", attention.autopilotHudLabel)
+        assertTrue(
+            listOf(stable, upgrade, attention).all {
+                it.autopilotHudLabel.length <= 16
+            }
+        )
     }
 
     private fun status(
