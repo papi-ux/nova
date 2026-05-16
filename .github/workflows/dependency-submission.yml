@@ -1,0 +1,38 @@
+name: Dependency Submission
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  submit-gradle:
+    name: Submit Gradle dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@v6
+        with:
+          additional-arguments: -PnovaAbis=x86_64 --no-configuration-cache
+          cache-provider: basic
+          dependency-graph: generate-and-submit
