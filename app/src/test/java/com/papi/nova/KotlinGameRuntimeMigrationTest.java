@@ -155,6 +155,18 @@ public class KotlinGameRuntimeMigrationTest {
         assertTrue(source.contains("getAxisValue(MotionEvent.AXIS_HSCROLL) * 120).toInt().toShort()"));
     }
 
+    @Test
+    public void quickMenuKeyboardActionTogglesFullKeyboardOverlay() throws Exception {
+        String source = new String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt")),
+                StandardCharsets.UTF_8);
+        String keyboardAction = source.substring(
+                source.indexOf("NovaQuickMenuActionId.KEYBOARD ->"),
+                source.indexOf("else -> Unit", source.indexOf("NovaQuickMenuActionId.KEYBOARD ->")));
+
+        assertTrue(keyboardAction.contains("game.toggleFullKeyboard()"));
+        assertFalse(keyboardAction.contains("game.toggleKeyboard()"));
+    }
+
     private static String readGameSource() throws Exception {
         return new String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/Game.kt")),
                 StandardCharsets.UTF_8);

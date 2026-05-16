@@ -402,7 +402,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         }
                         NovaQuickMenuActionId.KEYBOARD -> {
                             dismiss()
-                            game.toggleKeyboard()
+                            game.toggleFullKeyboard()
                         }
                         else -> Unit
                     }
