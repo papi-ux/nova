@@ -65,7 +65,7 @@ data class NovaLibraryActiveSessionUiState(
             if (status == null || status.isShuttingDown || status.gameId <= 0) {
                 return null
             }
-            if (!status.isSessionAlive && !status.isStreaming) {
+            if (!status.isResumable) {
                 return null
             }
 

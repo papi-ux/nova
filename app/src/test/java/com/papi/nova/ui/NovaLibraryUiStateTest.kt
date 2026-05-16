@@ -159,6 +159,28 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
+    fun activeSessionUsesPausedPolarisStatusForResume() {
+        val session = NovaLibraryActiveSessionUiState.from(
+            PolarisSessionStatus(
+                state = "paused",
+                streamingActive = false,
+                game = "Indiana Jones and the Great Circle",
+                gameId = 777,
+                gameUuid = "indy-uuid",
+                ownerDeviceName = "Retroid Pocket",
+                ownedByClient = true
+            )
+        )
+
+        requireNotNull(session)
+        assertEquals(777, session.gameId)
+        assertEquals("indy-uuid", session.gameUuid)
+        assertEquals("Indiana Jones and the Great Circle", session.gameName)
+        assertTrue(session.ownedByClient)
+        assertFalse(session.watchOnly)
+    }
+
+    @Test
     fun activeSessionUsesWatchPolicyForOtherClientOwner() {
         val session = NovaLibraryActiveSessionUiState.from(
             PolarisSessionStatus(
