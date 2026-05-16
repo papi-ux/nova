@@ -80,9 +80,43 @@ public class NovaComposeSourceGuardTest {
                 gameCard.contains(".border(4.dp, surfaces.focusRing, RoundedCornerShape(14.dp))"));
     }
 
+    @Test
+    public void streamHudCompactTextDoesNotInheritBodyLineHeight() throws Exception {
+        String source = readNovaStreamHudContent();
+        String metric = source.substring(
+                source.indexOf("private fun HudMetric("),
+                source.indexOf("@Composable\nprivate fun HudTinyLabel("));
+        String tinyLabel = source.substring(
+                source.indexOf("private fun HudTinyLabel("),
+                source.indexOf("@Composable\nprivate fun HudValueText("));
+        String valueText = source.substring(
+                source.indexOf("private fun HudValueText("),
+                source.indexOf("@Composable\nprivate fun HudCompactText("));
+        String compactText = source.substring(
+                source.indexOf("private fun HudCompactText("),
+                source.indexOf("@Composable\nprivate fun HudStatusDot("));
+
+        assertTrue("metric tiles should have a minimum height instead of clipping text to a fixed row",
+                metric.contains(".heightIn(min = 40.dp)"));
+        assertTrue("metric values should not inherit Material body line height",
+                metric.contains("lineHeight = 12.sp"));
+        assertTrue("tiny labels should not inherit Material body line height",
+                tinyLabel.contains("lineHeight = 8.sp"));
+        assertTrue("large HUD values should use a line height sized to their font",
+                valueText.contains("lineHeight = (size + 2).sp"));
+        assertTrue("compact HUD values should not inherit Material body line height",
+                compactText.contains("lineHeight = 12.sp"));
+    }
+
     private static String readNovaLibraryActivity() throws Exception {
         return new String(
                 Files.readAllBytes(Paths.get("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")),
+                StandardCharsets.UTF_8);
+    }
+
+    private static String readNovaStreamHudContent() throws Exception {
+        return new String(
+                Files.readAllBytes(Paths.get("src/main/java/com/papi/nova/ui/NovaStreamHudContent.kt")),
                 StandardCharsets.UTF_8);
     }
 }
