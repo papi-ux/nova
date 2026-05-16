@@ -42,6 +42,19 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose' version '2.3.21' apply false
 }
 
+def patchedNettyVersion = '4.1.133.Final'
+
+allprojects { project ->
+    configurations.configureEach { configuration ->
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'io.netty') {
+                details.useVersion patchedNettyVersion
+                details.because 'Dependabot flags Netty from Gradle/Android test tooling transitives'
+            }
+        }
+    }
+}
+
 // Aggregate all variant/unit tests under the root `test` task
 gradle.projectsEvaluated {
     def agg = tasks.findByName('test') ?: tasks.register('test') {
