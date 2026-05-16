@@ -20,6 +20,9 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 @RunWith(RobolectricTestRunner.class)
 public class KotlinVideoRuntimeMigrationTest {
@@ -104,5 +107,15 @@ public class KotlinVideoRuntimeMigrationTest {
         assertEquals(Boolean.class, MediaCodecDecoderRenderer.class.getMethod("performanceWasTracked").getReturnType());
         MediaCodecDecoderRenderer.class.getMethod("getMinDecoderLatency");
         MediaCodecDecoderRenderer.class.getMethod("getMinDecoderLatencyFullLog");
+    }
+
+    @Test
+    public void mediaCodecDecoderWatchdogUsesQuiescedRecoveryFlush() throws Exception {
+        String source = new String(Files.readAllBytes(
+                Path.of("src/main/java/com/papi/nova/binding/video/MediaCodecDecoderRenderer.kt")),
+                StandardCharsets.UTF_8);
+
+        assertTrue(source.contains("Decoder watchdog: no output >1.2s, scheduling codec flush to recover"));
+        assertTrue(source.contains("codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_FLUSH)"));
     }
 }

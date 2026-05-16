@@ -4613,7 +4613,7 @@ LimeLog.info(String.format(null as Locale?, "Rumble on gamepad triggers %d: %04x
 
 controllerHandler!!.handleRumbleTriggers(controllerNumber, leftTrigger, rightTrigger)
 }
-override fun setHdrMode(enabled:Boolean, hdrMetadata:ByteArray) {
+override fun setHdrMode(enabled:Boolean, hdrMetadata:ByteArray?) {
 LimeLog.info("Display HDR mode: " + (if (enabled) "enabled" else "disabled"))
 decoderRenderer!!.setHdrMode(enabled, hdrMetadata)
 }

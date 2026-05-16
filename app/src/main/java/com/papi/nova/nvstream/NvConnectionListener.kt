@@ -21,7 +21,7 @@ interface NvConnectionListener {
 
     fun rumbleTriggers(controllerNumber: Short, leftTrigger: Short, rightTrigger: Short)
 
-    fun setHdrMode(enabled: Boolean, hdrMetadata: ByteArray)
+    fun setHdrMode(enabled: Boolean, hdrMetadata: ByteArray?)
 
     fun setMotionEventState(controllerNumber: Short, motionType: Byte, reportRateHz: Short)
 

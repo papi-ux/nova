@@ -23,6 +23,9 @@ import org.robolectric.annotation.Config;
 import java.io.File;
 import java.io.Reader;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 
 @RunWith(RobolectricTestRunner.class)
@@ -91,6 +94,19 @@ public class KotlinNvstreamRuntimeMigrationTest {
                 int.class);
         MoonBridge.class.getMethod("stopConnection");
         MoonBridge.class.getMethod("sendKeyboardInput", short.class, byte.class, byte.class, byte.class);
+    }
+
+    @Test
+    public void moonBridgeAllowsNativeHdrMetadataToBeNull() throws Exception {
+        String moonBridge = readSource("src/main/java/com/papi/nova/nvstream/jni/MoonBridge.kt");
+        String listener = readSource("src/main/java/com/papi/nova/nvstream/NvConnectionListener.kt");
+
+        assertTrue(moonBridge.contains("fun bridgeClSetHdrMode(enabled: Boolean, hdrMetadata: ByteArray?)"));
+        assertTrue(listener.contains("fun setHdrMode(enabled: Boolean, hdrMetadata: ByteArray?)"));
+    }
+
+    private static String readSource(String path) throws Exception {
+        return new String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8);
     }
 
     @Test

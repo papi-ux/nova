@@ -281,7 +281,7 @@ class MoonBridge {
         }
 
         @JvmStatic
-        fun bridgeClSetHdrMode(enabled: Boolean, hdrMetadata: ByteArray) {
+        fun bridgeClSetHdrMode(enabled: Boolean, hdrMetadata: ByteArray?) {
             connectionListener?.setHdrMode(enabled, hdrMetadata)
         }
 

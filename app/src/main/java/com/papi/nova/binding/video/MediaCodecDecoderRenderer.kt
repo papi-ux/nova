@@ -1207,11 +1207,8 @@ class MediaCodecDecoderRenderer(
                 try {
                     val nowNs = System.nanoTime()
                     if (nowNs - lastOutputNs > 1_200_000_000L) {
-                        LimeLog.warning("Decoder watchdog: no output >1.2s, flushing codec to recover...")
-                        try {
-                            videoDecoder!!.flush()
-                        } catch (_: Throwable) {
-                        }
+                        LimeLog.warning("Decoder watchdog: no output >1.2s, scheduling codec flush to recover...")
+                        codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_FLUSH)
                         try {
                             val poke = Bundle()
                             poke.putInt("priority", 0)
