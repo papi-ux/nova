@@ -1,0 +1,529 @@
+package com.papi.nova.utils
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.hardware.display.DisplayManager
+import android.os.Build
+import android.view.Display
+import android.widget.Toast
+import com.papi.nova.AppView
+import com.papi.nova.Game
+import com.papi.nova.LimeLog
+import com.papi.nova.R
+import com.papi.nova.ShortcutTrampoline
+import com.papi.nova.binding.PlatformBinding
+import com.papi.nova.computers.ComputerManagerService
+import com.papi.nova.nvstream.http.ComputerDetails
+import com.papi.nova.nvstream.http.HostHttpResponseException
+import com.papi.nova.nvstream.http.NvApp
+import com.papi.nova.nvstream.http.NvHTTP
+import com.papi.nova.nvstream.jni.MoonBridge
+import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaThemeManager
+import org.xmlpull.v1.XmlPullParserException
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.net.UnknownHostException
+import java.security.cert.CertificateEncodingException
+import java.util.ArrayList
+
+object ServerHelper {
+    const val CONNECTION_TEST_SERVER: String = "android.conntest.moonlight-stream.org"
+
+    @JvmStatic
+    @Throws(IOException::class)
+    fun getCurrentAddressFromComputer(computer: ComputerDetails): ComputerDetails.AddressTuple {
+        return computer.activeAddress
+            ?: throw IOException("No active address for " + computer.name)
+    }
+
+    @JvmStatic
+    fun createPcShortcutIntent(parent: Activity, computer: ComputerDetails): Intent {
+        return Intent(parent, ShortcutTrampoline::class.java).apply {
+            putExtra(AppView.NAME_EXTRA, computer.name)
+            putExtra(AppView.UUID_EXTRA, computer.uuid)
+            action = Intent.ACTION_DEFAULT
+        }
+    }
+
+    @JvmStatic
+    fun createAppShortcutIntent(parent: Activity, computer: ComputerDetails, app: NvApp): Intent {
+        return Intent(parent, ShortcutTrampoline::class.java).apply {
+            putExtra(AppView.NAME_EXTRA, computer.name)
+            putExtra(AppView.UUID_EXTRA, computer.uuid)
+            putExtra(Game.EXTRA_APP_NAME, app.appName)
+            putExtra(Game.EXTRA_APP_UUID, app.appUUID)
+            putExtra(Game.EXTRA_APP_ID, "" + app.appId)
+            putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported)
+            action = Intent.ACTION_DEFAULT
+        }
+    }
+
+    @JvmStatic
+    fun getActiveDisplay(context: Context, prefs: PreferenceConfiguration): Display {
+        val secondary = getSecondaryDisplay(context)
+        return if (secondary != null && prefs.enableFullExDisplay) {
+            secondary
+        } else {
+            val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            displayManager.getDisplay(Display.DEFAULT_DISPLAY)
+                ?: throw IllegalStateException("Default display is unavailable")
+        }
+    }
+
+    @JvmStatic
+    fun getSecondaryDisplay(context: Context): Display? {
+        val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        var display: Display? = null
+        val displays = displayManager.displays
+        val mainDisplayId = Display.DEFAULT_DISPLAY
+        var secondaryDisplayId = -1
+
+        for (displayVariant in displays) {
+            LimeLog.info(displayVariant.toString())
+            if (displayVariant.displayId != mainDisplayId) {
+                secondaryDisplayId = displayVariant.displayId
+                break
+            }
+        }
+
+        if (secondaryDisplayId != -1) {
+            display = displayManager.getDisplay(secondaryDisplayId)
+        }
+
+        return display
+    }
+
+    private fun createStartIntent(
+        parent: Activity,
+        app: NvApp,
+        host: String,
+        port: Int,
+        httpsPort: Int,
+        uniqueId: String,
+        pcUuid: String,
+        pcName: String,
+        withVDisplay: Boolean,
+        displayModeExplicit: Boolean,
+        watchOnly: Boolean,
+        serverCommands: ArrayList<String>?,
+        serverCert: ByteArray?,
+        streamWidth: Int = 0,
+        streamHeight: Int = 0,
+        streamFps: Float = 0f,
+    ): Intent {
+        val prefConfig = PreferenceConfiguration.readPreferences(parent)
+        val gameIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && prefConfig.enableFullExDisplay) {
+            val secondaryDisplay = getSecondaryDisplay(parent)
+            if (secondaryDisplay != null) {
+                Intent(parent.createDisplayContext(secondaryDisplay), Game::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            } else {
+                Intent(parent, Game::class.java)
+            }
+        } else {
+            Intent(parent, Game::class.java)
+        }
+
+        gameIntent.putExtra(Game.EXTRA_HOST, host)
+        gameIntent.putExtra(Game.EXTRA_PORT, port)
+        gameIntent.putExtra(Game.EXTRA_HTTPS_PORT, httpsPort)
+        gameIntent.putExtra(Game.EXTRA_APP_NAME, app.appName)
+        gameIntent.putExtra(Game.EXTRA_APP_UUID, app.appUUID)
+        gameIntent.putExtra(Game.EXTRA_APP_ID, app.appId)
+        gameIntent.putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported)
+        gameIntent.putExtra(Game.EXTRA_UNIQUEID, uniqueId)
+        gameIntent.putExtra(Game.EXTRA_PC_UUID, pcUuid)
+        gameIntent.putExtra(Game.EXTRA_PC_NAME, pcName)
+        gameIntent.putExtra(Game.EXTRA_VDISPLAY, withVDisplay)
+        gameIntent.putExtra(Game.EXTRA_DISPLAY_MODE_EXPLICIT, displayModeExplicit)
+        gameIntent.putExtra(Game.EXTRA_WATCH_ONLY, watchOnly)
+        if (streamWidth > 0 && streamHeight > 0) {
+            gameIntent.putExtra(Game.EXTRA_STREAM_WIDTH, streamWidth)
+            gameIntent.putExtra(Game.EXTRA_STREAM_HEIGHT, streamHeight)
+        }
+        if (streamFps > 0f) {
+            gameIntent.putExtra(Game.EXTRA_STREAM_FPS, streamFps)
+        }
+
+        if (serverCommands != null) {
+            gameIntent.putStringArrayListExtra(Game.EXTRA_SERVER_COMMANDS, serverCommands)
+        }
+        if (serverCert != null) {
+            gameIntent.putExtra(Game.EXTRA_SERVER_CERT, serverCert)
+        }
+
+        if (prefConfig.enableFullExDisplay) {
+            val secondaryDisplay = getSecondaryDisplay(parent)
+            if (secondaryDisplay != null) {
+                gameIntent.putExtra(Game.EXTRA_DISPLAY_ID, secondaryDisplay.displayId)
+                return Intent(parent, ExternalDisplayControlActivity::class.java).apply {
+                    putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, gameIntent)
+                }
+            }
+        }
+
+        return gameIntent
+    }
+
+    @JvmStatic
+    fun createStartIntent(
+        parent: Activity,
+        app: NvApp,
+        computer: ComputerDetails,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        withVDisplay: Boolean,
+    ): Intent {
+        return createStartIntent(parent, app, computer, managerBinder, withVDisplay, false, false)
+    }
+
+    @JvmStatic
+    fun createStartIntent(
+        parent: Activity,
+        app: NvApp,
+        computer: ComputerDetails,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        withVDisplay: Boolean,
+        displayModeExplicit: Boolean,
+        watchOnly: Boolean,
+    ): Intent {
+        var serverCert: ByteArray? = null
+        try {
+            computer.serverCert?.let {
+                serverCert = it.encoded
+            }
+        } catch (e: CertificateEncodingException) {
+            e.printStackTrace()
+        }
+
+        val serverCommands = computer.serverCommands?.let { ArrayList(it) }
+        val activeAddress = computer.activeAddress
+            ?: throw IllegalStateException("No active address for " + computer.name)
+
+        return createStartIntent(
+            parent,
+            app,
+            activeAddress.address,
+            activeAddress.port,
+            computer.httpsPort,
+            managerBinder.uniqueId,
+            computer.uuid,
+            computer.name,
+            withVDisplay,
+            displayModeExplicit,
+            watchOnly,
+            serverCommands,
+            serverCert,
+        )
+    }
+
+    @JvmStatic
+    fun doStart(
+        parent: Activity,
+        app: NvApp,
+        computer: ComputerDetails,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        withVDisplay: Boolean,
+    ) {
+        doStart(parent, app, computer, managerBinder, withVDisplay, false, false)
+    }
+
+    @JvmStatic
+    fun doStart(
+        parent: Activity,
+        app: NvApp,
+        computer: ComputerDetails,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        withVDisplay: Boolean,
+        displayModeExplicit: Boolean,
+        watchOnly: Boolean,
+    ) {
+        if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
+            Toast.makeText(parent, parent.getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
+            .putInt("last_played_" + computer.uuid, app.appId)
+            .apply()
+
+        val intent = createStartIntent(
+            parent,
+            app,
+            computer,
+            managerBinder,
+            withVDisplay,
+            displayModeExplicit,
+            watchOnly,
+        )
+        parent.startActivity(intent)
+        NovaThemeManager.applyFadeTransition(parent)
+    }
+
+    @JvmStatic
+    fun doStart(
+        parent: Activity,
+        app: NvApp,
+        host: String,
+        port: Int,
+        httpsPort: Int,
+        uniqueId: String,
+        pcUuid: String,
+        pcName: String,
+        serverCommands: ArrayList<String>?,
+        withVDisplay: Boolean,
+        displayModeExplicit: Boolean,
+        watchOnly: Boolean,
+        serverCert: ByteArray?,
+        streamWidth: Int,
+        streamHeight: Int,
+        streamFps: Float,
+    ) {
+        parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
+            .putInt("last_played_$pcUuid", app.appId)
+            .apply()
+
+        val intent = createStartIntent(
+            parent,
+            app,
+            host,
+            port,
+            httpsPort,
+            uniqueId,
+            pcUuid,
+            pcName,
+            withVDisplay,
+            displayModeExplicit,
+            watchOnly,
+            serverCommands,
+            serverCert,
+            streamWidth,
+            streamHeight,
+            streamFps,
+        )
+        parent.startActivity(intent)
+        NovaThemeManager.applyFadeTransition(parent)
+    }
+
+    @JvmStatic
+    fun doWatch(
+        parent: Activity,
+        app: NvApp,
+        computer: ComputerDetails,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+    ) {
+        doStart(parent, app, computer, managerBinder, false, false, true)
+    }
+
+    @JvmStatic
+    fun doStart(
+        parent: Activity,
+        app: NvApp,
+        host: String,
+        port: Int,
+        httpsPort: Int,
+        uniqueId: String,
+        pcUuid: String,
+        pcName: String,
+        serverCommands: ArrayList<String>?,
+        withVDisplay: Boolean,
+        serverCert: ByteArray?,
+    ) {
+        doStart(
+            parent,
+            app,
+            host,
+            port,
+            httpsPort,
+            uniqueId,
+            pcUuid,
+            pcName,
+            serverCommands,
+            withVDisplay,
+            false,
+            false,
+            serverCert,
+        )
+    }
+
+    @JvmStatic
+    fun doStart(
+        parent: Activity,
+        app: NvApp,
+        host: String,
+        port: Int,
+        httpsPort: Int,
+        uniqueId: String,
+        pcUuid: String,
+        pcName: String,
+        serverCommands: ArrayList<String>?,
+        withVDisplay: Boolean,
+        displayModeExplicit: Boolean,
+        watchOnly: Boolean,
+        serverCert: ByteArray?,
+    ) {
+        parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
+            .putInt("last_played_$pcUuid", app.appId)
+            .apply()
+
+        val intent = createStartIntent(
+            parent,
+            app,
+            host,
+            port,
+            httpsPort,
+            uniqueId,
+            pcUuid,
+            pcName,
+            withVDisplay,
+            displayModeExplicit,
+            watchOnly,
+            serverCommands,
+            serverCert,
+        )
+        parent.startActivity(intent)
+        NovaThemeManager.applyFadeTransition(parent)
+    }
+
+    @JvmStatic
+    fun doNetworkTest(parent: Activity) {
+        Thread {
+            val spinnerDialog = SpinnerDialog.displayDialog(
+                parent,
+                parent.resources.getString(R.string.nettest_title_waiting),
+                parent.resources.getString(R.string.nettest_text_waiting),
+                false,
+            )
+
+            val ret = MoonBridge.testClientConnectivity(
+                CONNECTION_TEST_SERVER,
+                443,
+                MoonBridge.ML_PORT_FLAG_ALL,
+            )
+            spinnerDialog.dismiss()
+
+            var dialogSummary = when {
+                ret == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE ->
+                    parent.resources.getString(R.string.nettest_text_inconclusive)
+                ret == 0 ->
+                    parent.resources.getString(R.string.nettest_text_success)
+                else ->
+                    parent.resources.getString(R.string.nettest_text_failure) +
+                        MoonBridge.stringifyPortFlags(ret, "\n")
+            }
+
+            Dialog.displayDialog(
+                parent,
+                parent.resources.getString(R.string.nettest_title_done),
+                dialogSummary,
+                false,
+            )
+        }.start()
+    }
+
+    @JvmStatic
+    fun doQuit(
+        parent: Activity,
+        httpConn: NvHTTP,
+        appName: String,
+        onComplete: Runnable?,
+        onFail: Runnable?,
+    ) {
+        parent.runOnUiThread {
+            Toast.makeText(
+                parent,
+                parent.resources.getString(R.string.applist_quit_app) + " " + appName + "...",
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+
+        Thread {
+            var message: String? = null
+            var failed = false
+            try {
+                val serverInfo = httpConn.getServerInfo(true)
+                val owned = httpConn.getCurrentGameOwned(serverInfo)
+                val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
+
+                if (owned == false) {
+                    throw HostHttpResponseException(599, "")
+                }
+
+                message = if (httpConn.quitApp(sessionToken)) {
+                    parent.resources.getString(R.string.applist_quit_success) + " " + appName
+                } else {
+                    parent.resources.getString(R.string.applist_quit_fail) + " " + appName
+                }
+            } catch (e: HostHttpResponseException) {
+                failed = true
+                message = if (e.getErrorCode() == 599) {
+                    "This session wasn't started by this device," +
+                        " so it cannot be quit. End streaming on the original " +
+                        "device or the PC itself. (Error code: " + e.getErrorCode() + ")"
+                } else {
+                    e.message
+                }
+            } catch (_: UnknownHostException) {
+                failed = true
+                message = parent.resources.getString(R.string.error_unknown_host)
+            } catch (_: FileNotFoundException) {
+                failed = true
+                message = parent.resources.getString(R.string.error_404)
+            } catch (e: XmlPullParserException) {
+                failed = true
+                message = e.message
+                e.printStackTrace()
+            } catch (e: IOException) {
+                failed = true
+                message = e.message
+                e.printStackTrace()
+            } finally {
+                if (failed) {
+                    onFail?.run()
+                } else {
+                    onComplete?.run()
+                }
+            }
+
+            val toastMessage = message
+            parent.runOnUiThread {
+                Toast.makeText(parent, toastMessage, Toast.LENGTH_LONG).show()
+            }
+        }.start()
+    }
+
+    @JvmStatic
+    fun doQuit(
+        parent: Activity,
+        computer: ComputerDetails,
+        app: NvApp,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        onComplete: Runnable?,
+    ) {
+        try {
+            val httpConn = NvHTTP(
+                getCurrentAddressFromComputer(computer),
+                computer.httpsPort,
+                managerBinder.uniqueId,
+                computer.serverCert,
+                PlatformBinding.getCryptoProvider(parent),
+            )
+            doQuit(
+                parent,
+                httpConn,
+                app.appName,
+                onComplete,
+                null,
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+
+            val toastMessage = e.message
+            parent.runOnUiThread {
+                Toast.makeText(parent, toastMessage, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+}

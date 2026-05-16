@@ -60,7 +60,7 @@ grep -Fq 'gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobbe
 grep -Fq "Nova-Android-\${abi}.apk" .github/workflows/build.yml
 grep -Fq "F-Droid and IzzyOnDroid packaging notes" README.md
 grep -Fq 'buildConfigField "boolean", "FDROID_BUILD"' app/build.gradle
-grep -Fq "BuildConfig.FDROID_BUILD" app/src/main/java/com/papi/nova/preferences/StreamSettings.java
+grep -Fq "BuildConfig.FDROID_BUILD" app/src/main/java/com/papi/nova/preferences/StreamSettings.kt
 
 metadata_dir="fastlane/metadata/android/en-US"
 required_metadata=(

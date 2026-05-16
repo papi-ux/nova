@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisGame
+import com.papi.nova.api.PolarisSessionStatus
 
 enum class NovaLibraryPrimaryFilter {
     ALL,
@@ -40,6 +41,72 @@ data class NovaLibraryUiModel(
     val emptyState: NovaLibraryEmptyState,
     val resultCount: Int
 )
+
+data class NovaLibraryActiveSessionUiState(
+    val gameId: Int,
+    val gameUuid: String,
+    val gameName: String,
+    val ownerDeviceName: String,
+    val ownedByClient: Boolean,
+    val viewerCount: Int,
+    val virtualDisplay: Boolean,
+    val displayModeExplicit: Boolean,
+    val streamWidth: Int,
+    val streamHeight: Int,
+    val streamFps: Float
+) {
+    val watchOnly: Boolean
+        get() = !ownedByClient
+
+    companion object {
+        private val STREAM_MODE_PATTERN = Regex("""^\s*(\d+)x(\d+)x(\d+(?:\.\d+)?)\s*$""")
+
+        fun from(status: PolarisSessionStatus?): NovaLibraryActiveSessionUiState? {
+            if (status == null || status.isShuttingDown || status.gameId <= 0) {
+                return null
+            }
+            if (!status.isSessionAlive && !status.isStreaming) {
+                return null
+            }
+
+            val streamProfile = parseStreamProfile(
+                status.syncStatus.applied.displayMode
+                    .ifBlank { status.syncStatus.effective.displayMode }
+                    .ifBlank { status.profileState.currentProfile.displayMode }
+            )
+            return NovaLibraryActiveSessionUiState(
+                gameId = status.gameId,
+                gameUuid = status.gameUuid,
+                gameName = status.game,
+                ownerDeviceName = status.ownerDeviceName,
+                ownedByClient = status.ownedByClient,
+                viewerCount = status.viewerCount.coerceAtLeast(0),
+                virtualDisplay = status.displayMode.virtualDisplay ||
+                    status.syncStatus.applied.streamDisplayMode.equals("host_virtual_display", ignoreCase = true) ||
+                    status.syncStatus.applied.streamDisplayMode.equals("virtual_display", ignoreCase = true),
+                displayModeExplicit = status.hasExplicitDisplayModeChoice,
+                streamWidth = streamProfile.width,
+                streamHeight = streamProfile.height,
+                streamFps = streamProfile.fps
+            )
+        }
+
+        private fun parseStreamProfile(displayMode: String): StreamProfile {
+            val match = STREAM_MODE_PATTERN.matchEntire(displayMode) ?: return StreamProfile()
+            return StreamProfile(
+                width = match.groupValues[1].toIntOrNull() ?: 0,
+                height = match.groupValues[2].toIntOrNull() ?: 0,
+                fps = match.groupValues[3].toFloatOrNull() ?: 0f
+            )
+        }
+
+        private data class StreamProfile(
+            val width: Int = 0,
+            val height: Int = 0,
+            val fps: Float = 0f
+        )
+    }
+}
 
 object NovaLibraryUiStateMapper {
     private const val RECENT_LIMIT = 6

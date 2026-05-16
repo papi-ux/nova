@@ -271,14 +271,15 @@ class KeyBoardLayoutController(
     }
 
     fun sendKeyEvent(keyEvent: KeyEvent) {
-        if (Game.instance == null || !Game.instance.connected) {
+        val game = Game.instance
+        if (game == null || !game.connected) {
             return
         }
 
         if (keyEvent.source == 1) {
-            Game.instance.mouseButtonEvent(keyEvent.keyCode, KeyEvent.ACTION_DOWN == keyEvent.action)
+            game.mouseButtonEvent(keyEvent.keyCode, KeyEvent.ACTION_DOWN == keyEvent.action)
         } else {
-            Game.instance.onKey(null, keyEvent.keyCode, keyEvent)
+            game.onKey(null, keyEvent.keyCode, keyEvent)
         }
     }
 

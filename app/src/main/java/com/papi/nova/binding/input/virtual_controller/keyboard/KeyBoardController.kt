@@ -286,14 +286,15 @@ class KeyBoardController(
     fun getControllerMode(): ControllerMode = currentMode
 
     fun sendKeyEvent(keyEvent: KeyEvent) {
-        if (Game.instance == null || !Game.instance.connected) {
+        val game = Game.instance
+        if (game == null || !game.connected) {
             return
         }
 
         if (keyEvent.source == 1) {
-            Game.instance.mouseButtonEvent(keyEvent.keyCode, KeyEvent.ACTION_DOWN == keyEvent.action)
+            game.mouseButtonEvent(keyEvent.keyCode, KeyEvent.ACTION_DOWN == keyEvent.action)
         } else {
-            Game.instance.onKey(null, keyEvent.keyCode, keyEvent)
+            game.onKey(null, keyEvent.keyCode, keyEvent)
         }
 
         if (keyEvent.source != 2) {
@@ -302,10 +303,11 @@ class KeyBoardController(
     }
 
     fun sendMouseMove(x: Int, y: Int) {
-        if (Game.instance == null || !Game.instance.connected) {
+        val game = Game.instance
+        if (game == null || !game.connected) {
             return
         }
-        Game.instance.mouseMove(x, y)
+        game.mouseMove(x, y)
     }
 
     fun vibrate(action: Int) {
