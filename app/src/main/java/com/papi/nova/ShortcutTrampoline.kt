@@ -353,7 +353,40 @@ class ShortcutTrampoline : AppCompatActivity() {
             return null
         }
 
-        if (!isSafeArtFileUri(fileUri)) {
+        val scheme = fileUri.scheme
+        val path = fileUri.path
+        val authority = fileUri.authority
+        val canonicalPath = if (
+            (ContentResolver.SCHEME_CONTENT == scheme || ContentResolver.SCHEME_FILE == scheme) &&
+            path != null &&
+            path.lowercase(Locale.US).endsWith(".art") &&
+            (
+                ContentResolver.SCHEME_FILE == scheme ||
+                    (!authority.isNullOrEmpty() && !isNovaInternalContentAuthority(authority))
+                )
+        ) {
+            try {
+                File(path).canonicalPath
+            } catch (_: IOException) {
+                null
+            }
+        } else {
+            null
+        }
+
+        if (
+            canonicalPath == null ||
+            canonicalPath == "/data" ||
+            canonicalPath.startsWith("/data/") ||
+            canonicalPath == "/proc" ||
+            canonicalPath.startsWith("/proc/") ||
+            canonicalPath == "/sys" ||
+            canonicalPath.startsWith("/sys/") ||
+            canonicalPath == "/dev" ||
+            canonicalPath.startsWith("/dev/") ||
+            canonicalPath == "/acct" ||
+            canonicalPath.startsWith("/acct/")
+        ) {
             Dialog.displayDialog(
                 this@ShortcutTrampoline,
                 resources.getString(R.string.conn_error_title),
