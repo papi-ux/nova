@@ -111,6 +111,10 @@
     <string name="nova_library_auto_quality_on">AI On</string>
     <string name="nova_library_auto_quality_off">AI Off</string>
     <string name="nova_library_mode_checking">Mode</string>
+    <string name="nova_library_active_session_title">Active Session</string>
+    <string name="nova_library_active_session_owner_format">Running on %1$s</string>
+    <string name="nova_library_active_session_viewer_count_one">%1$d viewer</string>
+    <string name="nova_library_active_session_viewer_count_many">%1$d viewers</string>
     <string name="nova_library_continue_label">Continue</string>
     <string name="nova_library_continue_empty">No recent</string>
     <string name="nova_library_continue_count">%1$d recent</string>

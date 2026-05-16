@@ -1,7 +1,10 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisGame
+import com.papi.nova.api.PolarisSessionStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -128,6 +131,76 @@ class NovaLibraryUiStateTest {
         assertTrue(widths.values.all { it >= 112 })
         assertTrue(widths.getValue(NovaLibraryPrimaryFilter.SOURCES) > widths.getValue(NovaLibraryPrimaryFilter.ALL))
         assertTrue(widths.getValue(NovaLibraryPrimaryFilter.RECENT) > widths.getValue(NovaLibraryPrimaryFilter.HDR))
+    }
+
+    @Test
+    fun activeSessionUsesOwnedStreamingStatusForResume() {
+        val session = NovaLibraryActiveSessionUiState.from(
+            PolarisSessionStatus(
+                state = "streaming",
+                streamingActive = true,
+                game = "Indiana Jones and the Great Circle",
+                gameId = 777,
+                gameUuid = "indy-uuid",
+                ownerDeviceName = "Retroid Pocket",
+                viewerCount = 1,
+                ownedByClient = true
+            )
+        )
+
+        requireNotNull(session)
+        assertEquals(777, session.gameId)
+        assertEquals("indy-uuid", session.gameUuid)
+        assertEquals("Indiana Jones and the Great Circle", session.gameName)
+        assertEquals("Retroid Pocket", session.ownerDeviceName)
+        assertEquals(1, session.viewerCount)
+        assertTrue(session.ownedByClient)
+        assertFalse(session.watchOnly)
+    }
+
+    @Test
+    fun activeSessionUsesWatchPolicyForOtherClientOwner() {
+        val session = NovaLibraryActiveSessionUiState.from(
+            PolarisSessionStatus(
+                state = "streaming",
+                game = "Desktop",
+                gameId = 42,
+                gameUuid = "desktop-uuid",
+                ownerDeviceName = "Pixel",
+                clientRole = "viewer",
+                viewerCount = 2,
+                ownedByClient = false
+            )
+        )
+
+        requireNotNull(session)
+        assertFalse(session.ownedByClient)
+        assertTrue(session.watchOnly)
+        assertEquals(2, session.viewerCount)
+    }
+
+    @Test
+    fun activeSessionIgnoresShutdownIdleAndMissingGame() {
+        assertNull(
+            NovaLibraryActiveSessionUiState.from(
+                PolarisSessionStatus(
+                    state = "tearing_down",
+                    shutdownRequested = true,
+                    game = "Indy",
+                    gameId = 777
+                )
+            )
+        )
+        assertNull(
+            NovaLibraryActiveSessionUiState.from(
+                PolarisSessionStatus(state = "streaming", game = "Indy", gameId = 0)
+            )
+        )
+        assertNull(
+            NovaLibraryActiveSessionUiState.from(
+                PolarisSessionStatus(state = "idle", game = "Indy", gameId = 777)
+            )
+        )
     }
 
     private fun game(

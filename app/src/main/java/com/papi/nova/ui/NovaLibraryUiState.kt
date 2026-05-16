@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisGame
+import com.papi.nova.api.PolarisSessionStatus
 
 enum class NovaLibraryPrimaryFilter {
     ALL,
@@ -40,6 +41,38 @@ data class NovaLibraryUiModel(
     val emptyState: NovaLibraryEmptyState,
     val resultCount: Int
 )
+
+data class NovaLibraryActiveSessionUiState(
+    val gameId: Int,
+    val gameUuid: String,
+    val gameName: String,
+    val ownerDeviceName: String,
+    val ownedByClient: Boolean,
+    val viewerCount: Int
+) {
+    val watchOnly: Boolean
+        get() = !ownedByClient
+
+    companion object {
+        fun from(status: PolarisSessionStatus?): NovaLibraryActiveSessionUiState? {
+            if (status == null || status.isShuttingDown || status.gameId <= 0) {
+                return null
+            }
+            if (!status.isSessionAlive && !status.isStreaming) {
+                return null
+            }
+
+            return NovaLibraryActiveSessionUiState(
+                gameId = status.gameId,
+                gameUuid = status.gameUuid,
+                gameName = status.game,
+                ownerDeviceName = status.ownerDeviceName,
+                ownedByClient = status.ownedByClient,
+                viewerCount = status.viewerCount.coerceAtLeast(0)
+            )
+        }
+    }
+}
 
 object NovaLibraryUiStateMapper {
     private const val RECENT_LIMIT = 6
