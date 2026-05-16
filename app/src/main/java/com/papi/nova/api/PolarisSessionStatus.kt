@@ -257,9 +257,12 @@ data class PolarisSessionStatus(
         val relaunchRecommended: Boolean = false
     )
 
-    val isStreaming get() = state == "streaming" || streamingActive
-    val isSessionAlive get() = state in listOf("initializing", "cage_starting", "game_launching", "streaming")
-    val isShuttingDown get() = shutdownRequested || state == "tearing_down"
+    private val normalizedState get() = state.lowercase()
+    val isStreaming get() = normalizedState == "streaming" || streamingActive
+    val isPausedForResume get() = normalizedState == "paused"
+    val isSessionAlive get() = normalizedState in listOf("initializing", "cage_starting", "game_launching", "streaming", "paused")
+    val isShuttingDown get() = shutdownRequested || normalizedState == "tearing_down"
+    val isResumable get() = !isShuttingDown && gameId > 0 && (isSessionAlive || isPausedForResume)
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
     val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true)
     val isHeadlessMode get() = displayMode.effectiveHeadless

@@ -296,6 +296,7 @@ private var watchStreamWidth:Int = 0
 private var watchStreamHeight:Int = 0
 private var watchStreamFps:Float = 0f
 private var backgroundResumePrepared:Boolean = false
+@Volatile private var disconnectResumeTimeoutSyncInFlight:Boolean = false
 private var disconnectResumeTimeoutSynced:Boolean = false
  var serverCmds:ArrayList<String> = ArrayList()
 
@@ -5523,17 +5524,36 @@ disconnectResumeTimeoutSynced
 {
 return
 }
+if (disconnectResumeTimeoutSyncInFlight)
+{
+return
+}
 val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: return
 val timeoutSeconds:Int = prefConfig.disconnectResumeTimeoutSeconds
-disconnectResumeTimeoutSynced = true
+disconnectResumeTimeoutSyncInFlight = true
 runtimeTasks.launchIo("NovaResumePolicy") { try
 {
 client.updateClientSettings(disconnectResumeTimeoutSeconds = timeoutSeconds)
+disconnectResumeTimeoutSynced = true
 LimeLog.info("Nova: Synced disconnect resume timeout: " + timeoutSeconds + "s")
 }
 catch (e:Exception) {
 LimeLog.warning("Nova: Failed to sync disconnect resume timeout: " + e!!.message)
 }
+finally {
+disconnectResumeTimeoutSyncInFlight = false
+}
+}
+}
+
+private fun encodedServerCertificateForResume():ByteArray? {
+return try
+{
+serverCert?.encoded
+}
+catch (e:Exception) {
+LimeLog.warning("Nova: Failed to encode server cert for resume notification: " + e.message)
+null
 }
 }
 
@@ -5559,7 +5579,14 @@ com.papi.nova.service.NovaStreamKeepAlive.start(
 this,
 timeoutSeconds,
 appName,
-pcName
+pcName,
+host,
+port,
+httpsPort,
+uniqueId,
+this@Game.getIntent().getStringExtra(EXTRA_PC_UUID),
+serverCmds,
+encodedServerCertificateForResume()
 )
 LimeLog.info("Nova: Background resume window prepared for " + timeoutSeconds + "s")
 }

@@ -10,7 +10,15 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.ui.NovaLibraryActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class NovaStreamKeepAlive : Service() {
 
@@ -21,18 +29,44 @@ class NovaStreamKeepAlive : Service() {
         private const val EXTRA_TIMEOUT_SECONDS = "timeout_seconds"
         private const val EXTRA_GAME_NAME = "game_name"
         private const val EXTRA_SERVER_NAME = "server_name"
+        private const val EXTRA_HOST = "host"
+        private const val EXTRA_HTTP_PORT = "http_port"
+        private const val EXTRA_HTTPS_PORT = "https_port"
+        private const val EXTRA_UNIQUE_ID = "unique_id"
+        private const val EXTRA_PC_UUID = "pc_uuid"
+        private const val EXTRA_SERVER_COMMANDS = "server_commands"
+        private const val EXTRA_SERVER_CERT = "server_cert"
 
         @JvmStatic
+        @JvmOverloads
         fun start(
             context: Context,
             timeoutSeconds: Int = 300,
             gameName: String? = null,
-            serverName: String? = null
+            serverName: String? = null,
+            host: String? = null,
+            httpPort: Int = 47989,
+            httpsPort: Int = 47984,
+            uniqueId: String? = null,
+            pcUuid: String? = null,
+            serverCommands: ArrayList<String>? = null,
+            serverCert: ByteArray? = null
         ) {
             val intent = Intent(context, NovaStreamKeepAlive::class.java)
                 .putExtra(EXTRA_TIMEOUT_SECONDS, timeoutSeconds)
                 .putExtra(EXTRA_GAME_NAME, gameName.orEmpty())
                 .putExtra(EXTRA_SERVER_NAME, serverName.orEmpty())
+                .putExtra(EXTRA_HOST, host.orEmpty())
+                .putExtra(EXTRA_HTTP_PORT, httpPort)
+                .putExtra(EXTRA_HTTPS_PORT, httpsPort)
+                .putExtra(EXTRA_UNIQUE_ID, uniqueId.orEmpty())
+                .putExtra(EXTRA_PC_UUID, pcUuid.orEmpty())
+            if (serverCommands != null) {
+                intent.putStringArrayListExtra(EXTRA_SERVER_COMMANDS, serverCommands)
+            }
+            if (serverCert != null) {
+                intent.putExtra(EXTRA_SERVER_CERT, serverCert)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -48,6 +82,7 @@ class NovaStreamKeepAlive : Service() {
 
     private val autoStopRunnable = Runnable { stopSelf() }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -66,7 +101,8 @@ class NovaStreamKeepAlive : Service() {
         val gameName = intent?.getStringExtra(EXTRA_GAME_NAME).orEmpty()
         val serverName = intent?.getStringExtra(EXTRA_SERVER_NAME).orEmpty()
 
-        startForeground(NOTIFICATION_ID, buildNotification(gameName, serverName, timeoutSeconds))
+        startForeground(NOTIFICATION_ID, buildNotification(intent, gameName, serverName, timeoutSeconds))
+        syncDisconnectResumeTimeout(intent, timeoutSeconds)
         handler.removeCallbacks(autoStopRunnable)
         if (timeoutMs > 0) {
             handler.postDelayed(autoStopRunnable, timeoutMs)
@@ -76,6 +112,7 @@ class NovaStreamKeepAlive : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(autoStopRunnable)
+        serviceScope.cancel()
         super.onDestroy()
     }
 
@@ -96,10 +133,8 @@ class NovaStreamKeepAlive : Service() {
         }
     }
 
-    private fun buildNotification(gameName: String, serverName: String, timeoutSeconds: Int): Notification {
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-            ?: Intent(this, com.papi.nova.PcView::class.java)
-        launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    private fun buildNotification(intent: Intent?, gameName: String, serverName: String, timeoutSeconds: Int): Notification {
+        val launchIntent = buildResumeIntent(intent)
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -124,6 +159,61 @@ class NovaStreamKeepAlive : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()
+    }
+
+    private fun buildResumeIntent(intent: Intent?): Intent {
+        val host = intent?.getStringExtra(EXTRA_HOST).orEmpty()
+        val uniqueId = intent?.getStringExtra(EXTRA_UNIQUE_ID).orEmpty()
+        val pcUuid = intent?.getStringExtra(EXTRA_PC_UUID).orEmpty()
+        val serverCert = intent?.getByteArrayExtra(EXTRA_SERVER_CERT)
+        val serverName = intent?.getStringExtra(EXTRA_SERVER_NAME).orEmpty()
+        val httpPort = intent?.getIntExtra(EXTRA_HTTP_PORT, 47989) ?: 47989
+        val httpsPort = intent?.getIntExtra(EXTRA_HTTPS_PORT, 47984) ?: 47984
+        val serverCommands = intent?.getStringArrayListExtra(EXTRA_SERVER_COMMANDS)
+        val launchIntent = if (host.isNotBlank() && uniqueId.isNotBlank() && pcUuid.isNotBlank() && serverCert != null) {
+            Intent(this, NovaLibraryActivity::class.java)
+                .putExtra(NovaLibraryActivity.EXTRA_HOST, host)
+                .putExtra(NovaLibraryActivity.EXTRA_SERVER_NAME, serverName)
+                .putExtra(NovaLibraryActivity.EXTRA_HTTP_PORT, httpPort)
+                .putExtra(NovaLibraryActivity.EXTRA_HTTPS_PORT, httpsPort)
+                .putExtra(NovaLibraryActivity.EXTRA_UNIQUE_ID, uniqueId)
+                .putExtra(NovaLibraryActivity.EXTRA_PC_UUID, pcUuid)
+                .putExtra(NovaLibraryActivity.EXTRA_SERVER_CERT, serverCert)
+                .apply {
+                    if (serverCommands != null) {
+                        putStringArrayListExtra(NovaLibraryActivity.EXTRA_SERVER_COMMANDS, serverCommands)
+                    }
+                }
+        } else {
+            packageManager.getLaunchIntentForPackage(packageName)
+                ?: Intent(this, com.papi.nova.PcView::class.java)
+        }
+        return launchIntent.apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+    }
+
+    private fun syncDisconnectResumeTimeout(intent: Intent?, timeoutSeconds: Int) {
+        val host = intent?.getStringExtra(EXTRA_HOST).orEmpty()
+        if (host.isBlank()) {
+            return
+        }
+
+        val httpsPort = intent?.getIntExtra(EXTRA_HTTPS_PORT, 47984) ?: 47984
+        val serverCert = intent?.getByteArrayExtra(EXTRA_SERVER_CERT)
+        serviceScope.launch {
+            try {
+                PolarisApiClient(
+                    this@NovaStreamKeepAlive,
+                    host,
+                    httpsPort,
+                    serverCert
+                ).updateClientSettings(disconnectResumeTimeoutSeconds = timeoutSeconds)
+                LimeLog.info("Nova: Keep-alive synced disconnect resume timeout: ${timeoutSeconds}s")
+            } catch (e: Exception) {
+                LimeLog.warning("Nova: Keep-alive failed to sync disconnect resume timeout: ${e.message}")
+            }
+        }
     }
 
     private fun formatResumeWindow(timeoutSeconds: Int): String {
