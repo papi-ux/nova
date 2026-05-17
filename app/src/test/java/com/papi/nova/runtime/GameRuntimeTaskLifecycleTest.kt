@@ -63,6 +63,38 @@ class GameRuntimeTaskLifecycleTest {
         assertNoActiveJobs(tasks, "session")
     }
 
+    @Test
+    fun launchIoReplacingCancelsPreviousNamedRuntimeTask() {
+        val owner = TestLifecycleOwner(Lifecycle.State.CREATED)
+        val tasks = NovaRuntimeTasks(owner)
+        val firstStarted = CountDownLatch(1)
+        val firstCancelled = CountDownLatch(1)
+        val secondStarted = CountDownLatch(1)
+
+        tasks.launchIoReplacing("bitrate") {
+            firstStarted.countDown()
+            try {
+                awaitCancellation()
+            } finally {
+                firstCancelled.countDown()
+            }
+        }
+
+        assertTrue(firstStarted.await(1, TimeUnit.SECONDS))
+
+        tasks.launchIoReplacing("bitrate") {
+            secondStarted.countDown()
+            awaitCancellation()
+        }
+
+        assertTrue(firstCancelled.await(1, TimeUnit.SECONDS))
+        assertTrue(secondStarted.await(1, TimeUnit.SECONDS))
+        assertEquals(1, tasks.activeJobCount("bitrate"))
+
+        tasks.cancel("bitrate")
+        assertNoActiveJobs(tasks, "bitrate")
+    }
+
     private fun assertNoActiveJobs(tasks: NovaRuntimeTasks, name: String) {
         repeat(20) {
             if (tasks.activeJobCount(name) == 0) {

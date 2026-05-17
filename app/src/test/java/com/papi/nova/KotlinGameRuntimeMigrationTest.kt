@@ -215,6 +215,34 @@ class KotlinGameRuntimeMigrationTest {
         )
     }
 
+    @Test
+    fun streamShutdownReportUsesRuntimeTasksInsteadOfRawThread() {
+        val source = readGameSource()
+        val stopConnection = source.substring(
+            source.indexOf("private fun stopConnection()"),
+            source.indexOf("override fun stageFailed(")
+        )
+        val sessionReport = stopConnection.substring(
+            stopConnection.indexOf("// Send AI session report before dismissing HUD"),
+            stopConnection.indexOf("novaHud!!.dismiss()")
+        )
+
+        assertTrue(sessionReport.contains("launchRuntimeIo(\"NovaSessionReport\")"))
+        assertFalse(sessionReport.contains("Thread({"))
+    }
+
+    @Test
+    fun hudBitrateAdjustUsesReplacingRuntimeTask() {
+        val source = readGameSource()
+        val bitrateAdjust = source.substring(
+            source.indexOf("// Wire proactive bitrate adjustment"),
+            source.indexOf("schedulePolarisLiveSessionStatusRefresh(true)", source.indexOf("// Wire proactive bitrate adjustment"))
+        )
+
+        assertTrue(bitrateAdjust.contains("launchReplacingRuntimeIo(\"NovaBitrateAdjust\")"))
+        assertFalse(bitrateAdjust.contains("Thread({"))
+    }
+
     private fun readGameSource(): String {
         return String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/Game.kt")), StandardCharsets.UTF_8)
     }

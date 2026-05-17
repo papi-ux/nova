@@ -24,6 +24,11 @@ internal class NovaRuntimeTasks(
     fun launchIo(name: String, block: suspend CoroutineScope.() -> Unit): Job =
         launch(name, Dispatchers.IO, block)
 
+    fun launchIoReplacing(name: String, block: suspend CoroutineScope.() -> Unit): Job {
+        cancel(name)
+        return launchIo(name, block)
+    }
+
     fun launchMain(name: String, block: suspend CoroutineScope.() -> Unit): Job =
         launch(name, Dispatchers.Main.immediate, block)
 
