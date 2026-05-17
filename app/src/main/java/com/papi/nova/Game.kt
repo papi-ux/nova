@@ -4205,18 +4205,22 @@ connected = false
 connecting = connected
 isStreamActive = false
 stopPolarisLiveSessionStatusRefresh()
+runtimeTasks.cancel("NovaBitrateAdjust")
  // Send AI session report before dismissing HUD
             if (novaHud != null && host != null)
 {
-var summary:Map<String, Any>? = novaHud!!.getSessionSummary()
-var reportHost:String? = host
-var reportDevice:String? = DeviceUtils.getModel()
-var reportGame:String? = if (appName != null) appName else ""
-Thread({ try
+val summary:Map<String, Any>? = novaHud!!.getSessionSummary()
+val reportHost:String? = host
+val reportHttpsPort:Int = httpsPort
+val reportServerCert:X509Certificate? = serverCert
+val reportDevice:String? = DeviceUtils.getModel()
+val reportUniqueId:String? = uniqueId
+val reportGame:String? = if (appName != null) appName else ""
+launchRuntimeIo("NovaSessionReport") { try
 {
-var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, reportHost ?: "", httpsPort, serverCert)
+var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, reportHost ?: "", reportHttpsPort, reportServerCert)
 client.sendSessionReport(
-reportDevice ?: "", uniqueId ?: "", reportGame ?: "",
+reportDevice ?: "", reportUniqueId ?: "", reportGame ?: "",
 getSummaryDouble(summary, "avg_fps", 0.0),
 getSummaryDouble(summary, "target_fps", 0.0),
 getSummaryDouble(summary, "low_1_percent_fps", 0.0),
@@ -4247,10 +4251,13 @@ getSummaryBoolean(summary, "safe_hdr"),
 getSummaryBoolean(summary, "relaunch_recommended") == true
 )
 }
+catch (e:kotlinx.coroutines.CancellationException) {
+throw e
+}
 catch (e:Exception) {
 com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e!!.message)
 }
- }).start()
+ }
 novaHud!!.dismiss()
 novaHud = null
 }
@@ -4519,17 +4526,22 @@ novaHud!!.applySessionStatus(lastPolarisSessionStatus)
 
  // Wire proactive bitrate adjustment — HUD monitors quality and auto-adjusts
                     var streamHost:String? = host
+val streamHttpsPort:Int = httpsPort
+val streamServerCert:X509Certificate? = serverCert
 	novaHud!!.onBitrateAdjust = { newBitrate:Int ->
-Thread({ try
+launchReplacingRuntimeIo("NovaBitrateAdjust") { try
 {
-var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, streamHost ?: "", httpsPort, serverCert)
+var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, streamHost ?: "", streamHttpsPort, streamServerCert)
 client.setBitrate(newBitrate)
 com.papi.nova.LimeLog.info("Nova: Proactive bitrate adjust → " + newBitrate + " kbps")
+}
+catch (e:kotlinx.coroutines.CancellationException) {
+throw e
 }
 catch (e:Exception) {
 com.papi.nova.LimeLog.warning("Nova: Bitrate adjust failed: " + e!!.message)
 }
- }).start()
+ }
 	}
 schedulePolarisLiveSessionStatusRefresh(true)
 }
@@ -5092,6 +5104,10 @@ cursorVisibilitySyncExecutor!!.shutdownNow()
 
 internal fun launchRuntimeIo(name:String, block:suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
 runtimeTasks.launchIo(name, block)
+}
+
+internal fun launchReplacingRuntimeIo(name:String, block:suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
+runtimeTasks.launchIoReplacing(name, block)
 }
 
 internal suspend fun runOnMainIfRuntimeActive(block:() -> Unit) {
