@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Paths
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -63,6 +64,38 @@ class NovaComposeBuildConfigurationTest {
                 rootBuild.contains("classpath('io.netty:netty-codec-http:4.1.133.Final')") &&
                 rootBuild.contains("classpath('io.netty:netty-codec-http2:4.1.133.Final')") &&
                 rootBuild.contains("classpath('io.netty:netty-handler-proxy:4.1.133.Final')")
+        )
+    }
+
+    @Test
+    fun rootTestAggregationUsesLazyTaskRegistration() {
+        val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
+
+        assertFalse(
+            "root test aggregation should not wait for projectsEvaluated",
+            rootBuild.contains("gradle.projectsEvaluated")
+        )
+        assertTrue(
+            "root test aggregation should register the test task lazily",
+            rootBuild.contains("def testAllUnitTests = tasks.register('test')")
+        )
+        assertTrue(
+            "root test aggregation should wire subproject unit-test tasks without realizing them early",
+            rootBuild.contains("tasks.matching { it.name.endsWith('UnitTest') }.configureEach")
+        )
+    }
+
+    @Test
+    fun releaseResourceShrinkingUsesGradleAssignmentSyntax() {
+        val appBuild = String(Files.readAllBytes(Paths.get("build.gradle")), StandardCharsets.UTF_8)
+
+        assertTrue(
+            "release resource shrinking should use Gradle 10-compatible assignment syntax",
+            appBuild.contains("shrinkResources = true")
+        )
+        assertFalse(
+            "release resource shrinking should not use deprecated Groovy space assignment",
+            appBuild.contains("shrinkResources true")
         )
     }
 }
