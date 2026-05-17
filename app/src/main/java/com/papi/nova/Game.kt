@@ -40,6 +40,7 @@ import com.papi.nova.runtime.BackgroundResumePolicy
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
+import com.papi.nova.ui.NovaHudSessionSummaryLog
 import com.papi.nova.ui.StreamContainer
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
@@ -4203,6 +4204,7 @@ runtimeTasks.cancel("NovaBitrateAdjust")
             if (novaHud != null && host != null)
 {
 val summary:Map<String, Any>? = novaHud!!.getSessionSummary()
+com.papi.nova.LimeLog.info("Nova: HUD session summary " + NovaHudSessionSummaryLog.format(summary ?: emptyMap()))
 val reportHost:String? = host
 val reportHttpsPort:Int = httpsPort
 val reportServerCert:X509Certificate? = serverCert
