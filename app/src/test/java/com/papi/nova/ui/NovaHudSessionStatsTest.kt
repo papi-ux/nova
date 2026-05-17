@@ -1,7 +1,9 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisSessionStatus
+import com.google.gson.JsonParser
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -95,5 +97,38 @@ class NovaHudSessionStatsTest {
         assertEquals("h264", summary["safe_codec"])
         assertEquals("desktop", summary["safe_display_mode"])
         assertEquals(true, summary["relaunch_recommended"])
+    }
+
+    @Test
+    fun sessionSummaryLogIncludesEvidenceFieldsAndExcludesIdentifiers() {
+        val summary = mapOf(
+            "avg_fps" to 59.5,
+            "target_fps" to 60.0,
+            "avg_latency_ms" to 24.0,
+            "avg_bitrate_kbps" to 18000,
+            "packet_loss_pct" to 0.25,
+            "codec" to "HEVC",
+            "duration_s" to 120,
+            "samples" to 118,
+            "health_grade" to "stable",
+            "primary_issue" to "none",
+            "issues" to listOf("decoder_watch"),
+            "safe_target_fps" to 60.0,
+            "relaunch_recommended" to false,
+            "device" to "Retroid Pocket Flip2",
+            "unique_id" to "abc123",
+            "host" to "pc-papi.lan"
+        )
+
+        val json = JsonParser.parseString(NovaHudSessionSummaryLog.format(summary)).asJsonObject
+
+        assertEquals(59.5, json["avg_fps"].asDouble, 0.01)
+        assertEquals(24.0, json["avg_latency_ms"].asDouble, 0.01)
+        assertEquals(18000, json["avg_bitrate_kbps"].asInt)
+        assertEquals("HEVC", json["codec"].asString)
+        assertEquals("decoder_watch", json["issues"].asJsonArray[0].asString)
+        assertFalse(json.has("device"))
+        assertFalse(json.has("unique_id"))
+        assertFalse(json.has("host"))
     }
 }
