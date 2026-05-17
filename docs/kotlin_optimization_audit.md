@@ -171,7 +171,7 @@ Merged audit follow-up hardening PRs:
 2. `nova/stream-cursor-sync-runtime` (#46): route host cursor visibility sync through `NovaRuntimeTasks` as `NovaCursorSync`, preserving newest-state coalescing.
 3. `nova/video-metrics-guards` (#47): preserve host-processing latency minima across empty latency windows and include active-window video counters in crash diagnostics.
 
-The remaining video work should stay measurement-first. Do not tune frame-drop thresholds, decoder watchdog timing, or frame pacing policy until a baseline evidence pass captures before/after data on real devices.
+The remaining video work should stay measurement-first. Do not tune frame-drop thresholds, decoder watchdog timing, or frame pacing policy until a baseline evidence pass captures before/after data on real devices. The first follow-up baseline is recorded in `docs/video_baseline_evidence.md`.
 
 ## Dependency Submission Follow-up
 
