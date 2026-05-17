@@ -322,6 +322,7 @@ data class NovaHudUiState(
 class NovaHudSessionStats {
     private var sessionFpsSum = 0.0
     private var sessionLatencySum = 0.0
+    private var sessionLatencySamples = 0
     private var sessionPacketLossSum = 0.0
     private var sessionPacketLossSamples = 0
     private var sessionSamples = 0
@@ -355,6 +356,7 @@ class NovaHudSessionStats {
     fun reset() {
         sessionFpsSum = 0.0
         sessionLatencySum = 0.0
+        sessionLatencySamples = 0
         sessionPacketLossSum = 0.0
         sessionPacketLossSamples = 0
         sessionSamples = 0
@@ -405,6 +407,7 @@ class NovaHudSessionStats {
     fun recordLatency(ms: Int) {
         if (ms > 0) {
             sessionLatencySum += ms.toDouble()
+            sessionLatencySamples++
         }
     }
 
@@ -455,7 +458,7 @@ class NovaHudSessionStats {
     fun summary(nowMs: Long = System.currentTimeMillis()): Map<String, Any> {
         val durationS = if (sessionStartTime > 0) ((nowMs - sessionStartTime) / 1000).toInt() else 0
         val avgFps = if (sessionSamples > 0) sessionFpsSum / sessionSamples else 0.0
-        val avgLatency = if (sessionSamples > 0) sessionLatencySum / sessionSamples else 0.0
+        val avgLatency = if (sessionLatencySamples > 0) sessionLatencySum / sessionLatencySamples else 0.0
         val badPacingPct = if (sessionSamples > 0) {
             (sessionBadPacingSamples.toDouble() / sessionSamples.toDouble()) * 100.0
         } else {
