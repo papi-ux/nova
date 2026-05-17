@@ -94,4 +94,26 @@ class KotlinVideoStatsMigrationTest {
         assertEquals(0, copy.minHostProcessingLatency.code)
         assertEquals(0, copy.measurementStartTimestamp)
     }
+
+    @Test
+    fun addKeepsHostLatencyMinimumWhenNextWindowHasNoHostLatency() {
+        val accumulated = VideoStats()
+        accumulated.minHostProcessingLatency = 7.toChar()
+        accumulated.maxHostProcessingLatency = 11.toChar()
+        accumulated.totalHostProcessingLatency = 18
+        accumulated.framesWithHostProcessingLatency = 2
+        accumulated.measurementStartTimestamp = 100
+
+        val emptyLatencyWindow = VideoStats()
+        emptyLatencyWindow.totalFrames = 3
+        emptyLatencyWindow.totalFramesReceived = 3
+        emptyLatencyWindow.measurementStartTimestamp = 120
+
+        accumulated.add(emptyLatencyWindow)
+
+        assertEquals(7, accumulated.minHostProcessingLatency.code)
+        assertEquals(11, accumulated.maxHostProcessingLatency.code)
+        assertEquals(18, accumulated.totalHostProcessingLatency)
+        assertEquals(2, accumulated.framesWithHostProcessingLatency)
+    }
 }

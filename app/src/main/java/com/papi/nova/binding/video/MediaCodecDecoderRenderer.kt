@@ -1826,6 +1826,13 @@ class MediaCodecDecoderRenderer(
         return minDecodeTimeFullLog
     }
 
+    private fun getCrashDiagnosticVideoStats(): VideoStats {
+        val stats = VideoStats()
+        stats.add(globalVideoStats)
+        stats.add(activeWindowVideoStats)
+        return stats
+    }
+
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private fun appendDecoderCapabilities(
         append: (String) -> Unit,
@@ -1893,6 +1900,8 @@ class MediaCodecDecoderRenderer(
                 "ErrorWhileStreaming"
             }
 
+            val videoStats = renderer.getCrashDiagnosticVideoStats()
+
             str += "Format: " + String.format("%x", renderer.videoFormat) + DELIMITER
             str += "AVC Decoder: " + (renderer.avcDecoder?.name ?: "(none)") + DELIMITER
             str += "HEVC Decoder: " + (renderer.hevcDecoder?.name ?: "(none)") + DELIMITER
@@ -1920,14 +1929,14 @@ class MediaCodecDecoderRenderer(
             str += "Bitrate: " + renderer.prefs.bitrate + " Kbps" + DELIMITER
             str += "CSD stats: " + renderer.numVpsIn + ", " + renderer.numSpsIn + ", " + renderer.numPpsIn + DELIMITER
             str += "Frames in-out: " + renderer.numFramesIn + ", " + renderer.numFramesOut + DELIMITER
-            str += "Total frames received: " + renderer.globalVideoStats.totalFramesReceived + DELIMITER
-            str += "Total frames rendered: " + renderer.globalVideoStats.totalFramesRendered + DELIMITER
-            str += "Frame losses: " + renderer.globalVideoStats.framesLost + " in " +
-                renderer.globalVideoStats.frameLossEvents + " loss events" + DELIMITER
-            str += "Decoder pacing counters: starvation=" + renderer.globalVideoStats.decoderStarvationEvents +
-                ", intentionalDrops=" + renderer.globalVideoStats.intentionalFrameDrops +
-                ", watchdogFlushes=" + renderer.globalVideoStats.watchdogFlushes +
-                ", formatChanges=" + renderer.globalVideoStats.outputFormatChanges + DELIMITER
+            str += "Total frames received: " + videoStats.totalFramesReceived + DELIMITER
+            str += "Total frames rendered: " + videoStats.totalFramesRendered + DELIMITER
+            str += "Frame losses: " + videoStats.framesLost + " in " +
+                videoStats.frameLossEvents + " loss events" + DELIMITER
+            str += "Decoder pacing counters: starvation=" + videoStats.decoderStarvationEvents +
+                ", intentionalDrops=" + videoStats.intentionalFrameDrops +
+                ", watchdogFlushes=" + videoStats.watchdogFlushes +
+                ", formatChanges=" + videoStats.outputFormatChanges + DELIMITER
             str += "Average end-to-end client latency: " + renderer.getAverageEndToEndLatency() + "ms" + DELIMITER
             str += "Average hardware decoder latency: " + renderer.getAverageDecoderLatency() + "ms" + DELIMITER
             str += "Frame pacing mode: " + renderer.prefs.framePacing + DELIMITER
