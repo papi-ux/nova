@@ -10,6 +10,10 @@ class VideoStats {
     @JvmField var totalFramesRendered: Int = 0
     @JvmField var frameLossEvents: Int = 0
     @JvmField var framesLost: Int = 0
+    @JvmField var decoderStarvationEvents: Int = 0
+    @JvmField var intentionalFrameDrops: Int = 0
+    @JvmField var watchdogFlushes: Int = 0
+    @JvmField var outputFormatChanges: Int = 0
     @JvmField var minHostProcessingLatency: Char = 0.toChar()
     @JvmField var maxHostProcessingLatency: Char = 0.toChar()
     @JvmField var totalHostProcessingLatency: Int = 0
@@ -24,6 +28,10 @@ class VideoStats {
         totalFramesRendered += other.totalFramesRendered
         frameLossEvents += other.frameLossEvents
         framesLost += other.framesLost
+        decoderStarvationEvents += other.decoderStarvationEvents
+        intentionalFrameDrops += other.intentionalFrameDrops
+        watchdogFlushes += other.watchdogFlushes
+        outputFormatChanges += other.outputFormatChanges
 
         minHostProcessingLatency = if (minHostProcessingLatency == 0.toChar()) {
             other.minHostProcessingLatency
@@ -49,6 +57,10 @@ class VideoStats {
         totalFramesRendered = other.totalFramesRendered
         frameLossEvents = other.frameLossEvents
         framesLost = other.framesLost
+        decoderStarvationEvents = other.decoderStarvationEvents
+        intentionalFrameDrops = other.intentionalFrameDrops
+        watchdogFlushes = other.watchdogFlushes
+        outputFormatChanges = other.outputFormatChanges
         minHostProcessingLatency = other.minHostProcessingLatency
         maxHostProcessingLatency = other.maxHostProcessingLatency
         totalHostProcessingLatency = other.totalHostProcessingLatency
@@ -64,6 +76,10 @@ class VideoStats {
         totalFramesRendered = 0
         frameLossEvents = 0
         framesLost = 0
+        decoderStarvationEvents = 0
+        intentionalFrameDrops = 0
+        watchdogFlushes = 0
+        outputFormatChanges = 0
         minHostProcessingLatency = 0.toChar()
         maxHostProcessingLatency = 0.toChar()
         totalHostProcessingLatency = 0
