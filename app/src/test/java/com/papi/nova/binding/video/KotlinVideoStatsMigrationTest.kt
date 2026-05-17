@@ -26,6 +26,10 @@ class KotlinVideoStatsMigrationTest {
         first.totalFramesRendered = 24
         first.frameLossEvents = 1
         first.framesLost = 2
+        first.decoderStarvationEvents = 3
+        first.intentionalFrameDrops = 4
+        first.watchdogFlushes = 5
+        first.outputFormatChanges = 6
         first.minHostProcessingLatency = 8.toChar()
         first.maxHostProcessingLatency = 10.toChar()
         first.totalHostProcessingLatency = 18
@@ -40,6 +44,10 @@ class KotlinVideoStatsMigrationTest {
         second.totalFramesRendered = 9
         second.frameLossEvents = 3
         second.framesLost = 4
+        second.decoderStarvationEvents = 5
+        second.intentionalFrameDrops = 6
+        second.watchdogFlushes = 7
+        second.outputFormatChanges = 8
         second.minHostProcessingLatency = 4.toChar()
         second.maxHostProcessingLatency = 12.toChar()
         second.totalHostProcessingLatency = 16
@@ -55,6 +63,10 @@ class KotlinVideoStatsMigrationTest {
         assertEquals(33, first.totalFramesRendered)
         assertEquals(4, first.frameLossEvents)
         assertEquals(6, first.framesLost)
+        assertEquals(8, first.decoderStarvationEvents)
+        assertEquals(10, first.intentionalFrameDrops)
+        assertEquals(12, first.watchdogFlushes)
+        assertEquals(14, first.outputFormatChanges)
         assertEquals(4, first.minHostProcessingLatency.code)
         assertEquals(12, first.maxHostProcessingLatency.code)
         assertEquals(34, first.totalHostProcessingLatency)
@@ -65,12 +77,20 @@ class KotlinVideoStatsMigrationTest {
         copy.copy(first)
         assertEquals(first.decoderTimeMs, copy.decoderTimeMs)
         assertEquals(first.totalFramesRendered, copy.totalFramesRendered)
+        assertEquals(first.decoderStarvationEvents, copy.decoderStarvationEvents)
+        assertEquals(first.intentionalFrameDrops, copy.intentionalFrameDrops)
+        assertEquals(first.watchdogFlushes, copy.watchdogFlushes)
+        assertEquals(first.outputFormatChanges, copy.outputFormatChanges)
         assertEquals(first.minHostProcessingLatency, copy.minHostProcessingLatency)
         assertEquals(first.measurementStartTimestamp, copy.measurementStartTimestamp)
 
         copy.clear()
         assertEquals(0, copy.decoderTimeMs)
         assertEquals(0, copy.totalFramesRendered)
+        assertEquals(0, copy.decoderStarvationEvents)
+        assertEquals(0, copy.intentionalFrameDrops)
+        assertEquals(0, copy.watchdogFlushes)
+        assertEquals(0, copy.outputFormatChanges)
         assertEquals(0, copy.minHostProcessingLatency.code)
         assertEquals(0, copy.measurementStartTimestamp)
     }

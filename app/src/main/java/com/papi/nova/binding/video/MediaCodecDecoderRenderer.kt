@@ -97,8 +97,11 @@ class MediaCodecDecoderRenderer(
         }
     }
 
-    private fun dropFrame(bufferIndex: Int) {
+    private fun dropFrame(bufferIndex: Int, intentional: Boolean = false) {
         videoDecoder!!.releaseOutputBuffer(bufferIndex, false)
+        if (intentional) {
+            activeWindowVideoStats.intentionalFrameDrops++
+        }
     }
 
     private fun getOutputDequeueTimeoutUs(): Int =
@@ -1003,10 +1006,9 @@ class MediaCodecDecoderRenderer(
 
             val tfps = if (targetFps > 0) targetFps else 60
             val streamPeriodNs = 1_000_000_000L / max(1, tfps)
-            val periodNs = if (preferLowerDelays) vsyncPeriodNs else max(vsyncPeriodNs, streamPeriodNs)
+            val periodNs = FramePacingPolicy.renderPeriodNs(preferLowerDelays, vsyncPeriodNs, streamPeriodNs)
 
             val ewmaAlpha = 0.25
-            val minFactor = 1.00
 
             var lastDecoderPtsUs = 0L
             var lastPresentNs = 0L
@@ -1032,7 +1034,7 @@ class MediaCodecDecoderRenderer(
                         while (idx >= 0) {
                             if (last >= 0) {
                                 try {
-                                    videoDecoder!!.releaseOutputBuffer(last, false)
+                                    dropFrame(last, intentional = true)
                                 } catch (_: Throwable) {
                                 }
                             }
@@ -1095,7 +1097,7 @@ class MediaCodecDecoderRenderer(
                             while (true) {
                                 val nextOut = videoDecoder!!.dequeueOutputBuffer(info, getOutputDequeueTimeoutUs().toLong())
                                 if (nextOut < 0) break
-                                videoDecoder!!.releaseOutputBuffer(lastIndex, false)
+                                dropFrame(lastIndex, intentional = true)
                                 frameDropped = true
 
                                 numFramesOut++
@@ -1109,12 +1111,16 @@ class MediaCodecDecoderRenderer(
                                 val nowNs = System.nanoTime()
                                 val frameAgeNs = nowNs - presentationTimeUs * 1000L
 
-                                val pressure = min(1.0, ewmaJitterNs / vsyncPeriodNs + recentDrops * 0.1)
-                                val factorSmooth = max(1.05, min(1.2, 1.2 - 0.15 * (1.0 - pressure)))
-                                val dropThresholdSmoothNs = (periodNs * factorSmooth).toLong()
+                                val dropDecision = FramePacingPolicy.smoothnessDropDecision(
+                                    periodNs = periodNs,
+                                    vsyncPeriodNs = vsyncPeriodNs,
+                                    ewmaJitterNs = ewmaJitterNs,
+                                    recentDrops = recentDrops,
+                                    frameAgeNs = frameAgeNs,
+                                )
 
-                                if (frameAgeNs >= dropThresholdSmoothNs) {
-                                    dropFrame(lastIndex)
+                                if (dropDecision.shouldDrop) {
+                                    dropFrame(lastIndex, intentional = true)
                                     frameDropped = true
                                     lastDropNs = nowNs
                                     recentDrops = min(10, recentDrops + 1)
@@ -1130,39 +1136,23 @@ class MediaCodecDecoderRenderer(
                                 val nowNs = System.nanoTime()
                                 val frameAgeNs = nowNs - presentationTimeUs * 1000L
 
-                                val backPressure = min(1.0, tryAgainStreak.toDouble() / 6.0)
-                                val streamHz = max(1.0, tfps.toDouble())
-                                val mismatch = min(
-                                    2.0,
-                                    abs(
-                                        1_000_000_000.0 / streamHz -
-                                            1_000_000_000.0 / max(1.0, displayHz.toDouble()),
-                                    ) / vsyncPeriodNs,
+                                val dropDecision = FramePacingPolicy.latencyDropDecision(
+                                    periodNs = periodNs,
+                                    vsyncPeriodNs = vsyncPeriodNs,
+                                    targetFps = tfps,
+                                    displayHz = displayHz,
+                                    ewmaJitterNs = ewmaJitterNs,
+                                    tryAgainStreak = tryAgainStreak,
+                                    previousLateStreak = lateStreak,
+                                    lastPresentNs = lastPresentNs,
+                                    lastDropNs = lastDropNs,
+                                    nowNs = nowNs,
+                                    frameAgeNs = frameAgeNs,
                                 )
+                                lateStreak = dropDecision.nextLateStreak
 
-                                val factorLatency = max(
-                                    minFactor,
-                                    min(
-                                        1.15,
-                                        1.02 + 0.13 *
-                                            (0.5 * (ewmaJitterNs / vsyncPeriodNs) + 0.3 * backPressure + 0.2 * mismatch),
-                                    ),
-                                )
-                                val dropThresholdNs = (periodNs * factorLatency).toLong()
-
-                                val sinceLastPresent =
-                                    if (lastPresentNs == 0L) Long.MAX_VALUE else nowNs - lastPresentNs
-                                val dropCooldownOk = nowNs - lastDropNs >= periodNs / 2
-                                val isLate = frameAgeNs > dropThresholdNs
-                                lateStreak = if (isLate) lateStreak + 1 else 0
-
-                                val shouldDrop = isLate &&
-                                    lateStreak >= 1 &&
-                                    sinceLastPresent < (periodNs * 0.5).toLong() &&
-                                    dropCooldownOk
-
-                                if (shouldDrop) {
-                                    dropFrame(lastIndex)
+                                if (dropDecision.shouldDrop) {
+                                    dropFrame(lastIndex, intentional = true)
                                     frameDropped = true
                                     lastDropNs = nowNs
                                     recentDrops = min(10, recentDrops + 1)
@@ -1171,7 +1161,7 @@ class MediaCodecDecoderRenderer(
 
                                 presentFrame(lastIndex, nowNs)
                                 lastPresentNs = nowNs
-                                if (!isLate) lateStreak = 0
+                                if (!dropDecision.isLate) lateStreak = 0
                                 recentDrops = max(0, recentDrops - 1)
                                 updateDecodeLatencyStats(presentationTimeUs)
                                 statsUpdated = true
@@ -1181,7 +1171,7 @@ class MediaCodecDecoderRenderer(
                         } else {
                             if (outputBufferQueue.size == OUTPUT_BUFFER_QUEUE_LIMIT) {
                                 try {
-                                    videoDecoder!!.releaseOutputBuffer(outputBufferQueue.take(), false)
+                                    dropFrame(outputBufferQueue.take(), intentional = true)
                                     frameDropped = true
                                 } catch (_: InterruptedException) {
                                     return@Thread
@@ -1197,8 +1187,10 @@ class MediaCodecDecoderRenderer(
                     } else {
                         when (outIndex) {
                             MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                                activeWindowVideoStats.decoderStarvationEvents++
                             }
                             MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                                activeWindowVideoStats.outputFormatChanges++
                                 LimeLog.info("Output format changed")
                                 outputFormat = videoDecoder!!.outputFormat
                                 LimeLog.info("New output format: $outputFormat")
@@ -1215,7 +1207,9 @@ class MediaCodecDecoderRenderer(
                     val nowNs = System.nanoTime()
                     if (nowNs - lastOutputNs > 1_200_000_000L) {
                         LimeLog.warning("Decoder watchdog: no output >1.2s, scheduling codec flush to recover...")
-                        codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_FLUSH)
+                        if (codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_FLUSH)) {
+                            activeWindowVideoStats.watchdogFlushes++
+                        }
                         try {
                             val poke = Bundle()
                             poke.putInt("priority", 0)
@@ -1930,6 +1924,10 @@ class MediaCodecDecoderRenderer(
             str += "Total frames rendered: " + renderer.globalVideoStats.totalFramesRendered + DELIMITER
             str += "Frame losses: " + renderer.globalVideoStats.framesLost + " in " +
                 renderer.globalVideoStats.frameLossEvents + " loss events" + DELIMITER
+            str += "Decoder pacing counters: starvation=" + renderer.globalVideoStats.decoderStarvationEvents +
+                ", intentionalDrops=" + renderer.globalVideoStats.intentionalFrameDrops +
+                ", watchdogFlushes=" + renderer.globalVideoStats.watchdogFlushes +
+                ", formatChanges=" + renderer.globalVideoStats.outputFormatChanges + DELIMITER
             str += "Average end-to-end client latency: " + renderer.getAverageEndToEndLatency() + "ms" + DELIMITER
             str += "Average hardware decoder latency: " + renderer.getAverageDecoderLatency() + "ms" + DELIMITER
             str += "Frame pacing mode: " + renderer.prefs.framePacing + DELIMITER
