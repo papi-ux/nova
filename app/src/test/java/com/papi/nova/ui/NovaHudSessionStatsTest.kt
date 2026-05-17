@@ -32,6 +32,21 @@ class NovaHudSessionStatsTest {
     }
 
     @Test
+    fun summaryAveragesLatencyByLatencySamples() {
+        val stats = NovaHudSessionStats()
+
+        stats.recordFps(60.0, nowMs = 1_000)
+        stats.recordLatency(18)
+        stats.recordLatency(30)
+        stats.recordLatency(42)
+
+        val summary = stats.summary(nowMs = 2_000)
+
+        assertEquals(30.0, summary["avg_latency_ms"] as Double, 0.01)
+        assertEquals(1, summary["samples"])
+    }
+
+    @Test
     fun summaryRecommendsRelaunchForHighRefreshPacingFailure() {
         val stats = NovaHudSessionStats()
 
