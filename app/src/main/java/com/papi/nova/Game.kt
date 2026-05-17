@@ -130,9 +130,6 @@ import java.util.Arrays
 import java.util.Date
 import java.util.HashMap
 import java.util.Locale
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 import android.view.SurfaceView
 import android.view.ViewGroup
@@ -214,10 +211,6 @@ private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 @Volatile private var lastPolarisAppliedStreamSettings:JSONObject? = null
 private var clientPresentationReportInFlight:AtomicBoolean = AtomicBoolean(false)
 private var cursorVisibilitySyncLock:Any = Any()
-private var cursorVisibilitySyncExecutor:ExecutorService? = Executors.newSingleThreadExecutor({ r->
-var thread:Thread = Thread(r, "NovaCursorSync")
-thread.setDaemon(true)
-thread })
 private var pendingHostCursorVisible:Boolean = false
 private var hasPendingCursorVisibilitySync:Boolean = false
 private var cursorVisibilitySyncScheduled:Boolean = false
@@ -5047,18 +5040,7 @@ shouldSchedule = true
 
 if (shouldSchedule)
 {
-try
-{
-cursorVisibilitySyncExecutor!!.execute { drainCursorVisibilitySyncQueue() }
-}
-catch (e:RejectedExecutionException) {
-synchronized (cursorVisibilitySyncLock) {
-hasPendingCursorVisibilitySync = false
-cursorVisibilitySyncScheduled = false
-}
-com.papi.nova.LimeLog.warning("Nova: Cursor visibility sync executor unavailable")
-}
-
+launchRuntimeIo("NovaCursorSync") { drainCursorVisibilitySyncQueue() }
 }
 }
 
@@ -5099,7 +5081,7 @@ synchronized (cursorVisibilitySyncLock) {
 hasPendingCursorVisibilitySync = false
 cursorVisibilitySyncScheduled = false
 }
-cursorVisibilitySyncExecutor!!.shutdownNow()
+runtimeTasks.cancel("NovaCursorSync")
 }
 
 internal fun launchRuntimeIo(name:String, block:suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {

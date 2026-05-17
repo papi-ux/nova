@@ -5,7 +5,6 @@ import com.papi.nova.api.PolarisCapabilities
 import com.papi.nova.binding.input.capture.InputCaptureProvider
 import com.papi.nova.manager.FeatureFlagManager
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -110,6 +109,46 @@ class GameCursorSyncTest {
         }
     }
 
+    @Test
+    fun cursorVisibilitySyncRunsAsNamedRuntimeTask() {
+        val game = Game()
+        val finishSync = CountDownLatch(1)
+        try {
+            val client = Mockito.mock(PolarisApiClient::class.java)
+            val syncStarted = CountDownLatch(1)
+
+            doAnswer {
+                syncStarted.countDown()
+                assertTrue(finishSync.await(1, TimeUnit.SECONDS))
+                true
+            }.`when`(client).setCursorVisibility(true)
+
+            setField(game, "novaApiClient", client)
+            setField(game, "cursorVisible", false)
+            setCapabilities(
+                PolarisCapabilities(
+                    server = "polaris",
+                    version = "1.0.0",
+                    features = PolarisCapabilities.Features(cursorVisibilityControl = true),
+                    capture = PolarisCapabilities.CaptureInfo()
+                )
+            )
+
+            game.handleStreamStartedState()
+            assertTrue(syncStarted.await(1, TimeUnit.SECONDS))
+            assertTrue(runtimeTaskCount(game, "NovaCursorSync") > 0)
+
+            shutdownCursorVisibilitySync(game)
+            assertFalse(getBooleanField(game, "hasPendingCursorVisibilitySync"))
+            assertFalse(getBooleanField(game, "cursorVisibilitySyncScheduled"))
+            finishSync.countDown()
+            assertRuntimeTaskCountEventually(game, "NovaCursorSync", 0)
+        } finally {
+            finishSync.countDown()
+            shutdownCursorVisibilitySync(game)
+        }
+    }
+
     private fun setCapabilities(capabilities: PolarisCapabilities) {
         val field = FeatureFlagManager::class.java.getDeclaredField("capabilities")
         field.isAccessible = true
@@ -137,9 +176,28 @@ class GameCursorSyncTest {
         method.invoke(game, visible)
     }
 
-    private fun shutdownCursorVisibilitySync(game: Game) {
-        val field = Game::class.java.getDeclaredField("cursorVisibilitySyncExecutor")
+    private fun runtimeTaskCount(game: Game, name: String): Int {
+        val field = Game::class.java.getDeclaredField("runtimeTasks")
         field.isAccessible = true
-        (field.get(game) as ExecutorService).shutdownNow()
+        val runtimeTasks = field.get(game)
+        val method = runtimeTasks.javaClass.getDeclaredMethod("activeJobCount", String::class.java)
+        method.isAccessible = true
+        return method.invoke(runtimeTasks, name) as Int
+    }
+
+    private fun assertRuntimeTaskCountEventually(game: Game, name: String, expected: Int) {
+        repeat(20) {
+            if (runtimeTaskCount(game, name) == expected) {
+                return
+            }
+            Thread.sleep(25)
+        }
+        org.junit.Assert.assertEquals(expected, runtimeTaskCount(game, name))
+    }
+
+    private fun shutdownCursorVisibilitySync(game: Game) {
+        val method = Game::class.java.getDeclaredMethod("stopCursorVisibilitySync")
+        method.isAccessible = true
+        method.invoke(game)
     }
 }
