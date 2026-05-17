@@ -7,6 +7,7 @@ import android.view.Choreographer
 import android.view.Surface
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.nvstream.av.video.VideoDecoderRenderer
+import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -17,6 +18,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -166,10 +168,100 @@ class KotlinVideoRuntimeMigrationTest {
         )
     }
 
+    @Test
+    fun rendererExceptionIncludesActiveVideoStatsBeforeWindowRollup() {
+        val renderer = createRendererForDiagnostics()
+        setPrivateField(renderer, "videoFormat", MoonBridge.VIDEO_FORMAT_H264)
+        setPrivateField(renderer, "initialWidth", 1920)
+        setPrivateField(renderer, "initialHeight", 1080)
+        setPrivateField(renderer, "refreshRate", 60)
+        setPrivateField(renderer, "numSpsIn", 1)
+        setPrivateField(renderer, "numPpsIn", 1)
+        setPrivateField(renderer, "numFramesIn", 17)
+        setPrivateField(renderer, "numFramesOut", 13)
+        setPrivateField(renderer, "outputFormat", MediaFormat.createVideoFormat("video/avc", 1920, 1080))
+
+        val globalStats = videoStatsField(renderer, "globalVideoStats")
+        globalStats.totalFramesReceived = 10
+        globalStats.totalFramesRendered = 9
+        globalStats.framesLost = 1
+        globalStats.frameLossEvents = 1
+        globalStats.decoderStarvationEvents = 2
+        globalStats.intentionalFrameDrops = 3
+        globalStats.watchdogFlushes = 4
+        globalStats.outputFormatChanges = 5
+        globalStats.measurementStartTimestamp = 100
+
+        val activeStats = videoStatsField(renderer, "activeWindowVideoStats")
+        activeStats.totalFramesReceived = 7
+        activeStats.totalFramesRendered = 4
+        activeStats.framesLost = 3
+        activeStats.frameLossEvents = 2
+        activeStats.decoderStarvationEvents = 5
+        activeStats.intentionalFrameDrops = 6
+        activeStats.watchdogFlushes = 7
+        activeStats.outputFormatChanges = 8
+        activeStats.measurementStartTimestamp = 200
+
+        val text = MediaCodecDecoderRenderer.RendererException(renderer, IllegalStateException("codec died")).toString()
+
+        assertTrue(text.contains("Total frames received: 17"))
+        assertTrue(text.contains("Total frames rendered: 13"))
+        assertTrue(text.contains("Frame losses: 4 in 3 loss events"))
+        assertTrue(
+            text.contains(
+                "Decoder pacing counters: starvation=7, intentionalDrops=9, watchdogFlushes=11, formatChanges=13"
+            )
+        )
+    }
+
     private fun readMediaCodecDecoderRendererSource(): String {
         return String(
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/binding/video/MediaCodecDecoderRenderer.kt")),
             StandardCharsets.UTF_8
         )
+    }
+
+    private fun createRendererForDiagnostics(): MediaCodecDecoderRenderer {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val prefs = PreferenceConfiguration()
+        prefs.bitrate = 30000
+        prefs.fps = 60f
+        prefs.videoFormat = PreferenceConfiguration.FormatOption.AUTO
+        prefs.framePacing = PreferenceConfiguration.FRAME_PACING_CAP_FPS
+
+        MediaCodecHelper.initialize(activity, "Robolectric")
+
+        return MediaCodecDecoderRenderer(
+            activity,
+            prefs,
+            object : CrashListener {
+                override fun notifyCrash(e: Exception) = Unit
+            },
+            0,
+            false,
+            false,
+            false,
+            "Robolectric",
+            object : PerfOverlayListener {
+                override fun onPerfUpdate(text: String) = Unit
+            }
+        )
+    }
+
+    private fun videoStatsField(renderer: MediaCodecDecoderRenderer, fieldName: String): VideoStats {
+        return privateField(renderer, fieldName) as VideoStats
+    }
+
+    private fun privateField(target: Any, fieldName: String): Any? {
+        val field = target.javaClass.getDeclaredField(fieldName)
+        field.isAccessible = true
+        return field.get(target)
+    }
+
+    private fun setPrivateField(target: Any, fieldName: String, value: Any?) {
+        val field = target.javaClass.getDeclaredField(fieldName)
+        field.isAccessible = true
+        field.set(target, value)
     }
 }

@@ -33,10 +33,12 @@ class VideoStats {
         watchdogFlushes += other.watchdogFlushes
         outputFormatChanges += other.outputFormatChanges
 
-        minHostProcessingLatency = if (minHostProcessingLatency == 0.toChar()) {
-            other.minHostProcessingLatency
-        } else {
-            minOf(minHostProcessingLatency, other.minHostProcessingLatency)
+        if (other.minHostProcessingLatency != 0.toChar()) {
+            minHostProcessingLatency = if (minHostProcessingLatency == 0.toChar()) {
+                other.minHostProcessingLatency
+            } else {
+                minOf(minHostProcessingLatency, other.minHostProcessingLatency)
+            }
         }
         maxHostProcessingLatency = maxOf(maxHostProcessingLatency, other.maxHostProcessingLatency)
         totalHostProcessingLatency += other.totalHostProcessingLatency
@@ -46,7 +48,9 @@ class VideoStats {
             measurementStartTimestamp = other.measurementStartTimestamp
         }
 
-        assert(other.measurementStartTimestamp >= measurementStartTimestamp)
+        if (other.measurementStartTimestamp != 0L) {
+            assert(other.measurementStartTimestamp >= measurementStartTimestamp)
+        }
     }
 
     fun copy(other: VideoStats) {
