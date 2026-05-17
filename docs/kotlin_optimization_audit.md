@@ -28,7 +28,7 @@ Static scan highlights:
 Dependency graph state:
 
 - The checked-in workflow `.github/workflows/dependency-submission.yml` is still Nova's source of truth. It runs on `master` push and `workflow_dispatch`, grants `contents: write`, and uses `gradle/actions/dependency-submission@v6`.
-- GitHub still exposes a managed dynamic workflow named `Automatic Dependency Submission` at `dynamic/dependency-graph/auto-submission`. The normal Actions workflow disable API rejected disabling it with HTTP 422, so this needs the repository Settings UI for a user-owned repo unless GitHub exposes a user-repo API later.
+- The GitHub Settings toggle for managed automatic dependency submission is disabled. The latest `master` Actions history shows the checked-in `Dependency Submission` workflow for each SHA and no dynamic `Automatic Dependency Submission (Gradle)` run.
 
 ## Ranked Candidates
 
@@ -157,17 +157,18 @@ Validation:
 
 ## Follow-up PR Plan
 
-1. `nova/runtime-task-ownership`: remove small raw-thread clusters from `Game.kt`, add cancellation tests, no Polaris behavior change.
-2. `nova/video-pacing-policy-tests`: extract and test frame pacing decisions without changing thresholds.
-3. `nova/controller-input-scheduling`: remove blocking button-up sleep and harden delayed controller callbacks.
-4. `nova/library-hud-jank`: memoize library UI mapping and measure cover/HUD churn.
-5. `nova/gradle-cache-hygiene`: use configuration-cache reports to reduce build setup overhead.
+Merged follow-up PRs:
+
+1. `nova/runtime-task-ownership` (#40): route runtime cleanup tasks through lifecycle scope.
+2. `nova/video-pacing-policy-tests` (#41): extract video frame pacing policy with tests.
+3. `nova/controller-input-scheduling` (#42): schedule controller button releases without blocking input.
+4. `nova/library-hud-jank` (#43): memoize library UI state mapping.
+5. `nova/gradle-cache-hygiene` (#44): modernize Gradle task wiring.
 
 ## Dependency Submission Follow-up
 
-Keep `.github/workflows/dependency-submission.yml` enabled. To disable the managed duplicate for this user-owned repository, use:
+Keep `.github/workflows/dependency-submission.yml` enabled. The managed duplicate was disabled through repository Settings:
 
-1. Open `https://github.com/papi-ux/nova/settings/security_analysis`.
-2. Under `Dependency graph`, set `Automatic dependency submission` to disabled.
-3. Leave `Dependency graph`, `Dependabot alerts`, `CodeQL`, and the checked-in `Dependency Submission` workflow enabled.
-4. After the next `master` push that changes a manifest, confirm there is no dynamic `Automatic Dependency Submission (Gradle)` run for that SHA.
+1. `Dependency graph`, `Dependabot alerts`, CodeQL, and the checked-in `Dependency Submission` workflow remain enabled.
+2. `Automatic dependency submission` is disabled.
+3. The latest `master` runs for PRs #40-#44 include the checked-in `Dependency Submission` workflow and no dynamic `Automatic Dependency Submission (Gradle)` workflow for the same SHAs.
