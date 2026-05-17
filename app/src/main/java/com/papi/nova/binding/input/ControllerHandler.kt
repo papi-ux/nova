@@ -80,6 +80,8 @@ class ControllerHandler(
         activityContext.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val sceManager = SceManager(activityContext)
     private val mainThreadHandler = Handler(Looper.getMainLooper())
+    private val buttonReleaseScheduler =
+        ControllerButtonReleaseScheduler(mainThreadHandler, MINIMUM_BUTTON_DOWN_TIME_MS)
     private val backgroundHandlerThread = HandlerThread("ControllerHandler")
     private val backgroundThreadHandler: Handler
     private var hasGameController = false
@@ -161,6 +163,7 @@ class ControllerHandler(
         }
 
         stopped = true
+        buttonReleaseScheduler.cancelAll()
         inputManager.unregisterInputDeviceListener(this)
 
         for (i in 0 until inputDeviceContexts.size()) {
@@ -179,7 +182,8 @@ class ControllerHandler(
         }
 
         sceManager.stop()
-        backgroundHandlerThread.quit()
+        backgroundThreadHandler.removeCallbacksAndMessages(null)
+        backgroundHandlerThread.quitSafely()
     }
 
     fun disableSensors() {
@@ -1796,16 +1800,28 @@ class ControllerHandler(
             keyCode = handleFlipFaceButtons(keyCode)
         }
 
-        val buttonDownTime = (event.eventTime - event.downTime).toInt()
-        if (buttonDownTime < MINIMUM_BUTTON_DOWN_TIME_MS) {
-            try {
-                Thread.sleep((MINIMUM_BUTTON_DOWN_TIME_MS - buttonDownTime).toLong())
-            } catch (e: InterruptedException) {
-                e.printStackTrace()
-                Thread.currentThread().interrupt()
-            }
+        val releaseKey = ControllerButtonReleaseScheduler.ReleaseKey(keyCode, event.scanCode)
+        if (buttonReleaseScheduler.scheduleIfNeeded(
+                owner = context,
+                key = releaseKey,
+                downTimeMs = event.downTime,
+                eventTimeMs = event.eventTime,
+                shouldSkip = { stopped || context.destroyed },
+                release = { applyButtonUp(context, keyCode, event.scanCode, event.eventTime) },
+            )
+        ) {
+            return true
         }
 
+        return applyButtonUp(context, keyCode, event.scanCode, event.eventTime)
+    }
+
+    private fun applyButtonUp(
+        context: InputDeviceContext,
+        keyCode: Int,
+        scanCode: Int,
+        eventTime: Long,
+    ): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_MODE -> {
                 context.inputMap = context.inputMap and ControllerPacket.SPECIAL_BUTTON_FLAG.inv()
@@ -1814,7 +1830,7 @@ class ControllerHandler(
             KeyEvent.KEYCODE_BUTTON_START,
             KeyEvent.KEYCODE_MENU,
             -> {
-                context.startUpTime = event.eventTime
+                context.startUpTime = eventTime
                 if ((context.inputMap and ControllerPacket.PLAY_FLAG) != 0 &&
                     context.startUpTime - context.startDownTime > START_DOWN_TIME_MOUSE_MODE_MS
                 ) {
@@ -1893,12 +1909,12 @@ class ControllerHandler(
             KeyEvent.KEYCODE_BUTTON_Y -> context.inputMap = context.inputMap and ControllerPacket.Y_FLAG.inv()
             KeyEvent.KEYCODE_BUTTON_L1 -> {
                 context.inputMap = context.inputMap and ControllerPacket.LB_FLAG.inv()
-                context.lastLbUpTime = event.eventTime
+                context.lastLbUpTime = eventTime
             }
 
             KeyEvent.KEYCODE_BUTTON_R1 -> {
                 context.inputMap = context.inputMap and ControllerPacket.RB_FLAG.inv()
-                context.lastRbUpTime = event.eventTime
+                context.lastRbUpTime = eventTime
             }
 
             KeyEvent.KEYCODE_BUTTON_THUMBL -> {
@@ -1929,7 +1945,7 @@ class ControllerHandler(
 
             KeyEvent.KEYCODE_UNKNOWN -> {
                 if (context.hasPaddles) {
-                    when (event.scanCode) {
+                    when (scanCode) {
                         0x2c4 -> context.inputMap = context.inputMap and ControllerPacket.PADDLE1_FLAG.inv()
                         0x2c5 -> context.inputMap = context.inputMap and ControllerPacket.PADDLE2_FLAG.inv()
                         0x2c6 -> context.inputMap = context.inputMap and ControllerPacket.PADDLE3_FLAG.inv()
@@ -1991,6 +2007,11 @@ class ControllerHandler(
         if (prefConfig.flipFaceButtons) {
             keyCode = handleFlipFaceButtons(keyCode)
         }
+
+        buttonReleaseScheduler.flushPendingRelease(
+            context,
+            ControllerButtonReleaseScheduler.ReleaseKey(keyCode, event.scanCode),
+        )
 
         when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_MODE -> {
@@ -2265,6 +2286,7 @@ class ControllerHandler(
         var leftStickX: Short = 0
         var leftStickY: Short = 0
         var mouseEmulationActive = false
+        var destroyed = false
         var mouseEmulationXDown = false
         var mouseEmulationPixelMultiplier = 1
         var mouseEmulationLastInputMap = 0
@@ -2364,6 +2386,8 @@ class ControllerHandler(
         }
 
         open fun destroy() {
+            destroyed = true
+            buttonReleaseScheduler.cancelOwner(this)
             mouseEmulationActive = false
             mainThreadHandler.removeCallbacks(mouseEmulationRunnable)
         }
@@ -2431,12 +2455,20 @@ class ControllerHandler(
         val batteryStateUpdateRunnable: Runnable =
             object : Runnable {
                 override fun run() {
+                    if (stopped || destroyed) {
+                        return
+                    }
+
                     sendControllerBatteryPacket(this@InputDeviceContext)
                     backgroundThreadHandler.postDelayed(this, BATTERY_RECHECK_INTERVAL_MS.toLong())
                 }
             }
         val enableSensorRunnable =
             Runnable {
+                if (stopped || destroyed) {
+                    return@Runnable
+                }
+
                 if (accelReportRateHz.toInt() != 0 && accelListener == null) {
                     handleSetMotionEventState(controllerNumber, MoonBridge.LI_MOTION_TYPE_ACCEL, accelReportRateHz)
                 }
@@ -2636,6 +2668,10 @@ class ControllerHandler(
         }
 
         fun enableSensors() {
+            if (stopped || destroyed) {
+                return
+            }
+
             backgroundThreadHandler.postDelayed(enableSensorRunnable, 1000)
         }
     }

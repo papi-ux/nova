@@ -3,6 +3,8 @@ package com.papi.nova.binding.input
 import android.app.Activity
 import android.content.Context
 import android.hardware.input.InputManager
+import android.os.Handler
+import android.os.Looper
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -12,10 +14,16 @@ import com.papi.nova.nvstream.NvConnection
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.GameGestures
 import java.io.File
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -96,5 +104,90 @@ class KotlinControllerHandlerMigrationTest {
         )
         ControllerHandler::class.java.getMethod("deviceRemoved", AbstractController::class.java)
         ControllerHandler::class.java.getMethod("deviceAdded", AbstractController::class.java)
+    }
+
+    @Test
+    fun shortButtonUpSchedulesReleaseWithoutBlockingInputThread() {
+        val scheduler = ControllerButtonReleaseScheduler(Handler(Looper.getMainLooper()), minimumButtonDownTimeMs = 25)
+        val owner = Any()
+        val key = ControllerButtonReleaseScheduler.ReleaseKey(KeyEvent.KEYCODE_BUTTON_A, 0)
+        var releaseCount = 0
+
+        val scheduled = scheduler.scheduleIfNeeded(
+            owner = owner,
+            key = key,
+            downTimeMs = 100,
+            eventTimeMs = 101,
+            shouldSkip = { false },
+            release = { releaseCount++ }
+        )
+
+        assertTrue(scheduled)
+        assertEquals(0, releaseCount)
+
+        shadowOf(Looper.getMainLooper()).idleFor(23, TimeUnit.MILLISECONDS)
+        assertEquals(0, releaseCount)
+
+        shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS)
+        assertEquals(1, releaseCount)
+    }
+
+    @Test
+    fun pendingButtonReleaseCanBeFlushedBeforeNextDownEvent() {
+        val scheduler = ControllerButtonReleaseScheduler(Handler(Looper.getMainLooper()), minimumButtonDownTimeMs = 25)
+        val owner = Any()
+        val key = ControllerButtonReleaseScheduler.ReleaseKey(KeyEvent.KEYCODE_BUTTON_A, 0)
+        var releaseCount = 0
+
+        assertTrue(
+            scheduler.scheduleIfNeeded(
+                owner = owner,
+                key = key,
+                downTimeMs = 100,
+                eventTimeMs = 101,
+                shouldSkip = { false },
+                release = { releaseCount++ }
+            )
+        )
+
+        assertTrue(scheduler.flushPendingRelease(owner, key))
+        assertEquals(1, releaseCount)
+
+        shadowOf(Looper.getMainLooper()).idleFor(25, TimeUnit.MILLISECONDS)
+        assertEquals(1, releaseCount)
+    }
+
+    @Test
+    fun pendingButtonReleaseCanBeCancelledForDestroyedContext() {
+        val scheduler = ControllerButtonReleaseScheduler(Handler(Looper.getMainLooper()), minimumButtonDownTimeMs = 25)
+        val owner = Any()
+        val key = ControllerButtonReleaseScheduler.ReleaseKey(KeyEvent.KEYCODE_BUTTON_A, 0)
+        var releaseCount = 0
+
+        assertTrue(
+            scheduler.scheduleIfNeeded(
+                owner = owner,
+                key = key,
+                downTimeMs = 100,
+                eventTimeMs = 101,
+                shouldSkip = { false },
+                release = { releaseCount++ }
+            )
+        )
+
+        scheduler.cancelOwner(owner)
+        shadowOf(Looper.getMainLooper()).idleFor(25, TimeUnit.MILLISECONDS)
+
+        assertEquals(0, releaseCount)
+    }
+
+    @Test
+    fun controllerButtonUpPathDoesNotUseThreadSleep() {
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")),
+            StandardCharsets.UTF_8
+        )
+
+        assertFalse(source.contains("Thread.sleep((MINIMUM_BUTTON_DOWN_TIME_MS"))
     }
 }
