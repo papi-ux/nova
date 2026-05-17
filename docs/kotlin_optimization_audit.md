@@ -165,10 +165,18 @@ Merged follow-up PRs:
 4. `nova/library-hud-jank` (#43): memoize library UI state mapping.
 5. `nova/gradle-cache-hygiene` (#44): modernize Gradle task wiring.
 
+Merged audit follow-up hardening PRs:
+
+1. `nova/dependency-submission-verify` (#45): verify the checked-in dependency submission workflow is the only dependency submission run on `master`.
+2. `nova/stream-cursor-sync-runtime` (#46): route host cursor visibility sync through `NovaRuntimeTasks` as `NovaCursorSync`, preserving newest-state coalescing.
+3. `nova/video-metrics-guards` (#47): preserve host-processing latency minima across empty latency windows and include active-window video counters in crash diagnostics.
+
+The remaining video work should stay measurement-first. Do not tune frame-drop thresholds, decoder watchdog timing, or frame pacing policy until a baseline evidence pass captures before/after data on real devices.
+
 ## Dependency Submission Follow-up
 
 Keep `.github/workflows/dependency-submission.yml` enabled. The managed duplicate was disabled through repository Settings:
 
 1. `Dependency graph`, `Dependabot alerts`, CodeQL, and the checked-in `Dependency Submission` workflow remain enabled.
 2. `Automatic dependency submission` is disabled.
-3. The latest `master` runs for PRs #40-#44 include the checked-in `Dependency Submission` workflow and no dynamic `Automatic Dependency Submission (Gradle)` workflow for the same SHAs.
+3. The latest `master` runs for PRs #40-#47 include the checked-in `Dependency Submission` workflow and no dynamic `Automatic Dependency Submission (Gradle)` workflow for the same SHAs.
