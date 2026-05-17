@@ -40,6 +40,39 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryUiModelMappingIsRememberedAcrossUnrelatedRecompositions() {
+        val source = readNovaLibraryActivity()
+        val setContent = source.section(
+            "setContent {",
+            "NovaLibraryScreen("
+        )
+        val helperStart = source.indexOf("private fun rememberNovaLibraryUiModel(")
+
+        assertTrue(
+            "library screen should use a remembered model helper",
+            helperStart >= 0
+        )
+
+        val rememberedModel = source.section(
+            "private fun rememberNovaLibraryUiModel(",
+            "@Composable\n    private fun NovaLibraryScreen("
+        )
+
+        assertTrue(
+            "library model mapping should be keyed to the data that affects filtering",
+            rememberedModel.contains("remember(games, searchQuery, filterState)")
+        )
+        assertTrue(
+            "remembered model helper should own the mapper call",
+            rememberedModel.contains("NovaLibraryUiStateMapper.build(")
+        )
+        assertFalse(
+            "setContent should not rebuild library filtering/sorting for unrelated state changes",
+            setContent.contains("NovaLibraryUiStateMapper.build(")
+        )
+    }
+
+    @Test
     fun librarySearchDoesNotEnterTextInputOnDpadFocus() {
         val searchField = readNovaLibraryActivity().section(
             "private fun NovaSearchField(",

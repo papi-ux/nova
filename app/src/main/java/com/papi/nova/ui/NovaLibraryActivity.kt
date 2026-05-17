@@ -169,7 +169,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
                 NovaComposeTheme {
-                    val model = NovaLibraryUiStateMapper.build(allGames, searchQuery, filterState)
+                    val model = rememberNovaLibraryUiModel(allGames, searchQuery, filterState)
                     NovaLibraryScreen(
                         serverName = streamPcName,
                         serverHost = streamHost,
@@ -466,6 +466,21 @@ class NovaLibraryActivity : AppCompatActivity() {
             "desktop" -> getString(R.string.nova_library_filter_desktop)
             "vr" -> getString(R.string.nova_library_filter_vr)
             else -> getString(R.string.nova_library_filter_more)
+        }
+    }
+
+    @Composable
+    private fun rememberNovaLibraryUiModel(
+        games: List<PolarisGame>,
+        searchQuery: String,
+        filterState: NovaLibraryFilterState
+    ): NovaLibraryUiModel {
+        return remember(games, searchQuery, filterState) {
+            NovaLibraryUiStateMapper.build(
+                games = games,
+                search = searchQuery,
+                filterState = filterState
+            )
         }
     }
 
