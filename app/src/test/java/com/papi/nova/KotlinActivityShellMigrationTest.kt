@@ -61,6 +61,21 @@ class KotlinActivityShellMigrationTest {
     }
 
     @Test
+    fun appViewPolarisMetadataRefreshUsesRuntimeTasks() {
+        val appViewSource = readSource("src/main/java/com/papi/nova/AppView.kt")
+
+        assertTrue(
+            appViewSource.contains("private val runtimeTasks = NovaRuntimeTasks(this, \"Nova app list\")")
+        )
+        assertTrue(appViewSource.contains("runtimeTasks.launchIo(\"PolarisGameMetadata\")"))
+        assertFalse(
+            Regex(
+                """Thread\s*\([\s\S]*"PolarisGameMetadata"[\s\S]*?\)\s*\.start\s*\("""
+            ).containsMatchIn(appViewSource)
+        )
+    }
+
+    @Test
     fun pcViewPolarisBackgroundWorkUsesRuntimeTasks() {
         val pcViewSource = readSource("src/main/java/com/papi/nova/PcView.kt")
 

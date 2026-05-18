@@ -41,6 +41,7 @@ import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.profiles.ProfilesManager
+import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
 import com.papi.nova.ui.NovaThemeManager
@@ -66,6 +67,7 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
     private var lastRunningAppId = 0
     private var suspendGridUpdates = false
     private var inForeground = false
+    private val runtimeTasks = NovaRuntimeTasks(this, "Nova app list")
     private var showHiddenApps = false
     private val hiddenAppIds = HashSet<Int>()
     private val polarisMetadataLock = Object()
@@ -400,6 +402,7 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
     override fun onDestroy() {
         super.onDestroy()
 
+        runtimeTasks.cancelAll()
         SpinnerDialog.closeDialogs(this)
         Dialog.closeDialogs()
 
@@ -867,45 +870,42 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
         val httpsPort = activeComputer.httpsPort
         val serverCert = activeComputer.serverCert
 
-        Thread(
-            {
-                try {
-                    val client = PolarisApiClient(this@AppView, host, httpsPort, serverCert)
-                    val games = client.getGames("", "", 500)
-                    if (games.isEmpty()) {
-                        return@Thread
-                    }
+        runtimeTasks.launchIo("PolarisGameMetadata") {
+            try {
+                val client = PolarisApiClient(this@AppView, host, httpsPort, serverCert)
+                val games = client.getGames("", "", 500)
+                if (games.isEmpty()) {
+                    return@launchIo
+                }
 
-                    val byUuid = HashMap<String, PolarisGame>()
-                    val byAppId = HashMap<Int, PolarisGame>()
-                    for (game in games) {
-                        if (!game.id.isNullOrEmpty()) {
-                            byUuid[game.id!!.lowercase(Locale.US)] = game
-                        }
-                        if (game.appId != 0) {
-                            byAppId[game.appId] = game
-                        }
+                val byUuid = HashMap<String, PolarisGame>()
+                val byAppId = HashMap<Int, PolarisGame>()
+                for (game in games) {
+                    if (!game.id.isNullOrEmpty()) {
+                        byUuid[game.id!!.lowercase(Locale.US)] = game
                     }
-
-                    runOnUiThread {
-                        polarisGamesByUuid = byUuid
-                        polarisGamesByAppId = byAppId
-                        val adapter = appGridAdapter
-                        if (adapter != null && applyPolarisMetadataToVisibleApps()) {
-                            adapter.notifyDataSetChanged()
-                            updateRecentlyPlayedCard()
-                        }
-                    }
-                } catch (e: Exception) {
-                    LimeLog.warning("Nova: Polaris game metadata fetch failed: " + e.message)
-                } finally {
-                    synchronized(polarisMetadataLock) {
-                        polarisMetadataRefreshInFlight = false
+                    if (game.appId != 0) {
+                        byAppId[game.appId] = game
                     }
                 }
-            },
-            "PolarisGameMetadata",
-        ).start()
+
+                runtimeTasks.runOnMainIfActive {
+                    polarisGamesByUuid = byUuid
+                    polarisGamesByAppId = byAppId
+                    val adapter = appGridAdapter
+                    if (adapter != null && applyPolarisMetadataToVisibleApps()) {
+                        adapter.notifyDataSetChanged()
+                        updateRecentlyPlayedCard()
+                    }
+                }
+            } catch (e: Exception) {
+                LimeLog.warning("Nova: Polaris game metadata fetch failed: " + e.message)
+            } finally {
+                synchronized(polarisMetadataLock) {
+                    polarisMetadataRefreshInFlight = false
+                }
+            }
+        }
     }
 
     override fun getAdapterFragmentLayoutId(): Int = R.layout.app_grid_view
