@@ -12,6 +12,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class KotlinActivityShellMigrationTest {
+    private fun readSource(path: String): String = File(path).readText()
+
     @Test
     fun activityShellsAreKotlinSources() {
         assertFalse(File("src/main/java/com/papi/nova/AppView.java").exists())
@@ -56,5 +58,26 @@ class KotlinActivityShellMigrationTest {
         PcView::class.java.getMethod("getAdapterFragmentLayoutId")
         PcView::class.java.getMethod("receiveAbsListView", View::class.java)
         PcView::class.java.getMethod("onDestroy")
+    }
+
+    @Test
+    fun pcViewPolarisBackgroundWorkUsesRuntimeTasks() {
+        val pcViewSource = readSource("src/main/java/com/papi/nova/PcView.kt")
+
+        assertTrue(
+            pcViewSource.contains("private val runtimeTasks = NovaRuntimeTasks(this, \"Nova dashboard\")")
+        )
+        assertTrue(pcViewSource.contains("runtimeTasks.launchIo(\"NovaLibraryProbe\")"))
+        assertTrue(pcViewSource.contains("runtimeTasks.launchIo(\"NovaPolarisStartup\")"))
+        assertFalse(
+            Regex(
+                """Thread\s*\(\s*\{[\s\S]*?\}\s*,\s*"NovaLibraryProbe"\s*,?\s*\)\s*\.start\s*\("""
+            ).containsMatchIn(pcViewSource)
+        )
+        assertFalse(
+            Regex(
+                """Thread\s*\(\s*\{[\s\S]*?\}\s*,\s*"NovaPolarisStartup"\s*,?\s*\)\s*\.start\s*\("""
+            ).containsMatchIn(pcViewSource)
+        )
     }
 }

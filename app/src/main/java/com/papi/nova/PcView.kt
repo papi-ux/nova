@@ -62,6 +62,7 @@ import com.papi.nova.preferences.GlPreferences
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.preferences.StreamSettings
 import com.papi.nova.profiles.ProfilesManager
+import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
 import com.papi.nova.ui.NovaLibraryActivity
@@ -101,6 +102,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     private var pendingPairingPassphrase: String? = null
     private var currentServerFilter = FILTER_ALL
     private var lastServerFilterFocusMs = 0L
+    private val runtimeTasks = NovaRuntimeTasks(this, "Nova dashboard")
     private val libraryProbeInFlight: MutableSet<String> =
         Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val polarisStartupInFlight: MutableSet<String> =
@@ -738,45 +740,42 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val httpsPort = if (details.httpsPort > 0) details.httpsPort else 47984
         val serverCert = encodeServerCert(details)
 
-        Thread(
-            {
-                var state = ComputerDetails.LibraryState.UNAVAILABLE
-                try {
-                    val client = PolarisApiClient(this@PcView, host, httpsPort, serverCert)
-                    val capabilities = client.getCapabilities()
-                    if (capabilities != null) {
-                        state =
-                            if (capabilities.features.gameLibrary) {
-                                ComputerDetails.LibraryState.AVAILABLE
-                            } else {
-                                ComputerDetails.LibraryState.UNAVAILABLE
-                            }
-                    } else if (client.getSessionStatus() != null) {
-                        state = ComputerDetails.LibraryState.UNAVAILABLE
-                        LimeLog.info("Nova: Polaris session API detected without game-library capability on $host")
-                    }
-                } catch (e: Exception) {
-                    LimeLog.warning("Nova: Library capability probe failed for $host: " + e.message)
+        runtimeTasks.launchIo("NovaLibraryProbe") {
+            var state = ComputerDetails.LibraryState.UNAVAILABLE
+            try {
+                val client = PolarisApiClient(this@PcView, host, httpsPort, serverCert)
+                val capabilities = client.getCapabilities()
+                if (capabilities != null) {
+                    state =
+                        if (capabilities.features.gameLibrary) {
+                            ComputerDetails.LibraryState.AVAILABLE
+                        } else {
+                            ComputerDetails.LibraryState.UNAVAILABLE
+                        }
+                } else if (client.getSessionStatus() != null) {
+                    state = ComputerDetails.LibraryState.UNAVAILABLE
+                    LimeLog.info("Nova: Polaris session API detected without game-library capability on $host")
                 }
+            } catch (e: Exception) {
+                LimeLog.warning("Nova: Library capability probe failed for $host: " + e.message)
+            }
 
-                val finalState = state
-                runOnUiThread {
-                    libraryProbeInFlight.remove(uuid)
-                    val computers = if (::viewModel.isInitialized) viewModel.computersLiveData.value else null
-                    if (computers != null) {
-                        for (candidate in computers) {
-                            if (uuid == candidate.details.uuid) {
-                                candidate.details.libraryState = finalState
-                                break
-                            }
+            val finalState = state
+            runtimeTasks.runOnMainIfActive {
+                libraryProbeInFlight.remove(uuid)
+                val computers = if (::viewModel.isInitialized) viewModel.computersLiveData.value else null
+                if (computers != null) {
+                    for (candidate in computers) {
+                        if (uuid == candidate.details.uuid) {
+                            candidate.details.libraryState = finalState
+                            break
                         }
                     }
-                    syncComputerList()
-                    checkAutoNavigation(computers)
                 }
-            },
-            "NovaLibraryProbe",
-        ).start()
+                syncComputerList()
+                checkAutoNavigation(computers)
+            }
+        }
     }
 
     private fun findComputerObject(uuid: String?): ComputerObject? {
@@ -1142,6 +1141,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     public override fun onDestroy() {
         super.onDestroy()
 
+        runtimeTasks.cancelAll()
         if (managerBinder != null) {
             unbindService(serviceConnection)
         }
@@ -1700,33 +1700,30 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         }
 
         NovaSnackbar.show(this, getString(R.string.pcview_polaris_starting))
-        Thread(
-            {
-                val coordinator = PolarisStartupCoordinator(
-                    wakeSender = object : PolarisStartupCoordinator.WakeSender {
-                        override fun wake(computer: ComputerDetails) {
-                            WakeOnLanSender.sendWolPacket(computer)
-                        }
-                    },
-                    hostPoller = object : PolarisStartupCoordinator.HostPoller {
-                        override fun poll(computer: ComputerDetails): ComputerDetails {
-                            return binder.pollComputerNow(computer.uuid) ?: computer
-                        }
-                    },
-                    polarisProbe = object : PolarisStartupCoordinator.PolarisProbe {
-                        override fun hasGameLibrary(computer: ComputerDetails): Boolean {
-                            return probePolarisGameLibrary(computer)
-                        }
+        runtimeTasks.launchIo("NovaPolarisStartup") {
+            val coordinator = PolarisStartupCoordinator(
+                wakeSender = object : PolarisStartupCoordinator.WakeSender {
+                    override fun wake(computer: ComputerDetails) {
+                        WakeOnLanSender.sendWolPacket(computer)
                     }
-                )
-                val result = coordinator.start(computer)
-                runOnUiThread {
-                    polarisStartupInFlight.remove(uuid)
-                    handlePolarisStartupResult(result)
+                },
+                hostPoller = object : PolarisStartupCoordinator.HostPoller {
+                    override fun poll(computer: ComputerDetails): ComputerDetails {
+                        return binder.pollComputerNow(computer.uuid) ?: computer
+                    }
+                },
+                polarisProbe = object : PolarisStartupCoordinator.PolarisProbe {
+                    override fun hasGameLibrary(computer: ComputerDetails): Boolean {
+                        return probePolarisGameLibrary(computer)
+                    }
                 }
-            },
-            "NovaPolarisStartup",
-        ).start()
+            )
+            val result = coordinator.start(computer)
+            runtimeTasks.runOnMainIfActive {
+                polarisStartupInFlight.remove(uuid)
+                handlePolarisStartupResult(result)
+            }
+        }
     }
 
     private fun probePolarisGameLibrary(computer: ComputerDetails): Boolean {
