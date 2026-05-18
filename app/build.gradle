@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'androidx.baselineprofile'
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
@@ -248,6 +249,17 @@ dependencies {
     androidTestImplementation 'androidx.test:rules:1.7.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+}
+
+baselineProfile {
+    filter {
+        include 'com.papi.nova.**'
+    }
+    variants {
+        nonRoot_gameRelease {
+            from project(':baselineprofile')
+        }
+    }
 }
 
 // AGP's cached packaged-manifest outputs can restore output metadata without the

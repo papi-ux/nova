@@ -136,4 +136,69 @@ class NovaComposeBuildConfigurationTest {
             workflow.contains("Expected at least 6 release assets")
         )
     }
+
+    @Test
+    fun baselineProfileGenerationTargetsNovaReleaseJourneys() {
+        val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
+        val appBuild = String(Files.readAllBytes(Paths.get("build.gradle")), StandardCharsets.UTF_8)
+        val settings = String(Files.readAllBytes(Paths.get("../settings.gradle")), StandardCharsets.UTF_8)
+        val baselineBuildPath = Paths.get("../baselineprofile/build.gradle")
+        val generatorPath = Paths.get(
+            "../baselineprofile/src/main/java/com/papi/nova/baselineprofile/BaselineProfileGenerator.kt"
+        )
+
+        assertTrue(
+            "root build should declare the Android test plugin for the profile producer module",
+            rootBuild.contains("id 'com.android.test' version '9.2.1' apply false")
+        )
+        assertTrue(
+            "root build should declare an AGP 9-compatible Baseline Profile plugin",
+            rootBuild.contains("id 'androidx.baselineprofile' version '1.5.0-alpha06' apply false")
+        )
+        assertTrue(
+            "settings should include the profile producer module",
+            settings.contains("include ':baselineprofile'")
+        )
+        assertTrue(
+            "app module should consume generated Baseline Profiles for the non-root release variant",
+            appBuild.contains("id 'androidx.baselineprofile'") &&
+                appBuild.contains("nonRoot_gameRelease") &&
+                appBuild.contains("from project(':baselineprofile')")
+        )
+        assertTrue(
+            "baseline profile module build file should exist",
+            Files.exists(baselineBuildPath)
+        )
+        assertTrue(
+            "baseline profile generator should exist",
+            Files.exists(generatorPath)
+        )
+
+        val baselineBuild = String(Files.readAllBytes(baselineBuildPath), StandardCharsets.UTF_8)
+        val generator = String(Files.readAllBytes(generatorPath), StandardCharsets.UTF_8)
+
+        assertTrue(
+            "baseline profile module should be an Android test producer for the app module",
+            baselineBuild.contains("id 'com.android.test'") &&
+                baselineBuild.contains("id 'androidx.baselineprofile'") &&
+                baselineBuild.contains("targetProjectPath ':app'")
+        )
+        assertTrue(
+            "profile generation should target Nova's non-root release app flavor",
+            baselineBuild.contains("nonRoot_game")
+        )
+        assertTrue(
+            "baseline profile module should use an AGP 9-compatible benchmark/profile toolchain",
+            baselineBuild.contains("androidx.benchmark:benchmark-macro-junit4:1.5.0-alpha06") &&
+                baselineBuild.contains("androidx.test.uiautomator:uiautomator:2.3.0")
+        )
+        assertTrue(
+            "generator should collect startup and reachable library navigation user journeys",
+            generator.contains("BaselineProfileRule()") &&
+                generator.contains("includeInStartupProfile = true") &&
+                generator.contains("By.text(\"Library\")") &&
+                !generator.contains("com.papi.nova.ui.NovaLibraryActivity") &&
+                !generator.contains("putExtra(\"host\", \"127.0.0.1\")")
+        )
+    }
 }
