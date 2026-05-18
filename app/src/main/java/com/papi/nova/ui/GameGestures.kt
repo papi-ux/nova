@@ -7,4 +7,7 @@ interface GameGestures {
 
     fun showGameMenu(device: GameInputDevice?) {
     }
+
+    fun cycleNovaHudFromController() {
+    }
 }

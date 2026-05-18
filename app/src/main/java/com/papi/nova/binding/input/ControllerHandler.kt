@@ -1794,6 +1794,15 @@ class ControllerHandler(
             keyCode = handleFlipFaceButtons(keyCode)
         }
 
+        when (context.novaShortcutState.onButtonUp(keyCode)) {
+            NovaControllerShortcutAction.PASS_THROUGH_GUIDE_TAP -> {
+                sendGuideTap(context)
+                return true
+            }
+            NovaControllerShortcutAction.CONSUME_CHORD_BUTTON -> return true
+            else -> Unit
+        }
+
         val releaseKey = ControllerButtonReleaseScheduler.ReleaseKey(keyCode, event.scanCode)
         if (buttonReleaseScheduler.scheduleIfNeeded(
                 owner = context,
@@ -2007,6 +2016,28 @@ class ControllerHandler(
             ControllerButtonReleaseScheduler.ReleaseKey(keyCode, event.scanCode),
         )
 
+        when (context.novaShortcutState.onButtonDown(keyCode, event.repeatCount)) {
+            NovaControllerShortcutAction.DEFER_GUIDE -> {
+                context.hasMode = true
+                return true
+            }
+            NovaControllerShortcutAction.FORWARD_GUIDE_TO_HOST -> {
+                context.hasMode = true
+                sendDeferredGuideDown(context)
+            }
+            NovaControllerShortcutAction.OPEN_QUICK_MENU -> {
+                context.backMenuPending = false
+                gestures.showGameMenu(context)
+                return true
+            }
+            NovaControllerShortcutAction.CYCLE_NOVA_HUD -> {
+                gestures.cycleNovaHudFromController()
+                return true
+            }
+            NovaControllerShortcutAction.CONSUME_CHORD_BUTTON -> return true
+            else -> Unit
+        }
+
         when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_MODE -> {
                 context.hasMode = true
@@ -2173,6 +2204,21 @@ class ControllerHandler(
 
         sendControllerInputPacket(context)
         return true
+    }
+
+    private fun sendDeferredGuideDown(context: InputDeviceContext) {
+        if ((context.inputMap and ControllerPacket.SPECIAL_BUTTON_FLAG) != 0) {
+            return
+        }
+        context.inputMap = context.inputMap or ControllerPacket.SPECIAL_BUTTON_FLAG
+        sendControllerInputPacket(context)
+    }
+
+    private fun sendGuideTap(context: InputDeviceContext) {
+        context.inputMap = context.inputMap or ControllerPacket.SPECIAL_BUTTON_FLAG
+        sendControllerInputPacket(context)
+        context.inputMap = context.inputMap and ControllerPacket.SPECIAL_BUTTON_FLAG.inv()
+        sendControllerInputPacket(context)
     }
 
     fun reportOscState(
@@ -2446,6 +2492,7 @@ class ControllerHandler(
         var startDownTime = 0L
         var startUpTime = 0L
         var backMenuPending = false
+        val novaShortcutState = NovaControllerShortcutState()
         val batteryStateUpdateRunnable: Runnable =
             object : Runnable {
                 override fun run() {
@@ -2473,6 +2520,7 @@ class ControllerHandler(
 
         override fun destroy() {
             super.destroy()
+            novaShortcutState.reset()
 
             val vm = vibratorManager
             val vib = vibrator
@@ -2715,7 +2763,8 @@ class ControllerHandler(
     companion object {
         private const val VALVE_VENDOR_ID = 0x28de
         private const val STEAM_CONTROLLER_BLUETOOTH_PRODUCT_ID = 0x1303
-        private const val STEAM_CONTROLLER_DEVICE_NAME_PREFIX = "Steam Ctrl"
+        private val STEAM_CONTROLLER_DEVICE_NAME_TOKENS =
+            arrayOf("Steam Ctrl", "Steam Controller", "SteamController")
         private const val MAXIMUM_BUMPER_UP_DELAY_MS = 100
         private const val START_DOWN_TIME_MOUSE_MODE_MS = 750
         private const val MINIMUM_BUTTON_DOWN_TIME_MS = 25
@@ -2773,7 +2822,9 @@ class ControllerHandler(
         private fun isSteamControllerKeyboardMouseDevice(device: InputDevice): Boolean =
             device.vendorId == VALVE_VENDOR_ID &&
                 device.productId == STEAM_CONTROLLER_BLUETOOTH_PRODUCT_ID &&
-                device.name.contains(STEAM_CONTROLLER_DEVICE_NAME_PREFIX, ignoreCase = true) &&
+                STEAM_CONTROLLER_DEVICE_NAME_TOKENS.any {
+                    device.name.contains(it, ignoreCase = true)
+                } &&
                 (device.sources and InputDevice.SOURCE_KEYBOARD) == InputDevice.SOURCE_KEYBOARD &&
                 (device.sources and InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK &&
                 (device.sources and InputDevice.SOURCE_GAMEPAD) != InputDevice.SOURCE_GAMEPAD

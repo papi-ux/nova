@@ -4510,35 +4510,7 @@ handleStreamStartedState()
  // Show Nova Stream HUD if enabled
                 if (com.papi.nova.ui.NovaStreamHud.Companion.isEnabled(this@Game))
 {
-novaHud = com.papi.nova.ui.NovaStreamHud(this@Game)
-novaHud!!.show()
-novaHud!!.setTargetFps(configuredHudTargetFps.toDouble())
-novaHud!!.setTargetBitrateKbps(configuredStreamBitrateKbps)
-if (lastPolarisSessionStatus != null)
-{
-novaHud!!.applySessionStatus(lastPolarisSessionStatus)
-}
-
- // Wire proactive bitrate adjustment — HUD monitors quality and auto-adjusts
-                    var streamHost:String? = host
-val streamHttpsPort:Int = httpsPort
-val streamServerCert:X509Certificate? = serverCert
-	novaHud!!.onBitrateAdjust = { newBitrate:Int ->
-launchReplacingRuntimeIo("NovaBitrateAdjust") { try
-{
-var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, streamHost ?: "", streamHttpsPort, streamServerCert)
-client.setBitrate(newBitrate)
-com.papi.nova.LimeLog.info("Nova: Proactive bitrate adjust → " + newBitrate + " kbps")
-}
-catch (e:kotlinx.coroutines.CancellationException) {
-throw e
-}
-catch (e:Exception) {
-com.papi.nova.LimeLog.warning("Nova: Bitrate adjust failed: " + e!!.message)
-}
- }
-	}
-schedulePolarisLiveSessionStatusRefresh(true)
+showNovaHud()
 }
 
  // Start audio-driven haptics if enabled
@@ -5488,6 +5460,91 @@ touchContextMap[i] = TrackpadContext(conn!!, i)
         isZoomModeEnabled = false
 updateZoomButtonAppearance()
 }
+fun isNovaHudShowing():Boolean {
+return novaHud?.isShowing == true
+}
+
+fun toggleNovaHud() {
+if (isNovaHudShowing())
+{
+dismissNovaHud()
+}
+else
+{
+showNovaHud()
+}
+}
+
+fun dismissNovaHud() {
+novaHud?.dismiss()
+novaHud = null
+}
+
+fun showNovaHud():com.papi.nova.ui.NovaStreamHud {
+if (::prefConfig.isInitialized && prefConfig!!.enablePerfOverlay)
+{
+toggleHUD()
+}
+
+var hud:com.papi.nova.ui.NovaStreamHud? = novaHud
+if (hud != null && hud!!.isShowing)
+{
+configureNovaHud(hud!!)
+return hud!!
+}
+
+hud = com.papi.nova.ui.NovaStreamHud(this@Game)
+novaHud = hud
+hud!!.show()
+configureNovaHud(hud!!)
+return hud!!
+}
+
+private fun configureNovaHud(hud:com.papi.nova.ui.NovaStreamHud) {
+hud.setTargetFps(configuredHudTargetFps.toDouble())
+hud.setTargetBitrateKbps(configuredStreamBitrateKbps)
+if (lastPolarisSessionStatus != null)
+{
+hud.applySessionStatus(lastPolarisSessionStatus)
+}
+
+	val streamHost:String? = host
+	val streamHttpsPort:Int = httpsPort
+	val streamServerCert:X509Certificate? = serverCert
+	// Wire proactive bitrate adjustment through runtime tasks so repeated slider moves coalesce.
+	hud.onBitrateAdjust = { newBitrate:Int ->
+	launchReplacingRuntimeIo("NovaBitrateAdjust") { try
+{
+val client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, streamHost ?: "", streamHttpsPort, streamServerCert)
+client.setBitrate(newBitrate)
+com.papi.nova.LimeLog.info("Nova: Proactive bitrate adjust → " + newBitrate + " kbps")
+}
+catch (e:kotlinx.coroutines.CancellationException) {
+throw e
+}
+catch (e:Exception) {
+com.papi.nova.LimeLog.warning("Nova: Bitrate adjust failed: " + e!!.message)
+}
+ }
+}
+schedulePolarisLiveSessionStatusRefresh(true)
+}
+
+override fun cycleNovaHudFromController() {
+runOnUiThread {
+if (isFinishing || isDestroyed)
+{
+return@runOnUiThread
+}
+val wasShowing:Boolean = isNovaHudShowing()
+val hud:com.papi.nova.ui.NovaStreamHud = showNovaHud()
+if (wasShowing)
+{
+hud.cycleMode()
+}
+}
+}
+
  fun toggleHUD() {
 prefConfig!!.enablePerfOverlay = !prefConfig!!.enablePerfOverlay
 if (prefConfig!!.enablePerfOverlay)

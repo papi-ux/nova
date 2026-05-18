@@ -49,6 +49,8 @@ import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.grid.PcGridAdapter
 import com.papi.nova.grid.RecyclerItemClickListener
 import com.papi.nova.grid.assets.DiskAssetLoader
+import com.papi.nova.manager.PolarisStartupCoordinator
+import com.papi.nova.manager.PolarisStartupStatus
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.nvstream.http.NvHTTP
@@ -100,6 +102,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     private var currentServerFilter = FILTER_ALL
     private var lastServerFilterFocusMs = 0L
     private val libraryProbeInFlight: MutableSet<String> =
+        Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+    private val polarisStartupInFlight: MutableSet<String> =
         Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private var appliedTheme: String? = null
     private var spaceParticleView: SpaceParticleView? = null
@@ -330,6 +334,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val modeLibrary = findViewById<View>(R.id.modeLibrary)
         val addServerAction = findViewById<View>(R.id.actionAddServer)
         val scanPairAction = findViewById<View>(R.id.actionScanPair)
+        val polarisSyncAction = findViewById<View>(R.id.actionPolarisSync)
         val themeAction = findViewById<View>(R.id.actionTheme)
         val settingsAction = findViewById<View>(R.id.actionSettings)
         val helpAction = findViewById<View>(R.id.actionHelp)
@@ -353,6 +358,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             startActivity(Intent(this@PcView, AddComputerManually::class.java))
         }
         scanPairAction?.setOnClickListener { launchQrScanner() }
+        polarisSyncAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }
         themeAction?.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
             cycleTheme()
@@ -894,6 +900,56 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         doNovaLibrary(selected.details)
     }
 
+    private fun launchPolarisStartupForPreferredHost() {
+        val selected = selectPreferredPolarisStartupComputer(
+            if (::viewModel.isInitialized) viewModel.computersLiveData.value else null,
+        )
+        if (selected == null) {
+            Toast.makeText(this, R.string.pcview_polaris_start_no_server, Toast.LENGTH_SHORT).show()
+            return
+        }
+        startPolarisFromNova(selected.details)
+    }
+
+    private fun selectPreferredPolarisStartupComputer(computers: List<ComputerObject>?): ComputerObject? {
+        if (computers.isNullOrEmpty()) {
+            return null
+        }
+
+        val rememberedUuid =
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .getString(PREF_LAST_LIBRARY_PC_UUID, null)
+        var remembered: ComputerObject? = null
+        var firstReady: ComputerObject? = null
+        var firstOnline: ComputerObject? = null
+        var firstWakeable: ComputerObject? = null
+        var firstPaired: ComputerObject? = null
+
+        for (candidate in computers) {
+            val details = candidate.details
+            if (needsPairing(details)) {
+                continue
+            }
+            if (firstPaired == null) {
+                firstPaired = candidate
+            }
+            if (details.libraryState == ComputerDetails.LibraryState.AVAILABLE && firstReady == null) {
+                firstReady = candidate
+            }
+            if (details.state == ComputerDetails.State.ONLINE && firstOnline == null) {
+                firstOnline = candidate
+            }
+            if (details.macAddress != null && firstWakeable == null) {
+                firstWakeable = candidate
+            }
+            if (rememberedUuid != null && rememberedUuid == details.uuid) {
+                remembered = candidate
+            }
+        }
+
+        return remembered ?: firstReady ?: firstOnline ?: firstWakeable ?: firstPaired
+    }
+
     private fun selectPreferredLibraryComputer(computers: List<ComputerObject>?): ComputerObject? {
         if (computers.isNullOrEmpty()) {
             return null
@@ -1106,6 +1162,12 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         if (computer.details.state == ComputerDetails.State.OFFLINE ||
             computer.details.state == ComputerDetails.State.UNKNOWN
         ) {
+            if (!needsPairing(computer.details)) {
+                addPcSheetAction(actions, getString(R.string.pcview_menu_start_polaris)) {
+                    sheet.dismiss()
+                    startPolarisFromNova(computer.details)
+                }
+            }
             addPcSheetAction(actions, getString(R.string.pcview_menu_send_wol)) {
                 sheet.dismiss()
                 doWakeOnLan(computer.details)
@@ -1174,6 +1236,10 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             }
 
             addPcSheetSection(actions, getString(R.string.pcview_menu_section_manage))
+            addPcSheetAction(actions, getString(R.string.pcview_menu_start_polaris)) {
+                sheet.dismiss()
+                startPolarisFromNova(computer.details)
+            }
             addPcSheetAction(actions, getString(R.string.pcview_menu_app_list)) {
                 sheet.dismiss()
                 doAppList(computer.details, false, false)
@@ -1569,6 +1635,117 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
 
             runOnUiThread { NovaSnackbar.show(this, message) }
         }.start()
+    }
+
+    private fun startPolarisFromNova(computer: ComputerDetails) {
+        val binder = managerBinder
+        if (binder == null) {
+            Toast.makeText(this, resources.getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show()
+            return
+        }
+        if (needsPairing(computer)) {
+            Toast.makeText(this, R.string.pcview_polaris_start_pair_first, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val uuid = computer.uuid
+        if (!polarisStartupInFlight.add(uuid)) {
+            NovaSnackbar.show(this, getString(R.string.pcview_polaris_starting))
+            return
+        }
+
+        NovaSnackbar.show(this, getString(R.string.pcview_polaris_starting))
+        Thread(
+            {
+                val coordinator = PolarisStartupCoordinator(
+                    wakeSender = object : PolarisStartupCoordinator.WakeSender {
+                        override fun wake(computer: ComputerDetails) {
+                            WakeOnLanSender.sendWolPacket(computer)
+                        }
+                    },
+                    hostPoller = object : PolarisStartupCoordinator.HostPoller {
+                        override fun poll(computer: ComputerDetails): ComputerDetails {
+                            return binder.pollComputerNow(computer.uuid) ?: computer
+                        }
+                    },
+                    polarisProbe = object : PolarisStartupCoordinator.PolarisProbe {
+                        override fun hasGameLibrary(computer: ComputerDetails): Boolean {
+                            return probePolarisGameLibrary(computer)
+                        }
+                    }
+                )
+                val result = coordinator.start(computer)
+                runOnUiThread {
+                    polarisStartupInFlight.remove(uuid)
+                    handlePolarisStartupResult(result)
+                }
+            },
+            "NovaPolarisStartup",
+        ).start()
+    }
+
+    private fun probePolarisGameLibrary(computer: ComputerDetails): Boolean {
+        val activeAddress = computer.activeAddress ?: return false
+        val serverCert = computer.serverCert ?: return false
+        val httpsPort = if (computer.httpsPort > 0) computer.httpsPort else 47984
+        return try {
+            val client = PolarisApiClient(this@PcView, activeAddress.address, httpsPort, serverCert)
+            client.getCapabilities()?.features?.gameLibrary == true
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Polaris startup probe failed for ${computer.name}: " + e.message)
+            false
+        }
+    }
+
+    private fun handlePolarisStartupResult(result: com.papi.nova.manager.PolarisStartupResult) {
+        when (result.status) {
+            PolarisStartupStatus.READY -> {
+                val computer = updatePolarisStartupComputer(result.computer)
+                if (computer == null) {
+                    NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_failed))
+                    return
+                }
+                NovaSnackbar.show(this, getString(R.string.pcview_polaris_started))
+                doNovaLibrary(computer)
+            }
+            PolarisStartupStatus.NEEDS_PAIRING ->
+                NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_pair_first))
+            PolarisStartupStatus.MISSING_MAC ->
+                NovaSnackbar.showError(this, getString(R.string.wol_no_mac))
+            PolarisStartupStatus.WAKE_FAILED ->
+                NovaSnackbar.showError(this, getString(R.string.wol_fail))
+            PolarisStartupStatus.TIMEOUT ->
+                NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_timeout))
+            PolarisStartupStatus.POLARIS_UNAVAILABLE ->
+                NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_unavailable))
+        }
+    }
+
+    private fun updatePolarisStartupComputer(started: ComputerDetails?): ComputerDetails? {
+        if (started == null) {
+            return null
+        }
+        started.libraryState = ComputerDetails.LibraryState.AVAILABLE
+        val binder = managerBinder
+        val managedComputer = binder?.getComputer(started.uuid)
+        if (managedComputer != null) {
+            managedComputer.update(started)
+            managedComputer.libraryState = ComputerDetails.LibraryState.AVAILABLE
+        }
+
+        val computers = if (::viewModel.isInitialized) viewModel.computersLiveData.value else null
+        var selected = managedComputer ?: started
+        if (computers != null) {
+            for (candidate in computers) {
+                if (candidate.details.uuid == started.uuid) {
+                    candidate.details.update(started)
+                    candidate.details.libraryState = ComputerDetails.LibraryState.AVAILABLE
+                    selected = candidate.details
+                    break
+                }
+            }
+        }
+        syncComputerList()
+        return selected
     }
 
     private fun doAppList(computer: ComputerDetails, newlyPaired: Boolean, showHiddenGames: Boolean) {

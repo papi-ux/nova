@@ -104,6 +104,7 @@ class KotlinLeafContractsMigrationTest {
         assertTrue(GameGestures::class.java.isInterface)
         GameGestures::class.java.getMethod("toggleKeyboard")
         GameGestures::class.java.getMethod("showGameMenu", GameInputDevice::class.java)
+        GameGestures::class.java.getMethod("cycleNovaHudFromController")
 
         assertTrue(TouchContext::class.java.isInterface)
         TouchContext::class.java.getMethod("getActionIndex")

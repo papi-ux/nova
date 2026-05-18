@@ -290,6 +290,10 @@ class ComputerManagerService : Service() {
             return tuple?.computer
         }
 
+        fun pollComputerNow(uuid: String): ComputerDetails? {
+            return this@ComputerManagerService.pollComputerNow(uuid)
+        }
+
         fun persistComputer(computer: ComputerDetails?) {
             this@ComputerManagerService.persistComputer(computer)
         }
@@ -513,6 +517,23 @@ class ComputerManagerService : Service() {
         }
 
         releaseLocalDatabaseReference()
+    }
+
+    private fun pollComputerNow(uuid: String): ComputerDetails? {
+        val tuple = pollingTuples[uuid] ?: return null
+        return synchronized(tuple.networkLock) {
+            try {
+                if (runPoll(tuple.computer, false, tuple.offlineCount)) {
+                    tuple.lastSuccessfulPollMs = SystemClock.elapsedRealtime()
+                    tuple.offlineCount = 0
+                } else {
+                    tuple.offlineCount++
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+            ComputerDetails(tuple.computer)
+        }
     }
 
     private fun persistComputerState(uuid: String) {

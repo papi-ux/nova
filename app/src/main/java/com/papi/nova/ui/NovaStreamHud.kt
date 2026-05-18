@@ -128,11 +128,15 @@ class NovaStreamHud(private val activity: Activity) {
         }
     }
 
-    private fun cycleMode() {
+    fun cycleMode() {
         val view = hudView ?: return
         val savedX = view.x
         val savedY = view.y
         currentMode = currentMode.next()
+        PreferenceManager.getDefaultSharedPreferences(activity)
+            .edit()
+            .putString("nova_polaris_hud_mode", currentMode.preferenceValue)
+            .apply()
         view.layoutParams = (view.layoutParams as FrameLayout.LayoutParams).apply {
             width = layoutWidthForMode(currentMode)
         }

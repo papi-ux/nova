@@ -119,7 +119,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 currentGameName = gameName,
                 currentGameUuid = currentGameUuid(),
                 profilePreference = currentProfilePreference(gameName),
-                hudShowing = getNovaHud()?.isShowing == true,
+                hudShowing = game.isNovaHudShowing(),
                 perfOverlayEnabled = game.prefConfig.enablePerfOverlay,
                 onscreenControllerEnabled = game.prefConfig.onscreenController,
                 keyboardVisible = game.isKeyboardLayoutVisible,
@@ -361,24 +361,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 haptic {
                     when (actionId) {
                         NovaQuickMenuActionId.NOVA_HUD -> {
-                            val existingHud = getNovaHud()
-                            if (existingHud != null && existingHud.isShowing) {
-                                existingHud.dismiss()
-                                setNovaHud(null)
-                            } else {
-                                if (game.prefConfig.enablePerfOverlay) game.toggleHUD()
-                                val hud = NovaStreamHud(game)
-                                hud.setTargetFps(game.configuredHudTargetFps.toDouble())
-                                sessionStatus?.let { hud.applySessionStatus(it) }
-                                setNovaHud(hud)
-                                hud.show()
-                            }
+                            game.toggleNovaHud()
                         }
                         NovaQuickMenuActionId.PERF_STATS -> {
-                            val existingHud = getNovaHud()
-                            if (!game.prefConfig.enablePerfOverlay && existingHud?.isShowing == true) {
-                                existingHud.dismiss()
-                                setNovaHud(null)
+                            if (!game.prefConfig.enablePerfOverlay && game.isNovaHudShowing()) {
+                                game.dismissNovaHud()
                             }
                             game.toggleHUD()
                         }
@@ -489,25 +476,6 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 game.sendKeys(keys)
             }
         }, KEY_UP_DELAY)
-    }
-
-    private fun getNovaHud(): NovaStreamHud? {
-        return try {
-            val field = game.javaClass.getDeclaredField("novaHud")
-            field.isAccessible = true
-            field.get(game) as? NovaStreamHud
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun setNovaHud(hud: NovaStreamHud?) {
-        try {
-            val field = game.javaClass.getDeclaredField("novaHud")
-            field.isAccessible = true
-            field.set(game, hud)
-        } catch (_: Exception) {
-        }
     }
 
     private fun getRunningGameName(): String? {

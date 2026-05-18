@@ -67,18 +67,20 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, `v1.0.5` adds the first unified Auto Quality experience with Polaris, `v1.0.6` hardens the Kotlin runtime, stream lifecycle, HUD telemetry, and Polaris launch profile handoff, and `v1.0.7` adds a 32-bit ARM release APK for Chromecast with Google TV, Google TV Streamer, and similar Android TV devices plus a Steam Controller 2026 Bluetooth HID compatibility pass. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, `v1.0.5` adds the first unified Auto Quality experience with Polaris, `v1.0.6` hardens the Kotlin runtime, stream lifecycle, HUD telemetry, and Polaris launch profile handoff, and `v1.0.7` adds a 32-bit ARM release APK for Chromecast with Google TV, Google TV Streamer, Android-wide Steam Controller 2026 HID compatibility, controller shortcuts for the quick menu/NovaHUD, and a Start Polaris flow from Nova. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
-**Android TV:** Nova ships Android TV support in the public APKs. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; on Chromecast with Google TV, Google TV Streamer, and similar 32-bit ARM Android TV devices, install `Nova-Android-armeabi-v7a.apk`. Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces. On Google TV devices that expose the Steam Controller 2026 over Bluetooth as a Valve keyboard/mouse HID, Nova recognizes that device as controller input for host gamepad presence and compatible D-pad/button events while the right trackpad continues to behave like a mouse.
+**Android TV:** Nova ships Android TV support in the public APKs. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; on Chromecast with Google TV, Google TV Streamer, and similar 32-bit ARM Android TV devices, install `Nova-Android-armeabi-v7a.apk`. Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces. On Android devices that expose the Steam Controller 2026 over Bluetooth as a Valve keyboard/mouse HID, Nova recognizes that device as controller input for host gamepad presence and compatible D-pad/button events while the right trackpad continues to behave like a mouse.
 
 ## What's New in v1.0.7
 
-Nova `v1.0.7` adds a public 32-bit ARM APK split for Chromecast with Google TV, Google TV Streamer, and similar Android TV devices, with a focused Steam Controller 2026 Bluetooth HID compatibility pass for Google TV.
+Nova `v1.0.7` adds a public 32-bit ARM APK split for Chromecast with Google TV, Google TV Streamer, and similar Android TV devices, with a focused Steam Controller 2026 Bluetooth HID compatibility pass across Android devices plus controller-first stream controls.
 
 - **Google TV-compatible APK**: GitHub Releases now publish `Nova-Android-armeabi-v7a.apk` for Android TV devices that expose only 32-bit ARM app support.
-- **Steam Controller 2026 on Google TV**: Nova recognizes Valve's Bluetooth keyboard/mouse HID presentation as controller input so streams advertise a host gamepad and compatible D-pad/button events use the controller path.
+- **Steam Controller 2026 on Android**: Nova recognizes Valve's Bluetooth keyboard/mouse HID presentation as controller input so streams advertise a host gamepad and compatible D-pad/button events use the controller path across Android TV, handhelds, phones, and tablets.
+- **Controller shortcuts**: Guide/Mode + Start/Menu opens Nova's in-stream quick menu, and Guide/Mode + Y shows or cycles NovaHUD without leaving the controller.
+- **Start Polaris from Nova**: the host menu and toolbar action can wake a paired Polaris host, wait for the Library API, then open Nova Library when the host is ready.
 - **Release verification**: the tag workflow names, uploads, and verifies all three public APK splits plus their checksums.
 - **Install guidance**: README guidance now calls out which APK to use for ARM64 Android TV, Chromecast/32-bit ARM Android TV, and x86_64 Android devices.
 
@@ -93,7 +95,7 @@ Nova `v1.0.7` adds a public 32-bit ARM APK split for Chromecast with Google TV, 
    - **QR pairing** from the Polaris web UI
    - **Manual PIN** pairing for standard Moonlight servers
 4. **Launch a game** from the game grid or the Polaris library.
-5. **Use the quick menu** for stream tuning, overlays, controller actions, and quit/disconnect controls.
+5. **Use the quick menu** for stream tuning, overlays, controller actions, and quit/disconnect controls. During a stream, Guide/Mode + Start/Menu opens the quick menu and Guide/Mode + Y shows or cycles NovaHUD.
 
 Wake-on-LAN uses UDP magic packets sent directly from Nova. If a host does not report its MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address for the server and reuses it when sending future wake requests, which helps remote setups such as WireGuard where discovery metadata may be incomplete.
 
@@ -108,6 +110,7 @@ Nova gets the best experience when the host is Polaris:
 - owner-aware quit and resume
 - clear **Baseline / AI tune / Cached AI / Recovery tune / Auto Quality** labels in Polaris-backed flows
 - bidirectional **Polaris Sync** for pushing Nova stream defaults to Polaris or pulling Polaris' current stream profile back into Nova
+- **Start Polaris** from Nova by waking a paired host and opening Nova Library once Polaris is ready
 - live host tuning for Auto Quality and MangoHud
 - richer library metadata, cover art, and per-game recommendations
 
@@ -124,7 +127,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 | Android TV | Supported | Uses ARM64 or 32-bit ARM APKs with Leanback launcher support and D-pad/controller-friendly browsing |
 | Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, and live-session integration |
 | Other Moonlight-compatible hosts | Compatible | Standard Moonlight-compatible client flow |
-| Steam Controller 2026 | Partial Android HID support | Google TV may expose Bluetooth mode as a Valve keyboard/mouse HID instead of a standard gamepad; Nova recognizes that HID for host gamepad presence and compatible D-pad/button events |
+| Steam Controller 2026 | Partial Android HID support | Android may expose Bluetooth mode as a Valve keyboard/mouse HID instead of a standard gamepad; Nova recognizes common Steam Controller HID names for host gamepad presence and compatible D-pad/button events |
 | Wake-on-LAN | Supported | Sends UDP magic packets directly from Android and supports manual MAC entry when the host does not report one |
 | High refresh devices | Supported | Nova can request 90/120 Hz when the device display and host both support it |
 | Official release assets | `arm64-v8a`, `armeabi-v7a`, `x86_64` | Public GitHub Releases ship separate APKs per Android ABI |
@@ -135,7 +138,7 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 - Nova is not on the Play Store; the public install paths are GitHub Releases, Obtainium, and GitHub Store.
 - High refresh streaming is limited by the real display panel on the Android device, not just the selected setting in Nova.
 - Public releases currently ship `arm64-v8a`, `armeabi-v7a`, and `x86_64` APKs. Other ABIs are available from local source builds.
-- Steam Controller 2026 Bluetooth support depends on the HID shape Android exposes. Nova can recognize the Google TV keyboard/mouse presentation and route compatible controller-like keys, but Android does not expose full Steam Input profiles or hidden analog controls through a standard gamepad source.
+- Steam Controller 2026 Bluetooth support depends on the HID shape Android exposes. Nova can recognize Valve keyboard/mouse HID presentations and route compatible controller-like keys, but Android does not expose full Steam Input profiles or hidden analog controls through a standard gamepad source.
 - Today, only the Android client ships.
 
 ## Why Nova
@@ -158,6 +161,7 @@ Nova is a Moonlight-compatible Android client built for handhelds first, not des
 | Session truth | HUD and quick menu show the live mode, owner/viewer role, and negotiated stream state |
 | Auto Quality state | Library and quick menu can distinguish baseline device tuning, live AI, cached AI, recovery tuning, host-adjusted recommendations, and the active target profile |
 | Polaris Sync | Push Nova's stream profile to Polaris, pull Polaris' current profile back into Nova, or keep Polaris matched to Nova defaults |
+| Start Polaris | Wake a paired host from Nova, poll for Polaris Library readiness, and jump into Nova Library when available |
 | Stream tuning | Toggle Auto Quality and MangoHud from the quick menu |
 | Library | Cover art, genres, source badges, recommendations, and per-game launch guidance |
 

@@ -3,7 +3,9 @@
 ## 1.0.7 - 2026-05-18
 
 - Added a public `armeabi-v7a` APK split for Chromecast with Google TV, Google TV Streamer, and other Android TV devices that expose only 32-bit ARM app support.
-- Recognized the Steam Controller 2026 Bluetooth keyboard/mouse HID shape on Google TV as controller input so Nova advertises a host gamepad and routes compatible D-pad/button events through the controller path.
+- Recognized common Steam Controller 2026 Bluetooth keyboard/mouse HID shapes across Android devices as controller input so Nova advertises a host gamepad and routes compatible D-pad/button events through the controller path.
+- Added controller shortcuts for in-stream control: Guide/Mode + Start/Menu opens Nova's quick menu, and Guide/Mode + Y shows or cycles NovaHUD.
+- Added a Start Polaris action that sends Wake-on-LAN to a paired host, waits for the Polaris Library API to become available, then opens Nova Library.
 - Updated the release workflow to name, upload, and verify the 32-bit ARM APK plus checksum alongside the existing ARM64 and x86_64 assets.
 - Refreshed README install guidance so users can choose the correct APK for ARM64 Android TV, Chromecast/32-bit ARM Android TV, and x86_64 Android devices.
 

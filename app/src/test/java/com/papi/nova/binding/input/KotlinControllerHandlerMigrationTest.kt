@@ -191,6 +191,25 @@ class KotlinControllerHandlerMigrationTest {
     }
 
     @Test
+    @Config(sdk = [35])
+    fun steamControllerKeyboardMouseHidNameVariantsAreAcceptedAcrossAndroidDevices() {
+        val steamController = listOf(
+            steamControllerKeyboardMouseDevice(
+                id = 902,
+                name = "Valve Steam Controller (2026) Keyboard",
+            ),
+            steamControllerKeyboardMouseDevice(
+                id = 903,
+                name = "Valve SteamController 2026 Mouse",
+            ),
+        )
+
+        steamController.forEach {
+            assertTrue(ControllerHandler.isGameControllerDevice(it))
+        }
+    }
+
+    @Test
     fun attachedControllerMaskKeepsSteamControllerKeyboardMouseCompatibilityCheck() {
         val source = String(
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")),
@@ -211,10 +230,13 @@ class KotlinControllerHandlerMigrationTest {
         assertFalse(source.contains("Thread.sleep((MINIMUM_BUTTON_DOWN_TIME_MS"))
     }
 
-    private fun steamControllerKeyboardMouseDevice(id: Int): InputDevice =
+    private fun steamControllerKeyboardMouseDevice(
+        id: Int,
+        name: String = "Steam Ctrl (BT) FXA9960600962 Mouse",
+    ): InputDevice =
         InputDeviceBuilder.newBuilder()
             .setId(id)
-            .setName("Steam Ctrl (BT) FXA9960600962 Mouse")
+            .setName(name)
             .setVendorId(0x28de)
             .setProductId(0x1303)
             .setSources(InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_STYLUS)

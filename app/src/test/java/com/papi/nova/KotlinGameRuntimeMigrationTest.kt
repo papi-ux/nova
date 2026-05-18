@@ -115,6 +115,7 @@ class KotlinGameRuntimeMigrationTest {
         Game::class.java.getMethod("getNovaApiClient")
         Game::class.java.getMethod("getCurrentMouseModeLabel")
         Game::class.java.getMethod("toggleHUD")
+        Game::class.java.getMethod("cycleNovaHudFromController")
         Game::class.java.getMethod("switchTouchSensitivity")
         Game::class.java.getMethod("disconnect")
         Game::class.java.getMethod("relaunchStream")
