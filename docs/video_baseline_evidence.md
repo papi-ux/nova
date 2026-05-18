@@ -4,6 +4,117 @@ This file records the measurement-only evidence pass for the Nova audit
 follow-up video work. It does not tune frame-drop thresholds, decoder watchdog
 timing, frame pacing policy, or launch-quality decisions.
 
+## 2026-05-17 Flip 2 Current Master HUD Summary Stream
+
+- Branch: `nova/video-current-master-evidence`
+- Base commit: `15015164a8b43a942d7360f33a9f29520fccdaa6`
+- APK: `app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk`
+- Package: `com.papi.nova.debug`
+- Device: Retroid Pocket Flip2, Android 13
+- Host: `pc-papi.lan`
+- Scenario: run current `master`, launch Steam Big Picture through the paired
+  debug package, open Command Center, toggle local mouse cursor behavior, enable
+  Nova HUD for the focused pass, then disconnect back to the Nova library.
+
+### Build, Host, And Install
+
+```bash
+systemctl --user start polaris.service
+nc -vz -w 2 10.0.0.232 47984
+nc -vz -w 2 10.0.0.232 47989
+nc -vz -w 2 10.0.0.232 47990
+nc -vz -w 2 10.0.0.232 48010
+./gradlew -PnovaAbis=arm64-v8a assembleNonRoot_gameDebug --console=plain
+adb -s adb-498c8ae8-D3D2w1._adb-tls-connect._tcp install -r app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk
+```
+
+Polaris was initially inactive on the host, then started cleanly. The required
+control and stream ports were reachable before launching Nova. The APK build
+completed successfully and installed on the paired Flip 2 debug package.
+
+### Stream Observations
+
+- First clean launch reached `com.papi.nova.debug/com.papi.nova.Game`, selected
+  Steam Big Picture, and rendered the Steam Big Picture home screen.
+- Current `master` reported Polaris `v1.0.12.dirty` with AI, GameLib,
+  AIControl, Adaptive, Session, Devices, Lock, Cursor, and Sync enabled.
+- Auto Safe launch policy lowered bitrate from `10000` to `6000` kbps and FPS
+  from `60.0` to `30.0`.
+- The focused HUD pass resumed the active Steam Big Picture session with
+  `rtspenc://10.0.0.232:48010`, `resume=1`, and `1280x720@30`.
+- Decoder setup selected `OMX.qcom.video.decoder.hevc` for hardware decoding
+  `video/hevc` with `width=1280`, `height=720`, and `frame-rate=30`.
+- Native stream logs reported `Received first video packet after 0 ms`.
+- Command Center showed Nova HUD toggled from `Off` to `On` during the focused
+  pass. It also showed host-render-limited health and a live target of
+  `4.7 Mbps`.
+- Cursor visibility sync logged `true` at stream start and `false` after local
+  cursor behavior was toggled.
+- Disconnect returned to
+  `com.papi.nova.debug/com.papi.nova.ui.NovaLibraryActivity`.
+- Disconnect logs included `Stopping video stream...`,
+  `Stopping control stream...`, and `ENet peer acknowledged disconnection`.
+
+### Sanitized HUD Summary
+
+The second pass produced the new sanitized log line before the HUD was dismissed:
+
+```json
+{
+  "avg_fps": 9.928895027624328,
+  "target_fps": 30.0,
+  "low_1_percent_fps": 9.90999984741211,
+  "min_fps": 9.65,
+  "frame_pacing_bad_pct": 100.0,
+  "avg_latency_ms": 2.3756906077348066,
+  "avg_bitrate_kbps": 0,
+  "packet_loss_pct": 0.0,
+  "codec": "HEVC",
+  "duration_s": 182,
+  "samples": 181,
+  "recommendation_version": 0,
+  "health_grade": "watch",
+  "primary_issue": "host_render_limited",
+  "issues": ["host_render_limited"],
+  "decoder_risk": "normal",
+  "hdr_risk": "normal",
+  "network_risk": "normal",
+  "capture_path": "desktop",
+  "safe_bitrate_kbps": 6000,
+  "safe_codec": "hevc",
+  "safe_display_mode": "headless",
+  "safe_hdr": false
+}
+```
+
+The summary omits host, device serial, unique client ID, token, and IP fields.
+It contains only session metrics, health classification, codec/capture metadata,
+and safe-stream recommendations.
+
+### Log Checks
+
+```bash
+adb -s adb-498c8ae8-D3D2w1._adb-tls-connect._tcp logcat -d > /tmp/nova-flip2-current-master-second-pass-full.log
+adb -s adb-498c8ae8-D3D2w1._adb-tls-connect._tcp logcat -b crash -d > /tmp/nova-flip2-current-master-second-pass-crash.log
+journalctl --user -u polaris.service --since '2026-05-17 20:35:59' --no-pager > /tmp/polaris-current-master-second-pass-full.log
+rg -i "FATAL EXCEPTION|ANR in com\\.papi\\.nova|Application Not Responding|AndroidRuntime.*FATAL" /tmp/nova-flip2-current-master-second-pass-full.log
+rg -i "com\\.papi\\.nova|FATAL EXCEPTION|AndroidRuntime|ANR" /tmp/nova-flip2-current-master-second-pass-crash.log
+```
+
+No fatal exception or ANR matches were found in the main log. The crash buffer
+grep found no Nova crash entries.
+
+### Notes
+
+- The first disconnect pass cleaned up normally but did not emit a HUD summary
+  because Nova HUD was off. Its log was retained as
+  `/tmp/nova-flip2-current-master-stream-full.log`.
+- The focused second pass manually enabled Nova HUD from Command Center before
+  disconnecting, which exercised the new summary log path on current `master`.
+- Host logs confirmed the headless stream path and `hevc_nvenc` encoder. They
+  also recorded the client cursor visibility changes and the client session
+  report generated from the HUD summary.
+
 ## 2026-05-17 Flip 2 Debug Stream
 
 - Branch: `nova/video-baseline-evidence`
