@@ -40,21 +40,25 @@ if missing:
 PY
 
 expected_arm64_asset="Nova-Android-arm64-v8a.apk"
+expected_armv7_asset="Nova-Android-armeabi-v7a.apk"
 expected_x86_asset="Nova-Android-x86_64.apk"
 expected_latest_arm64_url="https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk"
+expected_latest_armv7_url="https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk"
 expected_latest_x86_url="https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk"
 expected_github_store_url="https://github-store.org/app?repo=papi-ux/nova"
 expected_obtainium_version_regex="versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29"
 expected_obtainium_apk_regex="Nova-Android-arm64-v8a%5C%5C%5C%5C.apk%24"
 
 grep -Fq "$expected_arm64_asset" README.md
+grep -Fq "$expected_armv7_asset" README.md
 grep -Fq "$expected_x86_asset" README.md
 grep -Fq "$expected_latest_arm64_url" README.md
+grep -Fq "$expected_latest_armv7_url" README.md
 grep -Fq "$expected_latest_x86_url" README.md
 grep -Fq "$expected_github_store_url" README.md
 grep -Fq "$expected_obtainium_version_regex" README.md
 grep -Fq "$expected_obtainium_apk_regex" README.md
-grep -Fq "arm64-v8a,x86_64" app/build.gradle
+grep -Fq "arm64-v8a,armeabi-v7a,x86_64" app/build.gradle
 grep -Fq "unsigned_apks=(\"\${APK_DIR}\"/*release-unsigned.apk)" .github/workflows/build.yml
 grep -Fq 'gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber' .github/workflows/build.yml
 grep -Fq "Nova-Android-\${abi}.apk" .github/workflows/build.yml

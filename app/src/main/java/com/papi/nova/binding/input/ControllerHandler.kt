@@ -98,14 +98,8 @@ class ControllerHandler(
         val deadzonePercentage = prefConfig.deadzonePercentage
         for (id in InputDevice.getDeviceIds()) {
             val dev = InputDevice.getDevice(id) ?: continue
-            if ((dev.sources and InputDevice.SOURCE_JOYSTICK) != 0 ||
-                (dev.sources and InputDevice.SOURCE_GAMEPAD) != 0
-            ) {
-                if (getMotionRangeForJoystickAxis(dev, MotionEvent.AXIS_X) != null &&
-                    getMotionRangeForJoystickAxis(dev, MotionEvent.AXIS_Y) != null
-                ) {
-                    hasGameController = true
-                }
+            if (hasJoystickAxes(dev) || isSteamControllerKeyboardMouseDevice(dev)) {
+                hasGameController = true
             }
         }
 
@@ -2719,6 +2713,9 @@ class ControllerHandler(
     }
 
     companion object {
+        private const val VALVE_VENDOR_ID = 0x28de
+        private const val STEAM_CONTROLLER_BLUETOOTH_PRODUCT_ID = 0x1303
+        private const val STEAM_CONTROLLER_DEVICE_NAME_PREFIX = "Steam Ctrl"
         private const val MAXIMUM_BUMPER_UP_DELAY_MS = 100
         private const val START_DOWN_TIME_MOUSE_MODE_MS = 750
         private const val MINIMUM_BUTTON_DOWN_TIME_MS = 25
@@ -2773,20 +2770,34 @@ class ControllerHandler(
         private fun hasGamepadButtons(device: InputDevice): Boolean =
             (device.sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
 
+        private fun isSteamControllerKeyboardMouseDevice(device: InputDevice): Boolean =
+            device.vendorId == VALVE_VENDOR_ID &&
+                device.productId == STEAM_CONTROLLER_BLUETOOTH_PRODUCT_ID &&
+                device.name.contains(STEAM_CONTROLLER_DEVICE_NAME_PREFIX, ignoreCase = true) &&
+                (device.sources and InputDevice.SOURCE_KEYBOARD) == InputDevice.SOURCE_KEYBOARD &&
+                (device.sources and InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK &&
+                (device.sources and InputDevice.SOURCE_GAMEPAD) != InputDevice.SOURCE_GAMEPAD
+
         @JvmStatic
         fun isGameControllerDevice(device: InputDevice?): Boolean {
             if (device == null) {
                 return true
             }
 
-            if (hasJoystickAxes(device) || hasGamepadButtons(device)) {
+            if (hasJoystickAxes(device) ||
+                hasGamepadButtons(device) ||
+                isSteamControllerKeyboardMouseDevice(device)
+            ) {
                 return true
             }
 
             if (Build.VERSION.SDK_INT == Build.VERSION_CODES.R && device.id == -1) {
                 for (id in InputDevice.getDeviceIds()) {
                     val dev = InputDevice.getDevice(id) ?: continue
-                    if (hasJoystickAxes(dev) || hasGamepadButtons(dev)) {
+                    if (hasJoystickAxes(dev) ||
+                        hasGamepadButtons(dev) ||
+                        isSteamControllerKeyboardMouseDevice(dev)
+                    ) {
                         return true
                     }
                 }
@@ -2803,7 +2814,7 @@ class ControllerHandler(
             val im = context.getSystemService(Context.INPUT_SERVICE) as InputManager
             for (id in im.inputDeviceIds) {
                 val dev = im.getInputDevice(id) ?: continue
-                if (hasJoystickAxes(dev)) {
+                if (hasJoystickAxes(dev) || isSteamControllerKeyboardMouseDevice(dev)) {
                     LimeLog.info("Counting InputDevice: " + dev.name)
                     mask = (mask.toInt() or (1 shl count++)).toShort()
                 }

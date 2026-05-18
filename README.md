@@ -43,16 +43,17 @@ Built for [Polaris](https://github.com/papi-ux/polaris), compatible with other M
 
 1. Download the latest release from GitHub Releases, add Nova to Obtainium, or open it in GitHub Store on Android.
 2. Install the APK that matches your Android device.
-   Most phones, handhelds, and Android TV devices use `Nova-Android-arm64-v8a.apk`; x86_64 Android devices and emulators use `Nova-Android-x86_64.apk`.
+   Most phones, handhelds, and Android TV devices use `Nova-Android-arm64-v8a.apk`; Chromecast with Google TV, Google TV Streamer, and other 32-bit ARM Android TV devices use `Nova-Android-armeabi-v7a.apk`; x86_64 Android devices and emulators use `Nova-Android-x86_64.apk`.
 3. Open Nova, add or discover your host, then pair it.
 
 | Public release asset | Use it for |
 |---|---|
 | `Nova-Android-arm64-v8a.apk` | Recommended Android install for phones, handhelds, and Android TV devices such as NVIDIA Shield |
+| `Nova-Android-armeabi-v7a.apk` | Chromecast with Google TV, Google TV Streamer, and other Android TV devices that expose only 32-bit ARM app support |
 | `Nova-Android-x86_64.apk` | Android x86_64 devices and emulators |
 | `*.apk.sha256` | Integrity checks for the public APKs |
 
-The latest direct APKs are always available through GitHub's latest-release URLs: `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk` and `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk`. The Obtainium link above is preconfigured for the ARM64 public asset so updates resolve to one APK cleanly. The GitHub Store link opens Nova's public release repo for users who prefer that installer; GitHub Store filters assets for the device it is running on, so its desktop app may show Nova as unavailable because Nova ships Android APKs.
+The latest direct APKs are always available through GitHub's latest-release URLs: `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk`, `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk`, and `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk`. The Obtainium link above is preconfigured for the ARM64 public asset so updates resolve to one APK cleanly; Chromecast and other 32-bit ARM Android TV users should choose the `armeabi-v7a` asset manually or configure Obtainium to match `Nova-Android-armeabi-v7a.apk`. The GitHub Store link opens Nova's public release repo for users who prefer that installer; GitHub Store filters assets for the device it is running on, so its desktop app may show Nova as unavailable because Nova ships Android APKs.
 
 F-Droid and IzzyOnDroid packaging notes are tracked in [docs/fdroid.md](docs/fdroid.md), including current status, APK scan notes, and source-build blockers.
 
@@ -66,22 +67,20 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, `v1.0.5` adds the first unified Auto Quality experience with Polaris, and `v1.0.6` hardens the Kotlin runtime, stream lifecycle, HUD telemetry, and Polaris launch profile handoff. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, `v1.0.5` adds the first unified Auto Quality experience with Polaris, `v1.0.6` hardens the Kotlin runtime, stream lifecycle, HUD telemetry, and Polaris launch profile handoff, and `v1.0.7` adds a 32-bit ARM release APK for Chromecast with Google TV, Google TV Streamer, and similar Android TV devices plus a Steam Controller 2026 Bluetooth HID compatibility pass. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
-**Android TV:** Nova ships Android TV support in the same APK. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces.
+**Android TV:** Nova ships Android TV support in the public APKs. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; on Chromecast with Google TV, Google TV Streamer, and similar 32-bit ARM Android TV devices, install `Nova-Android-armeabi-v7a.apk`. Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces. On Google TV devices that expose the Steam Controller 2026 over Bluetooth as a Valve keyboard/mouse HID, Nova recognizes that device as controller input for host gamepad presence and compatible D-pad/button events while the right trackpad continues to behave like a mouse.
 
-## What's New in v1.0.6
+## What's New in v1.0.7
 
-Nova `v1.0.6` is a reliability release for the Kotlin Android client and the Polaris-backed streaming path.
+Nova `v1.0.7` adds a public 32-bit ARM APK split for Chromecast with Google TV, Google TV Streamer, and similar Android TV devices, with a focused Steam Controller 2026 Bluetooth HID compatibility pass for Google TV.
 
-- **Kotlin runtime hardening**: the Android client runtime, stream helpers, input paths, video helpers, and guard tests have been migrated and tightened around Kotlin-first contracts.
-- **Safer stream lifecycle**: runtime cleanup, cursor visibility sync, controller button release scheduling, and disconnect/resume behavior now avoid blocking stream-critical threads.
-- **Polaris launch alignment**: Nova honors the paired RTSP launch profile it receives from Polaris so the requested stream path matches the host-side launch decision.
-- **Better HUD evidence**: latency samples, sanitized session summaries, Auto Quality state, target FPS, 1% low FPS, and video diagnostics are easier to inspect when validating a stream.
-- **Video guard coverage**: decoder watchdog, crash diagnostic, and video metrics paths now have regression coverage around the existing public counters.
-- **Release hygiene**: dependency submission, CodeQL path guards, Gradle task wiring, and public release documentation were refreshed for the `v1.0.6` line.
+- **Google TV-compatible APK**: GitHub Releases now publish `Nova-Android-armeabi-v7a.apk` for Android TV devices that expose only 32-bit ARM app support.
+- **Steam Controller 2026 on Google TV**: Nova recognizes Valve's Bluetooth keyboard/mouse HID presentation as controller input so streams advertise a host gamepad and compatible D-pad/button events use the controller path.
+- **Release verification**: the tag workflow names, uploads, and verifies all three public APK splits plus their checksums.
+- **Install guidance**: README guidance now calls out which APK to use for ARM64 Android TV, Chromecast/32-bit ARM Android TV, and x86_64 Android devices.
 
 ## Quick Start
 
@@ -122,19 +121,21 @@ Nova still works as a standard Moonlight client. Pair normally, launch normally,
 |---|---|---|
 | Android handhelds | Primary target | Designed first for landscape handheld use |
 | Android phones and tablets | Supported | Works well, but the UX is tuned most heavily for handhelds |
-| Android TV | Supported | Uses the normal ARM64 APK with Leanback launcher support and D-pad/controller-friendly browsing |
+| Android TV | Supported | Uses ARM64 or 32-bit ARM APKs with Leanback launcher support and D-pad/controller-friendly browsing |
 | Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, and live-session integration |
 | Other Moonlight-compatible hosts | Compatible | Standard Moonlight-compatible client flow |
+| Steam Controller 2026 | Partial Android HID support | Google TV may expose Bluetooth mode as a Valve keyboard/mouse HID instead of a standard gamepad; Nova recognizes that HID for host gamepad presence and compatible D-pad/button events |
 | Wake-on-LAN | Supported | Sends UDP magic packets directly from Android and supports manual MAC entry when the host does not report one |
 | High refresh devices | Supported | Nova can request 90/120 Hz when the device display and host both support it |
-| Official release assets | `arm64-v8a`, `x86_64` | Public GitHub Releases ship separate APKs per Android ABI |
+| Official release assets | `arm64-v8a`, `armeabi-v7a`, `x86_64` | Public GitHub Releases ship separate APKs per Android ABI |
 
 ## Known Limitations
 
 - Advanced launch modes, watch mode, live host tuning, and richer session telemetry are Polaris-specific.
 - Nova is not on the Play Store; the public install paths are GitHub Releases, Obtainium, and GitHub Store.
 - High refresh streaming is limited by the real display panel on the Android device, not just the selected setting in Nova.
-- Public releases currently ship `arm64-v8a` and `x86_64` APKs. Other ABIs are available from local source builds.
+- Public releases currently ship `arm64-v8a`, `armeabi-v7a`, and `x86_64` APKs. Other ABIs are available from local source builds.
+- Steam Controller 2026 Bluetooth support depends on the HID shape Android exposes. Nova can recognize the Google TV keyboard/mouse presentation and route compatible controller-like keys, but Android does not expose full Steam Input profiles or hidden analog controls through a standard gamepad source.
 - Today, only the Android client ships.
 
 ## Why Nova
@@ -261,10 +262,10 @@ Android is the only public release target today.
 ./gradlew assembleNonRoot_gameDebug
 ```
 
-By default, local source builds produce split APKs for `arm64-v8a` and `x86_64`.
+By default, local source builds produce split APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64`.
 
 > [!TIP]
-> Official GitHub releases ship a signed `arm64-v8a` APK for real devices as `Nova-Android-arm64-v8a.apk`.
+> Official GitHub releases ship signed APKs for ARM64 devices, 32-bit ARM Android TV devices such as Chromecast with Google TV and Google TV Streamer, and x86_64 devices.
 >
 > If you want a different ABI set locally:
 > `./gradlew assembleNonRoot_gameDebug -PnovaAbis=arm64-v8a,armeabi-v7a,x86,x86_64`
