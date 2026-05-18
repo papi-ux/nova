@@ -26,6 +26,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.InputDeviceBuilder
 
 @Config(sdk = [33])
 @RunWith(RobolectricTestRunner::class)
@@ -182,6 +183,25 @@ class KotlinControllerHandlerMigrationTest {
     }
 
     @Test
+    @Config(sdk = [35])
+    fun steamControllerBluetoothKeyboardMouseHidIsAcceptedAsControllerInput() {
+        val steamController = steamControllerKeyboardMouseDevice(id = 901)
+
+        assertTrue(ControllerHandler.isGameControllerDevice(steamController))
+    }
+
+    @Test
+    fun attachedControllerMaskKeepsSteamControllerKeyboardMouseCompatibilityCheck() {
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")),
+            StandardCharsets.UTF_8
+        )
+
+        assertTrue(source.contains("isSteamControllerKeyboardMouseDevice(dev)"))
+        assertTrue(source.contains("hasJoystickAxes(dev) || isSteamControllerKeyboardMouseDevice(dev)"))
+    }
+
+    @Test
     fun controllerButtonUpPathDoesNotUseThreadSleep() {
         val source = String(
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")),
@@ -190,4 +210,14 @@ class KotlinControllerHandlerMigrationTest {
 
         assertFalse(source.contains("Thread.sleep((MINIMUM_BUTTON_DOWN_TIME_MS"))
     }
+
+    private fun steamControllerKeyboardMouseDevice(id: Int): InputDevice =
+        InputDeviceBuilder.newBuilder()
+            .setId(id)
+            .setName("Steam Ctrl (BT) FXA9960600962 Mouse")
+            .setVendorId(0x28de)
+            .setProductId(0x1303)
+            .setSources(InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_STYLUS)
+            .setKeyboardType(InputDevice.KEYBOARD_TYPE_ALPHABETIC)
+            .build()
 }
