@@ -68,6 +68,19 @@ class NovaComposeBuildConfigurationTest {
     }
 
     @Test
+    fun buildDoesNotUseKaptForNewKotlinProcessing() {
+        val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
+        val appBuild = String(Files.readAllBytes(Paths.get("build.gradle")), StandardCharsets.UTF_8)
+        val settings = String(Files.readAllBytes(Paths.get("../settings.gradle")), StandardCharsets.UTF_8)
+        val combinedBuildConfig = listOf(rootBuild, appBuild, settings).joinToString("\n")
+
+        assertFalse(
+            "Prefer KSP over kapt for future Kotlin annotation processors",
+            combinedBuildConfig.contains("kapt")
+        )
+    }
+
+    @Test
     fun rootTestAggregationUsesLazyTaskRegistration() {
         val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
 
