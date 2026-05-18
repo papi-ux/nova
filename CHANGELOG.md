@@ -3,6 +3,7 @@
 ## 1.0.8 - 2026-05-18
 
 - Strengthened controller and TV focus states in the dashboard, library game grid, and launch affordances so selected items stand out more clearly.
+- Tuned Nova Library density for handheld landscape devices with a 4-card Continue rail, 3-column default grid, shorter game cards, and smaller HDR/Recent badges.
 - Pointed the Help/GitHub menu action at Nova's GitHub repository instead of Moonlight.
 - Routed dashboard Polaris startup and app metadata refresh work through Nova's lifecycle-aware runtime task helpers.
 - Added Baseline Profile generation infrastructure for startup and library flows, with release dry-run coverage in the build.
