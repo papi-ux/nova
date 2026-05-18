@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.8 - 2026-05-18
+
+- Strengthened controller and TV focus states in the dashboard, library game grid, and launch affordances so selected items stand out more clearly.
+- Pointed the Help/GitHub menu action at Nova's GitHub repository instead of Moonlight.
+- Routed dashboard Polaris startup and app metadata refresh work through Nova's lifecycle-aware runtime task helpers.
+- Added Baseline Profile generation infrastructure for startup and library flows, with release dry-run coverage in the build.
+- Reduced library filtering allocations and added stable Lazy layout content types for the library surface.
+- Added Kotlin domain ID value classes plus a build guard that keeps kapt out of Nova's Kotlin build.
+
 ## 1.0.7 - 2026-05-18
 
 - Added a public `armeabi-v7a` APK split for Chromecast with Google TV, Google TV Streamer, and other Android TV devices that expose only 32-bit ARM app support.

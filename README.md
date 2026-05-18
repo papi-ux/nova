@@ -67,22 +67,22 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, `v1.0.5` adds the first unified Auto Quality experience with Polaris, `v1.0.6` hardens the Kotlin runtime, stream lifecycle, HUD telemetry, and Polaris launch profile handoff, and `v1.0.7` adds a 32-bit ARM release APK for Chromecast with Google TV, Google TV Streamer, Android-wide Steam Controller 2026 HID compatibility, controller shortcuts for the quick menu/NovaHUD, and a Start Polaris flow from Nova. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, `v1.0.5` adds the first unified Auto Quality experience with Polaris, `v1.0.6` hardens the Kotlin runtime, stream lifecycle, HUD telemetry, and Polaris launch profile handoff, `v1.0.7` adds a 32-bit ARM release APK for Chromecast with Google TV, Google TV Streamer, Android-wide Steam Controller 2026 HID compatibility, controller shortcuts for the quick menu/NovaHUD, and a Start Polaris flow from Nova, and `v1.0.8` focuses on controller/TV focus clarity, Nova GitHub help routing, lifecycle-aware Kotlin background work, and Baseline Profile generation infrastructure. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
 **Android TV:** Nova ships Android TV support in the public APKs. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; on Chromecast with Google TV, Google TV Streamer, and similar 32-bit ARM Android TV devices, install `Nova-Android-armeabi-v7a.apk`. Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces. On Android devices that expose the Steam Controller 2026 over Bluetooth as a Valve keyboard/mouse HID, Nova recognizes that device as controller input for host gamepad presence and compatible D-pad/button events while the right trackpad continues to behave like a mouse.
 
-## What's New in v1.0.7
+## What's New in v1.0.8
 
-Nova `v1.0.7` adds a public 32-bit ARM APK split for Chromecast with Google TV, Google TV Streamer, and similar Android TV devices, with a focused Steam Controller 2026 Bluetooth HID compatibility pass across Android devices plus controller-first stream controls.
+Nova `v1.0.8` is a focused polish and Kotlin optimization release for controller-first navigation, Polaris startup surfaces, and release performance infrastructure.
 
-- **Google TV-compatible APK**: GitHub Releases now publish `Nova-Android-armeabi-v7a.apk` for Android TV devices that expose only 32-bit ARM app support.
-- **Steam Controller 2026 on Android**: Nova recognizes Valve's Bluetooth keyboard/mouse HID presentation as controller input so streams advertise a host gamepad and compatible D-pad/button events use the controller path across Android TV, handhelds, phones, and tablets.
-- **Controller shortcuts**: Guide/Mode + Start/Menu opens Nova's in-stream quick menu, and Guide/Mode + Y shows or cycles NovaHUD without leaving the controller.
-- **Start Polaris from Nova**: the host menu and toolbar action can wake a paired Polaris host, wait for the Library API, then open Nova Library when the host is ready.
-- **Release verification**: the tag workflow names, uploads, and verifies all three public APK splits plus their checksums.
-- **Install guidance**: README guidance now calls out which APK to use for ARM64 Android TV, Chromecast/32-bit ARM Android TV, and x86_64 Android devices.
+- **Controller/TV focus clarity**: dashboard actions, Theme, Help/GitHub, library game cards, and launch affordances now show stronger selected states.
+- **Nova Help routing**: the Help/GitHub action now opens Nova's GitHub repository instead of Moonlight.
+- **Kotlin runtime task cleanup**: dashboard Polaris startup and app metadata refresh work now run through Nova's lifecycle-aware runtime task helpers.
+- **Library performance**: the library surface now uses stable Lazy layout content types and a lower-allocation filtering path.
+- **Release performance groundwork**: Nova now has Baseline Profile generation infrastructure for startup and library flows, with release dry-run coverage in the build.
+- **Build hygiene**: Kotlin domain ID value classes make host/game/session identifiers harder to mix up, and a build guard keeps kapt out of the Kotlin build.
 
 ## Quick Start
 
