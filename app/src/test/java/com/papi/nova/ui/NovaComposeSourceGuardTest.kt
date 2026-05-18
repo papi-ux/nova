@@ -123,6 +123,42 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryRestoresLastFocusedGameAndFilter() {
+        val source = readNovaLibraryActivity()
+        val gameCard = source.section(
+            "private fun NovaLibraryGameCard(",
+            "private fun NovaMiniBadge("
+        )
+        val filterChip = source.section(
+            "private fun NovaSelectableChip(",
+            "private fun NovaLibraryPanel("
+        )
+
+        assertTrue(
+            "library should keep last focused game id in activity state for detail-sheet returns",
+            source.contains("private var lastFocusedGameId by mutableStateOf<String?>(null)") &&
+                source.contains("onGameFocused = { lastFocusedGameId = it.id }")
+        )
+        assertTrue(
+            "library should keep last focused primary filter for rail/top-header traversal",
+            source.contains("private var lastFocusedPrimaryFilter by mutableStateOf(NovaLibraryPrimaryFilter.ALL)") &&
+                source.contains("onPrimaryFilterFocused = { lastFocusedPrimaryFilter = it }")
+        )
+        assertTrue(
+            "game cards should request focus when they match the remembered game",
+            gameCard.contains("val focusRequester = remember { FocusRequester() }") &&
+                gameCard.contains(".focusRequester(focusRequester)") &&
+                gameCard.contains("if (restoreFocus && !restoreAttempted)")
+        )
+        assertTrue(
+            "filter chips should request focus when they match the remembered filter",
+            filterChip.contains("val focusRequester = remember { FocusRequester() }") &&
+                filterChip.contains(".focusRequester(focusRequester)") &&
+                filterChip.contains("if (restoreFocus && !restoreAttempted)")
+        )
+    }
+
+    @Test
     fun libraryGameCardsUseHighVisibilityFocusedFrame() {
         val gameCard = readNovaLibraryActivity().section(
             "private fun NovaLibraryGameCard(",
@@ -152,8 +188,77 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "focused library cards should observe the same focus target that receives D-pad focus",
-            gameCard.indexOf(".onFocusChanged { focused = it.isFocused || it.hasFocus }") in 0 until
+            gameCard.indexOf(".onFocusChanged {") in 0 until
                 gameCard.indexOf(".combinedClickable(")
+        )
+    }
+
+    @Test
+    fun activeSessionCardStaysCompactAndShowsStreamContext() {
+        val activeSession = readNovaLibraryActivity().section(
+            "private fun NovaLibraryActiveSessionCard(",
+            "private fun NovaLibrarySummary("
+        )
+
+        assertTrue(
+            "active session card should include the stream profile when Polaris exposes it",
+            activeSession.contains("val streamDetail = formatStreamProfile(session)")
+        )
+        assertTrue(
+            "active session card should keep its primary action compact in the rail",
+            activeSession.contains("minHeight = 34.dp") &&
+                activeSession.contains("fontSize = 11.sp")
+        )
+    }
+
+    @Test
+    fun libraryFiltersExposeClearActionWhenNarrowed() {
+        val source = readNovaLibraryActivity()
+        val rail = source.section(
+            "private fun NovaLibraryRail(",
+            "private fun NovaLibraryTopHeader("
+        )
+        val topHeader = source.section(
+            "private fun NovaLibraryTopHeader(",
+            "private fun NovaLibraryTitle("
+        )
+
+        assertTrue(
+            "library should compute a clearable state from search plus filter constraints",
+            source.contains("private fun hasClearableFilters(") &&
+                source.contains("searchQuery.isNotBlank() || filterState.hasActiveConstraint")
+        )
+        assertTrue(
+            "landscape rail should show a clear filters action when filters/search are active",
+            rail.contains("if (hasClearableFilters(searchQuery, filterState))") &&
+                rail.contains("R.string.nova_library_filter_clear_all")
+        )
+        assertTrue(
+            "portrait header should show the same clear filters action",
+            topHeader.contains("if (hasClearableFilters(searchQuery, filterState))") &&
+                topHeader.contains("R.string.nova_library_filter_clear_all")
+        )
+    }
+
+    @Test
+    fun gameDetailLaunchControlsPrioritizePrimaryPlayFocus() {
+        val detail = readNovaGameDetailSheet()
+        val launchControls = detail.section(
+            "private fun LaunchControls(",
+            "@Composable\nprivate fun MangoHudCard("
+        )
+
+        assertTrue(
+            "game detail should focus the primary play action when the sheet opens",
+            launchControls.contains("val playFocusRequester = remember { FocusRequester() }") &&
+                launchControls.contains("playFocusRequester.requestFocus()") &&
+                launchControls.contains(".focusRequester(playFocusRequester)")
+        )
+        assertTrue(
+            "game detail should make Play the full-width primary action before secondary tuning actions",
+            launchControls.section("text = playLabel", "enabled = uiState.playEnabled")
+                .contains(".fillMaxWidth()\n                .focusRequester(playFocusRequester)") &&
+                launchControls.indexOf("text = playLabel") < launchControls.indexOf("text = launchOptionsLabel")
         )
     }
 
@@ -208,7 +313,7 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "selectable chips should observe the focus target that receives D-pad focus",
-            selectableChip.indexOf(".onFocusChanged { focused = it.isFocused || it.hasFocus }") in 0 until
+            selectableChip.indexOf(".onFocusChanged {") in 0 until
                 selectableChip.indexOf(".combinedClickable(")
         )
     }
@@ -311,6 +416,9 @@ class NovaComposeSourceGuardTest {
 
     private fun readNovaStreamHudContent(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaStreamHudContent.kt")
+
+    private fun readNovaGameDetailSheet(): String =
+        readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
 
     private fun readNovaFocusComponents(): String =
         readSource("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt")

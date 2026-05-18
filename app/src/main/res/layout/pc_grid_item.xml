@@ -95,6 +95,18 @@
                     android:fontFamily="sans-serif"
                     android:text="Connecting..." />
             </LinearLayout>
+
+            <TextView
+                android:id="@+id/status_hint_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:maxLines="1"
+                android:textColor="@color/nova_text_muted"
+                android:textSize="11sp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <TextView
@@ -102,7 +114,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/nova_spacing_md"
-            android:background="@drawable/nova_badge_bg"
+            android:background="@drawable/nova_chip_default"
             android:fontFamily="sans-serif-medium"
             android:paddingStart="12dp"
             android:paddingTop="8dp"

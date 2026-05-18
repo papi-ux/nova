@@ -171,6 +171,101 @@ class NovaFocusDrawableTest {
     }
 
     @Test
+    fun dashboardTopIconActionsExposeFocusedLabel() {
+        val layouts = arrayOf(
+            "src/main/res/layout/activity_pc_view.xml",
+            "src/main/res/layout-land/activity_pc_view.xml"
+        )
+        val source = readSource("src/main/java/com/papi/nova/PcView.kt")
+
+        for (layout in layouts) {
+            val doc = parseXml(layout)
+
+            assertTrue(
+                "$layout should include one stable label for focused top icon actions",
+                hasViewAttribute(doc, "topActionFocusLabel", "android:visibility", "invisible")
+            )
+        }
+        assertTrue(
+            "PcView should bind profile/sync/settings focus to the label",
+            source.contains("bindTopActionFocusLabel(") &&
+                source.contains("R.id.topActionFocusLabel") &&
+                source.contains("R.string.pcview_quick_profiles") &&
+                source.contains("R.string.pcview_quick_polaris_sync") &&
+                source.contains("R.string.pcview_quick_settings")
+        )
+    }
+
+    @Test
+    fun dashboardPolarisStartupActionUsesLaunchIcon() {
+        val layouts = arrayOf(
+            "src/main/res/layout/activity_pc_view.xml",
+            "src/main/res/layout-land/activity_pc_view.xml"
+        )
+        val source = readSource("src/main/java/com/papi/nova/PcView.kt")
+
+        for (layout in layouts) {
+            val doc = parseXml(layout)
+
+            assertTrue(
+                "$layout Polaris startup action should look like launch/start, not bidirectional sync",
+                hasViewAttribute(doc, "actionPolarisSync", "app:icon", "@drawable/ic_play")
+            )
+            assertTrue(
+                "$layout Polaris startup action should keep the Start Polaris label",
+                hasViewAttribute(doc, "actionPolarisSync", "android:contentDescription", "@string/pcview_quick_polaris_sync")
+            )
+        }
+        assertTrue(
+            "Top action should still launch the Polaris startup flow",
+            source.contains("polarisSyncAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }")
+        )
+    }
+
+    @Test
+    fun dashboardThemeActionOpensPickerInsteadOfBlindCycle() {
+        val source = readSource("src/main/java/com/papi/nova/PcView.kt")
+
+        assertTrue(
+            "Theme quick action should open a picker rather than immediately cycling themes",
+            source.contains("themeAction?.setOnClickListener { v ->") &&
+                source.contains("showThemePicker(v)") &&
+                source.contains("private fun showThemePicker(") &&
+                source.contains("NovaThemeManager.setTheme(this, theme)")
+        )
+    }
+
+    @Test
+    fun serverRowsExposeStateHintsAndFocusedPrimaryAction() {
+        val row = parseXml("src/main/res/layout/pc_grid_item.xml")
+        val adapter = readSource("src/main/java/com/papi/nova/grid/PcGridAdapter.kt")
+        val genericAdapter = readSource("src/main/java/com/papi/nova/grid/GenericGridAdapter.kt")
+
+        assertTrue(
+            "server rows should reserve a persistent hint line for offline/pairing/Polaris states",
+            hasViewAttribute(row, "status_hint_text", "android:visibility", "gone")
+        )
+        assertTrue(
+            "server row primary action should use a focus-aware chip background",
+            hasViewAttribute(row, "primary_action_text", "android:background", "@drawable/nova_chip_default")
+        )
+        assertTrue(
+            "server rows should update the action chip selected state from row focus",
+            genericAdapter.contains("open fun onItemFocusChanged(") &&
+                genericAdapter.contains("onItemFocusChanged(holder.itemView, hasFocus)") &&
+                adapter.contains("override fun onItemFocusChanged(") &&
+                adapter.contains("primaryAction?.isSelected = hasFocus")
+        )
+        assertTrue(
+            "server rows should explain the state-specific action, not only name the state",
+            adapter.contains("R.string.pcview_card_hint_pair") &&
+                adapter.contains("R.string.pcview_card_hint_open_library") &&
+                adapter.contains("R.string.pcview_card_hint_wake") &&
+                adapter.contains("R.string.pcview_card_hint_checking_library")
+        )
+    }
+
+    @Test
     fun appGridAdapterTogglesGameCardFocusRing() {
         val source = readSource("src/main/java/com/papi/nova/grid/GenericGridAdapter.kt")
 

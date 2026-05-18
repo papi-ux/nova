@@ -62,9 +62,11 @@
     <string name="pcview_quick_add_server">Add Server</string>
     <string name="pcview_quick_scan_pair">Scan Pair</string>
     <string name="pcview_quick_polaris_sync">Start Polaris</string>
+    <string name="pcview_quick_profiles">Profiles</string>
     <string name="pcview_quick_theme">Theme</string>
     <string name="pcview_quick_github">GitHub</string>
     <string name="pcview_quick_settings">Settings</string>
+    <string name="pcview_theme_picker_title">Choose theme</string>
     <string name="pcview_filter_all">All</string>
     <string name="pcview_filter_online">Online</string>
     <string name="pcview_filter_streaming">Streaming</string>
@@ -86,6 +88,13 @@
     <string name="pcview_card_action_pair">Pair</string>
     <string name="pcview_card_action_wake">Wake</string>
     <string name="pcview_card_action_refreshing">Refreshing</string>
+    <string name="pcview_card_hint_pair">Pair this host before library or stream actions.</string>
+    <string name="pcview_card_hint_streaming">Resume or watch the active stream.</string>
+    <string name="pcview_card_hint_open_library">Open the Polaris game library.</string>
+    <string name="pcview_card_hint_checking_library">Waiting for Polaris library readiness.</string>
+    <string name="pcview_card_hint_open_apps">Use the legacy app list for this host.</string>
+    <string name="pcview_card_hint_wake">Wake this host or check the network.</string>
+    <string name="pcview_card_hint_refreshing">Refreshing host status.</string>
     <string name="pcview_library_choose_server">Choose a server for Nova Library</string>
     <string name="pcview_library_no_server">No paired online server available for Nova Library</string>
     <string name="pcview_library_checking">Checking Library support…</string>
@@ -143,6 +152,7 @@
     <string name="nova_library_filter_source_count">%1$d games</string>
     <string name="nova_library_filter_clear_more">Clear extra filters</string>
     <string name="nova_library_filter_clear_more_hint">Return to the full library.</string>
+    <string name="nova_library_filter_clear_all">Clear filters</string>
     <string name="nova_library_filter_category">Category</string>
     <string name="nova_library_filter_genre">Genre</string>
     <string name="nova_library_filter_selected">Selected</string>

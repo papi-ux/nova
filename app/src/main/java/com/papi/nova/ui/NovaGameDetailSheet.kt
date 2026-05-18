@@ -34,12 +34,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.semantics.contentDescription
@@ -959,6 +963,13 @@ private fun LaunchControls(
     onResetProfile: () -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
+    val playFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(uiState.playEnabled) {
+        if (uiState.playEnabled) {
+            playFocusRequester.requestFocus()
+        }
+    }
 
     Column {
         Row(
@@ -990,24 +1001,28 @@ private fun LaunchControls(
             overflow = TextOverflow.Ellipsis
         )
 
+        NovaActionButton(
+            text = playLabel,
+            onClick = onPrimaryLaunch,
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(playFocusRequester)
+                .padding(top = 11.dp),
+            enabled = uiState.playEnabled,
+            primary = true,
+            contentDescription = playLabel,
+            minHeight = 44.dp,
+            cornerRadius = 8.dp,
+            fontSize = 13.sp,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
+        )
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 11.dp),
+                .padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            NovaActionButton(
-                text = playLabel,
-                onClick = onPrimaryLaunch,
-                modifier = Modifier.weight(1f),
-                enabled = uiState.playEnabled,
-                primary = true,
-                contentDescription = playLabel,
-                minHeight = 40.dp,
-                cornerRadius = 8.dp,
-                fontSize = 12.sp,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-            )
             NovaActionButton(
                 text = launchOptionsLabel,
                 onClick = onLaunchOptions,
@@ -1019,37 +1034,31 @@ private fun LaunchControls(
                 fontSize = 12.sp,
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
             NovaActionButton(
                 text = profilePreferenceLabel,
                 onClick = onProfilePreference,
                 modifier = Modifier.weight(1f),
                 contentDescription = profilePreferenceLabel,
-                minHeight = 36.dp,
+                minHeight = 40.dp,
                 cornerRadius = 8.dp,
-                fontSize = 11.sp,
-                contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp)
-            )
-
-            NovaActionButton(
-                text = resetProfileLabel,
-                onClick = onResetProfile,
-                modifier = Modifier.weight(1f),
-                enabled = !resetProfileWorking,
-                contentDescription = resetProfileLabel,
-                minHeight = 36.dp,
-                cornerRadius = 8.dp,
-                fontSize = 11.sp,
-                contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp)
+                fontSize = 12.sp,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             )
         }
+
+        NovaActionButton(
+            text = resetProfileLabel,
+            onClick = onResetProfile,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            enabled = !resetProfileWorking,
+            contentDescription = resetProfileLabel,
+            minHeight = 36.dp,
+            cornerRadius = 8.dp,
+            fontSize = 11.sp,
+            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp)
+        )
     }
 }
 

@@ -73,6 +73,8 @@ abstract class GenericGridAdapter<T>(
         obj: T
     )
 
+    open fun onItemFocusChanged(parentView: View, hasFocus: Boolean) = Unit
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = inflater.inflate(layoutId, parent, false)
         return ViewHolder(view)
@@ -95,6 +97,7 @@ abstract class GenericGridAdapter<T>(
         focusRing?.visibility = if (holder.itemView.hasFocus()) View.VISIBLE else View.GONE
         holder.itemView.setOnFocusChangeListener { _, hasFocus ->
             focusRing?.visibility = if (hasFocus) View.VISIBLE else View.GONE
+            onItemFocusChanged(holder.itemView, hasFocus)
         }
 
         holder.itemView.setOnClickListener {

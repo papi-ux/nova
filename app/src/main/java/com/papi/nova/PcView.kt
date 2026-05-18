@@ -338,6 +338,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val themeAction = findViewById<View>(R.id.actionTheme)
         val settingsAction = findViewById<View>(R.id.actionSettings)
         val helpAction = findViewById<View>(R.id.actionHelp)
+        val topActionFocusLabel = findViewById<TextView>(R.id.topActionFocusLabel)
         val emptyRefresh = findViewById<TextView>(R.id.emptyRefresh)
         val emptyAddServer = findViewById<TextView>(R.id.emptyAddServer)
         val emptyScanPair = findViewById<TextView>(R.id.emptyScanPair)
@@ -360,8 +361,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         scanPairAction?.setOnClickListener { launchQrScanner() }
         polarisSyncAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }
         themeAction?.setOnClickListener { v ->
-            v.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
-            cycleTheme()
+            showThemePicker(v)
         }
         settingsAction?.setOnClickListener {
             startActivity(Intent(this@PcView, StreamSettings::class.java))
@@ -381,6 +381,12 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         profilesButton?.setOnClickListener {
             startActivity(Intent(this@PcView, ProfilesActivity::class.java))
         }
+        bindTopActionFocusLabel(
+            topActionFocusLabel,
+            profilesButton to R.string.pcview_quick_profiles,
+            polarisSyncAction to R.string.pcview_quick_polaris_sync,
+            settingsAction to R.string.pcview_quick_settings,
+        )
 
         filterAllServers?.setOnClickListener { setServerFilter(FILTER_ALL) }
         filterOnlineServers?.setOnClickListener { setServerFilter(FILTER_ONLINE) }
@@ -432,6 +438,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         findViewById<TextView>(R.id.pcViewToolsHint)?.setTextColor(textMuted)
         findViewById<TextView>(R.id.pcViewHostsLabel)?.setTextColor(textPrimary)
         findViewById<TextView>(R.id.pcViewHostsSummary)?.setTextColor(textMuted)
+        findViewById<TextView>(R.id.topActionFocusLabel)?.setTextColor(textSecondary)
         findViewById<TextView>(R.id.pcViewEmptyTitle)?.setTextColor(textMuted)
         findViewById<TextView>(R.id.pcViewEmptyHint)?.setTextColor(textMuted)
 
@@ -515,11 +522,50 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         }
     }
 
-    private fun cycleTheme() {
-        val nextTheme = NovaThemeManager.cycleTheme(this)
+    private fun bindTopActionFocusLabel(label: TextView?, vararg actions: Pair<View?, Int>) {
+        label ?: return
+        for ((action, labelRes) in actions) {
+            action?.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    label.text = getString(labelRes)
+                    label.visibility = View.VISIBLE
+                } else if (actions.none { it.first?.hasFocus() == true }) {
+                    label.visibility = View.INVISIBLE
+                }
+            }
+        }
+    }
+
+    private fun showThemePicker(anchor: View?) {
+        val themes = mutableListOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_OLED,
+        )
+        if (NovaThemeManager.isMaterialYouAvailable()) {
+            themes.add(NovaThemeManager.THEME_MATERIAL_YOU)
+        }
+        val labels = themes.map { NovaThemeManager.getThemeLabel(this, it) }.toTypedArray()
+        val currentTheme = NovaThemeManager.getTheme(this)
+        val checkedIndex = themes.indexOf(currentTheme).coerceAtLeast(0)
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.pcview_theme_picker_title)
+            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+                applyThemeSelection(themes[which])
+                dialog.dismiss()
+            }
+            .show()
+        anchor?.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+    }
+
+    private fun applyThemeSelection(theme: String) {
+        if (theme == NovaThemeManager.getTheme(this)) {
+            return
+        }
+        NovaThemeManager.setTheme(this, theme)
         Toast.makeText(
             this,
-            getString(R.string.nova_theme_switched_to, NovaThemeManager.getThemeLabel(this, nextTheme)),
+            getString(R.string.nova_theme_switched_to, NovaThemeManager.getThemeLabel(this, theme)),
             Toast.LENGTH_SHORT,
         ).show()
         recreate()
