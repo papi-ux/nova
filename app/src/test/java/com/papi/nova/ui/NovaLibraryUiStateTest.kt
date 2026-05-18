@@ -30,6 +30,39 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
+    fun modelFilteringKeepsSearchSourceAndRecentOrdering() {
+        val games = listOf(
+            game("game-steam-action", "Action Game", source = "steam", lastLaunched = 30),
+            game("game-heroic-action", "Action Game Heroic", source = "heroic", lastLaunched = 50),
+            game("game-steam-rpg", "RPG Game", source = "steam", lastLaunched = 40),
+            game("tool-steam", "Desktop Tool", source = "steam", lastLaunched = 10)
+        )
+
+        val sourceModel = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "game",
+            filterState = NovaLibraryFilterState(
+                primary = NovaLibraryPrimaryFilter.SOURCES,
+                source = "steam"
+            )
+        )
+        val recentModel = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "game",
+            filterState = NovaLibraryFilterState(primary = NovaLibraryPrimaryFilter.RECENT)
+        )
+
+        assertEquals(
+            listOf("game-steam-action", "game-steam-rpg"),
+            sourceModel.filteredGames.map { it.id }
+        )
+        assertEquals(
+            listOf("game-heroic-action", "game-steam-rpg", "game-steam-action"),
+            recentModel.filteredGames.map { it.id }
+        )
+    }
+
+    @Test
     fun recentFilterSortsNewestFirst() {
         val games = listOf(
             game("old", "Old Game", lastLaunched = 10),

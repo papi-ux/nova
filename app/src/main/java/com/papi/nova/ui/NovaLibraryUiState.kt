@@ -134,26 +134,39 @@ object NovaLibraryUiStateMapper {
         search: String,
         filterState: NovaLibraryFilterState
     ): List<PolarisGame> {
+        if (search.isBlank() && filterState.primary == NovaLibraryPrimaryFilter.ALL) {
+            return games
+        }
+
         val searched = if (search.isBlank()) {
-            games
+            games.asSequence()
         } else {
-            games.filter { it.name.contains(search, ignoreCase = true) }
+            games.asSequence().filter { it.name.contains(search, ignoreCase = true) }
         }
 
         return when (filterState.primary) {
             NovaLibraryPrimaryFilter.RECENT -> searched
                 .filter { it.lastLaunched > 0 }
                 .sortedByDescending { it.lastLaunched }
-            NovaLibraryPrimaryFilter.SOURCES -> searched.filter { it.source == filterState.source }
-            NovaLibraryPrimaryFilter.HDR -> searched.filter { it.hdrSupported }
+                .toList()
+            NovaLibraryPrimaryFilter.SOURCES -> searched
+                .filter { it.source == filterState.source }
+                .toList()
+            NovaLibraryPrimaryFilter.HDR -> searched
+                .filter { it.hdrSupported }
+                .toList()
             NovaLibraryPrimaryFilter.MORE -> when {
-                filterState.category.isNotBlank() -> searched.filter { it.category == filterState.category }
-                filterState.genre.isNotBlank() -> searched.filter { game ->
-                    game.genres.any { it.equals(filterState.genre, ignoreCase = true) }
-                }
-                else -> searched
+                filterState.category.isNotBlank() -> searched
+                    .filter { it.category == filterState.category }
+                    .toList()
+                filterState.genre.isNotBlank() -> searched
+                    .filter { game ->
+                        game.genres.any { it.equals(filterState.genre, ignoreCase = true) }
+                    }
+                    .toList()
+                else -> searched.toList()
             }
-            NovaLibraryPrimaryFilter.ALL -> searched
+            NovaLibraryPrimaryFilter.ALL -> searched.toList()
         }
     }
 
