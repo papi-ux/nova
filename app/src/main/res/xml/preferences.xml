@@ -609,6 +609,12 @@
             android:defaultValue="polaris"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
+            android:key="nova_compose_settings_beta"
+            android:title="New Settings"
+            android:summary="Use Nova's controller-first Compose settings dashboard"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
             android:key="nova_auto_connect"
             android:title="Auto-Connect"
             android:summary="Skip server browser when only one paired server"

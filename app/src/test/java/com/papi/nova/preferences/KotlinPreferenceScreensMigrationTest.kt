@@ -45,6 +45,49 @@ class KotlinPreferenceScreensMigrationTest {
     }
 
     @Test
+    fun composeSettingsModelIsSharedByGlobalAndProfileEditors() {
+        val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
+        val profileEditor = File("src/main/java/com/papi/nova/EditProfileActivity.kt").readText()
+
+        assertTrue(streamSettings.contains("NovaSettingsScreen"))
+        assertTrue(streamSettings.contains("NovaSettingsRepository.create"))
+        assertTrue(profileEditor.contains("NovaSettingsScreen"))
+        assertTrue(profileEditor.contains("NovaSharedPreferencesSettingsStore"))
+    }
+
+    @Test
+    fun composeSettingsUsesCompactHeaderAndQuickStrip() {
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+
+        assertTrue(settingsScreen.contains("NovaSettingsCompactHeader"))
+        assertTrue(settingsScreen.contains("NovaSettingsQuickStrip"))
+        assertTrue(settingsScreen.contains("height(44.dp)"))
+        assertFalse(settingsScreen.contains("label = { Text(\"Search settings\") }"))
+    }
+
+    @Test
+    fun composeSettingsRowsUseDenseScanningLayout() {
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+
+        assertTrue(settingsScreen.contains("NovaSettingValueChip"))
+        assertTrue(settingsScreen.contains("widthIn(min = 104.dp, max = 260.dp)"))
+        assertTrue(settingsScreen.contains("heightIn(min = 34.dp)"))
+        assertTrue(settingsScreen.contains("maxLines = 1"))
+        assertFalse(settingsScreen.contains("maxLines = 2"))
+    }
+
+    @Test
+    fun composeSettingsExposeSearchOverrideAndApplyStateControls() {
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+
+        assertTrue(settingsScreen.contains("NovaSettingApplyBadge"))
+        assertTrue(settingsScreen.contains("NovaSettingOverrideBadge"))
+        assertTrue(settingsScreen.contains("onResetSetting"))
+        assertTrue(settingsScreen.contains("SearchResultSummary"))
+        assertTrue(settingsScreen.contains("Clear"))
+    }
+
+    @Test
     fun glPreferencesKeepPublicFieldContract() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         context.getSharedPreferences("GlPreferences", 0).edit().clear().commit()

@@ -12,15 +12,26 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.ViewModelProvider
 import androidx.preference.Preference
 import androidx.preference.PreferenceDataStore
 import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceManager
+import com.papi.nova.preferences.NovaSettingDefinition
+import com.papi.nova.preferences.NovaSettingDefinitions
+import com.papi.nova.preferences.NovaSettingsAvailability
+import com.papi.nova.preferences.NovaSettingsFeatureFlags
+import com.papi.nova.preferences.NovaSettingsHeaderAction
+import com.papi.nova.preferences.NovaSettingsScreen
+import com.papi.nova.preferences.NovaSettingsViewModel
+import com.papi.nova.preferences.NovaSharedPreferencesSettingsStore
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.preferences.StreamSettings
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.profiles.SettingsProfile
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.UiHelper
 import java.util.UUID
 
@@ -28,19 +39,15 @@ class EditProfileActivity : AppCompatActivity() {
     private var profileUuid: String? = null
     private var currentProfile: SettingsProfile? = null
     private lateinit var inMemoryPrefs: InMemorySharedPreferences
-    private lateinit var prefsFragment: ProfilePreferenceFragment
+    private var prefsFragment: ProfilePreferenceFragment? = null
     private var pendingProfileName: String? = null
+    private var legacyMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_edit_profile)
 
         UiHelper.setLocale(this)
-
-        val toolbar: Toolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         profileUuid = intent.getStringExtra("profileUuid")
 
@@ -63,20 +70,57 @@ class EditProfileActivity : AppCompatActivity() {
             }
         } else {
             title = getString(R.string.profile_manager_new_profile)
-            inMemoryPrefs = InMemorySharedPreferences(PreferenceManager.getDefaultSharedPreferences(this).all)
+            inMemoryPrefs = InMemorySharedPreferences(emptyMap<String, Any>())
         }
 
-        prefsFragment = ProfilePreferenceFragment(this, inMemoryPrefs)
+        if (NovaSettingsFeatureFlags.isComposeSettingsEnabled(this)) {
+            showComposeProfileEditor()
+        } else {
+            showLegacyProfileEditor()
+        }
+    }
 
-        supportFragmentManager
-            .beginTransaction()
-            .replace(R.id.preferences_container, prefsFragment)
-            .commit()
+    private fun showComposeProfileEditor() {
+        legacyMode = false
+        val definitions = NovaSettingsAvailability.filterForProfileEditor(
+            NovaSettingsAvailability.filter(this, NovaSettingDefinitions.load(this))
+        )
+        val store = NovaSharedPreferencesSettingsStore(
+            prefs = inMemoryPrefs,
+            fallbackPrefs = PreferenceManager.getDefaultSharedPreferences(this)
+        )
+        val viewModel = ViewModelProvider(
+            this,
+            NovaSettingsViewModel.Factory(definitions, store)
+        )[NovaSettingsViewModel::class.java]
+        val content = ComposeView(this).apply {
+            setContent {
+                NovaComposeTheme {
+                    NovaSettingsScreen(
+                        viewModel = viewModel,
+                        title = title.toString(),
+                        subtitle = "Profile overrides",
+                        onBack = { finish() },
+                        onOpenLegacy = {
+                            NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@EditProfileActivity, false)
+                            showLegacyProfileEditor()
+                        },
+                        onAction = ::handleComposeAction,
+                        headerActions = listOf(
+                            NovaSettingsHeaderAction("Rename") { showRenameDialog() },
+                            NovaSettingsHeaderAction("Save") { saveProfile() }
+                        )
+                    )
+                }
+            }
+        }
+        setContentView(content)
 
         UiHelper.notifyNewRootView(this)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        if (!legacyMode) return false
         menuInflater.inflate(R.menu.edit_profile_menu, menu)
         return true
     }
@@ -100,10 +144,37 @@ class EditProfileActivity : AppCompatActivity() {
     }
 
     fun reloadSettings() {
-        prefsFragment = ProfilePreferenceFragment(this, prefsFragment.getPrefs())
+        val currentPrefs = prefsFragment?.getPrefs() ?: inMemoryPrefs
+        prefsFragment = ProfilePreferenceFragment(this, currentPrefs)
         supportFragmentManager.beginTransaction()
-            .replace(R.id.preferences_container, prefsFragment)
+            .replace(R.id.preferences_container, prefsFragment!!)
             .commitAllowingStateLoss()
+    }
+
+    private fun showLegacyProfileEditor() {
+        legacyMode = true
+        setContentView(R.layout.activity_edit_profile)
+
+        val toolbar: Toolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
+        prefsFragment = ProfilePreferenceFragment(this, inMemoryPrefs)
+        supportFragmentManager
+            .beginTransaction()
+            .replace(R.id.preferences_container, prefsFragment!!)
+            .commit()
+
+        UiHelper.notifyNewRootView(this)
+    }
+
+    private fun handleComposeAction(definition: NovaSettingDefinition) {
+        Toast.makeText(
+            this,
+            "Opening legacy profile settings for ${definition.title}",
+            Toast.LENGTH_SHORT
+        ).show()
+        showLegacyProfileEditor()
     }
 
     private fun saveProfile() {
@@ -177,6 +248,10 @@ class EditProfileActivity : AppCompatActivity() {
                 } else {
                     pendingProfileName = newName
                     title = getString(R.string.profile_manager_new_profile_with, newName)
+                }
+
+                if (!legacyMode) {
+                    showComposeProfileEditor()
                 }
             }
             .setNegativeButton(getString(R.string.cancel), null)

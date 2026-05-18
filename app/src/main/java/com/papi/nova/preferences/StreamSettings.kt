@@ -29,8 +29,10 @@ import android.view.WindowInsets
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.FileProvider
 import androidx.fragment.app.DialogFragment
+import androidx.lifecycle.ViewModelProvider
 import androidx.preference.CheckBoxPreference
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
@@ -48,8 +50,10 @@ import com.papi.nova.R
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardControllerConfigurationLoader
 import com.papi.nova.binding.video.MediaCodecHelper
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.FileUriUtils
+import com.papi.nova.utils.HelpLauncher
 import com.papi.nova.utils.PerformanceDataTracker
 import com.papi.nova.utils.ServerHelper.getActiveDisplay
 import com.papi.nova.utils.UiHelper
@@ -64,8 +68,13 @@ class StreamSettings : AppCompatActivity() {
     private lateinit var previousPrefs: PreferenceConfiguration
     private var previousDisplayPixelCount = 0
     private var prefsFragment: SettingsFragment? = null
+    private var legacyMode = false
 
     fun reloadSettings() {
+        if (!legacyMode) {
+            showComposeSettings()
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val mode = getActiveDisplay(this, previousPrefs).mode
             previousDisplayPixelCount = mode.physicalWidth * mode.physicalHeight
@@ -87,6 +96,51 @@ class StreamSettings : AppCompatActivity() {
 
         previousPrefs = PreferenceConfiguration.readPreferences(this)
         UiHelper.setLocale(this)
+        if (shouldShowComposeSettings()) {
+            showComposeSettings()
+        } else {
+            showLegacySettings()
+        }
+    }
+
+    private fun shouldShowComposeSettings(): Boolean {
+        if (intent.getBooleanExtra(NovaSettingsFeatureFlags.EXTRA_FORCE_LEGACY, false)) {
+            return false
+        }
+        return NovaSettingsFeatureFlags.isComposeSettingsEnabled(this)
+    }
+
+    private fun showComposeSettings() {
+        legacyMode = false
+        val definitions = NovaSettingsAvailability.filter(this, NovaSettingDefinitions.load(this))
+        val store = NovaSettingsRepository.create(this)
+        val viewModel = ViewModelProvider(
+            this,
+            NovaSettingsViewModel.Factory(definitions, store)
+        )[NovaSettingsViewModel::class.java]
+        val content = ComposeView(this).apply {
+            setContent {
+                NovaComposeTheme {
+                    NovaSettingsScreen(
+                        viewModel = viewModel,
+                        title = getString(R.string.pcview_quick_settings),
+                        subtitle = "Streaming, input, Polaris, and device defaults",
+                        onBack = { finish() },
+                        onOpenLegacy = {
+                            NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@StreamSettings, false)
+                            showLegacySettings()
+                        },
+                        onAction = ::handleComposeAction
+                    )
+                }
+            }
+        }
+        setContentView(content)
+        UiHelper.notifyNewRootView(this)
+    }
+
+    private fun showLegacySettings() {
+        legacyMode = true
         setContentView(R.layout.activity_stream_settings)
 
         findViewById<View>(R.id.settingsHeader)?.let { header ->
@@ -110,6 +164,24 @@ class StreamSettings : AppCompatActivity() {
                 header.requestApplyInsets()
             }
         }
+        reloadSettings()
+        UiHelper.notifyNewRootView(this)
+    }
+
+    private fun handleComposeAction(definition: NovaSettingDefinition) {
+        when (definition.key) {
+            "pref_debug_info" -> startActivity(Intent(this, DebugInfoActivity::class.java))
+            "option_software_release" -> HelpLauncher.launchUrl(this, "https://github.com/papi-ux/nova/releases")
+            "option_follow_update" -> HelpLauncher.launchUrl(this, getString(R.string.obtainium_app_url))
+            else -> {
+                Toast.makeText(
+                    this,
+                    "Opening legacy settings for ${definition.title}",
+                    Toast.LENGTH_SHORT
+                ).show()
+                showLegacySettings()
+            }
+        }
     }
 
     override fun onAttachedToWindow() {
@@ -120,12 +192,14 @@ class StreamSettings : AppCompatActivity() {
                 displayCutoutP = insets.displayCutout
             }
         }
-        reloadSettings()
+        if (legacyMode) {
+            reloadSettings()
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (legacyMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val mode = getActiveDisplay(this, previousPrefs).mode
             if (mode.physicalWidth * mode.physicalHeight != previousDisplayPixelCount) {
                 reloadSettings()
@@ -353,6 +427,15 @@ class StreamSettings : AppCompatActivity() {
                 activity.startActivity(intent)
                 true
             }
+
+            findPreference<Preference>(NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY)
+                ?.setOnPreferenceChangeListener { _, newValue ->
+                    if (newValue as Boolean) {
+                        NovaSettingsFeatureFlags.setComposeSettingsEnabled(requireContext(), true)
+                        requireActivity().recreate()
+                    }
+                    true
+                }
 
             findPreference<Preference>("nova_stream_preset")?.setOnPreferenceChangeListener { _, newValue ->
                 val preset = StreamPreset.fromKey(newValue as String)
