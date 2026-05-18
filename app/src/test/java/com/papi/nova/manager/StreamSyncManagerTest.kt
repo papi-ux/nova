@@ -34,6 +34,19 @@ class StreamSyncManagerTest {
     }
 
     @Test
+    fun resolveAutoSafeResolution_honorsPairedLaunchProfileUpscale() {
+        val optimization = JSONObject(
+            "{\"display_mode\":\"2560x1440x120\"," +
+                "\"normalization_reason\":\"Aligned launch optimization display mode to the paired client profile.\"}"
+        )
+
+        val resolution = StreamSyncManager.resolveAutoSafeResolution(1920, 1080, optimization)
+
+        assertEquals(2560, resolution.width)
+        assertEquals(1440, resolution.height)
+    }
+
+    @Test
     fun resolveAutoSafeResolution_ignoresInvalidDisplayMode() {
         val optimization = JSONObject("{\"display_mode\":\"headless\"}")
 
@@ -66,6 +79,19 @@ class StreamSyncManagerTest {
         val bitrate = StreamSyncManager.resolveAutoSafeBitrateKbps(16000, optimization)
 
         assertEquals(16000, bitrate)
+    }
+
+    @Test
+    fun resolveAutoSafeBitrate_honorsPairedLaunchProfileTarget() {
+        val optimization = JSONObject(
+            "{\"target_bitrate_kbps\":80000,\"confidence\":\"medium\"," +
+                "\"normalization_reason\":\"Aligned launch optimization bitrate to the paired client profile.\"," +
+                "\"stability\":{\"mode\":\"auto\",\"auto_action\":\"none\"}}"
+        )
+
+        val bitrate = StreamSyncManager.resolveAutoSafeBitrateKbps(30000, optimization)
+
+        assertEquals(80000, bitrate)
     }
 
     @Test
@@ -117,6 +143,19 @@ class StreamSyncManagerTest {
         )
 
         val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization)
+
+        assertEquals(120f, targetFps, 0.01f)
+    }
+
+    @Test
+    fun resolveAutoSafeTargetFps_honorsPairedLaunchProfileTarget() {
+        val optimization = JSONObject(
+            "{\"display_mode\":\"2560x1440x120\",\"source\":\"client_profile\"," +
+                "\"normalization_reason\":\"Aligned launch optimization display mode to the paired client profile.\"," +
+                "\"stability\":{\"mode\":\"auto\",\"auto_action\":\"none\"}}"
+        )
+
+        val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(60f, optimization)
 
         assertEquals(120f, targetFps, 0.01f)
     }

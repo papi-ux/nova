@@ -32,6 +32,10 @@ class StreamSyncManager private constructor() {
             val safeTarget = safeProfile?.optInt("target_bitrate_kbps", 0) ?: 0
             val confirmedRecovery = isConfirmedRecoveryPolicy(optimization, stability)
 
+            if (target > 0 && hasPairedLaunchProfileOverride(optimization)) {
+                return if (confirmedRecovery && safeTarget > 0) minOf(target, safeTarget) else target
+            }
+
             var selected = configuredBitrateKbps
             if (target > 0 && shouldHonorOptimizerTarget(optimization, stability)) {
                 selected = target
@@ -61,6 +65,10 @@ class StreamSyncManager private constructor() {
             val optimized = parseDisplayModeResolution(optimization.optString("display_mode", ""))
             if (!optimized.isValid()) {
                 return configured
+            }
+
+            if (hasPairedLaunchProfileOverride(optimization)) {
+                return optimized
             }
 
             if (configured.isValid() && optimized.pixels() > configured.pixels()) {
@@ -95,7 +103,9 @@ class StreamSyncManager private constructor() {
                     0.0
                 }
 
-            if (
+            if (optimizedFps > 0f && hasPairedLaunchProfileOverride(optimization)) {
+                selected = optimizedFps
+            } else if (
                 optimizedFps > 0f &&
                 (optimizedFps >= selected || shouldHonorOptimizerFpsTarget(optimization, stability))
             ) {
@@ -299,6 +309,15 @@ class StreamSyncManager private constructor() {
         }
 
         private fun normalized(value: String?): String = value?.trim()?.lowercase(Locale.US) ?: ""
+
+        private fun hasPairedLaunchProfileOverride(optimization: JSONObject): Boolean {
+            if (optimization.optBoolean("paired_profile_applied", false)) {
+                return true
+            }
+
+            return normalized(optimization.optString("normalization_reason", ""))
+                .contains("paired client profile")
+        }
 
         @JvmStatic
         fun buildDeviceCapabilities(
