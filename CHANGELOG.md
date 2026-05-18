@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.6 - 2026-05-18
+
+- Completed the Kotlin migration for the Android client runtime, UI/support layers, streaming contracts, and regression tests.
+- Hardened stream lifecycle handling around runtime task cleanup, cursor visibility sync, controller button release scheduling, disconnect/resume, and video diagnostics.
+- Aligned Polaris-backed launches with the paired RTSP profile Nova receives from the host before stream start.
+- Improved HUD and Auto Quality evidence with independent latency samples, sanitized session summaries, target FPS, 1% low FPS, and video metric guard coverage.
+- Refreshed dependency submission, CodeQL path guard, Gradle task wiring, release-readiness docs, and public README notes for the `v1.0.6` release line.
+
 ## 1.0.5 - 2026-05-13
 
 - Merged adaptive bitrate into Nova's AI Auto Quality controls so users have one primary quality automation surface.
