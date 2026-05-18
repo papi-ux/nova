@@ -1244,7 +1244,11 @@ class NovaLibraryActivity : AppCompatActivity() {
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(model.filteredGames, key = { it.id }) { game ->
+                            items(
+                                model.filteredGames,
+                                key = { it.id },
+                                contentType = { "library-game" }
+                            ) { game ->
                                 NovaLibraryGameCard(
                                     game = game,
                                     apiClient = apiClient,
@@ -1298,7 +1302,11 @@ class NovaLibraryActivity : AppCompatActivity() {
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(games, key = { it.id }) { game ->
+                    items(
+                        games,
+                        key = { it.id },
+                        contentType = { "recent-game" }
+                    ) { game ->
                         NovaLibraryGameCard(
                             game = game,
                             apiClient = apiClient,
@@ -1492,7 +1500,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(12) {
+            items(12, contentType = { "loading-card" }) {
                 NovaLoadingCard(isLandscape = isLandscape)
             }
         }

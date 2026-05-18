@@ -287,6 +287,30 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryLazyContainersDeclareStableContentTypes() {
+        val source = readNovaLibraryActivity()
+
+        assertTrue(
+            "main library grid games should declare a stable content type",
+            source.containsRegex(
+                """items\s*\(\s*model\.filteredGames\s*,[\s\S]*?contentType\s*=\s*\{\s*"library-game"\s*\}\s*\)\s*\{"""
+            )
+        )
+        assertTrue(
+            "recent rail games should declare a stable content type",
+            source.containsRegex(
+                """items\s*\(\s*games\s*,[\s\S]*?contentType\s*=\s*\{\s*"recent-game"\s*\}\s*\)\s*\{"""
+            )
+        )
+        assertTrue(
+            "loading grid placeholders should declare a stable content type",
+            source.containsRegex(
+                """items\s*\(\s*12\s*,[\s\S]*?contentType\s*=\s*\{\s*"loading-card"\s*\}\s*\)\s*\{"""
+            )
+        )
+    }
+
+    @Test
     fun sharedComposeFocusControlsUseHighContrastTreatment() {
         val focusComponents = readNovaFocusComponents()
         val actionButton = focusComponents.substring(focusComponents.indexOf("fun NovaActionButton("))
@@ -425,6 +449,9 @@ class NovaComposeSourceGuardTest {
 
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
+
+    private fun String.containsRegex(pattern: String): Boolean =
+        Regex(pattern).containsMatchIn(this)
 
     private fun String.section(startMarker: String, endMarker: String): String =
         substring(indexOf(startMarker), indexOf(endMarker))
