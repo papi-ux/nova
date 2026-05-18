@@ -137,6 +137,97 @@ class NovaComposeSourceGuardTest {
             "focused library cards should draw a foreground focus frame above cover art",
             gameCard.contains(".border(4.dp, surfaces.focusRing, RoundedCornerShape(14.dp))")
         )
+        assertTrue(
+            "focused library cards should add an accent wash so the selected cover is visible on busy art",
+            gameCard.contains(".background(surfaces.focusHalo.copy(alpha = 0.28f))")
+        )
+        assertTrue(
+            "focused library cards should include a bright inner ring for contrast",
+            gameCard.contains(".border(2.dp, colors.onAccent.copy(alpha = 0.82f), RoundedCornerShape(10.dp))")
+        )
+        assertTrue(
+            "focused library cards should expose a compact action affordance",
+            gameCard.contains("R.string.nova_library_card_action_details") &&
+                gameCard.contains(".align(Alignment.TopEnd)")
+        )
+        assertTrue(
+            "focused library cards should observe the same focus target that receives D-pad focus",
+            gameCard.indexOf(".onFocusChanged { focused = it.isFocused || it.hasFocus }") in 0 until
+                gameCard.indexOf(".combinedClickable(")
+        )
+    }
+
+    @Test
+    fun libraryLoadErrorsUsePersistentRetryState() {
+        val source = readNovaLibraryActivity()
+        val content = source.section(
+            "private fun NovaLibraryContent(",
+            "private fun NovaLibraryRecentRail("
+        )
+
+        assertTrue(
+            "library load errors should be stored in state instead of only a transient toast",
+            source.contains("private var loadErrorMessage by mutableStateOf<String?>(null)")
+        )
+        assertTrue(
+            "library content should render a persistent retryable error state when no games loaded",
+            content.contains("loadErrorMessage != null && model.allGames.isEmpty()") &&
+                content.contains("NovaLibraryErrorState(")
+        )
+        assertTrue(
+            "library error state should use the shared retry action",
+            source.contains("private fun NovaLibraryErrorState(") &&
+                source.contains("text = stringResource(R.string.nova_retry)")
+        )
+    }
+
+    @Test
+    fun sharedComposeFocusControlsUseHighContrastTreatment() {
+        val focusComponents = readNovaFocusComponents()
+        val actionButton = focusComponents.substring(focusComponents.indexOf("fun NovaActionButton("))
+        val selectableChip = readNovaLibraryActivity().section(
+            "private fun NovaSelectableChip(",
+            "private fun NovaLibraryPanel("
+        )
+
+        assertTrue(
+            "action buttons should reserve a stronger focused outline",
+            actionButton.contains("focused -> 3.dp")
+        )
+        assertTrue(
+            "action buttons should use the focused control surface on D-pad focus",
+            actionButton.contains("focused -> surfaces.selectedControl")
+        )
+        assertTrue(
+            "selectable chips should use the same 3dp focused outline",
+            selectableChip.contains(".border(if (focused) 3.dp else 1.dp")
+        )
+        assertTrue(
+            "selectable chips should visibly fill on focus even when not selected",
+            selectableChip.contains("focused -> surfaces.selectedControl")
+        )
+        assertTrue(
+            "selectable chips should observe the focus target that receives D-pad focus",
+            selectableChip.indexOf(".onFocusChanged { focused = it.isFocused || it.hasFocus }") in 0 until
+                selectableChip.indexOf(".combinedClickable(")
+        )
+    }
+
+    @Test
+    fun libraryEmptyAndErrorTextIsBoundedAndCentered() {
+        val source = readNovaLibraryActivity()
+        val start = source.indexOf("private fun NovaLibraryEmptyState(")
+        val end = source.indexOf("@OptIn(ExperimentalMaterial3Api::class)", start)
+        val emptyState = source.substring(start, end)
+
+        assertTrue(
+            "empty/error copy should be centered for TV and narrow portrait layouts",
+            emptyState.contains("textAlign = TextAlign.Center")
+        )
+        assertTrue(
+            "empty/error copy should be width bounded so long messages do not run edge to edge",
+            emptyState.contains(".widthIn(max = 360.dp)")
+        )
     }
 
     @Test
@@ -220,6 +311,9 @@ class NovaComposeSourceGuardTest {
 
     private fun readNovaStreamHudContent(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaStreamHudContent.kt")
+
+    private fun readNovaFocusComponents(): String =
+        readSource("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt")
 
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)

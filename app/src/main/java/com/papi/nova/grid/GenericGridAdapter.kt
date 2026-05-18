@@ -91,6 +91,12 @@ abstract class GenericGridAdapter<T>(
         )
         UiHelper.applyTvFocusStyle(context, holder.itemView)
 
+        val focusRing = holder.itemView.findViewById<View?>(R.id.nova_focus_ring)
+        focusRing?.visibility = if (holder.itemView.hasFocus()) View.VISIBLE else View.GONE
+        holder.itemView.setOnFocusChangeListener { _, hasFocus ->
+            focusRing?.visibility = if (hasFocus) View.VISIBLE else View.GONE
+        }
+
         holder.itemView.setOnClickListener {
             clickListener?.onItemClick(item)
         }

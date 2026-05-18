@@ -140,6 +140,49 @@ class NovaFocusDrawableTest {
     }
 
     @Test
+    fun dashboardQuickActionsUseFocusAwareChipBackground() {
+        val doc = parseXml("src/main/res/values/styles.xml")
+
+        assertTrue(
+            "Theme and Help quick actions should use the chip drawable with a focused outline",
+            hasStyleItem(doc, "NovaFilterChip", "android:background", "@drawable/nova_chip_default")
+        )
+    }
+
+    @Test
+    fun dashboardGithubActionsUseExplicitGithubLabel() {
+        val layouts = arrayOf(
+            "src/main/res/layout/activity_pc_view.xml",
+            "src/main/res/layout-land/activity_pc_view.xml"
+        )
+
+        for (layout in layouts) {
+            val doc = parseXml(layout)
+
+            assertTrue(
+                "$layout top support action should say GitHub because it opens Nova GitHub",
+                hasViewAttribute(doc, "actionHelp", "android:text", "@string/pcview_quick_github")
+            )
+            assertTrue(
+                "$layout empty-state support action should say GitHub because it opens Nova GitHub",
+                hasViewAttribute(doc, "emptyHelp", "android:text", "@string/pcview_quick_github")
+            )
+        }
+    }
+
+    @Test
+    fun appGridAdapterTogglesGameCardFocusRing() {
+        val source = readSource("src/main/java/com/papi/nova/grid/GenericGridAdapter.kt")
+
+        assertTrue(
+            "game grid items should show their overlay focus ring when focused",
+            source.contains("R.id.nova_focus_ring") &&
+                source.contains("setOnFocusChangeListener") &&
+                source.contains("focusRing?.visibility = if (hasFocus) View.VISIBLE else View.GONE")
+        )
+    }
+
+    @Test
     fun serverFiltersUseRuntimeDownFocusBridge() {
         val source = readSource("src/main/java/com/papi/nova/PcView.kt")
 

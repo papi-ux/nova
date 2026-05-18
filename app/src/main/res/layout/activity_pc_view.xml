@@ -330,7 +330,7 @@
                     <TextView
                         android:id="@+id/actionHelp"
                         style="@style/NovaFilterChip"
-                        android:text="@string/help" />
+                        android:text="@string/pcview_quick_github" />
                 </LinearLayout>
             </HorizontalScrollView>
 
@@ -501,7 +501,7 @@
                             <TextView
                                 android:id="@+id/emptyHelp"
                                 style="@style/NovaFilterChip"
-                                android:text="@string/help" />
+                                android:text="@string/pcview_quick_github" />
                         </LinearLayout>
                     </HorizontalScrollView>
                 </LinearLayout>

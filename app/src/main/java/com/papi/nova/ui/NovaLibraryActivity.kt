@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -84,6 +85,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -132,6 +134,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     private var searchQuery by mutableStateOf("")
     private var isInitialLoading by mutableStateOf(true)
     private var isRefreshing by mutableStateOf(false)
+    private var loadErrorMessage by mutableStateOf<String?>(null)
     private var clientSettings by mutableStateOf<PolarisClientSettings?>(null)
     private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
     private var activeFilterSheet by mutableStateOf<LibraryFilterSheet?>(null)
@@ -178,6 +181,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                         searchQuery = searchQuery,
                         isInitialLoading = isInitialLoading,
                         isRefreshing = isRefreshing,
+                        loadErrorMessage = loadErrorMessage,
                         clientSettings = clientSettings,
                         activeSession = activeSession,
                         apiClient = apiClient,
@@ -235,6 +239,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         } else {
             isInitialLoading = true
         }
+        loadErrorMessage = null
 
         lifecycleScope.launch {
             try {
@@ -256,12 +261,15 @@ class NovaLibraryActivity : AppCompatActivity() {
                 allGames = result.games
                 clientSettings = result.settings
                 activeSession = result.activeSession
+                loadErrorMessage = null
                 LimeLog.info("Nova: Loaded ${allGames.size} games")
             } catch (e: Exception) {
+                val message = e.localizedMessage ?: e.javaClass.simpleName
+                loadErrorMessage = message
                 LimeLog.severe("Nova: Failed to load games: ${e.message}")
                 Toast.makeText(
                     this@NovaLibraryActivity,
-                    e.localizedMessage ?: e.javaClass.simpleName,
+                    message,
                     Toast.LENGTH_LONG
                 ).show()
             } finally {
@@ -493,6 +501,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         searchQuery: String,
         isInitialLoading: Boolean,
         isRefreshing: Boolean,
+        loadErrorMessage: String?,
         clientSettings: PolarisClientSettings?,
         activeSession: NovaLibraryActiveSessionUiState?,
         apiClient: PolarisApiClient,
@@ -581,6 +590,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                                 isLandscape = true,
                                 isInitialLoading = isInitialLoading,
                                 isRefreshing = isRefreshing,
+                                loadErrorMessage = loadErrorMessage,
                                 apiClient = apiClient,
                                 onRefresh = onRefresh,
                                 onOpenDetail = onOpenDetail
@@ -622,6 +632,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                             isLandscape = false,
                             isInitialLoading = isInitialLoading,
                             isRefreshing = isRefreshing,
+                            loadErrorMessage = loadErrorMessage,
                             apiClient = apiClient,
                             onRefresh = onRefresh,
                             onOpenDetail = onOpenDetail
@@ -1134,12 +1145,15 @@ class NovaLibraryActivity : AppCompatActivity() {
         isLandscape: Boolean,
         isInitialLoading: Boolean,
         isRefreshing: Boolean,
+        loadErrorMessage: String?,
         apiClient: PolarisApiClient,
         onRefresh: () -> Unit,
         onOpenDetail: (PolarisGame) -> Unit
     ) {
         NovaLibraryPanel(modifier = modifier, subtle = true) {
-            if (isInitialLoading && model.allGames.isEmpty()) {
+            if (loadErrorMessage != null && model.allGames.isEmpty()) {
+                NovaLibraryErrorState(message = loadErrorMessage, onRetry = onRefresh)
+            } else if (isInitialLoading && model.allGames.isEmpty()) {
                 NovaLibraryLoadingGrid(columns = columns, isLandscape = isLandscape)
             } else {
                 PullToRefreshBox(
@@ -1232,6 +1246,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         modifier: Modifier = Modifier,
         onOpenDetail: () -> Unit
     ) {
+        val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
         var focused by remember { mutableStateOf(false) }
         val cardHeight = when {
@@ -1260,11 +1275,11 @@ class NovaLibraryActivity : AppCompatActivity() {
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
                     shape = RoundedCornerShape(14.dp)
                 )
+                .onFocusChanged { focused = it.isFocused || it.hasFocus }
                 .combinedClickable(
                     onClick = onOpenDetail,
                     onLongClick = onOpenDetail
                 )
-                .onFocusChanged { focused = it.isFocused }
                 .focusable()
                 .semantics {
                     contentDescription = title
@@ -1300,9 +1315,20 @@ class NovaLibraryActivity : AppCompatActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .background(surfaces.focusHalo.copy(alpha = 0.28f))
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
                         .border(4.dp, surfaces.focusRing, RoundedCornerShape(14.dp))
                         .padding(4.dp)
-                        .border(2.dp, surfaces.focusRing.copy(alpha = 0.48f), RoundedCornerShape(10.dp))
+                        .border(2.dp, colors.onAccent.copy(alpha = 0.82f), RoundedCornerShape(10.dp))
+                )
+                NovaMiniBadge(
+                    text = stringResource(R.string.nova_library_card_action_details),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
                 )
             }
             Row(
@@ -1347,14 +1373,14 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     @Composable
-    private fun NovaMiniBadge(text: String) {
+    private fun NovaMiniBadge(text: String, modifier: Modifier = Modifier) {
         val surfaces = LocalNovaLibrarySurfaces.current
         Text(
             text = text,
             color = surfaces.onMedia,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier
+            modifier = modifier
                 .clip(RoundedCornerShape(999.dp))
                 .background(surfaces.mediaScrimBottom.copy(alpha = 0.68f))
                 .border(1.dp, surfaces.onMedia.copy(alpha = 0.22f), RoundedCornerShape(999.dp))
@@ -1420,6 +1446,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             contentAlignment = Alignment.Center
         ) {
             Column(
+                modifier = Modifier.widthIn(max = 360.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -1427,11 +1454,60 @@ class NovaLibraryActivity : AppCompatActivity() {
                     text = title,
                     color = LocalNovaComposeColors.current.textPrimary,
                     fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
                 Text(
                     text = message,
                     color = LocalNovaComposeColors.current.textSecondary,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun NovaLibraryErrorState(message: String, onRetry: () -> Unit) {
+        val colors = LocalNovaComposeColors.current
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier.widthIn(max = 360.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.nova_library_error_title),
+                    color = colors.textPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = stringResource(R.string.nova_library_error_hint),
+                    color = colors.textSecondary,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = message,
+                    color = colors.textMuted,
+                    fontSize = 12.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+                NovaActionButton(
+                    text = stringResource(R.string.nova_retry),
+                    onClick = onRetry,
+                    modifier = Modifier.fillMaxWidth(),
+                    primary = true,
+                    minHeight = 40.dp,
                     fontSize = 13.sp
                 )
             }
@@ -1567,11 +1643,15 @@ class NovaLibraryActivity : AppCompatActivity() {
                 .height(42.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(
-                    if (selected) surfaces.selectedControl else surfaces.control
+                    when {
+                        focused -> surfaces.selectedControl
+                        selected -> surfaces.selectedControl
+                        else -> surfaces.control
+                    }
                 )
-                .border(if (focused) 2.dp else 1.dp, stroke, RoundedCornerShape(14.dp))
+                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(14.dp))
+                .onFocusChanged { focused = it.isFocused || it.hasFocus }
                 .combinedClickable(onClick = onClick)
-                .onFocusChanged { focused = it.isFocused }
                 .focusable()
                 .padding(horizontal = 11.dp),
             verticalAlignment = Alignment.CenterVertically,

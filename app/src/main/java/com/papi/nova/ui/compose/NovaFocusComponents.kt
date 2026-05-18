@@ -136,7 +136,7 @@ fun NovaActionButton(
         else -> surfaces.tileBorder
     }
     val borderWidth = when {
-        focused -> 2.dp
+        focused -> 3.dp
         !primary -> 1.dp
         else -> 0.dp
     }

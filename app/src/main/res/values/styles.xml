@@ -160,7 +160,7 @@
         <item name="android:textColor">@color/nova_text_primary</item>
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:background">@drawable/nova_badge_bg</item>
+        <item name="android:background">@drawable/nova_chip_default</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
     </style>
