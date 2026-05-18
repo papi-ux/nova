@@ -2,6 +2,7 @@ Nova 1.0.8
 
 - Improves controller and TV focus visibility across the dashboard, Theme, Help/GitHub, library game cards, and launch actions.
 - Fits a denser Nova Library layout on handheld landscape screens with 4 Continue cards, a 3-column grid, shorter cards, and smaller HDR/Recent badges.
+- Syncs the selected MangoHUD state before Polaris-backed library launches so headless sessions do not inherit stale host overlay settings.
 - Points the Help/GitHub action at Nova's GitHub repository.
 - Moves Polaris startup and metadata refresh work onto lifecycle-aware Kotlin runtime task helpers.
 - Reduces library filtering allocations and adds stable Lazy layout content types.

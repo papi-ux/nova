@@ -4,6 +4,7 @@
 
 - Strengthened controller and TV focus states in the dashboard, library game grid, and launch affordances so selected items stand out more clearly.
 - Tuned Nova Library density for handheld landscape devices with a 4-card Continue rail, 3-column default grid, shorter game cards, and smaller HDR/Recent badges.
+- Explicitly syncs the selected MangoHUD state before Polaris-backed library launches so headless launches do not inherit stale host overlay settings.
 - Pointed the Help/GitHub menu action at Nova's GitHub repository instead of Moonlight.
 - Routed dashboard Polaris startup and app metadata refresh work through Nova's lifecycle-aware runtime task helpers.
 - Added Baseline Profile generation infrastructure for startup and library flows, with release dry-run coverage in the build.

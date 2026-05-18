@@ -203,6 +203,14 @@ class PolarisApiClient @JvmOverloads constructor(
         }
 
         @JvmStatic
+        fun buildMangoHudUpdateBody(gameId: String, enabled: Boolean): JSONObject {
+            return JSONObject().apply {
+                put("game_id", gameId)
+                put("mangohud", enabled)
+            }
+        }
+
+        @JvmStatic
         fun buildSteamLaunchModeUpdateBody(gameId: String, mode: String): JSONObject {
             return JSONObject().apply {
                 put("game_id", gameId)
@@ -901,10 +909,7 @@ class PolarisApiClient @JvmOverloads constructor(
      */
     fun setMangoHud(gameId: String, enabled: Boolean): Boolean {
         return try {
-            val body = org.json.JSONObject().apply {
-                put("game_id", gameId)
-                put("mangohud", enabled)
-            }
+            val body = buildMangoHudUpdateBody(gameId, enabled)
             val request = Request.Builder()
                 .url("$baseUrl/games/$gameId/mangohud")
                 .post(okhttp3.RequestBody.create(

@@ -194,11 +194,14 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
                     onPrimaryLaunch = {
                         if (!uiState.playEnabled) return@NovaGameDetailSheetContent
-                        onLaunch?.invoke(currentGame, uiState.playUsesVirtualDisplay)
+                        onLaunch?.invoke(
+                            currentGame.copy(mangohud = mangoHudEnabled),
+                            uiState.playUsesVirtualDisplay
+                        )
                         dismiss()
                     },
                     onLaunchOptions = {
-                        showLaunchOptions(currentGame, uiState)
+                        showLaunchOptions(currentGame, uiState, mangoHudEnabled)
                     },
                     onProfilePreference = {
                         showProfilePreferenceOptions(currentGame) { selected ->
@@ -331,7 +334,8 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
     private fun showLaunchOptions(
         game: PolarisGame,
-        uiState: NovaGameDetailUiState
+        uiState: NovaGameDetailUiState,
+        mangoHudEnabled: Boolean
     ) {
         val options = mutableListOf<Pair<String, Boolean>>()
         if (uiState.headlessAllowed) {
@@ -349,7 +353,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.nova_library_launch_options_title)
             .setItems(options.map { it.first }.toTypedArray()) { _, which ->
-                onLaunch?.invoke(game, options[which].second)
+                onLaunch?.invoke(game.copy(mangohud = mangoHudEnabled), options[which].second)
                 dismiss()
             }
             .show()

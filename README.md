@@ -58,6 +58,7 @@ Nova `v1.0.8` is a focused release for controller-first polish, Kotlin settings 
 - **Modern Nova Settings**: a Kotlin settings surface with searchable categories, dense rows, apply-state badges, profile overrides, reset actions, and safer validation for risky values.
 - **Controller/TV focus clarity**: dashboard actions, Theme, Help/GitHub, library game cards, and launch affordances now show stronger selected states.
 - **Handheld library density**: Nova Library now fits a 4-card Continue rail and 3-column default grid on Retroid-class landscape screens, with shorter cards and smaller HDR/Recent badges.
+- **MangoHUD launch hygiene**: Polaris-backed library launches now sync the selected MangoHUD state first, preventing stale host overlay settings from leaking into headless sessions.
 - **Nova Help routing**: the Help/GitHub action now opens Nova's GitHub repository instead of Moonlight.
 - **Start Polaris from Nova**: wake a paired host, poll for Polaris Library readiness, and jump into Nova Library when the host is ready.
 - **Controller HUD shortcuts**: Guide/Mode shortcuts can open the quick menu and cycle NovaHUD without touching the screen.

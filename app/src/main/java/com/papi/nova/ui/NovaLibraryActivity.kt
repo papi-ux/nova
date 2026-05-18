@@ -390,22 +390,31 @@ class NovaLibraryActivity : AppCompatActivity() {
             Toast.LENGTH_SHORT
         ).show()
 
-        val app = NvApp(game.name, game.id, game.appId, game.hdrSupported)
-        ServerHelper.doStart(
-            this,
-            app,
-            streamHost,
-            streamHttpPort,
-            streamHttpsPort,
-            uniqueId,
-            pcUuid,
-            streamPcName,
-            streamServerCommands,
-            withVirtualDisplay,
-            true,
-            false,
-            serverCert
-        )
+        lifecycleScope.launch {
+            val mangoHudSynced = withContext(Dispatchers.IO) {
+                apiClient.setMangoHud(game.id, game.mangohud)
+            }
+            if (!mangoHudSynced) {
+                LimeLog.warning("Nova: MangoHUD launch state sync failed; continuing launch")
+            }
+
+            val app = NvApp(game.name, game.id, game.appId, game.hdrSupported)
+            ServerHelper.doStart(
+                this@NovaLibraryActivity,
+                app,
+                streamHost,
+                streamHttpPort,
+                streamHttpsPort,
+                uniqueId,
+                pcUuid,
+                streamPcName,
+                streamServerCommands,
+                withVirtualDisplay,
+                true,
+                false,
+                serverCert
+            )
+        }
     }
 
     private fun resumeActiveSession(session: NovaLibraryActiveSessionUiState) {

@@ -374,6 +374,14 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun buildMangoHudUpdateBody_includesGameAndExplicitOff() {
+        val body = PolarisApiClient.buildMangoHudUpdateBody("game-1", false)
+
+        assertEquals("game-1", body.getString("game_id"))
+        assertFalse(body.getBoolean("mangohud"))
+    }
+
+    @Test
     fun buildSteamLaunchModeUpdateBody_includesGameAndMode() {
         val body = PolarisApiClient.buildSteamLaunchModeUpdateBody("game-1", "big-picture")
 
