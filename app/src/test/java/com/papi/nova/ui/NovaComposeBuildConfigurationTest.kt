@@ -98,4 +98,42 @@ class NovaComposeBuildConfigurationTest {
             appBuild.contains("shrinkResources true")
         )
     }
+
+    @Test
+    fun defaultReleaseSplitsIncludeChromecastArm32Abi() {
+        val appBuild = String(Files.readAllBytes(Paths.get("build.gradle")), StandardCharsets.UTF_8)
+        val configuredAbis = Regex("""project\.findProperty\("novaAbis"\) \?: "([^"]+)"""")
+            .find(appBuild)
+            ?.groupValues
+            ?.get(1)
+            ?.split(',')
+            ?.map { it.trim() }
+            ?: emptyList()
+
+        assertTrue(
+            "default release ABI splits should include arm64, 32-bit ARM for Chromecast/Google TV, and x86_64",
+            configuredAbis.containsAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64"))
+        )
+    }
+
+    @Test
+    fun releaseWorkflowPublishesChromecastArm32Asset() {
+        val workflow = String(
+            Files.readAllBytes(Paths.get("../.github/workflows/build.yml")),
+            StandardCharsets.UTF_8
+        )
+
+        assertTrue(
+            "release workflow should map the 32-bit ARM split to a stable public asset name",
+            workflow.contains("""*armeabi-v7a*) abi="armeabi-v7a" ;;""")
+        )
+        assertTrue(
+            "tag release verification should require the 32-bit ARM public APK",
+            workflow.contains("Nova-Android-armeabi-v7a.apk")
+        )
+        assertTrue(
+            "tag release verification should expect three APKs and three checksum assets",
+            workflow.contains("Expected at least 6 release assets")
+        )
+    }
 }

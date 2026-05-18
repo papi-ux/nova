@@ -1,0 +1,5 @@
+Nova 1.0.7
+
+- Adds a 32-bit ARM APK for Chromecast with Google TV, Google TV Streamer, and similar Android TV devices.
+- Publishes and verifies ARM64, ARMv7, and x86_64 release APKs with checksums.
+- Updates install guidance so users can choose the APK that matches their device ABI.
