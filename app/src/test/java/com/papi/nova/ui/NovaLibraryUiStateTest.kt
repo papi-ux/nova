@@ -137,11 +137,11 @@ class NovaLibraryUiStateTest {
 
     @Test
     fun gridColumnsMatchCurrentBreakpoints() {
-        assertEquals(2, NovaLibraryUiStateMapper.gridColumns(widthDp = 540, isLandscape = false))
+        assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 540, isLandscape = false))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 600, isLandscape = false))
         assertEquals(4, NovaLibraryUiStateMapper.gridColumns(widthDp = 720, isLandscape = false))
         assertEquals(5, NovaLibraryUiStateMapper.gridColumns(widthDp = 960, isLandscape = false))
-        assertEquals(2, NovaLibraryUiStateMapper.gridColumns(widthDp = 600, isLandscape = true))
+        assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 600, isLandscape = true))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 720, isLandscape = true))
         assertEquals(4, NovaLibraryUiStateMapper.gridColumns(widthDp = 960, isLandscape = true))
         assertEquals(5, NovaLibraryUiStateMapper.gridColumns(widthDp = 1200, isLandscape = true))
@@ -151,8 +151,15 @@ class NovaLibraryUiStateTest {
     fun landscapeGridColumnsUseContentWidthAfterRail() {
         assertEquals(4, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 1200, isLandscape = true))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 960, isLandscape = true))
-        assertEquals(2, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 720, isLandscape = true))
+        assertEquals(3, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 720, isLandscape = true))
         assertEquals(5, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 960, isLandscape = false))
+    }
+
+    @Test
+    fun gameCardHeightsKeepRetroidLandscapeDense() {
+        assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
+        assertEquals(138, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
+        assertEquals(168, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = false))
     }
 
     @Test

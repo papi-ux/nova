@@ -112,6 +112,10 @@ object NovaLibraryUiStateMapper {
     private const val RECENT_LIMIT = 6
     private const val LANDSCAPE_OUTER_PADDING_DP = 20
     private const val LANDSCAPE_RAIL_GAP_DP = 10
+    const val RECENT_RAIL_VISIBLE_COLUMNS = 4
+    private const val RECENT_RAIL_HORIZONTAL_PADDING_DP = 24
+    private const val GAME_CARD_GAP_DP = 10
+    private const val MIN_RECENT_RAIL_CARD_WIDTH_DP = 72
 
     fun build(
         games: List<PolarisGame>,
@@ -202,14 +206,14 @@ object NovaLibraryUiStateMapper {
                 widthDp >= 1200 -> 5
                 widthDp >= 960 -> 4
                 widthDp >= 720 -> 3
-                else -> 2
+                else -> 3
             }
         } else {
             when {
                 widthDp >= 960 -> 5
                 widthDp >= 720 -> 4
                 widthDp >= 600 -> 3
-                else -> 2
+                else -> 3
             }
         }
     }
@@ -221,10 +225,28 @@ object NovaLibraryUiStateMapper {
                 contentWidth >= 1320 -> 6
                 contentWidth >= 900 -> 4
                 contentWidth >= 660 -> 3
-                else -> 2
+                else -> 3
             }
         } else {
             gridColumns(contentWidth, isLandscape = false)
+        }
+    }
+
+    fun recentRailCardWidthDp(
+        availableWidthDp: Int,
+        visibleColumns: Int = RECENT_RAIL_VISIBLE_COLUMNS
+    ): Int {
+        val columns = visibleColumns.coerceAtLeast(1)
+        val gapWidth = GAME_CARD_GAP_DP * (columns - 1)
+        return ((availableWidthDp - RECENT_RAIL_HORIZONTAL_PADDING_DP - gapWidth) / columns)
+            .coerceAtLeast(MIN_RECENT_RAIL_CARD_WIDTH_DP)
+    }
+
+    fun gameCardHeightDp(compact: Boolean, isLandscape: Boolean): Int {
+        return when {
+            compact -> 112
+            isLandscape -> 138
+            else -> 168
         }
     }
 

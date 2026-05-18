@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -1298,25 +1299,32 @@ class NovaLibraryActivity : AppCompatActivity() {
                         fontSize = 12.sp
                     )
                 }
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(
-                        games,
-                        key = { it.id },
-                        contentType = { "recent-game" }
-                    ) { game ->
-                        NovaLibraryGameCard(
-                            game = game,
-                            apiClient = apiClient,
-                            compact = true,
-                            isLandscape = false,
-                            modifier = Modifier.width(176.dp),
-                            restoreFocus = game.id == restoreFocusGameId,
-                            onFocused = { onGameFocused(game) },
-                            onOpenDetail = { onOpenDetail(game) }
-                        )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val visibleColumns = NovaLibraryUiStateMapper.RECENT_RAIL_VISIBLE_COLUMNS
+                    val cardWidth = NovaLibraryUiStateMapper.recentRailCardWidthDp(
+                        availableWidthDp = maxWidth.value.toInt(),
+                        visibleColumns = visibleColumns
+                    ).dp
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(
+                            games,
+                            key = { it.id },
+                            contentType = { "recent-game" }
+                        ) { game ->
+                            NovaLibraryGameCard(
+                                game = game,
+                                apiClient = apiClient,
+                                compact = true,
+                                isLandscape = false,
+                                modifier = Modifier.width(cardWidth),
+                                restoreFocus = game.id == restoreFocusGameId,
+                                onFocused = { onGameFocused(game) },
+                                onOpenDetail = { onOpenDetail(game) }
+                            )
+                        }
                     }
                 }
             }
@@ -1340,11 +1348,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         var focused by remember { mutableStateOf(false) }
         var restoreAttempted by remember { mutableStateOf(false) }
         val focusRequester = remember { FocusRequester() }
-        val cardHeight = when {
-            compact -> 126.dp
-            isLandscape -> 164.dp
-            else -> 184.dp
-        }
+        val cardHeight = NovaLibraryUiStateMapper.gameCardHeightDp(compact = compact, isLandscape = isLandscape).dp
         val title = game.name.ifBlank { "Unknown game" }
         val meta = listOfNotNull(
             sourceLabelFor(game.source),
@@ -1481,13 +1485,14 @@ class NovaLibraryActivity : AppCompatActivity() {
         Text(
             text = text,
             color = surfaces.onMedia,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
+            lineHeight = 10.sp,
             modifier = modifier
                 .clip(RoundedCornerShape(999.dp))
                 .background(surfaces.mediaScrimBottom.copy(alpha = 0.68f))
                 .border(1.dp, surfaces.onMedia.copy(alpha = 0.22f), RoundedCornerShape(999.dp))
-                .padding(horizontal = 7.dp, vertical = 3.dp)
+                .padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
 
@@ -1513,7 +1518,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (isLandscape) 164.dp else 184.dp)
+                .height(NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = isLandscape).dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(surfaces.tile)
                 .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))

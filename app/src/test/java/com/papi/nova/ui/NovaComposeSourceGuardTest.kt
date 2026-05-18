@@ -194,6 +194,52 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryGameCardHeightsComeFromSharedSizingRules() {
+        val gameCard = readNovaLibraryActivity().section(
+            "private fun NovaLibraryGameCard(",
+            "private fun NovaMiniBadge("
+        )
+        val loadingCard = readNovaLibraryActivity().section(
+            "private fun NovaLoadingCard(",
+            "private fun NovaLibraryEmptyState("
+        )
+
+        assertTrue(
+            "library game cards should use shared smaller sizing rules",
+            gameCard.contains("NovaLibraryUiStateMapper.gameCardHeightDp(compact = compact, isLandscape = isLandscape).dp")
+        )
+        assertTrue(
+            "library loading cards should match the same default card sizing",
+            loadingCard.contains("NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = isLandscape).dp")
+        )
+        assertFalse(
+            "library game cards should not keep the old large default heights inline",
+            gameCard.contains("isLandscape -> 164.dp") || gameCard.contains("else -> 184.dp")
+        )
+    }
+
+    @Test
+    fun libraryMiniBadgesStaySmallOnDenseCards() {
+        val miniBadge = readNovaLibraryActivity().section(
+            "private fun NovaMiniBadge(",
+            "@Composable\n    private fun NovaLibraryLoadingGrid("
+        )
+
+        assertTrue(
+            "library card badges should use compact text",
+            miniBadge.contains("fontSize = 9.sp")
+        )
+        assertTrue(
+            "library card badges should pin a compact line height",
+            miniBadge.contains("lineHeight = 10.sp")
+        )
+        assertTrue(
+            "library card badges should use tighter pill padding",
+            miniBadge.contains(".padding(horizontal = 6.dp, vertical = 2.dp)")
+        )
+    }
+
+    @Test
     fun activeSessionCardStaysCompactAndShowsStreamContext() {
         val activeSession = readNovaLibraryActivity().section(
             "private fun NovaLibraryActiveSessionCard(",
@@ -307,6 +353,28 @@ class NovaComposeSourceGuardTest {
             source.containsRegex(
                 """items\s*\(\s*12\s*,[\s\S]*?contentType\s*=\s*\{\s*"loading-card"\s*\}\s*\)\s*\{"""
             )
+        )
+    }
+
+    @Test
+    fun libraryRecentRailTargetsFourVisibleCards() {
+        val rail = readNovaLibraryActivity().section(
+            "private fun NovaLibraryRecentRail(",
+            "private fun NovaLibraryGameCard("
+        )
+
+        assertTrue(
+            "continue rail should calculate card width from the available row width",
+            rail.contains("BoxWithConstraints(") &&
+                rail.contains("NovaLibraryUiStateMapper.recentRailCardWidthDp")
+        )
+        assertTrue(
+            "continue rail should target four visible game columns",
+            rail.contains("NovaLibraryUiStateMapper.RECENT_RAIL_VISIBLE_COLUMNS")
+        )
+        assertFalse(
+            "continue rail should not keep the old oversized fixed game card width",
+            rail.contains("Modifier.width(176.dp)")
         )
     }
 
