@@ -90,6 +90,8 @@ Use the public release APK that matches your device:
 
 The Obtainium shortcut is preconfigured for the ARM64 public asset so updates resolve to one APK cleanly. Chromecast and other 32-bit ARM Android TV users should choose the `armeabi-v7a` asset manually or configure Obtainium to match `Nova-Android-armeabi-v7a.apk`.
 
+The latest direct APKs are always available through GitHub's latest-release URLs: `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk`, `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk`, and `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk`.
+
 F-Droid and IzzyOnDroid packaging notes are tracked in [docs/fdroid.md](docs/fdroid.md), including current status, APK scan notes, and source-build blockers.
 
 If you install manually, verify the download before sideloading:
