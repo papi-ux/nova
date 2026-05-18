@@ -1,0 +1,7 @@
+Nova 1.0.6
+
+- Hardens the Kotlin Android runtime and stream lifecycle.
+- Honors the paired RTSP launch profile received from Polaris.
+- Improves disconnect/resume, cursor sync, and controller release handling.
+- Adds stronger HUD, video diagnostics, and session-summary evidence.
+- Refreshes release hygiene around dependency submission, CodeQL, and Gradle checks.

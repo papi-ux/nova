@@ -4,7 +4,7 @@ This directory holds non-Android Nova clients that live alongside the existing A
 
 Current direction:
 
-- `app/` remains the shipping Android client
+- `app/` remains the shipping Android client and the only public artifact in the `1.0.x` release line
 - `clients/deck/` is the first non-Android target
 - `clients/ios/` follows after the shared Android plus Deck layers stabilize
 

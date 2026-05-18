@@ -66,22 +66,22 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 > If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
 
 > [!NOTE]
-> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, and `v1.0.5` adds the first unified Auto Quality experience with Polaris. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
+> `v1.0.0` is the first public Nova release line, `v1.0.1` adds the first store-packaging pass, `v1.0.2` hardens the security surfaces found during public scanner review, `v1.0.3` adds manual Wake-on-LAN MAC entry for hosts that do not report a MAC address, `v1.0.4` polishes Android TV navigation, library presentation, and Polaris Sync UX, `v1.0.5` adds the first unified Auto Quality experience with Polaris, and `v1.0.6` hardens the Kotlin runtime, stream lifecycle, HUD telemetry, and Polaris launch profile handoff. Nova is already usable, but this is still an early public release and you should expect bugs, regressions, and rough edges while the Android client and Polaris integration continue to harden. `app/` is the only shipping client today.
 
 **Built and tested most heavily on:** Retroid Pocket 6, Retroid Pocket Flip 2, Pixel 10 Pro.
 
 **Android TV:** Nova ships Android TV support in the same APK. On NVIDIA Shield and similar ARM64 Android TV devices, install `Nova-Android-arm64-v8a.apk`; Nova appears in the TV launcher and uses D-pad/controller-friendly focus behavior on the server browser, library, launch sheets, and Polaris Sync surfaces.
 
-## What's New in v1.0.5
+## What's New in v1.0.6
 
-Nova `v1.0.5` makes stream tuning feel less like a pile of expert toggles and more like one coordinated Auto Quality system.
+Nova `v1.0.6` is a reliability release for the Kotlin Android client and the Polaris-backed streaming path.
 
-- **Auto Quality drawer**: AI Optimizer and Adaptive Bitrate are presented as one stream-quality system, with clearer state, target FPS, safe FPS, low FPS, 1% low, bitrate, and recovery labels.
-- **Better Polaris launches**: Nova asks Polaris for the launch recommendation before the stream starts, then applies the safer or higher-quality profile that Polaris will actually enforce.
-- **Quality preference support**: users can start from a higher-quality preference, while Polaris and Nova still have room to recover if the host, network, or decoder cannot hold the target.
-- **Bidirectional profile sync**: Nova can push its stream defaults to Polaris or pull Polaris' active profile back into Nova, making manual control clearer when users want it.
-- **Game profile controls**: Polaris-backed game detail screens can expose per-game optimization state and profile reset tools when a game needs a fresh start.
-- **Cleaner live feedback**: the HUD and quick menu now show whether the session is using baseline tuning, cached AI, recovery tuning, host-adjusted recommendations, or an active Auto Quality policy.
+- **Kotlin runtime hardening**: the Android client runtime, stream helpers, input paths, video helpers, and guard tests have been migrated and tightened around Kotlin-first contracts.
+- **Safer stream lifecycle**: runtime cleanup, cursor visibility sync, controller button release scheduling, and disconnect/resume behavior now avoid blocking stream-critical threads.
+- **Polaris launch alignment**: Nova honors the paired RTSP launch profile it receives from Polaris so the requested stream path matches the host-side launch decision.
+- **Better HUD evidence**: latency samples, sanitized session summaries, Auto Quality state, target FPS, 1% low FPS, and video diagnostics are easier to inspect when validating a stream.
+- **Video guard coverage**: decoder watchdog, crash diagnostic, and video metrics paths now have regression coverage around the existing public counters.
+- **Release hygiene**: dependency submission, CodeQL path guards, Gradle task wiring, and public release documentation were refreshed for the `v1.0.6` line.
 
 ## Quick Start
 
