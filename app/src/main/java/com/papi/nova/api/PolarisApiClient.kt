@@ -202,6 +202,14 @@ class PolarisApiClient @JvmOverloads constructor(
             }
         }
 
+        @JvmStatic
+        fun buildSteamLaunchModeUpdateBody(gameId: String, mode: String): JSONObject {
+            return JSONObject().apply {
+                put("game_id", gameId)
+                put("mode", PolarisGame.SteamLaunchContract.normalizeMode(mode))
+            }
+        }
+
         private fun parseSyncValues(json: JSONObject?): PolarisSessionStatus.SyncValues {
             if (json == null) return PolarisSessionStatus.SyncValues()
             return PolarisSessionStatus.SyncValues(
@@ -909,6 +917,25 @@ class PolarisApiClient @JvmOverloads constructor(
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: MangoHud toggle failed: ${errorMessage(e)}")
+            false
+        }
+    }
+
+    fun setSteamLaunchMode(gameId: String, mode: String): Boolean {
+        return try {
+            val body = buildSteamLaunchModeUpdateBody(gameId, mode)
+            val request = Request.Builder()
+                .url("$baseUrl/games/$gameId/steam-launch-mode")
+                .post(okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    body.toString()
+                ))
+                .build()
+            execute(request).use { response ->
+                response.code == 200
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Steam launch mode update failed: ${errorMessage(e)}")
             false
         }
     }

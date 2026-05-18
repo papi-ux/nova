@@ -18,7 +18,10 @@ data class NovaGameDetailUiState(
     val launchOptionsEnabled: Boolean,
     val showRecommendedModeBadge: Boolean,
     val profilePreference: String,
-    val mangoHudRisk: MangoHudRisk
+    val mangoHudRisk: MangoHudRisk,
+    val showSteamLaunchMode: Boolean,
+    val steamLaunchMode: String,
+    val steamLaunchWarning: Boolean
 ) {
     enum class MangoHudRisk {
         NONE,
@@ -47,6 +50,11 @@ data class NovaGameDetailUiState(
                 game.hasMangoHudCompatibilityRisk -> MangoHudRisk.STEAM
                 else -> MangoHudRisk.NONE
             }
+            val steamLaunchMode = game.steamLaunchMode
+            val showSteamLaunchMode = game.supportsSteamLaunchMode &&
+                game.steamLaunch?.allows("direct") == true &&
+                game.steamLaunch.allows("big-picture")
+            val steamLaunchWarning = steamLaunchMode == "big-picture"
 
             return NovaGameDetailUiState(
                 game = game,
@@ -63,7 +71,10 @@ data class NovaGameDetailUiState(
                 launchOptionsEnabled = launchOptionsEnabled,
                 showRecommendedModeBadge = launchOptionsEnabled,
                 profilePreference = AutoQualityProfilePreferences.normalize(profilePreference),
-                mangoHudRisk = mangoHudRisk
+                mangoHudRisk = mangoHudRisk,
+                showSteamLaunchMode = showSteamLaunchMode,
+                steamLaunchMode = steamLaunchMode,
+                steamLaunchWarning = steamLaunchWarning
             )
         }
     }

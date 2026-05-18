@@ -339,4 +339,45 @@ class PolarisApiClientParsingTest {
             choice.hostModeReason
         )
     }
+
+    @Test
+    fun parseGame_includesSteamLaunchContract() {
+        val game = PolarisGame.fromJson(
+            JSONObject(
+                """
+                {
+                  "id": "game-1",
+                  "app_id": 123,
+                  "name": "Portal",
+                  "source": "steam",
+                  "steam_appid": "400",
+                  "steam_launch": {
+                    "available": true,
+                    "mode": "big-picture",
+                    "recommended_mode": "direct",
+                    "allowed_modes": ["direct", "big-picture"],
+                    "mode_reason": "Steam Big Picture compatibility mode may also receive controller input."
+                  }
+                }
+                """.trimIndent()
+            )
+        )
+
+        assertTrue(game.supportsSteamLaunchMode)
+        assertEquals("big-picture", game.steamLaunch?.mode)
+        assertEquals("direct", game.steamLaunch?.recommendedMode)
+        assertEquals(listOf("direct", "big-picture"), game.steamLaunch?.allowedModes)
+        assertEquals(
+            "Steam Big Picture compatibility mode may also receive controller input.",
+            game.steamLaunch?.modeReason
+        )
+    }
+
+    @Test
+    fun buildSteamLaunchModeUpdateBody_includesGameAndMode() {
+        val body = PolarisApiClient.buildSteamLaunchModeUpdateBody("game-1", "big-picture")
+
+        assertEquals("game-1", body.getString("game_id"))
+        assertEquals("big-picture", body.getString("mode"))
+    }
 }

@@ -114,12 +114,73 @@ class NovaGameDetailUiStateTest {
         )
     }
 
+    @Test
+    fun steamLaunchModeShowsForSteamGamesWithServerSupport() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                source = "steam",
+                steamAppid = "400",
+                steamLaunch = PolarisGame.SteamLaunchContract(
+                    available = true,
+                    mode = "direct",
+                    recommendedMode = "direct",
+                    allowedModes = listOf("direct", "big-picture")
+                )
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = null,
+            profilePreference = "auto"
+        )
+
+        assertTrue(state.showSteamLaunchMode)
+        assertEquals("direct", state.steamLaunchMode)
+        assertFalse(state.steamLaunchWarning)
+    }
+
+    @Test
+    fun steamLaunchModeHidesForNonSteamGamesAndWarnsForBigPicture() {
+        val nonSteam = NovaGameDetailUiState.from(
+            game = game(
+                source = "manual",
+                steamAppid = "",
+                steamLaunch = PolarisGame.SteamLaunchContract(
+                    available = true,
+                    mode = "direct",
+                    allowedModes = listOf("direct", "big-picture")
+                )
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = null,
+            profilePreference = "auto"
+        )
+
+        val bigPicture = NovaGameDetailUiState.from(
+            game = game(
+                source = "steam",
+                steamAppid = "883710",
+                steamLaunch = PolarisGame.SteamLaunchContract(
+                    available = true,
+                    mode = "big-picture",
+                    allowedModes = listOf("direct", "big-picture")
+                )
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = null,
+            profilePreference = "auto"
+        )
+
+        assertFalse(nonSteam.showSteamLaunchMode)
+        assertTrue(bigPicture.showSteamLaunchMode)
+        assertTrue(bigPicture.steamLaunchWarning)
+    }
+
     private fun game(
         name: String = "Portal",
         runtime: String = "native",
         source: String = "steam",
         steamAppid: String = "",
-        launchMode: PolarisGame.LaunchModeContract? = null
+        launchMode: PolarisGame.LaunchModeContract? = null,
+        steamLaunch: PolarisGame.SteamLaunchContract? = null
     ) = PolarisGame(
         id = "game-1",
         name = name,
@@ -127,6 +188,7 @@ class NovaGameDetailUiStateTest {
         launcherSource = source,
         runtime = runtime,
         steamAppid = steamAppid,
-        launchMode = launchMode
+        launchMode = launchMode,
+        steamLaunch = steamLaunch
     )
 }

@@ -199,6 +199,14 @@
     <string name="nova_library_launch_preferred_mode_format">App default: %1$s.</string>
     <string name="nova_library_launch_mode_unavailable_format">%1$s · Unavailable</string>
     <string name="nova_library_launching_mode">Launching %1$s in %2$s…</string>
+    <string name="nova_steam_launch_detail_label">Steam Launch</string>
+    <string name="nova_steam_launch_direct">Direct</string>
+    <string name="nova_steam_launch_big_picture">Big Picture</string>
+    <string name="nova_steam_launch_caption_direct">Direct launch without opening Big Picture</string>
+    <string name="nova_steam_launch_caption_big_picture">Compatibility mode · Steam UI may receive controller input</string>
+    <string name="nova_steam_launch_options_title">Steam Launch Mode</string>
+    <string name="nova_steam_launch_mode_updated">Steam launch mode updated</string>
+    <string name="nova_steam_launch_mode_failed">Could not update Steam launch mode</string>
     <string name="nova_library_ai_recommended_label">Optimized</string>
     <string name="nova_library_ai_baseline_label">Baseline</string>
     <string name="nova_library_ai_live_label">AI tune</string>

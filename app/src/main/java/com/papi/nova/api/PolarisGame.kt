@@ -19,7 +19,8 @@ data class PolarisGame(
     val lastLaunched: Long = 0,
     val mangohud: Boolean = false,
     val hdrSupported: Boolean = false,
-    val launchMode: LaunchModeContract? = null
+    val launchMode: LaunchModeContract? = null,
+    val steamLaunch: SteamLaunchContract? = null
 ) {
     data class LaunchModeContract(
         val preferredMode: String = "",
@@ -28,6 +29,25 @@ data class PolarisGame(
         val modeReason: String = ""
     ) {
         fun allows(mode: String): Boolean = allowedModes.contains(mode)
+    }
+
+    data class SteamLaunchContract(
+        val available: Boolean = false,
+        val mode: String = "direct",
+        val recommendedMode: String = "direct",
+        val allowedModes: List<String> = emptyList(),
+        val modeReason: String = ""
+    ) {
+        fun allows(mode: String): Boolean = allowedModes.contains(normalizeMode(mode))
+
+        companion object {
+            fun normalizeMode(mode: String): String {
+                return when (mode.lowercase()) {
+                    "big-picture", "big_picture", "bigpicture", "gamepadui" -> "big-picture"
+                    else -> "direct"
+                }
+            }
+        }
     }
 
     data class LaunchModeChoice(
@@ -200,6 +220,27 @@ data class PolarisGame(
                     modeReason = modeJson.optString("mode_reason", "")
                 )
             }
+            val steamLaunch = json.optJSONObject("steam_launch")?.let { launchJson ->
+                val allowedModes = linkedSetOf<String>()
+                val allowedArr = launchJson.optJSONArray("allowed_modes")
+                if (allowedArr != null) {
+                    for (i in 0 until allowedArr.length()) {
+                        allowedArr.optString(i)
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { SteamLaunchContract.normalizeMode(it) }
+                            ?.let { allowedModes.add(it) }
+                    }
+                }
+                SteamLaunchContract(
+                    available = launchJson.optBoolean("available", false),
+                    mode = SteamLaunchContract.normalizeMode(launchJson.optString("mode", "direct")),
+                    recommendedMode = SteamLaunchContract.normalizeMode(
+                        launchJson.optString("recommended_mode", "direct")
+                    ),
+                    allowedModes = allowedModes.toList(),
+                    modeReason = launchJson.optString("mode_reason", "")
+                )
+            }
             return PolarisGame(
                 id = json.optString("id", ""),
                 appId = json.optString("app_id", "").toIntOrNull() ?: json.optInt("app_id", 0),
@@ -219,15 +260,20 @@ data class PolarisGame(
                 lastLaunched = json.optLong("last_launched", 0),
                 mangohud = json.optBoolean("mangohud", false),
                 hdrSupported = json.optBoolean("hdr_supported", false),
-                launchMode = launchMode
+                launchMode = launchMode,
+                steamLaunch = steamLaunch
             )
         }
     }
 
     val isSteamBigPicture get() = name.equals("Steam Big Picture", ignoreCase = true)
     val effectiveSource get() = launcherSource.ifBlank { source }
+    val isSteamGame get() = effectiveSource.equals("steam", ignoreCase = true) || steamAppid.isNotBlank()
     val isProtonGame get() = runtime == "proton" || (runtime == "unknown" && effectiveSource == "steam" && steamAppid.isNotEmpty())
     val hasMangoHudCompatibilityRisk get() = isSteamBigPicture || isProtonGame
+    val supportsSteamLaunchMode get() = isSteamGame && steamLaunch?.available == true
+    val steamLaunchMode get() = steamLaunch?.mode ?: "direct"
+    val steamLaunchUsesBigPicture get() = steamLaunchMode == "big-picture"
     val categoryLabel get() = when (category) {
         "fast_action" -> "Action"
         "cinematic" -> "Cinematic"

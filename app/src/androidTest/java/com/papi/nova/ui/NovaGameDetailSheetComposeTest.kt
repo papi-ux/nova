@@ -69,6 +69,9 @@ class NovaGameDetailSheetComposeTest {
                         mangoHudLabel = "MangoHud Overlay",
                         mangoHudCaption = "Next launch only",
                         mangoHudWarning = false,
+                        steamLaunchLabel = "Steam Launch",
+                        steamLaunchModeLabel = "Direct",
+                        steamLaunchCaption = "Direct launch without opening Big Picture",
                         optimizationState = NovaGameDetailOptimizationState(),
                         playLabel = "Play",
                         launchOptionsLabel = "Launch Options",
@@ -79,6 +82,7 @@ class NovaGameDetailSheetComposeTest {
                         onProfilePreference = {},
                         onResetProfile = {},
                         onMangoHudChanged = {},
+                        onSteamLaunchMode = {},
                         coverLoader = {}
                     )
                 }
