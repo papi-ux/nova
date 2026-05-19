@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.view.Display
+import androidx.preference.PreferenceManager
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.profiles.ProfilesManager
 import java.util.Locale
@@ -247,6 +248,10 @@ class PreferenceConfiguration {
 
         const val DEFAULT_RESOLUTION = "1920x1080"
         const val DEFAULT_FPS = "60"
+        private const val LEGACY_BALANCED_RESOLUTION_MIGRATION =
+            "__nova_migrated_balanced_default_resolution_20260519_v3"
+        private const val LEGACY_DEFAULT_RESOLUTION = "1280x720"
+        private const val LEGACY_BALANCED_BITRATE_KBPS = 15000
         private const val DEFAULT_ENABLE_ULTRA_LOW_LATENCY = false
         private const val DEFAULT_ENFORCE_DISPLAY_MODE = false
         private const val DEFAULT_USE_VIRTUAL_DISPLAY = false
@@ -637,12 +642,63 @@ class PreferenceConfiguration {
         }
 
         @JvmStatic
+        fun migrateLegacyBalancedResolutionDefault(context: Context): Boolean {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            if (prefs.getBoolean(LEGACY_BALANCED_RESOLUTION_MIGRATION, false)) {
+                return false
+            }
+
+            val preset = prefs.getString("nova_stream_preset", StreamPreset.BALANCED.key)
+                ?: StreamPreset.BALANCED.key
+            val legacyResFps = prefs.getString(LEGACY_RES_FPS_PREF_STRING, null)
+            val resolution = if (legacyResFps == "720p60") {
+                LEGACY_DEFAULT_RESOLUTION
+            } else {
+                prefs.getString(RESOLUTION_PREF_STRING, DEFAULT_RESOLUTION) ?: DEFAULT_RESOLUTION
+            }
+            val fps = if (legacyResFps == "720p60") {
+                StreamPreset.BALANCED.fps
+            } else {
+                prefs.getString(FPS_PREF_STRING, DEFAULT_FPS) ?: DEFAULT_FPS
+            }
+            val bitrate = if (prefs.contains(BITRATE_PREF_STRING)) {
+                prefs.getInt(BITRATE_PREF_STRING, StreamPreset.BALANCED.bitrateKbps)
+            } else {
+                prefs.getInt(BITRATE_PREF_OLD_STRING, LEGACY_BALANCED_BITRATE_KBPS / 1000) * 1000
+            }
+            val codec = prefs.getString(VIDEO_FORMAT_PREF_STRING, DEFAULT_VIDEO_FORMAT) ?: DEFAULT_VIDEO_FORMAT
+            val isBalancedDefaultBitrate =
+                bitrate == StreamPreset.BALANCED.bitrateKbps ||
+                    bitrate == LEGACY_BALANCED_BITRATE_KBPS
+            val shouldMigrate =
+                preset == StreamPreset.BALANCED.key &&
+                    resolution == LEGACY_DEFAULT_RESOLUTION &&
+                    fps == StreamPreset.BALANCED.fps &&
+                    isBalancedDefaultBitrate &&
+                    codec == StreamPreset.BALANCED.codec
+
+            val editor = prefs.edit()
+                .putBoolean(LEGACY_BALANCED_RESOLUTION_MIGRATION, true)
+            if (shouldMigrate) {
+                editor.putString(RESOLUTION_PREF_STRING, StreamPreset.BALANCED.resolution)
+                editor.putString(FPS_PREF_STRING, StreamPreset.BALANCED.fps)
+                editor.remove(LEGACY_RES_FPS_PREF_STRING)
+            }
+            editor.apply()
+            return shouldMigrate
+        }
+
+        @JvmStatic
         fun readPreferences(context: Context): PreferenceConfiguration {
             return readPreferences(context, null)
         }
 
         @JvmStatic
         fun readPreferences(context: Context, sharedPrefs: SharedPreferences?): PreferenceConfiguration {
+            if (sharedPrefs == null) {
+                migrateLegacyBalancedResolutionDefault(context)
+            }
+
             val prefs = sharedPrefs ?: ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
             val config = PreferenceConfiguration()
 

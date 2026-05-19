@@ -3,11 +3,13 @@ package com.papi.nova.preferences
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Xml
+import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -19,6 +21,11 @@ import org.xmlpull.v1.XmlPullParser
 @RunWith(RobolectricTestRunner::class)
 class NovaSettingsDefinitionsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Before
+    fun clearDefaultPreferences() {
+        PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()
+    }
 
     @Test
     fun definitionsCoverEveryPreferenceKeyFromLegacyXml() {
@@ -73,6 +80,64 @@ class NovaSettingsDefinitionsTest {
             definitions.require("list_resolution").defaultValue
         )
         assertEquals(StreamPreset.BALANCED.resolution, PreferenceConfiguration.DEFAULT_RESOLUTION)
+    }
+
+    @Test
+    fun upgradedBalancedInstallMigratesLegacy720Resolution() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit()
+            .putString("nova_stream_preset", StreamPreset.BALANCED.key)
+            .putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, "1280x720")
+            .putString(PreferenceConfiguration.FPS_PREF_STRING, StreamPreset.BALANCED.fps)
+            .putInt(PreferenceConfiguration.BITRATE_PREF_STRING, 15000)
+            .putString("video_format", StreamPreset.BALANCED.codec)
+            .commit()
+
+        assertTrue(PreferenceConfiguration.migrateLegacyBalancedResolutionDefault(context))
+        assertEquals(
+            StreamPreset.BALANCED.resolution,
+            prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, null)
+        )
+    }
+
+    @Test
+    fun upgradedBalancedInstallMigratesLegacyCombined720Resolution() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit()
+            .putString("nova_stream_preset", StreamPreset.BALANCED.key)
+            .putString("list_resolution_fps", "720p60")
+            .putInt("seekbar_bitrate", 15)
+            .putString("video_format", StreamPreset.BALANCED.codec)
+            .commit()
+
+        assertTrue(PreferenceConfiguration.migrateLegacyBalancedResolutionDefault(context))
+        assertEquals(
+            StreamPreset.BALANCED.resolution,
+            prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, null)
+        )
+        assertEquals(
+            StreamPreset.BALANCED.fps,
+            prefs.getString(PreferenceConfiguration.FPS_PREF_STRING, null)
+        )
+        assertFalse(prefs.contains("list_resolution_fps"))
+    }
+
+    @Test
+    fun upgradedPerformanceInstallKeepsLegacy720Resolution() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit()
+            .putString("nova_stream_preset", StreamPreset.PERFORMANCE.key)
+            .putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, StreamPreset.PERFORMANCE.resolution)
+            .putString(PreferenceConfiguration.FPS_PREF_STRING, StreamPreset.PERFORMANCE.fps)
+            .putInt(PreferenceConfiguration.BITRATE_PREF_STRING, StreamPreset.PERFORMANCE.bitrateKbps)
+            .putString("video_format", StreamPreset.PERFORMANCE.codec)
+            .commit()
+
+        assertFalse(PreferenceConfiguration.migrateLegacyBalancedResolutionDefault(context))
+        assertEquals(
+            StreamPreset.PERFORMANCE.resolution,
+            prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, null)
+        )
     }
 
     @Test

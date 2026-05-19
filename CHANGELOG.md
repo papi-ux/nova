@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.10 - 2026-05-19
+
+- Migrated upgraded installs that still carried the old Balanced 720p stream resolution so Shield, Retroid, and Android TV clients request 1080p after updating.
+- Preserved the explicit Performance preset at 720p while repairing only legacy Balanced defaults.
+- Kept cached Auto Safe launch profiles from forcing 1080p-capable clients down to 720p unless Polaris reports a confirmed recovery profile.
+- Added regression coverage for the upgraded-install resolution migration and the cached Auto Safe 1080p floor.
+
 ## 1.0.9 - 2026-05-19
 
 - Cleared stale Active Session UI after a confirmed local End request for Polaris-backed streams.

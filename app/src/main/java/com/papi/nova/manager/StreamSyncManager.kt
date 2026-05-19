@@ -19,6 +19,8 @@ class StreamSyncManager private constructor() {
 
     companion object {
         const val SYNC_MODE_AUTO_SAFE: String = "auto_safe"
+        private const val BALANCED_FLOOR_WIDTH = 1920
+        private const val BALANCED_FLOOR_HEIGHT = 1080
 
         @JvmStatic
         fun resolveAutoSafeBitrateKbps(configuredBitrateKbps: Int, optimization: JSONObject?): Int {
@@ -73,6 +75,16 @@ class StreamSyncManager private constructor() {
 
             if (configured.isValid() && optimized.pixels() > configured.pixels()) {
                 return configured
+            }
+
+            val stability = optimization.optJSONObject("stability")
+            if (
+                configured.width >= BALANCED_FLOOR_WIDTH &&
+                configured.height >= BALANCED_FLOOR_HEIGHT &&
+                optimized.height < BALANCED_FLOOR_HEIGHT &&
+                !isConfirmedRecoveryPolicy(optimization, stability)
+            ) {
+                return StreamResolution(BALANCED_FLOOR_WIDTH, BALANCED_FLOOR_HEIGHT)
             }
 
             return optimized

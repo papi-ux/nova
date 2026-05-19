@@ -14,8 +14,21 @@ import org.robolectric.annotation.Config
 class StreamSyncManagerTest {
 
     @Test
-    fun resolveAutoSafeResolution_appliesLowerOptimizerResolution() {
-        val optimization = JSONObject("{\"display_mode\":\"1280x720x60\"}")
+    fun resolveAutoSafeResolution_keepsBalancedFloorForCached720Profile() {
+        val optimization = JSONObject("{\"display_mode\":\"1280x720x60\",\"source\":\"ai_cached\"}")
+
+        val resolution = StreamSyncManager.resolveAutoSafeResolution(1920, 1080, optimization)
+
+        assertEquals(1920, resolution.width)
+        assertEquals(1080, resolution.height)
+    }
+
+    @Test
+    fun resolveAutoSafeResolution_appliesConfirmedRecoveryResolution() {
+        val optimization = JSONObject(
+            "{\"display_mode\":\"1280x720x60\",\"source\":\"history_safe\"," +
+                "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"}}"
+        )
 
         val resolution = StreamSyncManager.resolveAutoSafeResolution(1920, 1080, optimization)
 

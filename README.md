@@ -12,7 +12,7 @@ tuning instead of hiding everything behind a generic game grid.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Quick Start](#quick-start) · [What's New](#whats-new-in-v109) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Quick Start](#quick-start) · [What's New](#whats-new-in-v1010) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -51,16 +51,15 @@ tuning instead of hiding everything behind a generic game grid.
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## What's New in v1.0.9
+## What's New in v1.0.10
 
-Nova `v1.0.9` is a session lifecycle hotfix for Polaris-backed streams.
+Nova `v1.0.10` is an upgraded-install resolution hotfix for Polaris-backed streams.
 
-- **Active Session cleanup**: Nova Library now removes the Active Session card after a confirmed local End request instead of offering a stale resume.
-- **Cancel-safe quit flow**: the local End marker is written only after quit confirmation, so backing out of the dialog does not hide an active stream.
-- **Host-scoped lifecycle markers**: local End signals are scoped to the host/PC and expire quickly, preventing old markers from affecting later sessions.
-- **Polaris v1.0.17 pairing**: Nova consumes Polaris' terminal idle lifecycle signal so direct launches and quick-menu End stay in sync.
-- **Balanced default alignment**: first-run stream defaults now match the Balanced preset at 1080p instead of silently requesting 720p.
-- **Regression coverage**: launch-source guard tests now cover marker scoping, expiration, confirmed quit, and stale Active Session clearing.
+- **Upgraded-install repair**: Shield, Retroid, and Android TV installs that still had the old Balanced 720p stream setting are migrated to 1080p after updating.
+- **Performance stays explicit**: Nova keeps the Performance preset at 720p and only repairs settings that still match the old Balanced default shape.
+- **Cached Auto Safe guard**: Polaris cached launch profiles can no longer force 1080p-capable clients down to 720p unless a confirmed recovery profile is active.
+- **Polaris launch validation**: the fix targets direct Polaris-backed launches as well as library launches, so the host sees a 1080p client request.
+- **Regression coverage**: unit tests now cover the Balanced migration, Performance-preset guard, and cached Auto Safe 1080p floor.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 
