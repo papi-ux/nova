@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.9 - 2026-05-19
+
+- Cleared stale Active Session UI after a confirmed local End request for Polaris-backed streams.
+- Deferred local End markers until quit confirmation so canceling the dialog does not hide a still-active session.
+- Scoped local End markers by host/PC and expired them quickly to avoid stale state affecting future launches.
+- Consumed Polaris' terminal idle lifecycle event from `v1.0.17` so direct launches and quick-menu End stay aligned.
+- Aligned first-run stream defaults with the Balanced preset so new Android TV/Shield installs request 1080p instead of silently staying at 720p.
+- Added regression coverage for marker scoping, expiration, confirmed quit, and stale Active Session clearing.
+
 ## 1.0.8 - 2026-05-18
 
 - Strengthened controller and TV focus states in the dashboard, library game grid, and launch affordances so selected items stand out more clearly.

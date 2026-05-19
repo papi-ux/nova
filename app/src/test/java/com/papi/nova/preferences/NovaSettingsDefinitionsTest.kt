@@ -61,6 +61,21 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun defaultStreamValuesMatchBalancedPreset() {
+        val definitions = NovaSettingDefinitions.load(context)
+
+        assertEquals(
+            NovaSettingValue.StringValue(StreamPreset.BALANCED.key),
+            definitions.require("nova_stream_preset").defaultValue
+        )
+        assertEquals(
+            NovaSettingValue.StringValue(StreamPreset.BALANCED.resolution),
+            definitions.require("list_resolution").defaultValue
+        )
+        assertEquals(StreamPreset.BALANCED.resolution, PreferenceConfiguration.DEFAULT_RESOLUTION)
+    }
+
+    @Test
     fun definitionsClassifyApplyTimingForCommonSettings() {
         val definitions = NovaSettingDefinitions.load(context)
 

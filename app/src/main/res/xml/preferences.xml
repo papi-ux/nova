@@ -18,7 +18,7 @@
         <ListPreference
             android:key="nova_stream_preset"
             android:title="Quality Preset"
-            android:summary="Performance (720p 10Mbps) · Balanced (1080p 30Mbps) · Quality (1080p+ 60Mbps)"
+            android:summary="Performance (720p 10Mbps) · Balanced (1080p 20Mbps) · Quality (1080p HEVC 50Mbps)"
             android:entries="@array/nova_preset_names"
             android:entryValues="@array/nova_preset_values"
             android:defaultValue="balanced"
@@ -26,7 +26,7 @@
 
         <!-- Core: Resolution, FPS, Bitrate -->
         <ListPreference
-            android:defaultValue="1280x720"
+            android:defaultValue="1920x1080"
             android:entries="@array/resolution_names"
             android:entryValues="@array/resolution_values"
             android:key="list_resolution"

@@ -95,6 +95,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.LimeLog
+import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
@@ -107,7 +108,10 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaComposeTheme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -142,6 +146,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     private var activeFilterSheet by mutableStateOf<LibraryFilterSheet?>(null)
     private var lastFocusedGameId by mutableStateOf<String?>(null)
     private var lastFocusedPrimaryFilter by mutableStateOf(NovaLibraryPrimaryFilter.ALL)
+    private var activeSessionRefreshJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
@@ -217,7 +222,12 @@ class NovaLibraryActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (::apiClient.isInitialized && !isInitialLoading) {
-            refreshActiveSession()
+            if (consumeLocalSessionEndSignal()) {
+                activeSession = null
+                scheduleActiveSessionFollowUpRefreshes(clearOnly = true)
+            } else {
+                refreshActiveSession(scheduleFollowUps = true)
+            }
         }
     }
 
@@ -236,6 +246,8 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        activeSessionRefreshJob?.cancel()
+        activeSessionRefreshJob = null
         detailSheet?.dismissAllowingStateLoss()
         detailSheet = null
         super.onStop()
@@ -268,7 +280,16 @@ class NovaLibraryActivity : AppCompatActivity() {
                 apiClient.clearCoverCache()
                 allGames = result.games
                 clientSettings = result.settings
-                activeSession = result.activeSession
+                val clearSessionAfterLocalEnd = consumeLocalSessionEndSignal()
+                activeSession = if (clearSessionAfterLocalEnd) null else result.activeSession
+                if (clearSessionAfterLocalEnd) {
+                    scheduleActiveSessionFollowUpRefreshes(clearOnly = true)
+                } else if (result.activeSession != null) {
+                    scheduleActiveSessionFollowUpRefreshes()
+                } else {
+                    activeSessionRefreshJob?.cancel()
+                    activeSessionRefreshJob = null
+                }
                 loadErrorMessage = null
                 LimeLog.info("Nova: Loaded ${allGames.size} games")
             } catch (e: Exception) {
@@ -287,16 +308,60 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshActiveSession() {
+    private fun refreshActiveSession(scheduleFollowUps: Boolean = false) {
+        if (scheduleFollowUps) {
+            activeSessionRefreshJob?.cancel()
+            activeSessionRefreshJob = null
+        }
         lifecycleScope.launch {
             try {
-                activeSession = withContext(Dispatchers.IO) {
+                val refreshed = withContext(Dispatchers.IO) {
                     queryActiveSession()
                 }
+                activeSession = refreshed
+                if (scheduleFollowUps && refreshed != null) {
+                    scheduleActiveSessionFollowUpRefreshes()
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 LimeLog.warning("Nova: Failed to refresh active session: ${e.message}")
             }
         }
+    }
+
+    private fun scheduleActiveSessionFollowUpRefreshes(clearOnly: Boolean = false) {
+        activeSessionRefreshJob?.cancel()
+        activeSessionRefreshJob = lifecycleScope.launch {
+            for (delayMillis in ACTIVE_SESSION_RESUME_REFRESH_DELAYS_MS) {
+                delay(delayMillis)
+                val refreshed = try {
+                    withContext(Dispatchers.IO) {
+                        queryActiveSession()
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    LimeLog.warning("Nova: Failed to refresh active session after stream return: ${e.message}")
+                    continue
+                }
+                if (clearOnly && refreshed != null) {
+                    continue
+                }
+                activeSession = refreshed
+                if (refreshed == null) {
+                    break
+                }
+            }
+        }
+    }
+
+    private fun consumeLocalSessionEndSignal(): Boolean {
+        val consumed = NovaSessionEndSignal.consume(this, streamPcUuid, streamHost)
+        if (consumed) {
+            LimeLog.info("Nova: Clearing active session card after local End request")
+        }
+        return consumed
     }
 
     private fun queryActiveSession(): NovaLibraryActiveSessionUiState? {
@@ -1873,5 +1938,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         const val EXTRA_PC_UUID = "pc_uuid"
         const val EXTRA_SERVER_COMMANDS = "server_commands"
         const val EXTRA_SERVER_CERT = "server_cert"
+        private val ACTIVE_SESSION_RESUME_REFRESH_DELAYS_MS = longArrayOf(1500L, 2000L, 3000L, 5000L, 8000L)
     }
 }

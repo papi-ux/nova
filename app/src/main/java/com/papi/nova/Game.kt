@@ -246,6 +246,7 @@ private var lastAbsTouchDownX:Float = 0.toFloat()
 private var lastAbsTouchDownY:Float = 0.toFloat()
 
 private var quitOnStop:Boolean = false
+private var localSessionEndMarked:Boolean = false
 private var isHidingOverlays:Boolean = false
 private var floatingButtonShown:Boolean = false
 private var overlayToggleZoomButtonShown:Boolean = false
@@ -4286,6 +4287,10 @@ controllerHandler!!.stop()
             // thread to keep things smooth for the UI. Inside moonlight-common,
             // we prevent another thread from starting a connection before and
             // during the process of stopping this one.
+            if (quitOnStop && !watchOnlyRequested)
+{
+markLocalSessionEnd()
+}
             object : Thread() {
 override fun run() {
 conn!!.stop()
@@ -5663,6 +5668,19 @@ LimeLog.warning("Nova: Failed to stop background resume service: " + e!!.message
 }
 }
 
+private fun markLocalSessionEnd() {
+if (localSessionEndMarked)
+{
+return
+}
+localSessionEndMarked = true
+NovaSessionEndSignal.mark(
+this,
+this@Game.getIntent().getStringExtra(EXTRA_PC_UUID),
+host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST)
+)
+}
+
  fun disconnect() {
 prepareBackgroundResumeWindow()
 if (prefConfig!!.smartClipboardSync)
@@ -5699,6 +5717,7 @@ builder.setMessage(R.string.game_dialog_message_quit_confirm)
 
 builder.setPositiveButton(getString(R.string.yes), { dialog, which->
 quitOnStop = true
+markLocalSessionEnd()
 dialog!!.dismiss()
 finish() })
 

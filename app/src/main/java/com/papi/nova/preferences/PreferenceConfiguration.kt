@@ -245,7 +245,7 @@ class PreferenceConfiguration {
         private const val CHECKBOX_TRACKPAD_SWAP_AXIS = "checkbox_trackpad_swap_axis"
         private const val CHECKBOX_ENABLE_COMMIT_TEXT = "checkbox_enable_commit_text"
 
-        const val DEFAULT_RESOLUTION = "1280x720"
+        const val DEFAULT_RESOLUTION = "1920x1080"
         const val DEFAULT_FPS = "60"
         private const val DEFAULT_ENABLE_ULTRA_LOW_LATENCY = false
         private const val DEFAULT_ENFORCE_DISPLAY_MODE = false

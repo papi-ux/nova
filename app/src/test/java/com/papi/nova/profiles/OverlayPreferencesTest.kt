@@ -127,8 +127,8 @@ class OverlayPreferencesTest {
         assertFalse(PreferenceConfiguration.applyPolarisStreamingProfile(ctx, "1920x1080", 0))
 
         val cfg = PreferenceConfiguration.readPreferences(ctx)
-        assertEquals(1280, cfg.width)
-        assertEquals(720, cfg.height)
+        assertEquals(1920, cfg.width)
+        assertEquals(1080, cfg.height)
     }
 
     private fun parseOptions(json: String): Map<String, Any> {
