@@ -686,74 +686,35 @@ class ComputerManagerService : Service() {
 
     @Throws(InterruptedException::class)
     private fun parallelPollPc(details: ComputerDetails): ComputerDetails? {
-        val localInfo = ParallelPollTuple(details.localAddress, details)
-        val manualInfo = ParallelPollTuple(details.manualAddress, details)
-        val remoteInfo = ParallelPollTuple(details.remoteAddress, details)
-        val ipv6Info = ParallelPollTuple(details.ipv6Address, details)
+        val pollTuples = buildParallelPollAddresses(details)
+            .map { address -> ParallelPollTuple(address, details) }
 
         // These must be started in order of precedence for the deduplication algorithm
         // to result in the correct behavior.
         val uniqueAddresses = HashSet<ComputerDetails.AddressTuple>()
-        startParallelPollThread(localInfo, uniqueAddresses)
-        startParallelPollThread(manualInfo, uniqueAddresses)
-        startParallelPollThread(remoteInfo, uniqueAddresses)
-        startParallelPollThread(ipv6Info, uniqueAddresses)
+        for (tuple in pollTuples) {
+            startParallelPollThread(tuple, uniqueAddresses)
+        }
 
         try {
-            // Check local first
-            synchronized(localInfo.completionLock) {
-                while (!localInfo.complete) {
-                    localInfo.completionLock.wait()
-                }
+            for (tuple in pollTuples) {
+                synchronized(tuple.completionLock) {
+                    while (!tuple.complete) {
+                        tuple.completionLock.wait()
+                    }
 
-                if (localInfo.returnedDetails != null) {
-                    localInfo.returnedDetails!!.activeAddress = localInfo.address
-                    return localInfo.returnedDetails
-                }
-            }
-
-            // Now manual
-            synchronized(manualInfo.completionLock) {
-                while (!manualInfo.complete) {
-                    manualInfo.completionLock.wait()
-                }
-
-                if (manualInfo.returnedDetails != null) {
-                    manualInfo.returnedDetails!!.activeAddress = manualInfo.address
-                    return manualInfo.returnedDetails
-                }
-            }
-
-            // Now remote IPv4
-            synchronized(remoteInfo.completionLock) {
-                while (!remoteInfo.complete) {
-                    remoteInfo.completionLock.wait()
-                }
-
-                if (remoteInfo.returnedDetails != null) {
-                    remoteInfo.returnedDetails!!.activeAddress = remoteInfo.address
-                    return remoteInfo.returnedDetails
-                }
-            }
-
-            // Now global IPv6
-            synchronized(ipv6Info.completionLock) {
-                while (!ipv6Info.complete) {
-                    ipv6Info.completionLock.wait()
-                }
-
-                if (ipv6Info.returnedDetails != null) {
-                    ipv6Info.returnedDetails!!.activeAddress = ipv6Info.address
-                    return ipv6Info.returnedDetails
+                    if (tuple.returnedDetails != null) {
+                        tuple.returnedDetails!!.activeAddress = tuple.address
+                        return tuple.returnedDetails
+                    }
                 }
             }
         } finally {
             // Stop any further polling if we've found a working address or we've been
             // interrupted by an attempt to stop polling.
-            localInfo.interrupt()
-            manualInfo.interrupt()
-            remoteInfo.interrupt()
-            ipv6Info.interrupt()
+            for (tuple in pollTuples) {
+                tuple.interrupt()
+            }
         }
 
         return null
@@ -1007,6 +968,28 @@ class ComputerManagerService : Service() {
         private const val INITIAL_POLL_TRIES = 2
         private const val EMPTY_LIST_THRESHOLD = 3
         private const val POLL_DATA_TTL_MS = 30000
+
+        @JvmStatic
+        fun buildParallelPollAddresses(details: ComputerDetails): List<ComputerDetails.AddressTuple> {
+            val addresses = ArrayList<ComputerDetails.AddressTuple>()
+
+            fun addUnique(address: ComputerDetails.AddressTuple?) {
+                if (address != null && !addresses.contains(address)) {
+                    addresses.add(address)
+                }
+            }
+
+            val localAddress = details.localAddress
+            addUnique(localAddress)
+            if (localAddress != null && localAddress.port != NvHTTP.DEFAULT_HTTP_PORT) {
+                addUnique(ComputerDetails.AddressTuple(localAddress.address, NvHTTP.DEFAULT_HTTP_PORT))
+            }
+            addUnique(details.manualAddress)
+            addUnique(details.remoteAddress)
+            addUnique(details.ipv6Address)
+
+            return addresses
+        }
     }
 }
 
