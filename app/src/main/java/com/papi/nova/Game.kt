@@ -24,6 +24,7 @@ import com.papi.nova.binding.video.CrashListener
 import com.papi.nova.binding.video.MediaCodecDecoderRenderer
 import com.papi.nova.binding.video.MediaCodecHelper
 import com.papi.nova.binding.video.PerfOverlayListener
+import com.papi.nova.binding.video.PerfOverlaySample
 import com.papi.nova.nvstream.NvConnection
 import com.papi.nova.nvstream.NvConnectionListener
 import com.papi.nova.nvstream.StreamConfiguration
@@ -4804,6 +4805,16 @@ performanceOverlayBig!!.setText(text)
                 if (novaHud != null && novaHud!!.isShowing)
 {
 novaHud!!.updateFromPerfText(text)
+}
+}
+})
+}
+override fun onPerfSample(sample:PerfOverlaySample) {
+runOnUiThread(object : Runnable {
+override fun run() {
+                if (novaHud != null && novaHud!!.isShowing)
+{
+novaHud!!.updateFromPerfSample(sample)
 }
 }
 })

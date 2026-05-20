@@ -1,6 +1,7 @@
 package com.papi.nova.baselineprofile
 
 import android.content.Intent
+import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
@@ -19,24 +20,62 @@ class BaselineProfileGenerator {
         packageName = PACKAGE_NAME,
         includeInStartupProfile = true
     ) {
-        pressHome()
-        startActivityAndWait()
-        device.waitForIdle()
+        launchHome()
     }
 
     @Test
     fun librarySurface() = baselineProfileRule.collect(
         packageName = PACKAGE_NAME
     ) {
+        launchHome()
+        openLibrarySurface()
+    }
+
+    @Test
+    fun libraryDetailSurface() = baselineProfileRule.collect(
+        packageName = PACKAGE_NAME
+    ) {
+        launchHome()
+        openLibrarySurface()
+        device.pressDPadCenter()
+        device.waitForIdle()
+        device.pressDPadRight()
+        device.pressDPadLeft()
+        device.pressBack()
+        device.waitForIdle()
+    }
+
+    @Test
+    fun settingsSurface() = baselineProfileRule.collect(
+        packageName = PACKAGE_NAME
+    ) {
+        pressHome()
+        startActivityAndWait(streamSettingsIntent())
+        device.waitForIdle()
+        device.wait(Until.hasObject(By.textContains("Settings")), WAIT_TIMEOUT_MS)
+        device.pressDPadDown()
+        device.pressDPadDown()
+        device.pressDPadUp()
+        device.waitForIdle()
+    }
+
+    private fun MacrobenchmarkScope.launchHome() {
         pressHome()
         startActivityAndWait()
         device.waitForIdle()
+    }
+
+    private fun MacrobenchmarkScope.openLibrarySurface() {
         device.wait(Until.hasObject(By.text("Library")), WAIT_TIMEOUT_MS)
         device.pressDPadRight()
         device.pressDPadLeft()
         device.pressDPadCenter()
         device.wait(Until.hasObject(By.textContains("Library")), WAIT_TIMEOUT_MS)
         device.waitForIdle()
+    }
+
+    private fun streamSettingsIntent(): Intent {
+        return Intent().setClassName(PACKAGE_NAME, "$PACKAGE_NAME.preferences.StreamSettings")
     }
 
     companion object {

@@ -10,6 +10,7 @@ import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.driver.UsbDriverService
 import com.papi.nova.binding.input.evdev.EvdevListener
 import com.papi.nova.binding.video.PerfOverlayListener
+import com.papi.nova.binding.video.PerfOverlaySample
 import com.papi.nova.nvstream.NvConnectionListener
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
@@ -125,6 +126,7 @@ class KotlinGameRuntimeMigrationTest {
         Game::class.java.getMethod("toggleFloatingButtonVisibility")
         Game::class.java.getMethod("handleCommitText", CharSequence::class.java)
         Game::class.java.getMethod("handleDeleteSurroundingText", Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!)
+        Game::class.java.getMethod("onPerfSample", PerfOverlaySample::class.java)
     }
 
     @Test
@@ -242,6 +244,16 @@ class KotlinGameRuntimeMigrationTest {
 
         assertTrue(bitrateAdjust.contains("launchReplacingRuntimeIo(\"NovaBitrateAdjust\")"))
         assertFalse(bitrateAdjust.contains("Thread({"))
+    }
+
+    @Test
+    fun gameForwardsStructuredPerfSamplesToNovaHud() {
+        val source = readGameSource()
+
+        assertTrue(source.contains("override fun onPerfSample(sample:PerfOverlaySample)"))
+        assertTrue(source.contains("novaHud!!.updateFromPerfSample(sample)"))
+        assertTrue(source.contains("override fun onPerfUpdate(text:String)"))
+        assertTrue(source.contains("novaHud!!.updateFromPerfText(text)"))
     }
 
     private fun readGameSource(): String {

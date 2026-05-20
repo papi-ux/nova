@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.preference.PreferenceManager
 import com.papi.nova.api.PolarisSessionStatus
+import com.papi.nova.binding.video.PerfOverlaySample
 import com.papi.nova.ui.compose.NovaComposeTheme
 import kotlin.math.abs
 
@@ -41,7 +42,7 @@ class NovaStreamHud(private val activity: Activity) {
     private var degradedFrames = 0
     private var recoveredFrames = 0
     private var bitrateReduced = false
-    private val sparklineData = mutableListOf<Float>()
+    private val sparklineData = NovaHudSparklineBuffer()
 
     var onBitrateAdjust: ((Int) -> Unit)? = null
 
@@ -163,6 +164,19 @@ class NovaStreamHud(private val activity: Activity) {
         }
     }
 
+    fun updateFromPerfSample(sample: PerfOverlaySample) {
+        activity.runOnUiThread {
+            if (hudView == null) return@runOnUiThread
+            updateFps(sample.fps)
+            width = sample.width
+            height = sample.height
+            updateLatency(sample.rttMs)
+            applyCodecLabel(sample.codec)
+            sessionStats.recordPacketLoss(sample.packetLossPct)
+            publishState()
+        }
+    }
+
     fun setTargetBitrateKbps(bitrateKbps: Int) {
         currentBitrateKbps = bitrateKbps
         lastBitrateKbps = bitrateKbps
@@ -229,12 +243,9 @@ class NovaStreamHud(private val activity: Activity) {
         }
         lastFps = fps
         sparklineData.add(fps.toFloat())
-        if (sparklineData.size > 60) {
-            sparklineData.removeAt(0)
-        }
         sessionStats.recordFps(
             fps = fps,
-            lowOnePercentFps = NovaHudUiState.calculateLowOnePercent(sparklineData)
+            lowOnePercentFps = sparklineData.lowOnePercent()
         )
 
         if (hostAdaptiveBitrateActive) {
@@ -302,7 +313,8 @@ class NovaStreamHud(private val activity: Activity) {
             width = width,
             height = height,
             status = lastSessionStatus,
-            sparklineSamples = sparklineData
+            sparklineSamples = sparklineData.snapshot(),
+            lowOnePercentFps = sparklineData.lowOnePercent()
         )
     }
 

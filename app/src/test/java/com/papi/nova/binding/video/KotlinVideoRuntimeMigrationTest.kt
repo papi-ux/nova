@@ -141,6 +141,20 @@ class KotlinVideoRuntimeMigrationTest {
     }
 
     @Test
+    fun rendererEmitsStructuredPerfSamplesBesideLegacyText() {
+        val listener = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/binding/video/PerfOverlayListener.kt")),
+            StandardCharsets.UTF_8
+        )
+        val renderer = readMediaCodecDecoderRendererSource()
+
+        assertTrue(listener.contains("fun onPerfSample(sample: PerfOverlaySample)"))
+        assertTrue(renderer.contains("PerfOverlaySample("))
+        assertTrue(renderer.contains("perfListener.onPerfSample(perfSample)"))
+        assertTrue(renderer.contains("perfListener.onPerfUpdate(fullLog)"))
+    }
+
+    @Test
     fun mediaCodecDecoderWatchdogUsesQuiescedRecoveryFlush() {
         val source = readMediaCodecDecoderRendererSource()
 

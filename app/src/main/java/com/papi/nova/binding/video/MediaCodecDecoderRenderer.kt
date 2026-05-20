@@ -1530,6 +1530,24 @@ class MediaCodecDecoderRenderer(
                 }
                 sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs))
             }
+            val packetLossPct = if (lastTwo.totalFrames > 0) {
+                lastTwo.framesLost.toDouble() / lastTwo.totalFrames.toDouble() * 100.0
+            } else {
+                0.0
+            }
+            val perfSample = PerfOverlaySample(
+                fps = fps.totalFps.toDouble(),
+                incomingFps = fps.receivedFps.toDouble(),
+                renderedFps = fps.renderedFps.toDouble(),
+                width = initialWidth,
+                height = initialHeight,
+                codec = decoder,
+                rttMs = (rttInfo shr 32).toInt(),
+                rttVarianceMs = rttInfo.toInt(),
+                decodeTimeMs = decodeTimeMs.toDouble(),
+                packetLossPct = packetLossPct
+            )
+            perfListener.onPerfSample(perfSample)
             val fullLog = sb.toString()
             perfListener.onPerfUpdate(fullLog)
             val targetFpsMatched = fps.totalFps.toInt() == prefs.fps.toInt()

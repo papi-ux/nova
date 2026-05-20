@@ -24,6 +24,14 @@ class NovaStreamOverlayUiStateTest {
     }
 
     @Test
+    fun progressStateDoesNotExposeRawIdleState() {
+        val state = NovaSessionProgressUiState.from("idle")
+
+        assertEquals("Preparing session...", state.title)
+        assertTrue(state.completedStages.isEmpty())
+    }
+
+    @Test
     fun progressStateUsesMessageForUnknownStage() {
         val state = NovaSessionProgressUiState.from("waiting_for_host", "Waiting for host")
 

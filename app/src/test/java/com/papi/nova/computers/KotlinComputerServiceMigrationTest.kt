@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
 import com.papi.nova.nvstream.http.ComputerDetails
+import com.papi.nova.nvstream.http.NvHTTP
 import java.io.File
 import java.util.concurrent.ScheduledFuture
 import org.junit.Assert.assertEquals
@@ -108,6 +109,34 @@ class KotlinComputerServiceMigrationTest {
         assertEquals(true, matcher.invoke(service, "server-uuid", "server-uuid"))
         assertEquals(false, matcher.invoke(service, "other-uuid", "server-uuid"))
         assertEquals(false, matcher.invoke(service, "", null))
+    }
+
+    @Test
+    fun parallelPollingRetriesSavedLocalAddressOnDefaultHttpPort() {
+        val details = ComputerDetails()
+        details.localAddress = ComputerDetails.AddressTuple("10.0.0.232", 49000)
+
+        val addresses = ComputerManagerService.buildParallelPollAddresses(details)
+
+        assertEquals(ComputerDetails.AddressTuple("10.0.0.232", 49000), addresses[0])
+        assertEquals(
+            ComputerDetails.AddressTuple("10.0.0.232", NvHTTP.DEFAULT_HTTP_PORT),
+            addresses[1]
+        )
+    }
+
+    @Test
+    fun parallelPollingDoesNotDuplicateDefaultLocalAddress() {
+        val details = ComputerDetails()
+        details.localAddress = ComputerDetails.AddressTuple("10.0.0.232", NvHTTP.DEFAULT_HTTP_PORT)
+
+        val addresses = ComputerManagerService.buildParallelPollAddresses(details)
+
+        assertEquals(1, addresses.size)
+        assertEquals(
+            ComputerDetails.AddressTuple("10.0.0.232", NvHTTP.DEFAULT_HTTP_PORT),
+            addresses[0]
+        )
     }
 
     @Test

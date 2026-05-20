@@ -307,6 +307,10 @@ class PolarisApiClient @JvmOverloads constructor(
         }
 
         @JvmStatic
+        fun parseUnlockResponse(json: JSONObject): Boolean =
+            json.optBoolean("success", false)
+
+        @JvmStatic
         fun parseCapabilitiesResponse(json: JSONObject): PolarisCapabilities {
             val features = json.optJSONObject("features")
             val capture = json.optJSONObject("capture")
@@ -1322,7 +1326,9 @@ class PolarisApiClient @JvmOverloads constructor(
             execute(request).use { response ->
                 if (response.code != 200) return false
 
-                true
+                val body = response.body.string()
+                if (body.isBlank()) return false
+                parseUnlockResponse(JSONObject(body))
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Unlock request failed: ${errorMessage(e)}")

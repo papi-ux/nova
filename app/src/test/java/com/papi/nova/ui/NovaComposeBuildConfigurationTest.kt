@@ -210,6 +210,9 @@ class NovaComposeBuildConfigurationTest {
             generator.contains("BaselineProfileRule()") &&
                 generator.contains("includeInStartupProfile = true") &&
                 generator.contains("By.text(\"Library\")") &&
+                generator.contains("fun libraryDetailSurface()") &&
+                generator.contains("fun settingsSurface()") &&
+                generator.contains("StreamSettings") &&
                 !generator.contains("com.papi.nova.ui.NovaLibraryActivity") &&
                 !generator.contains("putExtra(\"host\", \"127.0.0.1\")")
         )
