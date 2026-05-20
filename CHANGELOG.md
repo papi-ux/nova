@@ -7,6 +7,9 @@
 - Routed structured performance samples into NovaHUD while preserving the legacy performance overlay behavior.
 - Expanded Baseline Profile coverage for library detail, settings, and launch-adjacent Compose surfaces.
 - Documented the JNI bridge measurement gate for future `@FastNative` and `@CriticalNative` work instead of annotating JNI calls before profiling proves they are safe.
+- Kept the lock-screen overlay retryable by treating Polaris unlock responses as successful only when the host reports `success: true`.
+- Normalized raw `idle` stream progress into the initializing overlay state so handheld users do not see an internal state label.
+- Added saved-host port recovery so Nova retries a stale local address on the default Polaris HTTP port and persists the corrected port after a successful poll.
 - Verified the debug ARM64 APK on a Retroid Pocket 6 over wireless ADB with Polaris library launch, HEVC stream resume, NovaHUD enablement, Command Center disconnect, and clean log/crash-buffer checks.
 
 ## 1.0.10 - 2026-05-19
