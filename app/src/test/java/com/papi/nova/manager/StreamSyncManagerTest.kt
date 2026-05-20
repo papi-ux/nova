@@ -200,6 +200,22 @@ class StreamSyncManagerTest {
     }
 
     @Test
+    fun resolveAutoSafeTargetFps_highFpsTrialBypassesConfirmedRecoveryCapOnce() {
+        val optimization = JSONObject(
+            "{\"display_mode\":\"1920x1080x120\",\"safe_target_fps\":60," +
+                "\"source\":\"history_safe\",\"trial_profile\":true,\"trial_kind\":\"high_fps\"," +
+                "\"profile_state\":{\"preference\":\"high_fps\",\"trial_profile\":true," +
+                "\"trial_kind\":\"high_fps\"}," +
+                "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"," +
+                "\"safe_profile\":{\"target_fps\":60}}}"
+        )
+
+        val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization)
+
+        assertEquals(120f, targetFps, 0.01f)
+    }
+
+    @Test
     fun resolveDisplayCompatibleAutoSafeTargetFps_keepsFortyWhenOneTwentyAllowed() {
         val selected = StreamSyncManager.resolveDisplayCompatibleAutoSafeTargetFps(
             40f,

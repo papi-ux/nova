@@ -285,7 +285,20 @@ class StreamSyncManager private constructor() {
 
         private fun isSafeTargetFpsRelaxed(optimization: JSONObject, stability: JSONObject?): Boolean =
             optimization.optBoolean("safe_target_fps_relaxed", false) ||
-                (stability != null && stability.optBoolean("safe_target_fps_relaxed", false))
+                (stability != null && stability.optBoolean("safe_target_fps_relaxed", false)) ||
+                isHighFpsTrial(optimization)
+
+        private fun isHighFpsTrial(optimization: JSONObject): Boolean {
+            if (optimization.optBoolean("trial_profile", false) &&
+                normalized(optimization.optString("trial_kind", "")) == "high_fps"
+            ) {
+                return true
+            }
+
+            val profileState = optimization.optJSONObject("profile_state") ?: return false
+            return profileState.optBoolean("trial_profile", false) &&
+                normalized(profileState.optString("trial_kind", "")) == "high_fps"
+        }
 
         private fun shouldHonorOptimizerTarget(optimization: JSONObject, stability: JSONObject?): Boolean {
             if (isConfirmedRecoveryPolicy(optimization, stability)) {
