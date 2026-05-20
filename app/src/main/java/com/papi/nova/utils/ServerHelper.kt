@@ -192,8 +192,33 @@ object ServerHelper {
         computer: ComputerDetails,
         managerBinder: ComputerManagerService.ComputerManagerBinder,
         withVDisplay: Boolean,
+        profilePreference: String,
+        launchOptimizationJson: String?,
+    ): Intent {
+        return createStartIntent(
+            parent,
+            app,
+            computer,
+            managerBinder,
+            withVDisplay,
+            false,
+            false,
+            profilePreference,
+            launchOptimizationJson,
+        )
+    }
+
+    @JvmStatic
+    fun createStartIntent(
+        parent: Activity,
+        app: NvApp,
+        computer: ComputerDetails,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        withVDisplay: Boolean,
         displayModeExplicit: Boolean,
         watchOnly: Boolean,
+        profilePreference: String = "auto",
+        launchOptimizationJson: String? = null,
     ): Intent {
         var serverCert: ByteArray? = null
         try {
@@ -222,6 +247,8 @@ object ServerHelper {
             watchOnly,
             serverCommands,
             serverCert,
+            aiProfilePreference = profilePreference,
+            launchOptimizationJson = launchOptimizationJson,
         )
     }
 
