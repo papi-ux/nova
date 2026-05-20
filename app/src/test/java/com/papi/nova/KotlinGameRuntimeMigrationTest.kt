@@ -54,6 +54,8 @@ class KotlinGameRuntimeMigrationTest {
         assertEquals("StreamWidth", Game.EXTRA_STREAM_WIDTH)
         assertEquals("StreamHeight", Game.EXTRA_STREAM_HEIGHT)
         assertEquals("StreamFps", Game.EXTRA_STREAM_FPS)
+        assertEquals("AiProfilePreference", Game.EXTRA_AI_PROFILE_PREFERENCE)
+        assertEquals("LaunchOptimization", Game.EXTRA_LAUNCH_OPTIMIZATION)
         assertEquals("ServerCommands", Game.EXTRA_SERVER_COMMANDS)
         assertEquals("DisplayID", Game.EXTRA_DISPLAY_ID)
         assertEquals("ArtemisStreaming", Game.CLIPBOARD_IDENTIFIER)

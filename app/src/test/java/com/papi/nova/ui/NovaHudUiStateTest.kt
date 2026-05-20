@@ -125,6 +125,44 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun autoSafeBitrateCapUsesExplicitHudLabel() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.FPS_ONLY,
+            fps = 118.7,
+            targetFps = 120.0,
+            latencyMs = 18,
+            codec = "hevc",
+            bitrateKbps = 12000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc_nvenc",
+                    bitrateKbps = 12000,
+                    fps = 120.0,
+                    requestedClientFps = 120.0,
+                    sessionTargetFps = 120.0,
+                    encodeTargetFps = 120.0,
+                    optimizationSource = "ai_cached",
+                    optimizationCacheStatus = "hit",
+                    targetResidency = "gpu"
+                ),
+                tuning = PolarisSessionStatus.TuningStatus(
+                    adaptiveBitrateEnabled = true,
+                    adaptiveTargetBitrateKbps = 12000,
+                    adaptiveBaseBitrateKbps = 28000,
+                    aiOptimizerEnabled = true
+                )
+            ),
+            sparklineSamples = listOf(118f)
+        )
+
+        assertEquals("Auto Safe capped", state.autopilotLabel)
+        assertEquals("Auto Safe", state.autopilotHudLabel)
+        assertEquals(NovaHudTone.WARNING, state.statusTone)
+    }
+
+    @Test
     fun hudLabelsStayCompactForSpaceConstrainedOverlay() {
         val stable = NovaHudUiState.from(
             mode = NovaHudMode.FULL,
@@ -236,18 +274,19 @@ class NovaHudUiStateTest {
         displayMode: PolarisSessionStatus.DisplayModeStatus = PolarisSessionStatus.DisplayModeStatus(
             requested = "headless",
             effectiveHeadless = true
+        ),
+        tuning: PolarisSessionStatus.TuningStatus = PolarisSessionStatus.TuningStatus(
+            adaptiveBitrateEnabled = true,
+            adaptiveTargetBitrateKbps = 30000,
+            adaptiveBaseBitrateKbps = 30000,
+            aiOptimizerEnabled = true
         )
     ) = PolarisSessionStatus(
         state = "streaming",
         streamingActive = true,
         adaptiveBitrateEnabled = true,
         aiOptimizerEnabled = true,
-        tuning = PolarisSessionStatus.TuningStatus(
-            adaptiveBitrateEnabled = true,
-            adaptiveTargetBitrateKbps = 30000,
-            adaptiveBaseBitrateKbps = 30000,
-            aiOptimizerEnabled = true
-        ),
+        tuning = tuning,
         encoder = encoder,
         capture = capture,
         health = health,

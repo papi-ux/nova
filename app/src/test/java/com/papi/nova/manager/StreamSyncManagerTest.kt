@@ -200,6 +200,96 @@ class StreamSyncManagerTest {
     }
 
     @Test
+    fun resolveAutoSafeTargetFps_highFpsTrialBypassesConfirmedRecoveryCapOnce() {
+        val optimization = JSONObject(
+            "{\"display_mode\":\"1920x1080x120\",\"safe_target_fps\":60," +
+                "\"source\":\"history_safe\",\"trial_profile\":true,\"trial_kind\":\"high_fps\"," +
+                "\"profile_state\":{\"preference\":\"high_fps\",\"trial_profile\":true," +
+                "\"trial_kind\":\"high_fps\"}," +
+                "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"," +
+                "\"safe_profile\":{\"target_fps\":60}}}"
+        )
+
+        val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization)
+
+        assertEquals(120f, targetFps, 0.01f)
+    }
+
+    @Test
+    fun requiresLaunchPreflightReview_ignoresMatchingRequestedAndEffectiveFps() {
+        val optimization = JSONObject(
+            "{\"requested_target_fps\":120,\"effective_target_fps\":120," +
+                "\"profile_state\":{\"preference\":\"high_fps\",\"preference_applied\":true}}"
+        )
+
+        assertFalse(StreamSyncManager.requiresLaunchPreflightReview(optimization))
+    }
+
+    @Test
+    fun requiresLaunchPreflightReview_ignoresUnappliedPreferenceWithoutMaterialOverride() {
+        val optimization = JSONObject(
+            "{\"requested_target_fps\":120,\"effective_target_fps\":120," +
+                "\"preference\":\"high_fps\",\"preference_applied\":false," +
+                "\"preference_blocked_reason\":\"none\"," +
+                "\"profile_state\":{\"preference\":\"high_fps\",\"preference_applied\":false," +
+                "\"preference_blocked_reason\":\"none\"}}"
+        )
+
+        assertFalse(StreamSyncManager.requiresLaunchPreflightReview(optimization))
+        assertEquals(
+            "",
+            StreamSyncManager.launchPreflightReviewReason(optimization)
+        )
+    }
+
+    @Test
+    fun requiresLaunchPreflightReview_ignoresHighFpsBlockReasonWhenTargetMatches() {
+        val optimization = JSONObject(
+            "{\"requested_target_fps\":120,\"effective_target_fps\":120," +
+                "\"preference\":\"high_fps\",\"preference_applied\":false," +
+                "\"preference_blocked_reason\":\"host_render_limited\"," +
+                "\"profile_state\":{\"preference\":\"high_fps\",\"preference_applied\":false," +
+                "\"preference_blocked_reason\":\"host_render_limited\"}}"
+        )
+
+        assertFalse(StreamSyncManager.requiresLaunchPreflightReview(optimization))
+        assertEquals(
+            "",
+            StreamSyncManager.launchPreflightReviewReason(optimization)
+        )
+    }
+
+    @Test
+    fun requiresLaunchPreflightReview_flagsMaterialFpsOverride() {
+        val optimization = JSONObject(
+            "{\"requested_target_fps\":120,\"effective_target_fps\":40," +
+                "\"preference_blocked_reason\":\"optimizer_selected_lower_fps\"," +
+                "\"profile_state\":{\"preference\":\"high_fps\",\"preference_applied\":false}}"
+        )
+
+        assertTrue(StreamSyncManager.requiresLaunchPreflightReview(optimization))
+        assertEquals(
+            "optimizer_selected_lower_fps",
+            StreamSyncManager.launchPreflightReviewReason(optimization)
+        )
+    }
+
+    @Test
+    fun requiresLaunchPreflightReview_flagsExplicitlyBlockedNonAutoPreference() {
+        val optimization = JSONObject(
+            "{\"requested_target_fps\":120,\"effective_target_fps\":120," +
+                "\"profile_state\":{\"preference\":\"quality\",\"preference_applied\":false," +
+                "\"preference_blocked_reason\":\"recent_degraded_session\"}}"
+        )
+
+        assertTrue(StreamSyncManager.requiresLaunchPreflightReview(optimization))
+        assertEquals(
+            "recent_degraded_session",
+            StreamSyncManager.launchPreflightReviewReason(optimization)
+        )
+    }
+
+    @Test
     fun resolveDisplayCompatibleAutoSafeTargetFps_keepsFortyWhenOneTwentyAllowed() {
         val selected = StreamSyncManager.resolveDisplayCompatibleAutoSafeTargetFps(
             40f,

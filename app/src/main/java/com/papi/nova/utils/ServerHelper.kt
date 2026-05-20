@@ -112,6 +112,8 @@ object ServerHelper {
         streamWidth: Int = 0,
         streamHeight: Int = 0,
         streamFps: Float = 0f,
+        aiProfilePreference: String = "auto",
+        launchOptimizationJson: String? = null,
     ): Intent {
         val prefConfig = PreferenceConfiguration.readPreferences(parent)
         val gameIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && prefConfig.enableFullExDisplay) {
@@ -146,6 +148,10 @@ object ServerHelper {
         }
         if (streamFps > 0f) {
             gameIntent.putExtra(Game.EXTRA_STREAM_FPS, streamFps)
+        }
+        gameIntent.putExtra(Game.EXTRA_AI_PROFILE_PREFERENCE, aiProfilePreference)
+        if (!launchOptimizationJson.isNullOrBlank()) {
+            gameIntent.putExtra(Game.EXTRA_LAUNCH_OPTIMIZATION, launchOptimizationJson)
         }
 
         if (serverCommands != null) {
@@ -186,8 +192,33 @@ object ServerHelper {
         computer: ComputerDetails,
         managerBinder: ComputerManagerService.ComputerManagerBinder,
         withVDisplay: Boolean,
+        profilePreference: String,
+        launchOptimizationJson: String?,
+    ): Intent {
+        return createStartIntent(
+            parent,
+            app,
+            computer,
+            managerBinder,
+            withVDisplay,
+            false,
+            false,
+            profilePreference,
+            launchOptimizationJson,
+        )
+    }
+
+    @JvmStatic
+    fun createStartIntent(
+        parent: Activity,
+        app: NvApp,
+        computer: ComputerDetails,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        withVDisplay: Boolean,
         displayModeExplicit: Boolean,
         watchOnly: Boolean,
+        profilePreference: String = "auto",
+        launchOptimizationJson: String? = null,
     ): Intent {
         var serverCert: ByteArray? = null
         try {
@@ -216,6 +247,8 @@ object ServerHelper {
             watchOnly,
             serverCommands,
             serverCert,
+            aiProfilePreference = profilePreference,
+            launchOptimizationJson = launchOptimizationJson,
         )
     }
 
@@ -280,6 +313,8 @@ object ServerHelper {
         streamWidth: Int,
         streamHeight: Int,
         streamFps: Float,
+        aiProfilePreference: String = "auto",
+        launchOptimizationJson: String? = null,
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -302,6 +337,8 @@ object ServerHelper {
             streamWidth,
             streamHeight,
             streamFps,
+            aiProfilePreference,
+            launchOptimizationJson,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
@@ -363,6 +400,8 @@ object ServerHelper {
         displayModeExplicit: Boolean,
         watchOnly: Boolean,
         serverCert: ByteArray?,
+        aiProfilePreference: String = "auto",
+        launchOptimizationJson: String? = null,
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -382,6 +421,8 @@ object ServerHelper {
             watchOnly,
             serverCommands,
             serverCert,
+            aiProfilePreference = aiProfilePreference,
+            launchOptimizationJson = launchOptimizationJson,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
