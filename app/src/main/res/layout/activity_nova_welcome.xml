@@ -5,7 +5,6 @@
     android:layout_height="match_parent"
     android:background="?android:colorBackground">
 
-    <!-- Space particles -->
     <com.papi.nova.ui.SpaceParticleView
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
@@ -19,227 +18,165 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:gravity="center_horizontal"
-            android:paddingHorizontal="40dp"
-            android:paddingTop="48dp"
-            android:paddingBottom="32dp">
+            android:orientation="vertical"
+            android:paddingHorizontal="28dp"
+            android:paddingTop="40dp"
+            android:paddingBottom="28dp">
 
-            <!-- Logo + title -->
             <ImageView
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:src="@drawable/ic_nova_star_foreground"
+                android:layout_width="78dp"
+                android:layout_height="78dp"
+                android:layout_marginBottom="18dp"
                 android:importantForAccessibility="no"
-                android:layout_marginBottom="20dp" />
+                android:src="@drawable/ic_nova_star_foreground" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Welcome to Nova"
-                android:textSize="26sp"
-                android:textColor="@color/nova_ice"
                 android:fontFamily="sans-serif-light"
+                android:gravity="center"
                 android:letterSpacing="0.03"
-                android:layout_marginBottom="6dp" />
+                android:text="Welcome to Nova"
+                android:textColor="@color/nova_ice"
+                android:textSize="28sp" />
 
             <TextView
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Game streaming, designed for your device"
-                android:textSize="13sp"
-                android:textColor="@color/nova_text_muted"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="28dp"
                 android:fontFamily="sans-serif"
-                android:layout_marginBottom="36dp" />
+                android:gravity="center"
+                android:lineSpacingExtra="2dp"
+                android:text="A polished streaming home for Polaris, handhelds, TV, and Moonlight-compatible hosts."
+                android:textColor="@color/nova_text_secondary"
+                android:textSize="14sp" />
 
-            <!-- Feature list -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/nova_card_bg_focusable"
                 android:orientation="vertical"
-                android:paddingHorizontal="4dp"
-                android:layout_marginBottom="36dp">
+                android:padding="18dp">
 
-                <!-- Feature 1 -->
-                <LinearLayout
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.08"
+                    android:text="01  Find your host"
+                    android:textAllCaps="true"
+                    android:textColor="@color/nova_accent"
+                    android:textSize="11sp" />
+
+                <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingBottom="16dp">
-
-                    <TextView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:gravity="center"
-                        android:text="\uD83C\uDFAE"
-                        android:textSize="14sp"
-                        android:layout_marginEnd="14dp" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Stream your PC games"
-                            android:textSize="14sp"
-                            android:textColor="@color/nova_text_primary"
-                            android:fontFamily="sans-serif-medium" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Low-latency H.265/AV1 over your local network"
-                            android:textSize="11sp"
-                            android:textColor="@color/nova_text_muted"
-                            android:layout_marginTop="2dp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Feature 2 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingBottom="16dp">
-
-                    <TextView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:gravity="center"
-                        android:text="\uD83D\uDD17"
-                        android:textSize="14sp"
-                        android:layout_marginEnd="14dp" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Instant pairing"
-                            android:textSize="14sp"
-                            android:textColor="@color/nova_text_primary"
-                            android:fontFamily="sans-serif-medium" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="TOFU auto-pair on your LAN, or scan a QR code"
-                            android:textSize="11sp"
-                            android:textColor="@color/nova_text_muted"
-                            android:layout_marginTop="2dp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Feature 3 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingBottom="16dp">
-
-                    <TextView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:gravity="center"
-                        android:text="\uD83D\uDCCA"
-                        android:textSize="14sp"
-                        android:layout_marginEnd="14dp" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Performance HUD"
-                            android:textSize="14sp"
-                            android:textColor="@color/nova_text_primary"
-                            android:fontFamily="sans-serif-medium" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="FPS sparkline, latency, bitrate — tap to cycle modes"
-                            android:textSize="11sp"
-                            android:textColor="@color/nova_text_muted"
-                            android:layout_marginTop="2dp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Feature 4 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:gravity="center"
-                        android:text="\u2728"
-                        android:textSize="14sp"
-                        android:layout_marginEnd="14dp" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="AI-optimized quality"
-                            android:textSize="14sp"
-                            android:textColor="@color/nova_text_primary"
-                            android:fontFamily="sans-serif-medium" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Polaris tunes encoding per device, per game"
-                            android:textSize="11sp"
-                            android:textColor="@color/nova_text_muted"
-                            android:layout_marginTop="2dp" />
-                    </LinearLayout>
-                </LinearLayout>
-
+                    android:layout_marginTop="8dp"
+                    android:text="Nova discovers PCs on your local network and keeps manual entry close when discovery is not enough."
+                    android:textColor="@color/nova_text_primary"
+                    android:textSize="16sp" />
             </LinearLayout>
 
-            <!-- Spacer pushes button to bottom when viewport is larger -->
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/nova_card_bg_focusable"
+                android:orientation="vertical"
+                android:padding="18dp">
 
-            <!-- Get Started button -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.08"
+                    android:text="02  Pair with confidence"
+                    android:textAllCaps="true"
+                    android:textColor="@color/nova_accent"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Use standard Moonlight pairing, or scan a Polaris pairing QR when your host shows one."
+                    android:textColor="@color/nova_text_primary"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/nova_card_bg_focusable"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.08"
+                    android:text="03  Built for the screen in your hands"
+                    android:textAllCaps="true"
+                    android:textColor="@color/nova_accent"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Controller-first navigation, touch-friendly controls, TV focus rings, and performance HUDs are ready when you stream."
+                    android:textColor="@color/nova_text_primary"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/welcome_start_btn"
+                android:id="@+id/welcome_discover_btn"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:text="Get Started"
-                android:textSize="18sp"
-                android:textColor="@android:color/white"
-                android:textStyle="bold"
+                android:focusable="true"
+                android:nextFocusDown="@id/welcome_add_manual_btn"
+                android:text="Discover hosts"
                 android:textAllCaps="false"
+                android:textColor="@android:color/white"
+                android:textSize="17sp"
+                android:textStyle="bold"
                 app:backgroundTint="@color/nova_accent"
-                app:cornerRadius="26dp" />
+                app:cornerRadius="26dp"
+                app:strokeColor="@color/nova_focus_stroke_selector"
+                app:strokeWidth="2dp" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/welcome_add_manual_btn"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="10dp"
+                android:focusable="true"
+                android:nextFocusUp="@id/welcome_discover_btn"
+                android:nextFocusDown="@id/welcome_scan_qr_btn"
+                android:text="Add manually"
+                android:textAllCaps="false"
+                android:textColor="@color/nova_text_primary"
+                app:cornerRadius="25dp"
+                app:strokeColor="@color/nova_focus_stroke_selector"
+                app:strokeWidth="2dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/welcome_scan_qr_btn"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="10dp"
+                android:focusable="true"
+                android:nextFocusUp="@id/welcome_add_manual_btn"
+                android:text="Scan Polaris QR"
+                android:textAllCaps="false"
+                android:textColor="@color/nova_text_primary"
+                app:cornerRadius="25dp"
+                app:strokeColor="@color/nova_focus_stroke_selector"
+                app:strokeWidth="2dp" />
         </LinearLayout>
     </ScrollView>
 </FrameLayout>
