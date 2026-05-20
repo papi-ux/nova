@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.preference.PreferenceManager
 import com.papi.nova.api.PolarisSessionStatus
+import com.papi.nova.binding.video.PerfOverlaySample
 import com.papi.nova.ui.compose.NovaComposeTheme
 import kotlin.math.abs
 
@@ -159,6 +160,19 @@ class NovaStreamHud(private val activity: Activity) {
             sample.latencyMs?.let(::updateLatency)
             sample.codec?.let(::applyCodecLabel)
             sample.packetLossPct?.let(sessionStats::recordPacketLoss)
+            publishState()
+        }
+    }
+
+    fun updateFromPerfSample(sample: PerfOverlaySample) {
+        activity.runOnUiThread {
+            if (hudView == null) return@runOnUiThread
+            updateFps(sample.fps)
+            width = sample.width
+            height = sample.height
+            updateLatency(sample.rttMs)
+            applyCodecLabel(sample.codec)
+            sessionStats.recordPacketLoss(sample.packetLossPct)
             publishState()
         }
     }

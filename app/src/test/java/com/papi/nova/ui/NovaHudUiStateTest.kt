@@ -1,6 +1,9 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisSessionStatus
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -197,6 +200,19 @@ class NovaHudUiStateTest {
 
         assertEquals(42.0, buffer.lowOnePercent(), 0.01)
         assertEquals(listOf(60f, 58f, 59f, 42f, 61f), buffer.snapshot())
+    }
+
+    @Test
+    fun streamHudConsumesStructuredPerfSamplesBesideTextFallback() {
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
+            StandardCharsets.UTF_8
+        )
+
+        assertTrue(source.contains("fun updateFromPerfSample(sample: PerfOverlaySample)"))
+        assertTrue(source.contains("updateFps(sample.fps)"))
+        assertTrue(source.contains("updateFromPerfText(text: String)"))
+        assertTrue(source.contains("NovaHudPerfSample.fromPerfText(text)"))
     }
 
     private fun status(
