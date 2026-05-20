@@ -47,6 +47,39 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun shortcutLaunchUsesPolarisPreflightBeforeStartingStream() {
+        val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
+        val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
+        val preparePlan = trampoline.section(
+            "private fun preparePolarisShortcutLaunchPlan(",
+            "private fun findPolarisShortcutGame("
+        )
+        val directLaunch = trampoline.section(
+            "if (currentApp != null) {",
+            "} else {\n                                            finish()"
+        )
+
+        assertTrue(
+            "shortcut launch should resolve Polaris library metadata before direct game start",
+            preparePlan.contains("findPolarisShortcutGame(apiClient, shortcutApp)") &&
+                trampoline.contains("apiClient.getGames(limit = 100)")
+        )
+        assertTrue(
+            "shortcut launch should sync the Polaris client settings/profile contract before stream start",
+            preparePlan.contains("syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay)") &&
+                trampoline.contains("apiClient.updateClientSettings(") &&
+                preparePlan.contains("apiClient.getOptimization(")
+        )
+        assertTrue(
+            "shortcut launch should carry Polaris optimization/profile extras into Game just like library launches",
+            directLaunch.contains("launchPlan.profilePreference") &&
+                directLaunch.contains("launchPlan.launchOptimizationJson") &&
+                serverHelper.contains("Game.EXTRA_AI_PROFILE_PREFERENCE") &&
+                serverHelper.contains("Game.EXTRA_LAUNCH_OPTIMIZATION")
+        )
+    }
+
+    @Test
     fun libraryFollowsUpActiveSessionRefreshAfterReturningFromStream() {
         val activity = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
