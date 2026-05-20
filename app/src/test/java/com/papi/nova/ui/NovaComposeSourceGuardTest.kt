@@ -408,6 +408,13 @@ class NovaComposeSourceGuardTest {
             selectableChip.indexOf(".onFocusChanged {") in 0 until
                 selectableChip.indexOf(".combinedClickable(")
         )
+        assertTrue(
+            "shared Compose focus controls should use the Nova focus motion modifier",
+            focusComponents.contains("internal fun Modifier.novaFocusMotion(") &&
+                focusComponents.contains("animateFloatAsState(") &&
+                focusComponents.contains("NovaFocusMotionSpec.ButtonPressedScale") &&
+                actionButton.contains(".novaFocusMotion(")
+        )
     }
 
     @Test

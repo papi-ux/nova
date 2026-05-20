@@ -69,7 +69,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -108,6 +107,8 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.compose.NovaFocusMotionSpec
+import com.papi.nova.ui.compose.novaFocusMotion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1439,10 +1440,12 @@ class NovaLibraryActivity : AppCompatActivity() {
             modifier = modifier
                 .fillMaxWidth()
                 .height(cardHeight)
-                .graphicsLayer {
-                    scaleX = if (focused) 1.035f else 1f
-                    scaleY = if (focused) 1.035f else 1f
-                }
+                .novaFocusMotion(
+                    focused = focused,
+                    focusedScale = NovaFocusMotionSpec.CardFocusedScale,
+                    haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
+                    cornerRadius = 14.dp
+                )
                 .clip(RoundedCornerShape(14.dp))
                 .background(if (focused) surfaces.tile.copy(alpha = 1f) else surfaces.tile)
                 .border(
@@ -1833,6 +1836,12 @@ class NovaLibraryActivity : AppCompatActivity() {
         Row(
             modifier = modifier
                 .height(42.dp)
+                .novaFocusMotion(
+                    focused = focused,
+                    focusedScale = NovaFocusMotionSpec.CardFocusedScale,
+                    haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
+                    cornerRadius = 14.dp
+                )
                 .clip(RoundedCornerShape(14.dp))
                 .background(
                     when {
