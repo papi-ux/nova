@@ -176,6 +176,29 @@ class NovaHudUiStateTest {
         )
     }
 
+    @Test
+    fun sparklineBufferKeepsLatestSixtySamplesInOrder() {
+        val buffer = NovaHudSparklineBuffer(capacity = 60)
+
+        for (i in 1..65) {
+            buffer.add(i.toFloat())
+        }
+
+        val snapshot = buffer.snapshot()
+        assertEquals(60, snapshot.size)
+        assertEquals(6f, snapshot.first(), 0.01f)
+        assertEquals(65f, snapshot.last(), 0.01f)
+    }
+
+    @Test
+    fun sparklineBufferCalculatesLowOnePercentWithoutMutatingSamples() {
+        val buffer = NovaHudSparklineBuffer(capacity = 60)
+        listOf(60f, 58f, 59f, 42f, 61f).forEach(buffer::add)
+
+        assertEquals(42.0, buffer.lowOnePercent(), 0.01)
+        assertEquals(listOf(60f, 58f, 59f, 42f, 61f), buffer.snapshot())
+    }
+
     private fun status(
         encoder: PolarisSessionStatus.EncoderStatus = PolarisSessionStatus.EncoderStatus(
             codec = "hevc_nvenc",

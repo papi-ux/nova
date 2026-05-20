@@ -41,7 +41,7 @@ class NovaStreamHud(private val activity: Activity) {
     private var degradedFrames = 0
     private var recoveredFrames = 0
     private var bitrateReduced = false
-    private val sparklineData = mutableListOf<Float>()
+    private val sparklineData = NovaHudSparklineBuffer()
 
     var onBitrateAdjust: ((Int) -> Unit)? = null
 
@@ -229,12 +229,9 @@ class NovaStreamHud(private val activity: Activity) {
         }
         lastFps = fps
         sparklineData.add(fps.toFloat())
-        if (sparklineData.size > 60) {
-            sparklineData.removeAt(0)
-        }
         sessionStats.recordFps(
             fps = fps,
-            lowOnePercentFps = NovaHudUiState.calculateLowOnePercent(sparklineData)
+            lowOnePercentFps = sparklineData.lowOnePercent()
         )
 
         if (hostAdaptiveBitrateActive) {
@@ -302,7 +299,8 @@ class NovaStreamHud(private val activity: Activity) {
             width = width,
             height = height,
             status = lastSessionStatus,
-            sparklineSamples = sparklineData
+            sparklineSamples = sparklineData.snapshot(),
+            lowOnePercentFps = sparklineData.lowOnePercent()
         )
     }
 
