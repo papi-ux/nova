@@ -112,6 +112,8 @@ object ServerHelper {
         streamWidth: Int = 0,
         streamHeight: Int = 0,
         streamFps: Float = 0f,
+        aiProfilePreference: String = "auto",
+        launchOptimizationJson: String? = null,
     ): Intent {
         val prefConfig = PreferenceConfiguration.readPreferences(parent)
         val gameIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && prefConfig.enableFullExDisplay) {
@@ -146,6 +148,10 @@ object ServerHelper {
         }
         if (streamFps > 0f) {
             gameIntent.putExtra(Game.EXTRA_STREAM_FPS, streamFps)
+        }
+        gameIntent.putExtra(Game.EXTRA_AI_PROFILE_PREFERENCE, aiProfilePreference)
+        if (!launchOptimizationJson.isNullOrBlank()) {
+            gameIntent.putExtra(Game.EXTRA_LAUNCH_OPTIMIZATION, launchOptimizationJson)
         }
 
         if (serverCommands != null) {
@@ -280,6 +286,8 @@ object ServerHelper {
         streamWidth: Int,
         streamHeight: Int,
         streamFps: Float,
+        aiProfilePreference: String = "auto",
+        launchOptimizationJson: String? = null,
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -302,6 +310,8 @@ object ServerHelper {
             streamWidth,
             streamHeight,
             streamFps,
+            aiProfilePreference,
+            launchOptimizationJson,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
@@ -363,6 +373,8 @@ object ServerHelper {
         displayModeExplicit: Boolean,
         watchOnly: Boolean,
         serverCert: ByteArray?,
+        aiProfilePreference: String = "auto",
+        launchOptimizationJson: String? = null,
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -382,6 +394,8 @@ object ServerHelper {
             watchOnly,
             serverCommands,
             serverCert,
+            aiProfilePreference = aiProfilePreference,
+            launchOptimizationJson = launchOptimizationJson,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)

@@ -289,6 +289,8 @@ data class NovaHudUiState(
             }
             AutoQualityUiState.State.RECOVERING -> when {
                 compactLabel == "HOST" -> "AI Recovery"
+                label.contains("safe", ignoreCase = true) -> "Auto Safe"
+                label.contains("cap", ignoreCase = true) -> "Auto Safe"
                 label.contains("bitrate", ignoreCase = true) -> "Bitrate Recovery"
                 label.contains("FPS", ignoreCase = true) -> "FPS Recovery"
                 else -> "Recovering"

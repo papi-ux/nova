@@ -34,7 +34,7 @@ class NovaLaunchSourceGuardTest {
     fun libraryLaunchSynchronizesMangoHudBeforeStartingStream() {
         val activity = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val launchGame = activity.section(
-            "private fun launchGame(game: PolarisGame, withVirtualDisplay: Boolean)",
+            "private fun launchGame(",
             "private fun resumeActiveSession("
         )
 

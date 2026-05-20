@@ -27,6 +27,7 @@ class StreamConfiguration private constructor() {
     private var persistGamepadsAfterDisconnect = false
     private var enableUltraLowLatency = false
     private var forceFreshLaunch = false
+    private var profilePreference = "auto"
 
     class Builder {
         private val config = StreamConfiguration()
@@ -152,6 +153,11 @@ class StreamConfiguration private constructor() {
             return this
         }
 
+        fun setProfilePreference(profilePreference: String?): Builder {
+            config.profilePreference = if (profilePreference.isNullOrBlank()) "auto" else profilePreference
+            return this
+        }
+
         fun build(): StreamConfiguration = config
     }
 
@@ -212,6 +218,8 @@ class StreamConfiguration private constructor() {
     fun getEnableUltraLowLatency(): Boolean = enableUltraLowLatency
 
     fun getForceFreshLaunch(): Boolean = forceFreshLaunch
+
+    fun getProfilePreference(): String = profilePreference
 
     companion object {
         const val INVALID_APP_ID = 0

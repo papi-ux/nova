@@ -175,6 +175,11 @@
     <string name="nova_library_launch_desktop_display">Desktop Display</string>
     <string name="nova_library_launch_gpu_native_test">GPU-Native Test</string>
     <string name="nova_library_play">Launch Recommended</string>
+    <string name="nova_library_review_and_launch">Review &amp; Launch</string>
+    <string name="nova_library_preflight_review_title">Review launch profile</string>
+    <string name="nova_library_preflight_review_message">Polaris selected a different launch profile: %1$s</string>
+    <string name="nova_library_preflight_launch">Launch</string>
+    <string name="nova_library_retry_high_fps">Retry High FPS</string>
     <string name="nova_library_launch_options">Launch Options</string>
     <string name="nova_library_profile_preference_auto">AI Preference: Auto</string>
     <string name="nova_library_profile_preference_quality">AI Preference: Prefer Quality</string>

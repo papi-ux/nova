@@ -211,6 +211,8 @@ private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 @Volatile private var lastReportedClientPresentationKey:String = ""
 @Volatile private var lastPolarisDeviceCapabilities:JSONObject? = null
 @Volatile private var lastPolarisAppliedStreamSettings:JSONObject? = null
+private var launchProfilePreference:String = "auto"
+private var launchOptimizationJson:String? = null
 private var clientPresentationReportInFlight:AtomicBoolean = AtomicBoolean(false)
 private var cursorVisibilitySyncLock:Any = Any()
 private var pendingHostCursorVisible:Boolean = false
@@ -690,6 +692,8 @@ watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, fal
 watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
 watchStreamHeight = this@Game.getIntent().getIntExtra(EXTRA_STREAM_HEIGHT, 0)
 watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)
+launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
+launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
 serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
 var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
 var derCertData:ByteArray? = this@Game.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT)
@@ -1055,6 +1059,11 @@ supportedVideoFormats,
 prefConfig!!.videoFormat,
 displayModeExplicit
 )
+try
+{
+lastPolarisAppliedStreamSettings?.put("profile_preference", launchProfilePreference)
+}
+catch (ignored:Exception) {}
 
 var config:StreamConfiguration = StreamConfiguration.Builder()
 .setResolution(
@@ -1071,6 +1080,7 @@ displayHeight
 .setForceFreshLaunch(forceFreshLaunch)
 .setBitrate(configuredStreamBitrateKbps)
 .setEnableSops(prefConfig!!.enableSops)
+.setProfilePreference(launchProfilePreference)
 .enableLocalAudioPlayback(prefConfig!!.playHostAudio)
 .setMaxPacketSize(1392)
 .setRemoteConfiguration(StreamConfiguration.STREAM_CFG_AUTO) // NvConnection will perform LAN and VPN detection
@@ -1875,6 +1885,16 @@ getConfiguredStreamFrameRateFps() <= 60f &&
 }
 
 private fun loadLaunchOptimization(appName:String?):JSONObject? {
+if (!launchOptimizationJson.isNullOrBlank())
+{
+try
+{
+return JSONObject(launchOptimizationJson!!)
+}
+catch (e:Exception) {
+LimeLog.warning("Nova: Ignoring invalid preflight optimization payload")
+}
+}
 if (novaApiClient == null)
 {
 return null
@@ -1884,10 +1904,11 @@ var result:Array<JSONObject?> = arrayOfNulls<JSONObject?>(1)
 var failure:Array<Exception?> = arrayOfNulls<Exception?>(1)
 var thread:Thread = Thread({ try
 {
-var safeAppName:String? = if (appName != null) appName else ""
-var preference:String? = getSharedPreferences("nova_prefs", MODE_PRIVATE)
-.getString("ai_profile_preference_name_" + safeAppName!!, "auto")
-result[0] = novaApiClient!!.getOptimization(DeviceUtils.getModel(), safeAppName, if (preference != null) preference else "auto")
+var safeAppName:String = appName ?: ""
+var preference:String = launchProfilePreference.takeIf { it.isNotBlank() } ?: getSharedPreferences("nova_prefs", MODE_PRIVATE)
+.getString("ai_profile_preference_name_" + safeAppName, "auto") ?: "auto"
+launchProfilePreference = preference
+result[0] = novaApiClient!!.getOptimization(DeviceUtils.getModel(), safeAppName, preference)
 }
 catch (e:Exception) {
 failure[0] = e
@@ -5884,6 +5905,8 @@ companion object {
  const val EXTRA_STREAM_WIDTH:String = "StreamWidth"
  const val EXTRA_STREAM_HEIGHT:String = "StreamHeight"
  const val EXTRA_STREAM_FPS:String = "StreamFps"
+ const val EXTRA_AI_PROFILE_PREFERENCE:String = "AiProfilePreference"
+ const val EXTRA_LAUNCH_OPTIMIZATION:String = "LaunchOptimization"
  const val EXTRA_SERVER_COMMANDS:String = "ServerCommands"
  const val EXTRA_DISPLAY_ID:String = "DisplayID"
 

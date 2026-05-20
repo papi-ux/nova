@@ -80,6 +80,7 @@ class NovaGameDetailSheetComposeTest {
                         onPrimaryLaunch = {},
                         onLaunchOptions = {},
                         onProfilePreference = {},
+                        onRetryHighFps = {},
                         onResetProfile = {},
                         onMangoHudChanged = {},
                         onSteamLaunchMode = {},

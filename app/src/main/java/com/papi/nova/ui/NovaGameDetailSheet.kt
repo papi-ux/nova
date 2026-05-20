@@ -59,10 +59,13 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisGame
+import com.papi.nova.manager.StreamSyncManager
+import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
@@ -88,7 +91,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     private var apiClient: PolarisApiClient? = null
     private var defaultToVirtualDisplay: Boolean = false
     private var clientSettings: PolarisClientSettings? = null
-    private var onLaunch: ((PolarisGame, Boolean) -> Unit)? = null
+    private var onLaunch: ((PolarisGame, Boolean, String, JSONObject?) -> Unit)? = null
 
     companion object {
         fun newInstance(
@@ -96,7 +99,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             apiClient: PolarisApiClient,
             defaultToVirtualDisplay: Boolean,
             clientSettings: PolarisClientSettings?,
-            onLaunch: (PolarisGame, Boolean) -> Unit
+            onLaunch: (PolarisGame, Boolean, String, JSONObject?) -> Unit
         ): NovaGameDetailSheet {
             return NovaGameDetailSheet().apply {
                 this.game = game
@@ -148,14 +151,48 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             uiState = buildUiState(currentGame, preference)
         }
 
-        fun loadOptimization(preference: String) {
+        fun loadOptimization(preference: String, usesVirtualDisplay: Boolean = uiState.playUsesVirtualDisplay) {
+            LimeLog.info(
+                "Nova: Preflight optimization requested game=${currentGame.name} " +
+                    "preference=$preference virtualDisplay=$usesVirtualDisplay"
+            )
+            android.util.Log.i(
+                "NovaPreflight",
+                "requested game=${currentGame.name} preference=$preference virtualDisplay=$usesVirtualDisplay"
+            )
             viewLifecycleOwner.lifecycleScope.launch {
                 optimizationState = try {
                     val opt = withContext(Dispatchers.IO) {
+                        syncLaunchPreflightSettings(requireContext(), apiClient, usesVirtualDisplay)?.let {
+                            clientSettings = it
+                        }
                         apiClient.getOptimization(deviceName, currentGame.name, preference)
                     }
+                    logPreflightOptimization("Preflight optimization", opt, preference)
                     buildOptimizationState(opt, preference)
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    LimeLog.warning("Nova: Preflight optimization failed: ${e.message}")
+                    NovaGameDetailOptimizationState()
+                }
+            }
+        }
+
+        fun retryHighFpsTrial() {
+            profilePreference = "high_fps"
+            saveProfilePreference(currentGame, profilePreference)
+            refreshUiState(profilePreference)
+            viewLifecycleOwner.lifecycleScope.launch {
+                optimizationState = try {
+                    val opt = withContext(Dispatchers.IO) {
+                        syncLaunchPreflightSettings(requireContext(), apiClient, uiState.playUsesVirtualDisplay)?.let {
+                            clientSettings = it
+                        }
+                        apiClient.getOptimization(deviceName, currentGame.name, profilePreference, "high_fps")
+                    }
+                    logPreflightOptimization("High FPS trial preflight", opt, profilePreference)
+                    buildOptimizationState(opt, profilePreference)
+                } catch (e: Exception) {
+                    LimeLog.warning("Nova: High FPS trial preflight failed: ${e.message}")
                     NovaGameDetailOptimizationState()
                 }
             }
@@ -188,20 +225,65 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                     steamLaunchModeLabel = steamLaunchModeLabel(uiState.steamLaunchMode),
                     steamLaunchCaption = steamLaunchCaption(uiState),
                     optimizationState = optimizationState,
-                    playLabel = getString(R.string.nova_library_play),
+                    playLabel = getString(
+                        if (optimizationState.reviewRequired) {
+                            R.string.nova_library_review_and_launch
+                        } else {
+                            R.string.nova_library_play
+                        }
+                    ).let { label ->
+                        if (optimizationState.reviewRequired) {
+                            label
+                        } else {
+                            optimizationState.profileSummary
+                                ?.primaryLaunchLabel
+                                ?.takeIf { it.isNotBlank() }
+                                ?: label
+                        }
+                    },
                     launchOptionsLabel = getString(R.string.nova_library_launch_options),
                     launchModeTitle = getString(R.string.nova_library_launch_mode_title),
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
                     onPrimaryLaunch = {
                         if (!uiState.playEnabled) return@NovaGameDetailSheetContent
-                        onLaunch?.invoke(
-                            currentGame.copy(mangohud = mangoHudEnabled),
-                            uiState.playUsesVirtualDisplay
-                        )
-                        dismiss()
+                        val launchConfirmed = {
+                            onLaunch?.invoke(
+                                currentGame.copy(mangohud = mangoHudEnabled),
+                                uiState.playUsesVirtualDisplay,
+                                profilePreference,
+                                optimizationState.rawOptimization
+                            )
+                            dismiss()
+                        }
+                        if (optimizationState.reviewRequired) {
+                            showPreflightReview(
+                                optimizationState = optimizationState,
+                                onLaunchConfirmed = launchConfirmed,
+                                onRetryHighFps = { retryHighFpsTrial() },
+                                onResetProfile = {
+                                    resetWorking = true
+                                    viewLifecycleOwner.lifecycleScope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            apiClient.clearOptimizerProfile(deviceName, currentGame.name)
+                                        }
+                                        optimizationState = NovaGameDetailOptimizationState()
+                                        loadOptimization(profilePreference)
+                                        resetWorking = false
+                                    }
+                                }
+                            )
+                        } else {
+                            launchConfirmed()
+                        }
                     },
                     onLaunchOptions = {
-                        showLaunchOptions(currentGame, uiState, mangoHudEnabled)
+                        showLaunchOptions(
+                            currentGame,
+                            uiState,
+                            mangoHudEnabled,
+                            profilePreference,
+                            optimizationState.rawOptimization
+                        )
                     },
                     onProfilePreference = {
                         showProfilePreferenceOptions(currentGame) { selected ->
@@ -211,6 +293,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             loadOptimization(selected)
                         }
                     },
+                    onRetryHighFps = { retryHighFpsTrial() },
                     onResetProfile = {
                         resetWorking = true
                         viewLifecycleOwner.lifecycleScope.launch {
@@ -291,6 +374,36 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         AutoQualityProfilePreferences.save(requireContext(), game.name, preference)
     }
 
+    private fun logPreflightOptimization(
+        label: String,
+        opt: JSONObject?,
+        preference: String
+    ) {
+        if (opt == null) {
+            LimeLog.warning("Nova: $label returned no profile for preference=$preference")
+            return
+        }
+
+        val profileState = opt.optJSONObject("profile_state")
+        val effective = opt.optJSONObject("effective_profile")
+        val selectedFps = opt.optDouble(
+            "effective_target_fps",
+            profileState
+                ?.optJSONObject("current_profile")
+                ?.optDouble("target_fps", 0.0)
+                ?: 0.0
+        )
+        LimeLog.info(
+            "Nova: $label loaded source=${opt.optString("source", "unknown")} " +
+                "cache=${opt.optString("cache_status", "unknown")} " +
+                "state=${profileState?.optString("state", "none") ?: "none"} " +
+                "effective=${effective?.optString("display_mode", "") ?: ""} " +
+                "fps=$selectedFps preference=$preference " +
+                "applied=${opt.optBoolean("preference_applied", false)} " +
+                "trial=${opt.optBoolean("trial_profile", false)}"
+        )
+    }
+
     private fun showProfilePreferenceOptions(
         game: PolarisGame,
         onChanged: (String) -> Unit
@@ -335,7 +448,9 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     private fun showLaunchOptions(
         game: PolarisGame,
         uiState: NovaGameDetailUiState,
-        mangoHudEnabled: Boolean
+        mangoHudEnabled: Boolean,
+        profilePreference: String,
+        rawOptimization: JSONObject?
     ) {
         val options = mutableListOf<Pair<String, Boolean>>()
         if (uiState.headlessAllowed) {
@@ -353,9 +468,47 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.nova_library_launch_options_title)
             .setItems(options.map { it.first }.toTypedArray()) { _, which ->
-                onLaunch?.invoke(game.copy(mangohud = mangoHudEnabled), options[which].second)
+                onLaunch?.invoke(
+                    game.copy(mangohud = mangoHudEnabled),
+                    options[which].second,
+                    profilePreference,
+                    rawOptimization
+                )
                 dismiss()
             }
+            .show()
+    }
+
+    private fun syncLaunchPreflightSettings(
+        context: Context,
+        apiClient: PolarisApiClient,
+        usesVirtualDisplay: Boolean
+    ): PolarisClientSettings? {
+        val preferences = PreferenceConfiguration.readPreferences(context)
+        return apiClient.updateClientSettings(
+            streamDisplayMode = if (usesVirtualDisplay) "host_virtual_display" else "headless_stream",
+            displayMode = PreferenceConfiguration.formatStreamingDisplayMode(
+                preferences.width,
+                preferences.height,
+                preferences.fps
+            ),
+            targetBitrateKbps = preferences.bitrate.takeIf { it > 0 }
+        )
+    }
+
+    private fun showPreflightReview(
+        optimizationState: NovaGameDetailOptimizationState,
+        onLaunchConfirmed: () -> Unit,
+        onRetryHighFps: () -> Unit,
+        onResetProfile: () -> Unit
+    ) {
+        val reason = optimizationState.reviewReason.ifBlank { "fps_override" }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.nova_library_preflight_review_title)
+            .setMessage(getString(R.string.nova_library_preflight_review_message, reason))
+            .setPositiveButton(R.string.nova_library_preflight_launch) { _, _ -> onLaunchConfirmed() }
+            .setNeutralButton(R.string.nova_library_retry_high_fps) { _, _ -> onRetryHighFps() }
+            .setNegativeButton(R.string.nova_library_reset_game_profile) { _, _ -> onResetProfile() }
             .show()
     }
 
@@ -448,7 +601,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         if (opt == null) return NovaGameDetailOptimizationState()
 
         val profileState = opt.optJSONObject("profile_state")
-        val currentProfile = profileState?.optJSONObject("current_profile")
+        val currentProfile = profileState?.optJSONObject("current_profile") ?: opt.optJSONObject("effective_profile")
         val lastResult = profileState?.optJSONObject("last_result")
         val source = opt.optString("source", "")
         val confidence = opt.optString("confidence", "")
@@ -535,7 +688,14 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                 ?.optString("preference_note", "")
                 ?.takeIf { profilePreference != "auto" }
                 .orEmpty()
-            val fullReasoning = listOf(profileReason, preferenceNote, reasoning, normalizationReason)
+            val requestedFps = opt.optDouble("requested_target_fps", 0.0)
+            val effectiveFps = opt.optDouble("effective_target_fps", 0.0)
+            val requestedReason = if (requestedFps > 0.0 && effectiveFps > 0.0 && abs(requestedFps - effectiveFps) > 0.5) {
+                "Requested ${formatFps(requestedFps)} FPS, selected ${formatFps(effectiveFps)} FPS."
+            } else {
+                ""
+            }
+            val fullReasoning = listOf(profileReason, preferenceNote, requestedReason, reasoning, normalizationReason)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
 
@@ -613,7 +773,14 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             }
         }
 
-        return NovaGameDetailOptimizationState(ai = aiCard, stability = stabilityCard)
+        return NovaGameDetailOptimizationState(
+            ai = aiCard,
+            stability = stabilityCard,
+            profileSummary = buildNovaLaunchProfileSummary(opt),
+            rawOptimization = opt,
+            reviewRequired = StreamSyncManager.requiresLaunchPreflightReview(opt),
+            reviewReason = StreamSyncManager.launchPreflightReviewReason(opt)
+        )
     }
 
     private fun profileStateLabel(state: String): String {
@@ -717,7 +884,11 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
 data class NovaGameDetailOptimizationState(
     val ai: NovaGameDetailInsightCard? = null,
-    val stability: NovaGameDetailInsightCard? = null
+    val stability: NovaGameDetailInsightCard? = null,
+    val profileSummary: NovaLaunchProfileSummary? = null,
+    val rawOptimization: JSONObject? = null,
+    val reviewRequired: Boolean = false,
+    val reviewReason: String = ""
 )
 
 data class NovaGameDetailInsightCard(
@@ -752,6 +923,7 @@ fun NovaGameDetailSheetContent(
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
     onProfilePreference: () -> Unit,
+    onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
     onMangoHudChanged: (Boolean) -> Unit,
     onSteamLaunchMode: () -> Unit,
@@ -794,11 +966,13 @@ fun NovaGameDetailSheetContent(
             playLabel = playLabel,
             launchOptionsLabel = launchOptionsLabel,
             profilePreferenceLabel = profilePreferenceLabel,
+            profileSummary = optimizationState.profileSummary,
             resetProfileLabel = resetProfileLabel,
             resetProfileWorking = resetProfileWorking,
             onPrimaryLaunch = onPrimaryLaunch,
             onLaunchOptions = onLaunchOptions,
             onProfilePreference = onProfilePreference,
+            onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile
         )
 
@@ -951,11 +1125,13 @@ private fun LaunchControlsPanel(
     playLabel: String,
     launchOptionsLabel: String,
     profilePreferenceLabel: String,
+    profileSummary: NovaLaunchProfileSummary?,
     resetProfileLabel: String,
     resetProfileWorking: Boolean,
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
     onProfilePreference: () -> Unit,
+    onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit
 ) {
     NovaDetailPanel(
@@ -974,11 +1150,13 @@ private fun LaunchControlsPanel(
             playLabel = playLabel,
             launchOptionsLabel = launchOptionsLabel,
             profilePreferenceLabel = profilePreferenceLabel,
+            profileSummary = profileSummary,
             resetProfileLabel = resetProfileLabel,
             resetProfileWorking = resetProfileWorking,
             onPrimaryLaunch = onPrimaryLaunch,
             onLaunchOptions = onLaunchOptions,
             onProfilePreference = onProfilePreference,
+            onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile
         )
     }
@@ -1030,11 +1208,13 @@ private fun LaunchControls(
     playLabel: String,
     launchOptionsLabel: String,
     profilePreferenceLabel: String,
+    profileSummary: NovaLaunchProfileSummary?,
     resetProfileLabel: String,
     resetProfileWorking: Boolean,
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
     onProfilePreference: () -> Unit,
+    onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
@@ -1075,6 +1255,13 @@ private fun LaunchControls(
             maxLines = 3,
             overflow = TextOverflow.Ellipsis
         )
+
+        profileSummary?.let {
+            LaunchProfileSummaryInline(
+                summary = it,
+                onRetryHighFps = onRetryHighFps
+            )
+        }
 
         NovaActionButton(
             text = playLabel,
@@ -1135,6 +1322,90 @@ private fun LaunchControls(
             contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp)
         )
     }
+}
+
+@Composable
+private fun LaunchProfileSummaryInline(
+    summary: NovaLaunchProfileSummary,
+    onRetryHighFps: () -> Unit
+) {
+    val colors = LocalNovaComposeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+            .semantics { contentDescription = "Launch profile summary" }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp)
+                .heightIn(min = 1.dp, max = 1.dp)
+                .background(colors.divider.copy(alpha = 0.55f))
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Launch Profile",
+                    color = colors.accent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                ProfileSummaryText(summary.selectedLine, topPadding = 4)
+                ProfileSummaryText(summary.requestedLine)
+                ProfileSummaryText(summary.limitingLine)
+                ProfileSummaryText(summary.reasonLine)
+            }
+        }
+
+        if (summary.historyLines.isNotEmpty()) {
+            Text(
+                text = summary.historyLines.first(),
+                modifier = Modifier.padding(top = 4.dp),
+                color = colors.textMuted,
+                fontSize = 10.sp,
+                lineHeight = 13.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        } else {
+            ProfileSummaryText(summary.freshnessLine)
+        }
+
+        if (summary.showRetryHighFps) {
+            NovaActionButton(
+                text = summary.retryHighFpsLabel,
+                onClick = onRetryHighFps,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                contentDescription = summary.retryHighFpsLabel,
+                minHeight = 36.dp,
+                cornerRadius = 8.dp,
+                fontSize = 11.sp,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileSummaryText(text: String, topPadding: Int = 3) {
+    if (text.isBlank()) return
+    Text(
+        text = text,
+        modifier = Modifier.padding(top = topPadding.dp),
+        color = LocalNovaComposeColors.current.textMuted,
+        fontSize = 10.sp,
+        lineHeight = 13.sp,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 @Composable

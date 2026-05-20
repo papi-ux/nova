@@ -26,6 +26,7 @@ import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.Proxy
 import java.net.Socket
+import java.net.URLEncoder
 import java.security.KeyManagementException
 import java.security.KeyStore
 import java.security.KeyStoreException
@@ -689,6 +690,11 @@ class NvHTTP @Throws(IOException::class) constructor(
             }
         }
 
+        val profilePreference = streamConfig.getProfilePreference()
+            .takeIf { it.isNotBlank() }
+            ?.let { "&profilePreference=" + URLEncoder.encode(it, "UTF-8") }
+            ?: ""
+
         val xmlStr = openHttpConnectionToString(
             httpClientLongConnectNoReadTimeout,
             getHttpsUrl(true),
@@ -705,6 +711,7 @@ class NvHTTP @Throws(IOException::class) constructor(
                 (if (watchOnly) "&watch=1" else "") +
                 "&virtualDisplay=" + (if (streamConfig.getVirtualDisplay()) 1 else 0) +
                 "&displayModeExplicit=" + (if (streamConfig.getDisplayModeExplicit()) 1 else 0) +
+                profilePreference +
                 "&localAudioPlayMode=" + (if (streamConfig.getPlayLocalAudio()) 1 else 0) +
                 "&surroundAudioInfo=" + streamConfig.getAudioConfiguration()!!.getSurroundAudioInfo() +
                 "&remoteControllersBitmap=" + streamConfig.getAttachedGamepadMask() +

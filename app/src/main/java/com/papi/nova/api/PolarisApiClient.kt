@@ -77,6 +77,27 @@ class PolarisApiClient @JvmOverloads constructor(
                 .generateCertificate(ByteArrayInputStream(serverCertDer)) as X509Certificate
         }
 
+        @JvmStatic
+        fun buildOptimizationPath(
+            device: String,
+            game: String,
+            preference: String = "",
+            trial: String = ""
+        ): String {
+            val preferenceParam = preference
+                .takeIf { it.isNotBlank() }
+                ?.let { "&preference=${java.net.URLEncoder.encode(it, "UTF-8")}" }
+                ?: ""
+            val trialParam = trial
+                .takeIf { it.isNotBlank() }
+                ?.let { "&trial=${java.net.URLEncoder.encode(it, "UTF-8")}" }
+                ?: ""
+            return "/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
+                "&game=${java.net.URLEncoder.encode(game, "UTF-8")}" +
+                preferenceParam +
+                trialParam
+        }
+
         private fun parseStringArray(array: org.json.JSONArray?): List<String> {
             if (array == null) return emptyList()
             return (0 until array.length()).mapNotNull { index ->
@@ -1194,20 +1215,26 @@ class PolarisApiClient @JvmOverloads constructor(
      * Get AI-recommended streaming settings for a device+game combo.
      */
     @JvmOverloads
-    fun getOptimization(device: String, game: String, preference: String = ""): org.json.JSONObject? {
+    fun getOptimization(
+        device: String,
+        game: String,
+        preference: String = "",
+        trial: String = ""
+    ): org.json.JSONObject? {
         return try {
-            val preferenceParam = preference
-                .takeIf { it.isNotBlank() }
-                ?.let { "&preference=${java.net.URLEncoder.encode(it, "UTF-8")}" }
-                ?: ""
-            val url = "$baseUrl/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
-                      "&game=${java.net.URLEncoder.encode(game, "UTF-8")}" +
-                      preferenceParam
+            val url = "$baseUrl${buildOptimizationPath(device, game, preference, trial)}"
             val request = Request.Builder().url(url).get().build()
+            LimeLog.info("Nova: Optimization query start for $url")
             executeGetWithRetry(request).use { response ->
                 if (response.code == 200) {
-                    org.json.JSONObject(response.body?.string() ?: "{}")
-                } else null
+                    LimeLog.info("Nova: Optimization query HTTP 200 for $url")
+                    val body = response.body?.string() ?: "{}"
+                    LimeLog.info("Nova: Optimization query body received (${body.length} bytes)")
+                    org.json.JSONObject(body)
+                } else {
+                    LimeLog.warning("Nova: Optimization query returned HTTP ${response.code} for $url")
+                    null
+                }
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Optimization query failed: ${errorMessage(e)}")
