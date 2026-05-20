@@ -89,17 +89,23 @@ class PcGridAdapter(
             statusDot?.setBackgroundResource(R.drawable.nova_status_online)
             if (statusText != null) {
                 if (obj.details.pairState == PairingManager.PairState.PAIRED && obj.details.serverCert == null) {
-                    statusText.text = "Repair pair"
+                    statusText.setText(R.string.pcview_card_status_repair_pair)
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_warning))
                     primaryAction?.setText(R.string.pcview_card_action_pair)
-                    setStatusHint(statusHint, R.string.pcview_card_hint_pair)
+                    setStatusHint(statusHint, R.string.pcview_card_hint_pair_repair)
                 } else if (obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
-                    statusText.text = if (obj.details.serverCert == null) "Pair required" else "Repair pair"
+                    statusText.setText(
+                        if (obj.details.serverCert == null) {
+                            R.string.pcview_card_status_pair_required
+                        } else {
+                            R.string.pcview_card_status_repair_pair
+                        }
+                    )
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_warning))
                     primaryAction?.setText(R.string.pcview_card_action_pair)
                     setStatusHint(statusHint, R.string.pcview_card_hint_pair)
                 } else if (obj.details.runningGameId != 0) {
-                    statusText.text = "Streaming"
+                    statusText.setText(R.string.pcview_card_status_streaming)
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_success))
                     primaryAction?.setText(
                         if (obj.details.currentGameOwnedByClient == false) {
@@ -110,19 +116,23 @@ class PcGridAdapter(
                     )
                     setStatusHint(statusHint, R.string.pcview_card_hint_streaming)
                 } else if (obj.details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
-                    val addr = obj.details.activeAddress?.address ?: ""
-                    statusText.text = "Library ready \u00b7 $addr"
+                    statusText.text = context.getString(
+                        R.string.pcview_card_status_library_ready_format,
+                        formatAddressSuffix(obj.details.activeAddress?.address)
+                    )
                     statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
                     primaryAction?.setText(R.string.pcview_card_action_open_library)
                     setStatusHint(statusHint, R.string.pcview_card_hint_open_library)
                 } else if (obj.details.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
-                    statusText.text = "Checking library"
+                    statusText.setText(R.string.pcview_card_status_checking_library)
                     statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
                     primaryAction?.setText(R.string.pcview_card_action_checking_library)
                     setStatusHint(statusHint, R.string.pcview_card_hint_checking_library)
                 } else {
-                    val addr = obj.details.activeAddress?.address ?: ""
-                    statusText.text = "Compatibility mode \u00b7 $addr"
+                    statusText.text = context.getString(
+                        R.string.pcview_card_status_compatibility_format,
+                        formatAddressSuffix(obj.details.activeAddress?.address)
+                    )
                     statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
                     primaryAction?.setText(R.string.pcview_card_action_open_apps)
                     setStatusHint(statusHint, R.string.pcview_card_hint_open_apps)
@@ -132,16 +142,21 @@ class PcGridAdapter(
             imgView.alpha = 0.4f
             statusDot?.setBackgroundResource(R.drawable.nova_status_offline)
             if (statusText != null) {
-                statusText.text = "Offline"
+                statusText.setText(R.string.pcview_card_status_offline)
                 statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
             }
-            primaryAction?.setText(R.string.pcview_card_action_wake)
-            setStatusHint(statusHint, R.string.pcview_card_hint_wake)
+            if (obj.details.macAddress != null) {
+                primaryAction?.setText(R.string.pcview_card_action_wake)
+                setStatusHint(statusHint, R.string.pcview_card_hint_wake)
+            } else {
+                primaryAction?.setText(R.string.pcview_card_action_refreshing)
+                setStatusHint(statusHint, R.string.pcview_card_hint_offline_no_wake)
+            }
         } else {
             imgView.alpha = 0.6f
             statusDot?.setBackgroundResource(R.drawable.nova_status_connecting)
             if (statusText != null) {
-                statusText.text = "Connecting\u2026"
+                statusText.setText(R.string.pcview_card_status_connecting)
                 statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
             }
             primaryAction?.setText(R.string.pcview_card_action_refreshing)
@@ -180,6 +195,9 @@ class PcGridAdapter(
         val primaryAction = getPcHolder(parentView).primaryAction
         primaryAction?.isSelected = hasFocus
     }
+
+    private fun formatAddressSuffix(address: String?): String =
+        address?.takeIf { it.isNotBlank() } ?: context.getString(R.string.pcview_card_status_local_network)
 
     private fun setStatusHint(statusHint: TextView?, textRes: Int) {
         statusHint ?: return
