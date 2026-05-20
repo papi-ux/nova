@@ -424,13 +424,18 @@ class NovaLibraryActivity : AppCompatActivity() {
             apiClient = apiClient,
             defaultToVirtualDisplay = defaultToVirtualDisplay,
             clientSettings = clientSettings
-        ) { selectedGame, withVirtualDisplay ->
-            launchGame(selectedGame, withVirtualDisplay)
+        ) { selectedGame, withVirtualDisplay, profilePreference, preflightOptimization ->
+            launchGame(selectedGame, withVirtualDisplay, profilePreference, preflightOptimization)
         }
         detailSheet?.show(supportFragmentManager, "game_detail")
     }
 
-    private fun launchGame(game: PolarisGame, withVirtualDisplay: Boolean) {
+    private fun launchGame(
+        game: PolarisGame,
+        withVirtualDisplay: Boolean,
+        profilePreference: String = "auto",
+        preflightOptimization: org.json.JSONObject? = null
+    ) {
         if (game.appId <= 0) {
             Toast.makeText(this, "This game entry is missing a launch ID", Toast.LENGTH_SHORT).show()
             return
@@ -462,6 +467,21 @@ class NovaLibraryActivity : AppCompatActivity() {
             if (!mangoHudSynced) {
                 LimeLog.warning("Nova: MangoHUD launch state sync failed; continuing launch")
             }
+            val preferences = com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity)
+            val syncedSettings = withContext(Dispatchers.IO) {
+                apiClient.updateClientSettings(
+                    streamDisplayMode = if (withVirtualDisplay) "host_virtual_display" else "headless_stream",
+                    displayMode = com.papi.nova.preferences.PreferenceConfiguration.formatStreamingDisplayMode(
+                        preferences.width,
+                        preferences.height,
+                        preferences.fps
+                    ),
+                    targetBitrateKbps = preferences.bitrate.takeIf { it > 0 }
+                )
+            }
+            if (syncedSettings == null) {
+                LimeLog.warning("Nova: Preflight client settings sync failed; continuing launch")
+            }
 
             val app = NvApp(game.name, game.id, game.appId, game.hdrSupported)
             ServerHelper.doStart(
@@ -477,7 +497,9 @@ class NovaLibraryActivity : AppCompatActivity() {
                 withVirtualDisplay,
                 true,
                 false,
-                serverCert
+                serverCert,
+                aiProfilePreference = profilePreference,
+                launchOptimizationJson = preflightOptimization?.toString()
             )
         }
     }

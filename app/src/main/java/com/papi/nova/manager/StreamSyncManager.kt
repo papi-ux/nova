@@ -252,6 +252,83 @@ class StreamSyncManager private constructor() {
         }
 
         @JvmStatic
+        fun requiresLaunchPreflightReview(optimization: JSONObject?): Boolean {
+            if (optimization == null) {
+                return false
+            }
+
+            if (hasMaterialFpsOverride(optimization)) {
+                return true
+            }
+
+            val profileState = optimization.optJSONObject("profile_state")
+            val preference = normalized(
+                profileState?.optString("preference", "")?.takeIf { it.isNotBlank() }
+                    ?: optimization.optString("preference", "auto")
+            )
+            val preferenceApplied =
+                if (profileState != null && profileState.has("preference_applied")) {
+                    profileState.optBoolean("preference_applied", preference == "auto")
+                } else {
+                    optimization.optBoolean("preference_applied", preference == "auto")
+                }
+            if (preference == "high_fps" && !hasMaterialFpsOverride(optimization)) {
+                return false
+            }
+
+            return preference != "auto" && !preferenceApplied &&
+                explicitPreferenceBlockReason(optimization).isNotEmpty()
+        }
+
+        @JvmStatic
+        fun launchPreflightReviewReason(optimization: JSONObject?): String {
+            if (optimization == null) {
+                return ""
+            }
+
+            val profileState = optimization.optJSONObject("profile_state")
+            val preference = normalized(
+                profileState?.optString("preference", "")?.takeIf { it.isNotBlank() }
+                    ?: optimization.optString("preference", "auto")
+            )
+            if (preference == "high_fps" && !hasMaterialFpsOverride(optimization)) {
+                return ""
+            }
+
+            explicitPreferenceBlockReason(optimization).takeIf { it.isNotEmpty() }?.let {
+                return it
+            }
+
+            if (hasMaterialFpsOverride(optimization)) {
+                return "fps_override"
+            }
+
+            return ""
+        }
+
+        private fun hasMaterialFpsOverride(optimization: JSONObject): Boolean {
+            val requestedFps = optimization.optDouble("requested_target_fps", 0.0)
+            val effectiveFps = optimization.optDouble("effective_target_fps", 0.0)
+            return requestedFps > 0.0 && effectiveFps > 0.0 &&
+                kotlin.math.abs(requestedFps - effectiveFps) > 0.5
+        }
+
+        private fun explicitPreferenceBlockReason(optimization: JSONObject): String {
+            val profileState = optimization.optJSONObject("profile_state")
+            val stateReason = normalized(profileState?.optString("preference_blocked_reason", "none"))
+            if (stateReason.isNotEmpty() && stateReason != "none") {
+                return stateReason
+            }
+
+            val topLevelReason = normalized(optimization.optString("preference_blocked_reason", "none"))
+            if (topLevelReason.isNotEmpty() && topLevelReason != "none") {
+                return topLevelReason
+            }
+
+            return ""
+        }
+
+        @JvmStatic
         fun shouldPreferStableRefreshMultiple(optimization: JSONObject?, targetFps: Float): Boolean {
             if (optimization == null || targetFps <= 0f || targetFps > 45f) {
                 return false
