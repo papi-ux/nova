@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 - 2026-05-20
+
+- Added structured stream performance samples from the video renderer so NovaHUD can consume typed metrics without reparsing the legacy overlay text path.
+- Reworked the NovaHUD sparkline path around a fixed primitive ring buffer and focused snapshots to reduce stream-loop allocation pressure.
+- Routed structured performance samples into NovaHUD while preserving the legacy performance overlay behavior.
+- Expanded Baseline Profile coverage for library detail, settings, and launch-adjacent Compose surfaces.
+- Documented the JNI bridge measurement gate for future `@FastNative` and `@CriticalNative` work instead of annotating JNI calls before profiling proves they are safe.
+- Verified the debug ARM64 APK on a Retroid Pocket 6 over wireless ADB with Polaris library launch, HEVC stream resume, NovaHUD enablement, Command Center disconnect, and clean log/crash-buffer checks.
+
 ## 1.0.10 - 2026-05-19
 
 - Migrated upgraded installs that still carried the old Balanced 720p stream resolution so Shield, Retroid, and Android TV clients request 1080p after updating.

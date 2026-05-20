@@ -4,6 +4,112 @@ This file records the measurement-only evidence pass for the Nova audit
 follow-up video work. It does not tune frame-drop thresholds, decoder watchdog
 timing, frame pacing policy, or launch-quality decisions.
 
+## 2026-05-20 Retroid 6 1.1.0 Performance-Hardening Stream
+
+- Branch: `nova/1.1.0-performance-hardening`
+- Base commit: `796bb1fb351cba0bfc11af54accb043a0503a841`
+- APK: `app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk`
+- Package: `com.papi.nova.debug`
+- Device: Retroid Pocket 6, Android 13
+- Host: `pc-papi.lan`
+- Scenario: install the ARM64 debug APK, repair Trusted Pair for the debug
+  package, open the Polaris library, launch Steam Big Picture, resume the
+  active session, enable NovaHUD from Command Center, then disconnect back to
+  the Nova library.
+
+### Build And Install
+
+```bash
+./gradlew -PnovaAbis=x86_64 testNonRoot_gameDebugUnitTest --console=plain
+git submodule update --init --recursive
+./gradlew -PnovaAbis=arm64-v8a assembleNonRoot_gameDebug --console=plain
+adb -s adb-24c12bdd-gitDJe._adb-tls-connect._tcp install -r app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk
+```
+
+The first ARM64 assemble attempt found the checkout had not initialized the
+native `moonlight-common-c` submodule. After initializing submodules, the ARM64
+debug APK built successfully and installed over wireless ADB.
+
+### Stream Observations
+
+- Trusted Pair repaired the debug package pairing with the Polaris host.
+- Polaris library loaded with `19` games and `13` recent entries.
+- Steam Big Picture launched and resumed into
+  `com.papi.nova.debug/com.papi.nova.Game`.
+- Polaris reported `v1.0.18.dirty` with AI, GameLib, AIControl, Adaptive,
+  Session, Devices, Lock, Cursor, and Sync enabled.
+- Native stream logs reported `RTSP port: 49021`, `Starting video stream...`,
+  and `Received first video packet after 0 ms`.
+- Decoder setup selected `c2.qti.hevc.decoder.low_latency` for hardware
+  decoding `video/hevc` with `width=1920`, `height=1080`, and
+  `frame-rate=60`.
+- Command Center toggled NovaHUD from `Off` to `On` during the focused pass.
+  The live HUD showed host-render-limited status, `11/60` FPS, `6ms`,
+  `21M`, `1080p`, and `HEVC`.
+- Disconnect returned to
+  `com.papi.nova.debug/com.papi.nova.ui.NovaLibraryActivity`.
+- Disconnect logs included `Stopping video stream...`,
+  `Stopping control stream...`, and `ENet peer acknowledged disconnection`.
+
+### Sanitized HUD Summary
+
+The focused pass produced the HUD summary before local disconnect:
+
+```json
+{
+  "avg_fps": 11.816755746549308,
+  "target_fps": 60.0,
+  "low_1_percent_fps": 11.758942604064941,
+  "min_fps": 11.758942604064941,
+  "frame_pacing_bad_pct": 100.0,
+  "safe_target_fps": 30.0,
+  "avg_latency_ms": 6.756756756756757,
+  "avg_bitrate_kbps": 25000,
+  "packet_loss_pct": 0.0,
+  "codec": "HEVC",
+  "duration_s": 112,
+  "samples": 222,
+  "recommendation_version": 0,
+  "health_grade": "watch",
+  "primary_issue": "host_render_limited",
+  "issues": ["host_render_limited"],
+  "decoder_risk": "normal",
+  "hdr_risk": "normal",
+  "network_risk": "normal",
+  "capture_path": "desktop",
+  "safe_bitrate_kbps": 12000,
+  "safe_codec": "hevc",
+  "safe_display_mode": "headless",
+  "safe_hdr": false,
+  "relaunch_recommended": true
+}
+```
+
+The summary omits host, device serial, unique client ID, token, and IP fields.
+It contains only session metrics, health classification, codec/capture metadata,
+and safe-stream recommendations.
+
+### Log Checks
+
+```bash
+adb -s adb-24c12bdd-gitDJe._adb-tls-connect._tcp logcat -d > /tmp/nova-1.1.0-retroid-stream.log
+adb -s adb-24c12bdd-gitDJe._adb-tls-connect._tcp logcat -b crash -d > /tmp/nova-1.1.0-retroid-crash.log
+rg -i "FATAL EXCEPTION|ANR in com\\.papi\\.nova|AndroidRuntime.*FATAL" /tmp/nova-1.1.0-retroid-stream.log
+rg -i "com\\.papi\\.nova|FATAL EXCEPTION|AndroidRuntime|ANR" /tmp/nova-1.1.0-retroid-crash.log
+```
+
+No fatal exception or ANR matches were found in the main log. The crash buffer
+grep found no Nova crash entries.
+
+### Notes
+
+- The Retroid's Android launcher intercepted ADB-injected Guide/Mode chords, so
+  the physical Guide+Y shortcut was not used for this automated pass. NovaHUD
+  was enabled from Command Center through the Back-key quick-menu path.
+- Disconnect is Nova's local disconnect action. The Polaris session remained
+  resumable in the library afterward, as expected for disconnect rather than
+  end-session.
+
 ## 2026-05-17 Flip 2 Current Master HUD Summary Stream
 
 - Branch: `nova/video-current-master-evidence`
