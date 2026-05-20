@@ -14,6 +14,13 @@ import org.robolectric.annotation.Config
 class PolarisApiClientParsingTest {
 
     @Test
+    fun parseUnlockResponse_requiresSuccessFlag() {
+        assertFalse(PolarisApiClient.parseUnlockResponse(JSONObject("{\"success\":false,\"was_locked\":true}")))
+        assertTrue(PolarisApiClient.parseUnlockResponse(JSONObject("{\"success\":true,\"was_locked\":true}")))
+        assertFalse(PolarisApiClient.parseUnlockResponse(JSONObject("{\"was_locked\":true}")))
+    }
+
+    @Test
     fun parseCapabilitiesResponse_includesCursorVisibilityControl() {
         val json = JSONObject(
             "{\"server\":\"polaris\",\"version\":\"1.0.0\"," +

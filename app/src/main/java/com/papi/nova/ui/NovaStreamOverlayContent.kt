@@ -46,7 +46,8 @@ data class NovaSessionProgressUiState(
         )
 
         fun from(state: String, message: String = ""): NovaSessionProgressUiState {
-            val index = stages.indexOfFirst { it.first == state }
+            val displayState = if (state == "idle") "initializing" else state
+            val index = stages.indexOfFirst { it.first == displayState }
             val title = stages.getOrNull(index)?.second ?: message.ifEmpty { state }
             val completed = if (index >= 0) {
                 stages.take(index).map { it.second }
@@ -54,7 +55,7 @@ data class NovaSessionProgressUiState(
                 emptyList()
             }
             return NovaSessionProgressUiState(
-                state = state,
+                state = displayState,
                 title = title,
                 completedStages = completed
             )
