@@ -1005,19 +1005,19 @@ class NovaLibraryActivity : AppCompatActivity() {
                 }
                 .combinedClickable(onClick = onPrimaryAction)
                 .focusable()
-                .padding(if (compact) 10.dp else 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp),
+                .padding(if (compact) 8.dp else 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 5.dp)
+                verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 5.dp)
             ) {
                 Text(
                     text = hero.eyebrow.uppercase(),
                     color = colors.accent,
-                    fontSize = if (compact) 11.sp else 12.sp,
-                    lineHeight = if (compact) 13.sp else 14.sp,
+                    fontSize = if (compact) 10.sp else 12.sp,
+                    lineHeight = if (compact) 12.sp else 14.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1025,8 +1025,8 @@ class NovaLibraryActivity : AppCompatActivity() {
                 Text(
                     text = hero.title,
                     color = colors.textPrimary,
-                    fontSize = if (compact) 24.sp else 30.sp,
-                    lineHeight = if (compact) 27.sp else 34.sp,
+                    fontSize = if (compact) 22.sp else 30.sp,
+                    lineHeight = if (compact) 24.sp else 34.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1034,8 +1034,8 @@ class NovaLibraryActivity : AppCompatActivity() {
                 Text(
                     text = hero.subtitle,
                     color = colors.textSecondary,
-                    fontSize = if (compact) 12.sp else 14.sp,
-                    lineHeight = if (compact) 14.sp else 16.sp,
+                    fontSize = if (compact) 11.sp else 14.sp,
+                    lineHeight = if (compact) 13.sp else 16.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1063,9 +1063,9 @@ class NovaLibraryActivity : AppCompatActivity() {
             NovaActionButton(
                 text = hero.actionLabel,
                 onClick = onPrimaryAction,
-                modifier = Modifier.widthIn(min = if (compact) 118.dp else 148.dp),
-                minHeight = if (compact) 42.dp else 48.dp,
-                fontSize = if (compact) 12.sp else 14.sp
+                modifier = Modifier.widthIn(min = if (compact) 110.dp else 148.dp),
+                minHeight = if (compact) 38.dp else 48.dp,
+                fontSize = if (compact) 11.sp else 14.sp
             )
         }
     }

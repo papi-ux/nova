@@ -151,13 +151,17 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "hero caption stack should use tighter vertical spacing to avoid clipped badge rows",
-            hero.contains("Arrangement.spacedBy(if (compact) 3.dp else 5.dp)")
+            hero.contains("Arrangement.spacedBy(if (compact) 2.dp else 5.dp)")
+        )
+        assertTrue(
+            "compact hero should use tighter padding so the continue strip gives vertical room back to the grid",
+            hero.contains(".padding(if (compact) 8.dp else 16.dp)")
         )
         assertTrue(
             "hero text stack should declare compact line heights so captions do not inherit oversized body metrics",
-            hero.contains("lineHeight = if (compact) 13.sp else 14.sp") &&
-                hero.contains("lineHeight = if (compact) 27.sp else 34.sp") &&
-                hero.contains("lineHeight = if (compact) 14.sp else 16.sp") &&
+            hero.contains("lineHeight = if (compact) 12.sp else 14.sp") &&
+                hero.contains("lineHeight = if (compact) 24.sp else 34.sp") &&
+                hero.contains("lineHeight = if (compact) 13.sp else 16.sp") &&
                 hero.contains("lineHeight = if (compact) 13.sp else 15.sp")
         )
         assertTrue(
