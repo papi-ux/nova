@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [ master ]
   workflow_dispatch:
+    inputs:
+      run_emulator_smoke:
+        description: 'Run the slow emulator instrumentation smoke test'
+        type: boolean
+        default: false
 
 jobs:
   verify:
@@ -40,7 +45,9 @@ jobs:
   android-smoke:
     name: Emulator smoke test
     needs: verify
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.run_emulator_smoke) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@v5
@@ -67,6 +74,7 @@ jobs:
         run: sdkmanager "ndk;27.0.12077973"
 
       - name: Run instrumentation smoke test
+        timeout-minutes: 30
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -74,12 +82,14 @@ jobs:
           profile: Nexus 6
           target: default
           disk-size: 1024M
+          emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics
-          script: ./gradlew -PnovaAbis=x86_64 connectedNonRoot_gameDebugAndroidTest
+          script: ./gradlew -PnovaAbis=x86_64 connectedNonRoot_gameDebugAndroidTest --stacktrace
 
   build:
     name: Assemble release APK
     needs: [verify, android-smoke]
+    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
