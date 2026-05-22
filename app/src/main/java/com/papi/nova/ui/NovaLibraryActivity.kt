@@ -967,6 +967,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         val heroGame = hero.game
         val height = NovaLibraryUiStateMapper.heroHeightDp(compact = compact).dp
+        val showCaption = !compact || hero.badges.isEmpty()
         var focused by remember { mutableStateOf(false) }
         LaunchedEffect(focused, heroGame) {
             if (focused && heroGame != null) {
@@ -1004,13 +1005,13 @@ class NovaLibraryActivity : AppCompatActivity() {
                 }
                 .combinedClickable(onClick = onPrimaryAction)
                 .focusable()
-                .padding(if (compact) 12.dp else 18.dp),
+                .padding(if (compact) 10.dp else 16.dp),
             horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)
+                verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 5.dp)
             ) {
                 Text(
                     text = hero.eyebrow.uppercase(),
@@ -1038,14 +1039,16 @@ class NovaLibraryActivity : AppCompatActivity() {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = hero.caption,
-                    color = colors.textSecondary.copy(alpha = 0.86f),
-                    fontSize = if (compact) 11.sp else 13.sp,
-                    lineHeight = if (compact) 13.sp else 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                if (showCaption) {
+                    Text(
+                        text = hero.caption,
+                        color = colors.textSecondary.copy(alpha = 0.86f),
+                        fontSize = if (compact) 11.sp else 13.sp,
+                        lineHeight = if (compact) 13.sp else 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 if (hero.badges.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),

@@ -307,7 +307,11 @@ class NovaLibraryUiStateTest {
     @Test
     fun layoutMetricsMakeRetroidLandscapeGameSelectionPrimary() {
         assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
-        assertEquals(128, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
+        assertEquals(108, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
+        assertTrue(
+            "compact landscape resume hero should stay short enough to keep the grid primary on Retroid-class screens",
+            NovaLibraryUiStateMapper.heroHeightDp(compact = true) <= 112
+        )
         assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
         assertEquals(168, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = false))
     }

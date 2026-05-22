@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.app.Dialog
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.os.Build
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.Window
@@ -12,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.papi.nova.Game
@@ -48,6 +50,15 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 setDimAmount(0f)
                 setGravity(Gravity.START or Gravity.TOP)
+                decorView.setPadding(0, 0, 0, 0)
+                WindowCompat.setDecorFitsSystemWindows(this, false)
+                attributes = attributes.apply {
+                    x = 0
+                    y = 0
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    }
+                }
                 setLayout(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT

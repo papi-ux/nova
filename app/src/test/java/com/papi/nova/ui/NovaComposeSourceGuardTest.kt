@@ -151,7 +151,7 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "hero caption stack should use tighter vertical spacing to avoid clipped badge rows",
-            hero.contains("Arrangement.spacedBy(if (compact) 4.dp else 6.dp)")
+            hero.contains("Arrangement.spacedBy(if (compact) 3.dp else 5.dp)")
         )
         assertTrue(
             "hero text stack should declare compact line heights so captions do not inherit oversized body metrics",
@@ -760,6 +760,11 @@ class NovaComposeSourceGuardTest {
                 quickMenu.contains("Gravity.START")
         )
         assertTrue(
+            "full-screen Command Center dialog must remove platform/decor insets so the drawer is visually flush with the left display edge",
+            quickMenu.contains("decorView.setPadding(0, 0, 0, 0)") &&
+                quickMenu.contains("layoutInDisplayCutoutMode =")
+        )
+        assertTrue(
             "Command Center content should render inside a named left-side drawer wrapper",
             quickMenu.contains("NovaQuickMenuDrawer(") &&
                 content.contains("fun NovaQuickMenuDrawer(")
@@ -777,6 +782,10 @@ class NovaComposeSourceGuardTest {
             "left drawer should use trailing rounded corners, not a bottom-sheet top-only shape",
             content.contains("RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)") &&
                 !content.contains("RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)")
+        )
+        assertTrue(
+            "drawer surface should be opaque enough at x=0 that it reads as attached instead of floating over the stream",
+            content.contains("surfaces.panel.copy(alpha = 0.96f)")
         )
         assertTrue(
             "scrim should dismiss the Command Center while keeping the stream visible behind the drawer",

@@ -430,7 +430,7 @@ object NovaLibraryUiStateMapper {
     }
 
     fun heroHeightDp(compact: Boolean): Int {
-        return if (compact) 128 else 178
+        return if (compact) 108 else 164
     }
 
     fun showLandscapeRecentRail(

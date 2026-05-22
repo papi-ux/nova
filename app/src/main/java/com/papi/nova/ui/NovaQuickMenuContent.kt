@@ -190,7 +190,7 @@ fun NovaQuickMenuContent(
             .fillMaxWidth()
             .fillMaxHeight()
             .clip(drawerShape)
-            .background(surfaces.panel.copy(alpha = 0.90f))
+            .background(surfaces.panel.copy(alpha = 0.96f))
             .border(
                 width = 1.dp,
                 color = surfaces.panelBorder,
