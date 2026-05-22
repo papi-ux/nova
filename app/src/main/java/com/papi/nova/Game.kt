@@ -9,6 +9,8 @@ import com.papi.nova.binding.audio.AndroidAudioRenderer
 import com.papi.nova.binding.input.ControllerHandler
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.KeyboardTranslator
+import com.papi.nova.binding.input.NovaControllerShortcutAction
+import com.papi.nova.binding.input.NovaControllerShortcutState
 import com.papi.nova.binding.input.capture.InputCaptureManager
 import com.papi.nova.binding.input.capture.InputCaptureProvider
 import com.papi.nova.binding.input.touch.AbsoluteTouchContext
@@ -200,6 +202,7 @@ private var app:NvApp? = null
 private var desiredRefreshRate:Float = 0.toFloat()
 
 private var inputCaptureProvider:InputCaptureProvider? = null
+private val fallbackNovaShortcutState:NovaControllerShortcutState = NovaControllerShortcutState()
 private var modifierFlags:Int = 0
 private var grabbedInput:Boolean = true
 private var cursorVisible:Boolean = false
@@ -1831,6 +1834,10 @@ super.onWindowFocusChanged(hasFocus)
  // We can't guarantee the state of modifiers keys which may have
         // lifted while focus was not on us. Clear the modifier state.
         this.modifierFlags = 0
+if (!hasFocus)
+{
+fallbackNovaShortcutState.reset()
+}
 
  // With Android native pointer capture, capture is lost when focus is lost,
         // so it must be requested again when focus is regained.
@@ -2689,6 +2696,41 @@ else ->
         return false
 }
 
+private fun handleFallbackNovaShortcut(event:KeyEvent, down:Boolean):Boolean {
+if (event.getDeviceId() > 0)
+{
+return false
+}
+
+val keyCode = event.getKeyCode()
+val action = if (down)
+{
+fallbackNovaShortcutState.onButtonDown(keyCode, event.getRepeatCount())
+}
+else
+{
+fallbackNovaShortcutState.onButtonUp(keyCode)
+}
+
+when (action) {
+NovaControllerShortcutAction.OPEN_QUICK_MENU -> {
+showGameMenu(null)
+return true
+}
+NovaControllerShortcutAction.CYCLE_NOVA_HUD -> {
+cycleNovaHudFromController()
+return true
+}
+NovaControllerShortcutAction.DEFER_GUIDE,
+NovaControllerShortcutAction.CONSUME_CHORD_BUTTON,
+-> return true
+NovaControllerShortcutAction.FORWARD_GUIDE_TO_HOST,
+NovaControllerShortcutAction.PASS_THROUGH_GUIDE_TAP,
+NovaControllerShortcutAction.NONE,
+-> return false
+}
+}
+
  // We cannot simply use modifierFlags for all key event processing, because
     // some IMEs will not generate real key events for pressing Shift. Instead
     // they will simply send key events with isShiftPressed() returning true,
@@ -2726,6 +2768,10 @@ return false
 }
 
 var deviceId:Int = event!!.getDeviceId()
+if (handleFallbackNovaShortcut(event, down = true))
+{
+return true
+}
 if (prefConfig!!.ignoreSynthEvents && deviceId <= 0)
 {
 return false
@@ -2825,6 +2871,10 @@ return false
 }
 
 var deviceId:Int = event!!.getDeviceId()
+if (handleFallbackNovaShortcut(event, down = false))
+{
+return true
+}
 if (prefConfig!!.ignoreSynthEvents && deviceId <= 0)
 {
 return false

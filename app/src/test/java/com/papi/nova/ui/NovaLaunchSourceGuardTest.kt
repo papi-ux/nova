@@ -195,6 +195,45 @@ class NovaLaunchSourceGuardTest {
         )
     }
 
+    @Test
+    fun gameAcceptsSyntheticNovaControllerShortcutBeforeIgnoringAdbKeyEvents() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val handleKeyDown = game.section(
+            "override fun handleKeyDown(event:KeyEvent):Boolean",
+            "override fun onKeyUp("
+        )
+        val handleKeyUp = game.section(
+            "override fun handleKeyUp(event:KeyEvent):Boolean",
+            "override fun onKeyMultiple("
+        )
+        val shortcutHandler = game.section(
+            "private fun handleFallbackNovaShortcut(",
+            "// We cannot simply use modifierFlags"
+        )
+
+        assertTrue(
+            "Game should keep a fallback shortcut state for adb/synthetic controller keyevents that are not attached to a recognized game controller",
+            game.contains("fallbackNovaShortcutState")
+        )
+        assertTrue(
+            "synthetic Nova shortcut handling must run before ignoreSynthEvents can discard adb keyevents",
+            handleKeyDown.indexOf("handleFallbackNovaShortcut(event, down = true)") <
+                handleKeyDown.indexOf("prefConfig!!.ignoreSynthEvents") &&
+                handleKeyUp.indexOf("handleFallbackNovaShortcut(event, down = false)") <
+                handleKeyUp.indexOf("prefConfig!!.ignoreSynthEvents")
+        )
+        assertTrue(
+            "fallback Guide/Mode + Start/Menu should open the Command Center without requiring a GameInputDevice context",
+            shortcutHandler.contains("NovaControllerShortcutAction.OPEN_QUICK_MENU") &&
+                shortcutHandler.contains("showGameMenu(null)")
+        )
+        assertTrue(
+            "fallback shortcuts should still support NovaHUD cycling for adb/controller smoke parity",
+            shortcutHandler.contains("NovaControllerShortcutAction.CYCLE_NOVA_HUD") &&
+                shortcutHandler.contains("cycleNovaHudFromController()")
+        )
+    }
+
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
 
