@@ -1,18 +1,26 @@
 package com.papi.nova.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +58,7 @@ import com.papi.nova.ui.compose.NovaActionButton
 import androidx.compose.ui.res.stringResource
 
 data class NovaQuickMenuCallbacks(
+    val onDismiss: () -> Unit = {},
     val onDisconnect: () -> Unit = {},
     val onEndStream: () -> Unit = {},
     val onStability: () -> Unit = {},
@@ -92,6 +102,74 @@ data class NovaQuickMenuCallbacks(
 }
 
 @Composable
+fun NovaQuickMenuDrawer(
+    state: NovaQuickMenuUiState,
+    callbacks: NovaQuickMenuCallbacks,
+    modifier: Modifier = Modifier
+) {
+    val configuration = LocalConfiguration.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    var drawerVisible by remember { mutableStateOf(false) }
+    val compactDrawerWidth = (configuration.screenWidthDp * 0.92f).dp
+    val drawerWidth = if (configuration.screenWidthDp < 560) {
+        compactDrawerWidth
+    } else {
+        460.dp
+    }
+
+    LaunchedEffect(Unit) {
+        drawerVisible = true
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        AnimatedVisibility(
+            visible = drawerVisible,
+            enter = fadeIn(animationSpec = tween(160)),
+            exit = fadeOut(animationSpec = tween(120))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(surfaces.backgroundScrim.copy(alpha = 0.38f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
+                        onClick = callbacks.onDismiss
+                    )
+                    .semantics { contentDescription = "Dismiss Command Center" }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = drawerVisible,
+            enter = slideInHorizontally(
+                initialOffsetX = { fullWidth -> -fullWidth },
+                animationSpec = tween(190)
+            ) + fadeIn(animationSpec = tween(140)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { fullWidth -> -fullWidth },
+                animationSpec = tween(140)
+            ) + fadeOut(animationSpec = tween(100)),
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(drawerWidth)
+                    .widthIn(max = 460.dp)
+            ) {
+                NovaQuickMenuContent(
+                    state = state,
+                    callbacks = callbacks,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun NovaQuickMenuContent(
     state: NovaQuickMenuUiState,
     callbacks: NovaQuickMenuCallbacks,
@@ -99,9 +177,10 @@ fun NovaQuickMenuContent(
 ) {
     val configuration = LocalConfiguration.current
     val isWide = configuration.screenWidthDp >= 560
-    val maxHeight = (configuration.screenHeightDp * 0.92f).dp
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
+    val drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
+    val quickKeysTitle = stringResource(R.string.nova_quick_menu_quick_keys)
     val overlaysTitle = stringResource(R.string.nova_quick_menu_overlays)
     val controlsTitle = stringResource(R.string.nova_quick_menu_controls)
     val sessionTitle = stringResource(R.string.nova_quick_menu_session)
@@ -109,24 +188,24 @@ fun NovaQuickMenuContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = maxHeight)
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .fillMaxHeight()
+            .clip(drawerShape)
             .background(surfaces.panel.copy(alpha = 0.90f))
             .border(
                 width = 1.dp,
                 color = surfaces.panelBorder,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                shape = drawerShape
             )
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .padding(horizontal = 16.dp, vertical = 18.dp)
     ) {
         Box(
             modifier = Modifier
-                .width(38.dp)
-                .height(4.dp)
+                .width(44.dp)
+                .height(3.dp)
                 .clip(RoundedCornerShape(99.dp))
-                .background(colors.textMuted.copy(alpha = 0.42f))
-                .align(Alignment.CenterHorizontally)
+                .background(colors.accent.copy(alpha = 0.74f))
+                .align(Alignment.Start)
         )
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuHeader(state, callbacks)
@@ -162,7 +241,9 @@ fun NovaQuickMenuContent(
             }
         }
         Spacer(Modifier.height(12.dp))
-        NovaQuickKeys(state.quickKeys, callbacks)
+        NovaQuickMenuPanel(title = quickKeysTitle) {
+            NovaQuickKeys(state.quickKeys, callbacks)
+        }
         Spacer(Modifier.height(10.dp))
         if (isWide) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

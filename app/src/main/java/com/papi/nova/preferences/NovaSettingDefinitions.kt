@@ -120,7 +120,7 @@ object NovaSettingDefinitions {
             summary = resolveText(context, "summary"),
             categoryKey = categoryKey,
             type = type,
-            defaultValue = resolveDefaultValue(type),
+            defaultValue = key.resolveSyntheticDefaultValue() ?: resolveDefaultValue(type),
             options = options,
             dependencyKey = getAttributeValue(ANDROID_NS, "dependency"),
             min = if (type == NovaSettingType.Slider) getAttributeIntValue(SEEK_NS, "min", 0) else null,
@@ -163,6 +163,13 @@ object NovaSettingDefinitions {
             NovaSettingType.Select,
             NovaSettingType.Text -> NovaSettingValue.StringValue(raw)
             NovaSettingType.Action -> null
+        }
+    }
+
+    private fun String.resolveSyntheticDefaultValue(): NovaSettingValue? {
+        return when (this) {
+            "nova_app_version" -> NovaSettingValue.StringValue(NovaAppVersion.current())
+            else -> null
         }
     }
 

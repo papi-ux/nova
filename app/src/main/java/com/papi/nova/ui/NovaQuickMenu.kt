@@ -1,14 +1,19 @@
 package com.papi.nova.ui
 
+import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.view.Gravity
 import android.view.HapticFeedbackConstants
-import android.view.View
+import android.view.Window
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
 import com.papi.nova.R
@@ -24,21 +29,30 @@ import com.papi.nova.utils.DeviceUtils
  * Stream quick menu with grouped sections for tuning, overlays, controls, and session actions.
  */
 class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
-    private var dialog: BottomSheetDialog? = null
+    private var dialog: Dialog? = null
 
     override fun showMenu(device: GameInputDevice?) {
         if (dialog?.isShowing == true) return
 
-        val sheet = BottomSheetDialog(game, R.style.NovaBottomSheet)
+        val overlay = Dialog(game)
+        overlay.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val composeView = ComposeView(game)
-        sheet.setContentView(composeView)
-        sheet.behavior.state = BottomSheetBehavior.STATE_EXPANDED
-        sheet.behavior.skipCollapsed = true
-        sheet.setOnDismissListener { dialog = null }
-
-        sheet.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.let { bottomSheet ->
-            bottomSheet.layoutParams = bottomSheet.layoutParams.apply {
-                height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        composeView.setViewTreeLifecycleOwner(game)
+        composeView.setViewTreeSavedStateRegistryOwner(game)
+        composeView.setBackgroundColor(Color.TRANSPARENT)
+        overlay.setContentView(composeView)
+        overlay.setOnDismissListener { dialog = null }
+        overlay.setOnShowListener {
+            overlay.window?.apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                setDimAmount(0f)
+                setGravity(Gravity.START or Gravity.TOP)
+                setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT
+                )
+                decorView.systemUiVisibility = game.window.decorView.systemUiVisibility
             }
         }
 
@@ -151,6 +165,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         val callbacks = NovaQuickMenuCallbacks(
+            onDismiss = { dismiss() },
             onDisconnect = {
                 haptic {
                     dismiss()
@@ -419,7 +434,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         composeView.setContent {
             NovaComposeTheme {
-                NovaQuickMenuContent(
+                NovaQuickMenuDrawer(
                     state = uiState,
                     callbacks = callbacks
                 )
@@ -453,8 +468,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             refreshState()
         }
 
-        dialog = sheet
-        sheet.show()
+        dialog = overlay
+        overlay.show()
     }
 
     override fun hideMenu() {

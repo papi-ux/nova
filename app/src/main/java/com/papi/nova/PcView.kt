@@ -542,6 +542,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val themes = mutableListOf(
             NovaThemeManager.THEME_POLARIS,
             NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
         )
         if (NovaThemeManager.isMaterialYouAvailable()) {
             themes.add(NovaThemeManager.THEME_MATERIAL_YOU)
@@ -1098,6 +1099,16 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         }
 
         initializeViews(prefs)
+        handleWelcomeAction(intent.getStringExtra(NovaWelcomeActivity.EXTRA_WELCOME_ACTION))
+    }
+
+    private fun handleWelcomeAction(action: String?) {
+        if (action != NovaWelcomeActivity.ACTION_SCAN_QR) {
+            return
+        }
+
+        intent.removeExtra(NovaWelcomeActivity.EXTRA_WELCOME_ACTION)
+        window.decorView.post { launchQrScanner() }
     }
 
     private fun startComputerUpdates() {

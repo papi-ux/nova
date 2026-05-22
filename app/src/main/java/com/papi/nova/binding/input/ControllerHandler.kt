@@ -2027,10 +2027,12 @@ class ControllerHandler(
             }
             NovaControllerShortcutAction.OPEN_QUICK_MENU -> {
                 context.backMenuPending = false
+                releaseNoGuideShortcutButtons(context)
                 gestures.showGameMenu(context)
                 return true
             }
             NovaControllerShortcutAction.CYCLE_NOVA_HUD -> {
+                releaseNoGuideShortcutButtons(context)
                 gestures.cycleNovaHudFromController()
                 return true
             }
@@ -2219,6 +2221,22 @@ class ControllerHandler(
         sendControllerInputPacket(context)
         context.inputMap = context.inputMap and ControllerPacket.SPECIAL_BUTTON_FLAG.inv()
         sendControllerInputPacket(context)
+    }
+
+    private fun releaseNoGuideShortcutButtons(context: InputDeviceContext) {
+        val previousInputMap = context.inputMap
+        context.inputMap =
+            context.inputMap and
+                (
+                    ControllerPacket.PLAY_FLAG or
+                        ControllerPacket.BACK_FLAG or
+                        ControllerPacket.SPECIAL_BUTTON_FLAG or
+                        ControllerPacket.Y_FLAG
+                ).inv()
+        context.backMenuPending = false
+        if (context.inputMap != previousInputMap) {
+            sendControllerInputPacket(context)
+        }
     }
 
     fun reportOscState(

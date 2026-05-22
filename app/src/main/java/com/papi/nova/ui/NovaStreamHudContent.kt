@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -43,14 +44,14 @@ fun NovaStreamHudContent(
     modifier: Modifier = Modifier
 ) {
     when (state.mode) {
-        NovaHudMode.FULL -> NovaStreamHudFull(state, modifier)
-        NovaHudMode.BANNER -> NovaStreamHudBanner(state, modifier)
-        NovaHudMode.FPS_ONLY -> NovaStreamHudFpsOnly(state, modifier)
+        NovaHudMode.DEBUG -> NovaStreamHudDebug(state, modifier)
+        NovaHudMode.PERFORMANCE -> NovaStreamHudPerformance(state, modifier)
+        NovaHudMode.MINIMAL -> NovaStreamHudMinimal(state, modifier)
     }
 }
 
 @Composable
-private fun NovaStreamHudFull(state: NovaHudUiState, modifier: Modifier) {
+private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
         modifier = modifier.width(236.dp),
         cornerRadius = 18.dp,
@@ -143,9 +144,9 @@ private fun NovaStreamHudFull(state: NovaHudUiState, modifier: Modifier) {
 }
 
 @Composable
-private fun NovaStreamHudBanner(state: NovaHudUiState, modifier: Modifier) {
+private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
-        modifier = modifier.width(320.dp),
+        modifier = modifier.widthIn(max = 320.dp),
         cornerRadius = 16.dp,
         padding = 8.dp
     ) {
@@ -197,9 +198,9 @@ private fun NovaStreamHudBanner(state: NovaHudUiState, modifier: Modifier) {
 }
 
 @Composable
-private fun NovaStreamHudFpsOnly(state: NovaHudUiState, modifier: Modifier) {
+private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
-        modifier = modifier.width(190.dp),
+        modifier = modifier.width(148.dp),
         cornerRadius = 18.dp,
         padding = 7.dp
     ) {
@@ -208,7 +209,7 @@ private fun NovaStreamHudFpsOnly(state: NovaHudUiState, modifier: Modifier) {
             Column(
                 modifier = Modifier
                     .padding(start = 7.dp)
-                    .width(48.dp)
+                    .width(54.dp)
             ) {
                 HudTinyLabel("FPS")
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -225,22 +226,11 @@ private fun NovaStreamHudFpsOnly(state: NovaHudUiState, modifier: Modifier) {
                     }
                 }
             }
-            NovaHudSparkline(
-                samples = state.sparklineSamples,
-                tone = state.fpsTone,
-                modifier = Modifier
-                    .padding(start = 5.dp, end = 7.dp)
-                    .width(42.dp)
-                    .height(22.dp)
-            )
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.End
             ) {
-                Row {
-                    HudCompactText(state.latencyLabel, state.latencyTone, minWidth = 32.dp)
-                    HudCompactText(state.bitrateLabel, NovaHudTone.INFO, minWidth = 30.dp, startPadding = 5.dp)
-                }
+                HudCompactText(state.latencyLabel, state.latencyTone, minWidth = 34.dp)
                 Text(
                     text = state.autopilotCompactLabel,
                     color = state.statusTone.hudColor(),
@@ -263,11 +253,13 @@ private fun HudPanel(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val surfaces = LocalNovaLibrarySurfaces.current
+    val panelShape = RoundedCornerShape(cornerRadius)
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(surfaces.panel.copy(alpha = 0.92f))
-            .border(1.dp, surfaces.tileBorder.copy(alpha = 0.8f), RoundedCornerShape(cornerRadius))
+            .shadow(16.dp, panelShape, clip = false)
+            .clip(panelShape)
+            .background(surfaces.panel.copy(alpha = 0.96f))
+            .border(1.dp, surfaces.tileBorder.copy(alpha = 0.9f), panelShape)
             .padding(padding),
         content = content
     )
@@ -403,7 +395,19 @@ private fun NovaHudSparkline(
         }
         fillPath.lineTo((samples.size - 1) * stepX, size.height)
         fillPath.close()
-        drawPath(fillPath, lineColor.copy(alpha = 0.16f))
+        drawLine(
+            color = lineColor.copy(alpha = 0.20f),
+            start = Offset(0f, size.height - 1f),
+            end = Offset(size.width, size.height - 1f),
+            strokeWidth = 1f
+        )
+        drawLine(
+            color = lineColor.copy(alpha = 0.10f),
+            start = Offset(0f, 1f),
+            end = Offset(size.width, 1f),
+            strokeWidth = 1f
+        )
+        drawPath(fillPath, lineColor.copy(alpha = 0.18f))
         drawPath(
             path = linePath,
             color = lineColor,

@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.novaFocusMotion
 import kotlin.math.roundToInt
 
 @Composable
@@ -109,6 +110,9 @@ data class NovaSettingsHeaderAction(
     val label: String,
     val onClick: () -> Unit
 )
+
+private val NovaSettingsCardShape = RoundedCornerShape(14.dp)
+private val NovaSettingsChipShape = RoundedCornerShape(12.dp)
 
 @Composable
 private fun NovaSettingsContent(
@@ -276,7 +280,7 @@ private fun NovaSettingsSearchField(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsCardShape
     BasicTextField(
         value = query,
         onValueChange = onQuery,
@@ -285,8 +289,9 @@ private fun NovaSettingsSearchField(
         modifier = modifier
             .height(44.dp)
             .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
             .background(if (focused) surfaces.selectedControl else surfaces.control)
-            .border(if (focused) 2.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
+            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .padding(horizontal = 12.dp),
         decorationBox = { innerTextField ->
@@ -347,7 +352,7 @@ private fun NovaSettingsQuickStrip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(58.dp)
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -370,18 +375,19 @@ private fun NovaSettingPill(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsCardShape
     Column(
         modifier = Modifier
             .width(154.dp)
-            .height(44.dp)
+            .heightIn(min = 58.dp)
             .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
             .background(if (focused) surfaces.selectedControl else surfaces.control)
-            .border(if (focused) 2.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
+            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .clickable(onClick = onClick)
             .focusable()
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
@@ -453,7 +459,7 @@ private fun NovaCategoryRow(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsCardShape
     val background = when {
         selected || focused -> surfaces.selectedControl
         else -> surfaces.control
@@ -462,8 +468,9 @@ private fun NovaCategoryRow(
         modifier = Modifier
             .fillMaxWidth(if (compact) 0.48f else 1f)
             .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
             .background(background)
-            .border(if (focused) 2.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
+            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .clickable(onClick = onClick)
             .focusable()
@@ -530,14 +537,15 @@ private fun NovaSettingRow(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsCardShape
     val alpha = if (enabled) 1f else 0.44f
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
             .background(if (focused) surfaces.selectedControl else Color.Transparent)
-            .border(if (focused) 2.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.panelBorder, shape)
+            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.panelBorder, shape)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .clickable(enabled = enabled, onClick = onClick)
             .focusable(enabled = enabled)
@@ -601,7 +609,7 @@ private fun NovaSettingRow(
 private fun NovaSettingOverrideBadge(alpha: Float) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsChipShape
     Text(
         text = "Override",
         color = colors.textPrimary.copy(alpha = alpha),
@@ -624,7 +632,7 @@ private fun NovaSettingApplyBadge(
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsChipShape
     Text(
         text = timing.label,
         color = colors.textMuted.copy(alpha = alpha),
@@ -647,7 +655,7 @@ private fun NovaSettingValueChip(
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsChipShape
     Box(
         modifier = Modifier
             .widthIn(min = 104.dp, max = 260.dp)

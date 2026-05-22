@@ -43,7 +43,7 @@ class NovaHudOverlayContentComposeTest {
                     NovaComposeTheme {
                         Column {
                             NovaStreamHudContent(
-                                state = NovaHudUiState.preview(NovaHudMode.FULL)
+                                state = NovaHudUiState.preview(NovaHudMode.DEBUG)
                             )
                             NovaReconnectOverlayContent(
                                 state = NovaReconnectOverlayState(attempt = 1, maxAttempts = 3)

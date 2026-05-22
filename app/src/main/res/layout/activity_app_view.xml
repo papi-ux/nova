@@ -147,21 +147,49 @@
                     android:paddingTop="6dp" />
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/recently_played_action"
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minWidth="72dp"
+                android:orientation="vertical"
                 android:gravity="center"
-                android:text="@string/pcview_card_action_resume"
-                android:textSize="12sp"
-                android:textColor="@color/nova_ice"
-                android:fontFamily="sans-serif-medium"
-                android:background="@drawable/nova_featured_action_bg"
-                android:paddingStart="14dp"
-                android:paddingTop="10dp"
-                android:paddingEnd="14dp"
-                android:paddingBottom="10dp" />
+                android:focusable="false">
+
+                <TextView
+                    android:id="@+id/recently_played_action"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="72dp"
+                    android:gravity="center"
+                    android:text="@string/pcview_card_action_resume"
+                    android:textSize="12sp"
+                    android:textColor="@color/nova_ice"
+                    android:fontFamily="sans-serif-medium"
+                    android:background="@drawable/nova_featured_action_bg"
+                    android:paddingStart="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="10dp" />
+
+                <TextView
+                    android:id="@+id/recently_played_end_session"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minWidth="72dp"
+                    android:gravity="center"
+                    android:text="@string/applist_menu_quit"
+                    android:textSize="12sp"
+                    android:textColor="@color/nova_error"
+                    android:fontFamily="sans-serif-medium"
+                    android:background="@drawable/nova_featured_action_bg"
+                    android:paddingStart="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="10dp"
+                    android:focusable="true"
+                    android:clickable="true"
+                    android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- App grid -->

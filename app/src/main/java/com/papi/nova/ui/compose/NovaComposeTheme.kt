@@ -43,6 +43,8 @@ data class NovaLibrarySurfaces(
     val mediaScrimBottom: Color,
     val onMedia: Color,
     val onMediaSecondary: Color,
+    val focusedArtworkAlpha: Float,
+    val focusedArtworkScrim: Color,
     val particlesEnabled: Boolean,
     val particleAlpha: Float
 )
@@ -74,52 +76,79 @@ val LocalNovaLibrarySurfaces = staticCompositionLocalOf {
 
 fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
     val isOled = theme == NovaThemeManager.THEME_OLED
+    val isHighContrast = theme == NovaThemeManager.THEME_HIGH_CONTRAST
     val isMaterialYou = theme == NovaThemeManager.THEME_MATERIAL_YOU
     return NovaLibrarySurfaces(
         backgroundScrim = when {
             isOled -> Color.Transparent
+            isHighContrast -> Color.Black.copy(alpha = 0.72f)
             isMaterialYou -> window.copy(alpha = 0.28f)
             else -> window.copy(alpha = 0.56f)
         },
         panel = when {
             isOled -> dialog.copy(alpha = 0.88f)
+            isHighContrast -> dialog.copy(alpha = 0.96f)
             isMaterialYou -> card.copy(alpha = 0.76f)
             else -> dialog.copy(alpha = 0.64f)
         },
         panelBorder = when {
             isOled -> divider.copy(alpha = 0.78f)
+            isHighContrast -> divider.copy(alpha = 0.92f)
             isMaterialYou -> divider.copy(alpha = 0.46f)
             else -> divider.copy(alpha = 0.44f)
         },
         tile = when {
             isOled -> card.copy(alpha = 0.90f)
+            isHighContrast -> card.copy(alpha = 0.98f)
             isMaterialYou -> card.copy(alpha = 0.78f)
             else -> card.copy(alpha = 0.74f)
         },
         tileBorder = when {
             isOled -> divider.copy(alpha = 0.78f)
+            isHighContrast -> divider.copy(alpha = 0.90f)
             else -> divider.copy(alpha = 0.50f)
         },
         control = when {
             isOled -> card.copy(alpha = 0.78f)
+            isHighContrast -> card.copy(alpha = 1f)
             isMaterialYou -> card.copy(alpha = 0.70f)
             else -> card.copy(alpha = 0.72f)
         },
-        selectedControl = accent.copy(alpha = if (isOled) 0.22f else 0.18f),
+        selectedControl = accent.copy(alpha = when {
+            isHighContrast -> 0.34f
+            isOled -> 0.22f
+            else -> 0.18f
+        }),
         focusRing = accent,
-        focusHalo = accent.copy(alpha = if (isOled) 0.24f else 0.18f),
+        focusHalo = accent.copy(alpha = when {
+            isHighContrast -> 0.36f
+            isOled -> 0.24f
+            else -> 0.18f
+        }),
         mediaPlaceholder = when {
             isOled -> Color(0xFF08080C)
+            isHighContrast -> Color(0xFF111827)
             isMaterialYou -> card.copy(alpha = 1f)
             else -> divider.copy(alpha = 1f)
         },
         mediaScrimTop = Color.Transparent,
-        mediaScrimBottom = Color.Black.copy(alpha = if (isOled) 0.88f else 0.84f),
+        mediaScrimBottom = Color.Black.copy(alpha = when {
+            isOled -> 0.88f
+            isHighContrast -> 0.92f
+            else -> 0.84f
+        }),
         onMedia = Color.White,
         onMediaSecondary = Color.White.copy(alpha = 0.86f),
+        focusedArtworkAlpha = when {
+            isOled -> 0.10f
+            isMaterialYou -> 0.18f
+            else -> 0.24f
+        },
+        focusedArtworkScrim = Color.Black.copy(alpha = if (isOled) 0.82f else 0.72f),
         particlesEnabled = !isOled,
         particleAlpha = when {
             isOled -> 0f
+            isHighContrast -> 0.28f
             isMaterialYou -> 0.42f
             else -> 1f
         }
@@ -137,7 +166,7 @@ fun NovaComposeTheme(content: @Composable () -> Unit) {
         badge = Color(ContextCompat.getColor(context, R.color.nova_badge_bg)),
         divider = Color(NovaThemeManager.getDividerColor(context)),
         accent = Color(NovaThemeManager.getAccentColor(context)),
-        accentSurface = Color(ContextCompat.getColor(context, R.color.nova_accent_surface)),
+        accentSurface = Color(NovaThemeManager.getAccentSurfaceColor(context)),
         warning = Color(ContextCompat.getColor(context, R.color.nova_warning)),
         textPrimary = Color(NovaThemeManager.getTextPrimaryColor(context)),
         textSecondary = Color(NovaThemeManager.getTextSecondaryColor(context)),

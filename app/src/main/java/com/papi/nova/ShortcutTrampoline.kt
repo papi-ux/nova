@@ -10,6 +10,8 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisGame
 import com.papi.nova.computers.ComputerDatabaseManager
 import com.papi.nova.computers.ComputerManagerListener
 import com.papi.nova.computers.ComputerManagerService
@@ -20,11 +22,13 @@ import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.nvstream.wol.WakeOnLanSender
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.utils.CacheHelper
+import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.ServerHelper
 import com.papi.nova.utils.ShortcutHelper
 import com.papi.nova.utils.SpinnerDialog
 import com.papi.nova.utils.UiHelper
+import java.security.cert.CertificateEncodingException
 import org.xmlpull.v1.XmlPullParserException
 import java.io.BufferedReader
 import java.io.File
@@ -49,6 +53,13 @@ class ShortcutTrampoline : AppCompatActivity() {
     private var blockingLoadSpinner: SpinnerDialog? = null
 
     private var managerBinder: ComputerManagerService.ComputerManagerBinder? = null
+
+    private data class ShortcutLaunchPlan(
+        val app: NvApp,
+        val profilePreference: String = "auto",
+        val launchOptimizationJson: String? = null,
+        val polarisGame: PolarisGame? = null,
+    )
 
     private val serviceConnection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, binder: IBinder) {
@@ -109,6 +120,21 @@ class ShortcutTrampoline : AppCompatActivity() {
                             }
 
                             if (details.state != ComputerDetails.State.UNKNOWN) {
+                                val shortcutLaunchPlan = if (
+                                    details.state == ComputerDetails.State.ONLINE &&
+                                    details.pairState == PairingManager.PairState.PAIRED &&
+                                    app != null
+                                ) {
+                                    resolvePolarisShortcutLaunchPlan(details, app!!)
+                                } else {
+                                    null
+                                }
+                                val readyShortcutLaunchPlan = shortcutLaunchPlan?.takeIf {
+                                    canStartShortcutWithoutQuit(details, it)
+                                }?.let {
+                                    applyPolarisShortcutLaunchPreflight(details, it, prefConfig.useVirtualDisplay)
+                                }
+
                                 runOnUiThread {
                                     if (blockingLoadSpinner != null) {
                                         blockingLoadSpinner?.dismiss()
@@ -127,38 +153,33 @@ class ShortcutTrampoline : AppCompatActivity() {
                                     ) {
                                         val currentApp = app
                                         if (currentApp != null) {
-                                            if (
-                                                details.runningGameId == 0 ||
-                                                details.runningGameId == currentApp.appId ||
-                                                Objects.equals(details.runningGameUUID, currentApp.appUUID)
-                                            ) {
+                                            val launchPlan = shortcutLaunchPlan ?: ShortcutLaunchPlan(currentApp)
+                                            if (canStartShortcutWithoutQuit(details, launchPlan)) {
+                                                val readyLaunchPlan = readyShortcutLaunchPlan ?: launchPlan
                                                 intentStack.add(
                                                     ServerHelper.createStartIntent(
                                                         this@ShortcutTrampoline,
-                                                        currentApp,
+                                                        readyLaunchPlan.app,
                                                         details,
                                                         activeBinder,
                                                         prefConfig.useVirtualDisplay,
+                                                        readyLaunchPlan.profilePreference,
+                                                        readyLaunchPlan.launchOptimizationJson,
                                                     ),
                                                 )
 
                                                 finish()
                                                 startActivities(intentStack.toTypedArray())
                                             } else {
-                                                val startIntent = ServerHelper.createStartIntent(
-                                                    this@ShortcutTrampoline,
-                                                    currentApp,
-                                                    details,
-                                                    activeBinder,
-                                                    prefConfig.useVirtualDisplay,
-                                                )
-
                                                 UiHelper.displayQuitConfirmationDialog(
                                                     this@ShortcutTrampoline,
                                                     Runnable {
-                                                        intentStack.add(startIntent)
-                                                        finish()
-                                                        startActivities(intentStack.toTypedArray())
+                                                        startConfirmedShortcutLaunch(
+                                                            details,
+                                                            activeBinder,
+                                                            launchPlan,
+                                                            prefConfig.useVirtualDisplay,
+                                                        )
                                                     },
                                                     Runnable {
                                                         finish()
@@ -599,6 +620,132 @@ class ShortcutTrampoline : AppCompatActivity() {
         )
     }
 
+    private fun canStartShortcutWithoutQuit(details: ComputerDetails, launchPlan: ShortcutLaunchPlan): Boolean =
+        details.runningGameId == 0 ||
+            details.runningGameId == launchPlan.app.appId ||
+            Objects.equals(details.runningGameUUID, launchPlan.app.appUUID)
+
+    private fun resolvePolarisShortcutLaunchPlan(
+        details: ComputerDetails,
+        shortcutApp: NvApp,
+    ): ShortcutLaunchPlan {
+        val activeAddress = details.activeAddress ?: return ShortcutLaunchPlan(shortcutApp)
+        val serverCert = try {
+            details.serverCert?.encoded
+        } catch (e: CertificateEncodingException) {
+            LimeLog.warning("Nova: Shortcut launch could not encode server cert for Polaris metadata lookup: ${e.message}")
+            null
+        } ?: return ShortcutLaunchPlan(shortcutApp)
+
+        return try {
+            val apiClient = PolarisApiClient(this, activeAddress.address, details.httpsPort, serverCert)
+            val polarisGame = findPolarisShortcutGame(apiClient, shortcutApp)
+                ?: return ShortcutLaunchPlan(shortcutApp)
+            val launchApp = NvApp(polarisGame.name, polarisGame.id, polarisGame.appId, polarisGame.hdrSupported)
+
+            ShortcutLaunchPlan(
+                app = launchApp,
+                polarisGame = polarisGame,
+            )
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Shortcut launch Polaris metadata lookup failed: ${e.message}")
+            ShortcutLaunchPlan(shortcutApp)
+        }
+    }
+
+    private fun applyPolarisShortcutLaunchPreflight(
+        details: ComputerDetails,
+        launchPlan: ShortcutLaunchPlan,
+        withVirtualDisplay: Boolean,
+    ): ShortcutLaunchPlan {
+        val polarisGame = launchPlan.polarisGame ?: return launchPlan
+        val activeAddress = details.activeAddress ?: return launchPlan
+        val serverCert = try {
+            details.serverCert?.encoded
+        } catch (e: CertificateEncodingException) {
+            LimeLog.warning("Nova: Shortcut launch could not encode server cert for Polaris preflight: ${e.message}")
+            null
+        } ?: return launchPlan
+
+        return try {
+            val apiClient = PolarisApiClient(this, activeAddress.address, details.httpsPort, serverCert)
+            val mangoHudSynced = apiClient.setMangoHud(polarisGame.id, polarisGame.mangohud)
+            if (!mangoHudSynced) {
+                LimeLog.warning("Nova: Shortcut launch MangoHUD state sync failed; continuing launch")
+            }
+
+            syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay)
+            val optimization = apiClient.getOptimization(
+                DeviceUtils.getModel(),
+                polarisGame.name,
+                SHORTCUT_PROFILE_PREFERENCE,
+            )
+
+            launchPlan.copy(
+                profilePreference = SHORTCUT_PROFILE_PREFERENCE,
+                launchOptimizationJson = optimization?.toString(),
+            )
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Shortcut launch Polaris preflight failed: ${e.message}")
+            launchPlan
+        }
+    }
+
+    private fun startConfirmedShortcutLaunch(
+        details: ComputerDetails,
+        activeBinder: ComputerManagerService.ComputerManagerBinder,
+        launchPlan: ShortcutLaunchPlan,
+        withVirtualDisplay: Boolean,
+    ) {
+        Thread {
+            val readyLaunchPlan = applyPolarisShortcutLaunchPreflight(details, launchPlan, withVirtualDisplay)
+            val startIntent = ServerHelper.createStartIntent(
+                this@ShortcutTrampoline,
+                readyLaunchPlan.app,
+                details,
+                activeBinder,
+                withVirtualDisplay,
+                readyLaunchPlan.profilePreference,
+                readyLaunchPlan.launchOptimizationJson,
+            )
+
+            runOnUiThread {
+                intentStack.add(startIntent)
+                finish()
+                startActivities(intentStack.toTypedArray())
+            }
+        }.start()
+    }
+
+    private fun findPolarisShortcutGame(apiClient: PolarisApiClient, shortcutApp: NvApp): PolarisGame? {
+        val shortcutUuid = shortcutApp.appUUID
+        val shortcutName = shortcutApp.appName
+        return apiClient.getGames(limit = 100).firstOrNull { game ->
+            (!shortcutUuid.isNullOrBlank() && shortcutUuid.equals(game.id, ignoreCase = true)) ||
+                (shortcutApp.appId > 0 && game.appId == shortcutApp.appId) ||
+                (!shortcutName.isNullOrBlank() && shortcutName.equals(game.name, ignoreCase = true))
+        }
+    }
+
+    private fun syncShortcutLaunchPreflightSettings(
+        apiClient: PolarisApiClient,
+        withVirtualDisplay: Boolean,
+    ) {
+        val preferences = PreferenceConfiguration.readPreferences(this)
+        val syncedSettings = apiClient.updateClientSettings(
+            streamDisplayMode = if (withVirtualDisplay) "host_virtual_display" else "headless_stream",
+            displayMode = PreferenceConfiguration.formatStreamingDisplayMode(
+                preferences.width,
+                preferences.height,
+                preferences.fps,
+            ),
+            targetBitrateKbps = preferences.bitrate.takeIf { it > 0 },
+        )
+        if (syncedSettings == null) {
+            LimeLog.warning("Nova: Shortcut launch preflight client settings sync failed; continuing launch")
+        }
+    }
+
     private fun displayAppListError(e: Exception) {
         Log.e(TAG, "Error processing app list from cache", e)
         Dialog.displayDialog(
@@ -672,6 +819,7 @@ class ShortcutTrampoline : AppCompatActivity() {
 
     companion object {
         private const val MAX_ART_FILE_CHARS = 64 * 1024
+        private const val SHORTCUT_PROFILE_PREFERENCE = "auto"
         private const val TAG = "ShortcutTrampoline"
     }
 }

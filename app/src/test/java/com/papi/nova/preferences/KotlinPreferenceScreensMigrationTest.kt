@@ -61,7 +61,11 @@ class KotlinPreferenceScreensMigrationTest {
 
         assertTrue(settingsScreen.contains("NovaSettingsCompactHeader"))
         assertTrue(settingsScreen.contains("NovaSettingsQuickStrip"))
-        assertTrue(settingsScreen.contains("height(44.dp)"))
+        assertTrue(settingsScreen.contains(".height(58.dp)"))
+        assertTrue(settingsScreen.contains(".heightIn(min = 58.dp)"))
+        assertTrue(settingsScreen.contains("NovaSettingsCardShape = RoundedCornerShape(14.dp)"))
+        assertTrue(settingsScreen.contains("NovaSettingsChipShape = RoundedCornerShape(12.dp)"))
+        assertFalse(settingsScreen.contains(".height(44.dp)\n            .horizontalScroll"))
         assertFalse(settingsScreen.contains("label = { Text(\"Search settings\") }"))
     }
 

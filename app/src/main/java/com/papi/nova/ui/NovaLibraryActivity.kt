@@ -6,8 +6,15 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -59,6 +66,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -100,14 +108,20 @@ import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisGame
+import com.papi.nova.binding.PlatformBinding
+import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
+import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.utils.ServerHelper
+import com.papi.nova.utils.UiHelper
 import com.papi.nova.ui.SpaceParticleView
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.compose.NovaFocusMotionSpec
+import com.papi.nova.ui.compose.novaFocusMotion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -181,7 +195,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
                 NovaComposeTheme {
-                    val model = rememberNovaLibraryUiModel(allGames, searchQuery, filterState)
+                    val model = rememberNovaLibraryUiModel(allGames, searchQuery, filterState, activeSession)
                     NovaLibraryScreen(
                         serverName = streamPcName,
                         serverHost = streamHost,
@@ -201,6 +215,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                         onSearchChange = { searchQuery = it },
                         onRefresh = { loadGames(forceRefresh = true) },
                         onResumeSession = ::resumeActiveSession,
+                        onEndSession = ::endActiveSession,
                         onManageServer = ::openServerManagement,
                         onOpenDetail = ::showGameDetail,
                         onGameFocused = { lastFocusedGameId = it.id },
@@ -424,13 +439,18 @@ class NovaLibraryActivity : AppCompatActivity() {
             apiClient = apiClient,
             defaultToVirtualDisplay = defaultToVirtualDisplay,
             clientSettings = clientSettings
-        ) { selectedGame, withVirtualDisplay ->
-            launchGame(selectedGame, withVirtualDisplay)
+        ) { selectedGame, withVirtualDisplay, profilePreference, preflightOptimization ->
+            launchGame(selectedGame, withVirtualDisplay, profilePreference, preflightOptimization)
         }
         detailSheet?.show(supportFragmentManager, "game_detail")
     }
 
-    private fun launchGame(game: PolarisGame, withVirtualDisplay: Boolean) {
+    private fun launchGame(
+        game: PolarisGame,
+        withVirtualDisplay: Boolean,
+        profilePreference: String = "auto",
+        preflightOptimization: org.json.JSONObject? = null
+    ) {
         if (game.appId <= 0) {
             Toast.makeText(this, "This game entry is missing a launch ID", Toast.LENGTH_SHORT).show()
             return
@@ -462,6 +482,21 @@ class NovaLibraryActivity : AppCompatActivity() {
             if (!mangoHudSynced) {
                 LimeLog.warning("Nova: MangoHUD launch state sync failed; continuing launch")
             }
+            val preferences = com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity)
+            val syncedSettings = withContext(Dispatchers.IO) {
+                apiClient.updateClientSettings(
+                    streamDisplayMode = if (withVirtualDisplay) "host_virtual_display" else "headless_stream",
+                    displayMode = com.papi.nova.preferences.PreferenceConfiguration.formatStreamingDisplayMode(
+                        preferences.width,
+                        preferences.height,
+                        preferences.fps
+                    ),
+                    targetBitrateKbps = preferences.bitrate.takeIf { it > 0 }
+                )
+            }
+            if (syncedSettings == null) {
+                LimeLog.warning("Nova: Preflight client settings sync failed; continuing launch")
+            }
 
             val app = NvApp(game.name, game.id, game.appId, game.hdrSupported)
             ServerHelper.doStart(
@@ -477,7 +512,9 @@ class NovaLibraryActivity : AppCompatActivity() {
                 withVirtualDisplay,
                 true,
                 false,
-                serverCert
+                serverCert,
+                aiProfilePreference = profilePreference,
+                launchOptimizationJson = preflightOptimization?.toString()
             )
         }
     }
@@ -515,6 +552,45 @@ class NovaLibraryActivity : AppCompatActivity() {
             session.streamWidth,
             session.streamHeight,
             session.streamFps
+        )
+    }
+
+    private fun endActiveSession(session: NovaLibraryActiveSessionUiState) {
+        val uniqueId = streamUniqueId
+        val serverCert = streamServerCert
+        if (uniqueId.isNullOrBlank() || serverCert == null) {
+            Toast.makeText(this, "Missing Polaris session details for End", Toast.LENGTH_SHORT).show()
+            LimeLog.warning("Nova: Cannot end session from library; missing uniqueId or server cert")
+            return
+        }
+
+        val gameName = session.gameName.ifBlank { getString(R.string.applist_menu_watch_active_name) }
+        val httpConn = NvHTTP(
+            ComputerDetails.AddressTuple(streamHost, streamHttpPort),
+            streamHttpsPort,
+            uniqueId,
+            PolarisApiClient.decodeCertificate(serverCert),
+            PlatformBinding.getCryptoProvider(this)
+        )
+        UiHelper.displayQuitConfirmationDialog(
+            this,
+            {
+                ServerHelper.doQuit(
+                    this,
+                    httpConn,
+                    gameName,
+                    {
+                        runOnUiThread {
+                            activeSession = null
+                            scheduleActiveSessionFollowUpRefreshes(clearOnly = true)
+                        }
+                    },
+                    {
+                        runOnUiThread { refreshActiveSession(scheduleFollowUps = true) }
+                    }
+                )
+            },
+            null
         )
     }
 
@@ -568,13 +644,15 @@ class NovaLibraryActivity : AppCompatActivity() {
     private fun rememberNovaLibraryUiModel(
         games: List<PolarisGame>,
         searchQuery: String,
-        filterState: NovaLibraryFilterState
+        filterState: NovaLibraryFilterState,
+        activeSession: NovaLibraryActiveSessionUiState?
     ): NovaLibraryUiModel {
-        return remember(games, searchQuery, filterState) {
+        return remember(games, searchQuery, filterState, activeSession) {
             NovaLibraryUiStateMapper.build(
                 games = games,
                 search = searchQuery,
-                filterState = filterState
+                filterState = filterState,
+                activeSession = activeSession
             )
         }
     }
@@ -599,6 +677,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         onSearchChange: (String) -> Unit,
         onRefresh: () -> Unit,
         onResumeSession: (NovaLibraryActiveSessionUiState) -> Unit,
+        onEndSession: (NovaLibraryActiveSessionUiState) -> Unit,
         onManageServer: () -> Unit,
         onOpenDetail: (PolarisGame) -> Unit,
         onGameFocused: (PolarisGame) -> Unit,
@@ -608,22 +687,41 @@ class NovaLibraryActivity : AppCompatActivity() {
         onSourceFilter: (String?) -> Unit,
         onCategoryFilter: (String) -> Unit,
         onGenreFilter: (String) -> Unit,
-        onClearFilters: () -> Unit
+        onClearFilters: () -> Unit,
     ) {
         val configuration = LocalConfiguration.current
         val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
         val columns = NovaLibraryUiStateMapper.gridColumnsForScreen(configuration.screenWidthDp, isLandscape)
         val railWidth = NovaLibraryUiStateMapper.railWidthDp(configuration.screenWidthDp).dp
+        val showLandscapeRecentRail = model.recentGames.isNotEmpty() &&
+            NovaLibraryUiStateMapper.showLandscapeRecentRail(configuration.screenHeightDp)
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
         val restoreFocusGameInRecent = restoreFocusGameId != null &&
             model.recentGames.any { it.id == restoreFocusGameId }
+        val focusedBackdropGame = remember(
+            model.filteredGames,
+            model.recentGames,
+            model.allGames,
+            model.hero.game,
+            restoreFocusGameId
+        ) {
+            restoreFocusGameId
+                ?.let { focusedId -> model.allGames.firstOrNull { it.id == focusedId } }
+                ?: model.hero.game
+                ?: model.filteredGames.firstOrNull()
+                ?: model.recentGames.firstOrNull()
+        }
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(colors.window)
         ) {
+            NovaLibraryFocusedBackdrop(
+                game = focusedBackdropGame,
+                apiClient = apiClient
+            )
             if (surfaces.particlesEnabled) {
                 AndroidView(
                     modifier = Modifier
@@ -660,6 +758,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                             onSearchChange = onSearchChange,
                             onRefresh = onRefresh,
                             onResumeSession = onResumeSession,
+                            onEndSession = onEndSession,
                             onManageServer = onManageServer,
                             onBack = onBack,
                             onPrimaryFilter = onPrimaryFilter,
@@ -672,15 +771,20 @@ class NovaLibraryActivity : AppCompatActivity() {
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            if (model.recentGames.isNotEmpty()) {
-                                NovaLibraryRecentRail(
-                                    games = model.recentGames,
-                                    apiClient = apiClient,
-                                    restoreFocusGameId = restoreFocusGameId,
-                                    onGameFocused = onGameFocused,
-                                    onOpenDetail = onOpenDetail
-                                )
-                            }
+                            NovaLibraryHomeHero(
+                                hero = model.hero,
+                                compact = true,
+                                onPrimaryAction = {
+                                    when (model.hero.primaryAction) {
+                                        NovaLibraryHeroPrimaryAction.RESUME,
+                                        NovaLibraryHeroPrimaryAction.WATCH -> activeSession?.let(onResumeSession)
+                                        NovaLibraryHeroPrimaryAction.OPEN_DETAIL -> model.hero.game?.let(onOpenDetail)
+                                        NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
+                                    NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
+                                    }
+                                },
+                                onGameFocused = onGameFocused
+                            )
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
@@ -690,11 +794,22 @@ class NovaLibraryActivity : AppCompatActivity() {
                                 isRefreshing = isRefreshing,
                                 loadErrorMessage = loadErrorMessage,
                                 apiClient = apiClient,
-                                restoreFocusGameId = restoreFocusGameId.takeUnless { restoreFocusGameInRecent },
+                                restoreFocusGameId = restoreFocusGameId,
                                 onRefresh = onRefresh,
+                                onManageServer = onManageServer,
+                                onClearFilters = onClearFilters,
                                 onGameFocused = onGameFocused,
                                 onOpenDetail = onOpenDetail
                             )
+                            if (showLandscapeRecentRail) {
+                                NovaLibraryRecentRail(
+                                    games = model.recentGames,
+                                    apiClient = apiClient,
+                                    restoreFocusGameId = restoreFocusGameId,
+                                    onGameFocused = onGameFocused,
+                                    onOpenDetail = onOpenDetail
+                                )
+                            }
                         }
                     }
                 } else {
@@ -713,6 +828,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                             onSearchChange = onSearchChange,
                             onRefresh = onRefresh,
                             onResumeSession = onResumeSession,
+                            onEndSession = onEndSession,
                             onManageServer = onManageServer,
                             onBack = onBack,
                             onPrimaryFilter = onPrimaryFilter,
@@ -720,6 +836,20 @@ class NovaLibraryActivity : AppCompatActivity() {
                             restoreFocusPrimaryFilter = restoreFocusPrimaryFilter,
                             onClearFilters = onClearFilters,
                             sourceLabel = { sourceLabelFor(it) }
+                        )
+                        NovaLibraryHomeHero(
+                            hero = model.hero,
+                            compact = false,
+                            onPrimaryAction = {
+                                when (model.hero.primaryAction) {
+                                    NovaLibraryHeroPrimaryAction.RESUME,
+                                    NovaLibraryHeroPrimaryAction.WATCH -> activeSession?.let(onResumeSession)
+                                    NovaLibraryHeroPrimaryAction.OPEN_DETAIL -> model.hero.game?.let(onOpenDetail)
+                                    NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
+                                    NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
+                                }
+                            },
+                            onGameFocused = onGameFocused
                         )
                         if (model.recentGames.isNotEmpty()) {
                             NovaLibraryRecentRail(
@@ -741,6 +871,8 @@ class NovaLibraryActivity : AppCompatActivity() {
                             apiClient = apiClient,
                             restoreFocusGameId = restoreFocusGameId.takeUnless { restoreFocusGameInRecent },
                             onRefresh = onRefresh,
+                            onManageServer = onManageServer,
+                            onClearFilters = onClearFilters,
                             onGameFocused = onGameFocused,
                             onOpenDetail = onOpenDetail
                         )
@@ -766,6 +898,173 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     @Composable
+    private fun NovaLibraryFocusedBackdrop(
+        game: PolarisGame?,
+        apiClient: PolarisApiClient
+    ) {
+        val surfaces = LocalNovaLibrarySurfaces.current
+        val artworkGame = game
+
+        Crossfade(
+            targetState = artworkGame,
+            animationSpec = tween(durationMillis = 520),
+            label = "NovaLibraryFocusedBackdrop"
+        ) { targetGame ->
+            if (targetGame != null) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    key(targetGame.id, targetGame.coverUrl) {
+                        AndroidView(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    alpha = surfaces.focusedArtworkAlpha
+                                    scaleX = 1.08f
+                                    scaleY = 1.08f
+                                },
+                            factory = { context ->
+                                ImageView(context).apply {
+                                    scaleType = ImageView.ScaleType.CENTER_CROP
+                                    contentDescription = null
+                                    apiClient.loadCoverInto(this, targetGame)
+                                }
+                            }
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(surfaces.focusedArtworkScrim)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to surfaces.focusedArtworkScrim.copy(alpha = 0.92f),
+                                        0.45f to surfaces.focusedArtworkScrim.copy(alpha = 0.58f),
+                                        1.0f to surfaces.focusedArtworkScrim.copy(alpha = 0.96f)
+                                    )
+                                )
+                            )
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun NovaLibraryHomeHero(
+        hero: NovaLibraryHeroState,
+        compact: Boolean,
+        onPrimaryAction: () -> Unit,
+        onGameFocused: (PolarisGame) -> Unit
+    ) {
+        val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
+        val heroGame = hero.game
+        val height = if (compact) 152.dp else 178.dp
+        var focused by remember { mutableStateOf(false) }
+        LaunchedEffect(focused, heroGame) {
+            if (focused && heroGame != null) {
+                onGameFocused(heroGame)
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height)
+                .novaFocusMotion(
+                    focused = focused,
+                    focusedScale = NovaFocusMotionSpec.CardFocusedScale,
+                    haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
+                    cornerRadius = 20.dp
+                )
+                .clip(RoundedCornerShape(20.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            surfaces.tile.copy(alpha = 0.98f),
+                            surfaces.tile.copy(alpha = 0.82f),
+                            colors.accent.copy(alpha = if (focused) 0.22f else 0.12f)
+                        )
+                    )
+                )
+                .border(
+                    width = if (focused) 3.dp else 1.dp,
+                    color = if (focused) surfaces.focusRing else surfaces.tileBorder,
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .onFocusChanged {
+                    focused = it.isFocused || it.hasFocus
+                }
+                .combinedClickable(onClick = onPrimaryAction)
+                .focusable()
+                .padding(if (compact) 14.dp else 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)
+            ) {
+                Text(
+                    text = hero.eyebrow.uppercase(),
+                    color = colors.accent,
+                    fontSize = if (compact) 11.sp else 12.sp,
+                    lineHeight = if (compact) 13.sp else 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = hero.title,
+                    color = colors.textPrimary,
+                    fontSize = if (compact) 24.sp else 30.sp,
+                    lineHeight = if (compact) 27.sp else 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = hero.subtitle,
+                    color = colors.textSecondary,
+                    fontSize = if (compact) 12.sp else 14.sp,
+                    lineHeight = if (compact) 14.sp else 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = hero.caption,
+                    color = colors.textSecondary.copy(alpha = 0.86f),
+                    fontSize = if (compact) 11.sp else 13.sp,
+                    lineHeight = if (compact) 13.sp else 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (hero.badges.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        hero.badges.take(if (compact) 3 else 4).forEach { badge ->
+                            NovaMiniBadge(text = badge)
+                        }
+                    }
+                }
+            }
+            NovaActionButton(
+                text = hero.actionLabel,
+                onClick = onPrimaryAction,
+                modifier = Modifier.widthIn(min = if (compact) 118.dp else 148.dp),
+                minHeight = if (compact) 42.dp else 48.dp,
+                fontSize = if (compact) 12.sp else 14.sp
+            )
+        }
+    }
+
+    @Composable
     private fun NovaLibraryRail(
         modifier: Modifier,
         serverName: String?,
@@ -778,6 +1077,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         onSearchChange: (String) -> Unit,
         onRefresh: () -> Unit,
         onResumeSession: (NovaLibraryActiveSessionUiState) -> Unit,
+        onEndSession: (NovaLibraryActiveSessionUiState) -> Unit,
         onManageServer: () -> Unit,
         onBack: () -> Unit,
         onPrimaryFilter: (NovaLibraryPrimaryFilter) -> Unit,
@@ -792,15 +1092,24 @@ class NovaLibraryActivity : AppCompatActivity() {
                     .fillMaxWidth()
                     .focusGroup()
                     .verticalScroll(rememberScrollState())
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(
+                        start = 12.dp,
+                        top = 12.dp,
+                        end = 12.dp,
+                        bottom = NovaLibraryUiStateMapper.railScrollBottomPaddingDp().dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(NovaLibraryUiStateMapper.railVerticalSpacingDp().dp)
             ) {
                 NovaLibraryTitle(serverName, serverHost)
-                NovaLibraryStatus(settings = clientSettings)
+                NovaLibraryStatusStrip(
+                    settings = clientSettings,
+                    activeSession = activeSession
+                )
                 if (activeSession != null) {
                     NovaLibraryActiveSessionCard(
                         session = activeSession,
                         onResumeSession = onResumeSession,
+                        onEndSession = onEndSession,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -878,6 +1187,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         onSearchChange: (String) -> Unit,
         onRefresh: () -> Unit,
         onResumeSession: (NovaLibraryActiveSessionUiState) -> Unit,
+        onEndSession: (NovaLibraryActiveSessionUiState) -> Unit,
         onManageServer: () -> Unit,
         onBack: () -> Unit,
         onPrimaryFilter: (NovaLibraryPrimaryFilter) -> Unit,
@@ -912,11 +1222,15 @@ class NovaLibraryActivity : AppCompatActivity() {
                         fontSize = 12.sp
                     )
                 }
-                NovaLibraryStatus(settings = clientSettings)
+                NovaLibraryStatusStrip(
+                    settings = clientSettings,
+                    activeSession = activeSession
+                )
                 if (activeSession != null) {
                     NovaLibraryActiveSessionCard(
                         session = activeSession,
                         onResumeSession = onResumeSession,
+                        onEndSession = onEndSession,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -984,7 +1298,10 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     @Composable
-    private fun NovaLibraryStatus(settings: PolarisClientSettings?) {
+    private fun NovaLibraryStatusStrip(
+        settings: PolarisClientSettings?,
+        activeSession: NovaLibraryActiveSessionUiState?
+    ) {
         val autoQualityEnabled = settings?.let {
             it.desired.aiAutoQualityEnabled == true ||
                 it.effective.aiAutoQualityEnabled == true ||
@@ -993,24 +1310,62 @@ class NovaLibraryActivity : AppCompatActivity() {
                 it.desired.aiOptimizerEnabled == true ||
                 it.effective.aiOptimizerEnabled == true
         }
+        val polarisReady = settings != null
+        val polarisText = stringResource(
+            if (polarisReady) R.string.nova_library_polaris_ready
+            else R.string.nova_library_polaris_checking
+        )
         val autoQualityText = when (autoQualityEnabled) {
             true -> stringResource(R.string.nova_library_auto_quality_on)
             false -> stringResource(R.string.nova_library_auto_quality_off)
             null -> stringResource(R.string.nova_library_status_checking)
         }
-        val modeText = settings?.effectiveModeLabel
-            ?: settings?.desiredModeLabel
+        val modeText = compactStatusModeLabel(settings)
             ?: stringResource(R.string.nova_library_mode_checking)
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            NovaStatusPill(text = autoQualityText, enabled = autoQualityEnabled == true)
-            NovaStatusPill(
-                text = modeText,
-                enabled = settings != null
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NovaStatusPill(text = polarisText, enabled = polarisReady)
+                NovaStatusPill(text = autoQualityText, enabled = autoQualityEnabled == true)
+                NovaStatusPill(
+                    text = modeText,
+                    enabled = settings != null
+                )
+            }
+            if (activeSession != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NovaStatusPill(
+                        text = stringResource(R.string.nova_library_resume_ready),
+                        enabled = true
+                    )
+                }
+            }
+        }
+    }
+
+    private fun compactStatusModeLabel(settings: PolarisClientSettings?): String? {
+        val mode = settings?.effective?.streamDisplayMode
+            ?.ifBlank { settings.desired.streamDisplayMode }
+            .orEmpty()
+        return when (mode) {
+            PolarisClientSettings.MODE_HEADLESS_STREAM, "headless" -> "Headless"
+            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, "virtual_display" -> "Virtual"
+            PolarisClientSettings.MODE_DESKTOP_DISPLAY -> "Desktop"
+            PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU Native"
+            else -> settings?.effectiveModeLabel
+                ?.ifBlank { settings.desiredModeLabel }
+                ?.ifBlank { null }
         }
     }
 
@@ -1018,7 +1373,8 @@ class NovaLibraryActivity : AppCompatActivity() {
     private fun NovaLibraryActiveSessionCard(
         session: NovaLibraryActiveSessionUiState,
         modifier: Modifier = Modifier,
-        onResumeSession: (NovaLibraryActiveSessionUiState) -> Unit
+        onResumeSession: (NovaLibraryActiveSessionUiState) -> Unit,
+        onEndSession: (NovaLibraryActiveSessionUiState) -> Unit
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
@@ -1080,14 +1436,29 @@ class NovaLibraryActivity : AppCompatActivity() {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            NovaActionButton(
-                text = actionLabel,
-                onClick = { onResumeSession(session) },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                primary = true,
-                minHeight = 34.dp,
-                fontSize = 11.sp
-            )
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                NovaActionButton(
+                    text = actionLabel,
+                    onClick = { onResumeSession(session) },
+                    modifier = Modifier.weight(1f),
+                    primary = true,
+                    minHeight = 34.dp,
+                    fontSize = 11.sp
+                )
+                if (!session.watchOnly) {
+                    NovaActionButton(
+                        text = stringResource(R.string.applist_menu_quit),
+                        onClick = { onEndSession(session) },
+                        modifier = Modifier.weight(1f),
+                        primary = false,
+                        minHeight = 34.dp,
+                        fontSize = 11.sp
+                    )
+                }
+            }
         }
     }
 
@@ -1295,12 +1666,18 @@ class NovaLibraryActivity : AppCompatActivity() {
         apiClient: PolarisApiClient,
         restoreFocusGameId: String?,
         onRefresh: () -> Unit,
+        onManageServer: () -> Unit,
+        onClearFilters: () -> Unit,
         onGameFocused: (PolarisGame) -> Unit,
         onOpenDetail: (PolarisGame) -> Unit
     ) {
         NovaLibraryPanel(modifier = modifier, subtle = true) {
             if (loadErrorMessage != null && model.allGames.isEmpty()) {
-                NovaLibraryErrorState(message = loadErrorMessage, onRetry = onRefresh)
+                NovaLibraryErrorState(
+                    message = loadErrorMessage,
+                    onRetry = onRefresh,
+                    onManageServer = onManageServer
+                )
             } else if (isInitialLoading && model.allGames.isEmpty()) {
                 NovaLibraryLoadingGrid(columns = columns, isLandscape = isLandscape)
             } else {
@@ -1310,7 +1687,15 @@ class NovaLibraryActivity : AppCompatActivity() {
                     modifier = Modifier.fillMaxSize()
                 ) {
                     if (model.filteredGames.isEmpty()) {
-                        NovaLibraryEmptyState(model.emptyState)
+                        val primaryAction = when (model.emptyState) {
+                            NovaLibraryEmptyState.DEFAULT -> onManageServer
+                            NovaLibraryEmptyState.RECENT -> onClearFilters
+                            NovaLibraryEmptyState.FILTERED -> onClearFilters
+                        }
+                        NovaLibraryEmptyState(
+                            emptyState = model.emptyState,
+                            onPrimaryAction = primaryAction
+                        )
                     } else {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(columns),
@@ -1439,10 +1824,12 @@ class NovaLibraryActivity : AppCompatActivity() {
             modifier = modifier
                 .fillMaxWidth()
                 .height(cardHeight)
-                .graphicsLayer {
-                    scaleX = if (focused) 1.035f else 1f
-                    scaleY = if (focused) 1.035f else 1f
-                }
+                .novaFocusMotion(
+                    focused = focused,
+                    focusedScale = NovaFocusMotionSpec.CardFocusedScale,
+                    haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
+                    cornerRadius = 14.dp
+                )
                 .clip(RoundedCornerShape(14.dp))
                 .background(if (focused) surfaces.tile.copy(alpha = 1f) else surfaces.tile)
                 .border(
@@ -1589,28 +1976,78 @@ class NovaLibraryActivity : AppCompatActivity() {
     private fun NovaLoadingCard(isLandscape: Boolean) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
+        val transition = rememberInfiniteTransition(label = "nova-library-loading")
+        val shimmerOffset by transition.animateFloat(
+            initialValue = -0.45f,
+            targetValue = 1.45f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1400),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "nova-library-card-shimmer"
+        )
+        val shimmerBrush = Brush.linearGradient(
+            colors = listOf(
+                surfaces.mediaPlaceholder.copy(alpha = 0.42f),
+                colors.accent.copy(alpha = 0.18f),
+                surfaces.mediaPlaceholder.copy(alpha = 0.42f)
+            ),
+            start = Offset(x = shimmerOffset * 620f, y = 0f),
+            end = Offset(x = (shimmerOffset + 0.32f) * 620f, y = 260f)
+        )
+        val shape = RoundedCornerShape(14.dp)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = isLandscape).dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(shape)
                 .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
+                .border(1.dp, surfaces.tileBorder, shape)
         ) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(10.dp)
-                    .fillMaxWidth(0.72f)
-                    .height(12.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(colors.divider.copy(alpha = 0.48f))
+                    .fillMaxSize()
+                    .background(shimmerBrush)
             )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .width(54.dp)
+                    .height(18.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(colors.accent.copy(alpha = 0.16f))
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.74f)
+                        .height(13.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(colors.divider.copy(alpha = 0.58f))
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.46f)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(colors.divider.copy(alpha = 0.36f))
+                )
+            }
         }
     }
 
     @Composable
-    private fun NovaLibraryEmptyState(emptyState: NovaLibraryEmptyState) {
+    private fun NovaLibraryEmptyState(
+        emptyState: NovaLibraryEmptyState,
+        onPrimaryAction: () -> Unit
+    ) {
         val title = when (emptyState) {
             NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_title_default)
             NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_title_recent)
@@ -1621,37 +2058,28 @@ class NovaLibraryActivity : AppCompatActivity() {
             NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_hint_recent)
             NovaLibraryEmptyState.FILTERED -> stringResource(R.string.nova_library_empty_hint_filtered)
         }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                modifier = Modifier.widthIn(max = 360.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = title,
-                    color = LocalNovaComposeColors.current.textPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = message,
-                    color = LocalNovaComposeColors.current.textSecondary,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
+        val actionLabel = when (emptyState) {
+            NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_action_manage)
+            NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_action_clear)
+            NovaLibraryEmptyState.FILTERED -> stringResource(R.string.nova_library_empty_action_clear)
         }
+        NovaLibraryRecoveryState(
+            eyebrow = stringResource(R.string.nova_library_empty_eyebrow),
+            title = title,
+            message = message,
+            primaryActionLabel = actionLabel,
+            onPrimaryAction = onPrimaryAction
+        )
     }
 
     @Composable
-    private fun NovaLibraryErrorState(message: String, onRetry: () -> Unit) {
+    private fun NovaLibraryErrorState(
+        message: String,
+        onRetry: () -> Unit,
+        onManageServer: () -> Unit
+    ) {
         val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1659,10 +2087,23 @@ class NovaLibraryActivity : AppCompatActivity() {
             contentAlignment = Alignment.Center
         ) {
             Column(
-                modifier = Modifier.widthIn(max = 360.dp),
+                modifier = Modifier
+                    .widthIn(max = 360.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(surfaces.panel)
+                    .border(1.dp, surfaces.tileBorder, RoundedCornerShape(22.dp))
+                    .padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                Text(
+                    text = stringResource(R.string.nova_library_error_eyebrow).uppercase(Locale.getDefault()),
+                    color = colors.accent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.7.sp,
+                    textAlign = TextAlign.Center
+                )
                 Text(
                     text = stringResource(R.string.nova_library_error_title),
                     color = colors.textPrimary,
@@ -1674,6 +2115,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                     text = stringResource(R.string.nova_library_error_hint),
                     color = colors.textSecondary,
                     fontSize = 13.sp,
+                    lineHeight = 18.sp,
                     textAlign = TextAlign.Center
                 )
                 Text(
@@ -1689,9 +2131,100 @@ class NovaLibraryActivity : AppCompatActivity() {
                     onClick = onRetry,
                     modifier = Modifier.fillMaxWidth(),
                     primary = true,
+                    minHeight = 42.dp,
+                    fontSize = 13.sp
+                )
+                NovaActionButton(
+                    text = stringResource(R.string.nova_library_error_action_manage),
+                    onClick = onManageServer,
+                    modifier = Modifier.fillMaxWidth(),
+                    primary = false,
                     minHeight = 40.dp,
                     fontSize = 13.sp
                 )
+            }
+        }
+    }
+
+    @Composable
+    private fun NovaLibraryRecoveryState(
+        eyebrow: String,
+        title: String,
+        message: String,
+        primaryActionLabel: String,
+        onPrimaryAction: () -> Unit,
+        detail: String? = null,
+        secondaryActionLabel: String? = null,
+        onSecondaryAction: (() -> Unit)? = null
+    ) {
+        val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 360.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(surfaces.panel)
+                    .border(1.dp, surfaces.tileBorder, RoundedCornerShape(22.dp))
+                    .padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = eyebrow.uppercase(Locale.getDefault()),
+                    color = colors.accent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.7.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = title,
+                    color = colors.textPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = message,
+                    color = colors.textSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+                if (!detail.isNullOrBlank()) {
+                    Text(
+                        text = detail,
+                        color = colors.textMuted,
+                        fontSize = 12.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                NovaActionButton(
+                    text = primaryActionLabel,
+                    onClick = onPrimaryAction,
+                    modifier = Modifier.fillMaxWidth(),
+                    primary = true,
+                    minHeight = 42.dp,
+                    fontSize = 13.sp
+                )
+                if (secondaryActionLabel != null && onSecondaryAction != null) {
+                    NovaActionButton(
+                        text = secondaryActionLabel,
+                        onClick = onSecondaryAction,
+                        modifier = Modifier.fillMaxWidth(),
+                        primary = false,
+                        minHeight = 40.dp,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }
@@ -1771,7 +2304,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                         detail = model.summary.totalCount.toString(),
                         selected = filterState.primary == NovaLibraryPrimaryFilter.ALL && searchQuery.isBlank(),
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = onClearFilters
+                        onClick = onClearFilters,
                     )
                     NovaLibraryUiStateMapper.categoryFilters(model.allGames).forEach { category ->
                         val categoryCount = model.allGames.count { it.category.equals(category, ignoreCase = true) }
@@ -1833,6 +2366,12 @@ class NovaLibraryActivity : AppCompatActivity() {
         Row(
             modifier = modifier
                 .height(42.dp)
+                .novaFocusMotion(
+                    focused = focused,
+                    focusedScale = NovaFocusMotionSpec.CardFocusedScale,
+                    haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
+                    cornerRadius = 14.dp
+                )
                 .clip(RoundedCornerShape(14.dp))
                 .background(
                     when {

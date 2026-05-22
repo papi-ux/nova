@@ -109,7 +109,7 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
-    fun uiModelBuildsCountsRecentRailAndEmptyStates() {
+    fun uiModelBuildsCountsRecentRailHeroAndEmptyStates() {
         val games = listOf(
             game("portal", "Portal", lastLaunched = 20, hdrSupported = true),
             game("hades", "Hades", lastLaunched = 10),
@@ -131,8 +131,157 @@ class NovaLibraryUiStateTest {
         assertEquals(2, model.summary.recentCount)
         assertEquals(1, model.summary.hdrCount)
         assertEquals(listOf("Portal", "Hades"), model.recentGames.map { it.name })
+        assertEquals("No matching games", model.hero.title)
+        assertEquals(NovaLibraryHeroReason.EMPTY, model.hero.reason)
+        assertEquals("No match for the current search or filters.", model.hero.caption)
+        assertEquals("Clear filters", model.hero.actionLabel)
+        assertEquals(NovaLibraryHeroPrimaryAction.CLEAR_FILTERS, model.hero.primaryAction)
+        assertTrue(model.hero.badges.isEmpty())
         assertEquals(NovaLibraryEmptyState.FILTERED, model.emptyState)
         assertEquals(NovaLibraryEmptyState.RECENT, recentModel.emptyState)
+    }
+
+    @Test
+    fun heroPrefersActiveSessionOverRecentGames() {
+        val games = listOf(
+            game("recent", "Recent Game", lastLaunched = 100),
+            game("active", "Active Game", lastLaunched = 10)
+        )
+        val activeSession = NovaLibraryActiveSessionUiState(
+            gameId = 24,
+            gameUuid = "active",
+            gameName = "Active Game",
+            ownerDeviceName = "Retroid Pocket",
+            ownedByClient = true,
+            viewerCount = 1,
+            virtualDisplay = true,
+            displayModeExplicit = true,
+            streamWidth = 1920,
+            streamHeight = 1080,
+            streamFps = 60f
+        )
+
+        val hero = NovaLibraryUiStateMapper.heroState(
+            games = games,
+            filteredGames = games,
+            activeSession = activeSession
+        )
+
+        assertEquals("Active Game", hero.title)
+        assertEquals(NovaLibraryHeroReason.ACTIVE_SESSION, hero.reason)
+        assertEquals(NovaLibraryHeroPrimaryAction.RESUME, hero.primaryAction)
+        assertEquals("Retroid Pocket", hero.subtitle)
+        assertEquals("Resume stream", hero.actionLabel)
+        assertTrue(hero.badges.contains("Active session"))
+        assertTrue(hero.badges.contains("Virtual display"))
+        assertEquals("Resume the current display and quality profile.", hero.caption)
+        assertTrue(hero.badges.contains("1920×1080 60fps"))
+    }
+
+    @Test
+    fun heroPrefersFilteredGameOverGlobalRecentWhenConstraintsAreActive() {
+        val games = listOf(
+            game("recent", "Recent Game", source = "steam", lastLaunched = 100),
+            game("match", "Filtered Match", source = "heroic", lastLaunched = 0)
+        )
+
+        val model = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "filtered",
+            filterState = NovaLibraryFilterState()
+        )
+
+        assertEquals(listOf("match"), model.filteredGames.map { it.id })
+        assertEquals("Filtered Match", model.hero.title)
+        assertEquals("match", model.hero.game?.id)
+        assertEquals(NovaLibraryHeroReason.FIRST_FILTERED, model.hero.reason)
+        assertEquals("Filtered library", model.hero.eyebrow)
+        assertEquals("Launch options", model.hero.actionLabel)
+        assertEquals("Filters active - clear to browse every game.", model.hero.caption)
+    }
+
+    @Test
+    fun heroUsesWatchActionForSessionsOwnedByAnotherClient() {
+        val activeSession = NovaLibraryActiveSessionUiState(
+            gameId = 42,
+            gameUuid = "desktop",
+            gameName = "Desktop",
+            ownerDeviceName = "Pixel",
+            ownedByClient = false,
+            viewerCount = 2,
+            virtualDisplay = false,
+            displayModeExplicit = false,
+            streamWidth = 0,
+            streamHeight = 0,
+            streamFps = 0f
+        )
+
+        val hero = NovaLibraryUiStateMapper.heroState(
+            games = emptyList(),
+            filteredGames = emptyList(),
+            activeSession = activeSession
+        )
+
+        assertEquals("Desktop", hero.title)
+        assertEquals(NovaLibraryHeroReason.ACTIVE_SESSION, hero.reason)
+        assertEquals(NovaLibraryHeroPrimaryAction.WATCH, hero.primaryAction)
+        assertEquals("Watch stream", hero.actionLabel)
+        assertEquals("Watch-only view; owner stays in control.", hero.caption)
+        assertTrue(hero.badges.contains("2 viewers"))
+    }
+
+    @Test
+    fun heroUsesRecentGameWithDeliberateCtaCopy() {
+        val games = listOf(
+            game("recent", "Recent Game", source = "steam", lastLaunched = 100),
+            game("older", "Older Game", source = "heroic", lastLaunched = 20)
+        )
+
+        val hero = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "",
+            filterState = NovaLibraryFilterState()
+        ).hero
+
+        assertEquals("Recent Game", hero.title)
+        assertEquals(NovaLibraryHeroReason.LAST_PLAYED, hero.reason)
+        assertEquals("Continue playing", hero.eyebrow)
+        assertEquals("Launch options", hero.actionLabel)
+        assertEquals("Recent on this host.", hero.caption)
+    }
+
+    @Test
+    fun heroFallsBackToFirstFilteredGameThenEmptyLibraryAction() {
+        val games = listOf(
+            game("a", "Alpha", source = "steam"),
+            game("b", "Beta", source = "heroic")
+        )
+        val filtered = listOf(games[1])
+
+        val hero = NovaLibraryUiStateMapper.heroState(
+            games = games,
+            filteredGames = filtered,
+            activeSession = null
+        )
+        val emptyHero = NovaLibraryUiStateMapper.heroState(
+            games = emptyList(),
+            filteredGames = emptyList(),
+            activeSession = null
+        )
+
+        assertEquals("Beta", hero.title)
+        assertEquals(NovaLibraryHeroReason.FIRST_FILTERED, hero.reason)
+        assertEquals(NovaLibraryHeroPrimaryAction.OPEN_DETAIL, hero.primaryAction)
+        assertEquals("Heroic", hero.subtitle)
+        assertEquals("Ready when you are", hero.eyebrow)
+        assertEquals("Launch options", hero.actionLabel)
+        assertEquals("Choose profile, display, and stream settings.", hero.caption)
+
+        assertEquals(NovaLibraryHeroReason.EMPTY, emptyHero.reason)
+        assertEquals(NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY, emptyHero.primaryAction)
+        assertEquals("Build your library", emptyHero.title)
+        assertEquals("Manage library", emptyHero.actionLabel)
+        assertEquals("Manage Library in Polaris to add games and launch metadata.", emptyHero.caption)
     }
 
     @Test
@@ -160,6 +309,23 @@ class NovaLibraryUiStateTest {
         assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
         assertEquals(138, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
         assertEquals(168, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = false))
+    }
+
+    @Test
+    fun shortLandscapeHidesRecentRailToKeepMainGridFromClipping() {
+        assertFalse(NovaLibraryUiStateMapper.showLandscapeRecentRail(screenHeightDp = 444))
+        assertFalse(NovaLibraryUiStateMapper.showLandscapeRecentRail(screenHeightDp = 500))
+        assertTrue(NovaLibraryUiStateMapper.showLandscapeRecentRail(screenHeightDp = 600))
+    }
+
+    @Test
+    fun landscapeRailScrollPaddingKeepsFocusedFiltersClearOfSafeArea() {
+        assertTrue(NovaLibraryUiStateMapper.railScrollBottomPaddingDp() >= 96)
+    }
+
+    @Test
+    fun landscapeRailSpacingKeepsBottomFiltersVisibleOnRetroid() {
+        assertTrue(NovaLibraryUiStateMapper.railVerticalSpacingDp() <= 6)
     }
 
     @Test

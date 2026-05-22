@@ -11,22 +11,17 @@ class NovaLaunchSourceGuardTest {
     @Test
     fun gameDetailLaunchUsesSelectedMangoHudState() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
-        val primaryLaunch = detail.section("onPrimaryLaunch = {", "},\n                    onLaunchOptions")
-        val launchOptionsCall = detail.section("onLaunchOptions = {", "},\n                    onProfilePreference")
-        val launchOptions = detail.section(
-            "private fun showLaunchOptions(",
-            "private fun optionLabel("
-        )
+        val primaryLaunch = detail.section("onPrimaryLaunch = {", "},\n                    onLaunchModeSelected")
+        val launchModeSelection = detail.section("fun selectLaunchMode(", "composeView.setContent {")
 
         assertTrue(
             "primary Play should pass the selected MangoHUD state into the launch request",
             primaryLaunch.contains("currentGame.copy(mangohud = mangoHudEnabled)")
         )
         assertTrue(
-            "Launch Options should carry the selected MangoHUD state into the dialog launch",
-            launchOptionsCall.contains("mangoHudEnabled") &&
-                launchOptions.contains("mangoHudEnabled: Boolean") &&
-                launchOptions.contains("game.copy(mangohud = mangoHudEnabled)")
+            "inline mode selection should keep the selected MangoHUD state in preview/preflight state",
+            launchModeSelection.contains("loadOptimization(profilePreference, usesVirtualDisplay = mode == \"virtual_display\")") &&
+                launchModeSelection.contains("currentGame = currentGame.copy(launchMode = updatedLaunchMode)")
         )
     }
 
@@ -34,7 +29,7 @@ class NovaLaunchSourceGuardTest {
     fun libraryLaunchSynchronizesMangoHudBeforeStartingStream() {
         val activity = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val launchGame = activity.section(
-            "private fun launchGame(game: PolarisGame, withVirtualDisplay: Boolean)",
+            "private fun launchGame(",
             "private fun resumeActiveSession("
         )
 
@@ -43,6 +38,55 @@ class NovaLaunchSourceGuardTest {
             launchGame.contains("apiClient.setMangoHud(game.id, game.mangohud)") &&
                 launchGame.indexOf("apiClient.setMangoHud(game.id, game.mangohud)") <
                 launchGame.indexOf("ServerHelper.doStart(")
+        )
+    }
+
+    @Test
+    fun shortcutLaunchUsesPolarisPreflightBeforeStartingStream() {
+        val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
+        val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
+        val directLaunch = trampoline.section(
+            "if (currentApp != null) {",
+            "} else {\n                                            finish()"
+        )
+
+        assertTrue(
+            "shortcut launch should split read-only Polaris metadata resolution from side-effecting launch preflight",
+            trampoline.contains("private fun resolvePolarisShortcutLaunchPlan(") &&
+                trampoline.contains("private fun applyPolarisShortcutLaunchPreflight(")
+        )
+
+        val resolvePlan = trampoline.section(
+            "private fun resolvePolarisShortcutLaunchPlan(",
+            "private fun applyPolarisShortcutLaunchPreflight("
+        )
+        val applyPreflight = trampoline.section(
+            "private fun applyPolarisShortcutLaunchPreflight(",
+            "private fun findPolarisShortcutGame("
+        )
+
+        assertTrue(
+            "shortcut launch should resolve Polaris library metadata before direct game start without mutating host/client state",
+            resolvePlan.contains("findPolarisShortcutGame(apiClient, shortcutApp)") &&
+                trampoline.contains("apiClient.getGames(limit = 100)") &&
+                !resolvePlan.contains("setMangoHud(") &&
+                !resolvePlan.contains("syncShortcutLaunchPreflightSettings") &&
+                !resolvePlan.contains("getOptimization(")
+        )
+        assertTrue(
+            "shortcut launch should sync the Polaris client settings/profile contract only when a launch is going ahead",
+            applyPreflight.contains("apiClient.setMangoHud(polarisGame.id, polarisGame.mangohud)") &&
+                applyPreflight.contains("syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay)") &&
+                applyPreflight.contains("apiClient.getOptimization(") &&
+                trampoline.contains("applyPolarisShortcutLaunchPreflight(details, it, prefConfig.useVirtualDisplay)") &&
+                directLaunch.contains("startConfirmedShortcutLaunch(")
+        )
+        assertTrue(
+            "shortcut launch should carry Polaris optimization/profile extras into Game just like library launches",
+            directLaunch.contains("readyLaunchPlan.profilePreference") &&
+                directLaunch.contains("readyLaunchPlan.launchOptimizationJson") &&
+                serverHelper.contains("Game.EXTRA_AI_PROFILE_PREFERENCE") &&
+                serverHelper.contains("Game.EXTRA_LAUNCH_OPTIMIZATION")
         )
     }
 
@@ -132,6 +176,22 @@ class NovaLaunchSourceGuardTest {
             "clear-only follow-ups should avoid re-showing paused teardown after local End",
             followUps.contains("clearOnly: Boolean = false") &&
                 followUps.contains("if (clearOnly && refreshed != null)")
+        )
+    }
+
+    @Test
+    fun gameBackPressClosesOpenQuickMenuInsteadOfReopeningIt() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val onBackPressed = game.section(
+            "override fun onBackPressed()",
+            "fun sendExecServerCmd("
+        )
+
+        assertTrue(
+            "Back should dismiss an already-open Command Center instead of opening a second menu window",
+            onBackPressed.contains("gameMenuCallbacks?.isMenuOpen() == true") &&
+                onBackPressed.contains("hideGameMenu()") &&
+                onBackPressed.indexOf("hideGameMenu()") < onBackPressed.indexOf("showGameMenu(null)")
         )
     }
 

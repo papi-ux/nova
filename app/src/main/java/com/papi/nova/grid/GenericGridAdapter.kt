@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.RelativeLayout
@@ -95,13 +96,46 @@ abstract class GenericGridAdapter<T>(
 
         val focusRing = holder.itemView.findViewById<View?>(R.id.nova_focus_ring)
         focusRing?.visibility = if (holder.itemView.hasFocus()) View.VISIBLE else View.GONE
+        applyFocusMotionState(holder.itemView, holder.itemView.hasFocus(), animate = false)
         holder.itemView.setOnFocusChangeListener { _, hasFocus ->
             focusRing?.visibility = if (hasFocus) View.VISIBLE else View.GONE
+            applyFocusMotionState(holder.itemView, hasFocus, animate = true)
             onItemFocusChanged(holder.itemView, hasFocus)
         }
 
         holder.itemView.setOnClickListener {
             clickListener?.onItemClick(item)
         }
+    }
+
+    private fun applyFocusMotionState(view: View, hasFocus: Boolean, animate: Boolean) {
+        val scale = if (hasFocus) FOCUSED_SCALE else 1f
+        val elevation = if (hasFocus) focusedTranslationZPx(view) else 0f
+        view.animate().cancel()
+        if (!animate) {
+            view.scaleX = scale
+            view.scaleY = scale
+            view.translationZ = elevation
+            return
+        }
+
+        view.animate()
+            .scaleX(scale)
+            .scaleY(scale)
+            .translationZ(elevation)
+            .setDuration(FOCUS_MOTION_DURATION_MS)
+            .setInterpolator(FOCUS_INTERPOLATOR)
+            .withLayer()
+            .start()
+    }
+
+    private fun focusedTranslationZPx(view: View): Float =
+        FOCUSED_TRANSLATION_Z_DP * view.resources.displayMetrics.density
+
+    private companion object {
+        private const val FOCUS_MOTION_DURATION_MS = 140L
+        private const val FOCUSED_SCALE = 1.025f
+        private const val FOCUSED_TRANSLATION_Z_DP = 8f
+        private val FOCUS_INTERPOLATOR = DecelerateInterpolator()
     }
 }

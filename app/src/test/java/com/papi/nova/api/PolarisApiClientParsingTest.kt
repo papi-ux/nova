@@ -395,4 +395,19 @@ class PolarisApiClientParsingTest {
         assertEquals("game-1", body.getString("game_id"))
         assertEquals("big-picture", body.getString("mode"))
     }
+
+    @Test
+    fun buildOptimizationPath_includesHighFpsTrialWhenRequested() {
+        val path = PolarisApiClient.buildOptimizationPath(
+            device = "RetroidPocket6",
+            game = "Black Myth: Wukong",
+            preference = "high_fps",
+            trial = "high_fps"
+        )
+
+        assertEquals(
+            "/optimize?device=RetroidPocket6&game=Black+Myth%3A+Wukong&preference=high_fps&trial=high_fps",
+            path
+        )
+    }
 }

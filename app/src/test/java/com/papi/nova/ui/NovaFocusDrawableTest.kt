@@ -275,6 +275,12 @@ class NovaFocusDrawableTest {
                 source.contains("setOnFocusChangeListener") &&
                 source.contains("focusRing?.visibility = if (hasFocus) View.VISIBLE else View.GONE")
         )
+        assertTrue(
+            "game grid focus should use the shared motion treatment instead of only toggling a static ring",
+            source.contains("applyFocusMotionState(holder.itemView, hasFocus, animate = true)") &&
+                source.contains("FOCUSED_SCALE") &&
+                source.contains("translationZ(elevation)")
+        )
     }
 
     @Test

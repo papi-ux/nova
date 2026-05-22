@@ -37,7 +37,7 @@ class NovaHudUiStateTest {
     @Test
     fun fullModeFormatsReadableLabelsAndTones() {
         val state = NovaHudUiState.from(
-            mode = NovaHudMode.FULL,
+            mode = NovaHudMode.DEBUG,
             fps = 118.7,
             targetFps = 120.0,
             latencyMs = 18,
@@ -66,9 +66,23 @@ class NovaHudUiStateTest {
     }
 
     @Test
-    fun compactModesUseDenseLabels() {
-        val banner = NovaHudUiState.from(
-            mode = NovaHudMode.BANNER,
+    fun hudModesMapCasualPerformanceAndDebugPreferences() {
+        assertEquals(NovaHudMode.MINIMAL, NovaHudMode.fromPreference("minimal"))
+        assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.fromPreference("performance"))
+        assertEquals(NovaHudMode.DEBUG, NovaHudMode.fromPreference("debug"))
+        assertEquals(NovaHudMode.DEBUG, NovaHudMode.fromPreference("full"))
+        assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.fromPreference("banner"))
+        assertEquals(NovaHudMode.MINIMAL, NovaHudMode.fromPreference("fps_only"))
+        assertEquals(NovaHudMode.MINIMAL, NovaHudMode.fromPreference(null))
+        assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.MINIMAL.next())
+        assertEquals(NovaHudMode.DEBUG, NovaHudMode.PERFORMANCE.next())
+        assertEquals(NovaHudMode.MINIMAL, NovaHudMode.DEBUG.next())
+    }
+
+    @Test
+    fun visualModesFormatMetricsForTheirUseCase() {
+        val performance = NovaHudUiState.from(
+            mode = NovaHudMode.PERFORMANCE,
             fps = 59.7,
             targetFps = 120.0,
             latencyMs = 51,
@@ -79,20 +93,44 @@ class NovaHudUiStateTest {
             status = status(),
             sparklineSamples = emptyList()
         )
-        val fpsOnly = banner.copy(mode = NovaHudMode.FPS_ONLY)
+        val minimal = NovaHudUiState.from(
+            mode = NovaHudMode.MINIMAL,
+            fps = 59.7,
+            targetFps = 120.0,
+            latencyMs = 51,
+            codec = "AV1 Main",
+            bitrateKbps = 24187,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = emptyList()
+        )
+        val debug = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 59.7,
+            targetFps = 120.0,
+            latencyMs = 51,
+            codec = "AV1 Main",
+            bitrateKbps = 24187,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = emptyList()
+        )
 
-        assertEquals("/120", banner.targetFpsLabel)
-        assertEquals("24M", banner.bitrateLabel)
-        assertEquals("1080p", banner.resolutionLabel)
-        assertEquals("AV1", banner.codecLabel)
-        assertEquals(NovaHudTone.DANGER, banner.latencyTone)
-        assertEquals("/120", fpsOnly.targetFpsLabel)
+        assertEquals("/120", performance.targetFpsLabel)
+        assertEquals("24M", performance.bitrateLabel)
+        assertEquals("1080p", performance.resolutionLabel)
+        assertEquals("AV1", performance.codecLabel)
+        assertEquals(NovaHudTone.DANGER, performance.latencyTone)
+        assertEquals("", minimal.targetFpsLabel)
+        assertEquals("24 Mbps", debug.bitrateLabel)
     }
 
     @Test
     fun recoveryStatusUsesWarningAutopilotTone() {
         val state = NovaHudUiState.from(
-            mode = NovaHudMode.FPS_ONLY,
+            mode = NovaHudMode.MINIMAL,
             fps = 42.0,
             targetFps = 120.0,
             latencyMs = 24,
@@ -125,9 +163,47 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun autoSafeBitrateCapUsesExplicitHudLabel() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.MINIMAL,
+            fps = 118.7,
+            targetFps = 120.0,
+            latencyMs = 18,
+            codec = "hevc",
+            bitrateKbps = 12000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc_nvenc",
+                    bitrateKbps = 12000,
+                    fps = 120.0,
+                    requestedClientFps = 120.0,
+                    sessionTargetFps = 120.0,
+                    encodeTargetFps = 120.0,
+                    optimizationSource = "ai_cached",
+                    optimizationCacheStatus = "hit",
+                    targetResidency = "gpu"
+                ),
+                tuning = PolarisSessionStatus.TuningStatus(
+                    adaptiveBitrateEnabled = true,
+                    adaptiveTargetBitrateKbps = 12000,
+                    adaptiveBaseBitrateKbps = 28000,
+                    aiOptimizerEnabled = true
+                )
+            ),
+            sparklineSamples = listOf(118f)
+        )
+
+        assertEquals("Auto Safe capped", state.autopilotLabel)
+        assertEquals("Auto Safe", state.autopilotHudLabel)
+        assertEquals(NovaHudTone.WARNING, state.statusTone)
+    }
+
+    @Test
     fun hudLabelsStayCompactForSpaceConstrainedOverlay() {
         val stable = NovaHudUiState.from(
-            mode = NovaHudMode.FULL,
+            mode = NovaHudMode.DEBUG,
             fps = 118.7,
             targetFps = 120.0,
             latencyMs = 12,
@@ -139,7 +215,7 @@ class NovaHudUiStateTest {
             sparklineSamples = emptyList()
         )
         val upgrade = NovaHudUiState.from(
-            mode = NovaHudMode.FULL,
+            mode = NovaHudMode.DEBUG,
             fps = 118.7,
             targetFps = 120.0,
             latencyMs = 12,
@@ -155,7 +231,7 @@ class NovaHudUiStateTest {
             sparklineSamples = emptyList()
         )
         val attention = NovaHudUiState.from(
-            mode = NovaHudMode.FULL,
+            mode = NovaHudMode.DEBUG,
             fps = 118.7,
             targetFps = 120.0,
             latencyMs = 12,
@@ -236,18 +312,19 @@ class NovaHudUiStateTest {
         displayMode: PolarisSessionStatus.DisplayModeStatus = PolarisSessionStatus.DisplayModeStatus(
             requested = "headless",
             effectiveHeadless = true
+        ),
+        tuning: PolarisSessionStatus.TuningStatus = PolarisSessionStatus.TuningStatus(
+            adaptiveBitrateEnabled = true,
+            adaptiveTargetBitrateKbps = 30000,
+            adaptiveBaseBitrateKbps = 30000,
+            aiOptimizerEnabled = true
         )
     ) = PolarisSessionStatus(
         state = "streaming",
         streamingActive = true,
         adaptiveBitrateEnabled = true,
         aiOptimizerEnabled = true,
-        tuning = PolarisSessionStatus.TuningStatus(
-            adaptiveBitrateEnabled = true,
-            adaptiveTargetBitrateKbps = 30000,
-            adaptiveBaseBitrateKbps = 30000,
-            aiOptimizerEnabled = true
-        ),
+        tuning = tuning,
         encoder = encoder,
         capture = capture,
         health = health,
