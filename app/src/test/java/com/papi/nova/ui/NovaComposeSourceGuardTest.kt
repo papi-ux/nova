@@ -128,6 +128,12 @@ class NovaComposeSourceGuardTest {
             landscape.indexOf("NovaLibraryContent(") in 0 until landscape.indexOf("NovaLibraryRecentRail(")
         )
         assertTrue(
+            "landscape recent rail should ask the mapper whether the hero already owns resume/continue instead of duplicating it",
+            screen.contains("NovaLibraryUiStateMapper.showLandscapeRecentRail(") &&
+                screen.contains("heroReason = model.hero.reason") &&
+                screen.contains("recentCount = model.recentGames.size")
+        )
+        assertTrue(
             "hero should use the mapped model hero state instead of recomputing presentation copy",
             screen.contains("hero = model.hero")
         )
@@ -140,8 +146,8 @@ class NovaComposeSourceGuardTest {
             hero.contains("text = hero.caption")
         )
         assertTrue(
-            "hero should reserve enough height for title, caption, badges, and controller CTA",
-            hero.contains("val height = if (compact) 152.dp else 178.dp")
+            "hero height should be mapper-driven so Retroid landscape can shrink the resume surface without source spelunking",
+            hero.contains("val height = NovaLibraryUiStateMapper.heroHeightDp(compact = compact).dp")
         )
         assertTrue(
             "hero caption stack should use tighter vertical spacing to avoid clipped badge rows",

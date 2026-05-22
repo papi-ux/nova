@@ -424,13 +424,30 @@ object NovaLibraryUiStateMapper {
     fun gameCardHeightDp(compact: Boolean, isLandscape: Boolean): Int {
         return when {
             compact -> 112
-            isLandscape -> 138
+            isLandscape -> 156
             else -> 168
         }
     }
 
-    fun showLandscapeRecentRail(screenHeightDp: Int): Boolean {
-        return screenHeightDp >= LANDSCAPE_RECENT_RAIL_MIN_HEIGHT_DP
+    fun heroHeightDp(compact: Boolean): Int {
+        return if (compact) 128 else 178
+    }
+
+    fun showLandscapeRecentRail(
+        screenHeightDp: Int,
+        heroReason: NovaLibraryHeroReason,
+        recentCount: Int
+    ): Boolean {
+        if (recentCount <= 0 || screenHeightDp < LANDSCAPE_RECENT_RAIL_MIN_HEIGHT_DP) {
+            return false
+        }
+        return when (heroReason) {
+            NovaLibraryHeroReason.ACTIVE_SESSION,
+            NovaLibraryHeroReason.LAST_PLAYED -> false
+            NovaLibraryHeroReason.FIRST_FILTERED,
+            NovaLibraryHeroReason.FIRST_LIBRARY_GAME,
+            NovaLibraryHeroReason.EMPTY -> true
+        }
     }
 
     fun contentWidthDp(widthDp: Int, isLandscape: Boolean): Int {

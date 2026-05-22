@@ -693,8 +693,11 @@ class NovaLibraryActivity : AppCompatActivity() {
         val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
         val columns = NovaLibraryUiStateMapper.gridColumnsForScreen(configuration.screenWidthDp, isLandscape)
         val railWidth = NovaLibraryUiStateMapper.railWidthDp(configuration.screenWidthDp).dp
-        val showLandscapeRecentRail = model.recentGames.isNotEmpty() &&
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(configuration.screenHeightDp)
+        val showLandscapeRecentRail = NovaLibraryUiStateMapper.showLandscapeRecentRail(
+            screenHeightDp = configuration.screenHeightDp,
+            heroReason = model.hero.reason,
+            recentCount = model.recentGames.size
+        )
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
         val restoreFocusGameInRecent = restoreFocusGameId != null &&
@@ -963,7 +966,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
         val heroGame = hero.game
-        val height = if (compact) 152.dp else 178.dp
+        val height = NovaLibraryUiStateMapper.heroHeightDp(compact = compact).dp
         var focused by remember { mutableStateOf(false) }
         LaunchedEffect(focused, heroGame) {
             if (focused && heroGame != null) {
@@ -1001,8 +1004,8 @@ class NovaLibraryActivity : AppCompatActivity() {
                 }
                 .combinedClickable(onClick = onPrimaryAction)
                 .focusable()
-                .padding(if (compact) 14.dp else 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
+                .padding(if (compact) 12.dp else 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(

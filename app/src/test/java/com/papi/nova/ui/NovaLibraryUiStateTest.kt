@@ -305,17 +305,50 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
-    fun gameCardHeightsKeepRetroidLandscapeDense() {
+    fun layoutMetricsMakeRetroidLandscapeGameSelectionPrimary() {
         assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
-        assertEquals(138, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
+        assertEquals(128, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
+        assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
         assertEquals(168, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = false))
     }
 
     @Test
-    fun shortLandscapeHidesRecentRailToKeepMainGridFromClipping() {
-        assertFalse(NovaLibraryUiStateMapper.showLandscapeRecentRail(screenHeightDp = 444))
-        assertFalse(NovaLibraryUiStateMapper.showLandscapeRecentRail(screenHeightDp = 500))
-        assertTrue(NovaLibraryUiStateMapper.showLandscapeRecentRail(screenHeightDp = 600))
+    fun landscapeRecentRailDoesNotDuplicateResumeHero() {
+        assertFalse(
+            NovaLibraryUiStateMapper.showLandscapeRecentRail(
+                screenHeightDp = 500,
+                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
+                recentCount = 4
+            )
+        )
+        assertFalse(
+            NovaLibraryUiStateMapper.showLandscapeRecentRail(
+                screenHeightDp = 600,
+                heroReason = NovaLibraryHeroReason.LAST_PLAYED,
+                recentCount = 4
+            )
+        )
+        assertFalse(
+            NovaLibraryUiStateMapper.showLandscapeRecentRail(
+                screenHeightDp = 600,
+                heroReason = NovaLibraryHeroReason.ACTIVE_SESSION,
+                recentCount = 4
+            )
+        )
+        assertFalse(
+            NovaLibraryUiStateMapper.showLandscapeRecentRail(
+                screenHeightDp = 600,
+                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
+                recentCount = 0
+            )
+        )
+        assertTrue(
+            NovaLibraryUiStateMapper.showLandscapeRecentRail(
+                screenHeightDp = 600,
+                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
+                recentCount = 4
+            )
+        )
     }
 
     @Test
