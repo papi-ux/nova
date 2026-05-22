@@ -307,10 +307,10 @@ class NovaLibraryUiStateTest {
     @Test
     fun layoutMetricsMakeRetroidLandscapeGameSelectionPrimary() {
         assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
-        assertEquals(96, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
+        assertEquals(76, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
         assertTrue(
-            "compact landscape resume hero should read like a short continue strip, not a second feature panel",
-            NovaLibraryUiStateMapper.heroHeightDp(compact = true) <= 100
+            "compact landscape resume hero should read as a visibly shorter strip, not the same mini feature panel",
+            NovaLibraryUiStateMapper.heroHeightDp(compact = true) <= 80
         )
         assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
         assertEquals(168, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = false))

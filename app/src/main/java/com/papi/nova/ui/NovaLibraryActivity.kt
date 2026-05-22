@@ -1011,13 +1011,13 @@ class NovaLibraryActivity : AppCompatActivity() {
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 5.dp)
+                verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 5.dp)
             ) {
                 Text(
                     text = hero.eyebrow.uppercase(),
                     color = colors.accent,
-                    fontSize = if (compact) 10.sp else 12.sp,
-                    lineHeight = if (compact) 12.sp else 14.sp,
+                    fontSize = if (compact) 9.sp else 12.sp,
+                    lineHeight = if (compact) 11.sp else 14.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1025,31 +1025,33 @@ class NovaLibraryActivity : AppCompatActivity() {
                 Text(
                     text = hero.title,
                     color = colors.textPrimary,
-                    fontSize = if (compact) 22.sp else 30.sp,
-                    lineHeight = if (compact) 24.sp else 34.sp,
+                    fontSize = if (compact) 20.sp else 30.sp,
+                    lineHeight = if (compact) 22.sp else 34.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = hero.subtitle,
-                    color = colors.textSecondary,
-                    fontSize = if (compact) 11.sp else 14.sp,
-                    lineHeight = if (compact) 13.sp else 16.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (showCaption) {
+                if (!compact) {
                     Text(
-                        text = hero.caption,
-                        color = colors.textSecondary.copy(alpha = 0.86f),
-                        fontSize = if (compact) 11.sp else 13.sp,
-                        lineHeight = if (compact) 13.sp else 15.sp,
+                        text = hero.subtitle,
+                        color = colors.textSecondary,
+                        fontSize = if (compact) 11.sp else 14.sp,
+                        lineHeight = if (compact) 13.sp else 16.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (showCaption) {
+                        Text(
+                            text = hero.caption,
+                            color = colors.textSecondary.copy(alpha = 0.86f),
+                            fontSize = if (compact) 11.sp else 13.sp,
+                            lineHeight = if (compact) 13.sp else 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
-                if (hero.badges.isNotEmpty()) {
+                if (!compact && hero.badges.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1063,9 +1065,9 @@ class NovaLibraryActivity : AppCompatActivity() {
             NovaActionButton(
                 text = hero.actionLabel,
                 onClick = onPrimaryAction,
-                modifier = Modifier.widthIn(min = if (compact) 110.dp else 148.dp),
-                minHeight = if (compact) 38.dp else 48.dp,
-                fontSize = if (compact) 11.sp else 14.sp
+                modifier = Modifier.widthIn(min = if (compact) 104.dp else 148.dp),
+                minHeight = if (compact) 34.dp else 48.dp,
+                fontSize = if (compact) 10.sp else 14.sp
             )
         }
     }

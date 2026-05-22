@@ -151,7 +151,7 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "hero caption stack should use tighter vertical spacing to avoid clipped badge rows",
-            hero.contains("Arrangement.spacedBy(if (compact) 2.dp else 5.dp)")
+            hero.contains("Arrangement.spacedBy(if (compact) 1.dp else 5.dp)")
         )
         assertTrue(
             "compact hero should use tighter padding so the continue strip gives vertical room back to the grid",
@@ -159,10 +159,17 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "hero text stack should declare compact line heights so captions do not inherit oversized body metrics",
-            hero.contains("lineHeight = if (compact) 12.sp else 14.sp") &&
-                hero.contains("lineHeight = if (compact) 24.sp else 34.sp") &&
+            hero.contains("lineHeight = if (compact) 11.sp else 14.sp") &&
+                hero.contains("lineHeight = if (compact) 22.sp else 34.sp") &&
                 hero.contains("lineHeight = if (compact) 13.sp else 16.sp") &&
                 hero.contains("lineHeight = if (compact) 13.sp else 15.sp")
+        )
+        assertTrue(
+            "compact hero should hide secondary subtitle/caption/badges so the silhouette actually changes on Retroid",
+            hero.contains("if (!compact) {") &&
+                hero.contains("text = hero.subtitle") &&
+                hero.contains("if (showCaption) {") &&
+                hero.contains("if (!compact && hero.badges.isNotEmpty())")
         )
         assertTrue(
             "hero card itself should activate the same primary action when D-pad focus lands on the container",
