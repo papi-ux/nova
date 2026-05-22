@@ -183,6 +183,39 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryEmptyAndOfflineRecoveryStatesUseDeliberateCtas() {
+        val activity = readNovaLibraryActivity()
+        val strings = readSource("src/main/res/values/strings.xml")
+        val emptyState = activity.section(
+            "private fun NovaLibraryEmptyState(",
+            "@Composable\n    private fun NovaLibraryErrorState("
+        )
+        val errorState = activity.section(
+            "private fun NovaLibraryErrorState(",
+            "@Composable\n    private fun NovaLibraryRecoveryState("
+        )
+
+        assertTrue(
+            "default no-games empty state should make Manage server the primary recovery action",
+            emptyState.contains("NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_action_manage)")
+        )
+        assertTrue(
+            "recent-empty state should invite users back to the full library instead of sounding like an error",
+            emptyState.contains("NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_action_recent)") &&
+                strings.contains("name=\"nova_library_empty_action_recent\">View all games")
+        )
+        assertTrue(
+            "filtered empty state should keep Clear filters as the direct escape hatch",
+            emptyState.contains("NovaLibraryEmptyState.FILTERED -> stringResource(R.string.nova_library_empty_action_clear)")
+        )
+        assertTrue(
+            "offline/load failure recovery should offer Retry first and Manage server second",
+            errorState.indexOf("text = stringResource(R.string.nova_retry)") in 0 until
+                errorState.indexOf("text = stringResource(R.string.nova_library_error_action_manage)")
+        )
+    }
+
+    @Test
     fun librarySearchDoesNotEnterTextInputOnDpadFocus() {
         val searchField = readNovaLibraryActivity().section(
             "private fun NovaSearchField(",

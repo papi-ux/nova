@@ -201,6 +201,31 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
+    fun heroUsesRecentEmptyStateWhenRecentFilterHasNoHistory() {
+        val games = listOf(
+            game("portal", "Portal", source = "steam"),
+            game("hades", "Hades", source = "heroic")
+        )
+
+        val model = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "",
+            filterState = NovaLibraryFilterState(primary = NovaLibraryPrimaryFilter.RECENT)
+        )
+
+        assertTrue(model.filteredGames.isEmpty())
+        assertEquals(NovaLibraryEmptyState.RECENT, model.emptyState)
+        assertEquals(NovaLibraryHeroReason.EMPTY, model.hero.reason)
+        assertEquals(NovaLibraryHeroPrimaryAction.CLEAR_FILTERS, model.hero.primaryAction)
+        assertEquals("No recent games", model.hero.title)
+        assertEquals("Continue when ready", model.hero.eyebrow)
+        assertEquals("Your library has 2 games ready.", model.hero.subtitle)
+        assertEquals("Launch any game once and it will appear in Continue.", model.hero.caption)
+        assertEquals("View all games", model.hero.actionLabel)
+        assertTrue(model.hero.badges.isEmpty())
+    }
+
+    @Test
     fun heroUsesWatchActionForSessionsOwnedByAnotherClient() {
         val activeSession = NovaLibraryActiveSessionUiState(
             gameId = 42,

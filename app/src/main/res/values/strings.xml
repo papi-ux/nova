@@ -182,6 +182,7 @@
     <string name="nova_library_empty_title_filtered">No matches</string>
     <string name="nova_library_empty_hint_filtered">Try a different filter or search term.</string>
     <string name="nova_library_empty_action_manage">Manage server</string>
+    <string name="nova_library_empty_action_recent">View all games</string>
     <string name="nova_library_empty_action_clear">Clear filters</string>
     <string name="nova_library_error_eyebrow">Recovery</string>
     <string name="nova_library_error_title">Couldn\'t load library</string>

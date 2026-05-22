@@ -156,6 +156,7 @@ object NovaLibraryUiStateMapper {
         activeSession: NovaLibraryActiveSessionUiState? = null
     ): NovaLibraryUiModel {
         val filtered = filterGames(games, search, filterState)
+        val emptyState = emptyState(search, filterState)
         return NovaLibraryUiModel(
             allGames = games,
             filteredGames = filtered,
@@ -164,10 +165,11 @@ object NovaLibraryUiStateMapper {
                 games = games,
                 filteredGames = filtered,
                 activeSession = activeSession,
-                constraintsActive = search.isNotBlank() || filterState.hasActiveConstraint
+                constraintsActive = search.isNotBlank() || filterState.hasActiveConstraint,
+                emptyState = emptyState
             ),
             summary = summary(games),
-            emptyState = emptyState(search, filterState),
+            emptyState = emptyState,
             resultCount = filtered.size
         )
     }
@@ -176,7 +178,12 @@ object NovaLibraryUiStateMapper {
         games: List<PolarisGame>,
         filteredGames: List<PolarisGame>,
         activeSession: NovaLibraryActiveSessionUiState?,
-        constraintsActive: Boolean = false
+        constraintsActive: Boolean = false,
+        emptyState: NovaLibraryEmptyState = if (constraintsActive) {
+            NovaLibraryEmptyState.FILTERED
+        } else {
+            NovaLibraryEmptyState.DEFAULT
+        }
     ): NovaLibraryHeroState {
         if (activeSession != null) {
             return activeSessionHero(activeSession, games)
@@ -190,6 +197,18 @@ object NovaLibraryUiStateMapper {
                     reason = NovaLibraryHeroReason.FIRST_FILTERED,
                     eyebrow = "Filtered library",
                     caption = "Filters active - clear to browse every game."
+                )
+            } else if (emptyState == NovaLibraryEmptyState.RECENT && games.isNotEmpty()) {
+                NovaLibraryHeroState(
+                    game = null,
+                    title = "No recent games",
+                    subtitle = "Your library has ${games.size} games ready.",
+                    caption = "Launch any game once and it will appear in Continue.",
+                    eyebrow = "Continue when ready",
+                    actionLabel = "View all games",
+                    badges = emptyList(),
+                    reason = NovaLibraryHeroReason.EMPTY,
+                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS
                 )
             } else {
                 NovaLibraryHeroState(

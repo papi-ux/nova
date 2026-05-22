@@ -2068,7 +2068,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
         val actionLabel = when (emptyState) {
             NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_action_manage)
-            NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_action_clear)
+            NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_action_recent)
             NovaLibraryEmptyState.FILTERED -> stringResource(R.string.nova_library_empty_action_clear)
         }
         NovaLibraryRecoveryState(
