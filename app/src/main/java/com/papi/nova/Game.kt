@@ -4260,6 +4260,7 @@ if (spinner != null)
 {
 spinner!!.setMessage(getResources().getString(R.string.conn_starting) + " " + stage)
 }
+novaProgressOverlay?.updateState(stage)
 }
 })
 }
@@ -4581,6 +4582,13 @@ if (spinner != null)
 spinner!!.dismiss()
 spinner = null
 }
+
+novaProgressOverlay?.updateState("input_ready", "Input ready")
+timerHandler?.postDelayed(object : Runnable {
+override fun run() {
+novaProgressOverlay?.dismiss()
+}
+}, NOVA_PROGRESS_READY_DISMISS_DELAY_MS)
 
 handleStreamStartedState()
 
@@ -5942,6 +5950,7 @@ companion object {
  private const val FOUR_FINGER_TAP_THRESHOLD:Int = 300
  private const val FIVE_FINGER_TAP_THRESHOLD:Int = 300
  private const val POLARIS_SESSION_STATUS_REFRESH_MS:Long = 15000L
+ private const val NOVA_PROGRESS_READY_DISMISS_DELAY_MS:Long = 350L
 
  const val EXTRA_HOST:String = "Host"
  const val EXTRA_PORT:String = "Port"

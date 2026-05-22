@@ -196,6 +196,41 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun streamStartupOverlayWaitsForNativeConnectionStartedBeforeDismissal() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val overlay = readSource("src/main/java/com/papi/nova/ui/SessionProgressOverlay.kt")
+        val stageStarting = game.section(
+            "override fun stageStarting(stage:String)",
+            "override fun stageComplete(stage:String)"
+        )
+        val connectionStarted = game.section(
+            "override fun connectionStarted()",
+            "fun handleStreamStartedState()"
+        )
+
+        assertTrue(
+            "native Moonlight stage names should feed the Nova startup overlay instead of only the legacy spinner",
+            stageStarting.contains("novaProgressOverlay") &&
+                stageStarting.contains("updateState(stage")
+        )
+        assertTrue(
+            "Polaris 'streaming' should mean stream active/waiting for first frame, not immediate overlay dismissal",
+            !overlay.contains("state == \"streaming\"")
+        )
+        assertTrue(
+            "raw native stage ordering should not make startup overlay progress jump backwards",
+            overlay.contains("progressFraction >= overlayState.value.progressFraction")
+        )
+        assertTrue(
+            "native connectionStarted should mark input ready and then dismiss the startup overlay",
+            connectionStarted.contains("updateState(\"input_ready\"") &&
+                connectionStarted.contains("NOVA_PROGRESS_READY_DISMISS_DELAY_MS") &&
+                connectionStarted.contains("novaProgressOverlay") &&
+                connectionStarted.contains("dismiss()")
+        )
+    }
+
+    @Test
     fun gameAcceptsSyntheticNovaControllerShortcutBeforeIgnoringAdbKeyEvents() {
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val handleKeyDown = game.section(

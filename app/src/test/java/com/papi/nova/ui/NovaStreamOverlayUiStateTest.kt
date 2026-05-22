@@ -59,6 +59,37 @@ class NovaStreamOverlayUiStateTest {
     }
 
     @Test
+    fun progressStateMapsRawMoonlightLifecycleStageNames() {
+        assertEquals("connecting", NovaSessionProgressUiState.from("audio stream initialization").state)
+        assertEquals("rtsp", NovaSessionProgressUiState.from("RTSP handshake").state)
+        assertEquals("control", NovaSessionProgressUiState.from("control stream establishment").state)
+        assertEquals("video", NovaSessionProgressUiState.from("video stream establishment").state)
+        assertEquals("audio", NovaSessionProgressUiState.from("audio stream establishment").state)
+        assertEquals("input", NovaSessionProgressUiState.from("input stream establishment").state)
+    }
+
+    @Test
+    fun progressStateDistinguishesStreamActiveFromInputReady() {
+        val streamActive = NovaSessionProgressUiState.from("streaming")
+        val inputReady = NovaSessionProgressUiState.from("input_ready")
+
+        assertEquals("stream_active", streamActive.state)
+        assertEquals("Stream active", streamActive.stageLabel)
+        assertEquals("Waiting for first frame", streamActive.confidenceLabel)
+        assertEquals(
+            "The host reports streaming; Nova is waiting for the first painted frame before clearing the overlay.",
+            streamActive.confidenceDetail
+        )
+        assertEquals(0.97f, streamActive.progressFraction, 0.001f)
+
+        assertEquals("input_ready", inputReady.state)
+        assertEquals("Input ready", inputReady.stageLabel)
+        assertEquals("Input ready", inputReady.confidenceLabel)
+        assertEquals("Controller, audio, and video channels are established.", inputReady.confidenceDetail)
+        assertEquals(1f, inputReady.progressFraction, 0.001f)
+    }
+
+    @Test
     fun progressStateExposesExplicitStageLabelsForStartupPhases() {
         val expectedLabels = mapOf(
             "idle" to "Preflight check",

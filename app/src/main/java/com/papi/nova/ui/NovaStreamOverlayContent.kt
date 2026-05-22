@@ -62,12 +62,26 @@ data class NovaSessionProgressUiState(
                 aliases = setOf("idle")
             ),
             StageCopy(
+                state = "connecting",
+                title = "Connecting to host...",
+                stageLabel = "Connection setup",
+                confidenceLabel = "Opening client connection",
+                confidenceDetail = "Nova is resolving the host and preparing local stream services.",
+                progressFraction = 0.18f,
+                aliases = setOf(
+                    "platform initialization",
+                    "name resolution",
+                    "audio stream initialization"
+                )
+            ),
+            StageCopy(
                 state = "rtsp",
                 title = "Opening stream session...",
                 stageLabel = "RTSP session",
                 confidenceLabel = "RTSP handshake",
                 confidenceDetail = "Nova is negotiating the stream session with Polaris.",
-                progressFraction = 0.24f
+                progressFraction = 0.24f,
+                aliases = setOf("rtsp handshake")
             ),
             StageCopy(
                 state = "control",
@@ -75,7 +89,8 @@ data class NovaSessionProgressUiState(
                 stageLabel = "Control path",
                 confidenceLabel = "Control channel",
                 confidenceDetail = "Nova is establishing the control path for the session.",
-                progressFraction = 0.34f
+                progressFraction = 0.34f,
+                aliases = setOf("control stream initialization", "control stream establishment")
             ),
             StageCopy(
                 state = "cage_starting",
@@ -101,7 +116,8 @@ data class NovaSessionProgressUiState(
                 stageLabel = "Video pipeline",
                 confidenceLabel = "Decoder handshake",
                 confidenceDetail = "Nova is initializing video decoding for the stream.",
-                progressFraction = 0.78f
+                progressFraction = 0.78f,
+                aliases = setOf("video stream initialization", "video stream establishment")
             ),
             StageCopy(
                 state = "audio",
@@ -109,7 +125,8 @@ data class NovaSessionProgressUiState(
                 stageLabel = "Audio pipeline",
                 confidenceLabel = "Audio handshake",
                 confidenceDetail = "Nova is connecting the audio stream.",
-                progressFraction = 0.88f
+                progressFraction = 0.88f,
+                aliases = setOf("audio stream establishment")
             ),
             StageCopy(
                 state = "input",
@@ -117,15 +134,26 @@ data class NovaSessionProgressUiState(
                 stageLabel = "Input path",
                 confidenceLabel = "Input handshake",
                 confidenceDetail = "Nova is enabling controller and keyboard input.",
-                progressFraction = 0.94f
+                progressFraction = 0.94f,
+                aliases = setOf("input stream initialization", "input stream establishment")
             ),
             StageCopy(
-                state = "streaming",
-                title = "Connected",
-                stageLabel = "Stream ready",
-                confidenceLabel = "Stream ready",
-                confidenceDetail = "Input, audio, and video are live.",
-                progressFraction = 1f
+                state = "stream_active",
+                title = "Stream active...",
+                stageLabel = "Stream active",
+                confidenceLabel = "Waiting for first frame",
+                confidenceDetail = "The host reports streaming; Nova is waiting for the first painted frame before clearing the overlay.",
+                progressFraction = 0.97f,
+                aliases = setOf("streaming", "waiting_first_frame")
+            ),
+            StageCopy(
+                state = "input_ready",
+                title = "Ready",
+                stageLabel = "Input ready",
+                confidenceLabel = "Input ready",
+                confidenceDetail = "Controller, audio, and video channels are established.",
+                progressFraction = 1f,
+                aliases = setOf("connected")
             )
         )
 
