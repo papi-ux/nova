@@ -22,6 +22,191 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryQuickOptionsSheetExposesSortAndLayoutControls() {
+        val activity = readNovaLibraryActivity()
+        val strings = readSource("src/main/res/values/strings.xml")
+        val screen = activity.section(
+            "private fun NovaLibraryScreen(",
+            "private fun NovaLibraryFocusedBackdrop("
+        )
+
+        assertTrue(
+            "library activity should keep quick options as durable Compose state",
+            activity.contains("private var optionsState by mutableStateOf(NovaLibraryOptionsState())") &&
+                activity.contains("private var activeOptionsSheet by mutableStateOf(false)")
+        )
+        assertTrue(
+            "remembered library model should be keyed by options state so sort changes are cheap and deliberate",
+            activity.contains("remember(games, searchQuery, filterState, activeSession, optionsState)") &&
+                activity.contains("optionsState = optionsState")
+        )
+        assertTrue(
+            "library shell should pass an explicit Options opener into rail/header actions",
+            activity.contains("onOpenOptions = ::openLibraryOptionsSheet") &&
+                activity.contains("onOpenOptions = onOpenOptions")
+        )
+        assertTrue(
+            "quick options sheet should be rendered as an exclusive modal branch with source/more filter sheets",
+            screen.contains("activeOptionsSheet ->") &&
+                screen.contains("NovaLibraryOptionsSheet(") &&
+                screen.contains("activeFilterSheet != null ->")
+        )
+        assertTrue(
+            "quick options sheet composable should exist before source/more filter sheet",
+            activity.contains("private fun NovaLibraryOptionsSheet(")
+        )
+        val optionsSheet = activity.section(
+            "private fun NovaLibraryOptionsSheet(",
+            "private fun NovaLibraryFilterSheet("
+        )
+        assertTrue(
+            "quick options sheet should use a real modal sheet with scrollable focusable content",
+            optionsSheet.contains("rememberModalBottomSheetState(skipPartiallyExpanded = true)") &&
+                optionsSheet.contains(".verticalScroll(rememberScrollState())") &&
+                optionsSheet.contains("NovaLibrarySortMode.entries") &&
+                optionsSheet.contains("NovaLibraryLayoutMode.entries")
+        )
+        assertTrue(
+            "quick options sheet should expose Sort and Layout sections rather than hiding browsing decisions in the rail",
+            optionsSheet.contains("R.string.nova_library_options_sort_title") &&
+                optionsSheet.contains("R.string.nova_library_options_layout_title") &&
+                optionsSheet.contains("onSortMode(sortMode)") &&
+                optionsSheet.contains("onLayoutMode(layoutMode)")
+        )
+        assertTrue(
+            "compact grid should be wired into the actual library card density",
+            activity.contains("model.optionsState.layoutMode == NovaLibraryLayoutMode.COMPACT_GRID") &&
+                activity.contains("compact = compactCards")
+        )
+        assertTrue(
+            "quick options strings should cover the GameNative-inspired Sort/Layout surface",
+            strings.contains("name=\"nova_library_options_title\">Library Options") &&
+                strings.contains("name=\"nova_library_options_sort_recent\">Recent") &&
+                strings.contains("name=\"nova_library_options_sort_name_asc\">Name A-Z") &&
+                strings.contains("name=\"nova_library_options_sort_name_desc\">Name Z-A") &&
+                strings.contains("name=\"nova_library_options_sort_source\">Source") &&
+                strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR first") &&
+                strings.contains("name=\"nova_library_options_layout_compact_grid\">Compact grid")
+        )
+    }
+
+    @Test
+    fun librarySystemMenuSheetExposesTopLevelSafeActions() {
+        val activity = readNovaLibraryActivity()
+        val strings = readSource("src/main/res/values/strings.xml")
+        val screen = activity.section(
+            "private fun NovaLibraryScreen(",
+            "private fun NovaLibraryFocusedBackdrop("
+        )
+        val keyHandler = activity.section(
+            "override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {",
+            "override fun onStop()"
+        )
+
+        assertTrue(
+            "system menu sheet composable should exist before browsing option/filter sheets",
+            activity.contains("private fun NovaSystemMenuSheet(")
+        )
+        val systemSheet = activity.section(
+            "private fun NovaSystemMenuSheet(",
+            "private fun NovaLibraryOptionsSheet("
+        )
+
+        assertTrue(
+            "library activity should keep the Nova system menu as durable Compose state",
+            activity.contains("private var activeSystemMenu by mutableStateOf(false)") &&
+                activity.contains("onOpenSystemMenu = ::openLibrarySystemMenu") &&
+                activity.contains("onDismissSystemMenu = ::dismissLibrarySystemMenu") &&
+                activity.contains("private fun openLibrarySystemMenu()") &&
+                activity.contains("private fun dismissLibrarySystemMenu()")
+        )
+        assertTrue(
+            "library screen should render only one top-level modal at a time so sheets cannot stack",
+            screen.contains("when {") &&
+                screen.contains("activeSystemMenu ->") &&
+                screen.contains("NovaSystemMenuSheet(") &&
+                screen.contains("activeOptionsSheet ->") &&
+                screen.contains("NovaLibraryOptionsSheet(") &&
+                screen.contains("activeFilterSheet != null ->") &&
+                screen.contains("NovaLibraryFilterSheet(")
+        )
+        assertTrue(
+            "system menu should dismiss via modal onDismissRequest so Back/B and scrim close it before leaving the library",
+            systemSheet.contains("rememberModalBottomSheetState(skipPartiallyExpanded = true)") &&
+                systemSheet.contains("onDismissRequest = onDismiss") &&
+                systemSheet.contains(".verticalScroll(rememberScrollState())") &&
+                activity.contains("dismissActiveLibraryOverlay()") &&
+                keyHandler.contains("keyCode == KeyEvent.KEYCODE_BUTTON_B && dismissActiveLibraryOverlay()")
+        )
+        assertTrue(
+            "system menu should clear options/filter overlays on open and gate rail shortcuts while any modal is active",
+            activity.contains("private val hasActiveLibraryOverlay") &&
+                activity.contains("activeOptionsSheet = false") &&
+                activity.contains("activeFilterSheet = null") &&
+                keyHandler.contains("if (hasActiveLibraryOverlay)") &&
+                keyHandler.contains("KeyEvent.KEYCODE_BUTTON_L1") &&
+                keyHandler.contains("KeyEvent.KEYCODE_BUTTON_R1") &&
+                keyHandler.contains("openLibrarySystemMenu()")
+        )
+        assertTrue(
+            "system menu should show the active host and Polaris readiness in the header",
+            systemSheet.contains("serverDisplayName") &&
+                systemSheet.contains("R.string.nova_system_menu_host_format") &&
+                systemSheet.contains("R.string.nova_system_menu_host_named_format") &&
+                systemSheet.contains("R.string.nova_system_menu_status_polaris_ready") &&
+                systemSheet.contains("R.string.nova_system_menu_status_offline")
+        )
+        assertTrue(
+            "system menu should expose the short top-level Nova actions only",
+            systemSheet.contains("R.string.nova_system_menu_settings") &&
+                systemSheet.contains("R.string.nova_system_menu_polaris_sync") &&
+                systemSheet.contains("R.string.nova_system_menu_manage_server") &&
+                systemSheet.contains("R.string.nova_system_menu_help_diagnostics") &&
+                systemSheet.contains("R.string.nova_system_menu_about")
+        )
+        assertTrue(
+            "system rows should route to existing workflows and dismiss before launching secondary surfaces",
+            systemSheet.contains("onOpenSettings") &&
+                systemSheet.contains("onOpenPolarisSync") &&
+                systemSheet.contains("onManageServer") &&
+                systemSheet.contains("onOpenHelpDiagnostics") &&
+                systemSheet.contains("onOpenAbout") &&
+                systemSheet.contains("onDismiss()") &&
+                systemSheet.contains("role = Role.Button") &&
+                systemSheet.contains("semantics(mergeDescendants = true)")
+        )
+        assertTrue(
+            "system menu rows should stay compact enough for all safe actions to fit on Retroid landscape first paint",
+            systemSheet.contains("verticalArrangement = Arrangement.spacedBy(8.dp)") &&
+                systemSheet.contains("fontSize = 20.sp") &&
+                systemSheet.contains(".height(54.dp)") &&
+                systemSheet.contains("fontSize = 14.sp") &&
+                systemSheet.contains("fontSize = 10.sp")
+        )
+        assertFalse(
+            "system menu should not waste first-paint height on non-action footer copy that clips on Retroid landscape",
+            systemSheet.contains("R.string.nova_system_menu_safe_hint")
+        )
+        assertFalse(
+            "destructive stream/session actions should stay out of the top-level system menu",
+            systemSheet.contains("onEndSession") ||
+                systemSheet.contains("displayQuitConfirmationDialog") ||
+                systemSheet.contains("ServerHelper.doQuit")
+        )
+        assertTrue(
+            "system menu strings should keep the GameNative-inspired top level short and self-hosted",
+            strings.contains("name=\"nova_system_menu_title\">System") &&
+                strings.contains("name=\"nova_system_menu_host_named_format\"") &&
+                strings.contains("name=\"nova_system_menu_settings\">Settings") &&
+                strings.contains("name=\"nova_system_menu_polaris_sync\">Polaris sync") &&
+                strings.contains("name=\"nova_system_menu_manage_server\">Manage server") &&
+                strings.contains("name=\"nova_system_menu_help_diagnostics\">Help / diagnostics") &&
+                strings.contains("name=\"nova_system_menu_about\">About Nova") &&
+                strings.contains("name=\"nova_system_menu_about_toast\">%1\$s")
+        )
+    }
+
+    @Test
     fun libraryCoverLoadingIsKeyedOutsideAndroidViewUpdate() {
         val source = readNovaLibraryActivity()
 
@@ -92,8 +277,8 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "library model mapping should be keyed to the data that affects filtering and session hero state",
-            rememberedModel.contains("remember(games, searchQuery, filterState, activeSession)")
+            "library model mapping should be keyed to the data that affects filtering, options, and session hero state",
+            rememberedModel.contains("remember(games, searchQuery, filterState, activeSession, optionsState)")
         )
         assertTrue(
             "remembered model helper should own the mapper call",
@@ -196,13 +381,28 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "default no-games empty state should make Manage server the primary recovery action",
+            "default no-games empty state should make Manage library the primary recovery action",
             emptyState.contains("NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_action_manage)")
+        )
+        assertTrue(
+            "empty library primary CTA copy should point to library management, not generic server settings",
+            strings.contains("name=\"nova_library_empty_action_manage\">Manage library")
         )
         assertTrue(
             "recent-empty state should invite users back to the full library instead of sounding like an error",
             emptyState.contains("NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_action_recent)") &&
                 strings.contains("name=\"nova_library_empty_action_recent\">View all games")
+        )
+        assertTrue(
+            "source no-results should have a source-specific direct escape hatch",
+            emptyState.contains("NovaLibraryEmptyState.SOURCE -> stringResource(R.string.nova_library_empty_action_source)") &&
+                strings.contains("name=\"nova_library_empty_action_source\">Clear source")
+        )
+        assertTrue(
+            "source no-results should keep Manage library as the secondary recovery action",
+            emptyState.contains("emptyState == NovaLibraryEmptyState.SOURCE") &&
+                emptyState.contains("secondaryActionLabel = sourceSecondaryActionLabel") &&
+                emptyState.contains("onSecondaryAction = sourceSecondaryAction")
         )
         assertTrue(
             "filtered empty state should keep Clear filters as the direct escape hatch",
@@ -289,6 +489,37 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "side rail should use compact mapped spacing so bottom filters are initially visible on Retroid landscape instead of only scroll-recoverable",
             rail.contains("verticalArrangement = Arrangement.spacedBy(NovaLibraryUiStateMapper.railVerticalSpacingDp().dp)")
+        )
+    }
+
+    @Test
+    fun libraryRailUsesCompactPrimaryFilterGridOnRetroidLandscape() {
+        val rail = readNovaLibraryActivity().section(
+            "private fun NovaLibraryRail(",
+            "private fun NovaLibraryTopHeader("
+        )
+
+        assertTrue(
+            "side rail should render primary filters in a compact mapper-driven grid so All/Recent/Sources/HDR/More are initially visible on Retroid landscape",
+            rail.contains("NovaLibraryPrimaryFilterGrid(") &&
+                rail.contains("NovaLibraryUiStateMapper.railFilterColumns(maxWidth.value.toInt())") &&
+                rail.contains("Arrangement.spacedBy(NovaLibraryUiStateMapper.railFilterGridSpacingDp().dp)") &&
+                rail.contains("NovaLibrarySummary(model = model, compact = true)")
+        )
+    }
+
+    @Test
+    fun libraryRailUsesSingleRowActionsBeforePrimaryFiltersOnRetroidLandscape() {
+        val rail = readNovaLibraryActivity().section(
+            "private fun NovaLibraryRail(",
+            "private fun NovaLibraryTopHeader("
+        )
+
+        assertTrue(
+            "Refresh/Manage/Switch should share one compact mapper-driven row on Retroid landscape so the primary filter grid is not pushed below the fold",
+            rail.contains("NovaLibraryRailActions(") &&
+                rail.contains("NovaLibraryUiStateMapper.railActionColumns(maxWidth.value.toInt())") &&
+                rail.contains("NovaLibraryUiStateMapper.railActionButtonMinHeightDp().dp")
         )
     }
 
@@ -689,6 +920,14 @@ class NovaComposeSourceGuardTest {
                 selectableChip.indexOf(".combinedClickable(")
         )
         assertTrue(
+            "selectable chips should expose one merged button semantics node so clipped child text never becomes the accessibility target",
+            selectableChip.contains(".semantics(mergeDescendants = true)") &&
+                selectableChip.contains("val chipDescription = \"\$label. \$detail\"") &&
+                selectableChip.contains("contentDescription = chipDescription") &&
+                selectableChip.contains("role = Role.Button") &&
+                selectableChip.contains(".combinedClickable(")
+        )
+        assertTrue(
             "shared Compose focus controls should use the Nova focus motion modifier",
             focusComponents.contains("internal fun Modifier.novaFocusMotion(") &&
                 focusComponents.contains("animateFloatAsState(") &&
@@ -727,6 +966,161 @@ class NovaComposeSourceGuardTest {
                 section.contains(".border(if (focused) 3.dp else 1.dp")
             )
         }
+    }
+
+    @Test
+    fun settingsWideLayoutUsesRetroidCompactHierarchyMetrics() {
+        val settings = readNovaSettingsScreen()
+        val content = settings.section(
+            "private fun NovaSettingsContent(",
+            "@Composable\nprivate fun novaSettingsControllerHints()"
+        )
+        val quickStrip = settings.section(
+            "private fun NovaSettingsQuickStrip(",
+            "@Composable\nprivate fun NovaSettingPill("
+        )
+        val quickPill = settings.section(
+            "private fun NovaSettingPill(",
+            "@Composable\nprivate fun NovaSettingsCategoryRail("
+        )
+        val categoryRail = settings.section(
+            "private fun NovaSettingsCategoryRail(",
+            "@Composable\nprivate fun NovaSettingsCategoryChips("
+        )
+        val categoryRow = settings.section(
+            "private fun NovaCategoryRow(",
+            "@Composable\nprivate fun NovaSettingsRows("
+        )
+        val rows = settings.section(
+            "private fun NovaSettingsRows(",
+            "@Composable\nprivate fun NovaSettingRow("
+        )
+        val settingRow = settings.section(
+            "private fun NovaSettingRow(",
+            "@Composable\nprivate fun NovaSettingApplyBadge("
+        )
+        val applyBadge = settings.section(
+            "private fun NovaSettingApplyBadge(",
+            "@Composable\nprivate fun NovaSettingValueChip("
+        )
+        val valueChip = settings.section(
+            "private fun NovaSettingValueChip(",
+            "@Composable\nprivate fun NovaSettingDialog("
+        )
+
+        assertTrue(
+            "settings should centralize Retroid landscape sizing knobs instead of scattering magic dp constants",
+            settings.contains("private object NovaSettingsMetrics") &&
+                settings.contains("fun categoryRailWidthDp(): Int = 196") &&
+                settings.contains("fun wideColumnSpacingDp(): Int = 14") &&
+                settings.contains("fun quickStripHeightDp(): Int = 52") &&
+                settings.contains("fun quickPillWidthDp(): Int = 144") &&
+                settings.contains("fun headerToQuickStripSpacingDp(): Int = 6") &&
+                settings.contains("fun quickStripToContentSpacingDp(): Int = 6") &&
+                settings.contains("fun contentToHintSpacingDp(): Int = 4") &&
+                settings.contains("fun settingsRowSpacingDp(): Int = 6") &&
+                settings.contains("fun categoryRowVerticalPaddingDp(): Int = 6") &&
+                settings.contains("fun settingsRowVerticalPaddingDp(): Int = 6") &&
+                settings.contains("fun valueChipMinHeightDp(): Int = 28")
+        )
+        assertTrue(
+            "wide Settings should give browsing rows more room by narrowing the category rail and spacing",
+            content.contains(".width(NovaSettingsMetrics.categoryRailWidthDp().dp)") &&
+                content.contains("Arrangement.spacedBy(NovaSettingsMetrics.wideColumnSpacingDp().dp)") &&
+                content.contains("Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))") &&
+                content.contains("Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))") &&
+                content.contains("Spacer(Modifier.height(NovaSettingsMetrics.contentToHintSpacingDp().dp))")
+        )
+        assertTrue(
+            "quick settings should stay useful but stop dominating Retroid first paint height",
+            quickStrip.contains(".height(NovaSettingsMetrics.quickStripHeightDp().dp)") &&
+                quickPill.contains(".width(NovaSettingsMetrics.quickPillWidthDp().dp)") &&
+                quickPill.contains(".heightIn(min = NovaSettingsMetrics.quickStripHeightDp().dp)")
+        )
+        assertTrue(
+            "category rail and rows should use compact spacing/padding so more settings are visible above the hint bar",
+            categoryRail.contains("Arrangement.spacedBy(NovaSettingsMetrics.categoryRailSpacingDp().dp)") &&
+                categoryRow.contains("vertical = NovaSettingsMetrics.categoryRowVerticalPaddingDp().dp") &&
+                rows.contains("Arrangement.spacedBy(NovaSettingsMetrics.settingsRowSpacingDp().dp)") &&
+                rows.contains("PaddingValues(bottom = NovaSettingsMetrics.rowsBottomPaddingDp().dp)") &&
+                settingRow.contains("vertical = NovaSettingsMetrics.settingsRowVerticalPaddingDp().dp")
+        )
+        assertTrue(
+            "Settings text should declare compact line heights instead of inheriting oversized Material body metrics on RP6",
+            quickPill.contains("lineHeight = 11.sp") &&
+                quickPill.contains("lineHeight = 14.sp") &&
+                categoryRow.contains("lineHeight = 16.sp") &&
+                categoryRow.contains("lineHeight = 12.sp") &&
+                settingRow.contains("lineHeight = 16.sp") &&
+                settingRow.contains("lineHeight = 13.sp") &&
+                applyBadge.contains("lineHeight = 11.sp") &&
+                valueChip.contains("lineHeight = 14.sp")
+        )
+        assertTrue(
+            "value chips should be compact enough to preserve title/summary room in the right column",
+            valueChip.contains(".widthIn(min = 92.dp, max = 220.dp)") &&
+                valueChip.contains(".heightIn(min = NovaSettingsMetrics.valueChipMinHeightDp().dp)")
+        )
+    }
+
+    @Test
+    fun reusableControllerHintBarIsWiredAcrossLibraryDetailAndSettings() {
+        val focusComponents = readNovaFocusComponents()
+        val library = readNovaLibraryActivity()
+        val libraryScreen = library.section(
+            "private fun NovaLibraryScreen(",
+            "@Composable\n    private fun NovaLibraryFocusedBackdrop("
+        )
+        val detail = readNovaGameDetailSheet()
+        val detailContent = detail.section(
+            "fun NovaGameDetailSheetContent(",
+            "@Composable\nprivate fun NovaDetailPanel("
+        )
+        val settings = readNovaSettingsScreen()
+        val settingsContent = settings.section(
+            "private fun NovaSettingsContent(",
+            "@Composable\nprivate fun NovaSettingsCompactHeader("
+        )
+
+        assertTrue(
+            "shared focus components should expose a small, reusable controller hint model and bar",
+            focusComponents.contains("data class NovaControllerHint(") &&
+                focusComponents.contains("fun NovaControllerHintBar(") &&
+                focusComponents.contains(".horizontalScroll(rememberScrollState())") &&
+                focusComponents.contains(".heightIn(min = 30.dp)") &&
+                focusComponents.contains("contentDescription = hintContentDescription")
+        )
+        assertTrue(
+            "library should reserve bottom space on the main content column while letting the landscape rail keep full height for bottom filters",
+            libraryScreen.contains("val controllerHintBarBottomPadding = if (isLandscape)") &&
+                libraryScreen.contains("val controllerHintBarLandscapeStartPadding = if (isLandscape) railWidth + 10.dp else 0.dp") &&
+                libraryScreen.contains("modifier = Modifier\n                                .weight(1f)\n                                .padding(bottom = controllerHintBarBottomPadding)") &&
+                libraryScreen.contains("modifier = Modifier\n                            .fillMaxSize()\n                            .padding(bottom = controllerHintBarBottomPadding)") &&
+                libraryScreen.contains("NovaControllerHintBar(") &&
+                libraryScreen.contains("hints = novaLibraryControllerHints(isLandscape)") &&
+                libraryScreen.contains("modifier = Modifier") &&
+                libraryScreen.contains(".align(Alignment.BottomCenter)") &&
+                libraryScreen.contains(".padding(start = controllerHintBarLandscapeStartPadding)") &&
+                libraryScreen.contains(".fillMaxWidth()")
+        )
+        assertFalse(
+            "landscape content should not use one global bottom padding box because it shortens the rail and clips Sources/HDR before the hint bar",
+            libraryScreen.contains(".fillMaxSize()\n                        .padding(bottom = controllerHintBarBottomPadding)")
+        )
+        assertTrue(
+            "game detail sheet should use the shared hint bar with explicit horizontal and bottom padding inside the scrollable sheet",
+            detailContent.contains("NovaControllerHintBar(") &&
+                detailContent.contains("hints = novaGameDetailControllerHints()") &&
+                detailContent.contains(".padding(start = 14.dp, end = 14.dp, top = 12.dp)") &&
+                detailContent.contains(".padding(bottom = 16.dp)")
+        )
+        assertTrue(
+            "settings should keep the main rows weighted above the shared hint bar instead of letting rows consume and clip the bottom controls",
+            settingsContent.contains("val controllerHints = novaSettingsControllerHints()") &&
+                settingsContent.contains("Row(\n                modifier = Modifier\n                    .weight(1f)") &&
+                settingsContent.contains("modifier = Modifier\n                        .fillMaxWidth()\n                        .weight(1f)") &&
+                settingsContent.contains("NovaControllerHintBar(")
+        )
     }
 
     @Test
@@ -846,7 +1240,10 @@ class NovaComposeSourceGuardTest {
             "@Composable\nprivate fun NovaQuickMenuHeader("
         )
 
+        val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(state.stability, callbacks)")
         val quickKeysPanel = body.indexOf("NovaQuickMenuPanel(title = quickKeysTitle)")
+        val syncCard = body.indexOf("NovaQuickMenuInfoCard(\n                    action = state.sync")
+        val advancedToggleCard = body.indexOf("NovaQuickMenuInfoCard(\n                    action = state.advancedToggle")
         val overlaysPanel = body.indexOf("title = overlaysTitle")
         val controlsPanel = body.indexOf("title = controlsTitle")
         val sessionPanel = body.indexOf("NovaQuickMenuPanel(title = sessionTitle)")
@@ -855,6 +1252,12 @@ class NovaComposeSourceGuardTest {
             "Command Center quick shortcuts should have an explicit section label instead of floating between tuning and overlays",
             body.contains("val quickKeysTitle = stringResource(R.string.nova_quick_menu_quick_keys)") &&
                 quickKeysPanel >= 0
+        )
+        assertTrue(
+            "Command Center first paint should prioritize Quick Keys before tuning/status cards so Retroid users do not have to scroll to reach ESC/Alt+Enter/Alt+F4",
+            quickKeysPanel in 0 until stabilityCard &&
+                quickKeysPanel in 0 until syncCard &&
+                quickKeysPanel in 0 until advancedToggleCard
         )
         assertTrue(
             "quick shortcuts should stay above secondary overlay/control/session panels for controller-first access",

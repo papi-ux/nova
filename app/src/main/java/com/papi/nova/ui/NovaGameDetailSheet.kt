@@ -46,6 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +72,8 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.compose.NovaControllerHint
+import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaFocusableCard
 import com.papi.nova.utils.DeviceUtils
 import kotlinx.coroutines.Dispatchers
@@ -884,7 +887,7 @@ fun NovaGameDetailSheetContent(
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(surfaces.panel)
             .verticalScroll(verticalScroll)
-            .padding(bottom = 12.dp)
+            .padding(bottom = 16.dp)
     ) {
         Box(
             modifier = Modifier
@@ -945,8 +948,36 @@ fun NovaGameDetailSheetContent(
         optimizationState.stability?.let {
             InsightCard(card = it)
         }
+
+        NovaControllerHintBar(
+            hints = novaGameDetailControllerHints(),
+            compact = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 14.dp, top = 12.dp)
+        )
     }
 }
+
+@Composable
+private fun novaGameDetailControllerHints(): List<NovaControllerHint> = listOf(
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_a),
+        label = stringResource(R.string.nova_controller_hint_launch)
+    ),
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_b),
+        label = stringResource(R.string.nova_controller_hint_close)
+    ),
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_lb_rb),
+        label = stringResource(R.string.nova_controller_hint_launch_mode)
+    ),
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_y),
+        label = stringResource(R.string.nova_controller_hint_profile)
+    )
+)
 
 @Composable
 private fun NovaDetailPanel(

@@ -21,9 +21,29 @@ data class NovaLibraryFilterState(
         get() = primary != NovaLibraryPrimaryFilter.ALL
 }
 
+enum class NovaLibrarySortMode {
+    LIBRARY_ORDER,
+    RECENT,
+    NAME_ASC,
+    NAME_DESC,
+    SOURCE,
+    HDR_FIRST
+}
+
+enum class NovaLibraryLayoutMode {
+    GRID,
+    COMPACT_GRID
+}
+
+data class NovaLibraryOptionsState(
+    val sortMode: NovaLibrarySortMode = NovaLibrarySortMode.LIBRARY_ORDER,
+    val layoutMode: NovaLibraryLayoutMode = NovaLibraryLayoutMode.GRID
+)
+
 enum class NovaLibraryEmptyState {
     DEFAULT,
     RECENT,
+    SOURCE,
     FILTERED
 }
 
@@ -65,6 +85,7 @@ data class NovaLibraryUiModel(
     val allGames: List<PolarisGame>,
     val filteredGames: List<PolarisGame>,
     val recentGames: List<PolarisGame>,
+    val optionsState: NovaLibraryOptionsState,
     val hero: NovaLibraryHeroState,
     val summary: NovaLibrarySummary,
     val emptyState: NovaLibraryEmptyState,
@@ -146,21 +167,29 @@ object NovaLibraryUiStateMapper {
     private const val GAME_CARD_GAP_DP = 10
     private const val MIN_RECENT_RAIL_CARD_WIDTH_DP = 72
     private const val RAIL_SCROLL_BOTTOM_PADDING_DP = 96
-    private const val RAIL_VERTICAL_SPACING_DP = 6
+    private const val RAIL_VERTICAL_SPACING_DP = 4
+    private const val FILTER_CHIP_HEIGHT_DP = 38
+    private const val RAIL_FILTER_GRID_SPACING_DP = 4
+    private const val RAIL_FILTER_GRID_TWO_COLUMN_MIN_WIDTH_DP = 200
+    private const val RAIL_ACTION_BUTTON_MIN_HEIGHT_DP = 38
+    private const val RAIL_ACTION_GRID_SPACING_DP = 8
+    private const val RAIL_ACTION_GRID_THREE_COLUMN_MIN_WIDTH_DP = 200
     private const val LANDSCAPE_RECENT_RAIL_MIN_HEIGHT_DP = 560
 
     fun build(
         games: List<PolarisGame>,
         search: String,
         filterState: NovaLibraryFilterState,
+        optionsState: NovaLibraryOptionsState = NovaLibraryOptionsState(),
         activeSession: NovaLibraryActiveSessionUiState? = null
     ): NovaLibraryUiModel {
-        val filtered = filterGames(games, search, filterState)
+        val filtered = filterGames(games, search, filterState, optionsState)
         val emptyState = emptyState(search, filterState)
         return NovaLibraryUiModel(
             allGames = games,
             filteredGames = filtered,
             recentGames = recentGames(games),
+            optionsState = optionsState,
             hero = heroState(
                 games = games,
                 filteredGames = filtered,
@@ -206,6 +235,18 @@ object NovaLibraryUiStateMapper {
                     caption = "Launch any game once and it will appear in Continue.",
                     eyebrow = "Continue when ready",
                     actionLabel = "View all games",
+                    badges = emptyList(),
+                    reason = NovaLibraryHeroReason.EMPTY,
+                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS
+                )
+            } else if (emptyState == NovaLibraryEmptyState.SOURCE && games.isNotEmpty()) {
+                NovaLibraryHeroState(
+                    game = null,
+                    title = "No games from this source",
+                    subtitle = "Your library has ${games.size} games ready.",
+                    caption = "Clear the source filter or manage your Polaris library.",
+                    eyebrow = "Source filter",
+                    actionLabel = "Clear source",
                     badges = emptyList(),
                     reason = NovaLibraryHeroReason.EMPTY,
                     primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS
@@ -334,9 +375,14 @@ object NovaLibraryUiStateMapper {
     fun filterGames(
         games: List<PolarisGame>,
         search: String,
-        filterState: NovaLibraryFilterState
+        filterState: NovaLibraryFilterState,
+        optionsState: NovaLibraryOptionsState = NovaLibraryOptionsState()
     ): List<PolarisGame> {
-        if (search.isBlank() && filterState.primary == NovaLibraryPrimaryFilter.ALL) {
+        if (
+            search.isBlank() &&
+            filterState.primary == NovaLibraryPrimaryFilter.ALL &&
+            optionsState.sortMode == NovaLibrarySortMode.LIBRARY_ORDER
+        ) {
             return games
         }
 
@@ -346,7 +392,7 @@ object NovaLibraryUiStateMapper {
             games.asSequence().filter { it.name.contains(search, ignoreCase = true) }
         }
 
-        return when (filterState.primary) {
+        val filtered = when (filterState.primary) {
             NovaLibraryPrimaryFilter.RECENT -> searched
                 .filter { it.lastLaunched > 0 }
                 .sortedByDescending { it.lastLaunched }
@@ -369,6 +415,34 @@ object NovaLibraryUiStateMapper {
                 else -> searched.toList()
             }
             NovaLibraryPrimaryFilter.ALL -> searched.toList()
+        }
+        return sortGames(filtered, optionsState.sortMode)
+    }
+
+    fun sortGames(
+        games: List<PolarisGame>,
+        sortMode: NovaLibrarySortMode
+    ): List<PolarisGame> {
+        return when (sortMode) {
+            NovaLibrarySortMode.LIBRARY_ORDER -> games
+            NovaLibrarySortMode.RECENT -> games.sortedWith(
+                compareByDescending<PolarisGame> { it.lastLaunched > 0 }
+                    .thenByDescending { it.lastLaunched }
+                    .thenBy { it.name.lowercase() }
+            )
+            NovaLibrarySortMode.NAME_ASC -> games.sortedBy { it.name.lowercase() }
+            NovaLibrarySortMode.NAME_DESC -> games.sortedByDescending { it.name.lowercase() }
+            NovaLibrarySortMode.SOURCE -> games.withIndex()
+                .sortedWith(
+                    compareBy<IndexedValue<PolarisGame>> { sourceSortOrder(it.value.source.lowercase()) }
+                        .thenBy { it.value.source.lowercase() }
+                        .thenBy { it.index }
+                )
+                .map { it.value }
+            NovaLibrarySortMode.HDR_FIRST -> games.sortedWith(
+                compareByDescending<PolarisGame> { it.hdrSupported }
+                    .thenBy { it.name.lowercase() }
+            )
         }
     }
 
@@ -393,6 +467,9 @@ object NovaLibraryUiStateMapper {
     ): NovaLibraryEmptyState {
         return when {
             filterState.primary == NovaLibraryPrimaryFilter.RECENT -> NovaLibraryEmptyState.RECENT
+            filterState.primary == NovaLibraryPrimaryFilter.SOURCES && filterState.source.isNotBlank() -> {
+                NovaLibraryEmptyState.SOURCE
+            }
             search.isNotBlank() || filterState.hasActiveConstraint -> NovaLibraryEmptyState.FILTERED
             else -> NovaLibraryEmptyState.DEFAULT
         }
@@ -482,6 +559,48 @@ object NovaLibraryUiStateMapper {
     fun railScrollBottomPaddingDp(): Int = RAIL_SCROLL_BOTTOM_PADDING_DP
 
     fun railVerticalSpacingDp(): Int = RAIL_VERTICAL_SPACING_DP
+
+    fun filterChipHeightDp(): Int = FILTER_CHIP_HEIGHT_DP
+
+    fun railFilterGridSpacingDp(): Int = RAIL_FILTER_GRID_SPACING_DP
+
+    fun railActionButtonMinHeightDp(): Int = RAIL_ACTION_BUTTON_MIN_HEIGHT_DP
+
+    fun railActionGridSpacingDp(): Int = RAIL_ACTION_GRID_SPACING_DP
+
+    fun railActionColumns(availableWidthDp: Int): Int {
+        return if (availableWidthDp >= RAIL_ACTION_GRID_THREE_COLUMN_MIN_WIDTH_DP) 3 else 2
+    }
+
+    fun railActionRows(actionCount: Int, availableWidthDp: Int): Int {
+        val count = actionCount.coerceAtLeast(0)
+        if (count == 0) return 0
+        val columns = railActionColumns(availableWidthDp)
+        return (count + columns - 1) / columns
+    }
+
+    fun railActionBlockHeightDp(actionCount: Int, availableWidthDp: Int): Int {
+        val rows = railActionRows(actionCount, availableWidthDp)
+        if (rows == 0) return 0
+        return (rows * RAIL_ACTION_BUTTON_MIN_HEIGHT_DP) + ((rows - 1) * RAIL_VERTICAL_SPACING_DP)
+    }
+
+    fun railFilterColumns(availableWidthDp: Int): Int {
+        return if (availableWidthDp >= RAIL_FILTER_GRID_TWO_COLUMN_MIN_WIDTH_DP) 2 else 1
+    }
+
+    fun railFilterRows(filterCount: Int, availableWidthDp: Int): Int {
+        val count = filterCount.coerceAtLeast(0)
+        if (count == 0) return 0
+        val columns = railFilterColumns(availableWidthDp)
+        return (count + columns - 1) / columns
+    }
+
+    fun railFilterGridHeightDp(filterCount: Int, availableWidthDp: Int): Int {
+        val rows = railFilterRows(filterCount, availableWidthDp)
+        if (rows == 0) return 0
+        return (rows * FILTER_CHIP_HEIGHT_DP) + ((rows - 1) * RAIL_FILTER_GRID_SPACING_DP)
+    }
 
     fun filterChipWidthDp(filter: NovaLibraryPrimaryFilter): Int {
         return when (filter) {

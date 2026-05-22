@@ -80,6 +80,63 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
+    fun defaultLibraryOptionsPreserveGridLayoutAndLibraryOrder() {
+        val games = listOf(
+            game("b", "Beta", source = "heroic", lastLaunched = 90, hdrSupported = true),
+            game("a", "Alpha", source = "steam", lastLaunched = 10),
+            game("c", "Charlie", source = "lutris")
+        )
+
+        val model = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "",
+            filterState = NovaLibraryFilterState()
+        )
+
+        assertEquals(NovaLibrarySortMode.LIBRARY_ORDER, model.optionsState.sortMode)
+        assertEquals(NovaLibraryLayoutMode.GRID, model.optionsState.layoutMode)
+        assertEquals(listOf("Beta", "Alpha", "Charlie"), model.filteredGames.map { it.name })
+    }
+
+    @Test
+    fun librarySortModesReorderCurrentResultsWithoutChangingFilters() {
+        val games = listOf(
+            game("portal", "Portal 2", source = "steam", lastLaunched = 10),
+            game("wukong", "Black Myth: Wukong", source = "heroic", lastLaunched = 80, hdrSupported = true),
+            game("hades", "Hades", source = "steam", lastLaunched = 40),
+            game("desktop", "Desktop", source = "lutris")
+        )
+
+        fun sortedNames(sortMode: NovaLibrarySortMode): List<String> = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "",
+            filterState = NovaLibraryFilterState(),
+            optionsState = NovaLibraryOptionsState(sortMode = sortMode)
+        ).filteredGames.map { it.name }
+
+        assertEquals(
+            listOf("Black Myth: Wukong", "Hades", "Portal 2", "Desktop"),
+            sortedNames(NovaLibrarySortMode.RECENT)
+        )
+        assertEquals(
+            listOf("Black Myth: Wukong", "Desktop", "Hades", "Portal 2"),
+            sortedNames(NovaLibrarySortMode.NAME_ASC)
+        )
+        assertEquals(
+            listOf("Portal 2", "Hades", "Desktop", "Black Myth: Wukong"),
+            sortedNames(NovaLibrarySortMode.NAME_DESC)
+        )
+        assertEquals(
+            listOf("Portal 2", "Hades", "Desktop", "Black Myth: Wukong"),
+            sortedNames(NovaLibrarySortMode.SOURCE)
+        )
+        assertEquals(
+            listOf("Black Myth: Wukong", "Desktop", "Hades", "Portal 2"),
+            sortedNames(NovaLibrarySortMode.HDR_FIRST)
+        )
+    }
+
+    @Test
     fun moreFilterSupportsCategoryAndGenre() {
         val games = listOf(
             game("desktop", "Desktop", category = "desktop", genres = listOf("Utility")),
@@ -222,6 +279,34 @@ class NovaLibraryUiStateTest {
         assertEquals("Your library has 2 games ready.", model.hero.subtitle)
         assertEquals("Launch any game once and it will appear in Continue.", model.hero.caption)
         assertEquals("View all games", model.hero.actionLabel)
+        assertTrue(model.hero.badges.isEmpty())
+    }
+
+    @Test
+    fun heroUsesSourceEmptyStateWhenSelectedSourceHasNoResults() {
+        val games = listOf(
+            game("hades", "Hades", source = "heroic"),
+            game("celeste", "Celeste", source = "lutris")
+        )
+
+        val model = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "",
+            filterState = NovaLibraryFilterState(
+                primary = NovaLibraryPrimaryFilter.SOURCES,
+                source = "steam"
+            )
+        )
+
+        assertTrue(model.filteredGames.isEmpty())
+        assertEquals(NovaLibraryEmptyState.SOURCE, model.emptyState)
+        assertEquals(NovaLibraryHeroReason.EMPTY, model.hero.reason)
+        assertEquals(NovaLibraryHeroPrimaryAction.CLEAR_FILTERS, model.hero.primaryAction)
+        assertEquals("No games from this source", model.hero.title)
+        assertEquals("Source filter", model.hero.eyebrow)
+        assertEquals("Your library has 2 games ready.", model.hero.subtitle)
+        assertEquals("Clear the source filter or manage your Polaris library.", model.hero.caption)
+        assertEquals("Clear source", model.hero.actionLabel)
         assertTrue(model.hero.badges.isEmpty())
     }
 
@@ -387,7 +472,37 @@ class NovaLibraryUiStateTest {
 
     @Test
     fun landscapeRailSpacingKeepsBottomFiltersVisibleOnRetroid() {
-        assertTrue(NovaLibraryUiStateMapper.railVerticalSpacingDp() <= 6)
+        assertTrue(NovaLibraryUiStateMapper.railVerticalSpacingDp() <= 4)
+    }
+
+    @Test
+    fun landscapeRailPrimaryFiltersUseCompactRowsOnRetroidWidth() {
+        val retroidRailWidth = NovaLibraryUiStateMapper.railWidthDp(widthDp = 833)
+        val filterCount = NovaLibraryPrimaryFilter.entries.size
+
+        assertEquals(2, NovaLibraryUiStateMapper.railFilterColumns(retroidRailWidth))
+        assertEquals(3, NovaLibraryUiStateMapper.railFilterRows(filterCount, retroidRailWidth))
+        assertTrue(
+            "Retroid landscape rail should show every primary filter in roughly three compact rows instead of clipping the bottom filter below the fold",
+            NovaLibraryUiStateMapper.railFilterGridHeightDp(filterCount, retroidRailWidth) <= 124
+        )
+    }
+
+    @Test
+    fun landscapeRailActionsAndFiltersFitRetroidInitialViewport() {
+        val retroidRailWidth = NovaLibraryUiStateMapper.railWidthDp(widthDp = 833)
+        val actionCount = 4
+        val filterCount = NovaLibraryPrimaryFilter.entries.size
+        val actionAndFilterStackHeight = NovaLibraryUiStateMapper.railActionBlockHeightDp(actionCount, retroidRailWidth) +
+            NovaLibraryUiStateMapper.railVerticalSpacingDp() +
+            NovaLibraryUiStateMapper.railFilterGridHeightDp(filterCount, retroidRailWidth)
+
+        assertEquals(3, NovaLibraryUiStateMapper.railActionColumns(retroidRailWidth))
+        assertEquals(2, NovaLibraryUiStateMapper.railActionRows(actionCount, retroidRailWidth))
+        assertTrue(
+            "Retroid landscape rail should keep Refresh/Options/System/Switch plus All/Recent/Sources/HDR/More compact enough for the initial rail viewport",
+            actionAndFilterStackHeight <= 206
+        )
     }
 
     @Test

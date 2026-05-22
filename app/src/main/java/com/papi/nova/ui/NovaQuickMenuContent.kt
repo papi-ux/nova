@@ -212,6 +212,10 @@ fun NovaQuickMenuContent(
         Spacer(Modifier.height(8.dp))
         NovaQuickMenuSessionStrip(state)
         Spacer(Modifier.height(10.dp))
+        NovaQuickMenuPanel(title = quickKeysTitle) {
+            NovaQuickKeys(state.quickKeys, callbacks)
+        }
+        Spacer(Modifier.height(10.dp))
         NovaQuickMenuStabilityCard(state.stability, callbacks)
         Spacer(Modifier.height(10.dp))
         if (isWide) {
@@ -239,10 +243,6 @@ fun NovaQuickMenuContent(
                     NovaQuickMenuRow(action = row, callbacks = callbacks)
                 }
             }
-        }
-        Spacer(Modifier.height(12.dp))
-        NovaQuickMenuPanel(title = quickKeysTitle) {
-            NovaQuickKeys(state.quickKeys, callbacks)
         }
         Spacer(Modifier.height(10.dp))
         if (isWide) {

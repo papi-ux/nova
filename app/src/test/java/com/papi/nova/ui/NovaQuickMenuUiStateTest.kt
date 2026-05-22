@@ -57,7 +57,7 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
-    fun hostRenderLimitedSessionWarnsWithRecoveryProfile() {
+    fun hostRenderLimitedSessionWarnsWithPlayerReadableRecoveryCopy() {
         val state = quickState(
             status = status(
                 aiOptimizerEnabled = true,
@@ -78,10 +78,20 @@ class NovaQuickMenuUiStateTest {
             aiEnabled = true
         )
 
-        assertEquals("Host render path is missing the target frame rate", state.healthSummary)
+        assertEquals("Host FPS is below target. Relaunch can restore full rate.", state.healthSummary)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
         assertEquals("AI Recovery Profile", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.WARNING, state.stability.chip.tone)
+    }
+
+    @Test
+    fun controllerToggleCopyClarifiesTouchOverlayInsteadOfPhysicalGamepad() {
+        val state = quickState(status = status(), currentGameName = "Portal")
+        val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }
+
+        assertEquals("Touch Controls", touchControls.label)
+        assertEquals("On-screen overlay; physical gamepad stays active.", touchControls.caption)
+        assertEquals("Off", touchControls.chip!!.label)
     }
 
     @Test
@@ -100,10 +110,12 @@ class NovaQuickMenuUiStateTest {
         val state = NovaQuickMenuUiState.preview(context).copy(advancedExpanded = true)
 
         assertEquals("Command Center", state.title)
+        assertEquals("Quick keys and controls for Headless Stream", state.subtitle)
         assertEquals("Disconnect", state.disconnectAction.label)
         assertEquals("End", state.endAction.label)
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_ESC && it.label == "ESC" })
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_CTRL_V && it.label == "Ctrl + V" })
+        assertTrue(state.overlayRows.any { it.id == NovaQuickMenuActionId.PERF_STATS && it.label == "Stats Overlay" })
         assertTrue(state.advancedRows.any { it.id == NovaQuickMenuActionId.MANGOHUD && it.label == "MangoHud" })
         assertTrue(state.sessionRows.any { it.id == NovaQuickMenuActionId.MORE_KEYS && it.label == "More Keys" })
     }
