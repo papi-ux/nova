@@ -6,10 +6,10 @@ Storage note: this plan intentionally lives in `docs/plans/` so it survives disc
 
 ## Current context
 
-- Repo: `/Users/papi/Projects/github/nova`
+- Repo: `<repo-root>`
 - Branch under review: `nova/next-level-ui-polish`
 - Current git state at planning time: branch was local-only with existing Nova UI work; keep review/fix commits local until the release path is explicit.
-- Primary target device: Retroid Pocket 6, ADB serial `24c12bdd`
+- Target device: Retroid/Android handheld or TV; pass `--serial <adb-serial>` or set `NOVA_ADB_SERIAL` unless exactly one ADB device is connected.
 - Nova debug package for device checks: `com.papi.nova.debug`
 - Live reference app reviewed: GameNative package `app.gamenative`
 
@@ -274,9 +274,9 @@ Captured files from the Retroid live sweep:
 ./gradlew -PnovaAbis=x86_64 testNonRoot_gameDebugUnitTest
 ./gradlew -PnovaAbis=x86_64 -PlintFailOnError=true lintNonRoot_gameDebug
 ./gradlew -PnovaAbis=arm64-v8a assembleNonRoot_gameDebug
-adb -s 24c12bdd install -r -d app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk
-python3 tools/nova_retroid_smoke.py --artifacts-dir /tmp/nova_retroid_smoke library
-python3 tools/nova_retroid_smoke.py --artifacts-dir /tmp/nova_retroid_smoke live-stream --launch-text "Steam Big Picture"
+adb -s <adb-serial> install -r -d app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk
+python3 tools/nova_retroid_smoke.py library --serial <adb-serial> --artifacts-dir /tmp/nova_retroid_smoke
+python3 tools/nova_retroid_smoke.py live-stream --serial <adb-serial> --artifacts-dir /tmp/nova_retroid_smoke --launch-text "Steam Big Picture"
 ```
 
 **Retroid smoke checklist:**

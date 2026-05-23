@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Sequence
 
-DEFAULT_SERIAL = os.environ.get("RETROID_ID", "24c12bdd")
+DEFAULT_SERIAL = os.environ.get("NOVA_ADB_SERIAL") or os.environ.get("RETROID_ID")
 DEFAULT_PACKAGE = os.environ.get("NOVA_PACKAGE", "com.papi.nova.debug")
 DEFAULT_ACTIVITY = os.environ.get(
     "NOVA_LIBRARY_ACTIVITY",
@@ -33,13 +33,7 @@ DEFAULT_REPO = Path(__file__).resolve().parents[1]
 DEFAULT_APK = Path(
     "app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk"
 )
-CRASH_PATTERNS = (
-    "FATAL EXCEPTION",
-    "ANR in com.papi.nova",
-    "Process: com.papi.nova.debug",
-    "Force finishing activity com.papi.nova",
-    "has died: prcp TOP",
-)
+NOVA_PACKAGE_PREFIX = "com.papi.nova"
 DRAWER_FIRST_LIBRARY_REQUIRED_LABELS = (
     "Library Options",
     "Refresh",
@@ -325,8 +319,32 @@ def visible_surface_values(xml_text: str, prefix: str, labels: Sequence[str]) ->
     return values
 
 
-def scan_logcat(log_text: str) -> CheckResult:
-    failures = [pattern for pattern in CRASH_PATTERNS if pattern in log_text]
+def nova_package_needles(package: str) -> tuple[str, ...]:
+    needles = {package, NOVA_PACKAGE_PREFIX}
+    if package.endswith(".debug") or package.endswith(".release"):
+        needles.add(package.rsplit(".", 1)[0])
+    return tuple(sorted(needles, key=len, reverse=True))
+
+
+def scan_logcat(log_text: str, package: str = DEFAULT_PACKAGE) -> CheckResult:
+    needles = nova_package_needles(package)
+    package_seen = any(needle in log_text for needle in needles)
+    patterns: list[str] = []
+    for needle in needles:
+        patterns.extend(
+            [
+                f"ANR in {needle}",
+                f"Process: {needle}",
+                f"Force finishing activity {needle}",
+            ]
+        )
+    failures = [pattern for pattern in patterns if pattern in log_text]
+    if "FATAL EXCEPTION" in log_text and package_seen and not any(
+        failure.startswith("Process:") for failure in failures
+    ):
+        failures.append("FATAL EXCEPTION for Nova package")
+    if "has died: prcp TOP" in log_text and package_seen:
+        failures.append("Nova process died")
     values = {
         "stream_active": "stream_active" in log_text,
         "video_stream_started": "Starting video stream" in log_text,
@@ -394,15 +412,42 @@ class Adb:
         self.shell(f"input swipe {x1} {y1} {x2} {y2} {duration_ms}")
 
 
-def ensure_adb_device(serial: str, *, dry_run: bool = False) -> None:
+def adb_device_states(devices_output: str) -> dict[str, str]:
+    states: dict[str, str] = {}
+    for line in devices_output.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) >= 2:
+            states[parts[0]] = parts[1]
+    return states
+
+
+def connected_adb_devices(devices_output: str) -> list[str]:
+    return [serial for serial, state in adb_device_states(devices_output).items() if state == "device"]
+
+
+def ensure_adb_device(serial: str | None, *, dry_run: bool = False) -> str:
     if dry_run:
-        print("dry-run: skipping ADB device discovery", flush=True)
-        return
+        resolved = serial or "dry-run-device"
+        print(f"dry-run: skipping ADB device discovery (serial={resolved})", flush=True)
+        return resolved
     if shutil.which("adb") is None:
         raise SystemExit("adb not found on PATH")
     result = subprocess.run(["adb", "devices"], text=True, capture_output=True, check=False)
-    if f"{serial}\tdevice" not in result.stdout:
-        raise SystemExit(f"ADB device {serial!r} is not connected as 'device'.\n{result.stdout}")
+    states = adb_device_states(result.stdout)
+    if serial:
+        if states.get(serial) != "device":
+            raise SystemExit(f"ADB device {serial!r} is not connected as 'device'.\n{result.stdout}")
+        return serial
+    devices = [device for device, state in states.items() if state == "device"]
+    if len(devices) == 1:
+        print(f"ADB serial not supplied; using only connected device {devices[0]!r}", flush=True)
+        return devices[0]
+    if not devices:
+        raise SystemExit("No ADB devices are connected as 'device'. Pass --serial or set NOVA_ADB_SERIAL.")
+    raise SystemExit(
+        "Multiple ADB devices are connected; pass --serial or set NOVA_ADB_SERIAL.\n"
+        f"Connected devices: {', '.join(devices)}"
+    )
 
 
 def read_system_setting(adb: Adb, key: str) -> str:
@@ -411,6 +456,10 @@ def read_system_setting(adb: Adb, key: str) -> str:
 
 def write_system_setting(adb: Adb, key: str, value: str) -> None:
     adb.shell(f"settings put system {key} {value}", check=False)
+
+
+def delete_system_setting(adb: Adb, key: str) -> None:
+    adb.shell(f"settings delete system {key}", check=False)
 
 
 def capture_rotation_settings(adb: Adb) -> dict[str, str]:
@@ -426,6 +475,8 @@ def restore_rotation_settings(adb: Adb, settings: dict[str, str] | None) -> None
     for key, value in settings.items():
         if value and value != "null":
             write_system_setting(adb, key, value)
+        else:
+            delete_system_setting(adb, key)
 
 
 def _display_rect(adb: Adb) -> tuple[int, int] | None:
@@ -597,8 +648,21 @@ def clear_logcat(adb: Adb) -> None:
     adb.run(["logcat", "-c"], check=False)
 
 
-def read_logcat(adb: Adb) -> str:
-    return adb.run(["logcat", "-d"], timeout=30, check=False).stdout
+def begin_logcat_window(adb: Adb, args: argparse.Namespace) -> str | None:
+    if getattr(args, "clear_logcat", False):
+        clear_logcat(adb)
+        return None
+    if adb.dry_run:
+        return None
+    marker = adb.shell("date '+%m-%d %H:%M:%S.000'", check=False).strip()
+    return marker or None
+
+
+def read_logcat(adb: Adb, since: str | None = None) -> str:
+    command = ["logcat", "-d"]
+    if since:
+        command.extend(["-T", since])
+    return adb.run(command, timeout=30, check=False).stdout
 
 
 def write_report(prefix: Path, title: str, result: CheckResult, artifacts: Sequence[Path]) -> None:
@@ -617,12 +681,12 @@ def write_report(prefix: Path, title: str, result: CheckResult, artifacts: Seque
 
 
 def run_library(args: argparse.Namespace) -> CheckResult:
-    ensure_adb_device(args.serial, dry_run=args.dry_run)
+    args.serial = ensure_adb_device(args.serial, dry_run=args.dry_run)
     adb = Adb(args.serial, args.dry_run)
     rotation_settings: dict[str, str] | None = None
     try:
         maybe_install(adb, args)
-        clear_logcat(adb)
+        logcat_since = begin_logcat_window(adb, args)
         start_library(adb, args)
         rotation_settings, rotation_result = maybe_force_landscape(adb, args)
         focus_result = ensure_library_focused(adb, args, "rotation")
@@ -643,7 +707,7 @@ def run_library(args: argparse.Namespace) -> CheckResult:
         if focused:
             result.values["focused_after_dpad"] = focused
 
-        log_result = scan_logcat(read_logcat(adb))
+        log_result = scan_logcat(read_logcat(adb, since=logcat_since), args.package)
         result = result.merge(log_result)
         write_report(prefix, "Nova Retroid Library smoke", result, [png, xml_path, after_dpad_xml])
         return result
@@ -661,12 +725,12 @@ def open_command_center(adb: Adb) -> None:
 
 
 def run_command_center(args: argparse.Namespace) -> CheckResult:
-    ensure_adb_device(args.serial, dry_run=args.dry_run)
+    args.serial = ensure_adb_device(args.serial, dry_run=args.dry_run)
     adb = Adb(args.serial, args.dry_run)
     rotation_settings: dict[str, str] | None = None
     try:
         rotation_settings, rotation_result = maybe_force_landscape(adb, args)
-        clear_logcat(adb)
+        logcat_since = begin_logcat_window(adb, args)
         if not args.assume_open:
             open_command_center(adb)
 
@@ -686,7 +750,7 @@ def run_command_center(args: argparse.Namespace) -> CheckResult:
             command_result = analyze_command_center(xml + scrolled_xml)
             result = rotation_result.merge(command_result)
 
-        log_result = scan_logcat(read_logcat(adb))
+        log_result = scan_logcat(read_logcat(adb, since=logcat_since), args.package)
         result = result.merge(log_result)
         write_report(prefix, "Nova Retroid Command Center smoke", result, [png, xml_path, controls_xml])
         return result
@@ -695,12 +759,12 @@ def run_command_center(args: argparse.Namespace) -> CheckResult:
 
 
 def run_phone(args: argparse.Namespace) -> CheckResult:
-    ensure_adb_device(args.serial, dry_run=args.dry_run)
+    args.serial = ensure_adb_device(args.serial, dry_run=args.dry_run)
     adb = Adb(args.serial, args.dry_run)
     rotation_settings: dict[str, str] | None = None
     try:
         maybe_install(adb, args)
-        clear_logcat(adb)
+        logcat_since = begin_logcat_window(adb, args)
         rotation_settings = capture_rotation_settings(adb) if not args.dry_run else None
         write_system_setting(adb, "accelerometer_rotation", "0")
         write_system_setting(adb, "user_rotation", "0")
@@ -757,7 +821,7 @@ def run_phone(args: argparse.Namespace) -> CheckResult:
             library_result.ok = False
         result = result.merge(library_result)
 
-        log_result = scan_logcat(read_logcat(adb))
+        log_result = scan_logcat(read_logcat(adb, since=logcat_since), args.package)
         result = result.merge(log_result)
         write_report(prefix, "Nova phone form-factor smoke", result, artifacts)
         return result
@@ -850,7 +914,7 @@ def end_stream_from_command_center(adb: Adb, args: argparse.Namespace, prefix: P
 
 
 def run_live_stream(args: argparse.Namespace) -> CheckResult:
-    ensure_adb_device(args.serial, dry_run=args.dry_run)
+    args.serial = ensure_adb_device(args.serial, dry_run=args.dry_run)
     adb = Adb(args.serial, args.dry_run)
     rotation_settings: dict[str, str] | None = None
     prefix: Path | None = None
@@ -858,7 +922,7 @@ def run_live_stream(args: argparse.Namespace) -> CheckResult:
     end_attempted = False
     try:
         maybe_install(adb, args)
-        clear_logcat(adb)
+        logcat_since = begin_logcat_window(adb, args)
         start_library(adb, args)
         rotation_settings, rotation_result = maybe_force_landscape(adb, args)
         focus_result = ensure_library_focused(adb, args, "rotation")
@@ -896,7 +960,7 @@ def run_live_stream(args: argparse.Namespace) -> CheckResult:
             end_attempted = True
 
         log_result = live_stream_log_result(
-            scan_logcat(read_logcat(adb)),
+            scan_logcat(read_logcat(adb, since=logcat_since), args.package),
             require_clean_disconnect=not args.no_end_stream,
         )
         result = library_result.merge(command_result).merge(end_result).merge(log_result)
@@ -922,48 +986,85 @@ def run_live_stream(args: argparse.Namespace) -> CheckResult:
         restore_rotation_settings(adb, rotation_settings)
 
 
-def add_common_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--serial", default=DEFAULT_SERIAL)
-    parser.add_argument("--repo", default=str(DEFAULT_REPO))
-    parser.add_argument("--package", default=DEFAULT_PACKAGE)
-    parser.add_argument("--activity", default=DEFAULT_ACTIVITY)
-    parser.add_argument("--apk", default=str(DEFAULT_APK))
-    parser.add_argument("--artifacts-dir", default=str(DEFAULT_ARTIFACT_DIR))
-    parser.add_argument("--skip-install", action="store_true")
-    parser.add_argument("--host", default=os.environ.get("NOVA_SMOKE_HOST"))
-    parser.add_argument("--server-name", default=os.environ.get("NOVA_SMOKE_SERVER_NAME"))
-    parser.add_argument("--http-port", type=int, default=int(os.environ.get("NOVA_SMOKE_HTTP_PORT", "47989")))
-    parser.add_argument("--https-port", type=int, default=int(os.environ.get("NOVA_SMOKE_HTTPS_PORT", "47984")))
-    parser.add_argument("--unique-id", default=os.environ.get("NOVA_SMOKE_UNIQUE_ID"))
-    parser.add_argument("--pc-uuid", default=os.environ.get("NOVA_SMOKE_PC_UUID"))
+def _default(value: object, use_defaults: bool) -> object:
+    return value if use_defaults else argparse.SUPPRESS
+
+
+def add_common_args(parser: argparse.ArgumentParser, *, use_defaults: bool = True) -> None:
+    parser.add_argument(
+        "--serial",
+        default=_default(DEFAULT_SERIAL, use_defaults),
+        help=(
+            "ADB serial. Defaults to NOVA_ADB_SERIAL/RETROID_ID; when omitted, "
+            "the helper uses the only connected adb device or fails if there are zero/multiple devices."
+        ),
+    )
+    parser.add_argument("--repo", default=_default(str(DEFAULT_REPO), use_defaults))
+    parser.add_argument("--package", default=_default(DEFAULT_PACKAGE, use_defaults))
+    parser.add_argument("--activity", default=_default(DEFAULT_ACTIVITY, use_defaults))
+    parser.add_argument("--apk", default=_default(str(DEFAULT_APK), use_defaults))
+    parser.add_argument("--artifacts-dir", default=_default(str(DEFAULT_ARTIFACT_DIR), use_defaults))
+    parser.add_argument("--skip-install", action="store_true", default=_default(False, use_defaults))
+    parser.add_argument("--host", default=_default(os.environ.get("NOVA_SMOKE_HOST"), use_defaults))
+    parser.add_argument("--server-name", default=_default(os.environ.get("NOVA_SMOKE_SERVER_NAME"), use_defaults))
+    parser.add_argument(
+        "--http-port",
+        type=int,
+        default=_default(int(os.environ.get("NOVA_SMOKE_HTTP_PORT", "47989")), use_defaults),
+    )
+    parser.add_argument(
+        "--https-port",
+        type=int,
+        default=_default(int(os.environ.get("NOVA_SMOKE_HTTPS_PORT", "47984")), use_defaults),
+    )
+    parser.add_argument("--unique-id", default=_default(os.environ.get("NOVA_SMOKE_UNIQUE_ID"), use_defaults))
+    parser.add_argument("--pc-uuid", default=_default(os.environ.get("NOVA_SMOKE_PC_UUID"), use_defaults))
     parser.add_argument(
         "--no-force-landscape",
         dest="force_landscape",
         action="store_false",
+        default=_default(True, use_defaults),
         help="do not temporarily lock display rotation to landscape for Retroid smoke captures",
     )
-    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--clear-logcat",
+        action="store_true",
+        default=_default(False, use_defaults),
+        help="clear the whole device logcat before smoke; by default the helper reads from a start timestamp instead",
+    )
+    parser.add_argument("--dry-run", action="store_true", default=_default(False, use_defaults))
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Nova Retroid smoke automation")
+    add_common_args(parser)
+    subparser_common = argparse.ArgumentParser(add_help=False)
+    add_common_args(subparser_common, use_defaults=False)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    library = subparsers.add_parser("library", help="safe Library rail smoke")
-    add_common_args(library)
+    library = subparsers.add_parser("library", parents=[subparser_common], help="safe Library rail smoke")
     library.set_defaults(func=run_library)
 
-    command = subparsers.add_parser("command-center", help="inspect Command Center from an active stream")
-    add_common_args(command)
+    command = subparsers.add_parser(
+        "command-center",
+        parents=[subparser_common],
+        help="inspect Command Center from an active stream",
+    )
     command.add_argument("--assume-open", action="store_true", help="skip controller chord and inspect current UI")
     command.set_defaults(func=run_command_center)
 
-    phone = subparsers.add_parser("phone", help="portrait phone dashboard/settings/Library form-factor smoke")
-    add_common_args(phone)
+    phone = subparsers.add_parser(
+        "phone",
+        parents=[subparser_common],
+        help="portrait phone dashboard/settings/Library form-factor smoke",
+    )
     phone.set_defaults(func=run_phone)
 
-    live = subparsers.add_parser("live-stream", help="launch, open Command Center, and end a stream")
-    add_common_args(live)
+    live = subparsers.add_parser(
+        "live-stream",
+        parents=[subparser_common],
+        help="launch, open Command Center, and end a stream",
+    )
     live.add_argument("--launch-text", default=os.environ.get("NOVA_SMOKE_LAUNCH_TEXT", "Steam Big Picture"))
     live.add_argument("--timeout", type=int, default=45)
     live.add_argument("--no-end-stream", action="store_true")

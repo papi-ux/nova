@@ -210,6 +210,18 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertFalse(dirty_result.ok)
         self.assertTrue(dirty_result.failures)
 
+    def test_log_scan_ignores_unrelated_app_crashes(self):
+        unrelated = """
+        FATAL EXCEPTION: main
+        Process: com.example.otherapp
+        RuntimeException: other app had a bad day
+        """
+
+        result = nova_retroid_smoke.scan_logcat(unrelated, "com.papi.nova.debug")
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.failures, [])
+
     def test_live_stream_log_result_requires_stream_and_disconnect_evidence(self):
         missing = nova_retroid_smoke.live_stream_log_result(
             nova_retroid_smoke.scan_logcat("Starting video stream"),
@@ -350,6 +362,29 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
             ],
         )
 
+    def test_rotation_settings_restore_deletes_null_previous_values(self):
+        class FakeAdb:
+            def __init__(self):
+                self.commands = []
+
+            def shell(self, command, **kwargs):
+                self.commands.append(command)
+                return ""
+
+        adb = FakeAdb()
+        nova_retroid_smoke.restore_rotation_settings(
+            adb,
+            {"accelerometer_rotation": "null", "user_rotation": ""},
+        )
+
+        self.assertEqual(
+            adb.commands,
+            [
+                "settings delete system accelerometer_rotation",
+                "settings delete system user_rotation",
+            ],
+        )
+
     def test_ensure_library_focused_restarts_after_rotation_focus_loss(self):
         args = type(
             "Args",
@@ -392,7 +427,42 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
     def test_ensure_adb_device_skips_lookup_for_dry_run(self):
         with patch.object(nova_retroid_smoke.shutil, "which", side_effect=AssertionError("adb lookup should be skipped")), \
             patch.object(nova_retroid_smoke.subprocess, "run", side_effect=AssertionError("adb devices should be skipped")):
-            nova_retroid_smoke.ensure_adb_device("missing-device", dry_run=True)
+            serial = nova_retroid_smoke.ensure_adb_device(None, dry_run=True)
+
+        self.assertEqual(serial, "dry-run-device")
+
+    def test_ensure_adb_device_uses_only_connected_device_when_serial_omitted(self):
+        completed = type("Completed", (), {"stdout": "List of devices attached\nsolo\tdevice\n"})()
+
+        with patch.object(nova_retroid_smoke.shutil, "which", return_value="/usr/bin/adb"), \
+            patch.object(nova_retroid_smoke.subprocess, "run", return_value=completed):
+            serial = nova_retroid_smoke.ensure_adb_device(None)
+
+        self.assertEqual(serial, "solo")
+
+    def test_ensure_adb_device_requires_serial_for_multiple_devices(self):
+        completed = type("Completed", (), {"stdout": "List of devices attached\none\tdevice\ntwo\tdevice\n"})()
+
+        with patch.object(nova_retroid_smoke.shutil, "which", return_value="/usr/bin/adb"), \
+            patch.object(nova_retroid_smoke.subprocess, "run", return_value=completed), \
+            self.assertRaises(SystemExit) as raised:
+            nova_retroid_smoke.ensure_adb_device(None)
+
+        self.assertIn("Multiple ADB devices", str(raised.exception))
+
+    def test_read_logcat_can_read_from_start_marker_without_clearing(self):
+        class FakeAdb:
+            def __init__(self):
+                self.commands = []
+
+            def run(self, command, **kwargs):
+                self.commands.append(command)
+                return type("Completed", (), {"stdout": "log text"})()
+
+        adb = FakeAdb()
+
+        self.assertEqual(nova_retroid_smoke.read_logcat(adb, since="05-22 20:19:00.000"), "log text")
+        self.assertEqual(adb.commands, [["logcat", "-d", "-T", "05-22 20:19:00.000"]])
 
     def test_phone_surface_analysis_reports_missing_labels_by_surface(self):
         xml = """
@@ -415,8 +485,8 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
             {
                 "package": "com.papi.nova.debug",
                 "activity": "com.papi.nova.ui.NovaLibraryActivity",
-                "host": "10.0.0.232",
-                "server_name": "pc-papi.lan",
+                "host": "192.0.2.10",
+                "server_name": "example-pc.local",
                 "http_port": 47989,
                 "https_port": 47984,
                 "unique_id": "smoke pixel",
@@ -427,8 +497,8 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         command = nova_retroid_smoke._library_start_command(args)
 
         self.assertIn("am start -n com.papi.nova.debug/com.papi.nova.ui.NovaLibraryActivity", command)
-        self.assertIn("--es host 10.0.0.232", command)
-        self.assertIn("--es server_name pc-papi.lan", command)
+        self.assertIn("--es host 192.0.2.10", command)
+        self.assertIn("--es server_name example-pc.local", command)
         self.assertIn("--ei http_port 47989", command)
         self.assertIn("--es unique_id 'smoke pixel'", command)
         self.assertIn("--es pc_uuid abc-123", command)
@@ -448,6 +518,17 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         args = parser.parse_args(["library"])
 
         self.assertEqual(Path(args.repo), MODULE_PATH.parents[1])
+
+    def test_common_options_parse_before_or_after_subcommand(self):
+        parser = nova_retroid_smoke.build_parser()
+
+        before = parser.parse_args(["--artifacts-dir", "/tmp/before", "library", "--dry-run"])
+        after = parser.parse_args(["library", "--artifacts-dir", "/tmp/after", "--dry-run"])
+
+        self.assertEqual(before.artifacts_dir, "/tmp/before")
+        self.assertTrue(before.dry_run)
+        self.assertEqual(after.artifacts_dir, "/tmp/after")
+        self.assertTrue(after.dry_run)
 
 
 if __name__ == "__main__":

@@ -42,6 +42,9 @@ jobs:
       - name: Run JVM tests
         run: ./gradlew -PnovaAbis=x86_64 testNonRoot_gameDebugUnitTest
 
+      - name: Run smoke helper tests
+        run: python3 -m unittest tools.test_nova_retroid_smoke
+
   android-smoke:
     name: Emulator smoke test
     needs: verify

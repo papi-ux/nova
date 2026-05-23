@@ -6,7 +6,7 @@ Storage note: this plan intentionally lives in docs/plans/, not .hermes/. Do not
 
 ## Current context
 
-- Repo: /home/papi/Documents/github/nova
+- Repo: `<repo-root>`
 - Branch target: nova/1.1.0
 - Preferred workflow: small verified slices, frequent commits, no giant UI glitter bomb.
 - First rule: finish/commit the already verified UI slice before starting more polish.

@@ -447,7 +447,12 @@ class NovaComposeSourceGuardTest {
             searchField.contains("Key.DirectionDown -> if (searchEditing)")
         )
         assertTrue(
-            "controller select should not place search into a D-pad-trapping edit mode",
+            "controller select should explicitly enter search edit mode on TV remotes",
+            searchField.contains("Key.Enter, Key.NumPadEnter, Key.DirectionCenter ->") &&
+                searchField.contains("beginSearchEditing()")
+        )
+        assertFalse(
+            "controller select should not be swallowed without activating search",
             searchField.contains("Key.DirectionCenter -> true")
         )
     }

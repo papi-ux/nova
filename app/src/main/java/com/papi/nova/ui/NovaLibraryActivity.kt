@@ -1991,7 +1991,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                         return@onPreviewKeyEvent false
                     }
                     when (event.key) {
-                        Key.Enter, Key.NumPadEnter -> {
+                        Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
                             if (!searchEditing) {
                                 beginSearchEditing()
                                 true
@@ -1999,7 +1999,6 @@ class NovaLibraryActivity : AppCompatActivity() {
                                 false
                             }
                         }
-                        Key.DirectionCenter -> true
                         Key.DirectionDown -> leaveSearchEditing(FocusDirection.Down)
                         Key.DirectionUp -> leaveSearchEditing(FocusDirection.Up)
                         Key.DirectionLeft -> leaveSearchEditing(FocusDirection.Left)
