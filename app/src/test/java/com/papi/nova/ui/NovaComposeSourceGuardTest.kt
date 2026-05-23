@@ -870,6 +870,44 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun gameDetailRetroidFirstPaintUsesCompactGameIdentityHeader() {
+        val detail = readNovaGameDetailSheet()
+        val detailsPanel = detail.section(
+            "private fun GameDetailsPanel(",
+            "@Composable\nprivate fun LaunchControlsPanel("
+        )
+        val launchControls = detail.section(
+            "private fun LaunchControls(",
+            "@Composable\nprivate fun LaunchProfileSummaryInline("
+        )
+        val launchModePill = detail.section(
+            "private fun LaunchModeChoicePill(",
+            "@Composable\nprivate fun ProfileSummaryText("
+        )
+
+        assertTrue(
+            "Retroid landscape first paint should treat game identity as a compact launch header, not a second hero slab",
+            detailsPanel.contains(".heightIn(min = 136.dp)") &&
+                detailsPanel.contains("contentPadding = PaddingValues(12.dp)") &&
+                detailsPanel.contains(".width(108.dp)") &&
+                detailsPanel.contains("fontSize = 20.sp") &&
+                detailsPanel.contains("lineHeight = 22.sp") &&
+                detailsPanel.contains("maxLines = 2")
+        )
+        assertFalse(
+            "game detail should not keep the old oversized first-paint panel that pushed launch mode choices below the fold",
+            detailsPanel.contains(".heightIn(min = 172.dp)") ||
+                detailsPanel.contains(".width(126.dp)") ||
+                detailsPanel.contains("fontSize = 22.sp")
+        )
+        assertTrue(
+            "primary launch and mode choice controls should stay compact enough to be visible together on Retroid first paint",
+            launchControls.contains("minHeight = 50.dp") &&
+                launchModePill.contains("modifier = modifier.heightIn(min = 52.dp)")
+        )
+    }
+
+    @Test
     fun gameDetailLaunchControlsPrioritizePrimaryPlayFocus() {
         val detail = readNovaGameDetailSheet()
         val launchControls = detail.section(

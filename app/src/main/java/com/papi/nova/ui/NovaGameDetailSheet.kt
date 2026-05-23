@@ -891,7 +891,7 @@ fun NovaGameDetailSheetContent(
     ) {
         Box(
             modifier = Modifier
-                .padding(top = 8.dp, bottom = 10.dp)
+                .padding(top = 6.dp, bottom = 6.dp)
                 .size(width = 36.dp, height = 4.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(colors.divider)
@@ -1035,10 +1035,10 @@ private fun GameDetailsPanel(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 14.dp, end = 14.dp)
-            .heightIn(min = 172.dp),
+            .heightIn(min = 136.dp),
         contentDescription = "Game details",
         accent = true,
-        contentPadding = PaddingValues(14.dp)
+        contentPadding = PaddingValues(12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1055,37 +1055,37 @@ private fun GameDetailsPanel(
                         }
                     },
                     modifier = Modifier
-                        .width(126.dp)
+                        .width(108.dp)
                         .aspectRatio(88f / 118f)
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(colors.window)
-                        .border(1.dp, colors.divider, RoundedCornerShape(18.dp))
+                        .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
                         .semantics { contentDescription = coverContentDescription }
                 )
             }
 
             Column(
                 modifier = Modifier
-                    .padding(start = 16.dp)
+                    .padding(start = 12.dp)
                     .weight(1f),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = game.name,
                     color = colors.textPrimary,
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
-                    lineHeight = 25.sp,
-                    maxLines = 3,
+                    lineHeight = 22.sp,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
                 if (game.sourceRuntimeLabel.isNotBlank()) {
                     Text(
                         text = game.sourceRuntimeLabel,
-                        modifier = Modifier.padding(top = 7.dp),
+                        modifier = Modifier.padding(top = 5.dp),
                         color = colors.textSecondary,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1097,7 +1097,7 @@ private fun GameDetailsPanel(
                 if (lastPlayedText != null) {
                     NovaBadge(
                         text = lastPlayedText,
-                        modifier = Modifier.padding(top = 10.dp),
+                        modifier = Modifier.padding(top = 7.dp),
                         color = colors.textSecondary,
                         backgroundColor = surfaces.control.copy(alpha = 0.78f),
                         borderColor = surfaces.tileBorder,
@@ -1135,7 +1135,7 @@ private fun LaunchControlsPanel(
             .padding(start = 14.dp, end = 14.dp, top = 10.dp),
         contentDescription = "Launch controls",
         accent = true,
-        contentPadding = PaddingValues(13.dp)
+        contentPadding = PaddingValues(12.dp)
     ) {
         LaunchControls(
             uiState = uiState,
@@ -1163,7 +1163,7 @@ private fun MetadataBadges(game: PolarisGame) {
     val horizontalScroll = rememberScrollState()
     Row(
         modifier = Modifier
-            .padding(top = 8.dp)
+            .padding(top = 6.dp)
             .horizontalScroll(horizontalScroll),
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
@@ -1182,7 +1182,7 @@ private fun GenresRow(genres: List<String>) {
     val horizontalScroll = rememberScrollState()
     Row(
         modifier = Modifier
-            .padding(top = 7.dp)
+            .padding(top = 5.dp)
             .horizontalScroll(horizontalScroll),
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
@@ -1253,11 +1253,11 @@ private fun LaunchControls(
 
         Text(
             text = launchIntro,
-            modifier = Modifier.padding(top = 7.dp),
+            modifier = Modifier.padding(top = 6.dp),
             color = if (uiState.virtualDisplayUnavailable) colors.warning else colors.textSecondary,
             fontSize = 11.sp,
-            lineHeight = 14.sp,
-            maxLines = 3,
+            lineHeight = 13.sp,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
 
@@ -1267,11 +1267,11 @@ private fun LaunchControls(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(playFocusRequester)
-                .padding(top = 12.dp),
+                .padding(top = 10.dp),
             enabled = uiState.playEnabled,
             primary = true,
             contentDescription = playLabel,
-            minHeight = 54.dp,
+            minHeight = 50.dp,
             cornerRadius = 12.dp,
             fontSize = 16.sp,
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
@@ -1280,7 +1280,7 @@ private fun LaunchControls(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 12.dp),
+                .padding(top = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             LaunchModeChoicePill(
@@ -1438,11 +1438,11 @@ private fun LaunchModeChoicePill(
     }
 
     NovaFocusableCard(
-        modifier = modifier.heightIn(min = 58.dp),
+        modifier = modifier.heightIn(min = 52.dp),
         onClick = onClick,
         enabled = !unavailable,
         contentDescription = "$label. $status",
-        contentPadding = PaddingValues(horizontal = 11.dp, vertical = 9.dp)
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Column {
             Text(
