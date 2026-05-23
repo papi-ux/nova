@@ -212,6 +212,10 @@ class NovaComposeSourceGuardTest {
             "override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {",
             "override fun onStop()"
         )
+        val menuKeyHandler = keyHandler.section(
+            "KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_START -> {",
+            "else -> super.onKeyDown"
+        )
 
         assertTrue(
             "system menu sheet composable should exist before browsing option/filter sheets",
@@ -264,6 +268,11 @@ class NovaComposeSourceGuardTest {
                 systemSheet.contains("KeyEvent.KEYCODE_BUTTON_X") &&
                 systemSheet.contains("event.key == Key.DirectionLeft") &&
                 systemSheet.contains("onOpenOptions()")
+        )
+        assertTrue(
+            "Menu/Start should be a destination-to-System shortcut, not a close toggle; Back/B owns dismiss",
+            menuKeyHandler.contains("if (!activeSystemMenu) openLibrarySystemMenu()") &&
+                !menuKeyHandler.contains("dismissLibrarySystemMenu()")
         )
         assertTrue(
             "system menu should show the active host and Polaris readiness in the header",

@@ -331,11 +331,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 true
             }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_START -> {
-                if (activeSystemMenu) {
-                    dismissLibrarySystemMenu()
-                } else {
-                    openLibrarySystemMenu()
-                }
+                if (!activeSystemMenu) openLibrarySystemMenu()
                 true
             }
             else -> super.onKeyDown(keyCode, event)
