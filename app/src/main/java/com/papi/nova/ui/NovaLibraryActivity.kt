@@ -103,6 +103,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.LimeLog
 import com.papi.nova.NovaSessionEndSignal
@@ -967,19 +969,11 @@ class NovaLibraryActivity : AppCompatActivity() {
                             searchQuery = searchQuery,
                             clientSettings = clientSettings,
                             activeSession = activeSession,
-                            onSearchChange = onSearchChange,
                             onRefresh = onRefresh,
-                            onResumeSession = onResumeSession,
-                            onEndSession = onEndSession,
-                            onManageServer = onManageServer,
                             onBack = onBack,
-                            onPrimaryFilter = onPrimaryFilter,
-                            onPrimaryFilterFocused = onPrimaryFilterFocused,
-                            restoreFocusPrimaryFilter = restoreFocusPrimaryFilter,
                             onOpenOptions = onOpenOptions,
                             onOpenSystemMenu = onOpenSystemMenu,
-                            onClearFilters = onClearFilters,
-                            sourceLabel = { sourceLabelFor(it) }
+                            onClearFilters = onClearFilters
                         )
                         NovaLibraryHomeHero(
                             hero = model.hero,
@@ -1470,80 +1464,112 @@ class NovaLibraryActivity : AppCompatActivity() {
         onClearFilters: () -> Unit
     ) {
         val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
         val hasFilters = hasClearableFilters(searchQuery, filterState)
-        NovaLibraryPanel(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+        val hostLabel = serverName?.takeIf { it.isNotBlank() } ?: serverHost
+        val shape = RoundedCornerShape(18.dp)
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(surfaces.panel.copy(alpha = 0.72f))
+                .border(1.dp, surfaces.tileBorder, shape)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NovaActionButton(
+                text = stringResource(R.string.nova_library_options_title),
+                onClick = onOpenOptions,
+                primary = true,
+                minHeight = 34.dp,
+                fontSize = 11.sp
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
             ) {
-                NovaActionButton(
-                    text = stringResource(R.string.nova_library_options_title),
-                    onClick = onOpenOptions,
-                    primary = true,
-                    minHeight = 40.dp,
-                    fontSize = 12.sp
-                )
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    NovaLibraryTitle(serverName, serverHost)
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.nova_library_results_format, model.resultCount),
-                            color = colors.textSecondary,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = layoutModeLabel(model.optionsState.layoutMode),
-                            color = colors.textMuted,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (clientSettings != null) {
-                            NovaStatusPill(
-                                text = stringResource(R.string.nova_system_menu_status_polaris_ready),
-                                enabled = true
-                            )
-                        }
-                    }
-                }
-                if (hasFilters) {
-                    NovaActionButton(
-                        text = stringResource(R.string.nova_library_filter_clear_all),
-                        onClick = onClearFilters,
-                        minHeight = 38.dp,
-                        fontSize = 11.sp
+                    Text(
+                        text = stringResource(R.string.nova_library_title),
+                        color = colors.textPrimary,
+                        fontSize = 16.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "· $hostLabel",
+                        color = colors.textSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.nova_library_results_format, model.resultCount),
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = layoutModeLabel(model.optionsState.layoutMode),
+                        color = colors.textMuted,
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (clientSettings != null) {
+                        Text(
+                            text = stringResource(R.string.nova_system_menu_status_polaris_ready),
+                            color = colors.accent,
+                            fontSize = 10.sp,
+                            lineHeight = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            if (hasFilters) {
                 NovaActionButton(
-                    text = stringResource(R.string.nova_refresh),
-                    onClick = onRefresh,
-                    minHeight = 38.dp,
-                    fontSize = 11.sp
-                )
-                NovaActionButton(
-                    text = stringResource(R.string.nova_system_menu_title),
-                    onClick = onOpenSystemMenu,
-                    minHeight = 38.dp,
-                    fontSize = 11.sp
-                )
-                NovaActionButton(
-                    text = stringResource(R.string.nova_library_switch_server),
-                    onClick = onBack,
-                    minHeight = 38.dp,
-                    fontSize = 11.sp
+                    text = stringResource(R.string.nova_library_filter_clear_all),
+                    onClick = onClearFilters,
+                    minHeight = 34.dp,
+                    fontSize = 10.sp
                 )
             }
+            NovaActionButton(
+                text = stringResource(R.string.nova_refresh),
+                onClick = onRefresh,
+                minHeight = 34.dp,
+                fontSize = 10.sp
+            )
+            NovaActionButton(
+                text = stringResource(R.string.nova_system_menu_title),
+                onClick = onOpenSystemMenu,
+                minHeight = 34.dp,
+                fontSize = 10.sp
+            )
+            NovaActionButton(
+                text = stringResource(R.string.nova_library_switch_server),
+                onClick = onBack,
+                minHeight = 34.dp,
+                fontSize = 10.sp
+            )
         }
     }
 
@@ -1556,106 +1582,114 @@ class NovaLibraryActivity : AppCompatActivity() {
         searchQuery: String,
         clientSettings: PolarisClientSettings?,
         activeSession: NovaLibraryActiveSessionUiState?,
-        onSearchChange: (String) -> Unit,
         onRefresh: () -> Unit,
-        onResumeSession: (NovaLibraryActiveSessionUiState) -> Unit,
-        onEndSession: (NovaLibraryActiveSessionUiState) -> Unit,
-        onManageServer: () -> Unit,
         onBack: () -> Unit,
-        onPrimaryFilter: (NovaLibraryPrimaryFilter) -> Unit,
-        onPrimaryFilterFocused: (NovaLibraryPrimaryFilter) -> Unit,
-        restoreFocusPrimaryFilter: NovaLibraryPrimaryFilter,
         onOpenOptions: () -> Unit,
         onOpenSystemMenu: () -> Unit,
-        onClearFilters: () -> Unit,
-        sourceLabel: (String?) -> String
+        onClearFilters: () -> Unit
     ) {
+        val hasFilters = hasClearableFilters(searchQuery, filterState)
+
         NovaLibraryPanel(modifier = Modifier.fillMaxWidth()) {
             Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         NovaLibraryTitle(serverName, serverHost)
                     }
                     NovaActionButton(
-                        text = stringResource(R.string.nova_refresh),
-                        onClick = onRefresh,
-                        minHeight = 38.dp,
-                        fontSize = 12.sp
-                    )
-                    NovaActionButton(
                         text = stringResource(R.string.nova_library_options_title),
                         onClick = onOpenOptions,
-                        minHeight = 38.dp,
-                        fontSize = 12.sp
+                        primary = true,
+                        minHeight = 36.dp,
+                        fontSize = 11.sp
+                    )
+                }
+                NovaLibraryCompactMetaRow(
+                    model = model,
+                    clientSettings = clientSettings,
+                    activeSession = activeSession,
+                    searchQuery = searchQuery,
+                    hasFilters = hasFilters
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NovaActionButton(
+                        text = stringResource(R.string.nova_refresh),
+                        onClick = onRefresh,
+                        modifier = Modifier.weight(1f),
+                        minHeight = 36.dp,
+                        fontSize = 11.sp
                     )
                     NovaActionButton(
                         text = stringResource(R.string.nova_system_menu_title),
                         onClick = onOpenSystemMenu,
-                        minHeight = 38.dp,
-                        fontSize = 12.sp
+                        modifier = Modifier.weight(1f),
+                        minHeight = 36.dp,
+                        fontSize = 11.sp
                     )
-                }
-                NovaLibraryStatusStrip(
-                    settings = clientSettings,
-                    activeSession = activeSession
-                )
-                if (activeSession != null) {
-                    NovaLibraryActiveSessionCard(
-                        session = activeSession,
-                        onResumeSession = onResumeSession,
-                        onEndSession = onEndSession,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                NovaLibrarySummary(model = model)
-                NovaSearchField(
-                    value = searchQuery,
-                    onValueChange = onSearchChange,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    NovaLibraryPrimaryFilter.entries.forEach { filter ->
-                        NovaFilterChip(
-                            filter = filter,
-                            selected = filterState.primary == filter,
-                            count = filterCount(filter, model),
-                            filterState = filterState,
-                            sourceLabel = sourceLabel,
-                            modifier = Modifier.width(NovaLibraryUiStateMapper.filterChipWidthDp(filter).dp),
-                            restoreFocus = restoreFocusPrimaryFilter == filter,
-                            onFocused = { onPrimaryFilterFocused(filter) },
-                            onClick = { onPrimaryFilter(filter) }
-                        )
-                    }
-                    if (hasClearableFilters(searchQuery, filterState)) {
-                        NovaActionButton(
-                            text = stringResource(R.string.nova_library_filter_clear_all),
-                            onClick = onClearFilters,
-                            minHeight = 40.dp,
-                            fontSize = 12.sp
-                        )
-                    }
                     NovaActionButton(
                         text = stringResource(R.string.nova_library_switch_server),
                         onClick = onBack,
-                        minHeight = 40.dp,
-                        fontSize = 12.sp
+                        modifier = Modifier.weight(1f),
+                        minHeight = 36.dp,
+                        fontSize = 11.sp
                     )
+                    if (hasFilters) {
+                        NovaActionButton(
+                            text = stringResource(R.string.nova_library_filter_clear_all),
+                            onClick = onClearFilters,
+                            modifier = Modifier.weight(1f),
+                            minHeight = 36.dp,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
         }
+    }
+
+    @Composable
+    private fun NovaLibraryCompactMetaRow(
+        model: NovaLibraryUiModel,
+        clientSettings: PolarisClientSettings?,
+        activeSession: NovaLibraryActiveSessionUiState?,
+        searchQuery: String,
+        hasFilters: Boolean
+    ) {
+        val colors = LocalNovaComposeColors.current
+        val metaItems = buildList {
+            add(stringResource(R.string.nova_library_results_format, model.resultCount))
+            add(layoutModeLabel(model.optionsState.layoutMode))
+            if (searchQuery.isNotBlank()) add("Search active")
+            if (hasFilters) add("Filters active")
+            add(
+                if (clientSettings != null) {
+                    stringResource(R.string.nova_system_menu_status_polaris_ready)
+                } else {
+                    stringResource(R.string.nova_library_status_checking)
+                }
+            )
+            if (activeSession != null) add(stringResource(R.string.nova_library_resume_ready))
+        }
+
+        Text(
+            text = metaItems.joinToString(" · "),
+            color = colors.textSecondary,
+            fontSize = 11.sp,
+            lineHeight = 13.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 
     @Composable
@@ -2841,7 +2875,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun NovaLibraryOptionsSheet(
         optionsState: NovaLibraryOptionsState,
@@ -2858,122 +2891,139 @@ class NovaLibraryActivity : AppCompatActivity() {
         onSortMode: (NovaLibrarySortMode) -> Unit,
         onLayoutMode: (NovaLibraryLayoutMode) -> Unit
     ) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        ModalBottomSheet(
+        val drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+
+        Dialog(
             onDismissRequest = onDismiss,
-            sheetState = sheetState,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            containerColor = surfaces.panel,
-            contentColor = colors.textPrimary,
-            scrimColor = surfaces.backgroundScrim.copy(alpha = 0.30f)
+            properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.nova_library_options_title),
-                    color = colors.textPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val drawerWidthFraction = if (maxWidth < 520.dp) 0.94f else 0.50f
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(surfaces.backgroundScrim.copy(alpha = 0.58f))
+                        .pointerInput(onDismiss) {
+                            detectTapGestures { onDismiss() }
+                        }
                 )
-                Text(
-                    text = stringResource(R.string.nova_library_options_hint),
-                    color = colors.textSecondary,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
-                )
-                NovaSearchField(
-                    value = searchQuery,
-                    onValueChange = onSearchChange,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .fillMaxHeight()
+                        .fillMaxWidth(drawerWidthFraction)
+                        .widthIn(max = 420.dp)
+                        .clip(drawerShape)
+                        .background(surfaces.panel)
+                        .border(1.dp, surfaces.tileBorder, drawerShape)
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .focusGroup()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.nova_controller_hint_filters),
+                        text = stringResource(R.string.nova_library_options_title),
+                        color = colors.textPrimary,
+                        fontSize = 18.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = stringResource(R.string.nova_library_options_hint),
                         color = colors.textSecondary,
                         fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+                    NovaSearchField(
+                        value = searchQuery,
+                        onValueChange = onSearchChange,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.nova_controller_hint_filters),
+                            color = colors.textSecondary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.7.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = stringResource(R.string.nova_library_results_format, model.resultCount),
+                            color = colors.textMuted,
+                            fontSize = 10.sp
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        NovaLibraryPrimaryFilter.entries.forEach { filter ->
+                            NovaFilterChip(
+                                filter = filter,
+                                selected = filterState.primary == filter,
+                                count = filterCount(filter, model),
+                                filterState = filterState,
+                                sourceLabel = sourceLabel,
+                                modifier = Modifier.width(NovaLibraryUiStateMapper.filterChipWidthDp(filter).dp),
+                                restoreFocus = restoreFocusPrimaryFilter == filter,
+                                onFocused = { onPrimaryFilterFocused(filter) },
+                                onClick = { onPrimaryFilter(filter) }
+                            )
+                        }
+                        if (hasClearableFilters(searchQuery, filterState)) {
+                            NovaActionButton(
+                                text = stringResource(R.string.nova_library_filter_clear_all),
+                                onClick = onClearFilters,
+                                minHeight = 38.dp,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.nova_library_options_sort_title),
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.7.sp
+                    )
+                    NovaLibrarySortMode.entries.forEach { sortMode ->
+                        NovaSelectableChip(
+                            label = sortModeLabel(sortMode),
+                            detail = sortModeDetail(sortMode),
+                            selected = optionsState.sortMode == sortMode,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { onSortMode(sortMode) }
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.nova_library_options_layout_title),
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.7.sp,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.padding(top = 4.dp)
                     )
-                    Text(
-                        text = stringResource(R.string.nova_library_results_format, model.resultCount),
-                        color = colors.textMuted,
-                        fontSize = 11.sp
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    NovaLibraryPrimaryFilter.entries.forEach { filter ->
-                        NovaFilterChip(
-                            filter = filter,
-                            selected = filterState.primary == filter,
-                            count = filterCount(filter, model),
-                            filterState = filterState,
-                            sourceLabel = sourceLabel,
-                            modifier = Modifier.width(NovaLibraryUiStateMapper.filterChipWidthDp(filter).dp),
-                            restoreFocus = restoreFocusPrimaryFilter == filter,
-                            onFocused = { onPrimaryFilterFocused(filter) },
-                            onClick = { onPrimaryFilter(filter) }
+                    NovaLibraryLayoutMode.entries.forEach { layoutMode ->
+                        NovaSelectableChip(
+                            label = layoutModeLabel(layoutMode),
+                            detail = layoutModeDetail(layoutMode),
+                            selected = optionsState.layoutMode == layoutMode,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { onLayoutMode(layoutMode) }
                         )
                     }
-                    if (hasClearableFilters(searchQuery, filterState)) {
-                        NovaActionButton(
-                            text = stringResource(R.string.nova_library_filter_clear_all),
-                            onClick = onClearFilters,
-                            minHeight = 40.dp,
-                            fontSize = 12.sp
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(14.dp))
                 }
-                Text(
-                    text = stringResource(R.string.nova_library_options_sort_title),
-                    color = colors.textSecondary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.7.sp
-                )
-                NovaLibrarySortMode.entries.forEach { sortMode ->
-                    NovaSelectableChip(
-                        label = sortModeLabel(sortMode),
-                        detail = sortModeDetail(sortMode),
-                        selected = optionsState.sortMode == sortMode,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onSortMode(sortMode) }
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.nova_library_options_layout_title),
-                    color = colors.textSecondary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.7.sp,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-                NovaLibraryLayoutMode.entries.forEach { layoutMode ->
-                    NovaSelectableChip(
-                        label = layoutModeLabel(layoutMode),
-                        detail = layoutModeDetail(layoutMode),
-                        selected = optionsState.layoutMode == layoutMode,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onLayoutMode(layoutMode) }
-                    )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
             }
         }
     }

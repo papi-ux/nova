@@ -60,9 +60,11 @@ class NovaComposeSourceGuardTest {
             "private fun NovaLibraryFilterSheet("
         )
         assertTrue(
-            "quick options sheet should use a real modal sheet with scrollable focusable content",
-            optionsSheet.contains("rememberModalBottomSheetState(skipPartiallyExpanded = true)") &&
+            "quick options drawer should use a real modal overlay with scrollable focusable content",
+            optionsSheet.contains("Dialog(") &&
+                optionsSheet.contains("usePlatformDefaultWidth = false") &&
                 optionsSheet.contains(".verticalScroll(rememberScrollState())") &&
+                optionsSheet.contains(".focusGroup()") &&
                 optionsSheet.contains("NovaLibrarySortMode.entries") &&
                 optionsSheet.contains("NovaLibraryLayoutMode.entries")
         )
@@ -87,6 +89,77 @@ class NovaComposeSourceGuardTest {
                 strings.contains("name=\"nova_library_options_sort_source\">Source") &&
                 strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR first") &&
                 strings.contains("name=\"nova_library_options_layout_compact_grid\">Compact grid")
+        )
+    }
+
+    @Test
+    fun libraryPersistentChromeStaysOutOfTheGamesWay() {
+        val activity = readNovaLibraryActivity()
+        val screen = activity.section(
+            "private fun NovaLibraryScreen(",
+            "private fun NovaLibraryFocusedBackdrop("
+        )
+        val landscapeToolbar = activity.section(
+            "private fun NovaLibraryLandscapeToolbar(",
+            "private fun NovaLibraryTopHeader("
+        )
+        val portraitHeader = activity.section(
+            "private fun NovaLibraryTopHeader(",
+            "private fun NovaLibraryTitle("
+        )
+
+        assertTrue(
+            "landscape toolbar should be a slim nav overlay, not another padded card slab above the grid",
+            landscapeToolbar.contains("surfaces.panel.copy(alpha = 0.72f)") &&
+                landscapeToolbar.contains(".padding(horizontal = 10.dp, vertical = 6.dp)") &&
+                landscapeToolbar.contains("fontSize = 16.sp")
+        )
+        assertFalse(
+            "landscape toolbar should not wrap the top nav in NovaLibraryPanel's full card treatment",
+            landscapeToolbar.contains("NovaLibraryPanel(modifier = Modifier.fillMaxWidth())")
+        )
+        assertTrue(
+            "portrait should move browse chrome into Library Options so games begin higher on the screen",
+            portraitHeader.contains("NovaLibraryCompactMetaRow(") &&
+                portraitHeader.contains("hasClearableFilters(searchQuery, filterState)")
+        )
+        assertFalse(
+            "portrait header should not permanently spend vertical space on search and horizontal filter chips",
+            portraitHeader.contains("NovaSearchField(") ||
+                portraitHeader.contains("NovaLibraryPrimaryFilter.entries.forEach")
+        )
+        assertTrue(
+            "landscape should keep the compact hero + full-width grid stack after the slim toolbar",
+            screen.contains("NovaLibraryLandscapeToolbar(") &&
+                screen.contains("NovaLibraryHomeHero(") &&
+                screen.contains("NovaLibraryContent(")
+        )
+    }
+
+    @Test
+    fun libraryOptionsOverlayIsTightConsoleDrawerNotFullWidthMaterialSheet() {
+        val optionsSheet = readNovaLibraryActivity().section(
+            "private fun NovaLibraryOptionsSheet(",
+            "private fun NovaLibraryFilterSheet("
+        )
+
+        assertTrue(
+            "library options should render as an anchored console drawer with stronger scrim instead of a full-width bottom sheet",
+            optionsSheet.contains("Dialog(") &&
+                optionsSheet.contains("usePlatformDefaultWidth = false") &&
+                optionsSheet.contains("align(Alignment.CenterStart)") &&
+                optionsSheet.contains("widthIn(max = 420.dp)") &&
+                optionsSheet.contains("surfaces.backgroundScrim.copy(alpha = 0.58f)")
+        )
+        assertFalse(
+            "library options should not use the giant Material bottom sheet now that it is the primary browse drawer",
+            optionsSheet.contains("ModalBottomSheet(")
+        )
+        assertTrue(
+            "drawer internals should be denser than the previous material sheet rhythm",
+            optionsSheet.contains(".padding(horizontal = 14.dp, vertical = 12.dp)") &&
+                optionsSheet.contains("verticalArrangement = Arrangement.spacedBy(8.dp)") &&
+                optionsSheet.contains("fontSize = 18.sp")
         )
     }
 
@@ -689,9 +762,11 @@ class NovaComposeSourceGuardTest {
             hasStatusStrip && !source.contains("private fun NovaLibraryStatus(")
         )
         assertTrue(
-            "status strip should sit before numeric summary counts in both Retroid rail and phone header",
+            "status strip should sit before numeric summary counts in the legacy rail; compact phone header should collapse that chrome into metadata instead of rendering count cards",
             rail.indexOf("NovaLibraryStatusStrip(") in 0 until rail.indexOf("NovaLibrarySummary(") &&
-                topHeader.indexOf("NovaLibraryStatusStrip(") in 0 until topHeader.indexOf("NovaLibrarySummary(")
+                topHeader.contains("NovaLibraryCompactMetaRow(") &&
+                topHeader.contains("clientSettings = clientSettings") &&
+                !topHeader.contains("NovaLibrarySummary(")
         )
         assertTrue(
             "status strip should make Polaris readiness, launch mode, and resumable session state visible",
@@ -730,8 +805,9 @@ class NovaComposeSourceGuardTest {
                 rail.contains("R.string.nova_library_filter_clear_all")
         )
         assertTrue(
-            "portrait header should show the same clear filters action",
-            topHeader.contains("if (hasClearableFilters(searchQuery, filterState))") &&
+            "portrait header should show the same clear filters action without keeping the old filter row mounted",
+            topHeader.contains("val hasFilters = hasClearableFilters(searchQuery, filterState)") &&
+                topHeader.contains("if (hasFilters)") &&
                 topHeader.contains("R.string.nova_library_filter_clear_all")
         )
     }
