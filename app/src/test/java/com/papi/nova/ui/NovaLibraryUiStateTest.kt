@@ -440,13 +440,44 @@ class NovaLibraryUiStateTest {
     @Test
     fun layoutMetricsMakeRetroidLandscapeGameSelectionPrimary() {
         assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
-        assertEquals(76, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
+        assertEquals(64, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
         assertTrue(
             "compact landscape resume hero should read as a visibly shorter strip, not the same mini feature panel",
-            NovaLibraryUiStateMapper.heroHeightDp(compact = true) <= 80
+            NovaLibraryUiStateMapper.heroHeightDp(compact = true) <= 64
         )
         assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
         assertEquals(168, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = false))
+    }
+
+    @Test
+    fun compactRetroidLandscapeChromeBudgetLeavesGameWallPrimaryAboveFooter() {
+        val persistentChromeBudget =
+            (NovaLibraryUiStateMapper.screenPaddingDp(isLandscape = true) * 2) +
+                (NovaLibraryUiStateMapper.landscapeContentSpacingDp() * 2) +
+                NovaLibraryUiStateMapper.heroHeightDp(compact = true) +
+                NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true)
+
+        assertTrue(
+            "Retroid landscape should not waste game-wall height on outer padding",
+            NovaLibraryUiStateMapper.screenPaddingDp(isLandscape = true) <= 8
+        )
+        assertTrue(
+            "Retroid landscape should use tight toolbar/hero/grid gaps",
+            NovaLibraryUiStateMapper.landscapeContentSpacingDp() <= 6
+        )
+        assertTrue(
+            "Retroid landscape footer reserve should clear the controller hint bar without eating another game row",
+            NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true) <= 32
+        )
+        assertEquals(
+            "portrait footer reserve should stay unchanged while the compact landscape shell is tightened",
+            40,
+            NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = false)
+        )
+        assertTrue(
+            "compact landscape persistent chrome should leave the game grid as the visual primary surface",
+            persistentChromeBudget <= 124
+        )
     }
 
     @Test

@@ -8,6 +8,14 @@ class NovaLibraryActivitySourceTest {
     private fun readLibraryActivitySource(): String =
         File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
 
+    private fun sourceBetween(source: String, startMarker: String, endMarker: String): String {
+        val startIndex = source.indexOf(startMarker)
+        val endIndex = source.indexOf(endMarker, startIndex + startMarker.length)
+        assertTrue("Missing source marker: $startMarker", startIndex >= 0)
+        assertTrue("Missing source marker after $startMarker: $endMarker", endIndex > startIndex)
+        return source.substring(startIndex, endIndex)
+    }
+
     @Test
     fun landscapeLibraryControlsAreDrawerFirstInsteadOfPermanentRail() {
         val source = readLibraryActivitySource()
@@ -23,13 +31,40 @@ class NovaLibraryActivitySourceTest {
     }
 
     @Test
-    fun libraryOptionsDrawerOwnsFiltersAndGridCustomization() {
+    fun libraryOptionsDrawerOwnsFiltersRefreshAndGridCustomization() {
         val source = readLibraryActivitySource()
+        val optionsSheet = sourceBetween(
+            source,
+            "private fun NovaLibraryOptionsSheet(",
+            "@OptIn(ExperimentalMaterial3Api::class)"
+        )
 
-        assertTrue(source.contains("NovaLibraryOptionsSheet("))
-        assertTrue(source.contains("filterState = filterState"))
-        assertTrue(source.contains("onPrimaryFilter = onPrimaryFilter"))
-        assertTrue(source.contains("NovaLibraryPrimaryFilter.entries.forEach"))
-        assertTrue(source.contains("NovaLibraryUiStateMapper.gridColumnsForScreen(\n            configuration.screenWidthDp,\n            isLandscape,\n            model.optionsState.layoutMode\n        )"))
+        assertTrue(optionsSheet.contains("onRefresh: () -> Unit"))
+        assertTrue(optionsSheet.contains("align(Alignment.CenterStart)"))
+        assertTrue(optionsSheet.contains("NovaSearchField("))
+        assertTrue(optionsSheet.contains("NovaLibraryPrimaryFilter.entries.forEach"))
+        assertTrue(optionsSheet.contains("stringResource(R.string.nova_refresh)"))
+        assertTrue(optionsSheet.contains("NovaLibrarySortMode.entries.forEach"))
+        assertTrue(optionsSheet.contains("NovaLibraryLayoutMode.entries.forEach"))
+    }
+
+    @Test
+    fun systemMenuIsRightDrawerAndOwnsHostLevelActions() {
+        val source = readLibraryActivitySource()
+        val systemMenu = sourceBetween(
+            source,
+            "private fun NovaSystemMenuSheet(",
+            "@OptIn(ExperimentalFoundationApi::class)"
+        )
+
+        assertTrue(systemMenu.contains("DialogProperties(usePlatformDefaultWidth = false)"))
+        assertTrue(systemMenu.contains("align(Alignment.CenterEnd)"))
+        assertTrue(systemMenu.contains("onSwitchHost: () -> Unit"))
+        assertTrue(systemMenu.contains("R.string.nova_system_menu_switch_host"))
+        assertTrue(systemMenu.contains("onOpenSettings: () -> Unit"))
+        assertTrue(systemMenu.contains("onOpenPolarisSync: () -> Unit"))
+        assertTrue(systemMenu.contains("onManageServer: () -> Unit"))
+        assertTrue(systemMenu.contains("onOpenHelpDiagnostics: () -> Unit"))
+        assertTrue(systemMenu.contains("onOpenAbout: () -> Unit"))
     }
 }

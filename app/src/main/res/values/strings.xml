@@ -200,6 +200,8 @@
     <string name="nova_system_menu_status_polaris_ready">Polaris ready</string>
     <string name="nova_system_menu_status_offline">Host offline</string>
     <string name="nova_system_menu_status_checking">Checking host</string>
+    <string name="nova_system_menu_switch_host">Switch host</string>
+    <string name="nova_system_menu_switch_host_hint">Return to the paired host list.</string>
     <string name="nova_system_menu_settings">Settings</string>
     <string name="nova_system_menu_settings_hint">Streaming, input, video, and device defaults.</string>
     <string name="nova_system_menu_polaris_sync">Polaris sync</string>
@@ -221,6 +223,7 @@
     <string name="nova_controller_hint_back">Back</string>
     <string name="nova_controller_hint_options">Options</string>
     <string name="nova_controller_hint_filters">Filters</string>
+    <string name="nova_controller_hint_panels">Panels</string>
     <string name="nova_controller_hint_launch">Launch</string>
     <string name="nova_controller_hint_close">Close</string>
     <string name="nova_controller_hint_launch_mode">Launch mode</string>

@@ -158,8 +158,45 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "drawer internals should be denser than the previous material sheet rhythm",
             optionsSheet.contains(".padding(horizontal = 14.dp, vertical = 12.dp)") &&
-                optionsSheet.contains("verticalArrangement = Arrangement.spacedBy(8.dp)") &&
+                optionsSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)") &&
                 optionsSheet.contains("fontSize = 18.sp")
+        )
+    }
+
+    @Test
+    fun libraryDrawersPrioritizeRetroidFirstPaintDensity() {
+        val activity = readNovaLibraryActivity()
+        val optionsSheet = activity.section(
+            "private fun NovaLibraryOptionsSheet(",
+            "private fun NovaLibraryFilterSheet("
+        )
+        val systemSheet = activity.section(
+            "private fun NovaSystemMenuSheet(",
+            "private fun NovaLibraryOptionsSheet("
+        )
+        val searchIndex = optionsSheet.indexOf("NovaSearchField(")
+        val refreshIndex = optionsSheet.indexOf("R.string.nova_refresh")
+
+        assertTrue(
+            "left drawer should put Search before Refresh so the primary browse task is first on Retroid",
+            searchIndex >= 0 && refreshIndex > searchIndex
+        )
+        assertFalse(
+            "left drawer should not spend first-paint height on prose hint copy after the split is visible in the shell",
+            optionsSheet.contains("R.string.nova_library_options_hint")
+        )
+        assertTrue(
+            "left drawer should use a tighter first-paint rhythm: 40dp search, 32dp secondary refresh, and 6dp section spacing",
+            optionsSheet.contains("heightDp = 40") &&
+                optionsSheet.contains("minHeight = 32.dp") &&
+                optionsSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)")
+        )
+        assertTrue(
+            "right drawer should keep host status compact and make every safe action visible without bottom clipping on Retroid",
+            systemSheet.contains("maxLines = 1") &&
+                systemSheet.contains(".height(48.dp)") &&
+                systemSheet.contains(".padding(horizontal = 12.dp, vertical = 5.dp)") &&
+                systemSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)")
         )
     }
 
@@ -204,22 +241,29 @@ class NovaComposeSourceGuardTest {
                 screen.contains("NovaLibraryFilterSheet(")
         )
         assertTrue(
-            "system menu should dismiss via modal onDismissRequest so Back/B and scrim close it before leaving the library",
-            systemSheet.contains("rememberModalBottomSheetState(skipPartiallyExpanded = true)") &&
+            "system menu should dismiss via dialog onDismissRequest so Back/B and scrim close it before leaving the library",
+            systemSheet.contains("Dialog(") &&
+                systemSheet.contains("usePlatformDefaultWidth = false") &&
                 systemSheet.contains("onDismissRequest = onDismiss") &&
+                systemSheet.contains("align(Alignment.CenterEnd)") &&
                 systemSheet.contains(".verticalScroll(rememberScrollState())") &&
                 activity.contains("dismissActiveLibraryOverlay()") &&
                 keyHandler.contains("keyCode == KeyEvent.KEYCODE_BUTTON_B && dismissActiveLibraryOverlay()")
         )
         assertTrue(
-            "system menu should clear options/filter overlays on open and gate rail shortcuts while any modal is active",
+            "system menu should clear options/filter overlays on open and let controller shortcuts hop between left/right drawers",
             activity.contains("private val hasActiveLibraryOverlay") &&
                 activity.contains("activeOptionsSheet = false") &&
                 activity.contains("activeFilterSheet = null") &&
-                keyHandler.contains("if (hasActiveLibraryOverlay)") &&
-                keyHandler.contains("KeyEvent.KEYCODE_BUTTON_L1") &&
-                keyHandler.contains("KeyEvent.KEYCODE_BUTTON_R1") &&
-                keyHandler.contains("openLibrarySystemMenu()")
+                keyHandler.contains("if (activeSystemMenu) openLibraryOptionsSheet()") &&
+                keyHandler.contains("if (activeOptionsSheet) openLibrarySystemMenu()") &&
+                systemSheet.contains("onOpenOptions: () -> Unit") &&
+                systemSheet.contains("event.nativeKeyEvent.keyCode") &&
+                systemSheet.contains("KeyEvent.KEYCODE_DPAD_LEFT") &&
+                systemSheet.contains("KeyEvent.KEYCODE_BUTTON_L1") &&
+                systemSheet.contains("KeyEvent.KEYCODE_BUTTON_X") &&
+                systemSheet.contains("event.key == Key.DirectionLeft") &&
+                systemSheet.contains("onOpenOptions()")
         )
         assertTrue(
             "system menu should show the active host and Polaris readiness in the header",
@@ -230,8 +274,9 @@ class NovaComposeSourceGuardTest {
                 systemSheet.contains("R.string.nova_system_menu_status_offline")
         )
         assertTrue(
-            "system menu should expose the short top-level Nova actions only",
-            systemSheet.contains("R.string.nova_system_menu_settings") &&
+            "system menu should expose the short top-level Nova/system actions only",
+            systemSheet.contains("R.string.nova_system_menu_switch_host") &&
+                systemSheet.contains("R.string.nova_system_menu_settings") &&
                 systemSheet.contains("R.string.nova_system_menu_polaris_sync") &&
                 systemSheet.contains("R.string.nova_system_menu_manage_server") &&
                 systemSheet.contains("R.string.nova_system_menu_help_diagnostics") &&
@@ -239,7 +284,8 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "system rows should route to existing workflows and dismiss before launching secondary surfaces",
-            systemSheet.contains("onOpenSettings") &&
+            systemSheet.contains("onSwitchHost") &&
+                systemSheet.contains("onOpenSettings") &&
                 systemSheet.contains("onOpenPolarisSync") &&
                 systemSheet.contains("onManageServer") &&
                 systemSheet.contains("onOpenHelpDiagnostics") &&
@@ -250,11 +296,11 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "system menu rows should stay compact enough for all safe actions to fit on Retroid landscape first paint",
-            systemSheet.contains("verticalArrangement = Arrangement.spacedBy(8.dp)") &&
-                systemSheet.contains("fontSize = 20.sp") &&
-                systemSheet.contains(".height(54.dp)") &&
-                systemSheet.contains("fontSize = 14.sp") &&
-                systemSheet.contains("fontSize = 10.sp")
+            systemSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)") &&
+                systemSheet.contains("fontSize = 18.sp") &&
+                systemSheet.contains(".height(48.dp)") &&
+                systemSheet.contains("fontSize = 13.sp") &&
+                systemSheet.contains("fontSize = 9.sp")
         )
         assertFalse(
             "system menu should not waste first-paint height on non-action footer copy that clips on Retroid landscape",
@@ -270,6 +316,7 @@ class NovaComposeSourceGuardTest {
             "system menu strings should keep the GameNative-inspired top level short and self-hosted",
             strings.contains("name=\"nova_system_menu_title\">System") &&
                 strings.contains("name=\"nova_system_menu_host_named_format\"") &&
+                strings.contains("name=\"nova_system_menu_switch_host\">Switch host") &&
                 strings.contains("name=\"nova_system_menu_settings\">Settings") &&
                 strings.contains("name=\"nova_system_menu_polaris_sync\">Polaris sync") &&
                 strings.contains("name=\"nova_system_menu_manage_server\">Manage server") &&
@@ -306,7 +353,7 @@ class NovaComposeSourceGuardTest {
         )
         val backdrop = source.section(
             "private fun NovaLibraryFocusedBackdrop(",
-            "private fun NovaLibraryRail("
+            "private fun NovaLibraryHomeHero("
         )
 
         assertTrue(
@@ -372,7 +419,7 @@ class NovaComposeSourceGuardTest {
         )
         val hero = source.section(
             "private fun NovaLibraryHomeHero(",
-            "private fun NovaLibraryRail("
+            "private fun NovaLibraryLandscapeToolbar("
         )
 
         val landscape = screen.section("if (isLandscape) {", "} else {")
@@ -408,12 +455,18 @@ class NovaComposeSourceGuardTest {
             hero.contains("val height = NovaLibraryUiStateMapper.heroHeightDp(compact = compact).dp")
         )
         assertTrue(
+            "landscape compact shell should route persistent chrome metrics through the mapper before games lose another row",
+            screen.contains("NovaLibraryUiStateMapper.screenPaddingDp(isLandscape).dp") &&
+                screen.contains("NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
+                screen.contains("Arrangement.spacedBy(NovaLibraryUiStateMapper.landscapeContentSpacingDp().dp)")
+        )
+        assertTrue(
             "hero caption stack should use tighter vertical spacing to avoid clipped badge rows",
             hero.contains("Arrangement.spacedBy(if (compact) 1.dp else 5.dp)")
         )
         assertTrue(
             "compact hero should use tighter padding so the continue strip gives vertical room back to the grid",
-            hero.contains(".padding(if (compact) 8.dp else 16.dp)")
+            hero.contains(".padding(if (compact) 6.dp else 16.dp)")
         )
         assertTrue(
             "hero text stack should declare compact line heights so captions do not inherit oversized body metrics",
@@ -531,73 +584,64 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun libraryRailKeepsDpadTraversalInsideRail() {
-        val rail = readNovaLibraryActivity().section(
-            "private fun NovaLibraryRail(",
-            "private fun NovaLibraryTopHeader("
+    fun libraryOptionsDrawerKeepsDpadTraversalInsideLeftDrawer() {
+        val optionsSheet = readNovaLibraryActivity().section(
+            "private fun NovaLibraryOptionsSheet(",
+            "private fun NovaLibraryFilterSheet("
         )
 
         assertTrue(
-            "side rail should be a focus group so vertical D-pad traversal stays in the rail",
-            rail.contains(".focusGroup()")
+            "left library options drawer should be a focus group so vertical D-pad traversal stays inside browse controls",
+            optionsSheet.contains(".focusGroup()")
+        )
+        assertTrue(
+            "left library options drawer should let Right hop to the system drawer for the two-zone controller map",
+            optionsSheet.contains("onOpenSystemMenu: () -> Unit") &&
+                optionsSheet.contains(".onPreviewKeyEvent { event ->") &&
+                optionsSheet.contains("event.nativeKeyEvent.keyCode") &&
+                optionsSheet.contains("KeyEvent.KEYCODE_DPAD_RIGHT") &&
+                optionsSheet.contains("KeyEvent.KEYCODE_BUTTON_R1") &&
+                optionsSheet.contains("KeyEvent.KEYCODE_BUTTON_START") &&
+                optionsSheet.contains("event.key == Key.DirectionRight") &&
+                optionsSheet.contains("onOpenSystemMenu()")
         )
     }
 
     @Test
-    fun libraryRailKeepsBottomFiltersScrollableAboveSafeArea() {
-        val rail = readNovaLibraryActivity().section(
-            "private fun NovaLibraryRail(",
-            "private fun NovaLibraryTopHeader("
+    fun libraryOptionsDrawerKeepsBottomControlsScrollableAboveSafeArea() {
+        val optionsSheet = readNovaLibraryActivity().section(
+            "private fun NovaLibraryOptionsSheet(",
+            "private fun NovaLibraryFilterSheet("
         )
 
         assertTrue(
-            "side rail scroll content should include bottom safe-area padding so the final filter can be scrolled fully above the gesture/nav area",
-            rail.contains(".verticalScroll(rememberScrollState())") &&
-                rail.contains("bottom = NovaLibraryUiStateMapper.railScrollBottomPaddingDp().dp")
+            "left library options drawer scroll content should include safe-area padding so the final layout options can scroll above gesture/nav chrome",
+            optionsSheet.contains(".windowInsetsPadding(WindowInsets.safeDrawing)") &&
+                optionsSheet.contains(".verticalScroll(rememberScrollState())") &&
+                optionsSheet.contains("Spacer(modifier = Modifier.height(14.dp))")
         )
     }
 
     @Test
-    fun libraryRailUsesCompactSpacingSoBottomFiltersFitRetroidLandscape() {
-        val rail = readNovaLibraryActivity().section(
-            "private fun NovaLibraryRail(",
-            "private fun NovaLibraryTopHeader("
+    fun libraryOptionsDrawerUsesCompactBrowseControlsOnRetroidLandscape() {
+        val optionsSheet = readNovaLibraryActivity().section(
+            "private fun NovaLibraryOptionsSheet(",
+            "private fun NovaLibraryFilterSheet("
         )
 
         assertTrue(
-            "side rail should use compact mapped spacing so bottom filters are initially visible on Retroid landscape instead of only scroll-recoverable",
-            rail.contains("verticalArrangement = Arrangement.spacedBy(NovaLibraryUiStateMapper.railVerticalSpacingDp().dp)")
+            "left drawer should own library refresh, search, filters, sort, and layout instead of a permanent rail",
+            optionsSheet.contains("R.string.nova_refresh") &&
+                optionsSheet.contains("NovaSearchField(") &&
+                optionsSheet.contains("NovaLibraryPrimaryFilter.entries.forEach") &&
+                optionsSheet.contains("NovaLibrarySortMode.entries") &&
+                optionsSheet.contains("NovaLibraryLayoutMode.entries")
         )
-    }
-
-    @Test
-    fun libraryRailUsesCompactPrimaryFilterGridOnRetroidLandscape() {
-        val rail = readNovaLibraryActivity().section(
-            "private fun NovaLibraryRail(",
-            "private fun NovaLibraryTopHeader("
-        )
-
         assertTrue(
-            "side rail should render primary filters in a compact mapper-driven grid so All/Recent/Sources/HDR/More are initially visible on Retroid landscape",
-            rail.contains("NovaLibraryPrimaryFilterGrid(") &&
-                rail.contains("NovaLibraryUiStateMapper.railFilterColumns(maxWidth.value.toInt())") &&
-                rail.contains("Arrangement.spacedBy(NovaLibraryUiStateMapper.railFilterGridSpacingDp().dp)") &&
-                rail.contains("NovaLibrarySummary(model = model, compact = true)")
-        )
-    }
-
-    @Test
-    fun libraryRailUsesSingleRowActionsBeforePrimaryFiltersOnRetroidLandscape() {
-        val rail = readNovaLibraryActivity().section(
-            "private fun NovaLibraryRail(",
-            "private fun NovaLibraryTopHeader("
-        )
-
-        assertTrue(
-            "Refresh/Manage/Switch should share one compact mapper-driven row on Retroid landscape so the primary filter grid is not pushed below the fold",
-            rail.contains("NovaLibraryRailActions(") &&
-                rail.contains("NovaLibraryUiStateMapper.railActionColumns(maxWidth.value.toInt())") &&
-                rail.contains("NovaLibraryUiStateMapper.railActionButtonMinHeightDp().dp")
+            "left drawer should keep browse controls compact and horizontally scrollable for handheld landscape",
+            optionsSheet.contains(".horizontalScroll(rememberScrollState())") &&
+                optionsSheet.contains("Modifier.width(NovaLibraryUiStateMapper.filterChipWidthDp(filter).dp)") &&
+                optionsSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)")
         )
     }
 
@@ -737,46 +781,54 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun libraryShowsPolarisAwareStatusStripBeforeCounts() {
+    fun libraryShowsCompactStatusMetadataWithoutPermanentRailCounts() {
         val source = readNovaLibraryActivity()
-        val rail = source.section(
-            "private fun NovaLibraryRail(",
+        val landscapeToolbar = source.section(
+            "private fun NovaLibraryLandscapeToolbar(",
             "private fun NovaLibraryTopHeader("
         )
         val topHeader = source.section(
             "private fun NovaLibraryTopHeader(",
+            "private fun NovaLibraryCompactMetaRow("
+        )
+        val compactMeta = source.section(
+            "private fun NovaLibraryCompactMetaRow(",
             "private fun NovaLibraryTitle("
         )
         val hasStatusStrip = source.contains("private fun NovaLibraryStatusStrip(")
         val statusStrip = if (hasStatusStrip) {
             source.section(
                 "private fun NovaLibraryStatusStrip(",
-                "private fun NovaLibraryActiveSessionCard("
+                "private fun compactStatusModeLabel("
             )
         } else {
             ""
         }
 
-        assertTrue(
-            "library should render a named Polaris-aware status strip instead of the old generic status row",
-            hasStatusStrip && !source.contains("private fun NovaLibraryStatus(")
+        assertFalse(
+            "drawer-first library should not keep the old permanent rail mounted beside the grid",
+            source.contains("private fun NovaLibraryRail(")
         )
         assertTrue(
-            "status strip should sit before numeric summary counts in the legacy rail; compact phone header should collapse that chrome into metadata instead of rendering count cards",
-            rail.indexOf("NovaLibraryStatusStrip(") in 0 until rail.indexOf("NovaLibrarySummary(") &&
+            "compact chrome should keep Polaris readiness and result metadata visible without count-card rail chrome",
+            landscapeToolbar.contains("R.string.nova_system_menu_status_polaris_ready") &&
+                landscapeToolbar.contains("R.string.nova_library_results_format") &&
                 topHeader.contains("NovaLibraryCompactMetaRow(") &&
-                topHeader.contains("clientSettings = clientSettings") &&
+                compactMeta.contains("R.string.nova_system_menu_status_polaris_ready") &&
+                compactMeta.contains("R.string.nova_library_status_checking") &&
+                compactMeta.contains("R.string.nova_library_resume_ready") &&
                 !topHeader.contains("NovaLibrarySummary(")
         )
         assertTrue(
-            "status strip should make Polaris readiness, launch mode, and resumable session state visible",
-            statusStrip.contains("R.string.nova_library_polaris_ready") &&
+            "legacy status strip helper should still format Polaris readiness and resumable session state for any compact surfaces that reuse it",
+            hasStatusStrip &&
+                statusStrip.contains("R.string.nova_library_polaris_ready") &&
                 statusStrip.contains("R.string.nova_library_polaris_checking") &&
                 statusStrip.contains("R.string.nova_library_resume_ready") &&
                 statusStrip.contains("activeSession != null")
         )
         assertTrue(
-            "status strip should use compact launch-mode labels so the Retroid rail does not clip the third pill",
+            "status copy should use compact launch-mode labels so handheld chrome does not clip",
             statusStrip.contains("compactStatusModeLabel(settings)") &&
                 source.contains("private fun compactStatusModeLabel(")
         )
@@ -785,12 +837,16 @@ class NovaComposeSourceGuardTest {
     @Test
     fun libraryFiltersExposeClearActionWhenNarrowed() {
         val source = readNovaLibraryActivity()
-        val rail = source.section(
-            "private fun NovaLibraryRail(",
-            "private fun NovaLibraryTopHeader("
+        val optionsSheet = source.section(
+            "private fun NovaLibraryOptionsSheet(",
+            "private fun NovaLibraryFilterSheet("
         )
         val topHeader = source.section(
             "private fun NovaLibraryTopHeader(",
+            "private fun NovaLibraryCompactMetaRow("
+        )
+        val compactMeta = source.section(
+            "private fun NovaLibraryCompactMetaRow(",
             "private fun NovaLibraryTitle("
         )
 
@@ -800,15 +856,16 @@ class NovaComposeSourceGuardTest {
                 source.contains("searchQuery.isNotBlank() || filterState.hasActiveConstraint")
         )
         assertTrue(
-            "landscape rail should show a clear filters action when filters/search are active",
-            rail.contains("if (hasClearableFilters(searchQuery, filterState))") &&
-                rail.contains("R.string.nova_library_filter_clear_all")
+            "left library options drawer should show a clear filters action when filters/search are active",
+            optionsSheet.contains("if (hasClearableFilters(searchQuery, filterState))") &&
+                optionsSheet.contains("R.string.nova_library_filter_clear_all")
         )
         assertTrue(
-            "portrait header should show the same clear filters action without keeping the old filter row mounted",
+            "portrait header should summarize active filters without remounting browse controls permanently above the grid",
             topHeader.contains("val hasFilters = hasClearableFilters(searchQuery, filterState)") &&
-                topHeader.contains("if (hasFilters)") &&
-                topHeader.contains("R.string.nova_library_filter_clear_all")
+                compactMeta.contains("if (hasFilters) add(\"Filters active\")") &&
+                !topHeader.contains("R.string.nova_library_filter_clear_all") &&
+                !topHeader.contains("NovaSearchField(")
         )
     }
 
@@ -1145,6 +1202,27 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryControllerHintsNameLbRbAsPanelHopsNotFilters() {
+        val activity = readNovaLibraryActivity()
+        val strings = readSource("src/main/res/values/strings.xml")
+        val hints = activity.section(
+            "private fun novaLibraryControllerHints(",
+            "@Composable\n    private fun NovaLibraryFocusedBackdrop("
+        )
+
+        assertTrue(
+            "landscape LB/RB hint should describe the split left/right drawer map, not only the left drawer filters",
+            hints.contains("key = stringResource(R.string.nova_controller_hint_lb_rb)") &&
+                hints.contains("label = stringResource(R.string.nova_controller_hint_panels)") &&
+                strings.contains("name=\"nova_controller_hint_panels\">Panels")
+        )
+        assertFalse(
+            "Filters remains a library drawer section label, but the global controller hint should not call LB/RB Filters anymore",
+            hints.contains("label = stringResource(R.string.nova_controller_hint_filters)")
+        )
+    }
+
+    @Test
     fun reusableControllerHintBarIsWiredAcrossLibraryDetailAndSettings() {
         val focusComponents = readNovaFocusComponents()
         val library = readNovaLibraryActivity()
@@ -1173,7 +1251,7 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "library should default to drawer-first landscape controls while still preserving bottom space for the controller hint bar",
-            libraryScreen.contains("val controllerHintBarBottomPadding = if (isLandscape)") &&
+            libraryScreen.contains("val controllerHintBarBottomPadding = NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
                 libraryScreen.contains("val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()") &&
                 libraryScreen.contains("val controllerHintBarLandscapeStartPadding = if (isLandscape && showLandscapeControlRail) railWidth + 10.dp else 0.dp") &&
                 libraryScreen.contains("if (isLandscape) {") &&

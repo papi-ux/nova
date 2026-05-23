@@ -175,6 +175,11 @@ object NovaLibraryUiStateMapper {
     private const val RAIL_ACTION_GRID_SPACING_DP = 8
     private const val RAIL_ACTION_GRID_THREE_COLUMN_MIN_WIDTH_DP = 200
     private const val LANDSCAPE_RECENT_RAIL_MIN_HEIGHT_DP = 560
+    private const val LANDSCAPE_SCREEN_PADDING_DP = 8
+    private const val PORTRAIT_SCREEN_PADDING_DP = 8
+    private const val LANDSCAPE_CONTENT_SPACING_DP = 6
+    private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 32
+    private const val PORTRAIT_CONTROLLER_HINT_BOTTOM_PADDING_DP = 40
 
     fun build(
         games: List<PolarisGame>,
@@ -541,7 +546,21 @@ object NovaLibraryUiStateMapper {
     }
 
     fun heroHeightDp(compact: Boolean): Int {
-        return if (compact) 76 else 164
+        return if (compact) 64 else 164
+    }
+
+    fun screenPaddingDp(isLandscape: Boolean): Int {
+        return if (isLandscape) LANDSCAPE_SCREEN_PADDING_DP else PORTRAIT_SCREEN_PADDING_DP
+    }
+
+    fun landscapeContentSpacingDp(): Int = LANDSCAPE_CONTENT_SPACING_DP
+
+    fun controllerHintBarBottomPaddingDp(isLandscape: Boolean): Int {
+        return if (isLandscape) {
+            LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP
+        } else {
+            PORTRAIT_CONTROLLER_HINT_BOTTOM_PADDING_DP
+        }
     }
 
     fun showLandscapeRecentRail(
