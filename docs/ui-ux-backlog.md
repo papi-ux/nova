@@ -10,6 +10,7 @@ This backlog tracks the Retroid-first Nova 1.1.0 UI/UX re-review. Keep entries e
 - App metadata verified on device: `versionName=1.1.0`, `versionCode=26`
 - Latest populated Retroid smoke APK: commit `49e01ce0` (`fix: make menu button target system drawer`), ARM64-only debug APK SHA-256 `250f4ec110ae13d5f9ab398ec8a8bb4c5864e9929e25e60079db1115437574e0`
 - Latest populated Shield TV smoke APK: isolated pc-papi debug-key build from the same local branch state, ARM64-only debug APK SHA-256 `cc6ff1a0844e21c5418e56f74012be7e115dcfb259180800df844e046486f1e5`
+- Latest populated Pixel phone smoke APK: commit `e6f1a85` (`docs: add populated Shield TV smoke evidence`), ARM64-only debug APK SHA-256 `42a573f44b50780fdd9d77902bfe97afb49c30588a46c0cf48d422d3d9e166e0`
 
 ## Completed in this pass
 
@@ -50,6 +51,16 @@ This backlog tracks the Retroid-first Nova 1.1.0 UI/UX re-review. Keep entries e
 | System drawer | Shield `BUTTON_START` capture, 2026-05-23 | Passed | Right drawer showed host/IP, Polaris/headless status, Switch host, Settings, Polaris sync, Manage server, Help/diagnostics, and About Nova without mixing library filters. Visual pass: anchored right, readable, and free of blocker-level overscan/clipping. |
 | Drawer hopping and dismissal | Shield D-pad + shoulder capture, 2026-05-23 | Passed | `X` → D-pad right and `X` → `RB` landed on System; `BUTTON_START` → D-pad left and `BUTTON_START` → `LB` landed on Library Options; `B` and Back dismissed overlays to the populated grid. Synthetic `KEYCODE_MENU` was not reliable on this Shield, so the validated System shortcut is `KEYCODE_BUTTON_START` / controller Menu. |
 
+## Pixel phone visual check log
+
+| Surface | Evidence | Result | Notes |
+| --- | --- | --- | --- |
+| Populated Library base grid | Pixel 10 Pro wireless-ADB paired-launch smoke, 2026-05-23 | Passed | Launcher opened the paired `pc-papi.lan` Library with `19 shown`, Polaris ready, real cover art, and representative titles (`Indiana Jones and the Great Circle`, `Steam Big Picture`, `ARC Raiders`, `Grand Theft Auto V Enhanced`, `Slay the Spire 2`). Visual pass: portrait density is strong, top Library/System touch affordances are readable, cover grid scrolls naturally, and the bottom controller hint bar is readable without blocking the active first paint. |
+| Library Options drawer | Pixel touch capture, 2026-05-23 | Passed with note | Left drawer showed search, refresh, filters, sort rows, and layout controls without host/system actions. The primary filter row is horizontally scrollable on phone: first paint exposes All/Recent/Sources plus a partial HDR affordance, and a horizontal swipe revealed HDR and More. |
+| System drawer | Pixel touch capture, 2026-05-23 | Passed | Right drawer showed host/IP, Polaris/headless status, Switch host, Settings, Polaris sync, Manage server, Help/diagnostics, and About Nova without mixing library filters. No blocker-level clipping or touch target issues observed. |
+| Game detail / launch options sheet | Pixel touch capture, 2026-05-23 | Passed | Launch options first paint showed cover art, title metadata, direct Headless/Virtual choices, the primary Review & Launch CTA, launch profile summary, and reset control in portrait. The prior duplicate mode drawer concern remains resolved for phone. |
+| Back dismissal / focus recovery | Pixel touch + Back capture, 2026-05-23 | Passed | Back dismissed Library Options, System, and launch options back to `NovaLibraryActivity` with the populated library still focused. Package-scoped logcat scan was clean. |
+
 ## Retroid smoke automation checkpoint
 
 - 2026-05-23 populated Retroid two-zone drawer report: `/Users/papi/claude-hub/artifacts/nova/retroid-real-library/two_zone_20260523_163229/summary.json`
@@ -65,6 +76,12 @@ This backlog tracks the Retroid-first Nova 1.1.0 UI/UX re-review. Keep entries e
   - Crash scan: no `FATAL EXCEPTION`, ANR, native crash, or package crash after install/smoke. Observed non-crash noise: Shield package-replace broadcast warnings, ActivityTaskManager pause timeouts from invalid direct `NovaLibraryActivity` probes, and legacy `computers*.db` migration probe errors.
   - Artifacts: `shield_startseq_base.png/xml`, `shield_startseq_left_x.png/xml`, `shield_startseq_right_start.png/xml`, `shield_startseq_left_to_right_dpad.png/xml`, `shield_startseq_left_to_right_r1.png/xml`, `shield_startseq_right_to_left_dpad.png/xml`, `shield_startseq_right_to_left_l1.png/xml`, `shield_startseq_after_b_from_system.png/xml`, `shield_startseq_after_back_from_system.png/xml`, `shield_startseq_after_b_from_left.png/xml`, `shield_startseq_after_back_from_left.png/xml`, `shield_log_scan.json`, and `shield_logcat_since_install.txt`.
   - Caveat: direct `am start` of `NovaLibraryActivity` on Shield returned to Projectivy Launcher; use the actual launcher/PcView paired path for TV release evidence. Synthetic `KEYCODE_MENU` did not open System in ADB, but `KEYCODE_BUTTON_START` and controller shoulder hopping validated the intended Menu/System path.
+- 2026-05-23 populated Pixel phone smoke report: `/Users/papi/claude-hub/artifacts/nova/pixel-phone/two_zone_20260523_174704/manual/manual_summary.json`
+  - Device/app proof: Pixel 10 Pro wireless ADB serial `adb-56250DLCH001S3-8VvuUE._adb-tls-connect._tcp`, `com.papi.nova.debug`, `versionName=1.1.0`, `versionCode=26`, `primaryCpuAbi=arm64-v8a`, `lastUpdateTime=2026-05-23 17:47:06`; installed base APK SHA-256 matched `42a573f44b50780fdd9d77902bfe97afb49c30588a46c0cf48d422d3d9e166e0`.
+  - Marker result: paired Library base grid, left Library Options drawer, right System drawer, touch Back dismissal from both drawers, and game detail launch options first paint all passed over a populated 19-game library.
+  - Crash scan: no `FATAL EXCEPTION`, ANR, native crash, or package crash after the manual phone smoke window.
+  - Artifacts: `base_library.png/xml`, `left_library_options.png/xml`, `left_library_options_filter_scrolled.png/xml`, `right_system.png/xml`, `launch_options_sheet.png/xml`, `after_*_back.png/xml`, `logcat_since_manual.txt`, and `pixel_package_info.txt`.
+  - Caveat: the current `tools/nova_retroid_smoke.py phone` helper still carries old dashboard/base-library label expectations and reported a false `FAIL`; use the manual two-zone phone artifact set above until the helper oracle is updated for paired-launch-to-Library and drawer-owned filters.
 - 2026-05-22 automation reports were local historical checkpoints for this shell polish stack, not durable release evidence for the current hardened helper.
 - Historical Retroid library report: `/tmp/nova_retroid_smoke/nova_retroid_library_20260522_201919.txt`
   - Previous-oracle result: `status=PASS`, `missing=[]`, `failures=[]`, `rail_right=539`, `hint_left=590`, `hint_gap=51`.
@@ -91,6 +108,7 @@ This backlog tracks the Retroid-first Nova 1.1.0 UI/UX re-review. Keep entries e
 | Package crash scan | Passed | No `FATAL EXCEPTION`, package ANR, native crash, or `Process: com.papi.nova.debug` crash found after the 2026-05-23 populated two-zone drawer smoke. Legacy `computers*.db` migration probe errors were non-crash noise. |
 | Retroid populated two-zone drawer smoke | Passed | Durable artifacts under `/Users/papi/claude-hub/artifacts/nova/retroid-real-library/two_zone_20260523_163229/`; marker checks passed for populated grid, `X` Library drawer, `Menu` System drawer, D-pad/shoulder drawer hopping, and Back/B dismissal. |
 | Shield TV populated two-zone drawer smoke | Passed | Durable artifacts under `/Users/papi/claude-hub/artifacts/nova/shield-tv/two_zone_20260523_171155/`; paired launcher/PcView path showed `19 shown`, marker checks passed for `X` Library drawer, `BUTTON_START` System drawer, D-pad/shoulder drawer hopping, and Back/B dismissal; package crash scan was clean. |
+| Pixel phone populated two-zone smoke | Passed with helper caveat | Durable artifacts under `/Users/papi/claude-hub/artifacts/nova/pixel-phone/two_zone_20260523_174704/`; paired launcher opened `19 shown`, touch Library/System drawers passed, Back dismissed overlays, launch options first paint was usable, and package crash scan was clean. The reusable phone helper currently has a stale oracle and false-failed before the manual two-zone pass. |
 
 ## Deferred / not worth doing for 1.1.0
 
