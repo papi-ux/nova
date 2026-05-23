@@ -164,6 +164,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     private var isInitialLoading by mutableStateOf(true)
     private var isRefreshing by mutableStateOf(false)
     private var loadErrorMessage by mutableStateOf<String?>(null)
+    private var launchErrorMessage by mutableStateOf<String?>(null)
     private var clientSettings by mutableStateOf<PolarisClientSettings?>(null)
     private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
     private var activeFilterSheet by mutableStateOf<LibraryFilterSheet?>(null)
@@ -219,6 +220,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                         isInitialLoading = isInitialLoading,
                         isRefreshing = isRefreshing,
                         loadErrorMessage = loadErrorMessage,
+                        launchErrorMessage = launchErrorMessage,
                         clientSettings = clientSettings,
                         activeSession = activeSession,
                         apiClient = apiClient,
@@ -353,6 +355,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             isInitialLoading = true
         }
         loadErrorMessage = null
+        launchErrorMessage = null
 
         lifecycleScope.launch {
             try {
@@ -508,6 +511,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     ): Boolean = searchQuery.isNotBlank() || filterState.hasActiveConstraint
 
     private fun showGameDetail(game: PolarisGame) {
+        launchErrorMessage = null
         detailSheet?.dismissAllowingStateLoss()
         val preferences = PreferenceConfiguration.readPreferences(this)
         val defaultToVirtualDisplay = preferences.useVirtualDisplay
@@ -529,17 +533,22 @@ class NovaLibraryActivity : AppCompatActivity() {
         preflightOptimization: org.json.JSONObject? = null
     ) {
         if (game.appId <= 0) {
-            Toast.makeText(this, "This game entry is missing a launch ID", Toast.LENGTH_SHORT).show()
+            val message = "This game entry is missing a launch ID"
+            launchErrorMessage = message
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
             return
         }
         val uniqueId = streamUniqueId
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || pcUuid.isNullOrBlank() || serverCert == null) {
-            Toast.makeText(this, "Missing Polaris session details for launch", Toast.LENGTH_SHORT).show()
+            val message = "Missing Polaris session details for launch"
+            launchErrorMessage = message
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
             LimeLog.warning("Nova: Cannot launch from library; missing uniqueId, pcUuid, or server cert")
             return
         }
+        launchErrorMessage = null
 
         Toast.makeText(
             this,
@@ -553,46 +562,55 @@ class NovaLibraryActivity : AppCompatActivity() {
         ).show()
 
         lifecycleScope.launch {
-            val mangoHudSynced = withContext(Dispatchers.IO) {
-                apiClient.setMangoHud(game.id, game.mangohud)
-            }
-            if (!mangoHudSynced) {
-                LimeLog.warning("Nova: MangoHUD launch state sync failed; continuing launch")
-            }
-            val preferences = com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity)
-            val syncedSettings = withContext(Dispatchers.IO) {
-                apiClient.updateClientSettings(
-                    streamDisplayMode = if (withVirtualDisplay) "host_virtual_display" else "headless_stream",
-                    displayMode = com.papi.nova.preferences.PreferenceConfiguration.formatStreamingDisplayMode(
-                        preferences.width,
-                        preferences.height,
-                        preferences.fps
-                    ),
-                    targetBitrateKbps = preferences.bitrate.takeIf { it > 0 }
-                )
-            }
-            if (syncedSettings == null) {
-                LimeLog.warning("Nova: Preflight client settings sync failed; continuing launch")
-            }
+            try {
+                val mangoHudSynced = withContext(Dispatchers.IO) {
+                    apiClient.setMangoHud(game.id, game.mangohud)
+                }
+                if (!mangoHudSynced) {
+                    LimeLog.warning("Nova: MangoHUD launch state sync failed; continuing launch")
+                }
+                val preferences = com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity)
+                val syncedSettings = withContext(Dispatchers.IO) {
+                    apiClient.updateClientSettings(
+                        streamDisplayMode = if (withVirtualDisplay) "host_virtual_display" else "headless_stream",
+                        displayMode = com.papi.nova.preferences.PreferenceConfiguration.formatStreamingDisplayMode(
+                            preferences.width,
+                            preferences.height,
+                            preferences.fps
+                        ),
+                        targetBitrateKbps = preferences.bitrate.takeIf { it > 0 }
+                    )
+                }
+                if (syncedSettings == null) {
+                    LimeLog.warning("Nova: Preflight client settings sync failed; continuing launch")
+                }
 
-            val app = NvApp(game.name, game.id, game.appId, game.hdrSupported)
-            ServerHelper.doStart(
-                this@NovaLibraryActivity,
-                app,
-                streamHost,
-                streamHttpPort,
-                streamHttpsPort,
-                uniqueId,
-                pcUuid,
-                streamPcName,
-                streamServerCommands,
-                withVirtualDisplay,
-                true,
-                false,
-                serverCert,
-                aiProfilePreference = profilePreference,
-                launchOptimizationJson = preflightOptimization?.toString()
-            )
+                val app = NvApp(game.name, game.id, game.appId, game.hdrSupported)
+                ServerHelper.doStart(
+                    this@NovaLibraryActivity,
+                    app,
+                    streamHost,
+                    streamHttpPort,
+                    streamHttpsPort,
+                    uniqueId,
+                    pcUuid,
+                    streamPcName,
+                    streamServerCommands,
+                    withVirtualDisplay,
+                    true,
+                    false,
+                    serverCert,
+                    aiProfilePreference = profilePreference,
+                    launchOptimizationJson = preflightOptimization?.toString()
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = e.localizedMessage ?: e.javaClass.simpleName
+                launchErrorMessage = message
+                LimeLog.severe("Nova: Failed to launch ${game.name}: ${e.message}")
+                Toast.makeText(this@NovaLibraryActivity, message, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -601,10 +619,13 @@ class NovaLibraryActivity : AppCompatActivity() {
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || pcUuid.isNullOrBlank() || serverCert == null) {
-            Toast.makeText(this, "Missing Polaris session details for resume", Toast.LENGTH_SHORT).show()
+            val message = "Missing Polaris session details for resume"
+            launchErrorMessage = message
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
             LimeLog.warning("Nova: Cannot resume from library; missing uniqueId, pcUuid, or server cert")
             return
         }
+        launchErrorMessage = null
 
         val app = NvApp(
             session.gameName.ifBlank { getString(R.string.applist_menu_watch_active_name) },
@@ -774,6 +795,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         isInitialLoading: Boolean,
         isRefreshing: Boolean,
         loadErrorMessage: String?,
+        launchErrorMessage: String?,
         clientSettings: PolarisClientSettings?,
         activeSession: NovaLibraryActiveSessionUiState?,
         apiClient: PolarisApiClient,
@@ -903,11 +925,13 @@ class NovaLibraryActivity : AppCompatActivity() {
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
+                                filterState = filterState,
                                 columns = columns,
                                 isLandscape = true,
                                 isInitialLoading = isInitialLoading,
                                 isRefreshing = isRefreshing,
                                 loadErrorMessage = loadErrorMessage,
+                                launchErrorMessage = launchErrorMessage,
                                 apiClient = apiClient,
                                 restoreFocusGameId = restoreFocusGameId,
                                 onRefresh = onRefresh,
@@ -970,11 +994,13 @@ class NovaLibraryActivity : AppCompatActivity() {
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
+                                filterState = filterState,
                                 columns = columns,
                                 isLandscape = false,
                                 isInitialLoading = isInitialLoading,
                                 isRefreshing = isRefreshing,
                                 loadErrorMessage = loadErrorMessage,
+                                launchErrorMessage = launchErrorMessage,
                                 apiClient = apiClient,
                                 restoreFocusGameId = restoreFocusGameId.takeUnless { restoreFocusGameInRecent },
                                 onRefresh = onRefresh,
@@ -1854,11 +1880,13 @@ class NovaLibraryActivity : AppCompatActivity() {
     private fun NovaLibraryContent(
         modifier: Modifier,
         model: NovaLibraryUiModel,
+        filterState: NovaLibraryFilterState,
         columns: Int,
         isLandscape: Boolean,
         isInitialLoading: Boolean,
         isRefreshing: Boolean,
         loadErrorMessage: String?,
+        launchErrorMessage: String?,
         apiClient: PolarisApiClient,
         restoreFocusGameId: String?,
         onRefresh: () -> Unit,
@@ -1869,12 +1897,19 @@ class NovaLibraryActivity : AppCompatActivity() {
     ) {
         val compactCards = model.optionsState.layoutMode == NovaLibraryLayoutMode.COMPACT_GRID
         val gridColumns = if (compactCards) (columns + 1).coerceAtMost(6) else columns
+        val onRecoveryAction: (NovaLibraryRecoveryAction) -> Unit = { action ->
+            when (action) {
+                NovaLibraryRecoveryAction.RETRY -> onRefresh()
+                NovaLibraryRecoveryAction.MANAGE_LIBRARY -> onManageServer()
+                NovaLibraryRecoveryAction.CLEAR_FILTERS -> onClearFilters()
+            }
+        }
         NovaLibraryPanel(modifier = modifier, subtle = true) {
             if (loadErrorMessage != null && model.allGames.isEmpty()) {
-                NovaLibraryErrorState(
-                    message = loadErrorMessage,
-                    onRetry = onRefresh,
-                    onManageServer = onManageServer
+                val recoveryState = NovaLibraryUiStateMapper.loadFailureRecoveryState(loadErrorMessage)
+                NovaLibraryRecoveryState(
+                    recoveryState = recoveryState,
+                    onAction = onRecoveryAction
                 )
             } else if (isInitialLoading && model.allGames.isEmpty()) {
                 NovaLibraryLoadingGrid(columns = columns, isLandscape = isLandscape)
@@ -1884,17 +1919,22 @@ class NovaLibraryActivity : AppCompatActivity() {
                     onRefresh = onRefresh,
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    if (model.filteredGames.isEmpty()) {
-                        val primaryAction = when (model.emptyState) {
-                            NovaLibraryEmptyState.DEFAULT -> onManageServer
-                            NovaLibraryEmptyState.RECENT -> onClearFilters
-                            NovaLibraryEmptyState.SOURCE -> onClearFilters
-                            NovaLibraryEmptyState.FILTERED -> onClearFilters
-                        }
-                        NovaLibraryEmptyState(
+                    val launchRecoveryState = launchErrorMessage
+                        ?.let(NovaLibraryUiStateMapper::launchFailureRecoveryState)
+                    if (launchRecoveryState != null) {
+                        NovaLibraryRecoveryState(
+                            recoveryState = launchRecoveryState,
+                            onAction = onRecoveryAction
+                        )
+                    } else if (model.filteredGames.isEmpty()) {
+                        val emptyRecoveryState = NovaLibraryUiStateMapper.emptyRecoveryState(
                             emptyState = model.emptyState,
-                            onPrimaryAction = primaryAction,
-                            onSecondaryAction = onManageServer
+                            totalCount = model.summary.totalCount,
+                            sourceName = filterState.source
+                        )
+                        NovaLibraryRecoveryState(
+                            recoveryState = emptyRecoveryState,
+                            onAction = onRecoveryAction
                         )
                     } else {
                         LazyVerticalGrid(
@@ -2244,122 +2284,22 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     @Composable
-    private fun NovaLibraryEmptyState(
-        emptyState: NovaLibraryEmptyState,
-        onPrimaryAction: () -> Unit,
-        onSecondaryAction: (() -> Unit)? = null
+    private fun NovaLibraryRecoveryState(
+        recoveryState: NovaLibraryRecoveryUiState,
+        onAction: (NovaLibraryRecoveryAction) -> Unit
     ) {
-        val title = when (emptyState) {
-            NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_title_default)
-            NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_title_recent)
-            NovaLibraryEmptyState.SOURCE -> stringResource(R.string.nova_library_empty_title_source)
-            NovaLibraryEmptyState.FILTERED -> stringResource(R.string.nova_library_empty_title_filtered)
-        }
-        val message = when (emptyState) {
-            NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_hint_default)
-            NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_hint_recent)
-            NovaLibraryEmptyState.SOURCE -> stringResource(R.string.nova_library_empty_hint_source)
-            NovaLibraryEmptyState.FILTERED -> stringResource(R.string.nova_library_empty_hint_filtered)
-        }
-        val actionLabel = when (emptyState) {
-            NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_action_manage)
-            NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_action_recent)
-            NovaLibraryEmptyState.SOURCE -> stringResource(R.string.nova_library_empty_action_source)
-            NovaLibraryEmptyState.FILTERED -> stringResource(R.string.nova_library_empty_action_clear)
-        }
-        val sourceSecondaryActionLabel = if (emptyState == NovaLibraryEmptyState.SOURCE) {
-            stringResource(R.string.nova_library_empty_action_manage)
-        } else {
-            null
-        }
-        val sourceSecondaryAction = if (emptyState == NovaLibraryEmptyState.SOURCE) {
-            onSecondaryAction
-        } else {
-            null
-        }
         NovaLibraryRecoveryState(
-            eyebrow = stringResource(R.string.nova_library_empty_eyebrow),
-            title = title,
-            message = message,
-            primaryActionLabel = actionLabel,
-            onPrimaryAction = onPrimaryAction,
-            secondaryActionLabel = sourceSecondaryActionLabel,
-            onSecondaryAction = sourceSecondaryAction
-        )
-    }
-
-    @Composable
-    private fun NovaLibraryErrorState(
-        message: String,
-        onRetry: () -> Unit,
-        onManageServer: () -> Unit
-    ) {
-        val colors = LocalNovaComposeColors.current
-        val surfaces = LocalNovaLibrarySurfaces.current
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 360.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(surfaces.panel)
-                    .border(1.dp, surfaces.tileBorder, RoundedCornerShape(22.dp))
-                    .padding(18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.nova_library_error_eyebrow).uppercase(Locale.getDefault()),
-                    color = colors.accent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.7.sp,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = stringResource(R.string.nova_library_error_title),
-                    color = colors.textPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = stringResource(R.string.nova_library_error_hint),
-                    color = colors.textSecondary,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = message,
-                    color = colors.textMuted,
-                    fontSize = 12.sp,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
-                NovaActionButton(
-                    text = stringResource(R.string.nova_retry),
-                    onClick = onRetry,
-                    modifier = Modifier.fillMaxWidth(),
-                    primary = true,
-                    minHeight = 42.dp,
-                    fontSize = 13.sp
-                )
-                NovaActionButton(
-                    text = stringResource(R.string.nova_library_error_action_manage),
-                    onClick = onManageServer,
-                    modifier = Modifier.fillMaxWidth(),
-                    primary = false,
-                    minHeight = 40.dp,
-                    fontSize = 13.sp
-                )
+            eyebrow = recoveryState.eyebrow,
+            title = recoveryState.title,
+            message = recoveryState.message,
+            primaryActionLabel = recoveryState.primaryActionLabel,
+            onPrimaryAction = { onAction(recoveryState.primaryAction) },
+            detail = recoveryState.detail,
+            secondaryActionLabel = recoveryState.secondaryActionLabel,
+            onSecondaryAction = recoveryState.secondaryAction?.let { action ->
+                { onAction(action) }
             }
-        }
+        )
     }
 
     @Composable

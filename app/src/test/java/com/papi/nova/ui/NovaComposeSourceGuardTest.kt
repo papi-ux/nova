@@ -505,48 +505,51 @@ class NovaComposeSourceGuardTest {
     @Test
     fun libraryEmptyAndOfflineRecoveryStatesUseDeliberateCtas() {
         val activity = readNovaLibraryActivity()
-        val strings = readSource("src/main/res/values/strings.xml")
-        val emptyState = activity.section(
-            "private fun NovaLibraryEmptyState(",
-            "@Composable\n    private fun NovaLibraryErrorState("
-        )
-        val errorState = activity.section(
-            "private fun NovaLibraryErrorState(",
-            "@Composable\n    private fun NovaLibraryRecoveryState("
+        val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
+        val content = activity.section(
+            "private fun NovaLibraryContent(",
+            "private fun NovaLibraryRecentRail("
         )
 
         assertTrue(
-            "default no-games empty state should make Manage library the primary recovery action",
-            emptyState.contains("NovaLibraryEmptyState.DEFAULT -> stringResource(R.string.nova_library_empty_action_manage)")
+            "library content should route empty grids through mapper-owned recovery state",
+            content.contains("NovaLibraryUiStateMapper.emptyRecoveryState(") &&
+                content.contains("emptyState = model.emptyState") &&
+                content.contains("totalCount = model.summary.totalCount") &&
+                content.contains("sourceName = filterState.source")
         )
         assertTrue(
-            "empty library primary CTA copy should point to library management, not generic server settings",
-            strings.contains("name=\"nova_library_empty_action_manage\">Manage library")
+            "default no-games empty state should make Manage library the one primary recovery action",
+            mapper.contains("NovaLibraryEmptyState.DEFAULT -> NovaLibraryRecoveryUiState(") &&
+                mapper.contains("primaryActionLabel = \"Manage library\"") &&
+                mapper.contains("primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY")
         )
         assertTrue(
             "recent-empty state should invite users back to the full library instead of sounding like an error",
-            emptyState.contains("NovaLibraryEmptyState.RECENT -> stringResource(R.string.nova_library_empty_action_recent)") &&
-                strings.contains("name=\"nova_library_empty_action_recent\">View all games")
+            mapper.contains("NovaLibraryEmptyState.RECENT -> NovaLibraryRecoveryUiState(") &&
+                mapper.contains("primaryActionLabel = \"View all games\"") &&
+                mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS")
         )
         assertTrue(
-            "source no-results should have a source-specific direct escape hatch",
-            emptyState.contains("NovaLibraryEmptyState.SOURCE -> stringResource(R.string.nova_library_empty_action_source)") &&
-                strings.contains("name=\"nova_library_empty_action_source\">Clear source")
-        )
-        assertTrue(
-            "source no-results should keep Manage library as the secondary recovery action",
-            emptyState.contains("emptyState == NovaLibraryEmptyState.SOURCE") &&
-                emptyState.contains("secondaryActionLabel = sourceSecondaryActionLabel") &&
-                emptyState.contains("onSecondaryAction = sourceSecondaryAction")
+            "source no-results should name the selected source and use one direct clear-source CTA",
+            mapper.contains("title = \"No ${'$'}sourceLabel games\"") &&
+                mapper.contains("primaryActionLabel = \"Clear source\"") &&
+                mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS") &&
+                mapper.contains("private fun sourceDisplayName(sourceName: String?)")
         )
         assertTrue(
             "filtered empty state should keep Clear filters as the direct escape hatch",
-            emptyState.contains("NovaLibraryEmptyState.FILTERED -> stringResource(R.string.nova_library_empty_action_clear)")
+            mapper.contains("NovaLibraryEmptyState.FILTERED -> NovaLibraryRecoveryUiState(") &&
+                mapper.contains("primaryActionLabel = \"Clear filters\"") &&
+                mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS")
         )
         assertTrue(
-            "offline/load failure recovery should offer Retry first and Manage server second",
-            errorState.indexOf("text = stringResource(R.string.nova_retry)") in 0 until
-                errorState.indexOf("text = stringResource(R.string.nova_library_error_action_manage)")
+            "offline/load failure recovery should distinguish retryable connection failures from Polaris API/server failures",
+            mapper.contains("fun loadFailureRecoveryState(message: String)") &&
+                mapper.contains("title = \"Host offline\"") &&
+                mapper.contains("primaryActionLabel = \"Retry\"") &&
+                mapper.contains("title = \"Polaris unavailable\"") &&
+                mapper.contains("primaryActionLabel = \"Manage server\"")
         )
     }
 
@@ -733,7 +736,7 @@ class NovaComposeSourceGuardTest {
         )
         val loadingCard = readNovaLibraryActivity().section(
             "private fun NovaLoadingCard(",
-            "private fun NovaLibraryEmptyState("
+            "private fun NovaLibraryRecoveryState("
         )
 
         assertTrue(
@@ -1007,6 +1010,7 @@ class NovaComposeSourceGuardTest {
     @Test
     fun libraryLoadErrorsUsePersistentRetryState() {
         val source = readNovaLibraryActivity()
+        val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
         val content = source.section(
             "private fun NovaLibraryContent(",
             "private fun NovaLibraryRecentRail("
@@ -1017,14 +1021,55 @@ class NovaComposeSourceGuardTest {
             source.contains("private var loadErrorMessage by mutableStateOf<String?>(null)")
         )
         assertTrue(
-            "library content should render a persistent retryable error state when no games loaded",
+            "library content should render a persistent mapper-owned recovery state when no games loaded",
             content.contains("loadErrorMessage != null && model.allGames.isEmpty()") &&
-                content.contains("NovaLibraryErrorState(")
+                content.contains("NovaLibraryUiStateMapper.loadFailureRecoveryState(loadErrorMessage)") &&
+                content.contains("NovaLibraryRecoveryState(")
         )
         assertTrue(
-            "library error state should use the shared retry action",
-            source.contains("private fun NovaLibraryErrorState(") &&
-                source.contains("text = stringResource(R.string.nova_retry)")
+            "library load recovery should keep retry as the generic/offline primary action",
+            mapper.contains("fun loadFailureRecoveryState(message: String)") &&
+                mapper.contains("title = \"Host offline\"") &&
+                mapper.contains("primaryAction = NovaLibraryRecoveryAction.RETRY") &&
+                mapper.contains("title = \"Couldn't load library\"")
+        )
+    }
+
+    @Test
+    fun libraryLaunchFailuresUseDurableRecoveryState() {
+        val source = readNovaLibraryActivity()
+        val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
+        val content = source.section(
+            "private fun NovaLibraryContent(",
+            "private fun NovaLibraryRecentRail("
+        )
+
+        assertTrue(
+            "launch/preflight errors should be durable Compose state instead of toast-only UX",
+            source.contains("private var launchErrorMessage by mutableStateOf<String?>(null)") &&
+                content.contains("launchRecoveryState = launchErrorMessage") &&
+                content.contains("NovaLibraryUiStateMapper::launchFailureRecoveryState")
+        )
+        assertTrue(
+            "launch recovery copy should offer one Manage server CTA with the raw failure preserved as detail",
+            mapper.contains("fun launchFailureRecoveryState(message: String)") &&
+                mapper.contains("title = \"Launch blocked\"") &&
+                mapper.contains("primaryActionLabel = \"Manage server\"") &&
+                mapper.contains("detail = message.takeIf { it.isNotBlank() }")
+        )
+        assertTrue(
+            "missing launch prerequisites and thrown preflight exceptions should update launchErrorMessage",
+            source.contains("launchErrorMessage = message") &&
+                source.contains("Missing Polaris session details for launch") &&
+                source.contains("Failed to launch ${'$'}{game.name}")
+        )
+        assertTrue(
+            "stale launch recovery should clear on refresh, detail navigation, and valid launch/resume paths",
+            source.contains("loadErrorMessage = null\n        launchErrorMessage = null") &&
+                source.contains("private fun showGameDetail(game: PolarisGame) {\n        launchErrorMessage = null") &&
+                source.contains("private fun launchGame(") &&
+                source.contains("private fun resumeActiveSession(") &&
+                source.split("launchErrorMessage = null").size >= 5
         )
     }
 
@@ -1354,17 +1399,17 @@ class NovaComposeSourceGuardTest {
     @Test
     fun libraryEmptyAndErrorTextIsBoundedAndCentered() {
         val source = readNovaLibraryActivity()
-        val start = source.indexOf("private fun NovaLibraryEmptyState(")
+        val start = source.indexOf("private fun NovaLibraryRecoveryState(")
         val end = source.indexOf("@OptIn(ExperimentalMaterial3Api::class)", start)
-        val emptyState = source.substring(start, end)
+        val recoveryState = source.substring(start, end)
 
         assertTrue(
             "empty/error copy should be centered for TV and narrow portrait layouts",
-            emptyState.contains("textAlign = TextAlign.Center")
+            recoveryState.contains("textAlign = TextAlign.Center")
         )
         assertTrue(
             "empty/error copy should be width bounded so long messages do not run edge to edge",
-            emptyState.contains(".widthIn(max = 360.dp)")
+            recoveryState.contains(".widthIn(max = 360.dp)")
         )
     }
 

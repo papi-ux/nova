@@ -69,6 +69,23 @@ enum class NovaLibraryHeroPrimaryAction {
     CLEAR_FILTERS
 }
 
+enum class NovaLibraryRecoveryAction {
+    RETRY,
+    MANAGE_LIBRARY,
+    CLEAR_FILTERS
+}
+
+data class NovaLibraryRecoveryUiState(
+    val eyebrow: String,
+    val title: String,
+    val message: String,
+    val primaryActionLabel: String,
+    val primaryAction: NovaLibraryRecoveryAction,
+    val detail: String? = null,
+    val secondaryActionLabel: String? = null,
+    val secondaryAction: NovaLibraryRecoveryAction? = null
+)
+
 data class NovaLibraryHeroState(
     val game: PolarisGame?,
     val title: String,
@@ -477,6 +494,147 @@ object NovaLibraryUiStateMapper {
             }
             search.isNotBlank() || filterState.hasActiveConstraint -> NovaLibraryEmptyState.FILTERED
             else -> NovaLibraryEmptyState.DEFAULT
+        }
+    }
+
+    fun emptyRecoveryState(
+        emptyState: NovaLibraryEmptyState,
+        totalCount: Int,
+        sourceName: String?
+    ): NovaLibraryRecoveryUiState {
+        val gameCount = gameCountText(totalCount)
+        return when (emptyState) {
+            NovaLibraryEmptyState.DEFAULT -> NovaLibraryRecoveryUiState(
+                eyebrow = "Library state",
+                title = "No games yet",
+                message = "Polaris is reachable, but this host does not have any games in the Nova library yet.",
+                primaryActionLabel = "Manage library",
+                primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY
+            )
+            NovaLibraryEmptyState.RECENT -> NovaLibraryRecoveryUiState(
+                eyebrow = "Continue empty",
+                title = "No recent games",
+                message = "Your library has $gameCount ready. Launch one once and it will appear in Continue.",
+                primaryActionLabel = "View all games",
+                primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
+            )
+            NovaLibraryEmptyState.SOURCE -> {
+                val sourceLabel = sourceDisplayName(sourceName)
+                NovaLibraryRecoveryUiState(
+                    eyebrow = "Source empty",
+                    title = "No $sourceLabel games",
+                    message = "That source has no games in this Polaris library view. Clear it to return to $gameCount.",
+                    primaryActionLabel = "Clear source",
+                    primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
+                )
+            }
+            NovaLibraryEmptyState.FILTERED -> NovaLibraryRecoveryUiState(
+                eyebrow = "No matches",
+                title = "No matches",
+                message = "Search or filters returned nothing. Clear constraints to return to $gameCount.",
+                primaryActionLabel = "Clear filters",
+                primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
+            )
+        }
+    }
+
+    fun loadFailureRecoveryState(message: String): NovaLibraryRecoveryUiState {
+        val detail = message.takeIf { it.isNotBlank() }
+        val normalized = message.lowercase()
+        val offline = listOf(
+            "unknownhost",
+            "unable to resolve",
+            "connectexception",
+            "failed to connect",
+            "connection refused",
+            "timed out",
+            "timeout",
+            "no route",
+            "network is unreachable",
+            "host unreachable"
+        ).any { normalized.contains(it) }
+        if (offline) {
+            return NovaLibraryRecoveryUiState(
+                eyebrow = "Connection",
+                title = "Host offline",
+                message = "Nova cannot reach this host right now. Wake the PC or check the network, then retry.",
+                primaryActionLabel = "Retry",
+                primaryAction = NovaLibraryRecoveryAction.RETRY,
+                detail = detail
+            )
+        }
+
+        val polarisUnavailable = listOf(
+            "404",
+            "not found",
+            "405",
+            "501",
+            "unsupported",
+            "capability",
+            "capabilities",
+            "polaris/v1/games"
+        ).any { normalized.contains(it) }
+        if (polarisUnavailable) {
+            return NovaLibraryRecoveryUiState(
+                eyebrow = "Polaris",
+                title = "Polaris unavailable",
+                message = "The host answered, but the Polaris library API did not. Start or repair Polaris, then return to Nova.",
+                primaryActionLabel = "Manage server",
+                primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
+                detail = detail
+            )
+        }
+
+        return NovaLibraryRecoveryUiState(
+            eyebrow = "Recovery",
+            title = "Couldn't load library",
+            message = "Check Polaris and try again.",
+            primaryActionLabel = "Retry",
+            primaryAction = NovaLibraryRecoveryAction.RETRY,
+            detail = detail
+        )
+    }
+
+    fun launchFailureRecoveryState(message: String): NovaLibraryRecoveryUiState {
+        return NovaLibraryRecoveryUiState(
+            eyebrow = "Launch recovery",
+            title = "Launch blocked",
+            message = "Nova could not start the stream before leaving Library. Review host and library setup, then try again.",
+            primaryActionLabel = "Manage server",
+            primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
+            detail = message.takeIf { it.isNotBlank() }
+        )
+    }
+
+    private fun gameCountText(totalCount: Int): String {
+        return when (totalCount) {
+            1 -> "1 game"
+            else -> "$totalCount games"
+        }
+    }
+
+    private fun sourceDisplayName(sourceName: String?): String {
+        val raw = sourceName.orEmpty().trim()
+        if (raw.isBlank()) {
+            return "source"
+        }
+        return when (raw.lowercase()) {
+            "steam" -> "Steam"
+            "heroic" -> "Heroic"
+            "lutris" -> "Lutris"
+            "gog" -> "GOG"
+            "epic" -> "Epic"
+            else -> raw
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .split(' ')
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { part ->
+                    part.replaceFirstChar { char ->
+                        if (char.isLowerCase()) char.titlecase() else char.toString()
+                    }
+                }
+                .ifBlank { "source" }
         }
     }
 

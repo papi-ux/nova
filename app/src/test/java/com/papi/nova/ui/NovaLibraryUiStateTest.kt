@@ -361,6 +361,86 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
+    fun recoveryCopyProvidesOneClearCtaForEmptyLibraryStates() {
+        val default = NovaLibraryUiStateMapper.emptyRecoveryState(
+            NovaLibraryEmptyState.DEFAULT,
+            totalCount = 0,
+            sourceName = null
+        )
+        val recent = NovaLibraryUiStateMapper.emptyRecoveryState(
+            NovaLibraryEmptyState.RECENT,
+            totalCount = 19,
+            sourceName = null
+        )
+        val source = NovaLibraryUiStateMapper.emptyRecoveryState(
+            NovaLibraryEmptyState.SOURCE,
+            totalCount = 19,
+            sourceName = "steam"
+        )
+        val filtered = NovaLibraryUiStateMapper.emptyRecoveryState(
+            NovaLibraryEmptyState.FILTERED,
+            totalCount = 19,
+            sourceName = null
+        )
+
+        assertEquals("No games yet", default.title)
+        assertEquals("Manage library", default.primaryActionLabel)
+        assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, default.primaryAction)
+        assertNull(default.secondaryActionLabel)
+
+        assertEquals("No recent games", recent.title)
+        assertEquals("View all games", recent.primaryActionLabel)
+        assertEquals(NovaLibraryRecoveryAction.CLEAR_FILTERS, recent.primaryAction)
+        assertNull(recent.secondaryActionLabel)
+
+        assertEquals("No Steam games", source.title)
+        assertEquals("Clear source", source.primaryActionLabel)
+        assertEquals(NovaLibraryRecoveryAction.CLEAR_FILTERS, source.primaryAction)
+        assertNull(source.secondaryActionLabel)
+
+        assertEquals("No matches", filtered.title)
+        assertEquals("Clear filters", filtered.primaryActionLabel)
+        assertEquals(NovaLibraryRecoveryAction.CLEAR_FILTERS, filtered.primaryAction)
+        assertNull(filtered.secondaryActionLabel)
+    }
+
+    @Test
+    fun recoveryCopyDistinguishesOfflinePolarisUnavailableAndGenericLoadFailures() {
+        val offline = NovaLibraryUiStateMapper.loadFailureRecoveryState("java.net.ConnectException: Failed to connect")
+        val unavailable = NovaLibraryUiStateMapper.loadFailureRecoveryState("HTTP 404 polaris/v1/games")
+        val generic = NovaLibraryUiStateMapper.loadFailureRecoveryState("Unexpected JSON")
+
+        assertEquals("Host offline", offline.title)
+        assertEquals("Retry", offline.primaryActionLabel)
+        assertEquals(NovaLibraryRecoveryAction.RETRY, offline.primaryAction)
+        assertEquals("java.net.ConnectException: Failed to connect", offline.detail)
+        assertNull(offline.secondaryActionLabel)
+
+        assertEquals("Polaris unavailable", unavailable.title)
+        assertEquals("Manage server", unavailable.primaryActionLabel)
+        assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, unavailable.primaryAction)
+        assertEquals("HTTP 404 polaris/v1/games", unavailable.detail)
+        assertNull(unavailable.secondaryActionLabel)
+
+        assertEquals("Couldn't load library", generic.title)
+        assertEquals("Retry", generic.primaryActionLabel)
+        assertEquals(NovaLibraryRecoveryAction.RETRY, generic.primaryAction)
+        assertEquals("Unexpected JSON", generic.detail)
+        assertNull(generic.secondaryActionLabel)
+    }
+
+    @Test
+    fun recoveryCopyProvidesOneClearCtaForFailedLaunch() {
+        val state = NovaLibraryUiStateMapper.launchFailureRecoveryState("Missing Polaris session details")
+
+        assertEquals("Launch blocked", state.title)
+        assertEquals("Manage server", state.primaryActionLabel)
+        assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, state.primaryAction)
+        assertEquals("Missing Polaris session details", state.detail)
+        assertNull(state.secondaryActionLabel)
+    }
+
+    @Test
     fun heroFallsBackToFirstFilteredGameThenEmptyLibraryAction() {
         val games = listOf(
             game("a", "Alpha", source = "steam"),
