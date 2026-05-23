@@ -255,8 +255,8 @@ class NovaComposeSourceGuardTest {
             activity.contains("private val hasActiveLibraryOverlay") &&
                 activity.contains("activeOptionsSheet = false") &&
                 activity.contains("activeFilterSheet = null") &&
-                keyHandler.contains("if (activeSystemMenu) openLibraryOptionsSheet()") &&
-                keyHandler.contains("if (activeOptionsSheet) openLibrarySystemMenu()") &&
+                keyHandler.contains("if (!activeOptionsSheet) openLibraryOptionsSheet()") &&
+                keyHandler.contains("if (!activeSystemMenu) openLibrarySystemMenu()") &&
                 systemSheet.contains("onOpenOptions: () -> Unit") &&
                 systemSheet.contains("event.nativeKeyEvent.keyCode") &&
                 systemSheet.contains("KeyEvent.KEYCODE_DPAD_LEFT") &&
@@ -1240,23 +1240,43 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun libraryControllerHintsNameLbRbAsPanelHopsNotFilters() {
+    fun libraryControllerHintsNameShouldersAsLibrarySystemZones() {
         val activity = readNovaLibraryActivity()
         val strings = readSource("src/main/res/values/strings.xml")
         val hints = activity.section(
             "private fun novaLibraryControllerHints(",
             "@Composable\n    private fun NovaLibraryFocusedBackdrop("
         )
+        val keyHandler = activity.section(
+            "override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {",
+            "override fun onStop()"
+        )
 
         assertTrue(
-            "landscape LB/RB hint should describe the split left/right drawer map, not only the left drawer filters",
-            hints.contains("key = stringResource(R.string.nova_controller_hint_lb_rb)") &&
-                hints.contains("label = stringResource(R.string.nova_controller_hint_panels)") &&
-                strings.contains("name=\"nova_controller_hint_panels\">Panels")
+            "global controller hints should name the spatial left/right zones instead of vague Panels/Options copy",
+            hints.contains("key = stringResource(R.string.nova_controller_hint_x)") &&
+                hints.contains("label = stringResource(R.string.nova_controller_hint_library)") &&
+                hints.contains("key = stringResource(R.string.nova_controller_hint_lb_rb)") &&
+                hints.contains("label = stringResource(R.string.nova_controller_hint_library_system)") &&
+                strings.contains("name=\"nova_controller_hint_library\">Library") &&
+                strings.contains("name=\"nova_controller_hint_library_system\">Library / System")
         )
         assertFalse(
-            "Filters remains a library drawer section label, but the global controller hint should not call LB/RB Filters anymore",
-            hints.contains("label = stringResource(R.string.nova_controller_hint_filters)")
+            "the global controller hint should not call shoulders Panels, Filters, or generic Options after the two-zone split",
+            hints.contains("label = stringResource(R.string.nova_controller_hint_panels)") ||
+                hints.contains("label = stringResource(R.string.nova_controller_hint_filters)") ||
+                hints.contains("label = stringResource(R.string.nova_controller_hint_options)")
+        )
+        assertTrue(
+            "closed-screen shoulders should open the spatial drawers directly instead of cycling source/filter chips",
+            keyHandler.contains("KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_PAGE_UP -> {") &&
+                keyHandler.contains("if (!activeOptionsSheet) openLibraryOptionsSheet()") &&
+                keyHandler.contains("KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_PAGE_DOWN -> {") &&
+                keyHandler.contains("if (!activeSystemMenu) openLibrarySystemMenu()")
+        )
+        assertFalse(
+            "shoulder keys should no longer walk primary filters globally; filter cycling belongs inside the Library drawer",
+            keyHandler.contains("movePrimaryFilter(")
         )
     }
 

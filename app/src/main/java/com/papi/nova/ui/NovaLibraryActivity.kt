@@ -319,24 +319,15 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
         return when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_PAGE_UP -> {
-                if (activeSystemMenu) openLibraryOptionsSheet()
-                else if (hasActiveLibraryOverlay) return super.onKeyDown(keyCode, event)
-                else movePrimaryFilter(-1)
+                if (!activeOptionsSheet) openLibraryOptionsSheet()
                 true
             }
             KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_PAGE_DOWN -> {
-                if (activeOptionsSheet) openLibrarySystemMenu()
-                else if (hasActiveLibraryOverlay) return super.onKeyDown(keyCode, event)
-                else movePrimaryFilter(1)
+                if (!activeSystemMenu) openLibrarySystemMenu()
                 true
             }
             KeyEvent.KEYCODE_BUTTON_X -> {
-                when {
-                    activeOptionsSheet -> dismissLibraryOptionsSheet()
-                    activeSystemMenu -> openLibraryOptionsSheet()
-                    !hasActiveLibraryOverlay -> openLibraryOptionsSheet()
-                    else -> return super.onKeyDown(keyCode, event)
-                }
+                if (!activeOptionsSheet) openLibraryOptionsSheet()
                 true
             }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_START -> {
@@ -519,13 +510,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         searchQuery: String,
         filterState: NovaLibraryFilterState
     ): Boolean = searchQuery.isNotBlank() || filterState.hasActiveConstraint
-
-    private fun movePrimaryFilter(direction: Int) {
-        val filters = NovaLibraryPrimaryFilter.entries
-        val currentIndex = filters.indexOf(filterState.primary).coerceAtLeast(0)
-        val nextIndex = (currentIndex + direction + filters.size) % filters.size
-        handlePrimaryFilter(filters[nextIndex])
-    }
 
     private fun showGameDetail(game: PolarisGame) {
         detailSheet?.dismissAllowingStateLoss()
@@ -1083,7 +1067,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             ),
             NovaControllerHint(
                 key = stringResource(R.string.nova_controller_hint_x),
-                label = stringResource(R.string.nova_controller_hint_options)
+                label = stringResource(R.string.nova_controller_hint_library)
             ),
             NovaControllerHint(
                 key = stringResource(R.string.menu_button),
@@ -1093,7 +1077,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         if (isLandscape) {
             coreHints += NovaControllerHint(
                 key = stringResource(R.string.nova_controller_hint_lb_rb),
-                label = stringResource(R.string.nova_controller_hint_panels)
+                label = stringResource(R.string.nova_controller_hint_library_system)
             )
         }
         return coreHints
