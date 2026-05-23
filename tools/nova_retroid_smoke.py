@@ -40,16 +40,24 @@ CRASH_PATTERNS = (
     "Force finishing activity com.papi.nova",
     "has died: prcp TOP",
 )
-LIBRARY_RAIL_LABELS = (
+DRAWER_FIRST_LIBRARY_REQUIRED_LABELS = (
+    "Library Options",
     "Refresh",
-    "Options",
     "System",
-    "Switch",
+)
+OBSOLETE_LIBRARY_RAIL_LABELS = (
+    "Search this library",
     "All",
     "Recent",
     "Sources",
     "HDR",
     "More",
+)
+DRAWER_FIRST_LIBRARY_CONTENT_LABELS = (
+    "Build your library",
+    "No games found",
+    "Continue playing",
+    "Recently played",
 )
 COMMAND_CENTER_LABELS = (
     "Quick Keys",
@@ -222,32 +230,56 @@ def _first_bounds(xml_text: str, wanted: str) -> tuple[int, int, int, int] | Non
 
 
 def analyze_library_rail(xml_text: str) -> CheckResult:
-    missing = [label for label in LIBRARY_RAIL_LABELS if not find_nodes(xml_text, label)]
+    missing = [
+        label
+        for label in DRAWER_FIRST_LIBRARY_REQUIRED_LABELS
+        if not find_nodes(xml_text, label)
+    ]
     values: dict[str, object] = {}
     failures: list[str] = []
+    nodes = parse_ui_nodes(xml_text)
 
-    rail_bounds = [
-        _first_bounds(xml_text, label)
-        for label in LIBRARY_RAIL_LABELS
-        if _first_bounds(xml_text, label) is not None
-    ]
-    if rail_bounds:
-        values["rail_right"] = max(bounds[2] for bounds in rail_bounds if bounds)
-        values["rail_bottom"] = max(bounds[3] for bounds in rail_bounds if bounds)
+    options_nodes = find_nodes(xml_text, "Library Options")
+    if options_nodes:
+        options = min(options_nodes, key=lambda node: (node.bounds[1], node.bounds[0]))
+        values["options_left"] = options.bounds[0]
+        values["options_top"] = options.bounds[1]
+        if options.bounds[1] > 260 or options.bounds[0] > 320:
+            failures.append("Library Options is not in the top toolbar")
+
+    obsolete_labels: list[str] = []
+    for node in nodes:
+        label = " ".join(node.label.split())
+        if not label:
+            continue
+        left, top, right, _ = node.bounds
+        if left >= 520 or top <= 250:
+            continue
+        if any(_matches(label, wanted) for wanted in OBSOLETE_LIBRARY_RAIL_LABELS):
+            obsolete_labels.append(label)
+    values["obsolete_rail_labels"] = sorted(set(obsolete_labels))
+    if obsolete_labels:
+        failures.append("permanent landscape Library rail is still visible")
+
+    content_nodes: list[UiNode] = []
+    for label in DRAWER_FIRST_LIBRARY_CONTENT_LABELS:
+        content_nodes.extend(find_nodes(xml_text, label))
+    if content_nodes:
+        content_left = min(node.bounds[0] for node in content_nodes)
+        values["content_left"] = content_left
+        if content_left > 220:
+            failures.append("library content still starts after old rail")
 
     hint_nodes = []
-    for node in parse_ui_nodes(xml_text):
+    for node in nodes:
         label = " ".join(node.label.split()).casefold()
         if any(token in label for token in ("select", "back", "menu", "button_start", "button_select")):
             hint_nodes.append(node)
     if hint_nodes:
         hint_left = min(node.bounds[0] for node in hint_nodes)
         values["hint_left"] = hint_left
-        if "rail_right" in values:
-            gap = hint_left - int(values["rail_right"])
-            values["hint_gap"] = gap
-            if gap <= 0:
-                failures.append("controller hint bar overlaps the Library rail")
+        if hint_left > 180:
+            failures.append("controller hint bar still reserves old rail width")
     else:
         missing.append("controller hint bar")
 
@@ -489,6 +521,21 @@ def start_library(adb: Adb, args: argparse.Namespace) -> None:
     time.sleep(3)
 
 
+def ensure_library_focused(adb: Adb, args: argparse.Namespace, reason: str, timeout_s: int = 5) -> CheckResult:
+    target = f"{args.package}/{args.activity}"
+    if wait_for_focus(adb, target, 1):
+        return CheckResult(ok=True, values={f"{reason}_refocused": False})
+
+    print(f"library focus lost after {reason}; restarting Library activity", flush=True)
+    start_library(adb, args)
+    focused = wait_for_focus(adb, target, timeout_s)
+    return CheckResult(
+        ok=focused,
+        failures=[] if focused else [f"Library activity is not focused after {reason}"],
+        values={f"{reason}_refocused": True, "library_focus_restored": focused},
+    )
+
+
 def dump_xml(adb: Adb, output: Path) -> str:
     remote = "/sdcard/window_dump.xml"
     adb.shell(f"uiautomator dump {remote}", timeout=20)
@@ -578,13 +625,14 @@ def run_library(args: argparse.Namespace) -> CheckResult:
         clear_logcat(adb)
         start_library(adb, args)
         rotation_settings, rotation_result = maybe_force_landscape(adb, args)
+        focus_result = ensure_library_focused(adb, args, "rotation")
 
         prefix = artifact_prefix(args, "library")
         png = prefix.with_suffix(".png")
         xml_path = prefix.with_suffix(".xml")
         xml, library_result = wait_for_library_rail(adb, xml_path)
         capture_png(adb, png)
-        result = rotation_result.merge(library_result)
+        result = rotation_result.merge(focus_result).merge(library_result)
 
         for key in ("KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_DOWN"):
             adb.input_keyevent(key)
@@ -813,11 +861,12 @@ def run_live_stream(args: argparse.Namespace) -> CheckResult:
         clear_logcat(adb)
         start_library(adb, args)
         rotation_settings, rotation_result = maybe_force_landscape(adb, args)
+        focus_result = ensure_library_focused(adb, args, "rotation")
 
         prefix = artifact_prefix(args, "live_stream")
         library_xml = prefix.with_name(prefix.name + "_library").with_suffix(".xml")
         xml = dump_xml(adb, library_xml)
-        library_result = rotation_result.merge(analyze_library_rail(xml))
+        library_result = rotation_result.merge(focus_result).merge(analyze_library_rail(xml))
 
         if not launch_stream_from_library(adb, args, prefix, xml):
             raise SystemExit(f"Timed out waiting for {args.package}/com.papi.nova.Game")

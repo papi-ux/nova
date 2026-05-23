@@ -407,11 +407,34 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
-    fun landscapeGridColumnsUseContentWidthAfterRail() {
-        assertEquals(4, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 1200, isLandscape = true))
-        assertEquals(3, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 960, isLandscape = true))
+    fun landscapeControlsMoveToDrawerSoGridUsesFullWidth() {
+        assertFalse(NovaLibraryUiStateMapper.showLandscapeControlRail())
+        assertEquals(813, NovaLibraryUiStateMapper.contentWidthDp(widthDp = 833, isLandscape = true))
+        assertEquals(4, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 833, isLandscape = true))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 720, isLandscape = true))
         assertEquals(5, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 960, isLandscape = false))
+    }
+
+    @Test
+    fun gridLayoutModeControlsDensityFromTheDrawer() {
+        assertEquals(
+            4,
+            NovaLibraryUiStateMapper.gridColumnsForScreen(
+                widthDp = 833,
+                isLandscape = true,
+                layoutMode = NovaLibraryLayoutMode.GRID
+            )
+        )
+        assertEquals(
+            5,
+            NovaLibraryUiStateMapper.gridColumnsForScreen(
+                widthDp = 833,
+                isLandscape = true,
+                layoutMode = NovaLibraryLayoutMode.COMPACT_GRID
+            )
+        )
+        assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.GRID, isLandscape = true))
+        assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.COMPACT_GRID, isLandscape = true))
     }
 
     @Test

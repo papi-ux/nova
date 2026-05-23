@@ -493,17 +493,26 @@ object NovaLibraryUiStateMapper {
         }
     }
 
-    fun gridColumnsForScreen(widthDp: Int, isLandscape: Boolean): Int {
+    fun gridColumnsForScreen(
+        widthDp: Int,
+        isLandscape: Boolean,
+        layoutMode: NovaLibraryLayoutMode = NovaLibraryLayoutMode.GRID
+    ): Int {
         val contentWidth = contentWidthDp(widthDp, isLandscape)
-        return if (isLandscape) {
+        val baseColumns = if (isLandscape) {
             when {
                 contentWidth >= 1320 -> 6
-                contentWidth >= 900 -> 4
+                contentWidth >= 1080 -> 5
+                contentWidth >= 800 -> 4
                 contentWidth >= 660 -> 3
                 else -> 3
             }
         } else {
             gridColumns(contentWidth, isLandscape = false)
+        }
+        return when (layoutMode) {
+            NovaLibraryLayoutMode.GRID -> baseColumns
+            NovaLibraryLayoutMode.COMPACT_GRID -> (baseColumns + 1).coerceAtMost(6)
         }
     }
 
@@ -518,10 +527,16 @@ object NovaLibraryUiStateMapper {
     }
 
     fun gameCardHeightDp(compact: Boolean, isLandscape: Boolean): Int {
-        return when {
-            compact -> 112
-            isLandscape -> 156
-            else -> 168
+        return gameCardHeightDp(
+            layoutMode = if (compact) NovaLibraryLayoutMode.COMPACT_GRID else NovaLibraryLayoutMode.GRID,
+            isLandscape = isLandscape
+        )
+    }
+
+    fun gameCardHeightDp(layoutMode: NovaLibraryLayoutMode, isLandscape: Boolean): Int {
+        return when (layoutMode) {
+            NovaLibraryLayoutMode.COMPACT_GRID -> 112
+            NovaLibraryLayoutMode.GRID -> if (isLandscape) 156 else 168
         }
     }
 
@@ -546,11 +561,21 @@ object NovaLibraryUiStateMapper {
         }
     }
 
-    fun contentWidthDp(widthDp: Int, isLandscape: Boolean): Int {
+    fun contentWidthDp(
+        widthDp: Int,
+        isLandscape: Boolean,
+        includeControlRail: Boolean = showLandscapeControlRail()
+    ): Int {
         if (!isLandscape) return widthDp
-        return (widthDp - LANDSCAPE_OUTER_PADDING_DP - LANDSCAPE_RAIL_GAP_DP - railWidthDp(widthDp))
-            .coerceAtLeast(0)
+        val reservedWidth = if (includeControlRail) {
+            LANDSCAPE_OUTER_PADDING_DP + LANDSCAPE_RAIL_GAP_DP + railWidthDp(widthDp)
+        } else {
+            LANDSCAPE_OUTER_PADDING_DP
+        }
+        return (widthDp - reservedWidth).coerceAtLeast(0)
     }
+
+    fun showLandscapeControlRail(): Boolean = false
 
     fun railWidthDp(widthDp: Int): Int {
         return if (widthDp >= 1200) 268 else 236

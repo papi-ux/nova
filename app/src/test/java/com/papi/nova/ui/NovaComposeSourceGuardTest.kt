@@ -1091,11 +1091,13 @@ class NovaComposeSourceGuardTest {
                 focusComponents.contains("contentDescription = hintContentDescription")
         )
         assertTrue(
-            "library should reserve bottom space on the main content column while letting the landscape rail keep full height for bottom filters",
+            "library should default to drawer-first landscape controls while still preserving bottom space for the controller hint bar",
             libraryScreen.contains("val controllerHintBarBottomPadding = if (isLandscape)") &&
-                libraryScreen.contains("val controllerHintBarLandscapeStartPadding = if (isLandscape) railWidth + 10.dp else 0.dp") &&
-                libraryScreen.contains("modifier = Modifier\n                                .weight(1f)\n                                .padding(bottom = controllerHintBarBottomPadding)") &&
-                libraryScreen.contains("modifier = Modifier\n                            .fillMaxSize()\n                            .padding(bottom = controllerHintBarBottomPadding)") &&
+                libraryScreen.contains("val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()") &&
+                libraryScreen.contains("val controllerHintBarLandscapeStartPadding = if (isLandscape && showLandscapeControlRail) railWidth + 10.dp else 0.dp") &&
+                libraryScreen.contains("if (isLandscape) {") &&
+                libraryScreen.contains("NovaLibraryLandscapeToolbar(") &&
+                libraryScreen.contains(".padding(bottom = controllerHintBarBottomPadding)") &&
                 libraryScreen.contains("NovaControllerHintBar(") &&
                 libraryScreen.contains("hints = novaLibraryControllerHints(isLandscape)") &&
                 libraryScreen.contains("modifier = Modifier") &&
@@ -1104,8 +1106,8 @@ class NovaComposeSourceGuardTest {
                 libraryScreen.contains(".fillMaxWidth()")
         )
         assertFalse(
-            "landscape content should not use one global bottom padding box because it shortens the rail and clips Sources/HDR before the hint bar",
-            libraryScreen.contains(".fillMaxSize()\n                        .padding(bottom = controllerHintBarBottomPadding)")
+            "landscape should no longer require the permanent left rail as the default customization surface",
+            libraryScreen.contains("val controllerHintBarLandscapeStartPadding = if (isLandscape) railWidth + 10.dp else 0.dp")
         )
         assertTrue(
             "game detail sheet should use the shared hint bar with explicit horizontal and bottom padding inside the scrollable sheet",

@@ -57,15 +57,10 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
     def test_library_rail_analysis_requires_controller_hint_bar(self):
         xml = """
         <hierarchy>
-          <node text="Refresh" bounds="[51,496][201,584]" />
-          <node text="Options" bounds="[219,496][370,584]" />
-          <node text="System" bounds="[388,496][539,584]" />
-          <node text="Switch" bounds="[51,593][201,681]" />
-          <node text="All" bounds="[48,689][293,779]" />
-          <node text="Recent" bounds="[299,690][539,778]" />
-          <node text="Sources" bounds="[51,787][290,875]" />
-          <node text="HDR" bounds="[299,787][539,875]" />
-          <node text="More" bounds="[51,884][290,972]" />
+          <node text="Library Options" bounds="[44,44][220,100]" />
+          <node text="Refresh" bounds="[1450,48][1560,112]" />
+          <node text="System" bounds="[1575,48][1680,112]" />
+          <node text="Build your library" bounds="[44,160][380,220]" />
         </hierarchy>
         """
 
@@ -74,29 +69,51 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("controller hint bar", result.missing)
 
-    def test_library_rail_analysis_reports_all_required_items_and_hint_spacing(self):
+    def test_library_rail_analysis_reports_drawer_first_controls_and_full_width_hint(self):
         xml = """
         <hierarchy>
-          <node text="Refresh" bounds="[51,496][201,584]" />
-          <node text="Options" bounds="[219,496][370,584]" />
-          <node text="System" bounds="[388,496][539,584]" />
-          <node text="Switch" bounds="[51,593][201,681]" />
-          <node text="All" bounds="[48,689][293,779]" />
-          <node text="Recent" bounds="[299,690][539,778]" />
-          <node text="Sources" bounds="[51,787][290,875]" />
-          <node text="HDR" bounds="[299,787][539,875]" />
-          <node text="More" bounds="[51,884][290,972]" />
-          <node text="A Select" bounds="[590,1016][710,1062]" />
+          <node text="Library Options" bounds="[44,44][220,100]" />
+          <node text="Refresh" bounds="[1450,48][1560,112]" />
+          <node text="System" bounds="[1575,48][1680,112]" />
+          <node text="Switch" bounds="[1695,48][1810,112]" />
+          <node text="Build your library" bounds="[44,160][380,220]" />
+          <node text="A Select" bounds="[44,1016][164,1062]" />
         </hierarchy>
         """
 
         result = nova_retroid_smoke.analyze_library_rail(xml)
 
         self.assertTrue(result.ok)
-        self.assertEqual(result.values["rail_right"], 539)
-        self.assertEqual(result.values["hint_left"], 590)
-        self.assertEqual(result.values["hint_gap"], 51)
+        self.assertEqual(result.values["options_left"], 44)
+        self.assertEqual(result.values["options_top"], 44)
+        self.assertEqual(result.values["hint_left"], 44)
+        self.assertEqual(result.values["obsolete_rail_labels"], [])
         self.assertEqual(result.missing, [])
+
+    def test_library_rail_analysis_rejects_obsolete_permanent_left_rail(self):
+        xml = """
+        <hierarchy>
+          <node text="Library" bounds="[44,44][169,89]" />
+          <node text="Search this library" bounds="[68,308][273,349]" />
+          <node text="Refresh" bounds="[77,401][141,435]" />
+          <node text="Library Options" bounds="[214,401][297,435]" />
+          <node text="System" bounds="[371,401][434,435]" />
+          <node text="Switch" bounds="[81,485][137,519]" />
+          <node text="All" bounds="[66,566][202,607]" />
+          <node text="Recent" bounds="[282,566][418,607]" />
+          <node text="Sources" bounds="[66,650][202,691]" />
+          <node text="HDR" bounds="[282,650][418,691]" />
+          <node text="More" bounds="[64,734][203,776]" />
+          <node text="Build your library" bounds="[528,87][801,127]" />
+          <node text="A Select" bounds="[542,1005][637,1046]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_library_rail(xml)
+
+        self.assertFalse(result.ok)
+        self.assertIn("permanent landscape Library rail is still visible", result.failures)
+        self.assertIn("controller hint bar still reserves old rail width", result.failures)
 
     def test_wait_for_library_rail_retries_until_required_labels_are_visible(self):
         stale_launcher_xml = """
@@ -107,16 +124,11 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         """
         ready_library_xml = """
         <hierarchy>
-          <node text="Refresh" bounds="[51,496][201,584]" />
-          <node text="Options" bounds="[219,496][370,584]" />
-          <node text="System" bounds="[388,496][539,584]" />
-          <node text="Switch" bounds="[51,593][201,681]" />
-          <node text="All" bounds="[48,689][293,779]" />
-          <node text="Recent" bounds="[299,690][539,778]" />
-          <node text="Sources" bounds="[51,787][290,875]" />
-          <node text="HDR" bounds="[299,787][539,875]" />
-          <node text="More" bounds="[51,884][290,972]" />
-          <node text="A Select" bounds="[590,1016][710,1062]" />
+          <node text="Library Options" bounds="[44,44][220,100]" />
+          <node text="Refresh" bounds="[1450,48][1560,112]" />
+          <node text="System" bounds="[1575,48][1680,112]" />
+          <node text="Build your library" bounds="[44,160][380,220]" />
+          <node text="A Select" bounds="[44,1016][164,1062]" />
         </hierarchy>
         """
 
@@ -337,6 +349,45 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
                 "settings put system user_rotation 0",
             ],
         )
+
+    def test_ensure_library_focused_restarts_after_rotation_focus_loss(self):
+        args = type(
+            "Args",
+            (),
+            {
+                "package": "com.papi.nova.debug",
+                "activity": "com.papi.nova.ui.NovaLibraryActivity",
+            },
+        )()
+
+        with patch.object(nova_retroid_smoke, "wait_for_focus", side_effect=[False, True]) as wait, \
+            patch.object(nova_retroid_smoke, "start_library") as start:
+            result = nova_retroid_smoke.ensure_library_focused(object(), args, "rotation")
+
+        self.assertTrue(result.ok)
+        self.assertTrue(result.values["rotation_refocused"])
+        self.assertTrue(result.values["library_focus_restored"])
+        start.assert_called_once()
+        self.assertEqual(wait.call_count, 2)
+
+    def test_ensure_library_focused_reports_when_restart_does_not_focus(self):
+        args = type(
+            "Args",
+            (),
+            {
+                "package": "com.papi.nova.debug",
+                "activity": "com.papi.nova.ui.NovaLibraryActivity",
+            },
+        )()
+
+        with patch.object(nova_retroid_smoke, "wait_for_focus", side_effect=[False, False]), \
+            patch.object(nova_retroid_smoke, "start_library"):
+            result = nova_retroid_smoke.ensure_library_focused(object(), args, "rotation")
+
+        self.assertFalse(result.ok)
+        self.assertIn("Library activity is not focused after rotation", result.failures)
+        self.assertTrue(result.values["rotation_refocused"])
+        self.assertFalse(result.values["library_focus_restored"])
 
     def test_ensure_adb_device_skips_lookup_for_dry_run(self):
         with patch.object(nova_retroid_smoke.shutil, "which", side_effect=AssertionError("adb lookup should be skipped")), \
