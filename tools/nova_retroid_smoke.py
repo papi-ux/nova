@@ -85,15 +85,49 @@ PHONE_SETTINGS_LABELS = (
 )
 PHONE_LIBRARY_LABELS = (
     "Library",
-    "Refresh",
     "Library Options",
     "System",
+    "A Select",
+    "B Back",
+)
+PHONE_LIBRARY_BASE_FORBIDDEN_FILTER_LABELS = (
     "Search this library",
+    "Sources",
+    "HDR",
+    "Sort",
+    "Layout",
+    "Density",
+)
+PHONE_LIBRARY_OPTIONS_DRAWER_LABELS = (
+    "Library Options",
+    "Search this library",
+    "Refresh",
     "All",
     "Recent",
     "Sources",
-    "A Select",
-    "B Back",
+    "Sort",
+    "Layout",
+)
+PHONE_LIBRARY_OPTIONS_FORBIDDEN_SYSTEM_LABELS = (
+    "Switch",
+    "Settings",
+    "Diagnostics",
+    "About",
+)
+PHONE_SYSTEM_DRAWER_LABELS = (
+    "System",
+    "Switch",
+    "Settings",
+    "Diagnostics",
+    "About",
+)
+PHONE_SYSTEM_FORBIDDEN_LIBRARY_LABELS = (
+    "Search this library",
+    "Sources",
+    "HDR",
+    "Sort",
+    "Layout",
+    "Density",
 )
 
 
@@ -317,6 +351,61 @@ def visible_surface_values(xml_text: str, prefix: str, labels: Sequence[str]) ->
         if bounds is not None:
             values[f"{prefix}_{label.replace(' ', '_').casefold()}_bounds"] = bounds
     return values
+
+
+def _present_labels(xml_text: str, labels: Sequence[str]) -> list[str]:
+    return [label for label in labels if find_nodes(xml_text, label)]
+
+
+def _shown_count_label(xml_text: str) -> str | None:
+    for node in parse_ui_nodes(xml_text):
+        label = " ".join(node.label.split())
+        if re.fullmatch(r"\d+\s+shown", label, flags=re.IGNORECASE):
+            return label
+    return None
+
+
+def analyze_phone_library_base(xml_text: str) -> CheckResult:
+    result = analyze_required_labels(xml_text, PHONE_LIBRARY_LABELS, "phone_library_base")
+    result.values.update(visible_surface_values(xml_text, "phone_library_base", PHONE_LIBRARY_LABELS))
+    shown_count = _shown_count_label(xml_text)
+    if shown_count:
+        result.values["phone_library_base_shown_count_label"] = shown_count
+
+    exposed_filters = _present_labels(xml_text, PHONE_LIBRARY_BASE_FORBIDDEN_FILTER_LABELS)
+    result.values["phone_library_base_exposed_filter_labels"] = exposed_filters
+    if exposed_filters:
+        result.failures.append("phone library base exposes drawer-owned filters")
+        result.ok = False
+    return result
+
+
+def analyze_phone_library_options_drawer(xml_text: str) -> CheckResult:
+    result = analyze_required_labels(
+        xml_text,
+        PHONE_LIBRARY_OPTIONS_DRAWER_LABELS,
+        "phone_library_options_drawer",
+    )
+    result.values.update(
+        visible_surface_values(xml_text, "phone_library_options_drawer", PHONE_LIBRARY_OPTIONS_DRAWER_LABELS)
+    )
+    mixed_system = _present_labels(xml_text, PHONE_LIBRARY_OPTIONS_FORBIDDEN_SYSTEM_LABELS)
+    result.values["phone_library_options_drawer_system_labels"] = mixed_system
+    if mixed_system:
+        result.failures.append("phone library drawer mixes system controls")
+        result.ok = False
+    return result
+
+
+def analyze_phone_system_drawer(xml_text: str) -> CheckResult:
+    result = analyze_required_labels(xml_text, PHONE_SYSTEM_DRAWER_LABELS, "phone_system_drawer")
+    result.values.update(visible_surface_values(xml_text, "phone_system_drawer", PHONE_SYSTEM_DRAWER_LABELS))
+    mixed_library = _present_labels(xml_text, PHONE_SYSTEM_FORBIDDEN_LIBRARY_LABELS)
+    result.values["phone_system_drawer_library_labels"] = mixed_library
+    if mixed_library:
+        result.failures.append("phone system drawer mixes library controls")
+        result.ok = False
+    return result
 
 
 def nova_package_needles(package: str) -> tuple[str, ...]:
@@ -779,51 +868,104 @@ def run_phone(args: argparse.Namespace) -> CheckResult:
             timeout=20,
         )
         time.sleep(3)
-        dashboard_png = prefix.with_name(prefix.name + "_dashboard").with_suffix(".png")
-        dashboard_xml_path = prefix.with_name(prefix.name + "_dashboard").with_suffix(".xml")
-        capture_png(adb, dashboard_png)
-        dashboard_xml = dump_xml(adb, dashboard_xml_path)
-        if tap_first_label(adb, dashboard_xml, "Discover hosts"):
-            time.sleep(2)
-            capture_png(adb, dashboard_png)
-            dashboard_xml = dump_xml(adb, dashboard_xml_path)
-        artifacts.extend([dashboard_png, dashboard_xml_path])
-        dashboard_result = analyze_required_labels(dashboard_xml, PHONE_DASHBOARD_LABELS, "dashboard")
-        dashboard_result.values.update(visible_surface_values(dashboard_xml, "dashboard", PHONE_DASHBOARD_LABELS))
-        result = result.merge(dashboard_result)
+        launcher_png = prefix.with_name(prefix.name + "_launcher").with_suffix(".png")
+        launcher_xml_path = prefix.with_name(prefix.name + "_launcher").with_suffix(".xml")
+        capture_png(adb, launcher_png)
+        launcher_xml = dump_xml(adb, launcher_xml_path)
+        artifacts.extend([launcher_png, launcher_xml_path])
 
-        if tap_first_label(adb, dashboard_xml, "Settings"):
-            time.sleep(2)
-            settings_png = prefix.with_name(prefix.name + "_settings").with_suffix(".png")
-            settings_xml_path = prefix.with_name(prefix.name + "_settings").with_suffix(".xml")
-            capture_png(adb, settings_png)
-            settings_xml = dump_xml(adb, settings_xml_path)
-            artifacts.extend([settings_png, settings_xml_path])
-            settings_result = analyze_required_labels(settings_xml, PHONE_SETTINGS_LABELS, "settings")
-            settings_result.values.update(visible_surface_values(settings_xml, "settings", PHONE_SETTINGS_LABELS))
-            result = result.merge(settings_result)
+        library_xml = launcher_xml
+        library_result = analyze_phone_library_base(launcher_xml)
+        launcher_is_library = all(
+            find_nodes(launcher_xml, label) for label in ("Library", "Library Options", "System")
+        )
+
+        if launcher_is_library:
+            result = result.merge(library_result)
         else:
-            result = result.merge(CheckResult(ok=False, missing=["dashboard: Settings tap target"]))
+            dashboard_result = analyze_required_labels(launcher_xml, PHONE_DASHBOARD_LABELS, "dashboard")
+            dashboard_result.values.update(
+                visible_surface_values(launcher_xml, "dashboard", PHONE_DASHBOARD_LABELS)
+            )
+            result = result.merge(dashboard_result)
 
-        start_library(adb, args)
-        time.sleep(2)
-        library_png = prefix.with_name(prefix.name + "_library").with_suffix(".png")
-        library_xml_path = prefix.with_name(prefix.name + "_library").with_suffix(".xml")
-        capture_png(adb, library_png)
-        library_xml = dump_xml(adb, library_xml_path)
-        artifacts.extend([library_png, library_xml_path])
-        library_result = analyze_required_labels(library_xml, PHONE_LIBRARY_LABELS, "library")
-        library_result.values.update(visible_surface_values(library_xml, "library", PHONE_LIBRARY_LABELS))
+            if tap_first_label(adb, launcher_xml, "Settings"):
+                time.sleep(2)
+                settings_png = prefix.with_name(prefix.name + "_settings").with_suffix(".png")
+                settings_xml_path = prefix.with_name(prefix.name + "_settings").with_suffix(".xml")
+                capture_png(adb, settings_png)
+                settings_xml = dump_xml(adb, settings_xml_path)
+                artifacts.extend([settings_png, settings_xml_path])
+                settings_result = analyze_required_labels(settings_xml, PHONE_SETTINGS_LABELS, "settings")
+                settings_result.values.update(
+                    visible_surface_values(settings_xml, "settings", PHONE_SETTINGS_LABELS)
+                )
+                result = result.merge(settings_result)
+            else:
+                result = result.merge(CheckResult(ok=False, missing=["dashboard: Settings tap target"]))
+
+            start_library(adb, args)
+            time.sleep(2)
+            library_png = prefix.with_name(prefix.name + "_library").with_suffix(".png")
+            library_xml_path = prefix.with_name(prefix.name + "_library").with_suffix(".xml")
+            capture_png(adb, library_png)
+            library_xml = dump_xml(adb, library_xml_path)
+            artifacts.extend([library_png, library_xml_path])
+            library_result = analyze_phone_library_base(library_xml)
+            result = result.merge(library_result)
+
         library_focused = f"{args.package}/{args.activity}" in current_focus(adb)
-        library_result.values["library_focused"] = library_focused
+        result.values["library_focused"] = library_focused
         if not library_focused:
-            library_result.failures.append("Library activity did not remain focused")
-            library_result.ok = False
-        result = result.merge(library_result)
+            result.failures.append("Library activity did not remain focused")
+            result.ok = False
+
+        if tap_first_label(adb, library_xml, "Library Options"):
+            time.sleep(1.2)
+            left_png = prefix.with_name(prefix.name + "_left_library_options").with_suffix(".png")
+            left_xml_path = prefix.with_name(prefix.name + "_left_library_options").with_suffix(".xml")
+            capture_png(adb, left_png)
+            left_xml = dump_xml(adb, left_xml_path)
+            artifacts.extend([left_png, left_xml_path])
+            result = result.merge(analyze_phone_library_options_drawer(left_xml))
+            adb.input_keyevent("KEYCODE_BACK")
+            time.sleep(0.7)
+            after_left_xml_path = prefix.with_name(prefix.name + "_after_left_back").with_suffix(".xml")
+            library_xml = dump_xml(adb, after_left_xml_path)
+            artifacts.append(after_left_xml_path)
+        else:
+            result = result.merge(CheckResult(ok=False, missing=["library: Library Options tap target"]))
+
+        if tap_first_label(adb, library_xml, "System"):
+            time.sleep(1.2)
+            right_png = prefix.with_name(prefix.name + "_right_system").with_suffix(".png")
+            right_xml_path = prefix.with_name(prefix.name + "_right_system").with_suffix(".xml")
+            capture_png(adb, right_png)
+            right_xml = dump_xml(adb, right_xml_path)
+            artifacts.extend([right_png, right_xml_path])
+            result = result.merge(analyze_phone_system_drawer(right_xml))
+            adb.input_keyevent("KEYCODE_BACK")
+            time.sleep(0.7)
+            after_right_xml_path = prefix.with_name(prefix.name + "_after_right_back").with_suffix(".xml")
+            after_right_xml = dump_xml(adb, after_right_xml_path)
+            artifacts.append(after_right_xml_path)
+            after_right_result = analyze_phone_library_base(after_right_xml)
+            if after_right_result.ok:
+                result.values["phone_after_system_back_library_restored"] = True
+            else:
+                result = result.merge(
+                    CheckResult(
+                        ok=False,
+                        failures=["phone Library did not restore after System drawer Back"],
+                        values={"phone_after_system_back_library_restored": False},
+                    )
+                )
+        else:
+            result = result.merge(CheckResult(ok=False, missing=["library: System tap target"]))
 
         log_result = scan_logcat(read_logcat(adb, since=logcat_since), args.package)
         result = result.merge(log_result)
-        write_report(prefix, "Nova phone form-factor smoke", result, artifacts)
+        write_report(prefix, "Nova phone two-zone Library smoke", result, artifacts)
         return result
     finally:
         restore_rotation_settings(adb, rotation_settings)
@@ -1056,7 +1198,7 @@ def build_parser() -> argparse.ArgumentParser:
     phone = subparsers.add_parser(
         "phone",
         parents=[subparser_common],
-        help="portrait phone dashboard/settings/Library form-factor smoke",
+        help="portrait phone two-zone Library/drawer form-factor smoke",
     )
     phone.set_defaults(func=run_phone)
 

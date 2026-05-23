@@ -478,6 +478,177 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertIn("dashboard: Library", result.missing)
         self.assertEqual(result.values["dashboard_label_count"], 2)
 
+    def test_phone_library_base_accepts_two_zone_shell_without_exposed_filter_row(self):
+        xml = """
+        <hierarchy>
+          <node text="Library" bounds="[40,208][176,258]" />
+          <node text="pc-papi.lan" bounds="[40,258][157,304]" />
+          <node text="19 shown" bounds="[40,322][336,347]" />
+          <node text="Library Options" bounds="[705,216][899,296]" />
+          <node text="System" bounds="[917,216][1040,296]" />
+          <node text="Continue" bounds="[54,453][273,480]" />
+          <node text="A Select" bounds="[18,2261][1062,2339]" />
+          <node text="B Back" bounds="[18,2261][1062,2339]" />
+          <node text="X Library" bounds="[18,2261][1062,2339]" />
+          <node text="Menu System" bounds="[18,2261][1062,2339]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_phone_library_base(xml)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.missing, [])
+        self.assertEqual(result.failures, [])
+        self.assertEqual(result.values["phone_library_base_shown_count_label"], "19 shown")
+
+    def test_phone_library_base_rejects_filter_controls_outside_left_drawer(self):
+        xml = """
+        <hierarchy>
+          <node text="Library" bounds="[40,208][176,258]" />
+          <node text="Library Options" bounds="[705,216][899,296]" />
+          <node text="System" bounds="[917,216][1040,296]" />
+          <node text="Search this library" bounds="[40,360][520,438]" />
+          <node text="Sources" bounds="[48,448][240,510]" />
+          <node text="A Select" bounds="[18,2261][1062,2339]" />
+          <node text="B Back" bounds="[18,2261][1062,2339]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_phone_library_base(xml)
+
+        self.assertFalse(result.ok)
+        self.assertIn("phone library base exposes drawer-owned filters", result.failures)
+        self.assertEqual(result.values["phone_library_base_exposed_filter_labels"], ["Search this library", "Sources"])
+
+    def test_phone_drawer_analysis_enforces_library_and_system_ownership(self):
+        left_xml = """
+        <hierarchy>
+          <node text="Library Options" bounds="[31,202][881,242]" />
+          <node text="Search this library" bounds="[31,258][984,347]" />
+          <node text="Refresh" bounds="[753,360][984,431]" />
+          <node text="All" bounds="[52,463][215,511]" />
+          <node text="Recent" bounds="[298,444][592,529]" />
+          <node text="Sources" bounds="[610,444][930,529]" />
+          <node text="Sort" bounds="[31,542][71,588]" />
+          <node text="Layout" bounds="[31,1198][94,1244]" />
+        </hierarchy>
+        """
+        right_xml = """
+        <hierarchy>
+          <node text="System" bounds="[96,199][216,239]" />
+          <node text="pc-papi.lan" bounds="[96,252][356,277]" />
+          <node text="Switch" bounds="[96,350][390,421]" />
+          <node text="Settings" bounds="[96,441][390,512]" />
+          <node text="Diagnostics" bounds="[96,532][390,603]" />
+          <node text="About" bounds="[96,1700][390,1771]" />
+        </hierarchy>
+        """
+        mixed_right_xml = right_xml.replace("</hierarchy>", "  <node text=\"Search this library\" bounds=\"[96,620][390,700]\" />\n</hierarchy>")
+
+        left = nova_retroid_smoke.analyze_phone_library_options_drawer(left_xml)
+        right = nova_retroid_smoke.analyze_phone_system_drawer(right_xml)
+        mixed_right = nova_retroid_smoke.analyze_phone_system_drawer(mixed_right_xml)
+
+        self.assertTrue(left.ok)
+        self.assertTrue(right.ok)
+        self.assertFalse(mixed_right.ok)
+        self.assertIn("phone system drawer mixes library controls", mixed_right.failures)
+
+    def test_run_phone_accepts_launcher_library_and_captures_two_zone_drawers(self):
+        base_xml = """
+        <hierarchy>
+          <node text="Library" bounds="[40,208][176,258]" />
+          <node text="19 shown" bounds="[40,322][336,347]" />
+          <node text="Library Options" bounds="[705,216][899,296]" />
+          <node text="System" bounds="[917,216][1040,296]" />
+          <node text="A Select" bounds="[18,2261][1062,2339]" />
+          <node text="B Back" bounds="[18,2261][1062,2339]" />
+        </hierarchy>
+        """
+        left_xml = """
+        <hierarchy>
+          <node text="Library Options" bounds="[31,202][881,242]" />
+          <node text="Search this library" bounds="[31,258][984,347]" />
+          <node text="Refresh" bounds="[753,360][984,431]" />
+          <node text="All" bounds="[52,463][215,511]" />
+          <node text="Recent" bounds="[298,444][592,529]" />
+          <node text="Sources" bounds="[610,444][930,529]" />
+          <node text="Sort" bounds="[31,542][71,588]" />
+          <node text="Layout" bounds="[31,1198][94,1244]" />
+        </hierarchy>
+        """
+        right_xml = """
+        <hierarchy>
+          <node text="System" bounds="[96,199][216,239]" />
+          <node text="Switch" bounds="[96,350][390,421]" />
+          <node text="Settings" bounds="[96,441][390,512]" />
+          <node text="Diagnostics" bounds="[96,532][390,603]" />
+          <node text="About" bounds="[96,1700][390,1771]" />
+        </hierarchy>
+        """
+
+        class FakeAdb:
+            def __init__(self):
+                self.serial = "phone"
+                self.dry_run = False
+                self.taps = []
+                self.keys = []
+
+            def shell(self, command, **kwargs):
+                return ""
+
+            def run(self, command, **kwargs):
+                return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+            def tap(self, x, y):
+                self.taps.append((x, y))
+
+            def input_keyevent(self, key):
+                self.keys.append(key)
+
+        fake_adb = FakeAdb()
+        captured = {}
+        args = type(
+            "Args",
+            (),
+            {
+                "serial": None,
+                "dry_run": False,
+                "package": "com.papi.nova.debug",
+                "activity": "com.papi.nova.ui.NovaLibraryActivity",
+                "artifacts_dir": "/tmp",
+                "repo": str(MODULE_PATH.parents[1]),
+                "apk": str(MODULE_PATH.parents[1] / "app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk"),
+                "skip_install": True,
+                "clear_logcat": False,
+            },
+        )()
+
+        def capture_report(prefix, title, result, artifacts):
+            captured["result"] = result
+            captured["artifacts"] = [path.name for path in artifacts]
+
+        with patch.object(nova_retroid_smoke, "ensure_adb_device", return_value="phone"), \
+            patch.object(nova_retroid_smoke, "Adb", return_value=fake_adb), \
+            patch.object(nova_retroid_smoke, "maybe_install"), \
+            patch.object(nova_retroid_smoke, "begin_logcat_window", return_value="05-23 20:00:00.000"), \
+            patch.object(nova_retroid_smoke, "capture_rotation_settings", return_value={}), \
+            patch.object(nova_retroid_smoke, "write_system_setting"), \
+            patch.object(nova_retroid_smoke, "restore_rotation_settings"), \
+            patch.object(nova_retroid_smoke, "capture_png"), \
+            patch.object(nova_retroid_smoke, "dump_xml", side_effect=[base_xml, left_xml, base_xml, right_xml, base_xml]), \
+            patch.object(nova_retroid_smoke, "current_focus", return_value="com.papi.nova.debug/com.papi.nova.ui.NovaLibraryActivity"), \
+            patch.object(nova_retroid_smoke, "read_logcat", return_value="com.papi.nova.debug clean"), \
+            patch.object(nova_retroid_smoke, "write_report", side_effect=capture_report), \
+            patch.object(nova_retroid_smoke.time, "sleep"):
+            result = nova_retroid_smoke.run_phone(args)
+
+        self.assertTrue(result.ok)
+        self.assertTrue(captured["result"].ok)
+        self.assertIn("phone_system_drawer_settings_bounds", result.values)
+        self.assertEqual(fake_adb.keys, ["KEYCODE_BACK", "KEYCODE_BACK"])
+        self.assertGreaterEqual(len(fake_adb.taps), 2)
+
     def test_library_start_command_includes_optional_debug_smoke_extras(self):
         args = type(
             "Args",
