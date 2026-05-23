@@ -287,6 +287,62 @@ def ensure_adb_device(serial: str) -> None:
         raise SystemExit(f"ADB device {serial!r} is not connected as 'device'.\n{result.stdout}")
 
 
+def read_system_setting(adb: Adb, key: str) -> str:
+    return adb.shell(f"settings get system {key}", check=False).strip()
+
+
+def write_system_setting(adb: Adb, key: str, value: str) -> None:
+    adb.shell(f"settings put system {key} {value}", check=False)
+
+
+def capture_rotation_settings(adb: Adb) -> dict[str, str]:
+    return {
+        "accelerometer_rotation": read_system_setting(adb, "accelerometer_rotation"),
+        "user_rotation": read_system_setting(adb, "user_rotation"),
+    }
+
+
+def restore_rotation_settings(adb: Adb, settings: dict[str, str] | None) -> None:
+    if not settings:
+        return
+    for key, value in settings.items():
+        if value and value != "null":
+            write_system_setting(adb, key, value)
+
+
+def _display_rect(adb: Adb) -> tuple[int, int] | None:
+    output = adb.shell("dumpsys display | grep -m 1 'mCurrentDisplayRect' || true", check=False)
+    match = re.search(r"Rect\(0, 0 - (\d+), (\d+)\)", output)
+    if not match:
+        return None
+    return (int(match.group(1)), int(match.group(2)))
+
+
+def force_landscape(adb: Adb, timeout_s: float = 5.0, settle_s: float = 1.5) -> bool:
+    write_system_setting(adb, "accelerometer_rotation", "0")
+    write_system_setting(adb, "user_rotation", "1")
+    deadline = time.time() + timeout_s
+    last_rect: tuple[int, int] | None = None
+    while time.time() < deadline:
+        last_rect = _display_rect(adb)
+        if last_rect and last_rect[0] > last_rect[1]:
+            print(f"display: forced landscape {last_rect[0]}x{last_rect[1]}", flush=True)
+            if settle_s > 0:
+                time.sleep(settle_s)
+            return True
+        time.sleep(0.25)
+    print(f"display: landscape lock requested; current rect={last_rect}", flush=True)
+    return False
+
+
+def maybe_force_landscape(adb: Adb, args: argparse.Namespace) -> dict[str, str] | None:
+    if not getattr(args, "force_landscape", True):
+        return None
+    previous = capture_rotation_settings(adb)
+    force_landscape(adb)
+    return previous
+
+
 def timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -386,30 +442,35 @@ def write_report(prefix: Path, title: str, result: CheckResult, artifacts: Seque
 def run_library(args: argparse.Namespace) -> CheckResult:
     ensure_adb_device(args.serial)
     adb = Adb(args.serial, args.dry_run)
-    maybe_install(adb, args)
-    clear_logcat(adb)
-    start_library(adb, args.package, args.activity)
+    rotation_settings: dict[str, str] | None = None
+    try:
+        maybe_install(adb, args)
+        clear_logcat(adb)
+        start_library(adb, args.package, args.activity)
+        rotation_settings = maybe_force_landscape(adb, args)
 
-    prefix = artifact_prefix(args, "library")
-    png = prefix.with_suffix(".png")
-    xml_path = prefix.with_suffix(".xml")
-    capture_png(adb, png)
-    xml = dump_xml(adb, xml_path)
-    result = analyze_library_rail(xml)
+        prefix = artifact_prefix(args, "library")
+        png = prefix.with_suffix(".png")
+        xml_path = prefix.with_suffix(".xml")
+        capture_png(adb, png)
+        xml = dump_xml(adb, xml_path)
+        result = analyze_library_rail(xml)
 
-    for key in ("KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_DOWN"):
-        adb.input_keyevent(key)
-    time.sleep(0.5)
-    after_dpad_xml = prefix.with_name(prefix.name + "_after_dpad").with_suffix(".xml")
-    after_xml = dump_xml(adb, after_dpad_xml)
-    focused = next((node.bounds for node in parse_ui_nodes(after_xml) if "true" in node.label.casefold()), None)
-    if focused:
-        result.values["focused_after_dpad"] = focused
+        for key in ("KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_DOWN"):
+            adb.input_keyevent(key)
+        time.sleep(0.5)
+        after_dpad_xml = prefix.with_name(prefix.name + "_after_dpad").with_suffix(".xml")
+        after_xml = dump_xml(adb, after_dpad_xml)
+        focused = next((node.bounds for node in parse_ui_nodes(after_xml) if "true" in node.label.casefold()), None)
+        if focused:
+            result.values["focused_after_dpad"] = focused
 
-    log_result = scan_logcat(read_logcat(adb))
-    result = result.merge(log_result)
-    write_report(prefix, "Nova Retroid Library smoke", result, [png, xml_path, after_dpad_xml])
-    return result
+        log_result = scan_logcat(read_logcat(adb))
+        result = result.merge(log_result)
+        write_report(prefix, "Nova Retroid Library smoke", result, [png, xml_path, after_dpad_xml])
+        return result
+    finally:
+        restore_rotation_settings(adb, rotation_settings)
 
 
 def open_command_center(adb: Adb) -> None:
@@ -424,28 +485,33 @@ def open_command_center(adb: Adb) -> None:
 def run_command_center(args: argparse.Namespace) -> CheckResult:
     ensure_adb_device(args.serial)
     adb = Adb(args.serial, args.dry_run)
-    clear_logcat(adb)
-    if not args.assume_open:
-        open_command_center(adb)
+    rotation_settings: dict[str, str] | None = None
+    try:
+        rotation_settings = maybe_force_landscape(adb, args)
+        clear_logcat(adb)
+        if not args.assume_open:
+            open_command_center(adb)
 
-    prefix = artifact_prefix(args, "command_center")
-    png = prefix.with_suffix(".png")
-    xml_path = prefix.with_suffix(".xml")
-    capture_png(adb, png)
-    xml = dump_xml(adb, xml_path)
-    result = analyze_command_center(xml)
+        prefix = artifact_prefix(args, "command_center")
+        png = prefix.with_suffix(".png")
+        xml_path = prefix.with_suffix(".xml")
+        capture_png(adb, png)
+        xml = dump_xml(adb, xml_path)
+        result = analyze_command_center(xml)
 
-    adb.swipe(360, 920, 360, 430)
-    time.sleep(0.5)
-    controls_xml = prefix.with_name(prefix.name + "_controls").with_suffix(".xml")
-    scrolled_xml = dump_xml(adb, controls_xml)
-    if not result.ok:
-        result = analyze_command_center(xml + scrolled_xml)
+        adb.swipe(360, 920, 360, 430)
+        time.sleep(0.5)
+        controls_xml = prefix.with_name(prefix.name + "_controls").with_suffix(".xml")
+        scrolled_xml = dump_xml(adb, controls_xml)
+        if not result.ok:
+            result = analyze_command_center(xml + scrolled_xml)
 
-    log_result = scan_logcat(read_logcat(adb))
-    result = result.merge(log_result)
-    write_report(prefix, "Nova Retroid Command Center smoke", result, [png, xml_path, controls_xml])
-    return result
+        log_result = scan_logcat(read_logcat(adb))
+        result = result.merge(log_result)
+        write_report(prefix, "Nova Retroid Command Center smoke", result, [png, xml_path, controls_xml])
+        return result
+    finally:
+        restore_rotation_settings(adb, rotation_settings)
 
 
 def find_launch_button_node(xml_text: str) -> UiNode | None:
@@ -516,48 +582,53 @@ def end_stream_from_command_center(adb: Adb, args: argparse.Namespace, prefix: P
 def run_live_stream(args: argparse.Namespace) -> CheckResult:
     ensure_adb_device(args.serial)
     adb = Adb(args.serial, args.dry_run)
-    maybe_install(adb, args)
-    clear_logcat(adb)
-    start_library(adb, args.package, args.activity)
+    rotation_settings: dict[str, str] | None = None
+    try:
+        maybe_install(adb, args)
+        clear_logcat(adb)
+        start_library(adb, args.package, args.activity)
+        rotation_settings = maybe_force_landscape(adb, args)
 
-    prefix = artifact_prefix(args, "live_stream")
-    library_xml = prefix.with_name(prefix.name + "_library").with_suffix(".xml")
-    xml = dump_xml(adb, library_xml)
-    library_result = analyze_library_rail(xml)
+        prefix = artifact_prefix(args, "live_stream")
+        library_xml = prefix.with_name(prefix.name + "_library").with_suffix(".xml")
+        xml = dump_xml(adb, library_xml)
+        library_result = analyze_library_rail(xml)
 
-    if not launch_stream_from_library(adb, args, prefix, xml):
-        raise SystemExit(f"Timed out waiting for {args.package}/com.papi.nova.Game")
+        if not launch_stream_from_library(adb, args, prefix, xml):
+            raise SystemExit(f"Timed out waiting for {args.package}/com.papi.nova.Game")
 
-    stream_png = prefix.with_name(prefix.name + "_stream").with_suffix(".png")
-    stream_xml = prefix.with_name(prefix.name + "_stream").with_suffix(".xml")
-    capture_png(adb, stream_png)
-    dump_xml(adb, stream_xml)
+        stream_png = prefix.with_name(prefix.name + "_stream").with_suffix(".png")
+        stream_xml = prefix.with_name(prefix.name + "_stream").with_suffix(".xml")
+        capture_png(adb, stream_png)
+        dump_xml(adb, stream_xml)
 
-    open_command_center(adb)
-    command_png = prefix.with_name(prefix.name + "_command_center").with_suffix(".png")
-    command_xml = prefix.with_name(prefix.name + "_command_center").with_suffix(".xml")
-    capture_png(adb, command_png)
-    cc_xml_text = dump_xml(adb, command_xml)
-    command_result = analyze_command_center(cc_xml_text)
+        open_command_center(adb)
+        command_png = prefix.with_name(prefix.name + "_command_center").with_suffix(".png")
+        command_xml = prefix.with_name(prefix.name + "_command_center").with_suffix(".xml")
+        capture_png(adb, command_png)
+        cc_xml_text = dump_xml(adb, command_xml)
+        command_result = analyze_command_center(cc_xml_text)
 
-    if not command_result.ok:
-        adb.swipe(360, 920, 360, 430)
-        time.sleep(0.5)
-        scrolled = dump_xml(adb, prefix.with_name(prefix.name + "_command_center_controls").with_suffix(".xml"))
-        command_result = analyze_command_center(cc_xml_text + scrolled)
+        if not command_result.ok:
+            adb.swipe(360, 920, 360, 430)
+            time.sleep(0.5)
+            scrolled = dump_xml(adb, prefix.with_name(prefix.name + "_command_center_controls").with_suffix(".xml"))
+            command_result = analyze_command_center(cc_xml_text + scrolled)
 
-    if not args.no_end_stream:
-        end_stream_from_command_center(adb, args, prefix)
+        if not args.no_end_stream:
+            end_stream_from_command_center(adb, args, prefix)
 
-    log_result = scan_logcat(read_logcat(adb))
-    result = library_result.merge(command_result).merge(log_result)
-    write_report(
-        prefix,
-        "Nova Retroid live stream smoke",
-        result,
-        [library_xml, stream_png, stream_xml, command_png, command_xml],
-    )
-    return result
+        log_result = scan_logcat(read_logcat(adb))
+        result = library_result.merge(command_result).merge(log_result)
+        write_report(
+            prefix,
+            "Nova Retroid live stream smoke",
+            result,
+            [library_xml, stream_png, stream_xml, command_png, command_xml],
+        )
+        return result
+    finally:
+        restore_rotation_settings(adb, rotation_settings)
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -568,6 +639,12 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--apk", default=str(DEFAULT_APK))
     parser.add_argument("--artifacts-dir", default=str(DEFAULT_ARTIFACT_DIR))
     parser.add_argument("--skip-install", action="store_true")
+    parser.add_argument(
+        "--no-force-landscape",
+        dest="force_landscape",
+        action="store_false",
+        help="do not temporarily lock display rotation to landscape for Retroid smoke captures",
+    )
     parser.add_argument("--dry-run", action="store_true")
 
 

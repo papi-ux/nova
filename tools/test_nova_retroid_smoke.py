@@ -142,6 +142,57 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertIsNotNone(node)
         self.assertEqual(node.bounds, (264, 795, 1656, 924))
 
+    def test_display_rect_parser_reads_landscape_bounds(self):
+        class FakeAdb:
+            def shell(self, command, **kwargs):
+                self.command = command
+                return "    mCurrentDisplayRect=Rect(0, 0 - 1920, 1080)\n"
+
+        rect = nova_retroid_smoke._display_rect(FakeAdb())
+
+        self.assertEqual(rect, (1920, 1080))
+
+    def test_force_landscape_writes_rotation_settings_until_landscape(self):
+        class FakeAdb:
+            def __init__(self):
+                self.commands = []
+
+            def shell(self, command, **kwargs):
+                self.commands.append(command)
+                if command.startswith("dumpsys display"):
+                    return "    mCurrentDisplayRect=Rect(0, 0 - 1920, 1080)\n"
+                return ""
+
+        adb = FakeAdb()
+
+        self.assertTrue(nova_retroid_smoke.force_landscape(adb, settle_s=0))
+        self.assertIn("settings put system accelerometer_rotation 0", adb.commands)
+        self.assertIn("settings put system user_rotation 1", adb.commands)
+
+    def test_rotation_settings_restore_previous_values(self):
+        class FakeAdb:
+            def __init__(self):
+                self.commands = []
+
+            def shell(self, command, **kwargs):
+                self.commands.append(command)
+                return ""
+
+        adb = FakeAdb()
+
+        nova_retroid_smoke.restore_rotation_settings(
+            adb,
+            {"accelerometer_rotation": "1", "user_rotation": "0"},
+        )
+
+        self.assertEqual(
+            adb.commands,
+            [
+                "settings put system accelerometer_rotation 1",
+                "settings put system user_rotation 0",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
