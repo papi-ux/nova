@@ -22,6 +22,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import android.view.DisplayCutout
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -209,6 +210,14 @@ class StreamSettings : AppCompatActivity() {
                 reloadSettings()
             }
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_B && !legacyMode) {
+            onBackPressed()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onBackPressed() {

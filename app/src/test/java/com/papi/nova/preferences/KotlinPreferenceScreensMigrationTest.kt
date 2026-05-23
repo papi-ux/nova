@@ -92,6 +92,17 @@ class KotlinPreferenceScreensMigrationTest {
     }
 
     @Test
+    fun composeSettingsBBackHintHasActivityKeyHandler() {
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+        val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
+
+        assertTrue(settingsScreen.contains("R.string.nova_controller_hint_b"))
+        assertTrue(streamSettings.contains("override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean"))
+        assertTrue(streamSettings.contains("if (keyCode == KeyEvent.KEYCODE_BUTTON_B && !legacyMode)"))
+        assertTrue(streamSettings.contains("onBackPressed()\n            return true"))
+    }
+
+    @Test
     fun glPreferencesKeepPublicFieldContract() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         context.getSharedPreferences("GlPreferences", 0).edit().clear().commit()

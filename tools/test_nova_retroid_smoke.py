@@ -1,6 +1,7 @@
 import importlib.util
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 MODULE_PATH = Path(__file__).with_name("nova_retroid_smoke.py")
@@ -40,6 +41,39 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertEqual(quick[0].bounds, (62, 400, 168, 448))
         self.assertEqual(touch[0].bounds, (567, 786, 999, 919))
 
+    def test_parse_ui_nodes_preserves_focused_attribute(self):
+        xml = """
+        <hierarchy>
+          <node text="Options" focused="true" bounds="[219,496][370,584]" />
+          <node text="System" focused="false" bounds="[388,496][539,584]" />
+        </hierarchy>
+        """
+
+        nodes = nova_retroid_smoke.parse_ui_nodes(xml)
+
+        self.assertTrue(nodes[0].focused)
+        self.assertFalse(nodes[1].focused)
+
+    def test_library_rail_analysis_requires_controller_hint_bar(self):
+        xml = """
+        <hierarchy>
+          <node text="Refresh" bounds="[51,496][201,584]" />
+          <node text="Options" bounds="[219,496][370,584]" />
+          <node text="System" bounds="[388,496][539,584]" />
+          <node text="Switch" bounds="[51,593][201,681]" />
+          <node text="All" bounds="[48,689][293,779]" />
+          <node text="Recent" bounds="[299,690][539,778]" />
+          <node text="Sources" bounds="[51,787][290,875]" />
+          <node text="HDR" bounds="[299,787][539,875]" />
+          <node text="More" bounds="[51,884][290,972]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_library_rail(xml)
+
+        self.assertFalse(result.ok)
+        self.assertIn("controller hint bar", result.missing)
+
     def test_library_rail_analysis_reports_all_required_items_and_hint_spacing(self):
         xml = """
         <hierarchy>
@@ -63,6 +97,42 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertEqual(result.values["hint_left"], 590)
         self.assertEqual(result.values["hint_gap"], 51)
         self.assertEqual(result.missing, [])
+
+    def test_wait_for_library_rail_retries_until_required_labels_are_visible(self):
+        stale_launcher_xml = """
+        <hierarchy>
+          <node text="Watch Next" bounds="[176,80][323,128]" />
+          <node text="Frozen" bounds="[288,438][388,479]" />
+        </hierarchy>
+        """
+        ready_library_xml = """
+        <hierarchy>
+          <node text="Refresh" bounds="[51,496][201,584]" />
+          <node text="Options" bounds="[219,496][370,584]" />
+          <node text="System" bounds="[388,496][539,584]" />
+          <node text="Switch" bounds="[51,593][201,681]" />
+          <node text="All" bounds="[48,689][293,779]" />
+          <node text="Recent" bounds="[299,690][539,778]" />
+          <node text="Sources" bounds="[51,787][290,875]" />
+          <node text="HDR" bounds="[299,787][539,875]" />
+          <node text="More" bounds="[51,884][290,972]" />
+          <node text="A Select" bounds="[590,1016][710,1062]" />
+        </hierarchy>
+        """
+
+        with patch.object(nova_retroid_smoke, "dump_xml", side_effect=[stale_launcher_xml, ready_library_xml]) as dump, \
+            patch.object(nova_retroid_smoke.time, "sleep") as sleep:
+            xml, result = nova_retroid_smoke.wait_for_library_rail(
+                object(),
+                Path("/tmp/library.xml"),
+                timeout_s=5,
+                interval_s=0.01,
+            )
+
+        self.assertEqual(xml, ready_library_xml)
+        self.assertTrue(result.ok)
+        self.assertEqual(dump.call_count, 2)
+        sleep.assert_called_once_with(0.01)
 
     def test_command_center_analysis_prioritizes_quick_keys_and_touch_controls_copy(self):
         xml = """
@@ -128,6 +198,31 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertFalse(dirty_result.ok)
         self.assertTrue(dirty_result.failures)
 
+    def test_live_stream_log_result_requires_stream_and_disconnect_evidence(self):
+        missing = nova_retroid_smoke.live_stream_log_result(
+            nova_retroid_smoke.scan_logcat("Starting video stream"),
+            require_clean_disconnect=True,
+        )
+        no_disconnect = nova_retroid_smoke.live_stream_log_result(
+            nova_retroid_smoke.scan_logcat(
+                "Nova SSE: stream_active [streaming]\nStarting video stream\nStarting audio stream"
+            ),
+            require_clean_disconnect=True,
+        )
+        clean = nova_retroid_smoke.live_stream_log_result(
+            nova_retroid_smoke.scan_logcat(
+                "Nova SSE: stream_active [streaming]\n"
+                "Starting video stream\nStarting audio stream\nNova SSE: Stopped"
+            ),
+            require_clean_disconnect=True,
+        )
+
+        self.assertFalse(missing.ok)
+        self.assertIn("stream_active", missing.missing)
+        self.assertFalse(no_disconnect.ok)
+        self.assertIn("clean_disconnect", no_disconnect.missing)
+        self.assertTrue(clean.ok)
+
     def test_find_launch_button_ignores_launch_mode_headers(self):
         xml = """
         <hierarchy>
@@ -141,6 +236,57 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
 
         self.assertIsNotNone(node)
         self.assertEqual(node.bounds, (264, 795, 1656, 924))
+
+    def test_end_stream_from_command_center_reports_confirm_and_return(self):
+        class FakeAdb:
+            def __init__(self):
+                self.taps = []
+                self.swipes = []
+
+            def tap(self, x, y):
+                self.taps.append((x, y))
+
+            def swipe(self, *args):
+                self.swipes.append(args)
+
+        args = type("Args", (), {"activity": "com.papi.nova.ui.NovaLibraryActivity", "timeout": 45})()
+        xmls = [
+            '<hierarchy><node text="End" bounds="[825,220][934,276]" /></hierarchy>',
+            '<hierarchy><node text="Yes" bounds="[700,600][900,700]" /></hierarchy>',
+        ]
+
+        with patch.object(nova_retroid_smoke, "dump_xml", side_effect=xmls), \
+            patch.object(nova_retroid_smoke, "wait_for_focus", return_value=True), \
+            patch.object(nova_retroid_smoke.time, "sleep"):
+            result = nova_retroid_smoke.end_stream_from_command_center(FakeAdb(), args, Path("/tmp/live"))
+
+        self.assertTrue(result.ok)
+        self.assertIs(result.values["end_stream_confirmed"], True)
+        self.assertIs(result.values["returned_to_library"], True)
+
+    def test_end_stream_from_command_center_fails_without_confirmation(self):
+        class FakeAdb:
+            def __init__(self):
+                self.swipes = []
+
+            def tap(self, x, y):
+                pass
+
+            def swipe(self, *args):
+                self.swipes.append(args)
+
+        args = type("Args", (), {"activity": "com.papi.nova.ui.NovaLibraryActivity", "timeout": 45})()
+        xmls = [
+            '<hierarchy><node text="End" bounds="[825,220][934,276]" /></hierarchy>',
+            '<hierarchy><node text="Cancel" bounds="[700,600][900,700]" /></hierarchy>',
+        ]
+
+        with patch.object(nova_retroid_smoke, "dump_xml", side_effect=xmls), \
+            patch.object(nova_retroid_smoke.time, "sleep"):
+            result = nova_retroid_smoke.end_stream_from_command_center(FakeAdb(), args, Path("/tmp/live"))
+
+        self.assertFalse(result.ok)
+        self.assertIn("End confirmation button not found", result.failures)
 
     def test_display_rect_parser_reads_landscape_bounds(self):
         class FakeAdb:
@@ -179,7 +325,6 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
                 return ""
 
         adb = FakeAdb()
-
         nova_retroid_smoke.restore_rotation_settings(
             adb,
             {"accelerometer_rotation": "1", "user_rotation": "0"},
@@ -192,6 +337,66 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
                 "settings put system user_rotation 0",
             ],
         )
+
+    def test_ensure_adb_device_skips_lookup_for_dry_run(self):
+        with patch.object(nova_retroid_smoke.shutil, "which", side_effect=AssertionError("adb lookup should be skipped")), \
+            patch.object(nova_retroid_smoke.subprocess, "run", side_effect=AssertionError("adb devices should be skipped")):
+            nova_retroid_smoke.ensure_adb_device("missing-device", dry_run=True)
+
+    def test_phone_surface_analysis_reports_missing_labels_by_surface(self):
+        xml = """
+        <hierarchy>
+          <node text="Nova" bounds="[72,360][287,481]" />
+          <node text="Settings" bounds="[1088,388][1208,508]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_required_labels(xml, ["Nova", "Library"], "dashboard")
+
+        self.assertFalse(result.ok)
+        self.assertIn("dashboard: Library", result.missing)
+        self.assertEqual(result.values["dashboard_label_count"], 2)
+
+    def test_library_start_command_includes_optional_debug_smoke_extras(self):
+        args = type(
+            "Args",
+            (),
+            {
+                "package": "com.papi.nova.debug",
+                "activity": "com.papi.nova.ui.NovaLibraryActivity",
+                "host": "10.0.0.232",
+                "server_name": "pc-papi.lan",
+                "http_port": 47989,
+                "https_port": 47984,
+                "unique_id": "smoke pixel",
+                "pc_uuid": "abc-123",
+            },
+        )()
+
+        command = nova_retroid_smoke._library_start_command(args)
+
+        self.assertIn("am start -n com.papi.nova.debug/com.papi.nova.ui.NovaLibraryActivity", command)
+        self.assertIn("--es host 10.0.0.232", command)
+        self.assertIn("--es server_name pc-papi.lan", command)
+        self.assertIn("--ei http_port 47989", command)
+        self.assertIn("--es unique_id 'smoke pixel'", command)
+        self.assertIn("--es pc_uuid abc-123", command)
+
+    def test_phone_subcommand_and_debug_manifest_are_available_for_adb_smoke(self):
+        parser = nova_retroid_smoke.build_parser()
+        args = parser.parse_args(["phone", "--dry-run"])
+        manifest = MODULE_PATH.parents[1] / "app" / "src" / "debug" / "AndroidManifest.xml"
+        manifest_text = manifest.read_text(encoding="utf-8")
+
+        self.assertIs(args.func, nova_retroid_smoke.run_phone)
+        self.assertIn('android:name="com.papi.nova.ui.NovaLibraryActivity"', manifest_text)
+        self.assertIn('android:exported="true"', manifest_text)
+
+    def test_default_repo_points_to_project_root(self):
+        parser = nova_retroid_smoke.build_parser()
+        args = parser.parse_args(["library"])
+
+        self.assertEqual(Path(args.repo), MODULE_PATH.parents[1])
 
 
 if __name__ == "__main__":

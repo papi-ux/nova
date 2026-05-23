@@ -34,6 +34,22 @@ This backlog tracks the Retroid-first Nova 1.1.0 UI/UX re-review. Keep entries e
 | Stream startup confidence overlay | Retroid timed startup smoke | Passed | Startup showed explicit host-lock state instead of an ambiguous black screen; after unlock the stream rendered cleanly, Command Center opened over the stream, disconnect returned to `NovaLibraryActivity`, and crash log was empty. Logcat confirmed session progress overlay shown then dismissed on active stream. |
 | Stream end/cleanup | Retroid quit confirmation | Passed | Confirming End returned focus to `NovaLibraryActivity`; Moonlight streams cleaned up; host cancel returned status 200; no Nova crash in package-specific scan. |
 
+## Retroid smoke automation checkpoint
+
+- 2026-05-22 Retroid automation reports are preserved under `/tmp/nova_retroid_smoke/` for this local-only shell polish stack.
+- Library automation report: `/tmp/nova_retroid_smoke/nova_retroid_library_20260522_201919.txt`
+  - Structured result: `status=PASS`, `missing=[]`, `failures=[]`, `rail_right=539`, `hint_left=590`, `hint_gap=51`.
+  - Artifacts: `nova_retroid_library_20260522_201919.png`, `.xml`, and `_after_dpad.xml` in the same directory.
+- Live stream automation report: `/tmp/nova_retroid_smoke/nova_retroid_live_stream_20260522_201959.txt`
+  - Structured result: `status=PASS`, `missing=[]`, `failures=[]`, `stream_active=True`, `video_stream_started=True`, `audio_stream_started=True`, `clean_disconnect=True`, `quick_keys_top=149`, `touch_controls_visible=True`.
+  - Artifacts: `nova_retroid_live_stream_20260522_201959_library.xml`, `_stream.png`, `_stream.xml`, `_command_center.png`, `_command_center.xml`, `_command_center_controls.xml`, `_end_attempt_*`, and `_end_confirm.xml` in the same directory.
+- Helper-test checkpoint before review hardening: local commit `4b65537 test(retroid): stabilize landscape smoke automation` reported 11 helper tests OK. Review hardening expanded the helper suite to cover required hint bars, focused-node parsing, live-stream log evidence, dry-run ADB skipping, repo-root defaults, and stateful End cleanup.
+- Shield TV library smoke report: `/tmp/nova-shield-smoke-20260522_220610-settled/nova_retroid_library_20260522_220612.txt`
+  - Structured result: `status=PASS`, `missing=[]`, `failures=[]`, `rail_right=468`, `hint_left=512`, `hint_gap=44`, `focused_after_dpad=(41, 705, 255, 803)`.
+  - Artifacts copied locally under `/tmp/nova-shield-smoke-20260522_220610-settled/`: screenshot, UI XML, and `_after_dpad.xml`.
+  - Caveat: this Shield currently reports `0 Games`, so this checkpoint proves TV library shell/focus/hint layout only; launch/live-stream smoke still needs a populated library target before release blessing.
+- Caveat: `/tmp` artifacts are ephemeral. Copy the report set to a durable release archive before any final release handoff.
+
 ## Validation log
 
 | Check | Result | Notes |

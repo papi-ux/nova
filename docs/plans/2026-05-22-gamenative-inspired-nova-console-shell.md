@@ -6,9 +6,9 @@ Storage note: this plan intentionally lives in `docs/plans/` so it survives disc
 
 ## Current context
 
-- Repo: `/home/papi/Documents/github/nova`
-- Branch under review: `nova/1.1.0`
-- Current git state at planning time: branch is ahead of origin and has existing uncommitted Nova UI changes. Finish or intentionally checkpoint that slice before starting new implementation, because UI spaghetti is how raccoons get commit access.
+- Repo: `/Users/papi/Projects/github/nova`
+- Branch under review: `nova/next-level-ui-polish`
+- Current git state at planning time: branch was local-only with existing Nova UI work; keep review/fix commits local until the release path is explicit.
 - Primary target device: Retroid Pocket 6, ADB serial `24c12bdd`
 - Nova debug package for device checks: `com.papi.nova.debug`
 - Live reference app reviewed: GameNative package `app.gamenative`
@@ -265,7 +265,8 @@ Captured files from the Retroid live sweep:
 **Objective:** prove the new shell feels good on real handheld constraints, not just “compiled therefore blessed.”
 
 **Files/artifacts:**
-- Retroid screenshots/XML in `/tmp/nova_gamenative_inspired_*`
+- Retroid automation: `tools/nova_retroid_smoke.py`
+- Retroid screenshots/XML/report files in `/tmp/nova_retroid_smoke/nova_retroid_*`
 - Update `docs/ui-ux-backlog.md` visual check log after verification
 
 **Commands:**
@@ -274,7 +275,8 @@ Captured files from the Retroid live sweep:
 ./gradlew -PnovaAbis=x86_64 -PlintFailOnError=true lintNonRoot_gameDebug
 ./gradlew -PnovaAbis=arm64-v8a assembleNonRoot_gameDebug
 adb -s 24c12bdd install -r -d app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk
-adb -s 24c12bdd shell monkey -p com.papi.nova.debug 1
+python3 tools/nova_retroid_smoke.py --artifacts-dir /tmp/nova_retroid_smoke library
+python3 tools/nova_retroid_smoke.py --artifacts-dir /tmp/nova_retroid_smoke live-stream --launch-text "Steam Big Picture"
 ```
 
 **Retroid smoke checklist:**
