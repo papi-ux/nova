@@ -332,12 +332,27 @@ class NovaLibraryActivity : AppCompatActivity() {
                 if (!activeOptionsSheet) openLibraryOptionsSheet()
                 true
             }
+            KeyEvent.KEYCODE_BUTTON_Y -> cycleLibraryLayoutMode()
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_START -> {
                 if (!activeSystemMenu) openLibrarySystemMenu()
                 true
             }
             else -> super.onKeyDown(keyCode, event)
         }
+    }
+
+    private fun cycleLibraryLayoutMode(): Boolean {
+        if (activeOptionsSheet || activeSystemMenu || activeFilterSheet != null) {
+            return false
+        }
+        val nextMode = optionsState.layoutMode.next()
+        optionsState = optionsState.copy(layoutMode = nextMode)
+        Toast.makeText(
+            this,
+            getString(R.string.nova_library_layout_toast_format, getString(layoutModeLabelRes(nextMode))),
+            Toast.LENGTH_SHORT
+        ).show()
+        return true
     }
 
     override fun onStop() {
@@ -1090,6 +1105,10 @@ class NovaLibraryActivity : AppCompatActivity() {
             NovaControllerHint(
                 key = stringResource(R.string.nova_controller_hint_x),
                 label = stringResource(R.string.nova_controller_hint_library)
+            ),
+            NovaControllerHint(
+                key = stringResource(R.string.nova_controller_hint_y),
+                label = stringResource(R.string.nova_controller_hint_layout)
             ),
             NovaControllerHint(
                 key = stringResource(R.string.menu_button),
@@ -1895,8 +1914,10 @@ class NovaLibraryActivity : AppCompatActivity() {
         onGameFocused: (PolarisGame) -> Unit,
         onOpenDetail: (PolarisGame) -> Unit
     ) {
-        val compactCards = model.optionsState.layoutMode == NovaLibraryLayoutMode.COMPACT_GRID
-        val gridColumns = if (compactCards) (columns + 1).coerceAtMost(6) else columns
+        val layoutMode = model.optionsState.layoutMode
+        val compactCards = layoutMode == NovaLibraryLayoutMode.COMPACT_GRID
+        val listCards = layoutMode == NovaLibraryLayoutMode.LIST
+        val gridColumns = columns
         val onRecoveryAction: (NovaLibraryRecoveryAction) -> Unit = { action ->
             when (action) {
                 NovaLibraryRecoveryAction.RETRY -> onRefresh()
@@ -1953,6 +1974,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                                     game = game,
                                     apiClient = apiClient,
                                     compact = compactCards,
+                                    listStyle = listCards,
                                     isLandscape = isLandscape,
                                     restoreFocus = game.id == restoreFocusGameId,
                                     onFocused = { onGameFocused(game) },
@@ -2036,6 +2058,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         game: PolarisGame,
         apiClient: PolarisApiClient,
         compact: Boolean,
+        listStyle: Boolean = false,
         isLandscape: Boolean,
         modifier: Modifier = Modifier,
         restoreFocus: Boolean = false,
@@ -2047,7 +2070,12 @@ class NovaLibraryActivity : AppCompatActivity() {
         var focused by remember { mutableStateOf(false) }
         var restoreAttempted by remember { mutableStateOf(false) }
         val focusRequester = remember { FocusRequester() }
-        val cardHeight = NovaLibraryUiStateMapper.gameCardHeightDp(compact = compact, isLandscape = isLandscape).dp
+        val layoutMode = when {
+            listStyle -> NovaLibraryLayoutMode.LIST
+            compact -> NovaLibraryLayoutMode.COMPACT_GRID
+            else -> NovaLibraryLayoutMode.GRID
+        }
+        val cardHeight = NovaLibraryUiStateMapper.gameCardHeightDp(layoutMode = layoutMode, isLandscape = isLandscape).dp
         val title = game.name.ifBlank { "Unknown game" }
         val meta = listOfNotNull(
             sourceLabelFor(game.source),
@@ -2093,6 +2121,89 @@ class NovaLibraryActivity : AppCompatActivity() {
                     contentDescription = title
                 }
         ) {
+            if (listStyle) {
+                if (focused) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(surfaces.focusHalo.copy(alpha = 0.18f))
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(if (isLandscape) 126.dp else 104.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(surfaces.mediaPlaceholder)
+                    ) {
+                        key(game.id, game.coverUrl) {
+                            AndroidView(
+                                modifier = Modifier.fillMaxSize(),
+                                factory = { context ->
+                                    ImageView(context).apply {
+                                        scaleType = ImageView.ScaleType.CENTER_CROP
+                                        setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
+                                        contentDescription = context.getString(R.string.nova_a11y_game_cover)
+                                        apiClient.loadCoverInto(this, game)
+                                    }
+                                }
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            surfaces.mediaScrimTop,
+                                            surfaces.mediaScrimBottom.copy(alpha = 0.62f)
+                                        )
+                                    )
+                                )
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = title,
+                            color = colors.textPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (meta.isNotBlank()) {
+                            Text(
+                                text = meta,
+                                color = colors.textSecondary,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (game.hdrSupported) {
+                                NovaMiniBadge(text = stringResource(R.string.badge_hdr))
+                            }
+                            if (game.lastLaunched > 0) {
+                                NovaMiniBadge(text = stringResource(R.string.nova_library_filter_recent))
+                            }
+                        }
+                    }
+                    if (focused) {
+                        NovaMiniBadge(text = stringResource(R.string.nova_library_card_action_details))
+                    }
+                }
+            } else {
             key(game.id, game.coverUrl) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
@@ -2176,6 +2287,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
             }
         }
     }
@@ -3090,15 +3202,20 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     @Composable
-    private fun layoutModeLabel(layoutMode: NovaLibraryLayoutMode): String = when (layoutMode) {
-        NovaLibraryLayoutMode.GRID -> stringResource(R.string.nova_library_options_layout_grid)
-        NovaLibraryLayoutMode.COMPACT_GRID -> stringResource(R.string.nova_library_options_layout_compact_grid)
+    private fun layoutModeLabel(layoutMode: NovaLibraryLayoutMode): String =
+        stringResource(layoutModeLabelRes(layoutMode))
+
+    private fun layoutModeLabelRes(layoutMode: NovaLibraryLayoutMode): Int = when (layoutMode) {
+        NovaLibraryLayoutMode.GRID -> R.string.nova_library_options_layout_grid
+        NovaLibraryLayoutMode.COMPACT_GRID -> R.string.nova_library_options_layout_compact_grid
+        NovaLibraryLayoutMode.LIST -> R.string.nova_library_options_layout_list
     }
 
     @Composable
     private fun layoutModeDetail(layoutMode: NovaLibraryLayoutMode): String = when (layoutMode) {
         NovaLibraryLayoutMode.GRID -> stringResource(R.string.nova_library_options_layout_grid_hint)
         NovaLibraryLayoutMode.COMPACT_GRID -> stringResource(R.string.nova_library_options_layout_compact_grid_hint)
+        NovaLibraryLayoutMode.LIST -> stringResource(R.string.nova_library_options_layout_list_hint)
     }
 
     private fun filterCount(filter: NovaLibraryPrimaryFilter, model: NovaLibraryUiModel): Int {

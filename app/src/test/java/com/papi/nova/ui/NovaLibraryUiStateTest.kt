@@ -513,8 +513,32 @@ class NovaLibraryUiStateTest {
                 layoutMode = NovaLibraryLayoutMode.COMPACT_GRID
             )
         )
+        assertEquals(
+            1,
+            NovaLibraryUiStateMapper.gridColumnsForScreen(
+                widthDp = 833,
+                isLandscape = true,
+                layoutMode = NovaLibraryLayoutMode.LIST
+            )
+        )
         assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.GRID, isLandscape = true))
         assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.COMPACT_GRID, isLandscape = true))
+        assertEquals(88, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.LIST, isLandscape = true))
+    }
+
+    @Test
+    fun libraryLayoutModesCycleForTheYShortcut() {
+        assertEquals(NovaLibraryLayoutMode.COMPACT_GRID, NovaLibraryLayoutMode.GRID.next())
+        assertEquals(NovaLibraryLayoutMode.LIST, NovaLibraryLayoutMode.COMPACT_GRID.next())
+        assertEquals(NovaLibraryLayoutMode.GRID, NovaLibraryLayoutMode.LIST.next())
+        assertEquals(
+            listOf(
+                NovaLibraryLayoutMode.GRID,
+                NovaLibraryLayoutMode.COMPACT_GRID,
+                NovaLibraryLayoutMode.LIST
+            ),
+            NovaLibraryLayoutMode.entries
+        )
     }
 
     @Test

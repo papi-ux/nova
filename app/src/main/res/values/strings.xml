@@ -194,6 +194,9 @@
     <string name="nova_library_options_layout_grid_hint">Bigger covers for normal browsing.</string>
     <string name="nova_library_options_layout_compact_grid">Compact grid</string>
     <string name="nova_library_options_layout_compact_grid_hint">More games on screen for fast controller sweeps.</string>
+    <string name="nova_library_options_layout_list">List</string>
+    <string name="nova_library_options_layout_list_hint">One-column rows for quick title scanning.</string>
+    <string name="nova_library_layout_toast_format">Layout: %1$s</string>
     <string name="nova_system_menu_title">System</string>
     <string name="nova_system_menu_host_format">Host: %1$s</string>
     <string name="nova_system_menu_host_named_format">Host: %1$s • %2$s</string>
@@ -223,6 +226,7 @@
     <string name="nova_controller_hint_back">Back</string>
     <string name="nova_controller_hint_options">Options</string>
     <string name="nova_controller_hint_library">Library</string>
+    <string name="nova_controller_hint_layout">Layout</string>
     <string name="nova_controller_hint_filters">Filters</string>
     <string name="nova_controller_hint_library_system">Library / System</string>
     <string name="nova_controller_hint_launch">Launch</string>

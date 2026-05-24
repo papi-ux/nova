@@ -76,9 +76,12 @@ class NovaComposeSourceGuardTest {
                 optionsSheet.contains("onLayoutMode(layoutMode)")
         )
         assertTrue(
-            "compact grid should be wired into the actual library card density",
-            activity.contains("model.optionsState.layoutMode == NovaLibraryLayoutMode.COMPACT_GRID") &&
-                activity.contains("compact = compactCards")
+            "layout modes should be wired into the actual library card density, including the Y shortcut list mode",
+            activity.contains("val layoutMode = model.optionsState.layoutMode") &&
+                activity.contains("val compactCards = layoutMode == NovaLibraryLayoutMode.COMPACT_GRID") &&
+                activity.contains("val listCards = layoutMode == NovaLibraryLayoutMode.LIST") &&
+                activity.contains("compact = compactCards") &&
+                activity.contains("listStyle = listCards")
         )
         assertTrue(
             "quick options strings should cover the GameNative-inspired Sort/Layout surface",
@@ -740,8 +743,10 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "library game cards should use shared smaller sizing rules",
-            gameCard.contains("NovaLibraryUiStateMapper.gameCardHeightDp(compact = compact, isLandscape = isLandscape).dp")
+            "library game cards should use shared sizing rules for grid, compact grid, and list modes",
+            gameCard.contains("NovaLibraryUiStateMapper.gameCardHeightDp(layoutMode = layoutMode, isLandscape = isLandscape).dp") &&
+                gameCard.contains("listStyle -> NovaLibraryLayoutMode.LIST") &&
+                gameCard.contains("compact -> NovaLibraryLayoutMode.COMPACT_GRID")
         )
         assertTrue(
             "library loading cards should match the same default card sizing",

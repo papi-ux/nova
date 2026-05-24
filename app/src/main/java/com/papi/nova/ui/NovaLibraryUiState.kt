@@ -32,7 +32,14 @@ enum class NovaLibrarySortMode {
 
 enum class NovaLibraryLayoutMode {
     GRID,
-    COMPACT_GRID
+    COMPACT_GRID,
+    LIST;
+
+    fun next(): NovaLibraryLayoutMode = when (this) {
+        GRID -> COMPACT_GRID
+        COMPACT_GRID -> LIST
+        LIST -> GRID
+    }
 }
 
 data class NovaLibraryOptionsState(
@@ -676,6 +683,7 @@ object NovaLibraryUiStateMapper {
         return when (layoutMode) {
             NovaLibraryLayoutMode.GRID -> baseColumns
             NovaLibraryLayoutMode.COMPACT_GRID -> (baseColumns + 1).coerceAtMost(6)
+            NovaLibraryLayoutMode.LIST -> 1
         }
     }
 
@@ -700,6 +708,7 @@ object NovaLibraryUiStateMapper {
         return when (layoutMode) {
             NovaLibraryLayoutMode.COMPACT_GRID -> 112
             NovaLibraryLayoutMode.GRID -> if (isLandscape) 156 else 168
+            NovaLibraryLayoutMode.LIST -> 88
         }
     }
 

@@ -49,6 +49,23 @@ class NovaLibraryActivitySourceTest {
     }
 
     @Test
+    fun yButtonCyclesLibraryLayoutWithoutOpeningADrawer() {
+        val source = readLibraryActivitySource()
+        val hints = sourceBetween(
+            source,
+            "private fun novaLibraryControllerHints(",
+            "@Composable\n    private fun NovaLibraryFocusedBackdrop"
+        )
+
+        assertTrue(source.contains("KeyEvent.KEYCODE_BUTTON_Y"))
+        assertTrue(source.contains("cycleLibraryLayoutMode()"))
+        assertTrue(source.contains("activeOptionsSheet || activeSystemMenu || activeFilterSheet != null"))
+        assertTrue(source.contains("optionsState.copy(layoutMode = nextMode)"))
+        assertTrue(hints.contains("R.string.nova_controller_hint_y"))
+        assertTrue(hints.contains("R.string.nova_controller_hint_layout"))
+    }
+
+    @Test
     fun systemMenuIsRightDrawerAndOwnsHostLevelActions() {
         val source = readLibraryActivitySource()
         val systemMenu = sourceBetween(
