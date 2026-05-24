@@ -3,12 +3,14 @@
     <string-array name="nova_theme_names">
         <item>Polaris Aurora</item>
         <item>Console OLED</item>
+        <item>Miami Nebula</item>
         <item>High Contrast</item>
         <item>Material You</item>
     </string-array>
     <string-array name="nova_theme_values">
         <item>polaris</item>
         <item>oled</item>
+        <item>miami</item>
         <item>high_contrast</item>
         <item>material_you</item>
     </string-array>

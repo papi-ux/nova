@@ -76,57 +76,67 @@ val LocalNovaLibrarySurfaces = staticCompositionLocalOf {
 
 fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
     val isOled = theme == NovaThemeManager.THEME_OLED
+    val isMiami = theme == NovaThemeManager.THEME_MIAMI
     val isHighContrast = theme == NovaThemeManager.THEME_HIGH_CONTRAST
     val isMaterialYou = theme == NovaThemeManager.THEME_MATERIAL_YOU
     return NovaLibrarySurfaces(
         backgroundScrim = when {
             isOled -> Color.Transparent
+            isMiami -> window.copy(alpha = 0.60f)
             isHighContrast -> Color.Black.copy(alpha = 0.72f)
             isMaterialYou -> window.copy(alpha = 0.28f)
             else -> window.copy(alpha = 0.56f)
         },
         panel = when {
             isOled -> dialog.copy(alpha = 0.88f)
+            isMiami -> dialog.copy(alpha = 0.82f)
             isHighContrast -> dialog.copy(alpha = 0.96f)
             isMaterialYou -> card.copy(alpha = 0.76f)
             else -> dialog.copy(alpha = 0.64f)
         },
         panelBorder = when {
             isOled -> divider.copy(alpha = 0.78f)
+            isMiami -> accent.copy(alpha = 0.18f)
             isHighContrast -> divider.copy(alpha = 0.92f)
             isMaterialYou -> divider.copy(alpha = 0.46f)
             else -> divider.copy(alpha = 0.44f)
         },
         tile = when {
             isOled -> card.copy(alpha = 0.90f)
+            isMiami -> card.copy(alpha = 0.82f)
             isHighContrast -> card.copy(alpha = 0.98f)
             isMaterialYou -> card.copy(alpha = 0.78f)
             else -> card.copy(alpha = 0.74f)
         },
         tileBorder = when {
             isOled -> divider.copy(alpha = 0.78f)
+            isMiami -> divider.copy(alpha = 0.58f)
             isHighContrast -> divider.copy(alpha = 0.90f)
             else -> divider.copy(alpha = 0.50f)
         },
         control = when {
             isOled -> card.copy(alpha = 0.78f)
+            isMiami -> card.copy(alpha = 0.76f)
             isHighContrast -> card.copy(alpha = 1f)
             isMaterialYou -> card.copy(alpha = 0.70f)
             else -> card.copy(alpha = 0.72f)
         },
         selectedControl = accent.copy(alpha = when {
             isHighContrast -> 0.34f
+            isMiami -> 0.22f
             isOled -> 0.22f
             else -> 0.18f
         }),
         focusRing = accent,
         focusHalo = accent.copy(alpha = when {
             isHighContrast -> 0.36f
+            isMiami -> 0.28f
             isOled -> 0.24f
             else -> 0.18f
         }),
         mediaPlaceholder = when {
             isOled -> Color(0xFF08080C)
+            isMiami -> Color(0xFF2C1734)
             isHighContrast -> Color(0xFF111827)
             isMaterialYou -> card.copy(alpha = 1f)
             else -> divider.copy(alpha = 1f)
@@ -141,14 +151,20 @@ fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
         onMediaSecondary = Color.White.copy(alpha = 0.86f),
         focusedArtworkAlpha = when {
             isOled -> 0.10f
+            isMiami -> 0.26f
             isMaterialYou -> 0.18f
             else -> 0.24f
         },
-        focusedArtworkScrim = Color.Black.copy(alpha = if (isOled) 0.82f else 0.72f),
+        focusedArtworkScrim = Color.Black.copy(alpha = when {
+            isOled -> 0.82f
+            isMiami -> 0.76f
+            else -> 0.72f
+        }),
         particlesEnabled = !isOled,
         particleAlpha = when {
             isOled -> 0f
             isHighContrast -> 0.28f
+            isMiami -> 0.68f
             isMaterialYou -> 0.42f
             else -> 1f
         }
@@ -171,7 +187,12 @@ fun NovaComposeTheme(content: @Composable () -> Unit) {
         textPrimary = Color(NovaThemeManager.getTextPrimaryColor(context)),
         textSecondary = Color(NovaThemeManager.getTextSecondaryColor(context)),
         textMuted = Color(NovaThemeManager.getTextMutedColor(context)),
-        onAccent = Color(ContextCompat.getColor(context, R.color.nova_ice))
+        onAccent = Color(
+            ContextCompat.getColor(
+                context,
+                if (theme == NovaThemeManager.THEME_MIAMI) R.color.nova_miami_void else R.color.nova_ice
+            )
+        )
     )
     val librarySurfaces = colors.librarySurfaces(theme)
 

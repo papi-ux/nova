@@ -43,4 +43,50 @@ class NovaLibrarySurfacesTest {
         assertEquals(base.accent, polaris.focusRing)
         assertEquals(Color.White, oled.onMedia)
     }
+
+    @Test
+    fun miamiLibrarySurfacesUsePlumGlassMagentaFocusAndParticles() {
+        val miamiColors = miamiColors()
+
+        val miami = miamiColors.librarySurfaces(NovaThemeManager.THEME_MIAMI)
+
+        assertTrue(miami.particlesEnabled)
+        assertEquals(miamiColors.accent, miami.focusRing)
+        assertTrue(
+            "Miami halo should be stronger than default but not a hot pink foghorn",
+            miami.focusHalo.alpha in 0.24f..0.34f
+        )
+        assertTrue(
+            "Miami panels should keep readable plum glass",
+            miami.panel.alpha >= 0.78f
+        )
+        assertTrue(
+            "Miami focused artwork needs enough scrim for rose text",
+            miami.focusedArtworkScrim.alpha >= 0.72f
+        )
+        assertTrue(
+            "Miami particles should be visible but calmer than default",
+            miami.particleAlpha in 0.50f..0.85f
+        )
+    }
+
+    @Test
+    fun miamiOnAccentUsesDarkPlumForReadableCtaText() {
+        assertEquals(Color(0xFF130817), miamiColors().onAccent)
+    }
+
+    private fun miamiColors(): NovaComposeColors = NovaComposeColors(
+        window = Color(0xFF130817),
+        card = Color(0xE6241429),
+        dialog = Color(0xFF241429),
+        badge = Color(0x33FFD3E2),
+        divider = Color(0xFF6C3C6F),
+        accent = Color(0xFFFF5CAB),
+        accentSurface = Color(0x1AFF5CAB),
+        warning = Color(0xFFFBBF24),
+        textPrimary = Color(0xFFFFF1F7),
+        textSecondary = Color(0xFFFFD3E2),
+        textMuted = Color(0xFFB785A1),
+        onAccent = Color(0xFF130817)
+    )
 }
