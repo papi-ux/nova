@@ -365,6 +365,43 @@ def _shown_count_label(xml_text: str) -> str | None:
     return None
 
 
+def _phone_library_base_forbidden_filter_nodes(xml_text: str) -> list[tuple[str, UiNode]]:
+    nodes = parse_ui_nodes(xml_text)
+    max_bottom = max((node.bounds[3] for node in nodes), default=0)
+    footer_top = int(max_bottom * 0.82) if max_bottom else 0
+    exposed: list[tuple[str, UiNode]] = []
+
+    for node in nodes:
+        label = " ".join(node.label.split())
+        if not label:
+            continue
+        label_norm = label.casefold()
+        left, top, right, bottom = node.bounds
+        width = right - left
+        height = bottom - top
+
+        # Controller hint bars legitimately mention drawer-owned shortcuts such as
+        # "Y Layout". Treat the bottom chrome as navigation help, not a leaked
+        # Library Options control.
+        if top >= footer_top and (
+            label_norm == "layout" or "y layout" in label_norm or "select" in label_norm or "back" in label_norm
+        ):
+            continue
+
+        # Game cards expose tiny metadata badges (HDR/Recent). The Library base
+        # must reject filter controls, but those badges are content metadata, not
+        # a persistent filter rail.
+        if _matches(label, "HDR") and width <= 80 and height <= 32:
+            continue
+
+        for wanted in PHONE_LIBRARY_BASE_FORBIDDEN_FILTER_LABELS:
+            if _matches(label, wanted):
+                exposed.append((wanted, node))
+                break
+
+    return exposed
+
+
 def analyze_phone_library_base(xml_text: str) -> CheckResult:
     result = analyze_required_labels(xml_text, PHONE_LIBRARY_LABELS, "phone_library_base")
     result.values.update(visible_surface_values(xml_text, "phone_library_base", PHONE_LIBRARY_LABELS))
@@ -372,8 +409,8 @@ def analyze_phone_library_base(xml_text: str) -> CheckResult:
     if shown_count:
         result.values["phone_library_base_shown_count_label"] = shown_count
 
-    exposed_filters = _present_labels(xml_text, PHONE_LIBRARY_BASE_FORBIDDEN_FILTER_LABELS)
-    result.values["phone_library_base_exposed_filter_labels"] = exposed_filters
+    exposed_filters = [label for label, _node in _phone_library_base_forbidden_filter_nodes(xml_text)]
+    result.values["phone_library_base_exposed_filter_labels"] = sorted(set(exposed_filters))
     if exposed_filters:
         result.failures.append("phone library base exposes drawer-owned filters")
         result.ok = False
@@ -927,7 +964,17 @@ def run_phone(args: argparse.Namespace) -> CheckResult:
             capture_png(adb, left_png)
             left_xml = dump_xml(adb, left_xml_path)
             artifacts.extend([left_png, left_xml_path])
-            result = result.merge(analyze_phone_library_options_drawer(left_xml))
+            left_result = analyze_phone_library_options_drawer(left_xml)
+            if any(item.endswith(": Layout") for item in left_result.missing):
+                adb.swipe(560, 920, 560, 430)
+                time.sleep(0.5)
+                left_scrolled_xml_path = prefix.with_name(
+                    prefix.name + "_left_library_options_scrolled"
+                ).with_suffix(".xml")
+                left_scrolled_xml = dump_xml(adb, left_scrolled_xml_path)
+                artifacts.append(left_scrolled_xml_path)
+                left_result = analyze_phone_library_options_drawer(left_xml + left_scrolled_xml)
+            result = result.merge(left_result)
             adb.input_keyevent("KEYCODE_BACK")
             time.sleep(0.7)
             after_left_xml_path = prefix.with_name(prefix.name + "_after_left_back").with_suffix(".xml")

@@ -501,6 +501,28 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertEqual(result.failures, [])
         self.assertEqual(result.values["phone_library_base_shown_count_label"], "19 shown")
 
+    def test_phone_library_base_ignores_card_badges_and_controller_layout_hint(self):
+        xml = """
+        <hierarchy>
+          <node text="Library" bounds="[252,93][353,128]" />
+          <node text="19 shown" bounds="[252,130][337,153]" />
+          <node text="Library Options" bounds="[40,84][234,162]" />
+          <node text="System" bounds="[2081,84][2198,162]" />
+          <node text="Steam Big Picture" bounds="[40,365][563,712]" />
+          <node text="HDR" bounds="[71,387][108,407]" />
+          <node text="Recent" bounds="[147,387][207,407]" />
+          <node text="A Select · B Back · X Library · Y Layout · Menu System" bounds="[18,931][2220,1009]" />
+          <node text="A Select" bounds="[52,947][154,993]" />
+          <node text="B Back" bounds="[188,947][276,993]" />
+          <node text="Y Layout" bounds="[453,947][559,993]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_phone_library_base(xml)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.values["phone_library_base_exposed_filter_labels"], [])
+
     def test_phone_library_base_rejects_filter_controls_outside_left_drawer(self):
         xml = """
         <hierarchy>
@@ -553,6 +575,110 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertTrue(right.ok)
         self.assertFalse(mixed_right.ok)
         self.assertIn("phone system drawer mixes library controls", mixed_right.failures)
+
+    def test_run_phone_scrolls_library_options_drawer_when_layout_is_below_dump(self):
+        base_xml = """
+        <hierarchy>
+          <node text="Library" bounds="[252,93][353,128]" />
+          <node text="19 shown" bounds="[252,130][337,153]" />
+          <node text="Library Options" bounds="[40,84][234,162]" />
+          <node text="System" bounds="[2081,84][2198,162]" />
+          <node text="A Select" bounds="[52,947][154,993]" />
+          <node text="B Back" bounds="[188,947][276,993]" />
+          <node text="Y Layout" bounds="[453,947][559,993]" />
+        </hierarchy>
+        """
+        left_first_xml = """
+        <hierarchy>
+          <node text="Library Options" bounds="[31,83][985,123]" />
+          <node text="Search this library" bounds="[31,139][1088,228]" />
+          <node text="Refresh" bounds="[857,241][1088,312]" />
+          <node text="All" bounds="[52,344][215,392]" />
+          <node text="Recent" bounds="[322,345][526,391]" />
+          <node text="Sources" bounds="[634,345][864,391]" />
+          <node text="Sort" bounds="[31,423][71,469]" />
+        </hierarchy>
+        """
+        left_scrolled_xml = """
+        <hierarchy>
+          <node text="Layout" bounds="[31,420][132,466]" />
+          <node text="Density" bounds="[31,520][154,566]" />
+        </hierarchy>
+        """
+        right_xml = """
+        <hierarchy>
+          <node text="System" bounds="[1329,80][1449,120]" />
+          <node text="Switch" bounds="[1329,252][2207,359]" />
+          <node text="Settings" bounds="[1329,372][2207,479]" />
+          <node text="Diagnostics" bounds="[1329,732][1759,803]" />
+          <node text="About" bounds="[1777,732][2207,803]" />
+        </hierarchy>
+        """
+
+        class FakeAdb:
+            def __init__(self):
+                self.serial = "phone"
+                self.dry_run = False
+                self.swipes = []
+                self.keys = []
+                self.taps = []
+
+            def shell(self, command, **kwargs):
+                return ""
+
+            def run(self, command, **kwargs):
+                return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+            def tap(self, x, y):
+                self.taps.append((x, y))
+
+            def input_keyevent(self, key):
+                self.keys.append(key)
+
+            def swipe(self, x1, y1, x2, y2, duration_ms=350):
+                self.swipes.append((x1, y1, x2, y2, duration_ms))
+
+        fake_adb = FakeAdb()
+        captured = {}
+        args = type(
+            "Args",
+            (),
+            {
+                "serial": None,
+                "dry_run": False,
+                "package": "com.papi.nova.debug",
+                "activity": "com.papi.nova.ui.NovaLibraryActivity",
+                "artifacts_dir": "/tmp",
+                "repo": str(MODULE_PATH.parents[1]),
+                "apk": str(MODULE_PATH.parents[1] / "app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk"),
+                "skip_install": True,
+                "clear_logcat": False,
+            },
+        )()
+
+        def capture_report(prefix, title, result, artifacts):
+            captured["result"] = result
+            captured["artifacts"] = [path.name for path in artifacts]
+
+        with patch.object(nova_retroid_smoke, "ensure_adb_device", return_value="phone"), \
+            patch.object(nova_retroid_smoke, "Adb", return_value=fake_adb), \
+            patch.object(nova_retroid_smoke, "maybe_install"), \
+            patch.object(nova_retroid_smoke, "begin_logcat_window", return_value="05-23 20:00:00.000"), \
+            patch.object(nova_retroid_smoke, "capture_rotation_settings", return_value={}), \
+            patch.object(nova_retroid_smoke, "write_system_setting"), \
+            patch.object(nova_retroid_smoke, "restore_rotation_settings"), \
+            patch.object(nova_retroid_smoke, "capture_png"), \
+            patch.object(nova_retroid_smoke, "dump_xml", side_effect=[base_xml, left_first_xml, left_scrolled_xml, base_xml, right_xml, base_xml]), \
+            patch.object(nova_retroid_smoke, "current_focus", return_value="com.papi.nova.debug/com.papi.nova.ui.NovaLibraryActivity"), \
+            patch.object(nova_retroid_smoke, "read_logcat", return_value="com.papi.nova.debug clean"), \
+            patch.object(nova_retroid_smoke, "write_report", side_effect=capture_report), \
+            patch.object(nova_retroid_smoke.time, "sleep"):
+            result = nova_retroid_smoke.run_phone(args)
+
+        self.assertTrue(result.ok)
+        self.assertTrue(fake_adb.swipes)
+        self.assertIn("phone_system_drawer_settings_bounds", result.values)
+        self.assertIn("phone", captured["artifacts"][0])
 
     def test_run_phone_accepts_launcher_library_and_captures_two_zone_drawers(self):
         base_xml = """
