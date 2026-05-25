@@ -297,6 +297,26 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertIsNotNone(node)
         self.assertEqual(node.bounds, (264, 795, 1656, 924))
 
+    def test_game_detail_first_paint_accepts_current_launch_controls_copy(self):
+        xml = """
+        <hierarchy>
+          <node text="Steam Big Picture" bounds="[62,96][820,164]" />
+          <node text="Launch controls" bounds="[254,623][1666,1080]" />
+          <node text="Launch Mode" bounds="[284,665][1425,713]" />
+          <node text="Headless" bounds="[303,728][712,781]" />
+          <node text="Virtual" bounds="[742,728][1152,781]" />
+          <node text="Launch 120 FPS" bounds="[264,795][1656,924]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_game_detail_first_paint(xml, "Steam Big Picture")
+
+        self.assertTrue(result.ok, result.missing)
+        self.assertEqual(result.missing, [])
+        self.assertTrue(result.values["detail_launch_button_bounds"])
+        self.assertNotIn("Launch options", result.missing)
+        self.assertNotIn("NOVA", result.missing)
+
     def test_end_stream_from_command_center_reports_confirm_and_return(self):
         class FakeAdb:
             def __init__(self):
@@ -420,6 +440,39 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
                 "settings delete system user_rotation",
             ],
         )
+
+    def test_start_library_reports_launcher_fallback_as_helper_signal_not_product_failure(self):
+        class FakeAdb:
+            def __init__(self):
+                self.commands = []
+
+            def shell(self, command, **kwargs):
+                self.commands.append(["shell", command])
+                return ""
+
+            def run(self, command, **kwargs):
+                self.commands.append(command)
+                return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        args = type(
+            "Args",
+            (),
+            {
+                "package": "com.papi.nova.debug",
+                "activity": "com.papi.nova.ui.NovaLibraryActivity",
+            },
+        )()
+        adb = FakeAdb()
+
+        with patch.object(nova_retroid_smoke, "wait_for_focus", side_effect=[False, True]), \
+            patch.object(nova_retroid_smoke.time, "sleep"):
+            result = nova_retroid_smoke.start_library(adb, args)
+
+        self.assertTrue(result.ok)
+        self.assertTrue(result.values["library_start_fallback_used"])
+        self.assertFalse(result.values["library_start_direct_focused"])
+        self.assertTrue(result.values["library_start_fallback_focused"])
+        self.assertTrue(any("monkey -p com.papi.nova.debug" in " ".join(command) for command in adb.commands))
 
     def test_ensure_library_focused_restarts_after_rotation_focus_loss(self):
         args = type(
@@ -713,6 +766,7 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertTrue(fake_adb.swipes)
+        self.assertTrue(result.values["phone_library_options_layout_scrolled"])
         self.assertIn("phone_system_drawer_settings_bounds", result.values)
         self.assertIn("phone", captured["artifacts"][0])
 

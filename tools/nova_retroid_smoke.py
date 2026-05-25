@@ -468,6 +468,7 @@ def analyze_phone_library_options_drawer(xml_text: str) -> CheckResult:
     result.values.update(
         visible_surface_values(xml_text, "phone_library_options_drawer", PHONE_LIBRARY_OPTIONS_DRAWER_LABELS)
     )
+    result.values["phone_library_options_layout_scrolled"] = False
     mixed_system = _present_labels(xml_text, PHONE_LIBRARY_OPTIONS_FORBIDDEN_SYSTEM_LABELS)
     result.values["phone_library_options_drawer_system_labels"] = mixed_system
     if mixed_system:
@@ -725,19 +726,39 @@ def _library_start_command(args: argparse.Namespace) -> str:
     return " ".join(shlex.quote(part) for part in command)
 
 
-def start_library(adb: Adb, args: argparse.Namespace) -> None:
+def start_library(adb: Adb, args: argparse.Namespace) -> CheckResult:
+    target = f"{args.package}/{args.activity}"
     adb.shell(f"am force-stop {args.package}")
     command = _library_start_command(args)
     direct = adb.run(["shell", command], check=False)
-    if direct.returncode == 0 and wait_for_focus(adb, f"{args.package}/{args.activity}", 5):
+    direct_focused = direct.returncode == 0 and wait_for_focus(adb, target, 5)
+    if direct_focused:
         time.sleep(1)
-        return
+        return CheckResult(
+            ok=True,
+            values={
+                "library_start_direct_focused": True,
+                "library_start_fallback_used": False,
+                "library_start_fallback_focused": False,
+            },
+        )
+
     print("direct Library activity launch failed or did not focus; falling back to launcher monkey", flush=True)
     adb.run(
         ["shell", f"monkey -p {args.package} -c android.intent.category.LAUNCHER 1"],
         timeout=20,
     )
     time.sleep(3)
+    fallback_focused = wait_for_focus(adb, target, 5)
+    return CheckResult(
+        ok=fallback_focused,
+        failures=[] if fallback_focused else ["Library activity did not focus after launcher fallback"],
+        values={
+            "library_start_direct_focused": False,
+            "library_start_fallback_used": True,
+            "library_start_fallback_focused": fallback_focused,
+        },
+    )
 
 
 def ensure_library_focused(adb: Adb, args: argparse.Namespace, reason: str, timeout_s: int = 5) -> CheckResult:
@@ -855,7 +876,7 @@ def run_library(args: argparse.Namespace) -> CheckResult:
     try:
         maybe_install(adb, args)
         logcat_since = begin_logcat_window(adb, args)
-        start_library(adb, args)
+        start_result = start_library(adb, args)
         rotation_settings, rotation_result = maybe_force_landscape(adb, args)
         focus_result = ensure_library_focused(adb, args, "rotation")
 
@@ -864,7 +885,7 @@ def run_library(args: argparse.Namespace) -> CheckResult:
         xml_path = prefix.with_suffix(".xml")
         xml, library_result = wait_for_library_rail(adb, xml_path)
         capture_png(adb, png)
-        result = rotation_result.merge(focus_result).merge(library_result)
+        result = start_result.merge(rotation_result).merge(focus_result).merge(library_result)
 
         for key in ("KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_DOWN"):
             adb.input_keyevent(key)
@@ -983,7 +1004,8 @@ def run_phone(args: argparse.Namespace) -> CheckResult:
             else:
                 result = result.merge(CheckResult(ok=False, missing=["dashboard: Settings tap target"]))
 
-            start_library(adb, args)
+            start_result = start_library(adb, args)
+            result = result.merge(start_result)
             time.sleep(2)
             library_png = prefix.with_name(prefix.name + "_library").with_suffix(".png")
             library_xml_path = prefix.with_name(prefix.name + "_library").with_suffix(".xml")
@@ -1016,6 +1038,7 @@ def run_phone(args: argparse.Namespace) -> CheckResult:
                 left_scrolled_xml = dump_xml(adb, left_scrolled_xml_path)
                 artifacts.append(left_scrolled_xml_path)
                 left_result = analyze_phone_library_options_drawer(left_xml + left_scrolled_xml)
+                left_result.values["phone_library_options_layout_scrolled"] = True
             result = result.merge(left_result)
             adb.input_keyevent("KEYCODE_BACK")
             time.sleep(0.7)
@@ -1072,6 +1095,22 @@ def find_launch_button_node(xml_text: str) -> UiNode | None:
     if not candidates:
         return None
     return max(candidates, key=lambda node: (node.bounds[2] - node.bounds[0]) * (node.bounds[3] - node.bounds[1]))
+
+
+def analyze_game_detail_first_paint(xml_text: str, expected_title: str | None = None) -> CheckResult:
+    required = ["Launch controls", "Launch Mode", "Headless", "Virtual"]
+    if expected_title:
+        required.insert(0, expected_title)
+    result = analyze_required_labels(xml_text, required, "detail_first_paint")
+    result.values.update(visible_surface_values(xml_text, "detail_first_paint", required))
+
+    launch = find_launch_button_node(xml_text)
+    if launch is None:
+        result.missing.append("detail_first_paint: launch action")
+        result.ok = False
+    else:
+        result.values["detail_launch_button_bounds"] = launch.bounds
+    return result
 
 
 def tap_first_label(adb: Adb, xml_text: str, label: str) -> bool:
@@ -1154,14 +1193,14 @@ def run_live_stream(args: argparse.Namespace) -> CheckResult:
     try:
         maybe_install(adb, args)
         logcat_since = begin_logcat_window(adb, args)
-        start_library(adb, args)
+        start_result = start_library(adb, args)
         rotation_settings, rotation_result = maybe_force_landscape(adb, args)
         focus_result = ensure_library_focused(adb, args, "rotation")
 
         prefix = artifact_prefix(args, "live_stream")
         library_xml = prefix.with_name(prefix.name + "_library").with_suffix(".xml")
         xml = dump_xml(adb, library_xml)
-        library_result = rotation_result.merge(focus_result).merge(analyze_library_rail(xml))
+        library_result = start_result.merge(rotation_result).merge(focus_result).merge(analyze_library_rail(xml))
 
         if not launch_stream_from_library(adb, args, prefix, xml):
             raise SystemExit(f"Timed out waiting for {args.package}/com.papi.nova.Game")
