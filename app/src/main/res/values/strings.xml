@@ -136,7 +136,7 @@
     <string name="nova_library_status_checking">Checking</string>
     <string name="nova_library_polaris_ready">Polaris Ready</string>
     <string name="nova_library_polaris_checking">Checking Polaris</string>
-    <string name="nova_library_resume_ready">Resume Ready</string>
+    <string name="nova_library_resume_ready">Game still running</string>
     <string name="nova_library_auto_quality_on">AI On</string>
     <string name="nova_library_auto_quality_off">AI Off</string>
     <string name="nova_library_mode_checking">Mode</string>
@@ -255,8 +255,8 @@
     <string name="nova_library_meta_last_played">Played %1$s</string>
     <string name="nova_library_meta_ready_to_play">Ready to play</string>
     <string name="nova_library_launch_mode_title">Launch Mode</string>
-    <string name="nova_library_launch_headless">Headless</string>
-    <string name="nova_library_launch_virtual_display">Virtual Display</string>
+    <string name="nova_library_launch_headless">Private stream</string>
+    <string name="nova_library_launch_virtual_display">Virtual display</string>
     <string name="nova_library_launch_virtual_short">Virtual</string>
     <string name="nova_library_launch_desktop_display">Desktop Display</string>
     <string name="nova_library_launch_gpu_native_test">GPU-Native Test</string>
@@ -282,10 +282,10 @@
     <string name="nova_library_launch_options_title">Launch Options</string>
     <string name="nova_library_launch_recommended_format">%1$s · Recommended</string>
     <string name="nova_library_no_launch_modes">No launch modes are available for this game.</string>
-    <string name="nova_library_launch_intro_headless_default">Headless is currently the default for this Polaris server.</string>
-    <string name="nova_library_launch_intro_virtual_default">Virtual Display is currently the default for this Polaris server.</string>
-    <string name="nova_library_launch_intro_virtual_unavailable">Virtual Display is not available on this host. Headless will be used for this launch.</string>
-    <string name="nova_library_launch_mode_note">Headless uses the Polaris default non-desktop path when available. Virtual Display creates a separate display for the session.</string>
+    <string name="nova_library_launch_intro_headless_default">Nova will use a private stream for this launch.</string>
+    <string name="nova_library_launch_intro_virtual_default">Nova will use a virtual display for this launch.</string>
+    <string name="nova_library_launch_intro_virtual_unavailable">Virtual display is not available on this host. Nova will use a private stream for this launch.</string>
+    <string name="nova_library_launch_mode_note">Private stream uses Nova\'s headless path when available. Virtual display creates a separate display for the session.</string>
     <string name="nova_library_launch_default_mode_badge">Default: %1$s</string>
     <string name="nova_library_launch_mode_default_format">%1$s · Default</string>
     <string name="nova_library_launch_recommended_mode_badge">Rec. %1$s</string>
@@ -471,13 +471,13 @@
 
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>
-    <string name="applist_menu_resume">Resume Session</string>
-    <string name="applist_menu_watch">Watch Stream</string>
+    <string name="applist_menu_resume">Resume stream</string>
+    <string name="applist_menu_watch">Watch stream</string>
     <string name="applist_menu_watch_active">Watch Active Stream</string>
     <string name="applist_menu_watch_active_name">Active Stream</string>
     <string name="applist_menu_start_vdisplay">Start with Virtual Display</string>
     <string name="applist_menu_start_primarydisplay">Start on Host Display</string>
-    <string name="applist_menu_quit">Quit Session</string>
+    <string name="applist_menu_quit">End session</string>
     <string name="applist_menu_quit_and_start">Quit Current Game and Start</string>
     <string name="applist_menu_quit_and_start_vdisplay">Quit Current Game and Start in Virtual Display</string>
     <string name="applist_menu_quit_and_start_primarydisplay">Quit Current Game and Start in Primary Display</string>
@@ -777,7 +777,7 @@
     <string name="nova_quick_menu_clear_game_profile_caption">reset learned Auto Quality history</string>
     <string name="nova_quick_menu_clear_game_profile_for_game">reset learned profile for %1$s</string>
     <string name="nova_quick_menu_clear_game_profile_unavailable">available after Polaris reports the running game</string>
-    <string name="nova_quick_menu_end_stream">End</string>
+    <string name="nova_quick_menu_end_stream">End session</string>
     <string name="nova_quick_menu_key_meta">Meta</string>
     <string name="nova_quick_menu_quick_keys">Quick Keys</string>
     <string name="nova_quick_menu_overlays">Overlays</string>

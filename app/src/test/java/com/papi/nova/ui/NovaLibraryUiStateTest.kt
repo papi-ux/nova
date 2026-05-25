@@ -235,7 +235,7 @@ class NovaLibraryUiStateTest {
         assertEquals("Active session • Retroid Pocket", hero.artworkFallbackSubtitle)
         assertTrue(hero.badges.contains("Active session"))
         assertTrue(hero.badges.contains("Virtual display"))
-        assertEquals("Resume the current display and quality profile.", hero.caption)
+        assertEquals("Resume the current stream and quality settings.", hero.caption)
         assertTrue(hero.badges.contains("1920×1080 60fps"))
         assertFalse(
             NovaLibraryUiStateMapper.showLandscapeRecentRail(

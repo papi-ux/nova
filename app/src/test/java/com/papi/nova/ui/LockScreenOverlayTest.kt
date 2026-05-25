@@ -44,15 +44,15 @@ class LockScreenOverlayTest {
         shadowOf(Looper.getMainLooper()).idle()
 
         val root = overlayRoot(activity)
-        val button = findButton(root)
-        assertNotNull(button)
+        val button = requireNotNull(findButton(root))
+        assertEquals("Tap to unlock", button.text.toString())
 
         root.performClick()
         shadowOf(Looper.getMainLooper()).idle()
 
         assertTrue(unlockStarted.await(1, TimeUnit.SECONDS))
-        assertFalse(button!!.isEnabled)
-        assertEquals("Unlocking...", button.text.toString())
+        assertFalse(button.isEnabled)
+        assertEquals("Unlocking…", button.text.toString())
 
         root.performClick()
         verify(client, timeout(1000).times(1)).unlockScreen()
@@ -65,7 +65,7 @@ class LockScreenOverlayTest {
         }
 
         assertTrue(button.isEnabled)
-        assertEquals("Tap to Unlock", button.text.toString())
+        assertEquals("Tap to unlock", button.text.toString())
     }
 
     @Test

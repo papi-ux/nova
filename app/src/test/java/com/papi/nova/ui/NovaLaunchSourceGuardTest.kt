@@ -269,6 +269,28 @@ class NovaLaunchSourceGuardTest {
         )
     }
 
+
+    @Test
+    fun novaLaunchAndSessionStringsUsePlayerLifecycleLanguage() {
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(
+            "launch mode copy should explain private/headless and virtual display choices in player language",
+            strings.contains("<string name=\"nova_library_launch_headless\">Private stream</string>") &&
+                strings.contains("<string name=\"nova_library_launch_virtual_display\">Virtual display</string>") &&
+                strings.contains("private stream for this launch")
+        )
+        assertTrue(
+            "session lifecycle copy should distinguish disconnecting the client from ending the running host session",
+            strings.contains("<string name=\"nova_library_resume_ready\">Game still running</string>") &&
+                strings.contains("<string name=\"applist_menu_resume\">Resume stream</string>") &&
+                strings.contains("<string name=\"applist_menu_watch\">Watch stream</string>") &&
+                strings.contains("<string name=\"game_menu_disconnect\">Disconnect</string>") &&
+                strings.contains("<string name=\"nova_quick_menu_end_stream\">End session</string>") &&
+                strings.contains("<string name=\"applist_menu_quit\">End session</string>")
+        )
+    }
+
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
 

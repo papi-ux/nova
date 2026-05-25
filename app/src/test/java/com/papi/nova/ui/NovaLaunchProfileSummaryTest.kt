@@ -46,9 +46,9 @@ class NovaLaunchProfileSummaryTest {
         )
 
         requireNotNull(summary)
-        assertEquals("Launch Recovery 40 FPS", summary.primaryLaunchLabel)
-        assertEquals("Requested: Prefer High FPS / 120 FPS", summary.requestedLine)
-        assertEquals("Selected: Recovery / 40 FPS", summary.selectedLine)
+        assertEquals("Launch Recovery profile 40 FPS", summary.primaryLaunchLabel)
+        assertEquals("Requested: High FPS profile / 120 FPS", summary.requestedLine)
+        assertEquals("Selected: Recovery profile / 40 FPS", summary.selectedLine)
         assertEquals("Limited by: Decoder path", summary.limitingLine)
         assertEquals("Recovery active from last session · 1 min ago", summary.freshnessLine)
         assertEquals("Try 120 FPS once", summary.retryHighFpsLabel)
@@ -89,9 +89,9 @@ class NovaLaunchProfileSummaryTest {
         )
 
         requireNotNull(summary)
-        assertEquals("Launch High FPS Trial 120 FPS", summary.primaryLaunchLabel)
-        assertEquals("Requested: Prefer High FPS / 120 FPS", summary.requestedLine)
-        assertEquals("Selected: High FPS Trial / 120 FPS", summary.selectedLine)
+        assertEquals("Try High FPS profile 120 FPS", summary.primaryLaunchLabel)
+        assertEquals("Requested: High FPS profile / 120 FPS", summary.requestedLine)
+        assertEquals("Selected: High FPS trial / 120 FPS", summary.selectedLine)
         assertFalse(summary.showRetryHighFps)
     }
 
@@ -124,8 +124,8 @@ class NovaLaunchProfileSummaryTest {
         )
 
         requireNotNull(summary)
-        assertEquals("Launch High FPS 120 FPS", summary.primaryLaunchLabel)
-        assertEquals("Selected: High FPS / 120 FPS", summary.selectedLine)
+        assertEquals("Launch High FPS profile 120 FPS", summary.primaryLaunchLabel)
+        assertEquals("Selected: High FPS profile / 120 FPS", summary.selectedLine)
         assertFalse(summary.showRetryHighFps)
     }
 
@@ -157,4 +157,32 @@ class NovaLaunchProfileSummaryTest {
         assertEquals("", summary.limitingLine)
         assertFalse(summary.historyLines.contains("Issue: Steady"))
     }
+
+    @Test
+    fun highFpsRecommendationReadsLikeANovaLaunchProfile() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"display_mode\":\"1920x1080x120\"," +
+                    "\"effective_target_fps\":120," +
+                    "\"preference\":\"high_fps\"," +
+                    "\"preference_applied\":true," +
+                    "\"preference_requested_profile\":{\"display_mode\":\"1920x1080x120\",\"target_fps\":120}," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"stable\"," +
+                    "\"reason\":\"Nova recommends High FPS for this game.\"," +
+                    "\"preference_label\":\"Prefer High FPS\"," +
+                    "\"current_profile\":{\"display_mode\":\"1920x1080x120\",\"target_fps\":120}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals("Launch High FPS profile 120 FPS", summary.primaryLaunchLabel)
+        assertEquals("Requested: High FPS profile / 120 FPS", summary.requestedLine)
+        assertEquals("Selected: High FPS profile / 120 FPS", summary.selectedLine)
+        assertEquals("Reason: Nova recommends High FPS for this game.", summary.reasonLine)
+    }
+
 }

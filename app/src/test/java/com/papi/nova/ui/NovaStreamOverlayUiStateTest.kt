@@ -9,8 +9,8 @@ class NovaStreamOverlayUiStateTest {
     fun reconnectStateFormatsAttemptText() {
         val state = NovaReconnectOverlayState(attempt = 2, maxAttempts = 5)
 
-        assertEquals("Reconnecting...", state.title)
-        assertEquals("Stream will resume automatically", state.subtitle)
+        assertEquals("Reconnecting stream…", state.title)
+        assertEquals("Game is still running; Nova will resume automatically.", state.subtitle)
         assertEquals("Attempt 2 of 5", state.attemptLabel)
     }
 
@@ -130,4 +130,17 @@ class NovaStreamOverlayUiStateTest {
         assertEquals(0.5f, state.progressFraction, 0.001f)
         assertTrue(state.completedStages.isEmpty())
     }
+
+    @Test
+    fun progressStateMapsLockedHostToNovaUnlockPrompt() {
+        val state = NovaSessionProgressUiState.from("host_locked")
+
+        assertEquals("host_locked", state.state)
+        assertEquals("Host locked", state.title)
+        assertEquals("Unlock host", state.stageLabel)
+        assertEquals("Tap to unlock", state.confidenceLabel)
+        assertEquals("Nova is connected; unlock the host to continue into the stream.", state.confidenceDetail)
+        assertEquals(0.96f, state.progressFraction, 0.001f)
+    }
+
 }

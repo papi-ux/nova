@@ -112,7 +112,7 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Command Center", state.title)
         assertEquals("Quick keys and controls for Headless Stream", state.subtitle)
         assertEquals("Disconnect", state.disconnectAction.label)
-        assertEquals("End", state.endAction.label)
+        assertEquals("End session", state.endAction.label)
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_ESC && it.label == "ESC" })
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_CTRL_V && it.label == "Ctrl + V" })
         assertTrue(state.overlayRows.any { it.id == NovaQuickMenuActionId.PERF_STATS && it.label == "Stats Overlay" })

@@ -25,8 +25,8 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 data class NovaReconnectOverlayState(
     val attempt: Int,
     val maxAttempts: Int,
-    val title: String = "Reconnecting...",
-    val subtitle: String = "Stream will resume automatically"
+    val title: String = "Reconnecting stream…",
+    val subtitle: String = "Game is still running; Nova will resume automatically."
 ) {
     val attemptLabel: String = "Attempt $attempt of $maxAttempts"
 }
@@ -136,6 +136,15 @@ data class NovaSessionProgressUiState(
                 confidenceDetail = "Nova is enabling controller and keyboard input.",
                 progressFraction = 0.94f,
                 aliases = setOf("input stream initialization", "input stream establishment")
+            ),
+            StageCopy(
+                state = "host_locked",
+                title = "Host locked",
+                stageLabel = "Unlock host",
+                confidenceLabel = "Tap to unlock",
+                confidenceDetail = "Nova is connected; unlock the host to continue into the stream.",
+                progressFraction = 0.96f,
+                aliases = setOf("locked", "screen_locked", "host screen locked")
             ),
             StageCopy(
                 state = "stream_active",

@@ -383,7 +383,7 @@ object NovaLibraryUiStateMapper {
             title = session.gameName.ifBlank { "Active session" },
             subtitle = ownerDetail,
             caption = if (session.ownedByClient) {
-                "Resume the current display and quality profile."
+                "Resume the current stream and quality settings."
             } else {
                 "Watch-only view; owner stays in control."
             },
