@@ -374,6 +374,9 @@ class ControllerHandler(
         }
     }
 
+    private fun isRetroidPocketBuiltInController(context: InputDeviceContext): Boolean =
+        context.vendorId == 0x2022 && context.productId == 0x3002
+
     private fun createInputDeviceContextForDevice(dev: InputDevice): InputDeviceContext {
         val context = InputDeviceContext()
         val devName = dev.name
@@ -389,6 +392,9 @@ class ControllerHandler(
         context.external = isExternal(dev)
         context.vendorId = dev.vendorId
         context.productId = dev.productId
+        if (isRetroidPocketBuiltInController(context)) {
+            context.novaShortcutState.loneAppSwitchOpensQuickMenu = true
+        }
 
         context.hasPaddles = MoonBridge.guessControllerHasPaddles(context.vendorId, context.productId)
         context.hasShare = MoonBridge.guessControllerHasShareButton(context.vendorId, context.productId)

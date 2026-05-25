@@ -24,8 +24,21 @@ class NovaControllerShortcutState {
     private var backDown = false
     private var yDown = false
     private var backYConsumedByNova = false
+    var loneAppSwitchOpensQuickMenu = false
+    private var appSwitchConsumedByNova = false
 
     fun onButtonDown(keyCode: Int, repeatCount: Int): NovaControllerShortcutAction {
+        if (!guideDown && keyCode == KeyEvent.KEYCODE_APP_SWITCH && loneAppSwitchOpensQuickMenu) {
+            if (appSwitchConsumedByNova) {
+                return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
+            }
+            if (repeatCount == 0) {
+                appSwitchConsumedByNova = true
+                return NovaControllerShortcutAction.OPEN_QUICK_MENU
+            }
+            return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
+        }
+
         if (!guideDown && isNoGuideChordKey(keyCode)) {
             if (startSelectConsumedByNova && isStartSelectKey(keyCode)) {
                 return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
@@ -96,6 +109,11 @@ class NovaControllerShortcutState {
     }
 
     fun onButtonUp(keyCode: Int): NovaControllerShortcutAction {
+        if (appSwitchConsumedByNova && keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+            appSwitchConsumedByNova = false
+            return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
+        }
+
         if (isNoGuideChordKey(keyCode)) {
             markNoGuideChordUp(keyCode)
         }
@@ -157,6 +175,7 @@ class NovaControllerShortcutState {
         backDown = false
         yDown = false
         backYConsumedByNova = false
+        appSwitchConsumedByNova = false
         pendingConsumedButtonRelease = 0
     }
 

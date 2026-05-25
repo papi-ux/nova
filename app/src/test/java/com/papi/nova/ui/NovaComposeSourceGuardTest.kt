@@ -1479,6 +1479,40 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun streamHudDragUsesRawTouchCoordinatesAndPreservesPositionAcrossModeCycles() {
+        val source = readSource("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")
+        val touchHandler = source.section(
+            "private fun setupTouchHandler(view: View)",
+            "fun cycleMode()"
+        )
+        val cycleMode = source.section(
+            "fun cycleMode()",
+            "fun updateFromPerfText("
+        )
+
+        assertTrue(
+            "Nova HUD drag should be handled by the HUD view itself using raw display coordinates so Retroid touch swipes move the floating overlay instead of the stream surface",
+            touchHandler.contains("view.setOnTouchListener") &&
+                touchHandler.contains("event.rawX") &&
+                touchHandler.contains("event.rawY") &&
+                touchHandler.contains("viewStartX = touchedView.x") &&
+                touchHandler.contains("viewStartY = touchedView.y") &&
+                touchHandler.contains("touchedView.x = viewStartX + dx") &&
+                touchHandler.contains("touchedView.y = viewStartY + dy") &&
+                touchHandler.contains("DRAG_THRESHOLD")
+        )
+        assertTrue(
+            "tap-to-cycle must not reset a user-dragged HUD back to top-left when the compact/expanded width changes",
+            cycleMode.contains("val savedX = view.x") &&
+                cycleMode.contains("val savedY = view.y") &&
+                cycleMode.contains("width = layoutWidthForMode(currentMode)") &&
+                cycleMode.contains("view.post") &&
+                cycleMode.contains("view.x = savedX") &&
+                cycleMode.contains("view.y = savedY")
+        )
+    }
+
+    @Test
     fun commandCenterUsesAnchoredLeftDrawerInsteadOfBottomSheet() {
         val quickMenu = readNovaQuickMenu()
         val content = readNovaQuickMenuContent()
@@ -1605,6 +1639,55 @@ class NovaComposeSourceGuardTest {
                 commandCenter.contains("surfaces.tile.copy(alpha = 0.72f)") ||
                 hud.contains("surfaces.panel.copy(alpha = 0.96f)") ||
                 hud.contains("surfaces.control.copy(alpha = 0.82f)")
+        )
+    }
+
+
+    @Test
+    fun retroidLoneAppSwitchMapsToCommandCenterWithoutHijackingGenericMenu() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val controllerHandler = readSource("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")
+        val shortcuts = readSource("src/main/java/com/papi/nova/binding/input/NovaControllerShortcutState.kt")
+
+        val downShortcut = game.indexOf("handleFallbackNovaShortcut(event, down = true)")
+        val downIgnore = if (downShortcut >= 0) {
+            game.indexOf("prefConfig!!.ignoreSynthEvents && deviceId <= 0", downShortcut)
+        } else {
+            -1
+        }
+        val upShortcut = game.indexOf("handleFallbackNovaShortcut(event, down = false)")
+        val upIgnore = if (upShortcut >= 0) {
+            game.indexOf("prefConfig!!.ignoreSynthEvents && deviceId <= 0", upShortcut)
+        } else {
+            -1
+        }
+
+        assertTrue(
+            "fallback shortcut handling must stay before ignoreSynthEvents so ADB app-owned shortcuts still work",
+            downShortcut >= 0 && downIgnore > downShortcut &&
+                upShortcut >= 0 && upIgnore > upShortcut
+        )
+        assertTrue(
+            "synthetic fallback state should opt into lone KEYCODE_APP_SWITCH, not generic KEYCODE_MENU",
+            game.contains("fallbackNovaShortcutState:NovaControllerShortcutState = NovaControllerShortcutState().apply") &&
+                game.contains("loneAppSwitchOpensQuickMenu = true")
+        )
+        assertTrue(
+            "Retroid built-in controller should be recognized by vendor/product before enabling lone app-switch",
+            controllerHandler.contains("isRetroidPocketBuiltInController(context)") &&
+                controllerHandler.contains("context.vendorId == 0x2022") &&
+                controllerHandler.contains("context.productId == 0x3002") &&
+                controllerHandler.contains("context.novaShortcutState.loneAppSwitchOpensQuickMenu = true")
+        )
+        assertTrue(
+            "the lone app-switch path should open the same Command Center action as other shortcuts",
+            shortcuts.contains("keyCode == KeyEvent.KEYCODE_APP_SWITCH && loneAppSwitchOpensQuickMenu") &&
+                shortcuts.contains("NovaControllerShortcutAction.OPEN_QUICK_MENU")
+        )
+        assertFalse(
+            "generic lone KEYCODE_MENU should not be promoted to single-button Command Center until hardware proves it is safe",
+            shortcuts.contains("keyCode == KeyEvent.KEYCODE_MENU && loneAppSwitchOpensQuickMenu") ||
+                shortcuts.contains("KeyEvent.KEYCODE_MENU && loneAppSwitchOpensQuickMenu")
         )
     }
 

@@ -257,4 +257,73 @@ class NovaControllerShortcutStateTest {
             shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_SELECT, repeatCount = 0)
         )
     }
+
+
+    @Test
+    fun loneAppSwitchOpensQuickMenuWhenEnabledAndConsumesRelease() {
+        val shortcuts = NovaControllerShortcutState()
+        shortcuts.loneAppSwitchOpensQuickMenu = true
+
+        assertEquals(
+            NovaControllerShortcutAction.OPEN_QUICK_MENU,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_APP_SWITCH, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.CONSUME_CHORD_BUTTON,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_APP_SWITCH, repeatCount = 1)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.CONSUME_CHORD_BUTTON,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_APP_SWITCH)
+        )
+    }
+
+    @Test
+    fun loneAppSwitchDoesNotOpenQuickMenuByDefault() {
+        val shortcuts = NovaControllerShortcutState()
+
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_APP_SWITCH, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_APP_SWITCH)
+        )
+    }
+
+    @Test
+    fun loneMenuStillDoesNotOpenQuickMenuWithoutSelect() {
+        val shortcuts = NovaControllerShortcutState()
+        shortcuts.loneAppSwitchOpensQuickMenu = true
+
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_MENU, repeatCount = 0)
+        )
+    }
+
+    @Test
+    fun appSwitchShortcutDoesNotLatchStartSelectChordState() {
+        val shortcuts = NovaControllerShortcutState()
+        shortcuts.loneAppSwitchOpensQuickMenu = true
+
+        assertEquals(
+            NovaControllerShortcutAction.OPEN_QUICK_MENU,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_APP_SWITCH, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.CONSUME_CHORD_BUTTON,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_APP_SWITCH)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_START, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.OPEN_QUICK_MENU,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_SELECT, repeatCount = 0)
+        )
+    }
+
 }

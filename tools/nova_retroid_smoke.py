@@ -36,7 +36,6 @@ DEFAULT_APK = Path(
 NOVA_PACKAGE_PREFIX = "com.papi.nova"
 DRAWER_FIRST_LIBRARY_REQUIRED_LABELS = (
     "Library Options",
-    "Refresh",
     "System",
 )
 OBSOLETE_LIBRARY_RAIL_LABELS = (
@@ -46,6 +45,14 @@ OBSOLETE_LIBRARY_RAIL_LABELS = (
     "Sources",
     "HDR",
     "More",
+)
+HUD_LABELS = (
+    "FPS",
+    "RTT",
+    "Bitrate",
+    "Codec",
+    "Resolution",
+    "HOST",
 )
 DRAWER_FIRST_LIBRARY_CONTENT_LABELS = (
     "Build your library",
@@ -257,6 +264,36 @@ def _first_bounds(xml_text: str, wanted: str) -> tuple[int, int, int, int] | Non
     return nodes[0].bounds if nodes else None
 
 
+def hud_drag_points(
+    xml_text: str,
+    *,
+    screen_width: int,
+    screen_height: int,
+) -> dict[str, tuple[int, int]] | None:
+    """Return a safe drag gesture anchored inside the currently visible Nova HUD.
+
+    The HUD changes size/mode after a tap. Retroid smoke must therefore derive the drag
+    start from the post-tap XML instead of reusing coordinates from the previous HUD
+    mode; otherwise the drag may start below the compact top-left HUD and hit the
+    stream/game surface instead.
+    """
+    candidates: list[UiNode] = []
+    for label in HUD_LABELS:
+        candidates.extend(find_nodes(xml_text, label))
+    if not candidates:
+        return None
+
+    anchor = min(candidates, key=lambda node: (node.bounds[1], node.bounds[0]))
+    from_x, from_y = anchor.center
+    to_x = min(screen_width - 80, from_x + max(640, screen_width // 2))
+    to_y = min(screen_height - 80, from_y + max(160, screen_height // 6))
+    if to_x <= from_x:
+        to_x = max(0, from_x - max(240, screen_width // 4))
+    if to_y <= from_y:
+        to_y = max(0, from_y - max(120, screen_height // 8))
+    return {"from": (from_x, from_y), "to": (to_x, to_y)}
+
+
 def analyze_library_rail(xml_text: str) -> CheckResult:
     missing = [
         label
@@ -280,8 +317,13 @@ def analyze_library_rail(xml_text: str) -> CheckResult:
         label = " ".join(node.label.split())
         if not label:
             continue
-        left, top, right, _ = node.bounds
+        left, top, right, bottom = node.bounds
+        height = bottom - top
         if left >= 520 or top <= 250:
+            continue
+        # Populated game cards expose small metadata chips such as "HDR" and "Recent"
+        # near the left edge; those are not the obsolete permanent rail controls.
+        if height <= 28 and label.casefold() in {"hdr", "recent"}:
             continue
         if any(_matches(label, wanted) for wanted in OBSOLETE_LIBRARY_RAIL_LABELS):
             obsolete_labels.append(label)

@@ -202,7 +202,9 @@ private var app:NvApp? = null
 private var desiredRefreshRate:Float = 0.toFloat()
 
 private var inputCaptureProvider:InputCaptureProvider? = null
-private val fallbackNovaShortcutState:NovaControllerShortcutState = NovaControllerShortcutState()
+private val fallbackNovaShortcutState:NovaControllerShortcutState = NovaControllerShortcutState().apply {
+    loneAppSwitchOpensQuickMenu = true
+}
 private var modifierFlags:Int = 0
 private var grabbedInput:Boolean = true
 private var cursorVisible:Boolean = false

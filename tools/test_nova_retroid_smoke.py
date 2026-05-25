@@ -54,6 +54,42 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertTrue(nodes[0].focused)
         self.assertFalse(nodes[1].focused)
 
+    def test_hud_drag_points_use_visible_hud_label_bounds(self):
+        xml = """
+        <hierarchy>
+          <node text="FPS" bounds="[68,50][95,66]" />
+          <node text="23" bounds="[68,72][108,108]" />
+          <node text="HOST" bounds="[309,88][351,105]" />
+        </hierarchy>
+        """
+
+        points = nova_retroid_smoke.hud_drag_points(xml, screen_width=1920, screen_height=1080)
+
+        self.assertIsNotNone(points)
+        self.assertLess(points["from"][1], 132)
+        self.assertGreater(points["to"][0], points["from"][0] + 600)
+        self.assertGreater(points["to"][1], points["from"][1] + 80)
+
+    def test_library_rail_analysis_accepts_populated_grid_metadata_chips(self):
+        xml = """
+        <hierarchy>
+          <node text="Library" bounds="[252,93][353,128]" />
+          <node text="19 shown" bounds="[252,130][337,153]" />
+          <node text="Library Options" bounds="[40,84][234,162]" />
+          <node text="System" bounds="[2081,84][2198,162]" />
+          <node text="Steam Big Picture" bounds="[40,365][563,712]" />
+          <node text="HDR" bounds="[71,387][108,407]" />
+          <node text="Recent" bounds="[147,387][207,407]" />
+          <node text="A Select · B Back · X Library · Y Layout · Menu System" bounds="[18,931][2220,1009]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_library_rail(xml)
+
+        self.assertTrue(result.ok, result)
+        self.assertEqual(result.missing, [])
+        self.assertEqual(result.values["obsolete_rail_labels"], [])
+
     def test_library_rail_analysis_requires_controller_hint_bar(self):
         xml = """
         <hierarchy>
