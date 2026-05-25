@@ -826,7 +826,18 @@ object NovaLibraryUiStateMapper {
         return (widthDp - reservedWidth).coerceAtLeast(0)
     }
 
-    fun showLandscapeControlRail(): Boolean = false
+    fun showLandscapeControlRail(): Boolean {
+        // Runtime device class detection for where the permanent landscape control rail is desirable.
+        // Preserve existing call sites (no-arg function) to keep source-guard tests stable.
+        // Use a JVM system property (set in test or at app runtime) to opt into device classes where
+        // a permanent control rail is appropriate: e.g. 'retroid', 'tv', 'shield', 'controller'.
+        val deviceClass = System.getProperty("nova.device.class")?.lowercase() ?: ""
+        return when (deviceClass) {
+            "retroid", "tv", "shield", "controller", "gamepad" -> true
+            "phone", "tablet", "handheld", "mobile" -> false
+            else -> false
+        }
+    }
 
     fun railWidthDp(widthDp: Int): Int {
         return if (widthDp >= 1200) 268 else 236
