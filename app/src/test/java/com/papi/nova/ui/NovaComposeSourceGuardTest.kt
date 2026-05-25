@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -455,12 +456,29 @@ class NovaComposeSourceGuardTest {
             screen.contains("hero = model.hero")
         )
         assertTrue(
-            "hero should expose the game-launcher primary action through NovaActionButton",
+            "hero should expose exactly one visually dominant game-launcher primary action through NovaActionButton",
             hero.contains("NovaActionButton(") && hero.contains("text = hero.actionLabel")
+        )
+        assertEquals(
+            "home hero should not grow a duplicate primary launch/resume button beside the mapped CTA",
+            1,
+            hero.split("NovaActionButton(").size - 1
         )
         assertTrue(
             "hero should render the mapped caption so filtered, recent, active, and empty states explain the CTA",
             hero.contains("text = hero.caption")
+        )
+        assertTrue(
+            "compact hero should render the mapper-owned supporting line instead of recomputing session/recent context in Compose",
+            hero.contains("hero.supportingLine") &&
+                hero.contains("text = hero.supportingLine") &&
+                hero.contains("if (compact && hero.supportingLine.isNotBlank())")
+        )
+        assertTrue(
+            "hero should render a deterministic fallback artwork tile so blank cover/backdrop art still has a useful console identity",
+            hero.contains("NovaLibraryHeroFallbackArtwork(") &&
+                hero.contains("title = hero.artworkFallbackTitle") &&
+                hero.contains("subtitle = hero.artworkFallbackSubtitle")
         )
         assertTrue(
             "hero height should be mapper-driven so Retroid landscape can shrink the resume surface without source spelunking",
@@ -477,8 +495,8 @@ class NovaComposeSourceGuardTest {
             hero.contains("Arrangement.spacedBy(if (compact) 1.dp else 5.dp)")
         )
         assertTrue(
-            "compact hero should use tighter padding so the continue strip gives vertical room back to the grid",
-            hero.contains(".padding(if (compact) 6.dp else 16.dp)")
+            "compact hero should use tight padding so richer console context still gives vertical room back to the grid",
+            hero.contains(".padding(if (compact) 8.dp else 16.dp)")
         )
         assertTrue(
             "hero text stack should declare compact line heights so captions do not inherit oversized body metrics",
@@ -1501,12 +1519,92 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "drawer surface should be opaque enough at x=0 that it reads as attached instead of floating over the stream",
-            content.contains("surfaces.panel.copy(alpha = 0.96f)")
+            content.contains("NovaInGameOverlayAlpha.GlassPanel")
         )
         assertTrue(
             "scrim should dismiss the Command Center while keeping the stream visible behind the drawer",
-            content.contains("surfaces.backgroundScrim.copy(alpha = 0.38f)") &&
+            content.contains("NovaInGameOverlayAlpha.CommandCenterScrim") &&
                 content.contains("callbacks.onDismiss")
+        )
+    }
+
+    @Test
+    fun commandCenterDrawerUsesFingerTrackedHorizontalMotion() {
+        val content = readNovaQuickMenuContent()
+        val drawer = content.section(
+            "fun NovaQuickMenuDrawer(",
+            "@Composable\nfun NovaQuickMenuContent("
+        )
+
+        assertFalse(
+            "Retroid Command Center should not be a canned AnimatedVisibility drawer once tactile polish is enabled",
+            drawer.contains("AnimatedVisibility(") || drawer.contains("slideInHorizontally(")
+        )
+        assertTrue(
+            "drawer motion should be progress-aware: spring in, offset by progress, and move with horizontal drag distance",
+            drawer.contains("Animatable(0f)") &&
+                drawer.contains("animateDrawerTo(") &&
+                drawer.contains("spring(") &&
+                drawer.contains("IntOffset(") &&
+                drawer.contains("drawerProgress.value") &&
+                drawer.contains("dragAmount / drawerWidthPx")
+        )
+        assertTrue(
+            "horizontal drag should be orientation-locked so vertical Command Center scrolling does not accidentally dismiss",
+            drawer.contains("detectHorizontalDragGestures(") &&
+                drawer.contains("onHorizontalDrag =") &&
+                drawer.contains("change.consume()")
+        )
+        assertTrue(
+            "swipe-left dismissal should close only after a meaningful progress threshold, preserving tap/back dismissal semantics",
+            drawer.contains("NovaQuickMenuDrawerDismissProgress") &&
+                drawer.contains("dismissDrawerWithMotion()") &&
+                drawer.contains("callbacks.onDismiss()")
+        )
+    }
+
+    @Test
+    fun inGameOverlayOpacityTokensAreSharedByCommandCenterAndHud() {
+        val tokenPath = Path.of("src/main/java/com/papi/nova/ui/compose/NovaInGameOverlayTokens.kt")
+        assertTrue(
+            "Command Center and NovaHUD should share named in-game glass opacity tokens instead of local magic alpha literals",
+            Files.exists(tokenPath)
+        )
+        val tokens = readSource("src/main/java/com/papi/nova/ui/compose/NovaInGameOverlayTokens.kt")
+        val commandCenter = readNovaQuickMenuContent()
+        val hud = readNovaStreamHudContent()
+
+        assertTrue(
+            "token file should name the overlay alpha contract for panels, nested controls, scrim, and borders",
+            tokens.contains("object NovaInGameOverlayAlpha") &&
+                tokens.contains("const val GlassPanel") &&
+                tokens.contains("const val NestedTile") &&
+                tokens.contains("const val NestedControl") &&
+                tokens.contains("const val CommandCenterScrim") &&
+                tokens.contains("const val Border")
+        )
+        assertTrue(
+            "Command Center should consume the shared alpha contract across scrim, panel, nested tiles, controls, borders, and handle",
+            commandCenter.contains("NovaInGameOverlayAlpha.CommandCenterScrim") &&
+                commandCenter.contains("NovaInGameOverlayAlpha.GlassPanel") &&
+                commandCenter.contains("NovaInGameOverlayAlpha.NestedTile") &&
+                commandCenter.contains("NovaInGameOverlayAlpha.NestedControl") &&
+                commandCenter.contains("NovaInGameOverlayAlpha.Border") &&
+                commandCenter.contains("NovaInGameOverlayAlpha.AccentHandle")
+        )
+        assertTrue(
+            "NovaHUD should use the same glass/control/border token family so it reads as one overlay system with Command Center",
+            hud.contains("NovaInGameOverlayAlpha.GlassPanel") &&
+                hud.contains("NovaInGameOverlayAlpha.NestedControl") &&
+                hud.contains("NovaInGameOverlayAlpha.Border") &&
+                hud.contains("NovaInGameOverlayAlpha.AccentDivider")
+        )
+        assertFalse(
+            "old local overlay alpha literals should be replaced by shared named tokens in the in-game overlay files",
+            commandCenter.contains("surfaces.panel.copy(alpha = 0.96f)") ||
+                commandCenter.contains("surfaces.tile.copy(alpha = 0.72f)") ||
+                hud.contains("surfaces.panel.copy(alpha = 0.96f)") ||
+                hud.contains("surfaces.control.copy(alpha = 0.82f)")
         )
     }
 

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
 
 @Composable
 fun NovaStreamHudContent(
@@ -258,8 +259,8 @@ private fun HudPanel(
         modifier = modifier
             .shadow(16.dp, panelShape, clip = false)
             .clip(panelShape)
-            .background(surfaces.panel.copy(alpha = 0.96f))
-            .border(1.dp, surfaces.tileBorder.copy(alpha = 0.9f), panelShape)
+            .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel))
+            .border(1.dp, surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border), panelShape)
             .padding(padding),
         content = content
     )
@@ -277,7 +278,7 @@ private fun HudMetric(
         modifier = modifier
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(surfaces.control.copy(alpha = 0.82f))
+            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl))
             .padding(horizontal = 7.dp, vertical = 5.dp),
         verticalArrangement = Arrangement.Center
     ) {
@@ -360,7 +361,7 @@ private fun HudDivider(horizontalPadding: Dp = 8.dp) {
             .padding(horizontal = horizontalPadding)
             .width(1.dp)
             .height(16.dp)
-            .background(LocalNovaComposeColors.current.accent.copy(alpha = 0.35f))
+            .background(LocalNovaComposeColors.current.accent.copy(alpha = NovaInGameOverlayAlpha.AccentDivider))
     )
 }
 
@@ -396,7 +397,7 @@ private fun NovaHudSparkline(
         fillPath.lineTo((samples.size - 1) * stepX, size.height)
         fillPath.close()
         drawLine(
-            color = lineColor.copy(alpha = 0.20f),
+            color = lineColor.copy(alpha = NovaInGameOverlayAlpha.SparklineGuide),
             start = Offset(0f, size.height - 1f),
             end = Offset(size.width, size.height - 1f),
             strokeWidth = 1f
@@ -407,7 +408,7 @@ private fun NovaHudSparkline(
             end = Offset(size.width, 1f),
             strokeWidth = 1f
         )
-        drawPath(fillPath, lineColor.copy(alpha = 0.18f))
+        drawPath(fillPath, lineColor.copy(alpha = NovaInGameOverlayAlpha.SparklineFill))
         drawPath(
             path = linePath,
             color = lineColor,

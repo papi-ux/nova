@@ -199,7 +199,7 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
-    fun heroPrefersActiveSessionOverRecentGames() {
+    fun heroHomeStatePrioritizesOwnedActiveSessionWithSingleResumeAction() {
         val games = listOf(
             game("recent", "Recent Game", lastLaunched = 100),
             game("active", "Active Game", lastLaunched = 10)
@@ -229,10 +229,21 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroPrimaryAction.RESUME, hero.primaryAction)
         assertEquals("Retroid Pocket", hero.subtitle)
         assertEquals("Resume stream", hero.actionLabel)
+        assertNull(hero.secondaryActionLabel)
+        assertEquals("Resume • Retroid Pocket • 1920×1080 60fps", hero.supportingLine)
+        assertEquals("Active Game", hero.artworkFallbackTitle)
+        assertEquals("Active session • Retroid Pocket", hero.artworkFallbackSubtitle)
         assertTrue(hero.badges.contains("Active session"))
         assertTrue(hero.badges.contains("Virtual display"))
         assertEquals("Resume the current display and quality profile.", hero.caption)
         assertTrue(hero.badges.contains("1920×1080 60fps"))
+        assertFalse(
+            NovaLibraryUiStateMapper.showLandscapeRecentRail(
+                screenHeightDp = 600,
+                heroReason = hero.reason,
+                recentCount = 2
+            )
+        )
     }
 
     @Test
@@ -311,7 +322,7 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
-    fun heroUsesWatchActionForSessionsOwnedByAnotherClient() {
+    fun heroHomeStateUsesWatchActionForOtherClientSessionWithoutResumeCopy() {
         val activeSession = NovaLibraryActiveSessionUiState(
             gameId = 42,
             gameUuid = "desktop",
@@ -337,14 +348,19 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroPrimaryAction.WATCH, hero.primaryAction)
         assertEquals("Watch stream", hero.actionLabel)
         assertEquals("Watch-only view; owner stays in control.", hero.caption)
+        assertEquals("Watch • Pixel • 2 viewers", hero.supportingLine)
+        assertEquals("Active session • Pixel", hero.artworkFallbackSubtitle)
+        assertFalse(hero.actionLabel.contains("Resume"))
+        assertFalse(hero.supportingLine.contains("Resume"))
         assertTrue(hero.badges.contains("2 viewers"))
     }
 
     @Test
-    fun heroUsesRecentGameWithDeliberateCtaCopy() {
+    fun heroHomeStatePromotesMostRecentGameWhenNoActiveSession() {
         val games = listOf(
+            game("older", "Older Game", source = "heroic", lastLaunched = 20),
             game("recent", "Recent Game", source = "steam", lastLaunched = 100),
-            game("older", "Older Game", source = "heroic", lastLaunched = 20)
+            game("never", "Never Played", source = "lutris")
         )
 
         val hero = NovaLibraryUiStateMapper.build(
@@ -354,10 +370,41 @@ class NovaLibraryUiStateTest {
         ).hero
 
         assertEquals("Recent Game", hero.title)
+        assertEquals("recent", hero.game?.id)
         assertEquals(NovaLibraryHeroReason.LAST_PLAYED, hero.reason)
+        assertEquals(NovaLibraryHeroPrimaryAction.OPEN_DETAIL, hero.primaryAction)
         assertEquals("Continue playing", hero.eyebrow)
         assertEquals("Launch options", hero.actionLabel)
+        assertNull(hero.secondaryActionLabel)
+        assertEquals("Continue • Steam", hero.supportingLine)
+        assertEquals("Recent Game", hero.artworkFallbackTitle)
+        assertEquals("Recent on this host", hero.artworkFallbackSubtitle)
         assertEquals("Recent on this host.", hero.caption)
+    }
+
+    @Test
+    fun heroArtworkFallbackRemainsUsefulWhenCoverIsMissing() {
+        val games = listOf(
+            game(
+                "missing-art",
+                "Artless Wonder",
+                source = "steam",
+                lastLaunched = 7,
+                coverUrl = ""
+            )
+        )
+
+        val hero = NovaLibraryUiStateMapper.build(
+            games = games,
+            search = "",
+            filterState = NovaLibraryFilterState()
+        ).hero
+
+        assertEquals("Artless Wonder", hero.title)
+        assertEquals("", hero.game?.coverUrl)
+        assertEquals("Artless Wonder", hero.artworkFallbackTitle)
+        assertEquals("Recent on this host", hero.artworkFallbackSubtitle)
+        assertTrue(hero.supportingLine.contains("Continue"))
     }
 
     @Test
@@ -544,10 +591,10 @@ class NovaLibraryUiStateTest {
     @Test
     fun layoutMetricsMakeRetroidLandscapeGameSelectionPrimary() {
         assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
-        assertEquals(64, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
+        assertEquals(76, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
         assertTrue(
-            "compact landscape resume hero should read as a visibly shorter strip, not the same mini feature panel",
-            NovaLibraryUiStateMapper.heroHeightDp(compact = true) <= 64
+            "compact landscape resume hero should read as a short console home strip, not a second feature panel",
+            NovaLibraryUiStateMapper.heroHeightDp(compact = true) <= 80
         )
         assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
         assertEquals(168, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = false))
@@ -580,7 +627,7 @@ class NovaLibraryUiStateTest {
         )
         assertTrue(
             "compact landscape persistent chrome should leave the game grid as the visual primary surface",
-            persistentChromeBudget <= 124
+            persistentChromeBudget <= 140
         )
     }
 
@@ -810,7 +857,8 @@ class NovaLibraryUiStateTest {
         category: String = "",
         genres: List<String> = emptyList(),
         lastLaunched: Long = 0,
-        hdrSupported: Boolean = false
+        hdrSupported: Boolean = false,
+        coverUrl: String = ""
     ) = PolarisGame(
         id = id,
         name = name,
@@ -819,6 +867,7 @@ class NovaLibraryUiStateTest {
         category = category,
         genres = genres,
         lastLaunched = lastLaunched,
-        hdrSupported = hdrSupported
+        hdrSupported = hdrSupported,
+        coverUrl = coverUrl
     )
 }

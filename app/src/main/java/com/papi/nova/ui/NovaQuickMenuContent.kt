@@ -1,15 +1,13 @@
 package com.papi.nova.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,20 +42,26 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
+import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 data class NovaQuickMenuCallbacks(
     val onDismiss: () -> Unit = {},
@@ -101,6 +107,8 @@ data class NovaQuickMenuCallbacks(
     }
 }
 
+private const val NovaQuickMenuDrawerDismissProgress = 0.58f
+
 @Composable
 fun NovaQuickMenuDrawer(
     state: NovaQuickMenuUiState,
@@ -108,63 +116,103 @@ fun NovaQuickMenuDrawer(
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    var drawerVisible by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val drawerProgress = remember { Animatable(0f) }
     val compactDrawerWidth = (configuration.screenWidthDp * 0.92f).dp
     val drawerWidth = if (configuration.screenWidthDp < 560) {
         compactDrawerWidth
     } else {
         460.dp
     }
+    val drawerWidthPx = with(density) { drawerWidth.toPx().coerceAtLeast(1f) }
 
-    LaunchedEffect(Unit) {
-        drawerVisible = true
+    suspend fun animateDrawerTo(target: Float) {
+        drawerProgress.animateTo(
+            targetValue = target.coerceIn(0f, 1f),
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        )
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = drawerVisible,
-            enter = fadeIn(animationSpec = tween(160)),
-            exit = fadeOut(animationSpec = tween(120))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(surfaces.backgroundScrim.copy(alpha = 0.38f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Button,
-                        onClick = callbacks.onDismiss
-                    )
-                    .semantics { contentDescription = "Dismiss Command Center" }
-            )
+    fun dismissDrawerWithMotion() {
+        scope.launch {
+            animateDrawerTo(0f)
+            callbacks.onDismiss()
         }
+    }
 
-        AnimatedVisibility(
-            visible = drawerVisible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> -fullWidth },
-                animationSpec = tween(190)
-            ) + fadeIn(animationSpec = tween(140)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { fullWidth -> -fullWidth },
-                animationSpec = tween(140)
-            ) + fadeOut(animationSpec = tween(100)),
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(drawerWidth)
-                    .widthIn(max = 460.dp)
-            ) {
-                NovaQuickMenuContent(
-                    state = state,
-                    callbacks = callbacks,
-                    modifier = Modifier.fillMaxSize()
+    fun settleDrawerAfterDrag() {
+        if (drawerProgress.value < NovaQuickMenuDrawerDismissProgress) {
+            dismissDrawerWithMotion()
+        } else {
+            scope.launch { animateDrawerTo(1f) }
+        }
+    }
+
+    LaunchedEffect(drawerWidthPx) {
+        drawerProgress.snapTo(0f)
+        animateDrawerTo(1f)
+    }
+
+    val drawerOffsetPx = ((drawerProgress.value - 1f) * drawerWidthPx).roundToInt()
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    surfaces.backgroundScrim.copy(
+                        alpha = NovaInGameOverlayAlpha.CommandCenterScrim * drawerProgress.value
+                    )
                 )
-            }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    role = Role.Button,
+                    onClick = { dismissDrawerWithMotion() }
+                )
+                .semantics { contentDescription = "Dismiss Command Center" }
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset { IntOffset(x = drawerOffsetPx, y = 0) }
+                .fillMaxHeight()
+                .width(drawerWidth)
+                .widthIn(max = 460.dp)
+                .pointerInput(drawerWidthPx) {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            scope.launch { drawerProgress.stop() }
+                        },
+                        onDragCancel = {
+                            scope.launch { animateDrawerTo(1f) }
+                        },
+                        onDragEnd = {
+                            settleDrawerAfterDrag()
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            val nextProgress = (drawerProgress.value + dragAmount / drawerWidthPx)
+                                .coerceIn(0f, 1f)
+                            scope.launch {
+                                drawerProgress.stop()
+                                drawerProgress.snapTo(nextProgress)
+                            }
+                        }
+                    )
+                }
+        ) {
+            NovaQuickMenuContent(
+                state = state,
+                callbacks = callbacks,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
@@ -190,10 +238,10 @@ fun NovaQuickMenuContent(
             .fillMaxWidth()
             .fillMaxHeight()
             .clip(drawerShape)
-            .background(surfaces.panel.copy(alpha = 0.96f))
+            .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel))
             .border(
                 width = 1.dp,
-                color = surfaces.panelBorder,
+                color = surfaces.panelBorder.copy(alpha = NovaInGameOverlayAlpha.Border),
                 shape = drawerShape
             )
             .verticalScroll(rememberScrollState())
@@ -204,7 +252,7 @@ fun NovaQuickMenuContent(
                 .width(44.dp)
                 .height(3.dp)
                 .clip(RoundedCornerShape(99.dp))
-                .background(colors.accent.copy(alpha = 0.74f))
+                .background(colors.accent.copy(alpha = NovaInGameOverlayAlpha.AccentHandle))
                 .align(Alignment.Start)
         )
         Spacer(Modifier.height(10.dp))
@@ -366,8 +414,12 @@ private fun NovaQuickMenuSessionStrip(state: NovaQuickMenuUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(surfaces.control.copy(alpha = 0.70f))
-            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
+            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl))
+            .border(
+                1.dp,
+                surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border),
+                RoundedCornerShape(14.dp)
+            )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -570,8 +622,12 @@ private fun NovaQuickMenuPanel(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(surfaces.tile.copy(alpha = 0.72f))
-            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
+            .background(surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile))
+            .border(
+                1.dp,
+                surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border),
+                RoundedCornerShape(14.dp)
+            )
             .padding(contentPadding)
     ) {
         if (!title.isNullOrBlank()) {
@@ -641,12 +697,12 @@ private fun NovaQuickMenuClickableSurface(
     var focused by remember { mutableStateOf(false) }
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(if (flat) 10.dp else 14.dp)
-    val base = if (flat) Color.Transparent else surfaces.tile
+    val base = if (flat) Color.Transparent else surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile)
     val focusedBackground = if (focused) surfaces.selectedControl else base
     val borderColor = when {
         focused -> surfaces.focusRing
         flat -> Color.Transparent
-        else -> surfaces.tileBorder
+        else -> surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border)
     }
     val borderWidth = if (focused) 2.dp else if (flat) 0.dp else 1.dp
 

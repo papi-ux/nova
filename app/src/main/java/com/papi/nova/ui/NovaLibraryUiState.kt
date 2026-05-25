@@ -102,7 +102,11 @@ data class NovaLibraryHeroState(
     val actionLabel: String,
     val badges: List<String>,
     val reason: NovaLibraryHeroReason,
-    val primaryAction: NovaLibraryHeroPrimaryAction
+    val primaryAction: NovaLibraryHeroPrimaryAction,
+    val supportingLine: String,
+    val artworkFallbackTitle: String,
+    val artworkFallbackSubtitle: String,
+    val secondaryActionLabel: String? = null
 )
 
 data class NovaLibraryUiModel(
@@ -266,7 +270,10 @@ object NovaLibraryUiStateMapper {
                     actionLabel = "View all games",
                     badges = emptyList(),
                     reason = NovaLibraryHeroReason.EMPTY,
-                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS
+                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
+                    supportingLine = "View all • ${games.size} games ready",
+                    artworkFallbackTitle = "No recent games",
+                    artworkFallbackSubtitle = "Continue when ready"
                 )
             } else if (emptyState == NovaLibraryEmptyState.SOURCE && games.isNotEmpty()) {
                 NovaLibraryHeroState(
@@ -278,7 +285,10 @@ object NovaLibraryUiStateMapper {
                     actionLabel = "Clear source",
                     badges = emptyList(),
                     reason = NovaLibraryHeroReason.EMPTY,
-                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS
+                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
+                    supportingLine = "Clear source • ${games.size} games ready",
+                    artworkFallbackTitle = "No games from this source",
+                    artworkFallbackSubtitle = "Source filter"
                 )
             } else {
                 NovaLibraryHeroState(
@@ -290,7 +300,10 @@ object NovaLibraryUiStateMapper {
                     actionLabel = "Clear filters",
                     badges = emptyList(),
                     reason = NovaLibraryHeroReason.EMPTY,
-                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS
+                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
+                    supportingLine = "Clear filters • Library",
+                    artworkFallbackTitle = "No matching games",
+                    artworkFallbackSubtitle = "Filtered library"
                 )
             }
         }
@@ -333,7 +346,10 @@ object NovaLibraryUiStateMapper {
             actionLabel = "Manage library",
             badges = listOf("Polaris ready"),
             reason = NovaLibraryHeroReason.EMPTY,
-            primaryAction = NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY
+            primaryAction = NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY,
+            supportingLine = "Connect • Polaris",
+            artworkFallbackTitle = "Nova Library",
+            artworkFallbackSubtitle = "No games yet"
         )
     }
 
@@ -354,10 +370,18 @@ object NovaLibraryUiStateMapper {
                 add(if (session.viewerCount == 1) "1 viewer" else "${session.viewerCount} viewers")
             }
         }
+        val streamDetail = streamDetail(session)
+        val viewerDetail = viewerDetail(session.viewerCount)
+        val ownerDetail = session.ownerDeviceName.ifBlank { "Polaris session" }
+        val supportingLine = buildList {
+            add(if (session.ownedByClient) "Resume" else "Watch")
+            add(ownerDetail)
+            add(streamDetail.ifBlank { viewerDetail })
+        }.filter { it.isNotBlank() }.joinToString(" • ")
         return NovaLibraryHeroState(
             game = matchingGame,
             title = session.gameName.ifBlank { "Active session" },
-            subtitle = session.ownerDeviceName.ifBlank { "Polaris session" },
+            subtitle = ownerDetail,
             caption = if (session.ownedByClient) {
                 "Resume the current display and quality profile."
             } else {
@@ -371,8 +395,29 @@ object NovaLibraryUiStateMapper {
                 NovaLibraryHeroPrimaryAction.RESUME
             } else {
                 NovaLibraryHeroPrimaryAction.WATCH
-            }
+            },
+            supportingLine = supportingLine,
+            artworkFallbackTitle = session.gameName.ifBlank { "Active session" },
+            artworkFallbackSubtitle = listOf("Active session", ownerDetail)
+                .filter { it.isNotBlank() }
+                .joinToString(" • ")
         )
+    }
+
+    private fun streamDetail(session: NovaLibraryActiveSessionUiState): String {
+        return if (session.streamWidth > 0 && session.streamHeight > 0 && session.streamFps > 0f) {
+            "${session.streamWidth}×${session.streamHeight} ${session.streamFps.toInt()}fps"
+        } else {
+            ""
+        }
+    }
+
+    private fun viewerDetail(viewerCount: Int): String {
+        return when {
+            viewerCount <= 0 -> ""
+            viewerCount == 1 -> "1 viewer"
+            else -> "$viewerCount viewers"
+        }
     }
 
     private fun gameHero(
@@ -388,16 +433,36 @@ object NovaLibraryUiStateMapper {
             if (game.sourceLabel.isNotBlank()) add(game.sourceLabel)
             if (game.runtimeLabel.isNotBlank()) add(game.runtimeLabel)
         }.distinct()
+        val subtitle = game.sourceRuntimeLabel.ifBlank { game.sourceLabel.ifBlank { "Nova library" } }
+        val actionContext = when (reason) {
+            NovaLibraryHeroReason.LAST_PLAYED -> "Continue"
+            NovaLibraryHeroReason.FIRST_FILTERED -> if (eyebrow == "Filtered library") "Filtered" else "Ready"
+            NovaLibraryHeroReason.FIRST_LIBRARY_GAME -> "Ready"
+            NovaLibraryHeroReason.ACTIVE_SESSION -> "Resume"
+            NovaLibraryHeroReason.EMPTY -> "Library"
+        }
+        val fallbackSubtitle = when (reason) {
+            NovaLibraryHeroReason.LAST_PLAYED -> "Recent on this host"
+            NovaLibraryHeroReason.FIRST_FILTERED -> eyebrow
+            NovaLibraryHeroReason.FIRST_LIBRARY_GAME -> "Ready when you are"
+            NovaLibraryHeroReason.ACTIVE_SESSION -> "Active session"
+            NovaLibraryHeroReason.EMPTY -> "Nova library"
+        }
         return NovaLibraryHeroState(
             game = game,
             title = game.name,
-            subtitle = game.sourceRuntimeLabel.ifBlank { game.sourceLabel.ifBlank { "Nova library" } },
+            subtitle = subtitle,
             caption = caption,
             eyebrow = eyebrow,
             actionLabel = "Launch options",
             badges = badges,
             reason = reason,
-            primaryAction = NovaLibraryHeroPrimaryAction.OPEN_DETAIL
+            primaryAction = NovaLibraryHeroPrimaryAction.OPEN_DETAIL,
+            supportingLine = listOf(actionContext, subtitle)
+                .filter { it.isNotBlank() }
+                .joinToString(" • "),
+            artworkFallbackTitle = game.name,
+            artworkFallbackSubtitle = fallbackSubtitle
         )
     }
 
@@ -713,7 +778,7 @@ object NovaLibraryUiStateMapper {
     }
 
     fun heroHeightDp(compact: Boolean): Int {
-        return if (compact) 64 else 164
+        return if (compact) 76 else 164
     }
 
     fun screenPaddingDp(isLandscape: Boolean): Int {

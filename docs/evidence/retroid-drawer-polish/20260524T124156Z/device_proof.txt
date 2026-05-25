@@ -1,0 +1,6 @@
+device_props_start
+Retroid Pocket 6
+kalama
+Physical size: 1080x1920
+Physical density: 369
+device_props_end

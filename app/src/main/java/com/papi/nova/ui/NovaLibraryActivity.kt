@@ -1229,7 +1229,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 }
                 .combinedClickable(onClick = onPrimaryAction)
                 .focusable()
-                .padding(if (compact) 6.dp else 16.dp),
+                .padding(if (compact) 8.dp else 16.dp),
             horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1255,6 +1255,16 @@ class NovaLibraryActivity : AppCompatActivity() {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (compact && hero.supportingLine.isNotBlank()) {
+                    Text(
+                        text = hero.supportingLine,
+                        color = colors.textSecondary.copy(alpha = 0.9f),
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 if (!compact) {
                     Text(
                         text = hero.subtitle,
@@ -1286,13 +1296,78 @@ class NovaLibraryActivity : AppCompatActivity() {
                     }
                 }
             }
+            NovaLibraryHeroFallbackArtwork(
+                title = hero.artworkFallbackTitle,
+                subtitle = hero.artworkFallbackSubtitle,
+                compact = compact
+            )
             NovaActionButton(
                 text = hero.actionLabel,
                 onClick = onPrimaryAction,
-                modifier = Modifier.widthIn(min = if (compact) 100.dp else 148.dp),
-                minHeight = if (compact) 32.dp else 48.dp,
+                modifier = Modifier.widthIn(min = if (compact) 104.dp else 148.dp),
+                minHeight = if (compact) 34.dp else 48.dp,
                 fontSize = if (compact) 10.sp else 14.sp
             )
+        }
+    }
+
+    @Composable
+    private fun NovaLibraryHeroFallbackArtwork(
+        title: String,
+        subtitle: String,
+        compact: Boolean
+    ) {
+        val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
+        val shape = RoundedCornerShape(if (compact) 14.dp else 18.dp)
+        Column(
+            modifier = Modifier
+                .width(if (compact) 58.dp else 108.dp)
+                .fillMaxHeight()
+                .clip(shape)
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            colors.accent.copy(alpha = 0.34f),
+                            surfaces.tile.copy(alpha = 0.92f)
+                        )
+                    )
+                )
+                .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f), shape)
+                .padding(horizontal = if (compact) 6.dp else 10.dp, vertical = if (compact) 5.dp else 10.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = "NOVA",
+                color = colors.textSecondary.copy(alpha = 0.76f),
+                fontSize = if (compact) 8.sp else 10.sp,
+                lineHeight = if (compact) 9.sp else 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    text = title,
+                    color = colors.textPrimary,
+                    fontSize = if (compact) 9.sp else 12.sp,
+                    lineHeight = if (compact) 10.sp else 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = if (compact) 1 else 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!compact && subtitle.isNotBlank()) {
+                    Text(
+                        text = subtitle,
+                        color = colors.textSecondary.copy(alpha = 0.82f),
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 
