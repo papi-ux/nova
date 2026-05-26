@@ -1692,37 +1692,47 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun commandCenterGroupsQuickKeysBeforeSecondaryPanels() {
+    fun commandCenterFirstPaintPrioritizesSessionQualityAndHudBeforeQuickKeys() {
         val content = readNovaQuickMenuContent()
         val body = content.section(
             "fun NovaQuickMenuContent(",
             "@Composable\nprivate fun NovaQuickMenuHeader("
         )
+        val header = content.section(
+            "private fun NovaQuickMenuHeader(",
+            "@Composable\nprivate fun NovaQuickMenuTitleBlock("
+        )
 
+        val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(state)")
         val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(state.stability, callbacks)")
-        val quickKeysPanel = body.indexOf("NovaQuickMenuPanel(title = quickKeysTitle)")
-        val syncCard = body.indexOf("NovaQuickMenuInfoCard(\n                    action = state.sync")
-        val advancedToggleCard = body.indexOf("NovaQuickMenuInfoCard(\n                    action = state.advancedToggle")
+        val syncCard = body.indexOf("action = state.sync")
         val overlaysPanel = body.indexOf("title = overlaysTitle")
+        val quickKeysPanel = body.indexOf("NovaQuickMenuPanel(title = quickKeysTitle)")
+        val advancedToggleCard = body.indexOf("action = state.advancedToggle")
         val controlsPanel = body.indexOf("title = controlsTitle")
         val sessionPanel = body.indexOf("NovaQuickMenuPanel(title = sessionTitle)")
 
         assertTrue(
-            "Command Center quick shortcuts should have an explicit section label instead of floating between tuning and overlays",
-            body.contains("val quickKeysTitle = stringResource(R.string.nova_quick_menu_quick_keys)") &&
-                quickKeysPanel >= 0
+            "Command Center first paint should keep the session strip immediately after the header",
+            sessionStrip >= 0 && stabilityCard > sessionStrip
         )
         assertTrue(
-            "Command Center first paint should prioritize Quick Keys before tuning/status cards so Retroid users do not have to scroll to reach ESC/Alt+Enter/Alt+F4",
-            quickKeysPanel in 0 until stabilityCard &&
-                quickKeysPanel in 0 until syncCard &&
-                quickKeysPanel in 0 until advancedToggleCard
+            "stream quality/recovery state should be above overlay/HUD controls so gameplay health is understood before shortcuts",
+            stabilityCard in 0 until syncCard &&
+                syncCard in 0 until overlaysPanel
         )
         assertTrue(
-            "quick shortcuts should stay above secondary overlay/control/session panels for controller-first access",
-            quickKeysPanel in 0 until overlaysPanel &&
-                overlaysPanel in 0 until controlsPanel &&
+            "NovaHUD/overlay controls should be promoted above Quick Keys and lower utilities in the polished Command Center hierarchy",
+            overlaysPanel in 0 until quickKeysPanel &&
+                quickKeysPanel in 0 until advancedToggleCard &&
+                advancedToggleCard in 0 until controlsPanel &&
                 controlsPanel in 0 until sessionPanel
+        )
+        assertTrue(
+            "Command Center header should expose an explicit close affordance that invokes the same dismiss callback as scrim/back",
+            header.contains("NovaQuickMenuCloseButton(callbacks") &&
+                content.contains("contentDescription = \"Close Command Center\"") &&
+                content.contains("onClick = callbacks.onDismiss")
         )
     }
 

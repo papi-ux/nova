@@ -223,8 +223,6 @@ fun NovaQuickMenuContent(
     callbacks: NovaQuickMenuCallbacks,
     modifier: Modifier = Modifier
 ) {
-    val configuration = LocalConfiguration.current
-    val isWide = configuration.screenWidthDp >= 560
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
@@ -260,30 +258,27 @@ fun NovaQuickMenuContent(
         Spacer(Modifier.height(8.dp))
         NovaQuickMenuSessionStrip(state)
         Spacer(Modifier.height(10.dp))
+        NovaQuickMenuStabilityCard(state.stability, callbacks)
+        Spacer(Modifier.height(10.dp))
+        NovaQuickMenuInfoCard(
+            action = state.sync,
+            callbacks = callbacks
+        )
+        Spacer(Modifier.height(10.dp))
+        NovaQuickMenuPanel(title = overlaysTitle) {
+            state.overlayRows.forEach { row ->
+                NovaQuickMenuRow(action = row, callbacks = callbacks)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
         NovaQuickMenuPanel(title = quickKeysTitle) {
             NovaQuickKeys(state.quickKeys, callbacks)
         }
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuStabilityCard(state.stability, callbacks)
-        Spacer(Modifier.height(10.dp))
-        if (isWide) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                NovaQuickMenuInfoCard(
-                    action = state.sync,
-                    modifier = Modifier.weight(1f),
-                    callbacks = callbacks
-                )
-                NovaQuickMenuInfoCard(
-                    action = state.advancedToggle,
-                    modifier = Modifier.weight(1f),
-                    callbacks = callbacks
-                )
-            }
-        } else {
-            NovaQuickMenuInfoCard(action = state.sync, callbacks = callbacks)
-            Spacer(Modifier.height(8.dp))
-            NovaQuickMenuInfoCard(action = state.advancedToggle, callbacks = callbacks)
-        }
+        NovaQuickMenuInfoCard(
+            action = state.advancedToggle,
+            callbacks = callbacks
+        )
         if (state.advancedExpanded) {
             Spacer(Modifier.height(10.dp))
             NovaQuickMenuPanel(title = null) {
@@ -293,36 +288,9 @@ fun NovaQuickMenuContent(
             }
         }
         Spacer(Modifier.height(10.dp))
-        if (isWide) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                NovaQuickMenuPanel(
-                    title = overlaysTitle,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    state.overlayRows.forEach { row ->
-                        NovaQuickMenuRow(action = row, callbacks = callbacks)
-                    }
-                }
-                NovaQuickMenuPanel(
-                    title = controlsTitle,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    state.controlRows.forEach { row ->
-                        NovaQuickMenuRow(action = row, callbacks = callbacks)
-                    }
-                }
-            }
-        } else {
-            NovaQuickMenuPanel(title = overlaysTitle) {
-                state.overlayRows.forEach { row ->
-                    NovaQuickMenuRow(action = row, callbacks = callbacks)
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            NovaQuickMenuPanel(title = controlsTitle) {
-                state.controlRows.forEach { row ->
-                    NovaQuickMenuRow(action = row, callbacks = callbacks)
-                }
+        NovaQuickMenuPanel(title = controlsTitle) {
+            state.controlRows.forEach { row ->
+                NovaQuickMenuRow(action = row, callbacks = callbacks)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -336,15 +304,19 @@ fun NovaQuickMenuContent(
 
 @Composable
 private fun NovaQuickMenuHeader(state: NovaQuickMenuUiState, callbacks: NovaQuickMenuCallbacks) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
     val configuration = LocalConfiguration.current
     val compact = configuration.screenWidthDp < 430
 
     NovaQuickMenuPanel(title = null, contentPadding = PaddingValues(12.dp)) {
         if (compact) {
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                NovaQuickMenuTitleBlock(state)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    NovaQuickMenuTitleBlock(state, Modifier.weight(1f))
+                    NovaQuickMenuCloseButton(callbacks)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NovaQuickMenuHeaderButton(state.disconnectAction, callbacks, Modifier.weight(1f))
                     NovaQuickMenuHeaderButton(state.endAction, callbacks, Modifier.weight(1f))
@@ -356,6 +328,7 @@ private fun NovaQuickMenuHeader(state: NovaQuickMenuUiState, callbacks: NovaQuic
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 NovaQuickMenuTitleBlock(state, Modifier.weight(1f))
+                NovaQuickMenuCloseButton(callbacks)
                 NovaQuickMenuHeaderButton(state.disconnectAction, callbacks)
                 NovaQuickMenuHeaderButton(state.endAction, callbacks)
             }
@@ -398,6 +371,25 @@ private fun NovaQuickMenuHeaderButton(
         modifier = modifier.widthIn(min = 84.dp),
         enabled = action.enabled,
         primary = !action.destructive,
+        cornerRadius = 12.dp,
+        minHeight = 34.dp,
+        fontSize = 12.sp,
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
+    )
+}
+
+@Composable
+private fun NovaQuickMenuCloseButton(
+    callbacks: NovaQuickMenuCallbacks,
+    modifier: Modifier = Modifier
+) {
+    NovaActionButton(
+        text = "Close",
+        onClick = callbacks.onDismiss,
+        modifier = modifier
+            .widthIn(min = 72.dp)
+            .semantics { contentDescription = "Close Command Center" },
+        primary = false,
         cornerRadius = 12.dp,
         minHeight = 34.dp,
         fontSize = 12.sp,
