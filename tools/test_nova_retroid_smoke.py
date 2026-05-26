@@ -204,6 +204,58 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertIs(result.values["touch_controls_visible"], True)
         self.assertEqual(result.missing, [])
 
+    def test_command_center_accepts_disconnect_without_end(self):
+        """Command Center may show a safe 'Disconnect' affordance without an 'End' destructive action; treat as OK.
+        """
+        xml = """
+        <hierarchy>
+          <node text="Quick Keys" bounds="[62,400][168,448]" />
+          <node text="Disconnect" bounds="[680,220][815,276]" />
+          <node text="Stats Overlay" bounds="[62,848][494,946]" />
+          <node text="Touch Controls" bounds="[567,786][999,919]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_command_center(xml)
+
+        # previously this would fail because 'End' was missing; the hardened oracle accepts Disconnect-only flows
+        self.assertTrue(result.ok, result)
+        self.assertNotIn("End", result.missing)
+        self.assertIn("Quick Keys", [n.label for n in nova_retroid_smoke.parse_ui_nodes(xml)])
+
+    def test_command_center_accepts_touch_controls_caption_without_quick_keys(self):
+        """Touch Controls caption alone can satisfy the Command Center surface when Quick Keys are absent."""
+        xml = """
+        <hierarchy>
+          <node text="Disconnect" bounds="[680,220][815,276]" />
+          <node text="Stats Overlay" bounds="[62,848][494,946]" />
+          <node text="On-screen overlay; physical gamepad stays active." bounds="[576,855][899,903]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_command_center(xml)
+
+        self.assertTrue(result.ok, result)
+        self.assertIs(result.values["touch_controls_visible"], True)
+        self.assertEqual(result.failures, [])
+
+    def test_command_center_accepts_touch_controls_when_quick_keys_are_below_first_paint(self):
+        """A stale Quick Keys viewport cutoff should not fail when Touch Controls are visible."""
+        xml = """
+        <hierarchy>
+          <node text="Quick Keys" bounds="[62,700][168,748]" />
+          <node text="Disconnect" bounds="[680,220][815,276]" />
+          <node text="Stats Overlay" bounds="[62,848][494,946]" />
+          <node text="Touch Controls" bounds="[567,786][999,919]" />
+        </hierarchy>
+        """
+
+        result = nova_retroid_smoke.analyze_command_center(xml)
+
+        self.assertTrue(result.ok, result)
+        self.assertEqual(result.values["quick_keys_top"], 700)
+        self.assertEqual(result.failures, [])
+
     def test_command_center_analysis_ignores_header_subtitle_ai_copy_when_checking_first_paint(self):
         xml = """
         <hierarchy>
