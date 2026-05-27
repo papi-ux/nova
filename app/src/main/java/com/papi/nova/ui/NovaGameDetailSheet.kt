@@ -257,6 +257,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             ?.takeIf { it.isNotBlank() }
                             ?: primaryPlayLabel(uiState)
                     },
+                    launchOptionsLabel = getString(R.string.nova_library_launch_options),
                     launchModeTitle = getString(R.string.nova_library_launch_mode_title),
                     headlessModeLabel = modeBadgeLabel("headless"),
                     virtualDisplayModeLabel = modeBadgeLabel("virtual_display"),
@@ -292,6 +293,15 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                         } else {
                             launchConfirmed()
                         }
+                    },
+                    onLaunchOptions = {
+                        showLaunchOptions(
+                            currentGame,
+                            uiState,
+                            mangoHudEnabled,
+                            profilePreference,
+                            optimizationState.rawOptimization
+                        )
                     },
                     onLaunchModeSelected = ::selectLaunchMode,
                     onProfilePreference = {
@@ -441,6 +451,49 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                 dialog.dismiss()
             }
             .show()
+    }
+
+    private fun showLaunchOptions(
+        game: PolarisGame,
+        uiState: NovaGameDetailUiState,
+        mangoHudEnabled: Boolean,
+        profilePreference: String,
+        rawOptimization: JSONObject?
+    ) {
+        val options = mutableListOf<Pair<String, Boolean>>()
+        if (uiState.headlessAllowed) {
+            options += optionLabel("headless", uiState.recommendedMode) to false
+        }
+        if (uiState.virtualDisplayAllowed) {
+            options += optionLabel("virtual_display", uiState.recommendedMode) to true
+        }
+
+        if (options.isEmpty()) {
+            Toast.makeText(requireContext(), R.string.nova_library_no_launch_modes, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.nova_library_launch_options_title)
+            .setItems(options.map { it.first }.toTypedArray()) { _, which ->
+                onLaunch?.invoke(
+                    game.copy(mangohud = mangoHudEnabled),
+                    options[which].second,
+                    profilePreference,
+                    rawOptimization
+                )
+                dismiss()
+            }
+            .show()
+    }
+
+    private fun optionLabel(mode: String, recommendedMode: String): String {
+        val label = modeLabel(mode)
+        return if (mode == recommendedMode) {
+            getString(R.string.nova_library_launch_recommended_format, label)
+        } else {
+            label
+        }
     }
 
     private fun syncLaunchPreflightSettings(
@@ -864,11 +917,13 @@ fun NovaGameDetailSheetContent(
     steamLaunchCaption: String,
     optimizationState: NovaGameDetailOptimizationState,
     playLabel: String,
+    launchOptionsLabel: String,
     launchModeTitle: String,
     headlessModeLabel: String,
     virtualDisplayModeLabel: String,
     coverContentDescription: String,
     onPrimaryLaunch: () -> Unit,
+    onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
     onProfilePreference: () -> Unit,
     onRetryHighFps: () -> Unit,
@@ -911,6 +966,7 @@ fun NovaGameDetailSheetContent(
             launchModeTitle = launchModeTitle,
             recommendedBadge = recommendedBadge,
             playLabel = playLabel,
+            launchOptionsLabel = launchOptionsLabel,
             profilePreferenceLabel = profilePreferenceLabel,
             profileSummary = optimizationState.profileSummary,
             resetProfileLabel = resetProfileLabel,
@@ -918,6 +974,7 @@ fun NovaGameDetailSheetContent(
             headlessModeLabel = headlessModeLabel,
             virtualDisplayModeLabel = virtualDisplayModeLabel,
             onPrimaryLaunch = onPrimaryLaunch,
+            onLaunchOptions = onLaunchOptions,
             onLaunchModeSelected = onLaunchModeSelected,
             onProfilePreference = onProfilePreference,
             onRetryHighFps = onRetryHighFps,
@@ -1117,6 +1174,7 @@ private fun LaunchControlsPanel(
     launchModeTitle: String,
     recommendedBadge: String,
     playLabel: String,
+    launchOptionsLabel: String,
     profilePreferenceLabel: String,
     profileSummary: NovaLaunchProfileSummary?,
     resetProfileLabel: String,
@@ -1124,6 +1182,7 @@ private fun LaunchControlsPanel(
     headlessModeLabel: String,
     virtualDisplayModeLabel: String,
     onPrimaryLaunch: () -> Unit,
+    onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
     onProfilePreference: () -> Unit,
     onRetryHighFps: () -> Unit,
@@ -1143,6 +1202,7 @@ private fun LaunchControlsPanel(
             launchModeTitle = launchModeTitle,
             recommendedBadge = recommendedBadge,
             playLabel = playLabel,
+            launchOptionsLabel = launchOptionsLabel,
             profilePreferenceLabel = profilePreferenceLabel,
             profileSummary = profileSummary,
             resetProfileLabel = resetProfileLabel,
@@ -1150,6 +1210,7 @@ private fun LaunchControlsPanel(
             headlessModeLabel = headlessModeLabel,
             virtualDisplayModeLabel = virtualDisplayModeLabel,
             onPrimaryLaunch = onPrimaryLaunch,
+            onLaunchOptions = onLaunchOptions,
             onLaunchModeSelected = onLaunchModeSelected,
             onProfilePreference = onProfilePreference,
             onRetryHighFps = onRetryHighFps,
@@ -1202,6 +1263,7 @@ private fun LaunchControls(
     launchModeTitle: String,
     recommendedBadge: String,
     playLabel: String,
+    launchOptionsLabel: String,
     profilePreferenceLabel: String,
     profileSummary: NovaLaunchProfileSummary?,
     resetProfileLabel: String,
@@ -1209,6 +1271,7 @@ private fun LaunchControls(
     headlessModeLabel: String,
     virtualDisplayModeLabel: String,
     onPrimaryLaunch: () -> Unit,
+    onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
     onProfilePreference: () -> Unit,
     onRetryHighFps: () -> Unit,
@@ -1314,18 +1377,33 @@ private fun LaunchControls(
             )
         }
 
-        NovaActionButton(
-            text = profilePreferenceLabel,
-            onClick = onProfilePreference,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 9.dp),
-            contentDescription = profilePreferenceLabel,
-            minHeight = 42.dp,
-            cornerRadius = 10.dp,
-            fontSize = 12.sp,
-            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-        )
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NovaActionButton(
+                text = launchOptionsLabel,
+                onClick = onLaunchOptions,
+                modifier = Modifier.weight(1f),
+                contentDescription = launchOptionsLabel,
+                minHeight = 42.dp,
+                cornerRadius = 10.dp,
+                fontSize = 12.sp,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+            )
+            NovaActionButton(
+                text = profilePreferenceLabel,
+                onClick = onProfilePreference,
+                modifier = Modifier.weight(1f),
+                contentDescription = profilePreferenceLabel,
+                minHeight = 42.dp,
+                cornerRadius = 10.dp,
+                fontSize = 12.sp,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+            )
+        }
 
         profileSummary?.let {
             LaunchProfileSummaryInline(

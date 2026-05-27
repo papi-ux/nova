@@ -977,12 +977,6 @@ class NovaComposeSourceGuardTest {
             "@Composable\nprivate fun LaunchProfileSummaryInline("
         )
 
-        assertFalse(
-            "launch mode should not duplicate Headless/Virtual choices in a separate Launch Options drawer",
-            detail.contains("private fun showLaunchOptions(") ||
-                detail.contains("onLaunchOptions = {") ||
-                launchControls.contains("text = launchOptionsLabel")
-        )
         assertTrue(
             "Headless/Virtual should be directly selectable from the detail sheet before launching",
             launchControls.contains("LaunchModeChoicePill(") &&
@@ -990,9 +984,17 @@ class NovaComposeSourceGuardTest {
                 launchControls.contains("onClick = { onLaunchModeSelected(\"virtual_display\") }")
         )
         assertTrue(
+            "Launch Options should remain a secondary path after inline Headless/Virtual choices",
+            detail.contains("private fun showLaunchOptions(") &&
+                detail.contains("onLaunchOptions = {") &&
+                launchControls.contains("text = launchOptionsLabel") &&
+                launchControls.indexOf("text = launchOptionsLabel") > launchControls.indexOf("LaunchModeChoicePill(")
+        )
+        assertTrue(
             "non-duplicative tuning should remain available separately from launch mode selection",
             launchControls.contains("text = profilePreferenceLabel") &&
-                launchControls.indexOf("text = profilePreferenceLabel") > launchControls.indexOf("LaunchModeChoicePill(")
+                launchControls.indexOf("text = profilePreferenceLabel") > launchControls.indexOf("LaunchModeChoicePill(") &&
+                launchControls.split("LaunchProfileSummaryInline(").size == 2
         )
     }
 
