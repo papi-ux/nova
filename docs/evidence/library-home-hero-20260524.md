@@ -4,11 +4,11 @@ Status: PASS for Retroid + Shield hardware evidence using the current local Libr
 
 ## Artifact roots
 
-- Evidence index: `/Users/papi/claude-hub/artifacts/nova/library-home-hero/README.md`
-- Retroid: `/Users/papi/claude-hub/artifacts/nova/library-home-hero/retroid_20260524_131011`
-- Shield TV: `/Users/papi/claude-hub/artifacts/nova/library-home-hero/shield_20260524_171021`
-- Contact sheet: `/Users/papi/.hermes/image_cache/nova-library-home-hero-contact-sheet-20260524.jpg`
-- Curated ZIP: `/Users/papi/.hermes/cache/documents/nova-library-home-hero-evidence-20260524.zip`
+- Evidence index: `[local artifact path redacted]`
+- Retroid: `[local artifact path redacted]`
+- Shield TV: `[local artifact path redacted]`
+- Contact sheet: `[local artifact path redacted]`
+- Curated ZIP: `[local artifact path redacted]`
 
 ## What the evidence proves
 

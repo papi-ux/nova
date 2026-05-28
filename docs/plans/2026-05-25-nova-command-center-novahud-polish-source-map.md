@@ -12,7 +12,7 @@
 
 ## Current checkout inspected
 
-- Machine/repo: pc-papi `/home/papi/Documents/github/nova`
+- Machine/repo: pc-papi `[local artifact path redacted]`
 - Branch: `nova/next-level-ui-polish`
 - HEAD at inspection: `b9bec2e2`
 - Local-only policy still applies: do not push/open PRs; do not clear app data; do not confirm destructive `End session` during smoke unless Michael explicitly authorizes it.
@@ -348,7 +348,7 @@ Behavior:
 
 ### GREEN gates
 
-Run narrow tests first from pc-papi `/home/papi/Documents/github/nova`:
+Run narrow tests first from pc-papi `[local artifact path redacted]`:
 
 ```bash
 ./gradlew -PnovaAbis=x86_64 :app:testNonRoot_gameDebugUnitTest \

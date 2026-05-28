@@ -1,4 +1,4 @@
-artifact_dir=/home/papi/Documents/github/nova/docs/evidence/retroid-drawer-polish/20260524T124156Z
+artifact_dir=[local artifact path redacted]
 timestamp_utc=2026-05-24T12:57:54Z
 
 [adb devices -l]

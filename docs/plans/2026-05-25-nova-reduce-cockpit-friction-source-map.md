@@ -13,9 +13,9 @@ Reduce Nova's post-parity “power-user cockpit” feel without breaking the pro
 - `docs/ui-ux-backlog.md:24-39` — completed local polish and current contracts: two-zone Library/System shell, recovery states, startup progress/locked-host state, home/hero model, source guards.
 - `docs/ui-ux-backlog.md:41-86` — Retroid, Shield, and Pixel visual logs showing the current Library, drawers, detail sheet, startup, Command Center, HUD/stat overlay, and return-to-Library paths are product-green with caveats.
 - `docs/ui-ux-backlog.md:242-260` — locked 1.1.0 direction: console/game-launcher identity, TV/controller parity as release gate, Command Center/HUD hierarchy, accessibility/readability follow-up.
-- Retroid RC walkthrough: `/Users/papi/.hermes/artifacts/nova/rc-retroid-polish-20260524-233355-EDT/RC_WALKTHROUGH_REPORT.md`.
-- Pixel parity report: `/Users/papi/.hermes/artifacts/nova/post-retroid-parity/pixel_20260525-072944-EDT/PIXEL_PARITY_REPORT.md`.
-- Shield parity report: `/Users/papi/.hermes/artifacts/nova/post-retroid-parity/shield_20260525-063730/SUMMARY.txt`.
+- Retroid RC walkthrough: `[local artifact path redacted]`.
+- Pixel parity report: `[local artifact path redacted]`.
+- Shield parity report: `[local artifact path redacted]`.
 
 ## Non-negotiables
 

@@ -8,7 +8,7 @@ Scope: Retroid only. Pixel and Shield appeared in `adb devices -l` but were not 
 
 ## Build/install proof
 
-- Remote repo: `/home/papi/Documents/github/nova`
+- Remote repo: `[local artifact path redacted]`
 - Branch: `nova/next-level-ui-polish`
 - Build command: `./gradlew -PnovaAbis=arm64-v8a :app:assembleNonRoot_gameDebug --no-daemon --console=plain`
 - Build result: `BUILD SUCCESSFUL in 8s`
