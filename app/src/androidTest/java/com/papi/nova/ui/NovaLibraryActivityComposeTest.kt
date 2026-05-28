@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.view.ViewGroup
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -14,6 +15,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.papi.nova.R
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -69,20 +71,31 @@ class NovaLibraryActivityComposeTest {
             }
 
             composeRule.waitForIdle()
-            composeRule.onNodeWithText("Library").assertIsDisplayed()
-            composeRule.onNodeWithContentDescription("Search this library").assertIsDisplayed()
-            composeRule.onNodeWithContentDescription("Refresh")
+            val serverName = "Test Server"
+            val searchHint = context.getString(R.string.nova_library_search_hint)
+            val libraryTitle = context.getString(R.string.nova_library_title)
+            val optionsTitle = context.getString(R.string.nova_library_options_title)
+            val systemTitle = context.getString(R.string.nova_system_menu_title)
+            val filterAll = context.getString(R.string.nova_library_filter_all)
+            val filterHdr = context.getString(R.string.nova_library_filter_hdr)
+
+            composeRule.onNodeWithText(serverName, substring = false).assertIsDisplayed()
+            composeRule.onNodeWithContentDescription(searchHint).assertIsDisplayed()
+            composeRule.onNodeWithText(libraryTitle, substring = false).assertIsDisplayed()
+            composeRule.onNodeWithText(optionsTitle)
                 .assertIsDisplayed()
                 .assertHasClickAction()
-            composeRule.onNodeWithContentDescription("Manage")
+            composeRule.onNodeWithText(systemTitle)
                 .assertIsDisplayed()
                 .assertHasClickAction()
-            composeRule.onNodeWithContentDescription("Switch")
+            composeRule.onNode(hasContentDescription("$filterAll. ", substring = true))
                 .performScrollTo()
                 .assertIsDisplayed()
                 .assertHasClickAction()
-            composeRule.onNodeWithText("All").performScrollTo().assertIsDisplayed()
-            composeRule.onNodeWithText("HDR").performScrollTo().assertIsDisplayed()
+            composeRule.onNode(hasContentDescription("$filterHdr. ", substring = true))
+                .performScrollTo()
+                .assertIsDisplayed()
+                .assertHasClickAction()
         }
     }
 }

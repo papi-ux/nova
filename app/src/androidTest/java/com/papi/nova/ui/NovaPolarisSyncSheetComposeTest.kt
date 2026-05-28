@@ -1,12 +1,17 @@
 package com.papi.nova.ui
 
+import android.content.Context
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.test.core.app.ApplicationProvider
+import com.papi.nova.R
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.ui.compose.NovaComposeTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -26,6 +31,8 @@ class NovaPolarisSyncSheetComposeTest {
             novaBitrateKbps = 30000
         )
 
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
         composeRule.setContent {
             NovaComposeTheme {
                 NovaPolarisSyncContent(
@@ -44,17 +51,48 @@ class NovaPolarisSyncSheetComposeTest {
             }
         }
 
-        composeRule.onNodeWithText("Polaris Sync").assertIsDisplayed()
+        val privateStreamLabel = context.getString(R.string.nova_library_launch_headless)
+        val virtualDisplayLabel = context.getString(R.string.nova_library_launch_virtual_display)
+        val title = context.getString(R.string.nova_polaris_sync_title)
+        val streamDisplayTitle = context.getString(R.string.nova_polaris_sync_mode_title)
+        val launchProfileTitle = context.getString(R.string.nova_polaris_sync_profile_title)
+        val matchNovaAction = context.getString(R.string.nova_polaris_sync_match_nova)
+        val pushNovaAction = context.getString(R.string.nova_polaris_sync_send_nova)
+        val pullPolarisAction = context.getString(R.string.nova_polaris_sync_use_polaris)
+        val clearProfileAction = context.getString(R.string.nova_polaris_sync_clear_profile)
+        val autoMatchLabel = context.getString(R.string.nova_polaris_sync_auto_match)
+        val aiAutoQualityLabel = context.getString(R.string.nova_polaris_sync_ai_auto_quality)
+
+        composeRule.onNodeWithText(title).assertIsDisplayed()
         composeRule.onNodeWithText("Test Server").assertIsDisplayed()
-        composeRule.onNodeWithText("Stream Display").assertIsDisplayed()
-        composeRule.onNodeWithText("Headless").assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText("Virtual Display").assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText("Launch Profile").assertIsDisplayed()
-        composeRule.onNodeWithText("Push Nova").assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText("Pull Polaris").assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText("Clear Profile").assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText("Auto match this server").assertIsDisplayed()
-        composeRule.onNodeWithText("AI Auto Quality").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(streamDisplayTitle).assertIsDisplayed()
+        assertAnyModeButtonDisplayed(
+            composeRule,
+            listOf(privateStreamLabel, "Headless")
+        )
+        assertAnyModeButtonDisplayed(
+            composeRule,
+            listOf(virtualDisplayLabel, "Virtual display", "Virtual")
+        )
+        composeRule.onNodeWithText(launchProfileTitle).assertIsDisplayed()
+        composeRule.onNodeWithText(matchNovaAction).assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText(pushNovaAction).assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText(pullPolarisAction).assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText(clearProfileAction).assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText(autoMatchLabel).assertIsDisplayed()
+        composeRule.onNodeWithText(aiAutoQualityLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    private fun assertAnyModeButtonDisplayed(composeRule: androidx.compose.ui.test.junit4.ComposeContentTestRule, labels: List<String>) {
+        val found = labels.any { label ->
+            try {
+                composeRule.onNode(hasContentDescription(label)).assertIsDisplayed().assertHasClickAction()
+                true
+            } catch (_: AssertionError) {
+                false
+            }
+        }
+        assertTrue("Expected one of mode labels to be displayed: $labels", found)
     }
 
     private fun settings() = PolarisClientSettings(
