@@ -76,6 +76,8 @@ class NovaGameDetailSheetComposeTest {
                         playLabel = "Play",
                         launchOptionsLabel = "Launch Options",
                         launchModeTitle = "Launch Mode",
+                        headlessModeLabel = "Headless",
+                        virtualDisplayModeLabel = "Virtual Display",
                         coverContentDescription = "Game cover art",
                         onPrimaryLaunch = {},
                         onLaunchOptions = {},

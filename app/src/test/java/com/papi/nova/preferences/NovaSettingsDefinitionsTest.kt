@@ -68,6 +68,17 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun definitionsExposeReadOnlyNovaAppVersion() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val version = definitions.require("nova_app_version")
+
+        assertEquals("category_nova", version.categoryKey)
+        assertEquals(NovaSettingType.Action, version.type)
+        assertEquals("Version", version.title)
+        assertEquals(NovaSettingValue.StringValue(NovaAppVersion.current()), version.defaultValue)
+    }
+
+    @Test
     fun defaultStreamValuesMatchBalancedPreset() {
         val definitions = NovaSettingDefinitions.load(context)
 
@@ -80,6 +91,22 @@ class NovaSettingsDefinitionsTest {
             definitions.require("list_resolution").defaultValue
         )
         assertEquals(StreamPreset.BALANCED.resolution, PreferenceConfiguration.DEFAULT_RESOLUTION)
+    }
+
+    @Test
+    fun hudModePreferenceOffersCasualPerformanceAndDebugModes() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val hudMode = definitions.require("nova_polaris_hud_mode")
+
+        assertEquals(NovaSettingValue.StringValue("minimal"), hudMode.defaultValue)
+        assertEquals(
+            listOf("minimal", "performance", "debug"),
+            hudMode.options.map { it.value }
+        )
+        assertEquals(
+            listOf("Minimal", "Performance", "Debug"),
+            hudMode.options.map { it.label }
+        )
     }
 
     @Test

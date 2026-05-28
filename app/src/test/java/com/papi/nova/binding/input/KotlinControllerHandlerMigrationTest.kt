@@ -230,6 +230,27 @@ class KotlinControllerHandlerMigrationTest {
         assertFalse(source.contains("Thread.sleep((MINIMUM_BUTTON_DOWN_TIME_MS"))
     }
 
+    @Test
+    fun noGuideNovaShortcutsReleaseForwardedHostButtonsBeforeConsumingReleases() {
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")),
+            StandardCharsets.UTF_8
+        )
+
+        assertTrue(
+            "no-Guide Nova shortcuts must clear any START/SELECT/BACK/Y flags already forwarded to the host before consuming button-up events",
+            source.contains("releaseNoGuideShortcutButtons(context)")
+        )
+        assertTrue(
+            "release helper must clear all no-Guide chord packet bits and immediately publish the cleared controller state",
+            source.contains("private fun releaseNoGuideShortcutButtons(context: InputDeviceContext)") &&
+                source.contains("ControllerPacket.PLAY_FLAG") &&
+                source.contains("ControllerPacket.BACK_FLAG") &&
+                source.contains("ControllerPacket.Y_FLAG") &&
+                source.contains("sendControllerInputPacket(context)")
+        )
+    }
+
     private fun steamControllerKeyboardMouseDevice(
         id: Int,
         name: String = "Steam Ctrl (BT) FXA9960600962 Mouse",

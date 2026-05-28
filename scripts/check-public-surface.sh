@@ -19,8 +19,9 @@ for path in "${blocked_exact[@]}"; do
   fi
 done
 
+path_pattern='(^build-local/|(^|/)\.codex/|(^|/)\.claude/|(^|/)docs/\.claude/|(^|/)\.private/|(^|/)\.envrc$|(^|/)\.direnv/|(^|/).+\.code-workspace$|(^|/)local\.properties$|(^|/)signing\.properties$|(^|/).+\.(keystore|jks)$|(^|/)docs/session-notes-[0-9-]+\.md$)'
 path_hits="$(
-  git ls-files | rg '(^build-local/|(^|/)\.codex/|(^|/)\.claude/|(^|/)docs/\.claude/|(^|/)\.private/|(^|/)\.envrc$|(^|/)\.direnv/|(^|/).+\.code-workspace$|(^|/)local\.properties$|(^|/)signing\.properties$|(^|/).+\.(keystore|jks)$|(^|/)docs/session-notes-[0-9-]+\.md$)' || true
+  git ls-files | grep -E "$path_pattern" || true
 )"
 if [[ -n "$path_hits" ]]; then
   echo "Tracked files that should stay out of the public repo:" >&2

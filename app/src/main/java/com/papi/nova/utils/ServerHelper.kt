@@ -492,7 +492,9 @@ object ServerHelper {
                     throw HostHttpResponseException(599, "")
                 }
 
-                message = if (httpConn.quitApp(sessionToken)) {
+                val quitSucceeded = httpConn.quitApp(sessionToken)
+                failed = !quitSucceeded
+                message = if (quitSucceeded) {
                     parent.resources.getString(R.string.applist_quit_success) + " " + appName
                 } else {
                     parent.resources.getString(R.string.applist_quit_fail) + " " + appName
@@ -543,6 +545,18 @@ object ServerHelper {
         managerBinder: ComputerManagerService.ComputerManagerBinder,
         onComplete: Runnable?,
     ) {
+        doQuit(parent, computer, app, managerBinder, onComplete, null)
+    }
+
+    @JvmStatic
+    fun doQuit(
+        parent: Activity,
+        computer: ComputerDetails,
+        app: NvApp,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        onComplete: Runnable?,
+        onFail: Runnable?,
+    ) {
         try {
             val httpConn = NvHTTP(
                 getCurrentAddressFromComputer(computer),
@@ -556,10 +570,11 @@ object ServerHelper {
                 httpConn,
                 app.appName,
                 onComplete,
-                null,
+                onFail,
             )
         } catch (e: Exception) {
             e.printStackTrace()
+            onFail?.run()
 
             val toastMessage = e.message
             parent.runOnUiThread {

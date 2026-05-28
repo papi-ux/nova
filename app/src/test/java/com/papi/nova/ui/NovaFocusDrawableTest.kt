@@ -236,6 +236,22 @@ class NovaFocusDrawableTest {
     }
 
     @Test
+    fun dashboardThemePickerListsMiamiBetweenOledAndHighContrast() {
+        val source = readSource("src/main/java/com/papi/nova/PcView.kt")
+        val picker = source.substringAfter("private fun showThemePicker(")
+            .substringBefore("private fun applyThemeSelection")
+
+        assertTrue(picker.contains("NovaThemeManager.THEME_OLED"))
+        assertTrue(picker.contains("NovaThemeManager.THEME_MIAMI"))
+        assertTrue(picker.contains("NovaThemeManager.THEME_HIGH_CONTRAST"))
+        assertTrue(
+            "Miami should sit between OLED and High Contrast in the dashboard picker",
+            picker.indexOf("NovaThemeManager.THEME_OLED") < picker.indexOf("NovaThemeManager.THEME_MIAMI") &&
+                picker.indexOf("NovaThemeManager.THEME_MIAMI") < picker.indexOf("NovaThemeManager.THEME_HIGH_CONTRAST")
+        )
+    }
+
+    @Test
     fun serverRowsExposeStateHintsAndFocusedPrimaryAction() {
         val row = parseXml("src/main/res/layout/pc_grid_item.xml")
         val adapter = readSource("src/main/java/com/papi/nova/grid/PcGridAdapter.kt")

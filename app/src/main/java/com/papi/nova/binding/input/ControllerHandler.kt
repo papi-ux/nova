@@ -374,6 +374,9 @@ class ControllerHandler(
         }
     }
 
+    private fun isRetroidPocketBuiltInController(context: InputDeviceContext): Boolean =
+        context.vendorId == 0x2022 && context.productId == 0x3002
+
     private fun createInputDeviceContextForDevice(dev: InputDevice): InputDeviceContext {
         val context = InputDeviceContext()
         val devName = dev.name
@@ -389,6 +392,9 @@ class ControllerHandler(
         context.external = isExternal(dev)
         context.vendorId = dev.vendorId
         context.productId = dev.productId
+        if (isRetroidPocketBuiltInController(context)) {
+            context.novaShortcutState.loneAppSwitchOpensQuickMenu = true
+        }
 
         context.hasPaddles = MoonBridge.guessControllerHasPaddles(context.vendorId, context.productId)
         context.hasShare = MoonBridge.guessControllerHasShareButton(context.vendorId, context.productId)
@@ -2027,10 +2033,12 @@ class ControllerHandler(
             }
             NovaControllerShortcutAction.OPEN_QUICK_MENU -> {
                 context.backMenuPending = false
+                releaseNoGuideShortcutButtons(context)
                 gestures.showGameMenu(context)
                 return true
             }
             NovaControllerShortcutAction.CYCLE_NOVA_HUD -> {
+                releaseNoGuideShortcutButtons(context)
                 gestures.cycleNovaHudFromController()
                 return true
             }
@@ -2219,6 +2227,22 @@ class ControllerHandler(
         sendControllerInputPacket(context)
         context.inputMap = context.inputMap and ControllerPacket.SPECIAL_BUTTON_FLAG.inv()
         sendControllerInputPacket(context)
+    }
+
+    private fun releaseNoGuideShortcutButtons(context: InputDeviceContext) {
+        val previousInputMap = context.inputMap
+        context.inputMap =
+            context.inputMap and
+                (
+                    ControllerPacket.PLAY_FLAG or
+                        ControllerPacket.BACK_FLAG or
+                        ControllerPacket.SPECIAL_BUTTON_FLAG or
+                        ControllerPacket.Y_FLAG
+                ).inv()
+        context.backMenuPending = false
+        if (context.inputMap != previousInputMap) {
+            sendControllerInputPacket(context)
+        }
     }
 
     fun reportOscState(

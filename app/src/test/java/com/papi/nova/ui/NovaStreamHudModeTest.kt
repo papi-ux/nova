@@ -25,7 +25,7 @@ class NovaStreamHudModeTest {
         content.setViewTreeViewModelStoreOwner(activity)
         content.setViewTreeSavedStateRegistryOwner(activity)
         val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
-        prefs.edit().putString("nova_polaris_hud_mode", NovaHudMode.FULL.preferenceValue).commit()
+        prefs.edit().putString("nova_polaris_hud_mode", NovaHudMode.MINIMAL.preferenceValue).commit()
 
         val hud = NovaStreamHud(activity)
         hud.show()
@@ -33,7 +33,7 @@ class NovaStreamHudModeTest {
         hud.cycleMode()
 
         assertEquals(
-            NovaHudMode.BANNER.preferenceValue,
+            NovaHudMode.PERFORMANCE.preferenceValue,
             prefs.getString("nova_polaris_hud_mode", null)
         )
 

@@ -542,6 +542,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val themes = mutableListOf(
             NovaThemeManager.THEME_POLARIS,
             NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
         )
         if (NovaThemeManager.isMaterialYouAvailable()) {
             themes.add(NovaThemeManager.THEME_MATERIAL_YOU)

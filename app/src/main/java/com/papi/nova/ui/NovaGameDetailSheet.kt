@@ -31,11 +31,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,6 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +72,8 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.compose.NovaControllerHint
+import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaFocusableCard
 import com.papi.nova.utils.DeviceUtils
 import kotlinx.coroutines.Dispatchers
@@ -198,6 +201,27 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             }
         }
 
+        fun selectLaunchMode(mode: String) {
+            val allowed = when (mode) {
+                "virtual_display" -> uiState.virtualDisplayAllowed && !uiState.virtualDisplayUnavailable
+                else -> uiState.headlessAllowed
+            }
+            if (!allowed || mode == uiState.playMode) return
+
+            val previousLaunchMode = currentGame.launchMode
+            val allowedModes = previousLaunchMode?.allowedModes
+                ?.takeIf { it.isNotEmpty() }
+                ?: listOf("headless", "virtual_display")
+            val updatedLaunchMode = (previousLaunchMode ?: PolarisGame.LaunchModeContract()).copy(
+                preferredMode = mode,
+                allowedModes = allowedModes
+            )
+            currentGame = currentGame.copy(launchMode = updatedLaunchMode)
+            refreshUiState()
+            optimizationState = NovaGameDetailOptimizationState()
+            loadOptimization(profilePreference, usesVirtualDisplay = mode == "virtual_display")
+        }
+
         composeView.setContent {
             NovaComposeTheme {
                 NovaGameDetailSheetContent(
@@ -218,31 +242,25 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                     ),
                     resetProfileWorking = resetWorking,
                     mangoHudEnabled = mangoHudEnabled,
-                    mangoHudLabel = getString(R.string.nova_mangohud_detail_label),
-                    mangoHudCaption = getString(mangoHudCaptionRes(uiState.mangoHudRisk)),
+                    mangoHudStatusLabel = getString(R.string.nova_mangohud_enabled_status),
+                    mangoHudStatusCaption = getString(R.string.nova_mangohud_novahud_caption),
                     mangoHudWarning = uiState.mangoHudRisk != NovaGameDetailUiState.MangoHudRisk.NONE,
                     steamLaunchLabel = getString(R.string.nova_steam_launch_detail_label),
                     steamLaunchModeLabel = steamLaunchModeLabel(uiState.steamLaunchMode),
                     steamLaunchCaption = steamLaunchCaption(uiState),
                     optimizationState = optimizationState,
-                    playLabel = getString(
-                        if (optimizationState.reviewRequired) {
-                            R.string.nova_library_review_and_launch
-                        } else {
-                            R.string.nova_library_play
-                        }
-                    ).let { label ->
-                        if (optimizationState.reviewRequired) {
-                            label
-                        } else {
-                            optimizationState.profileSummary
-                                ?.primaryLaunchLabel
-                                ?.takeIf { it.isNotBlank() }
-                                ?: label
-                        }
+                    playLabel = if (optimizationState.reviewRequired) {
+                        getString(R.string.nova_library_review_and_launch)
+                    } else {
+                        optimizationState.profileSummary
+                            ?.primaryLaunchLabel
+                            ?.takeIf { it.isNotBlank() }
+                            ?: primaryPlayLabel(uiState)
                     },
                     launchOptionsLabel = getString(R.string.nova_library_launch_options),
                     launchModeTitle = getString(R.string.nova_library_launch_mode_title),
+                    headlessModeLabel = modeBadgeLabel("headless"),
+                    virtualDisplayModeLabel = modeBadgeLabel("virtual_display"),
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
                     onPrimaryLaunch = {
                         if (!uiState.playEnabled) return@NovaGameDetailSheetContent
@@ -285,6 +303,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             optimizationState.rawOptimization
                         )
                     },
+                    onLaunchModeSelected = ::selectLaunchMode,
                     onProfilePreference = {
                         showProfilePreferenceOptions(currentGame) { selected ->
                             profilePreference = selected
@@ -311,17 +330,6 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             }
                             Toast.makeText(sheetContext, message, Toast.LENGTH_SHORT).show()
                             resetWorking = false
-                        }
-                    },
-                    onMangoHudChanged = { enabled ->
-                        mangoHudEnabled = enabled
-                        if (enabled) {
-                            mangoHudWarningRes(uiState.mangoHudRisk)?.let { warning ->
-                                Toast.makeText(requireContext(), warning, Toast.LENGTH_LONG).show()
-                            }
-                        }
-                        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-                            apiClient.setMangoHud(currentGame.id, enabled)
                         }
                     },
                     onSteamLaunchMode = {
@@ -479,6 +487,15 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             .show()
     }
 
+    private fun optionLabel(mode: String, recommendedMode: String): String {
+        val label = modeLabel(mode)
+        return if (mode == recommendedMode) {
+            getString(R.string.nova_library_launch_recommended_format, label)
+        } else {
+            label
+        }
+    }
+
     private fun syncLaunchPreflightSettings(
         context: Context,
         apiClient: PolarisApiClient,
@@ -512,15 +529,6 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             .show()
     }
 
-    private fun optionLabel(mode: String, recommendedMode: String): String {
-        val label = modeLabel(mode)
-        return if (mode == recommendedMode) {
-            getString(R.string.nova_library_launch_recommended_format, label)
-        } else {
-            label
-        }
-    }
-
     private fun modeLabel(mode: String): String {
         return when (mode) {
             "virtual_display" -> getString(R.string.nova_library_launch_virtual_display)
@@ -532,6 +540,14 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         return when (mode) {
             "virtual_display" -> getString(R.string.nova_library_launch_virtual_short)
             else -> getString(R.string.nova_library_launch_headless)
+        }
+    }
+
+    private fun primaryPlayLabel(uiState: NovaGameDetailUiState): String {
+        return if (uiState.playEnabled) {
+            getString(R.string.nova_library_play_mode, modeBadgeLabel(uiState.playMode))
+        } else {
+            getString(R.string.nova_library_play_unavailable)
         }
     }
 
@@ -576,22 +592,6 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             DateUtils.FORMAT_ABBREV_RELATIVE
         )
         return getString(R.string.nova_library_meta_last_played, relative)
-    }
-
-    private fun mangoHudCaptionRes(risk: NovaGameDetailUiState.MangoHudRisk): Int {
-        return when (risk) {
-            NovaGameDetailUiState.MangoHudRisk.BIG_PICTURE -> R.string.nova_mangohud_detail_caption_big_picture
-            NovaGameDetailUiState.MangoHudRisk.STEAM -> R.string.nova_mangohud_detail_caption_risky
-            NovaGameDetailUiState.MangoHudRisk.NONE -> R.string.nova_mangohud_detail_caption
-        }
-    }
-
-    private fun mangoHudWarningRes(risk: NovaGameDetailUiState.MangoHudRisk): Int? {
-        return when (risk) {
-            NovaGameDetailUiState.MangoHudRisk.BIG_PICTURE -> R.string.nova_mangohud_warning_big_picture
-            NovaGameDetailUiState.MangoHudRisk.STEAM -> R.string.nova_mangohud_warning_steam
-            NovaGameDetailUiState.MangoHudRisk.NONE -> null
-        }
     }
 
     private fun buildOptimizationState(
@@ -909,8 +909,8 @@ fun NovaGameDetailSheetContent(
     resetProfileLabel: String,
     resetProfileWorking: Boolean,
     mangoHudEnabled: Boolean,
-    mangoHudLabel: String,
-    mangoHudCaption: String,
+    mangoHudStatusLabel: String,
+    mangoHudStatusCaption: String,
     mangoHudWarning: Boolean,
     steamLaunchLabel: String,
     steamLaunchModeLabel: String,
@@ -919,13 +919,15 @@ fun NovaGameDetailSheetContent(
     playLabel: String,
     launchOptionsLabel: String,
     launchModeTitle: String,
+    headlessModeLabel: String,
+    virtualDisplayModeLabel: String,
     coverContentDescription: String,
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
+    onLaunchModeSelected: (String) -> Unit,
     onProfilePreference: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
-    onMangoHudChanged: (Boolean) -> Unit,
     onSteamLaunchMode: () -> Unit,
     coverLoader: (ImageView) -> Unit,
     modifier: Modifier = Modifier
@@ -940,11 +942,11 @@ fun NovaGameDetailSheetContent(
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(surfaces.panel)
             .verticalScroll(verticalScroll)
-            .padding(bottom = 12.dp)
+            .padding(bottom = 16.dp)
     ) {
         Box(
             modifier = Modifier
-                .padding(top = 8.dp, bottom = 10.dp)
+                .padding(top = 6.dp, bottom = 6.dp)
                 .size(width = 36.dp, height = 4.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(colors.divider)
@@ -969,8 +971,11 @@ fun NovaGameDetailSheetContent(
             profileSummary = optimizationState.profileSummary,
             resetProfileLabel = resetProfileLabel,
             resetProfileWorking = resetProfileWorking,
+            headlessModeLabel = headlessModeLabel,
+            virtualDisplayModeLabel = virtualDisplayModeLabel,
             onPrimaryLaunch = onPrimaryLaunch,
             onLaunchOptions = onLaunchOptions,
+            onLaunchModeSelected = onLaunchModeSelected,
             onProfilePreference = onProfilePreference,
             onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile
@@ -985,13 +990,13 @@ fun NovaGameDetailSheetContent(
             onClick = onSteamLaunchMode
         )
 
-        MangoHudCard(
-            enabled = mangoHudEnabled,
-            label = mangoHudLabel,
-            caption = mangoHudCaption,
-            warning = mangoHudWarning,
-            onChanged = onMangoHudChanged
-        )
+        if (mangoHudEnabled) {
+            MangoHudPassiveStatus(
+                label = mangoHudStatusLabel,
+                caption = mangoHudStatusCaption,
+                warning = mangoHudWarning
+            )
+        }
 
         optimizationState.ai?.let {
             InsightCard(card = it)
@@ -1000,8 +1005,36 @@ fun NovaGameDetailSheetContent(
         optimizationState.stability?.let {
             InsightCard(card = it)
         }
+
+        NovaControllerHintBar(
+            hints = novaGameDetailControllerHints(),
+            compact = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 14.dp, top = 12.dp)
+        )
     }
 }
+
+@Composable
+private fun novaGameDetailControllerHints(): List<NovaControllerHint> = listOf(
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_a),
+        label = stringResource(R.string.nova_controller_hint_launch)
+    ),
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_b),
+        label = stringResource(R.string.nova_controller_hint_close)
+    ),
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_lb_rb),
+        label = stringResource(R.string.nova_controller_hint_launch_mode)
+    ),
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_y),
+        label = stringResource(R.string.nova_controller_hint_profile)
+    )
+)
 
 @Composable
 private fun NovaDetailPanel(
@@ -1052,63 +1085,81 @@ private fun GameDetailsPanel(
     coverLoader: (ImageView) -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
     val game = uiState.game
 
     NovaDetailPanel(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp),
+            .padding(start = 14.dp, end = 14.dp)
+            .heightIn(min = 136.dp),
         contentDescription = "Game details",
+        accent = true,
         contentPadding = PaddingValues(12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            AndroidView(
-                factory = { context ->
-                    ImageView(context).apply {
-                        scaleType = ImageView.ScaleType.CENTER_CROP
-                        setBackgroundColor(ContextCompat.getColor(context, R.color.nova_deep))
-                        contentDescription = coverContentDescription
-                        coverLoader(this)
-                    }
-                },
-                modifier = Modifier
-                    .width(88.dp)
-                    .aspectRatio(88f / 118f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(colors.window)
-                    .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
-                    .semantics { contentDescription = coverContentDescription }
-            )
+            key(game.id, game.coverUrl) {
+                AndroidView(
+                    factory = { context ->
+                        ImageView(context).apply {
+                            scaleType = ImageView.ScaleType.CENTER_CROP
+                            setBackgroundColor(ContextCompat.getColor(context, R.color.nova_deep))
+                            contentDescription = coverContentDescription
+                            coverLoader(this)
+                        }
+                    },
+                    modifier = Modifier
+                        .width(108.dp)
+                        .aspectRatio(88f / 118f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.window)
+                        .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
+                        .semantics { contentDescription = coverContentDescription }
+                )
+            }
 
             Column(
                 modifier = Modifier
-                    .padding(start = 13.dp)
-                    .weight(1f)
+                    .padding(start = 12.dp)
+                    .weight(1f),
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = game.name,
                     color = colors.textPrimary,
-                    fontSize = 17.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
-                    lineHeight = 20.sp,
-                    maxLines = 3,
+                    lineHeight = 22.sp,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                if (game.sourceRuntimeLabel.isNotBlank()) {
+                    Text(
+                        text = game.sourceRuntimeLabel,
+                        modifier = Modifier.padding(top = 5.dp),
+                        color = colors.textSecondary,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
                 MetadataBadges(game)
                 GenresRow(game.genres)
 
                 if (lastPlayedText != null) {
-                    Text(
+                    NovaBadge(
                         text = lastPlayedText,
                         modifier = Modifier.padding(top = 7.dp),
-                        color = colors.textMuted,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = colors.textSecondary,
+                        backgroundColor = surfaces.control.copy(alpha = 0.78f),
+                        borderColor = surfaces.tileBorder,
+                        fontSize = 11.sp,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }
@@ -1128,8 +1179,11 @@ private fun LaunchControlsPanel(
     profileSummary: NovaLaunchProfileSummary?,
     resetProfileLabel: String,
     resetProfileWorking: Boolean,
+    headlessModeLabel: String,
+    virtualDisplayModeLabel: String,
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
+    onLaunchModeSelected: (String) -> Unit,
     onProfilePreference: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit
@@ -1140,7 +1194,7 @@ private fun LaunchControlsPanel(
             .padding(start = 14.dp, end = 14.dp, top = 10.dp),
         contentDescription = "Launch controls",
         accent = true,
-        contentPadding = PaddingValues(13.dp)
+        contentPadding = PaddingValues(12.dp)
     ) {
         LaunchControls(
             uiState = uiState,
@@ -1153,8 +1207,11 @@ private fun LaunchControlsPanel(
             profileSummary = profileSummary,
             resetProfileLabel = resetProfileLabel,
             resetProfileWorking = resetProfileWorking,
+            headlessModeLabel = headlessModeLabel,
+            virtualDisplayModeLabel = virtualDisplayModeLabel,
             onPrimaryLaunch = onPrimaryLaunch,
             onLaunchOptions = onLaunchOptions,
+            onLaunchModeSelected = onLaunchModeSelected,
             onProfilePreference = onProfilePreference,
             onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile
@@ -1167,7 +1224,7 @@ private fun MetadataBadges(game: PolarisGame) {
     val horizontalScroll = rememberScrollState()
     Row(
         modifier = Modifier
-            .padding(top = 8.dp)
+            .padding(top = 6.dp)
             .horizontalScroll(horizontalScroll),
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
@@ -1186,7 +1243,7 @@ private fun GenresRow(genres: List<String>) {
     val horizontalScroll = rememberScrollState()
     Row(
         modifier = Modifier
-            .padding(top = 7.dp)
+            .padding(top = 5.dp)
             .horizontalScroll(horizontalScroll),
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
@@ -1211,8 +1268,11 @@ private fun LaunchControls(
     profileSummary: NovaLaunchProfileSummary?,
     resetProfileLabel: String,
     resetProfileWorking: Boolean,
+    headlessModeLabel: String,
+    virtualDisplayModeLabel: String,
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
+    onLaunchModeSelected: (String) -> Unit,
     onProfilePreference: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit
@@ -1235,33 +1295,34 @@ private fun LaunchControls(
                 text = launchModeTitle,
                 modifier = Modifier.weight(1f),
                 color = colors.textPrimary,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             if (uiState.showRecommendedModeBadge) {
                 Spacer(modifier = Modifier.width(8.dp))
-                NovaBadge(text = recommendedBadge, color = colors.textSecondary)
+                NovaBadge(
+                    text = recommendedBadge,
+                    color = colors.onAccent,
+                    backgroundColor = colors.accent.copy(alpha = 0.86f),
+                    borderColor = colors.accent,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
+                )
             }
         }
 
         Text(
             text = launchIntro,
             modifier = Modifier.padding(top = 6.dp),
-            color = colors.textMuted,
-            fontSize = 10.sp,
+            color = if (uiState.virtualDisplayUnavailable) colors.warning else colors.textSecondary,
+            fontSize = 11.sp,
             lineHeight = 13.sp,
-            maxLines = 3,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
-
-        profileSummary?.let {
-            LaunchProfileSummaryInline(
-                summary = it,
-                onRetryHighFps = onRetryHighFps
-            )
-        }
 
         NovaActionButton(
             text = playLabel,
@@ -1269,30 +1330,66 @@ private fun LaunchControls(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(playFocusRequester)
-                .padding(top = 11.dp),
+                .padding(top = 10.dp),
             enabled = uiState.playEnabled,
             primary = true,
             contentDescription = playLabel,
-            minHeight = 44.dp,
-            cornerRadius = 8.dp,
-            fontSize = 13.sp,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
+            minHeight = 50.dp,
+            cornerRadius = 12.dp,
+            fontSize = 16.sp,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
         )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            LaunchModeChoicePill(
+                label = headlessModeLabel,
+                status = when {
+                    uiState.playMode == "headless" -> "Selected"
+                    uiState.recommendedMode == "headless" && uiState.headlessAllowed -> "Recommended"
+                    uiState.headlessAllowed -> "Available"
+                    else -> "Unavailable"
+                },
+                recommended = uiState.recommendedMode == "headless" && uiState.headlessAllowed,
+                selected = uiState.playMode == "headless",
+                unavailable = !uiState.headlessAllowed,
+                onClick = { onLaunchModeSelected("headless") },
+                modifier = Modifier.weight(1f)
+            )
+            LaunchModeChoicePill(
+                label = virtualDisplayModeLabel,
+                status = when {
+                    uiState.virtualDisplayUnavailable -> "Unavailable"
+                    uiState.playMode == "virtual_display" -> "Selected"
+                    uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed -> "Recommended"
+                    uiState.virtualDisplayAllowed -> "Available"
+                    else -> "Unavailable"
+                },
+                recommended = uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed,
+                selected = uiState.playMode == "virtual_display",
+                unavailable = uiState.virtualDisplayUnavailable || !uiState.virtualDisplayAllowed,
+                onClick = { onLaunchModeSelected("virtual_display") },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 9.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             NovaActionButton(
                 text = launchOptionsLabel,
                 onClick = onLaunchOptions,
                 modifier = Modifier.weight(1f),
-                enabled = uiState.launchOptionsEnabled,
                 contentDescription = launchOptionsLabel,
-                minHeight = 40.dp,
-                cornerRadius = 8.dp,
+                minHeight = 42.dp,
+                cornerRadius = 10.dp,
                 fontSize = 12.sp,
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             )
@@ -1301,10 +1398,17 @@ private fun LaunchControls(
                 onClick = onProfilePreference,
                 modifier = Modifier.weight(1f),
                 contentDescription = profilePreferenceLabel,
-                minHeight = 40.dp,
-                cornerRadius = 8.dp,
+                minHeight = 42.dp,
+                cornerRadius = 10.dp,
                 fontSize = 12.sp,
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+            )
+        }
+
+        profileSummary?.let {
+            LaunchProfileSummaryInline(
+                summary = it,
+                onRetryHighFps = onRetryHighFps
             )
         }
 
@@ -1317,7 +1421,7 @@ private fun LaunchControls(
             enabled = !resetProfileWorking,
             contentDescription = resetProfileLabel,
             minHeight = 36.dp,
-            cornerRadius = 8.dp,
+            cornerRadius = 10.dp,
             fontSize = 11.sp,
             contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp)
         )
@@ -1395,6 +1499,52 @@ private fun LaunchProfileSummaryInline(
 }
 
 @Composable
+private fun LaunchModeChoicePill(
+    label: String,
+    status: String,
+    recommended: Boolean,
+    selected: Boolean,
+    unavailable: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalNovaComposeColors.current
+    val statusColor = when {
+        unavailable -> colors.warning
+        selected || recommended -> colors.accent
+        else -> colors.textMuted
+    }
+
+    NovaFocusableCard(
+        modifier = modifier.heightIn(min = 52.dp),
+        onClick = onClick,
+        enabled = !unavailable,
+        contentDescription = "$label. $status",
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Column {
+            Text(
+                text = label,
+                color = colors.textPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = status,
+                modifier = Modifier.padding(top = 3.dp),
+                color = statusColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
 private fun ProfileSummaryText(text: String, topPadding: Int = 3) {
     if (text.isBlank()) return
     Text(
@@ -1456,50 +1606,38 @@ private fun SteamLaunchModeCard(
 }
 
 @Composable
-private fun MangoHudCard(
-    enabled: Boolean,
+private fun MangoHudPassiveStatus(
     label: String,
     caption: String,
-    warning: Boolean,
-    onChanged: (Boolean) -> Unit
+    warning: Boolean
 ) {
     val colors = LocalNovaComposeColors.current
-    NovaFocusableCard(
+    val surfaces = LocalNovaLibrarySurfaces.current
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 10.dp)
-            .heightIn(min = 54.dp),
-        onClick = { onChanged(!enabled) },
-        contentDescription = "$label. $caption",
-        contentPadding = PaddingValues(start = 12.dp, top = 9.dp, end = 8.dp, bottom = 9.dp)
+            .padding(start = 14.dp, end = 14.dp, top = 8.dp)
+            .semantics { contentDescription = "$label. $caption" },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    color = colors.textPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = caption,
-                    modifier = Modifier.padding(top = 2.dp),
-                    color = if (warning) colors.warning else colors.textSecondary,
-                    fontSize = 9.sp,
-                    lineHeight = 12.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Switch(
-                checked = enabled,
-                onCheckedChange = null,
-                modifier = Modifier.padding(start = 12.dp)
-            )
-        }
+        NovaBadge(
+            text = label,
+            color = if (warning) colors.warning else colors.textSecondary,
+            backgroundColor = surfaces.control.copy(alpha = 0.56f),
+            borderColor = if (warning) colors.warning.copy(alpha = 0.44f) else surfaces.tileBorder,
+            fontSize = 10.sp,
+            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 4.dp)
+        )
+        Text(
+            text = caption,
+            modifier = Modifier.weight(1f),
+            color = colors.textMuted,
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

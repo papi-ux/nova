@@ -22,6 +22,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import android.view.DisplayCutout
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -124,7 +125,10 @@ class StreamSettings : AppCompatActivity() {
                     NovaSettingsScreen(
                         viewModel = viewModel,
                         title = getString(R.string.pcview_quick_settings),
-                        subtitle = "Streaming, input, Polaris, and device defaults",
+                        subtitle = getString(
+                            R.string.nova_settings_subtitle_with_version,
+                            NovaAppVersion.current()
+                        ),
                         onBack = { finish() },
                         onOpenLegacy = {
                             NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@StreamSettings, false)
@@ -170,6 +174,7 @@ class StreamSettings : AppCompatActivity() {
 
     private fun handleComposeAction(definition: NovaSettingDefinition) {
         when (definition.key) {
+            "nova_app_version" -> Unit
             "pref_debug_info" -> startActivity(Intent(this, DebugInfoActivity::class.java))
             "option_software_release" -> HelpLauncher.launchUrl(this, "https://github.com/papi-ux/nova/releases")
             "option_follow_update" -> HelpLauncher.launchUrl(this, getString(R.string.obtainium_app_url))
@@ -205,6 +210,14 @@ class StreamSettings : AppCompatActivity() {
                 reloadSettings()
             }
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_B && !legacyMode) {
+            onBackPressed()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onBackPressed() {
@@ -417,6 +430,8 @@ class StreamSettings : AppCompatActivity() {
             val prefConfig = prevPrefConfig!!
 
             addPreferencesFromResource(R.xml.preferences)
+
+            findPreference<Preference>("nova_app_version")?.summary = NovaAppVersion.current()
 
             findPreference<Preference>("nova_theme")?.setOnPreferenceChangeListener { _, newValue ->
                 NovaThemeManager.setTheme(requireContext(), newValue as String)

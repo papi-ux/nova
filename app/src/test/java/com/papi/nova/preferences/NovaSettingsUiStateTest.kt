@@ -67,6 +67,23 @@ class NovaSettingsUiStateTest {
     }
 
     @Test
+    fun searchFindsNovaAppVersionByBuildAlias() {
+        val state = NovaSettingsUiStateFactory.build(
+            definitions = definitions,
+            values = emptyMap(),
+            selectedCategoryKey = "category_nova",
+            searchQuery = "build"
+        )
+
+        assertTrue(state.visibleSettings.any { it.key == "nova_app_version" })
+    }
+
+    @Test
+    fun appVersionFormatterUsesVersionNameAndCode() {
+        assertEquals("Nova 1.1.0 (26)", NovaAppVersion.format("1.1.0", 26))
+    }
+
+    @Test
     fun profileOverrideMetadataTracksChangedAndResettableSettings() {
         val state = NovaSettingsUiStateFactory.build(
             definitions = definitions,

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,8 +25,8 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 data class NovaReconnectOverlayState(
     val attempt: Int,
     val maxAttempts: Int,
-    val title: String = "Reconnecting...",
-    val subtitle: String = "Stream will resume automatically"
+    val title: String = "Reconnecting stream…",
+    val subtitle: String = "Game is still running; Nova will resume automatically."
 ) {
     val attemptLabel: String = "Attempt $attempt of $maxAttempts"
 }
@@ -35,29 +34,158 @@ data class NovaReconnectOverlayState(
 data class NovaSessionProgressUiState(
     val state: String,
     val title: String,
-    val completedStages: List<String>
+    val stageLabel: String,
+    val completedStages: List<String>,
+    val confidenceLabel: String,
+    val confidenceDetail: String,
+    val progressFraction: Float
 ) {
     companion object {
+        private data class StageCopy(
+            val state: String,
+            val title: String,
+            val stageLabel: String,
+            val confidenceLabel: String,
+            val confidenceDetail: String,
+            val progressFraction: Float,
+            val aliases: Set<String> = emptySet()
+        )
+
         private val stages = listOf(
-            "initializing" to "Preparing session...",
-            "cage_starting" to "Starting compositor...",
-            "game_launching" to "Launching game...",
-            "streaming" to "Connected"
+            StageCopy(
+                state = "initializing",
+                title = "Preparing session...",
+                stageLabel = "Preflight check",
+                confidenceLabel = "Session preflight",
+                confidenceDetail = "Checking host readiness before opening the stream.",
+                progressFraction = 0.12f,
+                aliases = setOf("idle")
+            ),
+            StageCopy(
+                state = "connecting",
+                title = "Connecting to host...",
+                stageLabel = "Connection setup",
+                confidenceLabel = "Opening client connection",
+                confidenceDetail = "Nova is resolving the host and preparing local stream services.",
+                progressFraction = 0.18f,
+                aliases = setOf(
+                    "platform initialization",
+                    "name resolution",
+                    "audio stream initialization"
+                )
+            ),
+            StageCopy(
+                state = "rtsp",
+                title = "Opening stream session...",
+                stageLabel = "RTSP session",
+                confidenceLabel = "RTSP handshake",
+                confidenceDetail = "Nova is negotiating the stream session with Polaris.",
+                progressFraction = 0.24f,
+                aliases = setOf("rtsp handshake")
+            ),
+            StageCopy(
+                state = "control",
+                title = "Connecting controls...",
+                stageLabel = "Control path",
+                confidenceLabel = "Control channel",
+                confidenceDetail = "Nova is establishing the control path for the session.",
+                progressFraction = 0.34f,
+                aliases = setOf("control stream initialization", "control stream establishment")
+            ),
+            StageCopy(
+                state = "cage_starting",
+                title = "Starting compositor...",
+                stageLabel = "Host display",
+                confidenceLabel = "Host display starting",
+                confidenceDetail = "Polaris is preparing the display session.",
+                progressFraction = 0.46f,
+                aliases = setOf("app")
+            ),
+            StageCopy(
+                state = "game_launching",
+                title = "Launching game...",
+                stageLabel = "Game launch",
+                confidenceLabel = "Game launch requested",
+                confidenceDetail = "Nova is waiting for the host to expose the game window.",
+                progressFraction = 0.64f,
+                aliases = setOf("launch", "game")
+            ),
+            StageCopy(
+                state = "video",
+                title = "Starting video stream...",
+                stageLabel = "Video pipeline",
+                confidenceLabel = "Decoder handshake",
+                confidenceDetail = "Nova is initializing video decoding for the stream.",
+                progressFraction = 0.78f,
+                aliases = setOf("video stream initialization", "video stream establishment")
+            ),
+            StageCopy(
+                state = "audio",
+                title = "Starting audio stream...",
+                stageLabel = "Audio pipeline",
+                confidenceLabel = "Audio handshake",
+                confidenceDetail = "Nova is connecting the audio stream.",
+                progressFraction = 0.88f,
+                aliases = setOf("audio stream establishment")
+            ),
+            StageCopy(
+                state = "input",
+                title = "Enabling input...",
+                stageLabel = "Input path",
+                confidenceLabel = "Input handshake",
+                confidenceDetail = "Nova is enabling controller and keyboard input.",
+                progressFraction = 0.94f,
+                aliases = setOf("input stream initialization", "input stream establishment")
+            ),
+            StageCopy(
+                state = "host_locked",
+                title = "Host locked",
+                stageLabel = "Unlock host",
+                confidenceLabel = "Tap to unlock",
+                confidenceDetail = "Nova is connected; unlock the host to continue into the stream.",
+                progressFraction = 0.96f,
+                aliases = setOf("locked", "screen_locked", "host screen locked")
+            ),
+            StageCopy(
+                state = "stream_active",
+                title = "Stream active...",
+                stageLabel = "Stream active",
+                confidenceLabel = "Waiting for first frame",
+                confidenceDetail = "The host reports streaming; Nova is waiting for the first painted frame before clearing the overlay.",
+                progressFraction = 0.97f,
+                aliases = setOf("streaming", "waiting_first_frame")
+            ),
+            StageCopy(
+                state = "input_ready",
+                title = "Ready",
+                stageLabel = "Input ready",
+                confidenceLabel = "Input ready",
+                confidenceDetail = "Controller, audio, and video channels are established.",
+                progressFraction = 1f,
+                aliases = setOf("connected")
+            )
         )
 
         fun from(state: String, message: String = ""): NovaSessionProgressUiState {
-            val displayState = if (state == "idle") "initializing" else state
-            val index = stages.indexOfFirst { it.first == displayState }
-            val title = stages.getOrNull(index)?.second ?: message.ifEmpty { state }
+            val normalizedState = state.trim().lowercase().ifBlank { "initializing" }
+            val index = stages.indexOfFirst { stage ->
+                stage.state == normalizedState || normalizedState in stage.aliases
+            }
+            val stage = stages.getOrNull(index)
+            val title = stage?.title ?: message.ifEmpty { state }
             val completed = if (index >= 0) {
-                stages.take(index).map { it.second }
+                stages.take(index).map { it.title }
             } else {
                 emptyList()
             }
             return NovaSessionProgressUiState(
-                state = displayState,
+                state = stage?.state ?: normalizedState,
                 title = title,
-                completedStages = completed
+                stageLabel = stage?.stageLabel ?: "Startup update",
+                completedStages = completed,
+                confidenceLabel = stage?.confidenceLabel ?: "Working on it",
+                confidenceDetail = stage?.confidenceDetail ?: message.ifEmpty { "Nova is waiting for the next stream setup signal." },
+                progressFraction = stage?.progressFraction ?: 0.5f
             )
         }
     }
@@ -107,20 +235,48 @@ fun NovaSessionProgressOverlayContent(
 ) {
     StreamOverlayScaffold(modifier = modifier, scrimAlpha = 0.80f) {
         Text(
+            text = state.stageLabel,
+            color = LocalNovaComposeColors.current.accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 10.dp)
+        )
+        Text(
             text = state.title,
             color = Color.White,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center
         )
-        CircularProgressIndicator(
+        LinearProgressIndicator(
+            progress = { state.progressFraction },
+            modifier = Modifier
+                .padding(top = 28.dp, bottom = 18.dp)
+                .fillMaxWidth()
+                .widthIn(max = 520.dp),
             color = LocalNovaComposeColors.current.accent,
-            trackColor = Color.White.copy(alpha = 0.18f),
-            modifier = Modifier.padding(vertical = 28.dp)
+            trackColor = Color.White.copy(alpha = 0.18f)
+        )
+        Text(
+            text = state.confidenceLabel,
+            color = LocalNovaComposeColors.current.accent,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = state.confidenceDetail,
+            color = Color.White.copy(alpha = 0.72f),
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .widthIn(max = 560.dp)
         )
         if (state.completedStages.isNotEmpty()) {
             Text(
-                text = state.completedStages.joinToString("\n") { "✓ $it" },
+                text = state.completedStages.takeLast(3).joinToString("\n") { "✓ $it" },
                 color = Color.White.copy(alpha = 0.72f),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
@@ -139,7 +295,7 @@ private fun StreamOverlayScaffold(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = scrimAlpha))
-            .padding(80.dp),
+            .padding(horizontal = 48.dp, vertical = 32.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(

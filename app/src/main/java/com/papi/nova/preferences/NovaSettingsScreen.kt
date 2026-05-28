@@ -45,13 +45,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.NovaControllerHint
+import com.papi.nova.ui.compose.NovaControllerHintBar
+import com.papi.nova.ui.compose.novaFocusMotion
 import kotlin.math.roundToInt
 
 @Composable
@@ -110,6 +115,25 @@ data class NovaSettingsHeaderAction(
     val onClick: () -> Unit
 )
 
+private val NovaSettingsCardShape = RoundedCornerShape(14.dp)
+private val NovaSettingsChipShape = RoundedCornerShape(12.dp)
+
+private object NovaSettingsMetrics {
+    fun categoryRailWidthDp(): Int = 196
+    fun wideColumnSpacingDp(): Int = 14
+    fun quickStripHeightDp(): Int = 52
+    fun quickPillWidthDp(): Int = 144
+    fun headerToQuickStripSpacingDp(): Int = 6
+    fun quickStripToContentSpacingDp(): Int = 6
+    fun contentToHintSpacingDp(): Int = 4
+    fun categoryRailSpacingDp(): Int = 6
+    fun categoryRowVerticalPaddingDp(): Int = 6
+    fun settingsRowSpacingDp(): Int = 6
+    fun settingsRowVerticalPaddingDp(): Int = 6
+    fun rowsBottomPaddingDp(): Int = 12
+    fun valueChipMinHeightDp(): Int = 28
+}
+
 @Composable
 private fun NovaSettingsContent(
     state: NovaSettingsUiState,
@@ -126,6 +150,7 @@ private fun NovaSettingsContent(
 ) {
     val colors = LocalNovaComposeColors.current
     val wide = LocalConfiguration.current.screenWidthDp >= 720
+    val controllerHints = novaSettingsControllerHints()
 
     Column(
         modifier = Modifier
@@ -144,20 +169,26 @@ private fun NovaSettingsContent(
             headerActions = headerActions,
             wide = wide
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
         NovaSettingsQuickStrip(state, onSetting)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
         if (wide) {
-            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.wideColumnSpacingDp().dp)
+            ) {
                 NovaSettingsCategoryRail(
                     state = state,
                     onCategory = onCategory,
                     modifier = Modifier
-                        .width(230.dp)
+                        .width(NovaSettingsMetrics.categoryRailWidthDp().dp)
                         .fillMaxHeight()
                 )
                 Column(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .weight(1f)
                         .fillMaxHeight()
                 ) {
@@ -166,7 +197,9 @@ private fun NovaSettingsContent(
                         state = state,
                         onSetting = onSetting,
                         onResetSetting = onResetSetting,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
                     )
                 }
             }
@@ -178,11 +211,31 @@ private fun NovaSettingsContent(
                 state = state,
                 onSetting = onSetting,
                 onResetSetting = onResetSetting,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             )
         }
+        Spacer(Modifier.height(NovaSettingsMetrics.contentToHintSpacingDp().dp))
+        NovaControllerHintBar(
+            hints = controllerHints,
+            compact = wide,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
+
+@Composable
+private fun novaSettingsControllerHints(): List<NovaControllerHint> = listOf(
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_a),
+        label = stringResource(R.string.nova_controller_hint_select)
+    ),
+    NovaControllerHint(
+        key = stringResource(R.string.nova_controller_hint_b),
+        label = stringResource(R.string.nova_controller_hint_back)
+    )
+)
 
 @Composable
 private fun NovaSettingsCompactHeader(
@@ -276,7 +329,7 @@ private fun NovaSettingsSearchField(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsCardShape
     BasicTextField(
         value = query,
         onValueChange = onQuery,
@@ -285,8 +338,9 @@ private fun NovaSettingsSearchField(
         modifier = modifier
             .height(44.dp)
             .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
             .background(if (focused) surfaces.selectedControl else surfaces.control)
-            .border(if (focused) 2.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
+            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .padding(horizontal = 12.dp),
         decorationBox = { innerTextField ->
@@ -347,7 +401,7 @@ private fun NovaSettingsQuickStrip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(NovaSettingsMetrics.quickStripHeightDp().dp)
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -370,24 +424,26 @@ private fun NovaSettingPill(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsCardShape
     Column(
         modifier = Modifier
-            .width(154.dp)
-            .height(44.dp)
+            .width(NovaSettingsMetrics.quickPillWidthDp().dp)
+            .heightIn(min = NovaSettingsMetrics.quickStripHeightDp().dp)
             .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
             .background(if (focused) surfaces.selectedControl else surfaces.control)
-            .border(if (focused) 2.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
+            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .clickable(onClick = onClick)
             .focusable()
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
             text = definition.title,
             color = colors.textSecondary,
             fontSize = 10.sp,
+            lineHeight = 11.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -395,6 +451,7 @@ private fun NovaSettingPill(
             text = value,
             color = colors.textPrimary,
             fontSize = 13.sp,
+            lineHeight = 14.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -410,7 +467,7 @@ private fun NovaSettingsCategoryRail(
 ) {
     LazyColumn(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.categoryRailSpacingDp().dp),
         contentPadding = PaddingValues(bottom = 12.dp)
     ) {
         items(state.categories, key = { it.key }) { category ->
@@ -453,7 +510,7 @@ private fun NovaCategoryRow(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsCardShape
     val background = when {
         selected || focused -> surfaces.selectedControl
         else -> surfaces.control
@@ -462,17 +519,19 @@ private fun NovaCategoryRow(
         modifier = Modifier
             .fillMaxWidth(if (compact) 0.48f else 1f)
             .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
             .background(background)
-            .border(if (focused) 2.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
+            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .clickable(onClick = onClick)
             .focusable()
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = NovaSettingsMetrics.categoryRowVerticalPaddingDp().dp)
     ) {
         Text(
             text = category.title,
             color = colors.textPrimary,
             fontSize = 14.sp,
+            lineHeight = 16.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -482,6 +541,7 @@ private fun NovaCategoryRow(
                 text = category.summary,
                 color = colors.textMuted,
                 fontSize = 11.sp,
+                lineHeight = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -498,8 +558,8 @@ private fun NovaSettingsRows(
 ) {
     LazyColumn(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(bottom = 20.dp)
+        verticalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.settingsRowSpacingDp().dp),
+        contentPadding = PaddingValues(bottom = NovaSettingsMetrics.rowsBottomPaddingDp().dp)
     ) {
         items(state.visibleSettings, key = { it.key }, contentType = { it.type }) { definition ->
             NovaSettingRow(
@@ -530,18 +590,19 @@ private fun NovaSettingRow(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsCardShape
     val alpha = if (enabled) 1f else 0.44f
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
             .background(if (focused) surfaces.selectedControl else Color.Transparent)
-            .border(if (focused) 2.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.panelBorder, shape)
+            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.panelBorder, shape)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .clickable(enabled = enabled, onClick = onClick)
             .focusable(enabled = enabled)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(horizontal = 12.dp, vertical = NovaSettingsMetrics.settingsRowVerticalPaddingDp().dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -553,7 +614,8 @@ private fun NovaSettingRow(
                 Text(
                     text = definition.title,
                     color = colors.textPrimary.copy(alpha = alpha),
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -568,7 +630,8 @@ private fun NovaSettingRow(
                 Text(
                     text = definition.summary,
                     color = colors.textMuted.copy(alpha = alpha),
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -601,11 +664,12 @@ private fun NovaSettingRow(
 private fun NovaSettingOverrideBadge(alpha: Float) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsChipShape
     Text(
         text = "Override",
         color = colors.textPrimary.copy(alpha = alpha),
         fontSize = 10.sp,
+        lineHeight = 11.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
             .clip(shape)
@@ -624,11 +688,12 @@ private fun NovaSettingApplyBadge(
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsChipShape
     Text(
         text = timing.label,
         color = colors.textMuted.copy(alpha = alpha),
         fontSize = 10.sp,
+        lineHeight = 11.sp,
         fontWeight = FontWeight.Medium,
         modifier = Modifier
             .clip(shape)
@@ -647,11 +712,11 @@ private fun NovaSettingValueChip(
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(8.dp)
+    val shape = NovaSettingsChipShape
     Box(
         modifier = Modifier
-            .widthIn(min = 104.dp, max = 260.dp)
-            .heightIn(min = 34.dp)
+            .widthIn(min = 92.dp, max = 220.dp)
+            .heightIn(min = NovaSettingsMetrics.valueChipMinHeightDp().dp)
             .clip(shape)
             .background(surfaces.control.copy(alpha = alpha))
             .border(1.dp, surfaces.tileBorder.copy(alpha = alpha), shape)
@@ -661,7 +726,8 @@ private fun NovaSettingValueChip(
         Text(
             text = value,
             color = colors.textSecondary.copy(alpha = alpha),
-            fontSize = 13.sp,
+            fontSize = 12.sp,
+            lineHeight = 14.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis

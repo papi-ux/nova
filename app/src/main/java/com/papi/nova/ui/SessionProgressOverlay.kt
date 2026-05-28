@@ -44,9 +44,9 @@ class SessionProgressOverlay(private val activity: Activity) {
 
     fun updateState(state: String, message: String = "") {
         activity.runOnUiThread {
-            overlayState.value = NovaSessionProgressUiState.from(state, message)
-            if (state == "streaming") {
-                dismiss()
+            val nextState = NovaSessionProgressUiState.from(state, message)
+            if (nextState.progressFraction >= overlayState.value.progressFraction) {
+                overlayState.value = nextState
             }
         }
     }

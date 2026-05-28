@@ -32,10 +32,12 @@ internal fun buildNovaLaunchProfileSummary(
     val actions = profileState?.optJSONObject("actions")
 
     val preference = normalized(optimization.optString("preference", profileState?.optString("preference", "auto") ?: "auto"))
-    val preferenceLabel = profileState
-        ?.optString("preference_label", "")
-        ?.takeIf { it.isNotBlank() }
-        ?: preferenceLabel(preference)
+    val preferenceLabel = launchProfileDisplayLabel(
+        profileState
+            ?.optString("preference_label", "")
+            ?.takeIf { it.isNotBlank() }
+            ?: preferenceLabel(preference)
+    )
     val state = normalized(profileState?.optString("state", "") ?: "")
     val rawSelectedLabel = profileState
         ?.optString("label", "")
@@ -61,17 +63,17 @@ internal fun buildNovaLaunchProfileSummary(
         effectiveFps > 0.0 &&
         effectiveFps + 0.5 >= requestedFps
     val selectedLabel = when {
-        trialProfile -> "High FPS Trial"
-        highFpsRequestSatisfied -> "High FPS"
-        else -> rawSelectedLabel
+        trialProfile -> "High FPS trial"
+        highFpsRequestSatisfied -> "High FPS profile"
+        else -> launchProfileDisplayLabel(rawSelectedLabel)
     }
 
     val primaryLabel = when {
-        trialProfile && effectiveFps > 0.0 -> "Launch High FPS Trial ${formatFps(effectiveFps)} FPS"
-        selectedLabel.equals("High FPS", ignoreCase = true) && effectiveFps > 0.0 ->
-            "Launch High FPS ${formatFps(effectiveFps)} FPS"
-        selectedLabel.equals("Recovery", ignoreCase = true) && effectiveFps > 0.0 ->
-            "Launch Recovery ${formatFps(effectiveFps)} FPS"
+        trialProfile && effectiveFps > 0.0 -> "Try High FPS profile ${formatFps(effectiveFps)} FPS"
+        selectedLabel.equals("High FPS profile", ignoreCase = true) && effectiveFps > 0.0 ->
+            "Launch High FPS profile ${formatFps(effectiveFps)} FPS"
+        selectedLabel.equals("Recovery profile", ignoreCase = true) && effectiveFps > 0.0 ->
+            "Launch Recovery profile ${formatFps(effectiveFps)} FPS"
         effectiveFps > 0.0 -> "Launch ${formatFps(effectiveFps)} FPS"
         selectedLabel.isNotBlank() -> "Launch $selectedLabel"
         else -> ""
@@ -100,9 +102,9 @@ internal fun buildNovaLaunchProfileSummary(
     val updatedAt = lastResult?.optLong("updated_at", 0L) ?: 0L
     val freshnessLine = when {
         trialProfile -> "One-launch trial; learned recovery remains active unless this launch grades cleanly."
-        selectedLabel.equals("Recovery", ignoreCase = true) && updatedAt > 0L ->
+        selectedLabel.startsWith("Recovery", ignoreCase = true) && updatedAt > 0L ->
             "Recovery active from last session · ${relativeAge(updatedAt, nowSeconds)}"
-        selectedLabel.equals("Recovery", ignoreCase = true) ->
+        selectedLabel.startsWith("Recovery", ignoreCase = true) ->
             "Recovery active from last session"
         else -> ""
     }
@@ -160,7 +162,7 @@ private fun buildHistoryLines(
     if (issue.isNotBlank()) {
         lines += "Issue: ${issueLabel(issue)}"
     }
-    if (selectedLabel.equals("Recovery", ignoreCase = true)) {
+    if (selectedLabel.startsWith("Recovery", ignoreCase = true)) {
         lines += "Next: one clean launch can release recovery, or reset this game profile."
     }
     return lines
@@ -184,17 +186,30 @@ private fun meaningfulIssue(value: String): String {
 
 private fun preferenceLabel(preference: String): String {
     return when (preference) {
-        "quality" -> "Prefer Quality"
-        "high_fps" -> "Prefer High FPS"
-        "stability" -> "Prefer Stability"
+        "quality" -> "Quality profile"
+        "high_fps" -> "High FPS profile"
+        "stability" -> "Stability profile"
         else -> "Auto"
+    }
+}
+
+private fun launchProfileDisplayLabel(label: String): String {
+    return when {
+        label.equals("High FPS", ignoreCase = true) -> "High FPS profile"
+        label.equals("Prefer High FPS", ignoreCase = true) -> "High FPS profile"
+        label.equals("High FPS Trial", ignoreCase = true) -> "High FPS trial"
+        label.equals("Recovery", ignoreCase = true) -> "Recovery profile"
+        label.equals("Prefer Quality", ignoreCase = true) -> "Quality profile"
+        label.equals("Quality", ignoreCase = true) -> "Quality profile"
+        label.equals("Prefer Stability", ignoreCase = true) -> "Stability profile"
+        else -> label
     }
 }
 
 private fun selectedLabelFromState(state: String): String {
     return when (state) {
-        "recovering" -> "Recovery"
-        "trial" -> "High FPS Trial"
+        "recovering" -> "Recovery profile"
+        "trial" -> "High FPS trial"
         "blocked" -> "Holding"
         "learning" -> "Learning"
         "stable" -> "Quality"

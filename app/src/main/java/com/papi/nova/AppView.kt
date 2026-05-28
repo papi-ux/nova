@@ -515,6 +515,7 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
         val kickerView = findViewById<TextView>(R.id.recently_played_kicker)
         val metaView = findViewById<TextView>(R.id.recently_played_meta)
         val actionView = findViewById<TextView>(R.id.recently_played_action)
+        val endSessionView = findViewById<TextView>(R.id.recently_played_end_session)
         val artView = findViewById<ImageView>(R.id.recently_played_art)
 
         val activeComputer = computer
@@ -550,6 +551,18 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
                 R.string.pcview_card_action_resume
             },
         )
+        endSessionView?.visibility = if (appIsRunning && !appOwnedByAnotherClient) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
+        endSessionView?.setOnClickListener { v ->
+            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            endRunningSessionFromLibrary(finalTargetApp.app)
+        }
+        if (endSessionView != null) {
+            UiHelper.applyTvFocusStyle(this, endSessionView)
+        }
         if (artView != null) {
             adapter.populateFeaturedArt(finalTargetApp, artView)
         }
@@ -574,6 +587,29 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
                 ServerHelper.doStart(this, finalTargetApp.app, pc, binder, prefs.useVirtualDisplay)
             }
         }
+    }
+
+    private fun endRunningSessionFromLibrary(app: NvApp) {
+        val activeComputer = computer ?: return
+        val binder = managerBinder ?: return
+        UiHelper.displayQuitConfirmationDialog(
+            this,
+            { quitRunningSessionAndRefresh(activeComputer, app, binder) },
+            null,
+        )
+    }
+
+    private fun quitRunningSessionAndRefresh(
+        activeComputer: ComputerDetails,
+        app: NvApp,
+        binder: ComputerManagerService.ComputerManagerBinder,
+    ) {
+        suspendGridUpdates = true
+        val resumeGridUpdates = Runnable {
+            suspendGridUpdates = false
+            poller?.pollNow()
+        }
+        ServerHelper.doQuit(this, activeComputer, app, binder, resumeGridUpdates, resumeGridUpdates)
     }
 
     private fun updateUiWithAppList(appList: List<NvApp>) {
@@ -692,13 +728,7 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
                     sheet.dismiss()
                     UiHelper.displayQuitConfirmationDialog(
                         this,
-                        {
-                            suspendGridUpdates = true
-                            ServerHelper.doQuit(this, activeComputer, selectedApp.app, binder) {
-                                suspendGridUpdates = false
-                                poller?.pollNow()
-                            }
-                        },
+                        { quitRunningSessionAndRefresh(activeComputer, selectedApp.app, binder) },
                         null,
                     )
                 }

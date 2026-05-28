@@ -20,4 +20,11 @@
         <item name="android:windowSplashScreenBackground">@color/nova_oled_bg_window</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_oled_bg_window</item>
     </style>
+
+    <style name="AppTheme.Miami">
+        <item name="android:colorBackground">@color/nova_miami_bg_window</item>
+        <item name="android:windowBackground">@color/nova_miami_bg_window</item>
+        <item name="android:windowSplashScreenBackground">@color/nova_miami_bg_window</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_miami_bg_window</item>
+    </style>
 </resources>

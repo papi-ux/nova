@@ -61,7 +61,11 @@ class KotlinPreferenceScreensMigrationTest {
 
         assertTrue(settingsScreen.contains("NovaSettingsCompactHeader"))
         assertTrue(settingsScreen.contains("NovaSettingsQuickStrip"))
-        assertTrue(settingsScreen.contains("height(44.dp)"))
+        assertTrue(settingsScreen.contains(".height(NovaSettingsMetrics.quickStripHeightDp().dp)"))
+        assertTrue(settingsScreen.contains(".heightIn(min = NovaSettingsMetrics.quickStripHeightDp().dp)"))
+        assertTrue(settingsScreen.contains("NovaSettingsCardShape = RoundedCornerShape(14.dp)"))
+        assertTrue(settingsScreen.contains("NovaSettingsChipShape = RoundedCornerShape(12.dp)"))
+        assertFalse(settingsScreen.contains(".height(44.dp)\n            .horizontalScroll"))
         assertFalse(settingsScreen.contains("label = { Text(\"Search settings\") }"))
     }
 
@@ -70,8 +74,8 @@ class KotlinPreferenceScreensMigrationTest {
         val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
 
         assertTrue(settingsScreen.contains("NovaSettingValueChip"))
-        assertTrue(settingsScreen.contains("widthIn(min = 104.dp, max = 260.dp)"))
-        assertTrue(settingsScreen.contains("heightIn(min = 34.dp)"))
+        assertTrue(settingsScreen.contains("widthIn(min = 92.dp, max = 220.dp)"))
+        assertTrue(settingsScreen.contains("heightIn(min = NovaSettingsMetrics.valueChipMinHeightDp().dp)"))
         assertTrue(settingsScreen.contains("maxLines = 1"))
         assertFalse(settingsScreen.contains("maxLines = 2"))
     }
@@ -85,6 +89,17 @@ class KotlinPreferenceScreensMigrationTest {
         assertTrue(settingsScreen.contains("onResetSetting"))
         assertTrue(settingsScreen.contains("SearchResultSummary"))
         assertTrue(settingsScreen.contains("Clear"))
+    }
+
+    @Test
+    fun composeSettingsBBackHintHasActivityKeyHandler() {
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+        val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
+
+        assertTrue(settingsScreen.contains("R.string.nova_controller_hint_b"))
+        assertTrue(streamSettings.contains("override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean"))
+        assertTrue(streamSettings.contains("if (keyCode == KeyEvent.KEYCODE_BUTTON_B && !legacyMode)"))
+        assertTrue(streamSettings.contains("onBackPressed()\n            return true"))
     }
 
     @Test

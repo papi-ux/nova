@@ -26,7 +26,7 @@ class NovaStreamHud(private val activity: Activity) {
     private val hudState = mutableStateOf(NovaHudUiState.empty())
     private val sessionStats = NovaHudSessionStats()
 
-    private var currentMode = NovaHudMode.FULL
+    private var currentMode = NovaHudMode.MINIMAL
     private var targetFps = 0.0
     private var lastFps = 0.0
     private var lastLatency = 0.0
@@ -59,7 +59,7 @@ class NovaStreamHud(private val activity: Activity) {
             }
             resetSessionState()
             val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
-            currentMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "full"))
+            currentMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal"))
             publishState()
 
             val composeView = ComposeView(activity).apply {
@@ -357,9 +357,9 @@ class NovaStreamHud(private val activity: Activity) {
 
         private fun layoutWidthForMode(mode: NovaHudMode): Int {
             return when (mode) {
-                NovaHudMode.FULL -> ViewGroup.LayoutParams.WRAP_CONTENT
-                NovaHudMode.BANNER -> ViewGroup.LayoutParams.WRAP_CONTENT
-                NovaHudMode.FPS_ONLY -> ViewGroup.LayoutParams.WRAP_CONTENT
+                NovaHudMode.DEBUG -> ViewGroup.LayoutParams.WRAP_CONTENT
+                NovaHudMode.PERFORMANCE -> ViewGroup.LayoutParams.WRAP_CONTENT
+                NovaHudMode.MINIMAL -> ViewGroup.LayoutParams.WRAP_CONTENT
             }
         }
     }

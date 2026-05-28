@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="nova_theme_names">
-        <item>Polaris (Navy)</item>
-        <item>OLED (Pure Black)</item>
-        <item>Material You (System)</item>
+        <item>Polaris Aurora</item>
+        <item>Console OLED</item>
+        <item>Miami Nebula</item>
+        <item>High Contrast</item>
+        <item>Material You</item>
     </string-array>
     <string-array name="nova_theme_values">
         <item>polaris</item>
         <item>oled</item>
+        <item>miami</item>
+        <item>high_contrast</item>
         <item>material_you</item>
     </string-array>
 
@@ -75,14 +79,14 @@
     </string-array>
 
     <string-array name="nova_hud_mode_names">
-        <item>Command HUD (full stats)</item>
-        <item>Stream Strip</item>
-        <item>NanoHUD (compact stats)</item>
+        <item>Minimal</item>
+        <item>Performance</item>
+        <item>Debug</item>
     </string-array>
     <string-array name="nova_hud_mode_values">
-        <item>full</item>
-        <item>banner</item>
-        <item>fps_only</item>
+        <item>minimal</item>
+        <item>performance</item>
+        <item>debug</item>
     </string-array>
 
     <string-array name="onscreen_controls_layout_preset_names">

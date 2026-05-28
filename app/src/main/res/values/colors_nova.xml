@@ -8,7 +8,7 @@
     <color name="nova_silver">#FFa8b0b8</color>
     <color name="nova_ice">#FFd4dde8</color>
 
-    <!-- Polaris theme (default) — deep navy -->
+    <!-- Polaris Aurora (default) — Nova brand navy with restrained violet/cyan energy. -->
     <color name="nova_bg_primary">#FF1a1a2e</color>
     <color name="nova_bg_card">#CC232340</color>
     <color name="nova_bg_elevated">#E6303050</color>
@@ -17,7 +17,7 @@
 
     <color name="nova_badge_bg">#33687b81</color>
 
-    <!-- OLED Dark Galaxy theme overrides -->
+    <!-- Console OLED — true black surfaces with dim accents for handheld OLED play. -->
     <color name="nova_oled_bg_primary">#FF000000</color>
     <color name="nova_oled_bg_card">#CC0a0a0e</color>
     <color name="nova_oled_bg_elevated">#E60a0a0e</color>
@@ -30,6 +30,45 @@
     <color name="nova_oled_text_secondary">#FFa8b0b8</color>
     <color name="nova_oled_text_muted">#FF555e66</color>
     <color name="nova_oled_accent">#FF8b80ff</color>
+    <color name="nova_oled_accent_surface">#148b80ff</color>
+
+    <!-- Miami Nebula — Polaris plum/rose theme with neon flamingo focus. -->
+    <color name="nova_miami_void">#FF130817</color>
+    <color name="nova_miami_deep">#FF241429</color>
+    <color name="nova_miami_twilight">#FF3F2447</color>
+    <color name="nova_miami_storm">#FFB785A1</color>
+    <color name="nova_miami_silver">#FFFFD3E2</color>
+    <color name="nova_miami_ice">#FFFFF1F7</color>
+    <color name="nova_miami_bg_primary">#FF241429</color>
+    <color name="nova_miami_bg_window">#FF130817</color>
+    <color name="nova_miami_bg_card">#E6241429</color>
+    <color name="nova_miami_bg_elevated">#E6341E3A</color>
+    <color name="nova_miami_bg_input">#C82C1734</color>
+    <color name="nova_miami_dialog_bg">#FF241429</color>
+    <color name="nova_miami_context_bg">#FF341E3A</color>
+    <color name="nova_miami_divider">#FF6C3C6F</color>
+    <color name="nova_miami_text_primary">#FFFFF1F7</color>
+    <color name="nova_miami_text_secondary">#FFFFD3E2</color>
+    <color name="nova_miami_text_muted">#FFB785A1</color>
+    <color name="nova_miami_accent">#FFFF5CAB</color>
+    <color name="nova_miami_accent_surface">#1AFF5CAB</color>
+    <color name="nova_miami_accent_glow">#73FF5CAB</color>
+    <color name="nova_miami_ripple">#22FF5CAB</color>
+
+    <!-- High Contrast — brighter copy, firm outlines, and blue focus for readability. -->
+    <color name="nova_hc_bg_primary">#FF05070c</color>
+    <color name="nova_hc_bg_card">#F00f172a</color>
+    <color name="nova_hc_bg_elevated">#FF172033</color>
+    <color name="nova_hc_bg_window">#FF05070c</color>
+    <color name="nova_hc_bg_input">#FF111827</color>
+    <color name="nova_hc_dialog_bg">#FF0f172a</color>
+    <color name="nova_hc_context_bg">#FF111827</color>
+    <color name="nova_hc_divider">#FFdbeafe</color>
+    <color name="nova_hc_text_primary">#FFffffff</color>
+    <color name="nova_hc_text_secondary">#FFe5e7eb</color>
+    <color name="nova_hc_text_muted">#FFcbd5e1</color>
+    <color name="nova_hc_accent">#FF60a5fa</color>
+    <color name="nova_hc_accent_surface">#3360a5fa</color>
 
     <color name="nova_text_primary">#FFd4dde8</color>
     <color name="nova_text_secondary">#FFa8b0b8</color>

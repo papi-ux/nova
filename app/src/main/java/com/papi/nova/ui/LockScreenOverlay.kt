@@ -51,7 +51,7 @@ class LockScreenOverlay(
             }
 
             val title = TextView(activity).apply {
-                text = "Server is locked"
+                text = "Host locked"
                 textSize = 24f
                 setTextColor(0xFFFFFFFF.toInt())
                 gravity = Gravity.CENTER
@@ -60,7 +60,7 @@ class LockScreenOverlay(
             container.addView(title)
 
             val unlockBtn = Button(activity).apply {
-                text = "Tap to Unlock"
+                text = "Tap to unlock"
                 textSize = 18f
                 setOnClickListener {
                     requestUnlock(this)
@@ -89,7 +89,7 @@ class LockScreenOverlay(
         if (unlockInProgress) return
         unlockInProgress = true
         unlockBtn.isEnabled = false
-        unlockBtn.text = "Unlocking..."
+        unlockBtn.text = "Unlocking…"
         LimeLog.info("Nova: Requesting unlock...")
         unlockJob?.cancel()
         unlockJob = unlockScope().launch(Dispatchers.IO + CoroutineName("NovaUnlockScreen")) {
@@ -109,7 +109,7 @@ class LockScreenOverlay(
                 } else {
                     unlockInProgress = false
                     unlockBtn.isEnabled = true
-                    unlockBtn.text = "Tap to Unlock"
+                    unlockBtn.text = "Tap to unlock"
                     Toast.makeText(activity, "Unlock request failed", Toast.LENGTH_SHORT).show()
                 }
             }

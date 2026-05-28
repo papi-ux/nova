@@ -1,0 +1,8 @@
+Package [com.papi.nova.debug] (b826ac):
+userId=10177
+primaryCpuAbi=arm64-v8a
+versionCode=26 minSdk=21 targetSdk=36
+versionName=1.1.0
+lastUpdateTime=2026-05-24 08:42:07
+firstInstallTime=2026-05-16 09:53:46
+matched_lines=7

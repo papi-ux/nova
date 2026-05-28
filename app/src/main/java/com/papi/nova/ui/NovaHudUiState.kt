@@ -4,20 +4,26 @@ import com.papi.nova.api.PolarisSessionStatus
 import kotlin.math.roundToInt
 
 enum class NovaHudMode(val preferenceValue: String) {
-    FULL("full"),
-    BANNER("banner"),
-    FPS_ONLY("fps_only");
+    MINIMAL("minimal"),
+    PERFORMANCE("performance"),
+    DEBUG("debug");
 
     fun next(): NovaHudMode = when (this) {
-        FULL -> BANNER
-        BANNER -> FPS_ONLY
-        FPS_ONLY -> FULL
+        MINIMAL -> PERFORMANCE
+        PERFORMANCE -> DEBUG
+        DEBUG -> MINIMAL
     }
 
     companion object {
-        fun fromPreference(value: String?): NovaHudMode = entries.firstOrNull {
-            it.preferenceValue.equals(value, ignoreCase = true)
-        } ?: FULL
+        fun fromPreference(value: String?): NovaHudMode {
+            val normalized = value?.trim()?.lowercase().orEmpty()
+            return when (normalized) {
+                "minimal", "fps_only", "nano", "compact" -> MINIMAL
+                "performance", "banner", "strip" -> PERFORMANCE
+                "debug", "full", "command" -> DEBUG
+                else -> MINIMAL
+            }
+        }
     }
 }
 
@@ -82,7 +88,7 @@ data class NovaHudUiState(
     val sparklineSamples: List<Float>
 ) {
     companion object {
-        fun empty(mode: NovaHudMode = NovaHudMode.FULL): NovaHudUiState = from(
+        fun empty(mode: NovaHudMode = NovaHudMode.MINIMAL): NovaHudUiState = from(
             mode = mode,
             fps = 0.0,
             targetFps = 0.0,
@@ -199,9 +205,9 @@ data class NovaHudUiState(
             }
             val rounded = targetFps.roundToInt()
             return when (mode) {
-                NovaHudMode.FULL -> "TGT $rounded"
-                NovaHudMode.BANNER,
-                NovaHudMode.FPS_ONLY -> "/$rounded"
+                NovaHudMode.DEBUG -> "TGT $rounded"
+                NovaHudMode.PERFORMANCE -> "/$rounded"
+                NovaHudMode.MINIMAL -> ""
             }
         }
 
@@ -211,9 +217,9 @@ data class NovaHudUiState(
             }
             val full = StreamPolicyUiState.formatMbps(bitrateKbps)
             return when (mode) {
-                NovaHudMode.FULL -> full
-                NovaHudMode.BANNER,
-                NovaHudMode.FPS_ONLY -> full.replace(" Mbps", "M").replace(" ", "")
+                NovaHudMode.DEBUG,
+                NovaHudMode.MINIMAL -> full
+                NovaHudMode.PERFORMANCE -> full.replace(" Mbps", "M").replace(" ", "")
             }
         }
 
@@ -222,9 +228,9 @@ data class NovaHudUiState(
                 return "--"
             }
             return when (mode) {
-                NovaHudMode.FULL -> "$width×$height"
-                NovaHudMode.BANNER,
-                NovaHudMode.FPS_ONLY -> "${height}p"
+                NovaHudMode.DEBUG -> "$width×$height"
+                NovaHudMode.PERFORMANCE,
+                NovaHudMode.MINIMAL -> "${height}p"
             }
         }
 

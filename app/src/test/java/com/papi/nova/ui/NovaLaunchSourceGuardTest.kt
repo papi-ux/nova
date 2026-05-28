@@ -11,22 +11,17 @@ class NovaLaunchSourceGuardTest {
     @Test
     fun gameDetailLaunchUsesSelectedMangoHudState() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
-        val primaryLaunch = detail.section("onPrimaryLaunch = {", "},\n                    onLaunchOptions")
-        val launchOptionsCall = detail.section("onLaunchOptions = {", "},\n                    onProfilePreference")
-        val launchOptions = detail.section(
-            "private fun showLaunchOptions(",
-            "private fun optionLabel("
-        )
+        val primaryLaunch = detail.section("onPrimaryLaunch = {", "},\n                    onLaunchModeSelected")
+        val launchModeSelection = detail.section("fun selectLaunchMode(", "composeView.setContent {")
 
         assertTrue(
             "primary Play should pass the selected MangoHUD state into the launch request",
             primaryLaunch.contains("currentGame.copy(mangohud = mangoHudEnabled)")
         )
         assertTrue(
-            "Launch Options should carry the selected MangoHUD state into the dialog launch",
-            launchOptionsCall.contains("mangoHudEnabled") &&
-                launchOptions.contains("mangoHudEnabled: Boolean") &&
-                launchOptions.contains("game.copy(mangohud = mangoHudEnabled)")
+            "inline mode selection should keep the selected MangoHUD state in preview/preflight state",
+            launchModeSelection.contains("loadOptimization(profilePreference, usesVirtualDisplay = mode == \"virtual_display\")") &&
+                launchModeSelection.contains("currentGame = currentGame.copy(launchMode = updatedLaunchMode)")
         )
     }
 
@@ -50,30 +45,46 @@ class NovaLaunchSourceGuardTest {
     fun shortcutLaunchUsesPolarisPreflightBeforeStartingStream() {
         val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
-        val preparePlan = trampoline.section(
-            "private fun preparePolarisShortcutLaunchPlan(",
-            "private fun findPolarisShortcutGame("
-        )
         val directLaunch = trampoline.section(
             "if (currentApp != null) {",
             "} else {\n                                            finish()"
         )
 
         assertTrue(
-            "shortcut launch should resolve Polaris library metadata before direct game start",
-            preparePlan.contains("findPolarisShortcutGame(apiClient, shortcutApp)") &&
-                trampoline.contains("apiClient.getGames(limit = 100)")
+            "shortcut launch should split read-only Polaris metadata resolution from side-effecting launch preflight",
+            trampoline.contains("private fun resolvePolarisShortcutLaunchPlan(") &&
+                trampoline.contains("private fun applyPolarisShortcutLaunchPreflight(")
+        )
+
+        val resolvePlan = trampoline.section(
+            "private fun resolvePolarisShortcutLaunchPlan(",
+            "private fun applyPolarisShortcutLaunchPreflight("
+        )
+        val applyPreflight = trampoline.section(
+            "private fun applyPolarisShortcutLaunchPreflight(",
+            "private fun findPolarisShortcutGame("
+        )
+
+        assertTrue(
+            "shortcut launch should resolve Polaris library metadata before direct game start without mutating host/client state",
+            resolvePlan.contains("findPolarisShortcutGame(apiClient, shortcutApp)") &&
+                trampoline.contains("apiClient.getGames(limit = 100)") &&
+                !resolvePlan.contains("setMangoHud(") &&
+                !resolvePlan.contains("syncShortcutLaunchPreflightSettings") &&
+                !resolvePlan.contains("getOptimization(")
         )
         assertTrue(
-            "shortcut launch should sync the Polaris client settings/profile contract before stream start",
-            preparePlan.contains("syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay)") &&
-                trampoline.contains("apiClient.updateClientSettings(") &&
-                preparePlan.contains("apiClient.getOptimization(")
+            "shortcut launch should sync the Polaris client settings/profile contract only when a launch is going ahead",
+            applyPreflight.contains("apiClient.setMangoHud(polarisGame.id, polarisGame.mangohud)") &&
+                applyPreflight.contains("syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay)") &&
+                applyPreflight.contains("apiClient.getOptimization(") &&
+                trampoline.contains("applyPolarisShortcutLaunchPreflight(details, it, prefConfig.useVirtualDisplay)") &&
+                directLaunch.contains("startConfirmedShortcutLaunch(")
         )
         assertTrue(
             "shortcut launch should carry Polaris optimization/profile extras into Game just like library launches",
-            directLaunch.contains("launchPlan.profilePreference") &&
-                directLaunch.contains("launchPlan.launchOptimizationJson") &&
+            directLaunch.contains("readyLaunchPlan.profilePreference") &&
+                directLaunch.contains("readyLaunchPlan.launchOptimizationJson") &&
                 serverHelper.contains("Game.EXTRA_AI_PROFILE_PREFERENCE") &&
                 serverHelper.contains("Game.EXTRA_LAUNCH_OPTIMIZATION")
         )
@@ -165,6 +176,118 @@ class NovaLaunchSourceGuardTest {
             "clear-only follow-ups should avoid re-showing paused teardown after local End",
             followUps.contains("clearOnly: Boolean = false") &&
                 followUps.contains("if (clearOnly && refreshed != null)")
+        )
+    }
+
+    @Test
+    fun gameBackPressClosesOpenQuickMenuInsteadOfReopeningIt() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val onBackPressed = game.section(
+            "override fun onBackPressed()",
+            "fun sendExecServerCmd("
+        )
+
+        assertTrue(
+            "Back should dismiss an already-open Command Center instead of opening a second menu window",
+            onBackPressed.contains("gameMenuCallbacks?.isMenuOpen() == true") &&
+                onBackPressed.contains("hideGameMenu()") &&
+                onBackPressed.indexOf("hideGameMenu()") < onBackPressed.indexOf("showGameMenu(null)")
+        )
+    }
+
+    @Test
+    fun streamStartupOverlayWaitsForNativeConnectionStartedBeforeDismissal() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val overlay = readSource("src/main/java/com/papi/nova/ui/SessionProgressOverlay.kt")
+        val stageStarting = game.section(
+            "override fun stageStarting(stage:String)",
+            "override fun stageComplete(stage:String)"
+        )
+        val connectionStarted = game.section(
+            "override fun connectionStarted()",
+            "fun handleStreamStartedState()"
+        )
+
+        assertTrue(
+            "native Moonlight stage names should feed the Nova startup overlay instead of only the legacy spinner",
+            stageStarting.contains("novaProgressOverlay") &&
+                stageStarting.contains("updateState(stage")
+        )
+        assertTrue(
+            "Polaris 'streaming' should mean stream active/waiting for first frame, not immediate overlay dismissal",
+            !overlay.contains("state == \"streaming\"")
+        )
+        assertTrue(
+            "raw native stage ordering should not make startup overlay progress jump backwards",
+            overlay.contains("progressFraction >= overlayState.value.progressFraction")
+        )
+        assertTrue(
+            "native connectionStarted should mark input ready and then dismiss the startup overlay",
+            connectionStarted.contains("updateState(\"input_ready\"") &&
+                connectionStarted.contains("NOVA_PROGRESS_READY_DISMISS_DELAY_MS") &&
+                connectionStarted.contains("novaProgressOverlay") &&
+                connectionStarted.contains("dismiss()")
+        )
+    }
+
+    @Test
+    fun gameAcceptsSyntheticNovaControllerShortcutBeforeIgnoringAdbKeyEvents() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val handleKeyDown = game.section(
+            "override fun handleKeyDown(event:KeyEvent):Boolean",
+            "override fun onKeyUp("
+        )
+        val handleKeyUp = game.section(
+            "override fun handleKeyUp(event:KeyEvent):Boolean",
+            "override fun onKeyMultiple("
+        )
+        val shortcutHandler = game.section(
+            "private fun handleFallbackNovaShortcut(",
+            "// We cannot simply use modifierFlags"
+        )
+
+        assertTrue(
+            "Game should keep a fallback shortcut state for adb/synthetic controller keyevents that are not attached to a recognized game controller",
+            game.contains("fallbackNovaShortcutState")
+        )
+        assertTrue(
+            "synthetic Nova shortcut handling must run before ignoreSynthEvents can discard adb keyevents",
+            handleKeyDown.indexOf("handleFallbackNovaShortcut(event, down = true)") <
+                handleKeyDown.indexOf("prefConfig!!.ignoreSynthEvents") &&
+                handleKeyUp.indexOf("handleFallbackNovaShortcut(event, down = false)") <
+                handleKeyUp.indexOf("prefConfig!!.ignoreSynthEvents")
+        )
+        assertTrue(
+            "fallback Guide/Mode + Start/Menu should open the Command Center without requiring a GameInputDevice context",
+            shortcutHandler.contains("NovaControllerShortcutAction.OPEN_QUICK_MENU") &&
+                shortcutHandler.contains("showGameMenu(null)")
+        )
+        assertTrue(
+            "fallback shortcuts should still support NovaHUD cycling for adb/controller smoke parity",
+            shortcutHandler.contains("NovaControllerShortcutAction.CYCLE_NOVA_HUD") &&
+                shortcutHandler.contains("cycleNovaHudFromController()")
+        )
+    }
+
+
+    @Test
+    fun novaLaunchAndSessionStringsUsePlayerLifecycleLanguage() {
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(
+            "launch mode copy should explain private/headless and virtual display choices in player language",
+            strings.contains("<string name=\"nova_library_launch_headless\">Private stream</string>") &&
+                strings.contains("<string name=\"nova_library_launch_virtual_display\">Virtual display</string>") &&
+                strings.contains("private stream for this launch")
+        )
+        assertTrue(
+            "session lifecycle copy should distinguish disconnecting the client from ending the running host session",
+            strings.contains("<string name=\"nova_library_resume_ready\">Game still running</string>") &&
+                strings.contains("<string name=\"applist_menu_resume\">Resume stream</string>") &&
+                strings.contains("<string name=\"applist_menu_watch\">Watch stream</string>") &&
+                strings.contains("<string name=\"game_menu_disconnect\">Disconnect</string>") &&
+                strings.contains("<string name=\"nova_quick_menu_end_stream\">End session</string>") &&
+                strings.contains("<string name=\"applist_menu_quit\">End session</string>")
         )
     }
 

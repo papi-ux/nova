@@ -21,9 +21,36 @@ data class NovaLibraryFilterState(
         get() = primary != NovaLibraryPrimaryFilter.ALL
 }
 
+enum class NovaLibrarySortMode {
+    LIBRARY_ORDER,
+    RECENT,
+    NAME_ASC,
+    NAME_DESC,
+    SOURCE,
+    HDR_FIRST
+}
+
+enum class NovaLibraryLayoutMode {
+    GRID,
+    COMPACT_GRID,
+    LIST;
+
+    fun next(): NovaLibraryLayoutMode = when (this) {
+        GRID -> COMPACT_GRID
+        COMPACT_GRID -> LIST
+        LIST -> GRID
+    }
+}
+
+data class NovaLibraryOptionsState(
+    val sortMode: NovaLibrarySortMode = NovaLibrarySortMode.LIBRARY_ORDER,
+    val layoutMode: NovaLibraryLayoutMode = NovaLibraryLayoutMode.GRID
+)
+
 enum class NovaLibraryEmptyState {
     DEFAULT,
     RECENT,
+    SOURCE,
     FILTERED
 }
 
@@ -33,10 +60,61 @@ data class NovaLibrarySummary(
     val hdrCount: Int
 )
 
+enum class NovaLibraryHeroReason {
+    ACTIVE_SESSION,
+    LAST_PLAYED,
+    FIRST_FILTERED,
+    FIRST_LIBRARY_GAME,
+    EMPTY
+}
+
+enum class NovaLibraryHeroPrimaryAction {
+    RESUME,
+    WATCH,
+    OPEN_DETAIL,
+    MANAGE_LIBRARY,
+    CLEAR_FILTERS
+}
+
+enum class NovaLibraryRecoveryAction {
+    RETRY,
+    MANAGE_LIBRARY,
+    CLEAR_FILTERS
+}
+
+data class NovaLibraryRecoveryUiState(
+    val eyebrow: String,
+    val title: String,
+    val message: String,
+    val primaryActionLabel: String,
+    val primaryAction: NovaLibraryRecoveryAction,
+    val detail: String? = null,
+    val secondaryActionLabel: String? = null,
+    val secondaryAction: NovaLibraryRecoveryAction? = null
+)
+
+data class NovaLibraryHeroState(
+    val game: PolarisGame?,
+    val title: String,
+    val subtitle: String,
+    val caption: String,
+    val eyebrow: String,
+    val actionLabel: String,
+    val badges: List<String>,
+    val reason: NovaLibraryHeroReason,
+    val primaryAction: NovaLibraryHeroPrimaryAction,
+    val supportingLine: String,
+    val artworkFallbackTitle: String,
+    val artworkFallbackSubtitle: String,
+    val secondaryActionLabel: String? = null
+)
+
 data class NovaLibraryUiModel(
     val allGames: List<PolarisGame>,
     val filteredGames: List<PolarisGame>,
     val recentGames: List<PolarisGame>,
+    val optionsState: NovaLibraryOptionsState,
+    val hero: NovaLibraryHeroState,
     val summary: NovaLibrarySummary,
     val emptyState: NovaLibraryEmptyState,
     val resultCount: Int
@@ -116,29 +194,289 @@ object NovaLibraryUiStateMapper {
     private const val RECENT_RAIL_HORIZONTAL_PADDING_DP = 24
     private const val GAME_CARD_GAP_DP = 10
     private const val MIN_RECENT_RAIL_CARD_WIDTH_DP = 72
+    private const val RAIL_SCROLL_BOTTOM_PADDING_DP = 96
+    private const val RAIL_VERTICAL_SPACING_DP = 4
+    private const val FILTER_CHIP_HEIGHT_DP = 38
+    private const val RAIL_FILTER_GRID_SPACING_DP = 4
+    private const val RAIL_FILTER_GRID_TWO_COLUMN_MIN_WIDTH_DP = 200
+    private const val RAIL_ACTION_BUTTON_MIN_HEIGHT_DP = 38
+    private const val RAIL_ACTION_GRID_SPACING_DP = 8
+    private const val RAIL_ACTION_GRID_THREE_COLUMN_MIN_WIDTH_DP = 200
+    private const val LANDSCAPE_RECENT_RAIL_MIN_HEIGHT_DP = 560
+    private const val LANDSCAPE_SCREEN_PADDING_DP = 8
+    private const val PORTRAIT_SCREEN_PADDING_DP = 8
+    private const val LANDSCAPE_CONTENT_SPACING_DP = 6
+    private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 32
+    private const val PORTRAIT_CONTROLLER_HINT_BOTTOM_PADDING_DP = 40
 
     fun build(
         games: List<PolarisGame>,
         search: String,
-        filterState: NovaLibraryFilterState
+        filterState: NovaLibraryFilterState,
+        optionsState: NovaLibraryOptionsState = NovaLibraryOptionsState(),
+        activeSession: NovaLibraryActiveSessionUiState? = null
     ): NovaLibraryUiModel {
-        val filtered = filterGames(games, search, filterState)
+        val filtered = filterGames(games, search, filterState, optionsState)
+        val emptyState = emptyState(search, filterState)
         return NovaLibraryUiModel(
             allGames = games,
             filteredGames = filtered,
             recentGames = recentGames(games),
+            optionsState = optionsState,
+            hero = heroState(
+                games = games,
+                filteredGames = filtered,
+                activeSession = activeSession,
+                constraintsActive = search.isNotBlank() || filterState.hasActiveConstraint,
+                emptyState = emptyState
+            ),
             summary = summary(games),
-            emptyState = emptyState(search, filterState),
+            emptyState = emptyState,
             resultCount = filtered.size
+        )
+    }
+
+    fun heroState(
+        games: List<PolarisGame>,
+        filteredGames: List<PolarisGame>,
+        activeSession: NovaLibraryActiveSessionUiState?,
+        constraintsActive: Boolean = false,
+        emptyState: NovaLibraryEmptyState = if (constraintsActive) {
+            NovaLibraryEmptyState.FILTERED
+        } else {
+            NovaLibraryEmptyState.DEFAULT
+        }
+    ): NovaLibraryHeroState {
+        if (activeSession != null) {
+            return activeSessionHero(activeSession, games)
+        }
+
+        val filtered = filteredGames.firstOrNull()
+        if (constraintsActive) {
+            return if (filtered != null) {
+                gameHero(
+                    game = filtered,
+                    reason = NovaLibraryHeroReason.FIRST_FILTERED,
+                    eyebrow = "Filtered library",
+                    caption = "Filters active - clear to browse every game."
+                )
+            } else if (emptyState == NovaLibraryEmptyState.RECENT && games.isNotEmpty()) {
+                NovaLibraryHeroState(
+                    game = null,
+                    title = "No recent games",
+                    subtitle = "Your library has ${games.size} games ready.",
+                    caption = "Launch any game once and it will appear in Continue.",
+                    eyebrow = "Continue when ready",
+                    actionLabel = "View all games",
+                    badges = emptyList(),
+                    reason = NovaLibraryHeroReason.EMPTY,
+                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
+                    supportingLine = "View all • ${games.size} games ready",
+                    artworkFallbackTitle = "No recent games",
+                    artworkFallbackSubtitle = "Continue when ready"
+                )
+            } else if (emptyState == NovaLibraryEmptyState.SOURCE && games.isNotEmpty()) {
+                NovaLibraryHeroState(
+                    game = null,
+                    title = "No games from this source",
+                    subtitle = "Your library has ${games.size} games ready.",
+                    caption = "Clear the source filter or manage your Polaris library.",
+                    eyebrow = "Source filter",
+                    actionLabel = "Clear source",
+                    badges = emptyList(),
+                    reason = NovaLibraryHeroReason.EMPTY,
+                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
+                    supportingLine = "Clear source • ${games.size} games ready",
+                    artworkFallbackTitle = "No games from this source",
+                    artworkFallbackSubtitle = "Source filter"
+                )
+            } else {
+                NovaLibraryHeroState(
+                    game = null,
+                    title = "No matching games",
+                    subtitle = "Clear search or filters to browse your full library.",
+                    caption = "No match for the current search or filters.",
+                    eyebrow = "Filtered library",
+                    actionLabel = "Clear filters",
+                    badges = emptyList(),
+                    reason = NovaLibraryHeroReason.EMPTY,
+                    primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
+                    supportingLine = "Clear filters • Library",
+                    artworkFallbackTitle = "No matching games",
+                    artworkFallbackSubtitle = "Filtered library"
+                )
+            }
+        }
+
+        val recent = recentGames(games).firstOrNull()
+        if (recent != null) {
+            return gameHero(
+                game = recent,
+                reason = NovaLibraryHeroReason.LAST_PLAYED,
+                eyebrow = "Continue playing",
+                caption = "Recent on this host."
+            )
+        }
+
+        if (filtered != null) {
+            return gameHero(
+                game = filtered,
+                reason = NovaLibraryHeroReason.FIRST_FILTERED,
+                eyebrow = "Ready when you are",
+                caption = "Choose profile, display, and stream settings."
+            )
+        }
+
+        val firstGame = games.firstOrNull()
+        if (firstGame != null) {
+            return gameHero(
+                game = firstGame,
+                reason = NovaLibraryHeroReason.FIRST_LIBRARY_GAME,
+                eyebrow = "Ready when you are",
+                caption = "Choose profile, display, and stream settings."
+            )
+        }
+
+        return NovaLibraryHeroState(
+            game = null,
+            title = "Build your library",
+            subtitle = "Connect Polaris to bring your games into Nova.",
+            caption = "Manage Library in Polaris to add games and launch metadata.",
+            eyebrow = "No games yet",
+            actionLabel = "Manage library",
+            badges = listOf("Polaris ready"),
+            reason = NovaLibraryHeroReason.EMPTY,
+            primaryAction = NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY,
+            supportingLine = "Connect • Polaris",
+            artworkFallbackTitle = "Nova Library",
+            artworkFallbackSubtitle = "No games yet"
+        )
+    }
+
+    private fun activeSessionHero(
+        session: NovaLibraryActiveSessionUiState,
+        games: List<PolarisGame>
+    ): NovaLibraryHeroState {
+        val matchingGame = games.firstOrNull { game ->
+            game.id == session.gameUuid || game.appId == session.gameId || game.name.equals(session.gameName, ignoreCase = true)
+        }
+        val badges = buildList {
+            add("Active session")
+            if (session.virtualDisplay) add("Virtual display")
+            if (session.streamWidth > 0 && session.streamHeight > 0 && session.streamFps > 0f) {
+                add("${session.streamWidth}×${session.streamHeight} ${session.streamFps.toInt()}fps")
+            }
+            if (session.viewerCount > 0) {
+                add(if (session.viewerCount == 1) "1 viewer" else "${session.viewerCount} viewers")
+            }
+        }
+        val streamDetail = streamDetail(session)
+        val viewerDetail = viewerDetail(session.viewerCount)
+        val ownerDetail = session.ownerDeviceName.ifBlank { "Polaris session" }
+        val supportingLine = buildList {
+            add(if (session.ownedByClient) "Resume" else "Watch")
+            add(ownerDetail)
+            add(streamDetail.ifBlank { viewerDetail })
+        }.filter { it.isNotBlank() }.joinToString(" • ")
+        return NovaLibraryHeroState(
+            game = matchingGame,
+            title = session.gameName.ifBlank { "Active session" },
+            subtitle = ownerDetail,
+            caption = if (session.ownedByClient) {
+                "Resume the current stream and quality settings."
+            } else {
+                "Watch-only view; owner stays in control."
+            },
+            eyebrow = if (session.ownedByClient) "Resume your stream" else "Watch active stream",
+            actionLabel = if (session.ownedByClient) "Resume stream" else "Watch stream",
+            badges = badges,
+            reason = NovaLibraryHeroReason.ACTIVE_SESSION,
+            primaryAction = if (session.ownedByClient) {
+                NovaLibraryHeroPrimaryAction.RESUME
+            } else {
+                NovaLibraryHeroPrimaryAction.WATCH
+            },
+            supportingLine = supportingLine,
+            artworkFallbackTitle = session.gameName.ifBlank { "Active session" },
+            artworkFallbackSubtitle = listOf("Active session", ownerDetail)
+                .filter { it.isNotBlank() }
+                .joinToString(" • ")
+        )
+    }
+
+    private fun streamDetail(session: NovaLibraryActiveSessionUiState): String {
+        return if (session.streamWidth > 0 && session.streamHeight > 0 && session.streamFps > 0f) {
+            "${session.streamWidth}×${session.streamHeight} ${session.streamFps.toInt()}fps"
+        } else {
+            ""
+        }
+    }
+
+    private fun viewerDetail(viewerCount: Int): String {
+        return when {
+            viewerCount <= 0 -> ""
+            viewerCount == 1 -> "1 viewer"
+            else -> "$viewerCount viewers"
+        }
+    }
+
+    private fun gameHero(
+        game: PolarisGame,
+        reason: NovaLibraryHeroReason,
+        eyebrow: String,
+        caption: String
+    ): NovaLibraryHeroState {
+        val badges = buildList {
+            if (game.lastLaunched > 0) add("Recent")
+            if (game.hdrSupported) add("HDR")
+            if (game.categoryLabel.isNotBlank()) add(game.categoryLabel)
+            if (game.sourceLabel.isNotBlank()) add(game.sourceLabel)
+            if (game.runtimeLabel.isNotBlank()) add(game.runtimeLabel)
+        }.distinct()
+        val subtitle = game.sourceRuntimeLabel.ifBlank { game.sourceLabel.ifBlank { "Nova library" } }
+        val actionContext = when (reason) {
+            NovaLibraryHeroReason.LAST_PLAYED -> "Continue"
+            NovaLibraryHeroReason.FIRST_FILTERED -> if (eyebrow == "Filtered library") "Filtered" else "Ready"
+            NovaLibraryHeroReason.FIRST_LIBRARY_GAME -> "Ready"
+            NovaLibraryHeroReason.ACTIVE_SESSION -> "Resume"
+            NovaLibraryHeroReason.EMPTY -> "Library"
+        }
+        val fallbackSubtitle = when (reason) {
+            NovaLibraryHeroReason.LAST_PLAYED -> "Recent on this host"
+            NovaLibraryHeroReason.FIRST_FILTERED -> eyebrow
+            NovaLibraryHeroReason.FIRST_LIBRARY_GAME -> "Ready when you are"
+            NovaLibraryHeroReason.ACTIVE_SESSION -> "Active session"
+            NovaLibraryHeroReason.EMPTY -> "Nova library"
+        }
+        return NovaLibraryHeroState(
+            game = game,
+            title = game.name,
+            subtitle = subtitle,
+            caption = caption,
+            eyebrow = eyebrow,
+            actionLabel = "Launch options",
+            badges = badges,
+            reason = reason,
+            primaryAction = NovaLibraryHeroPrimaryAction.OPEN_DETAIL,
+            supportingLine = listOf(actionContext, subtitle)
+                .filter { it.isNotBlank() }
+                .joinToString(" • "),
+            artworkFallbackTitle = game.name,
+            artworkFallbackSubtitle = fallbackSubtitle
         )
     }
 
     fun filterGames(
         games: List<PolarisGame>,
         search: String,
-        filterState: NovaLibraryFilterState
+        filterState: NovaLibraryFilterState,
+        optionsState: NovaLibraryOptionsState = NovaLibraryOptionsState()
     ): List<PolarisGame> {
-        if (search.isBlank() && filterState.primary == NovaLibraryPrimaryFilter.ALL) {
+        if (
+            search.isBlank() &&
+            filterState.primary == NovaLibraryPrimaryFilter.ALL &&
+            optionsState.sortMode == NovaLibrarySortMode.LIBRARY_ORDER
+        ) {
             return games
         }
 
@@ -148,7 +486,7 @@ object NovaLibraryUiStateMapper {
             games.asSequence().filter { it.name.contains(search, ignoreCase = true) }
         }
 
-        return when (filterState.primary) {
+        val filtered = when (filterState.primary) {
             NovaLibraryPrimaryFilter.RECENT -> searched
                 .filter { it.lastLaunched > 0 }
                 .sortedByDescending { it.lastLaunched }
@@ -171,6 +509,34 @@ object NovaLibraryUiStateMapper {
                 else -> searched.toList()
             }
             NovaLibraryPrimaryFilter.ALL -> searched.toList()
+        }
+        return sortGames(filtered, optionsState.sortMode)
+    }
+
+    fun sortGames(
+        games: List<PolarisGame>,
+        sortMode: NovaLibrarySortMode
+    ): List<PolarisGame> {
+        return when (sortMode) {
+            NovaLibrarySortMode.LIBRARY_ORDER -> games
+            NovaLibrarySortMode.RECENT -> games.sortedWith(
+                compareByDescending<PolarisGame> { it.lastLaunched > 0 }
+                    .thenByDescending { it.lastLaunched }
+                    .thenBy { it.name.lowercase() }
+            )
+            NovaLibrarySortMode.NAME_ASC -> games.sortedBy { it.name.lowercase() }
+            NovaLibrarySortMode.NAME_DESC -> games.sortedByDescending { it.name.lowercase() }
+            NovaLibrarySortMode.SOURCE -> games.withIndex()
+                .sortedWith(
+                    compareBy<IndexedValue<PolarisGame>> { sourceSortOrder(it.value.source.lowercase()) }
+                        .thenBy { it.value.source.lowercase() }
+                        .thenBy { it.index }
+                )
+                .map { it.value }
+            NovaLibrarySortMode.HDR_FIRST -> games.sortedWith(
+                compareByDescending<PolarisGame> { it.hdrSupported }
+                    .thenBy { it.name.lowercase() }
+            )
         }
     }
 
@@ -195,8 +561,152 @@ object NovaLibraryUiStateMapper {
     ): NovaLibraryEmptyState {
         return when {
             filterState.primary == NovaLibraryPrimaryFilter.RECENT -> NovaLibraryEmptyState.RECENT
+            filterState.primary == NovaLibraryPrimaryFilter.SOURCES && filterState.source.isNotBlank() -> {
+                NovaLibraryEmptyState.SOURCE
+            }
             search.isNotBlank() || filterState.hasActiveConstraint -> NovaLibraryEmptyState.FILTERED
             else -> NovaLibraryEmptyState.DEFAULT
+        }
+    }
+
+    fun emptyRecoveryState(
+        emptyState: NovaLibraryEmptyState,
+        totalCount: Int,
+        sourceName: String?
+    ): NovaLibraryRecoveryUiState {
+        val gameCount = gameCountText(totalCount)
+        return when (emptyState) {
+            NovaLibraryEmptyState.DEFAULT -> NovaLibraryRecoveryUiState(
+                eyebrow = "Library state",
+                title = "No games yet",
+                message = "Polaris is reachable, but this host does not have any games in the Nova library yet.",
+                primaryActionLabel = "Manage library",
+                primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY
+            )
+            NovaLibraryEmptyState.RECENT -> NovaLibraryRecoveryUiState(
+                eyebrow = "Continue empty",
+                title = "No recent games",
+                message = "Your library has $gameCount ready. Launch one once and it will appear in Continue.",
+                primaryActionLabel = "View all games",
+                primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
+            )
+            NovaLibraryEmptyState.SOURCE -> {
+                val sourceLabel = sourceDisplayName(sourceName)
+                NovaLibraryRecoveryUiState(
+                    eyebrow = "Source empty",
+                    title = "No $sourceLabel games",
+                    message = "That source has no games in this Polaris library view. Clear it to return to $gameCount.",
+                    primaryActionLabel = "Clear source",
+                    primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
+                )
+            }
+            NovaLibraryEmptyState.FILTERED -> NovaLibraryRecoveryUiState(
+                eyebrow = "No matches",
+                title = "No matches",
+                message = "Search or filters returned nothing. Clear constraints to return to $gameCount.",
+                primaryActionLabel = "Clear filters",
+                primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
+            )
+        }
+    }
+
+    fun loadFailureRecoveryState(message: String): NovaLibraryRecoveryUiState {
+        val detail = message.takeIf { it.isNotBlank() }
+        val normalized = message.lowercase()
+        val offline = listOf(
+            "unknownhost",
+            "unable to resolve",
+            "connectexception",
+            "failed to connect",
+            "connection refused",
+            "timed out",
+            "timeout",
+            "no route",
+            "network is unreachable",
+            "host unreachable"
+        ).any { normalized.contains(it) }
+        if (offline) {
+            return NovaLibraryRecoveryUiState(
+                eyebrow = "Connection",
+                title = "Host offline",
+                message = "Nova cannot reach this host right now. Wake the PC or check the network, then retry.",
+                primaryActionLabel = "Retry",
+                primaryAction = NovaLibraryRecoveryAction.RETRY,
+                detail = detail
+            )
+        }
+
+        val polarisUnavailable = listOf(
+            "404",
+            "not found",
+            "405",
+            "501",
+            "unsupported",
+            "capability",
+            "capabilities",
+            "polaris/v1/games"
+        ).any { normalized.contains(it) }
+        if (polarisUnavailable) {
+            return NovaLibraryRecoveryUiState(
+                eyebrow = "Polaris",
+                title = "Polaris unavailable",
+                message = "The host answered, but the Polaris library API did not. Start or repair Polaris, then return to Nova.",
+                primaryActionLabel = "Manage server",
+                primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
+                detail = detail
+            )
+        }
+
+        return NovaLibraryRecoveryUiState(
+            eyebrow = "Recovery",
+            title = "Couldn't load library",
+            message = "Check Polaris and try again.",
+            primaryActionLabel = "Retry",
+            primaryAction = NovaLibraryRecoveryAction.RETRY,
+            detail = detail
+        )
+    }
+
+    fun launchFailureRecoveryState(message: String): NovaLibraryRecoveryUiState {
+        return NovaLibraryRecoveryUiState(
+            eyebrow = "Launch recovery",
+            title = "Launch blocked",
+            message = "Nova could not start the stream before leaving Library. Review host and library setup, then try again.",
+            primaryActionLabel = "Manage server",
+            primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
+            detail = message.takeIf { it.isNotBlank() }
+        )
+    }
+
+    private fun gameCountText(totalCount: Int): String {
+        return when (totalCount) {
+            1 -> "1 game"
+            else -> "$totalCount games"
+        }
+    }
+
+    private fun sourceDisplayName(sourceName: String?): String {
+        val raw = sourceName.orEmpty().trim()
+        if (raw.isBlank()) {
+            return "source"
+        }
+        return when (raw.lowercase()) {
+            "steam" -> "Steam"
+            "heroic" -> "Heroic"
+            "lutris" -> "Lutris"
+            "gog" -> "GOG"
+            "epic" -> "Epic"
+            else -> raw
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .split(' ')
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { part ->
+                    part.replaceFirstChar { char ->
+                        if (char.isLowerCase()) char.titlecase() else char.toString()
+                    }
+                }
+                .ifBlank { "source" }
         }
     }
 
@@ -218,17 +728,27 @@ object NovaLibraryUiStateMapper {
         }
     }
 
-    fun gridColumnsForScreen(widthDp: Int, isLandscape: Boolean): Int {
+    fun gridColumnsForScreen(
+        widthDp: Int,
+        isLandscape: Boolean,
+        layoutMode: NovaLibraryLayoutMode = NovaLibraryLayoutMode.GRID
+    ): Int {
         val contentWidth = contentWidthDp(widthDp, isLandscape)
-        return if (isLandscape) {
+        val baseColumns = if (isLandscape) {
             when {
                 contentWidth >= 1320 -> 6
-                contentWidth >= 900 -> 4
+                contentWidth >= 1080 -> 5
+                contentWidth >= 800 -> 4
                 contentWidth >= 660 -> 3
                 else -> 3
             }
         } else {
             gridColumns(contentWidth, isLandscape = false)
+        }
+        return when (layoutMode) {
+            NovaLibraryLayoutMode.GRID -> baseColumns
+            NovaLibraryLayoutMode.COMPACT_GRID -> (baseColumns + 1).coerceAtMost(6)
+            NovaLibraryLayoutMode.LIST -> 1
         }
     }
 
@@ -243,21 +763,130 @@ object NovaLibraryUiStateMapper {
     }
 
     fun gameCardHeightDp(compact: Boolean, isLandscape: Boolean): Int {
-        return when {
-            compact -> 112
-            isLandscape -> 138
-            else -> 168
+        return gameCardHeightDp(
+            layoutMode = if (compact) NovaLibraryLayoutMode.COMPACT_GRID else NovaLibraryLayoutMode.GRID,
+            isLandscape = isLandscape
+        )
+    }
+
+    fun gameCardHeightDp(layoutMode: NovaLibraryLayoutMode, isLandscape: Boolean): Int {
+        return when (layoutMode) {
+            NovaLibraryLayoutMode.COMPACT_GRID -> 112
+            NovaLibraryLayoutMode.GRID -> if (isLandscape) 156 else 168
+            NovaLibraryLayoutMode.LIST -> 88
         }
     }
 
-    fun contentWidthDp(widthDp: Int, isLandscape: Boolean): Int {
+    fun heroHeightDp(compact: Boolean): Int {
+        return if (compact) 76 else 164
+    }
+
+    fun screenPaddingDp(isLandscape: Boolean): Int {
+        return if (isLandscape) LANDSCAPE_SCREEN_PADDING_DP else PORTRAIT_SCREEN_PADDING_DP
+    }
+
+    fun landscapeContentSpacingDp(): Int = LANDSCAPE_CONTENT_SPACING_DP
+
+    fun controllerHintBarBottomPaddingDp(isLandscape: Boolean): Int {
+        return if (isLandscape) {
+            LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP
+        } else {
+            PORTRAIT_CONTROLLER_HINT_BOTTOM_PADDING_DP
+        }
+    }
+
+    fun showLandscapeRecentRail(
+        screenHeightDp: Int,
+        heroReason: NovaLibraryHeroReason,
+        recentCount: Int
+    ): Boolean {
+        if (recentCount <= 0 || screenHeightDp < LANDSCAPE_RECENT_RAIL_MIN_HEIGHT_DP) {
+            return false
+        }
+        return when (heroReason) {
+            NovaLibraryHeroReason.ACTIVE_SESSION,
+            NovaLibraryHeroReason.LAST_PLAYED -> false
+            NovaLibraryHeroReason.FIRST_FILTERED,
+            NovaLibraryHeroReason.FIRST_LIBRARY_GAME,
+            NovaLibraryHeroReason.EMPTY -> true
+        }
+    }
+
+    fun contentWidthDp(
+        widthDp: Int,
+        isLandscape: Boolean,
+        includeControlRail: Boolean = showLandscapeControlRail()
+    ): Int {
         if (!isLandscape) return widthDp
-        return (widthDp - LANDSCAPE_OUTER_PADDING_DP - LANDSCAPE_RAIL_GAP_DP - railWidthDp(widthDp))
-            .coerceAtLeast(0)
+        val reservedWidth = if (includeControlRail) {
+            LANDSCAPE_OUTER_PADDING_DP + LANDSCAPE_RAIL_GAP_DP + railWidthDp(widthDp)
+        } else {
+            LANDSCAPE_OUTER_PADDING_DP
+        }
+        return (widthDp - reservedWidth).coerceAtLeast(0)
+    }
+
+    fun showLandscapeControlRail(): Boolean {
+        // Runtime device class detection for where the permanent landscape control rail is desirable.
+        // Preserve existing call sites (no-arg function) to keep source-guard tests stable.
+        // Use a JVM system property (set in test or at app runtime) to opt into device classes where
+        // a permanent control rail is appropriate: e.g. 'retroid', 'tv', 'shield', 'controller'.
+        val deviceClass = System.getProperty("nova.device.class")?.lowercase() ?: ""
+        return when (deviceClass) {
+            "retroid", "tv", "shield", "controller", "gamepad" -> true
+            "phone", "tablet", "handheld", "mobile" -> false
+            else -> false
+        }
     }
 
     fun railWidthDp(widthDp: Int): Int {
         return if (widthDp >= 1200) 268 else 236
+    }
+
+    fun railScrollBottomPaddingDp(): Int = RAIL_SCROLL_BOTTOM_PADDING_DP
+
+    fun railVerticalSpacingDp(): Int = RAIL_VERTICAL_SPACING_DP
+
+    fun filterChipHeightDp(): Int = FILTER_CHIP_HEIGHT_DP
+
+    fun railFilterGridSpacingDp(): Int = RAIL_FILTER_GRID_SPACING_DP
+
+    fun railActionButtonMinHeightDp(): Int = RAIL_ACTION_BUTTON_MIN_HEIGHT_DP
+
+    fun railActionGridSpacingDp(): Int = RAIL_ACTION_GRID_SPACING_DP
+
+    fun railActionColumns(availableWidthDp: Int): Int {
+        return if (availableWidthDp >= RAIL_ACTION_GRID_THREE_COLUMN_MIN_WIDTH_DP) 3 else 2
+    }
+
+    fun railActionRows(actionCount: Int, availableWidthDp: Int): Int {
+        val count = actionCount.coerceAtLeast(0)
+        if (count == 0) return 0
+        val columns = railActionColumns(availableWidthDp)
+        return (count + columns - 1) / columns
+    }
+
+    fun railActionBlockHeightDp(actionCount: Int, availableWidthDp: Int): Int {
+        val rows = railActionRows(actionCount, availableWidthDp)
+        if (rows == 0) return 0
+        return (rows * RAIL_ACTION_BUTTON_MIN_HEIGHT_DP) + ((rows - 1) * RAIL_VERTICAL_SPACING_DP)
+    }
+
+    fun railFilterColumns(availableWidthDp: Int): Int {
+        return if (availableWidthDp >= RAIL_FILTER_GRID_TWO_COLUMN_MIN_WIDTH_DP) 2 else 1
+    }
+
+    fun railFilterRows(filterCount: Int, availableWidthDp: Int): Int {
+        val count = filterCount.coerceAtLeast(0)
+        if (count == 0) return 0
+        val columns = railFilterColumns(availableWidthDp)
+        return (count + columns - 1) / columns
+    }
+
+    fun railFilterGridHeightDp(filterCount: Int, availableWidthDp: Int): Int {
+        val rows = railFilterRows(filterCount, availableWidthDp)
+        if (rows == 0) return 0
+        return (rows * FILTER_CHIP_HEIGHT_DP) + ((rows - 1) * RAIL_FILTER_GRID_SPACING_DP)
     }
 
     fun filterChipWidthDp(filter: NovaLibraryPrimaryFilter): Int {

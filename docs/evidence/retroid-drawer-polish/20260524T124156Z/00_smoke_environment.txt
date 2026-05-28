@@ -1,0 +1,118 @@
+artifact_dir=[local artifact path redacted]
+timestamp_utc=2026-05-24T12:57:54Z
+
+[adb devices -l]
+List of devices attached
+24c12bdd               device usb:1-13 product:kalama model:Retroid_Pocket_6 device:kalama transport_id:2
+10.0.0.6:5555          device product:mdarcy model:SHIELD_Android_TV device:mdarcy transport_id:4
+adb-56250DLCH001S3-8VvuUE._adb-tls-connect._tcp device product:blazer model:Pixel_10_Pro device:blazer transport_id:7
+
+
+[package pid]
+25144
+
+[package path]
+package:/data/app/~~jpOXaixSr8LZOIKZb8aZYA==/com.papi.nova.debug-n13vD9l0mMHn0hpiVjcV2A==/base.apk
+
+[package version]
+  Package [com.papi.nova.debug] (bbba8ce):
+    userId=10177
+    versionCode=26 minSdk=21 targetSdk=36
+    versionName=1.1.0
+    lastUpdateTime=2026-05-24 08:42:07
+      firstInstallTime=2026-05-16 09:53:46
+
+[repo branch/status]
+## nova/next-level-ui-polish
+ M app/src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt
+ M app/src/main/java/com/papi/nova/ui/NovaStreamHudContent.kt
+ M app/src/test/java/com/papi/nova/ui/NovaComposeSourceGuardTest.kt
+?? app/src/main/java/com/papi/nova/ui/compose/NovaInGameOverlayTokens.kt
+?? docs/evidence/
+
+[repo diff stat]
+ .../java/com/papi/nova/ui/NovaQuickMenuContent.kt  | 172 ++++++++++++++-------
+ .../java/com/papi/nova/ui/NovaStreamHudContent.kt  |  13 +-
+ .../com/papi/nova/ui/NovaComposeSourceGuardTest.kt |  84 +++++++++-
+ 3 files changed, 203 insertions(+), 66 deletions(-)
+
+[debug apk sha256]
+4c2b214b47fa706ebcd1643797cd8311d2dbcfd61890bff7112b26b6e4e07fcb  app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk  size=29223412
+4c2b214b47fa706ebcd1643797cd8311d2dbcfd61890bff7112b26b6e4e07fcb  app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk  size=29223412
+
+[artifact files]
+00_smoke_environment.txt	1832
+01_library_launch.png	1517782
+01_library_launch.xml	31159
+01_library_text_summary.txt	3068
+01_window_dump.txt	57808
+02_after_game_tap.png	345751
+02_after_game_tap.xml	13945
+02_after_game_tap_text.txt	1131
+03_stream_first_paint.png	53585
+03_stream_first_paint.xml	3842
+03_stream_first_paint_text.txt	131
+03_stream_window_dump.txt	58685
+04_stream_after_unlock_tap.png	2398015
+04_stream_after_unlock_tap.xml	2840
+04_stream_after_unlock_tap_text.txt	18
+05_command_center_menu_key.png	2398686
+05_command_center_menu_key.xml	2840
+05_command_center_menu_key_text.txt	18
+06_command_center_start_select.png	1237728
+06_command_center_start_select.xml	24824
+06_command_center_start_select_text.txt	2107
+07_outside_tap_dismiss.png	2398870
+07_outside_tap_dismiss.xml	2840
+07_outside_tap_dismiss_text.txt	18
+08_reopened_after_outside_tap.png	1237911
+08_reopened_after_outside_tap.xml	24824
+08_reopened_after_outside_tap_text.txt	2107
+09_swipe_drag_dismiss.png	2398543
+09_swipe_drag_dismiss.xml	2840
+09_swipe_drag_dismiss_text.txt	18
+10_reopened_before_scroll.png	1237903
+10_reopened_before_scroll.xml	24824
+10_reopened_before_scroll_text.txt	2107
+11_vertical_scroll_inside_drawer.png	1271647
+11_vertical_scroll_inside_drawer.xml	27171
+11_vertical_scroll_inside_drawer_text.txt	2385
+12_nova_hud_toggled_on_in_drawer.png	1271829
+12_nova_hud_toggled_on_in_drawer.xml	27170
+12_nova_hud_toggled_on_in_drawer_text.txt	2384
+13_hud_visible_stream.png	2377931
+13_hud_visible_stream.xml	6736
+13_hud_visible_stream_text.txt	322
+14_hud_after_tap_cycle.png	2209964
+14_hud_after_tap_cycle.xml	10707
+14_hud_after_tap_cycle_text.txt	740
+15_hud_after_drag.png	2153798
+15_hud_after_drag.xml	10735
+15_hud_after_drag_text.txt	753
+16_hud_over_alternate_scene.png	2006436
+16_hud_over_alternate_scene.xml	10735
+16_hud_over_alternate_scene_text.txt	753
+17_command_center_open_with_hud.png	1162713
+17_command_center_open_with_hud.xml	24824
+17_command_center_open_with_hud_text.txt	2107
+18_command_center_hud_row_on.png	1178207
+18_command_center_hud_row_on.xml	27170
+18_command_center_hud_row_on_text.txt	2384
+19_nova_hud_toggled_off_in_drawer.png	1213776
+19_nova_hud_toggled_off_in_drawer.xml	27171
+19_nova_hud_toggled_off_in_drawer_text.txt	2385
+20_hud_hidden_stream.png	2167998
+20_hud_hidden_stream.xml	2840
+20_hud_hidden_stream_text.txt	18
+21_disconnect_menu_before_tap.png	1180636
+21_disconnect_menu_before_tap.xml	24824
+21_disconnect_menu_before_tap_text.txt	2107
+22_after_disconnect_return.png	1515487
+22_after_disconnect_return.xml	31159
+22_after_disconnect_return_text.txt	3068
+build.log	4553
+device_proof.txt	107
+install.log	753
+logcat_start_marker_utc.txt	17
+package_dumpsys.txt	11120
+package_proof.txt	221

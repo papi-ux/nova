@@ -395,17 +395,17 @@
         <CheckBoxPreference
             android:key="nova_polaris_hud"
             android:title="Nova Stream HUD"
-            android:summary="Drag to move, tap to cycle modes (full / banner / fps)"
+            android:summary="Drag to move, tap to cycle modes (minimal / performance / debug)"
             android:defaultValue="false"
             app:iconSpaceReserved="false" />
         <ListPreference
             android:key="nova_polaris_hud_mode"
-            android:title="Starting HUD Style"
+            android:title="HUD Visual Mode"
             android:dependency="nova_polaris_hud"
             android:entries="@array/nova_hud_mode_names"
             android:entryValues="@array/nova_hud_mode_values"
-            android:defaultValue="full"
-            android:summary="Initial mode — tap the HUD during streaming to cycle"
+            android:defaultValue="minimal"
+            android:summary="Minimal for play, Performance for tuning, Debug for dense troubleshooting"
             app:iconSpaceReserved="false" />
         <ListPreference
             android:key="nova_polaris_hud_position"
@@ -600,10 +600,15 @@
         android:title="Nova"
         android:summary="Theme, auto-connect, Polaris integration"
         app:iconSpaceReserved="false">
+        <Preference
+            android:key="nova_app_version"
+            android:title="@string/nova_app_version_title"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
         <ListPreference
             android:key="nova_theme"
             android:title="Theme"
-            android:summary="Polaris (navy), OLED (black), or Material You (system accent)"
+            android:summary="Polaris Aurora, Console OLED, Miami Nebula, High Contrast, or Material You"
             android:entries="@array/nova_theme_names"
             android:entryValues="@array/nova_theme_values"
             android:defaultValue="polaris"
