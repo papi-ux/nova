@@ -66,8 +66,8 @@ class NovaGameDetailSheetComposeTest {
                         resetProfileLabel = "Reset Game Profile",
                         resetProfileWorking = false,
                         mangoHudEnabled = false,
-                        mangoHudLabel = "MangoHud Overlay",
-                        mangoHudCaption = "Next launch only",
+                        mangoHudStatusLabel = "MangoHud Overlay",
+                        mangoHudStatusCaption = "Next launch only",
                         mangoHudWarning = false,
                         steamLaunchLabel = "Steam Launch",
                         steamLaunchModeLabel = "Direct",
@@ -81,10 +81,10 @@ class NovaGameDetailSheetComposeTest {
                         coverContentDescription = "Game cover art",
                         onPrimaryLaunch = {},
                         onLaunchOptions = {},
+                        onLaunchModeSelected = {},
                         onProfilePreference = {},
                         onRetryHighFps = {},
                         onResetProfile = {},
-                        onMangoHudChanged = {},
                         onSteamLaunchMode = {},
                         coverLoader = {}
                     )
