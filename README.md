@@ -2,24 +2,27 @@
 
 # Nova
 
-**Polaris-aware game streaming for Android handhelds, phones, and TVs.**
+**Game streaming for Android handhelds that understands the host.**
 
-Stream PC games from Polaris or any Moonlight-compatible host with a client that
-understands handheld controls, live session state, launch intent, and host-side
-tuning instead of hiding everything behind a generic game grid.
+Nova streams PC games from Polaris or any Moonlight-compatible host, but it is
+built for the parts normal clients barely explain: launch modes, active sessions,
+host tuning, stream health, controller focus, and safe disconnects.
+
+With Polaris, Nova can show what will happen before you launch, what is happening
+while you play, and what is safe to do when you leave.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1a1a2e)](https://github.com/papi-ux/nova/stargazers)
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Quick Start](#quick-start) · [What's New](#whats-new-in-v111) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Why Nova](#why-nova) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v111) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
 <br/>
 
 <picture>
-  <img src="docs/screenshots/nova-showcase.gif" width="820" alt="Nova on Android: server browser, game grid, library detail sheet, quick menu, and live stream HUD" />
+  <img src="docs/screenshots/nova-showcase.gif" width="820" alt="Nova on Android: server browser, game grid, library detail sheet, Command Center, and live stream HUD" />
 </picture>
 
 </div>
@@ -28,7 +31,34 @@ tuning instead of hiding everything behind a generic game grid.
 > Nova is an Android client today. It is built and tested most heavily on handheld Android devices, Android TV, and modern phones, with the richest experience coming from [Polaris](https://github.com/papi-ux/polaris).
 
 > [!NOTE]
-> Nova still speaks the Moonlight/GameStream client path. Polaris unlocks the new launch, library, watch, tuning, and session-truth surfaces, but standard Moonlight-compatible hosts remain usable.
+> Nova still speaks the Moonlight/GameStream client path. Polaris unlocks the richer Library, launch, watch, tuning, and session-state surfaces, but standard Moonlight-compatible hosts remain usable.
+
+## Why Nova
+
+Most game-streaming clients give you pairing, a grid, and a video stream. That is enough until you are on an Android handheld, the host is already running something, and you need to know whether pressing a button will resume, watch, relaunch, disconnect, or kill the session.
+
+Nova is built for that messy reality.
+
+- Know what will launch before you press play.
+- See whether a session is active, resumable, watchable, or owned by another device.
+- Pick Private Stream or Virtual Display when Polaris supports both.
+- Tune and inspect the stream from Command Center without leaving the session.
+- Use NovaHUD for live FPS, target FPS, host limits, and stream health.
+- Keep controller focus readable on handhelds and Android TV.
+
+| Normal streaming client | Nova with Polaris |
+|---|---|
+| Shows a flat app list | Shows a host-backed Library with cover art, filters, source badges, and launch context |
+| Starts whatever the host decides | Shows Private Stream, Virtual Display, recommendations, and availability before launch |
+| Hides session state | Shows active, resumable, watchable, and owner-aware session states |
+| Leaves tuning to guesswork | Shows Auto Quality, target FPS, host limits, and tuning provenance |
+| Treats disconnect and quit as generic actions | Separates safe disconnect from ending the host session |
+| Assumes touch or TV navigation will be good enough | Keeps handheld and D-pad focus visible first |
+
+| Browse | Decide | Control |
+|---|---|---|
+| <img src="docs/screenshots/nova-library-grid.png" alt="Nova Library grid" width="260" /> | <img src="docs/screenshots/nova-library-detail.png" alt="Nova launch detail sheet" width="260" /> | <img src="docs/screenshots/nova-quick-menu-detail.png" alt="Nova Command Center" width="260" /> |
+| Host-backed Library with filters, art, and active-session state | Private Stream or Virtual Display choices with host recommendations | Command Center, NovaHUD, tuning, reconnect, and safe disconnect |
 
 ## Quick Start
 
@@ -38,7 +68,7 @@ tuning instead of hiding everything behind a generic game grid.
 2. Open **Servers** and add or discover a host. Polaris hosts appear automatically on the LAN when discovery is enabled.
 3. Pair with **Trusted Pair** on a trusted Polaris subnet, **QR pairing** from the Polaris web UI, or normal **manual PIN** pairing.
 4. Launch from the standard game grid or the Polaris-powered Library.
-5. During a stream, open the quick menu for tuning, overlays, controller actions, and quit/disconnect controls. Guide/Mode + Start/Menu opens the quick menu, and Guide/Mode + Y shows or cycles NovaHUD.
+5. During a stream, open Command Center for tuning, overlays, controller actions, and quit/disconnect controls. Guide/Mode + Start/Menu opens Command Center, and Guide/Mode + Y shows or cycles NovaHUD.
 
 ### Recommended first setup
 
@@ -51,12 +81,12 @@ tuning instead of hiding everything behind a generic game grid.
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## What's New in v1.1.1
+## Latest release: v1.1.1
 
-Nova `v1.1.1` is the public release candidate for the 1.1 line. The 1.1 release upgrades Nova's Polaris-backed Library, launch flow, Command Center, NovaHUD, stream startup states, controller focus, and release validation path so handheld play feels more like a purpose-built Android console client and less like a generic game grid.
+Nova `v1.1.1` is the public release candidate for the 1.1 line. The 1.1 release upgrades the Polaris Library, launch flow, Command Center, NovaHUD, startup states, controller focus, and release validation path so handheld play feels less like a generic grid and more like a small Android console.
 
 - **Richer Polaris Library**: improved game cards, focus behavior, launch detail sheets, active-session states, and Polaris-backed launch context.
-- **Clearer launch choices**: Headless, Virtual Display, resume/watch, host recommendations, and next-launch tuning are easier to understand before starting a stream.
+- **Clearer launch choices**: Private Stream, Virtual Display, resume/watch, host recommendations, and next-launch tuning are easier to understand before starting a stream.
 - **Command Center polish**: in-stream tuning, overlay controls, NovaHUD toggles, and safe disconnect actions are easier to reach during play.
 - **Lower-overhead NovaHUD**: structured renderer samples and a fixed sparkline buffer reduce stream-loop allocation pressure while keeping legacy overlay compatibility.
 - **Better startup/recovery states**: stream initialization, lock-screen unlock, reconnect, stale host ports, and direct launch preflight paths are more reliable and readable.
@@ -125,39 +155,26 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 - Steam Controller 2026 Bluetooth support depends on the HID shape Android exposes. Nova can recognize Valve keyboard/mouse HID presentations and route compatible controller-like keys, but Android does not expose full Steam Input profiles or hidden analog controls through a standard gamepad source.
 - Today, only the Android client ships.
 
-## Why Nova
-
-Most Android game-streaming clients stop at pairing, a grid, and a stream. Nova is built for the newer reality: handheld Android hardware, Linux streaming hosts, multiple clients, host-side optimization, and players who need to know what will actually happen before they launch.
-
-Nova takes a different route:
-
-- **Handheld-first streaming**: controller focus, TV navigation, OLED-aware themes, quick actions, and stream controls are designed for real handheld sessions.
-- **Session truth in the UI**: NovaHUD and the quick menu can show actual FPS, target FPS, role, launch mode, and Polaris-backed tuning state.
-- **Launch intent instead of guesswork**: Polaris-backed Library flows can show Headless vs Virtual Display options, host recommendations, per-game guidance, and risky MangoHud warnings before launch.
-- **Profiles that explain themselves**: Nova Settings now separates global defaults from profile overrides, shows what applies instantly or next stream, and lets overrides reset back to fallback values.
-- **Shared and recoverable sessions**: watch an active Polaris stream without taking ownership, reconnect after interruptions, or quit with owner-aware session controls.
-- **Host-aware tuning**: Auto Quality, cached AI tuning, recovery tuning, stream defaults, and Polaris Sync are surfaced as explicit states instead of silent background magic.
-
 ## Use With Polaris
 
-[Polaris](https://github.com/papi-ux/polaris) is the Linux host built alongside Nova. Together they expose a streaming contract that typical Moonlight-compatible clients do not see.
+[Polaris](https://github.com/papi-ux/polaris) is the Linux host built alongside Nova. Pair them and Nova stops guessing: the host can tell the client which launch modes are available, who owns the current session, what tuning is active, and what is safe to do next.
 
 | Polaris + Nova capability | What it means |
 |---|---|
 | Launch contract | Polaris tells Nova which launch modes are preferred, recommended, and currently allowed |
-| Headless vs Virtual Display | Nova can present both choices directly in the library instead of silently guessing |
+| Private Stream vs Virtual Display | Nova can present both choices directly in the library instead of silently guessing |
 | 10-bit SDR | Nova can explicitly request a Main10 stream even on SDR handheld panels when the host supports it |
 | Watch Stream | A second device can join as a viewer without taking over the owner session |
 | Tuning provenance | Nova can distinguish baseline device tuning, live AI, cached AI, recovery tuning, host-adjusted recommendations, and active target profiles |
 | Polaris Sync | Push Nova stream defaults to Polaris, pull Polaris' current profile back into Nova, or keep Polaris matched to Nova defaults |
-| Live tuning | Auto Quality and MangoHud can be surfaced directly in Nova's quick menu |
-| Session truth | HUD and quick menu can show live server-backed mode, role, shutdown state, and tuning state |
+| Live tuning | Auto Quality and MangoHud can be surfaced directly in Command Center |
+| Session state | HUD and Command Center can show live server-backed mode, role, shutdown state, and tuning state |
 
 ## Tour
 
 ### Handheld Dashboard
 
-Nova opens on a controller-friendly dashboard for servers, themes, help, and streaming entry points. Focus states are designed to stay visible on Android TV, handhelds, and phones.
+Nova opens on a controller-friendly dashboard for servers, themes, help, and streaming entry points. Focus states are built to stay readable on handhelds and Android TV instead of disappearing into pretty artwork.
 
 <p align="center">
   <picture>
@@ -175,28 +192,28 @@ The Polaris library gives Nova the context a plain app list cannot: cover art, f
       <picture>
         <img src="docs/screenshots/nova-library-grid.png" width="100%" alt="Nova Polaris library grid with search, filters, and game artwork" />
       </picture>
-      <p><strong>Library grid</strong><br/>Search, filter, and scan a host-backed game library with clear controller focus.</p>
+      <p><strong>Library grid</strong><br/>Browse a real host-backed library with cover art, filters, source badges, active-session state, and D-pad focus that stays visible.</p>
     </td>
     <td width="50%" valign="top">
       <picture>
         <img src="docs/screenshots/nova-library-detail.png" width="100%" alt="Nova game detail sheet with launch modes and next-launch tuning" />
       </picture>
-      <p><strong>Launch detail</strong><br/>Choose the right mode, review host recommendations, and see next-launch tuning before starting.</p>
+      <p><strong>Launch detail</strong><br/>Choose Private Stream or Virtual Display, review host recommendations, and see next-launch tuning before starting.</p>
     </td>
   </tr>
 </table>
 
 ### Stream Controls
 
-During a stream, Nova shifts from browsing to operations: Command Center, HUD modes, tuning actions, reconnect state, input helpers, and disconnect controls stay reachable without leaving the session.
+During a stream, Nova shifts from browsing to operations. Command Center, HUD modes, tuning actions, reconnect state, input helpers, and disconnect controls stay reachable without leaving the session.
 
 <table>
   <tr>
     <td width="50%" valign="top">
       <picture>
-        <img src="docs/screenshots/nova-quick-menu-detail.png" width="100%" alt="Nova quick menu with tuning, overlays, controls, and session actions" />
+        <img src="docs/screenshots/nova-quick-menu-detail.png" width="100%" alt="Nova Command Center with tuning, overlays, controls, and session actions" />
       </picture>
-      <p><strong>Quick menu</strong><br/>Tune, toggle overlays, disconnect, quit, or inspect the active session.</p>
+      <p><strong>Command Center</strong><br/>Tune, toggle overlays, inspect the active session, disconnect safely, or end the host session when you mean it.</p>
     </td>
     <td width="50%" valign="top">
       <picture>
@@ -282,9 +299,9 @@ Trusted Pair is Nova's TOFU flow for Polaris. If Polaris trusts the subnet you a
 </details>
 
 <details>
-<summary><b>What is the difference between Headless and Virtual Display?</b></summary>
+<summary><b>What is the difference between Private Stream and Virtual Display?</b></summary>
 
-Headless launches against Polaris' isolated compositor path without touching your physical desktop layout. Virtual Display asks the host for a virtual display-backed launch instead. Nova's Polaris library can show what the host recommends, what the app prefers, and which modes are currently allowed.
+Private Stream is Nova's user-facing name for Polaris' headless path: the host launches against an isolated compositor without touching your physical desktop layout. Virtual Display asks the host for a separate display-backed launch instead. Nova's Polaris library can show what the host recommends, what the app prefers, and which modes are currently allowed.
 
 </details>
 
