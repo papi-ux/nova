@@ -78,6 +78,10 @@ If the repo was cloned without submodules:
 git submodule update --init --recursive
 ```
 
+Android native builds run a preflight check for `app/src/main/jni/moonlight-core/moonlight-common-c` before invoking ndk-build. If that tree is missing, run the submodule command above instead of chasing downstream C compiler errors.
+
+Nova currently builds the checked-out native streaming tree directly. Prebuilt native artifacts or AAR packaging may be useful later, but that should be a separate release-engineering decision with its own review and provenance checks.
+
 ## Build
 
 ```bash

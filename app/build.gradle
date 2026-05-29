@@ -17,6 +17,48 @@ def targetAbis = (project.findProperty("novaAbis") ?: "arm64-v8a,armeabi-v7a,x86
         .findAll { !it.isEmpty() }
 def fdroidBuild = project.findProperty("novaFdroid")?.toString()?.toBoolean() ?: false
 
+def moonlightCommonCPath = "src/main/jni/moonlight-core/moonlight-common-c"
+def moonlightCommonCDir = file(moonlightCommonCPath)
+def moonlightCommonCRequiredPaths = [
+        "src/Connection.c",
+        "enet/include/enet/enet.h",
+        "reedsolomon/rs.c",
+]
+def moonlightCommonCRequiredFiles = moonlightCommonCRequiredPaths.collect { relativePath ->
+    [relativePath: relativePath, sourceFile: file("${moonlightCommonCPath}/${relativePath}")]
+}
+
+TaskProvider<Task> verifyMoonlightCommonCSubmodule = tasks.register("verifyMoonlightCommonCSubmodule") {
+    group = "verification"
+    description = "Verifies that the moonlight-common-c git submodule is initialized before native builds run."
+
+    doLast {
+        def missingPaths = moonlightCommonCRequiredFiles.findAll { requiredFile ->
+            !requiredFile.sourceFile.isFile()
+        }.collect { requiredFile ->
+            requiredFile.relativePath
+        }
+
+        if (!moonlightCommonCDir.isDirectory() || !missingPaths.isEmpty()) {
+            throw new GradleException("""
+Nova's native streaming sources are missing from ${moonlightCommonCPath}.
+
+The moonlight-common-c git submodule must be initialized before Android native builds can run.
+From the repository root, run:
+
+    git submodule update --init --recursive
+
+If you are cloning from scratch, prefer:
+
+    git clone --recursive https://github.com/papi-ux/nova.git
+
+Missing expected files:
+${missingPaths.collect { "  - ${moonlightCommonCPath}/${it}" }.join("\n")}
+""".stripIndent().trim())
+        }
+    }
+}
+
 android {
     ndkVersion = "27.0.12077973"
 
@@ -260,6 +302,12 @@ baselineProfile {
         nonRoot_gameRelease {
             from project(':baselineprofile')
         }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name.contains("externalNativeBuild")) {
+        task.dependsOn(verifyMoonlightCommonCSubmodule)
     }
 }
 
