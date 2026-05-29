@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1 - 2026-05-28
+
+- Prepared the public 1.1 release candidate from the current `master` branch instead of rewriting the older `v1.1.0` tag.
+- Added an actionable Gradle preflight for missing `moonlight-common-c` submodule sources before Android native build errors cascade.
+- Hardened Compose smoke assertions around the settings refactor so the release line tracks the current settings/library surfaces.
+- Kept release workflow checks green across lint, unit tests, CodeQL, public hygiene, dependency submission, and release APK assembly.
+
 ## 1.1.0 - 2026-05-20
 
 - Added structured stream performance samples from the video renderer so NovaHUD can consume typed metrics without reparsing the legacy overlay text path.

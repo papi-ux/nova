@@ -12,7 +12,7 @@ tuning instead of hiding everything behind a generic game grid.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Quick Start](#quick-start) · [What's New](#whats-new-in-v110) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Quick Start](#quick-start) · [What's New](#whats-new-in-v111) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -51,15 +51,16 @@ tuning instead of hiding everything behind a generic game grid.
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## What's New in v1.1.0
+## What's New in v1.1.1
 
-Nova `v1.1.0` is a stream performance and release-hardening update for Polaris-backed play.
+Nova `v1.1.1` is the public release candidate for the 1.1 line: stream performance, release hardening, and contributor build guardrails for Polaris-backed play.
 
-- **Lower-overhead HUD metrics**: NovaHUD now consumes structured stream samples from the video renderer while preserving the legacy overlay path.
+- **Lower-overhead HUD metrics**: NovaHUD now consumes structured stream samples from the video renderer while preserving the legacy overlay text path.
 - **Hot-path allocation cleanup**: HUD sparkline samples use a fixed primitive buffer instead of rebuilding collection state during a stream.
 - **Smoother first-run surfaces**: Baseline Profile generation now covers library detail, settings, and launch-adjacent Compose paths.
 - **Measured JNI policy**: the JNI bridge now has a documented profiling gate for future `@FastNative` and `@CriticalNative` work.
-- **Retroid 6 validation**: the ARM64 debug APK was smoke tested over wireless ADB with Polaris library launch, HEVC stream resume, NovaHUD, Command Center disconnect, and clean crash checks.
+- **Native build onboarding**: local source builds now fail early with a clear `moonlight-common-c` submodule recovery command instead of cascading into opaque ndk-build errors.
+- **Retroid 6 validation**: the ARM64 debug APK was smoke tested over wireless ADB with Polaris library launch, HEVC stream resume, NovaHUD, Command Center disconnect, and clean log/crash-buffer checks.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 
