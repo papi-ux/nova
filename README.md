@@ -12,7 +12,7 @@ tuning instead of hiding everything behind a generic game grid.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Quick Start](#quick-start) · [What's New](#whats-new-in-v110) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Quick Start](#quick-start) · [What's New](#whats-new-in-v111) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -51,15 +51,17 @@ tuning instead of hiding everything behind a generic game grid.
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## What's New in v1.1.0
+## What's New in v1.1.1
 
-Nova `v1.1.0` is a stream performance and release-hardening update for Polaris-backed play.
+Nova `v1.1.1` is the public release candidate for the 1.1 line. The 1.1 release upgrades Nova's Polaris-backed Library, launch flow, Command Center, NovaHUD, stream startup states, controller focus, and release validation path so handheld play feels more like a purpose-built Android console client and less like a generic game grid.
 
-- **Lower-overhead HUD metrics**: NovaHUD now consumes structured stream samples from the video renderer while preserving the legacy overlay path.
-- **Hot-path allocation cleanup**: HUD sparkline samples use a fixed primitive buffer instead of rebuilding collection state during a stream.
-- **Smoother first-run surfaces**: Baseline Profile generation now covers library detail, settings, and launch-adjacent Compose paths.
-- **Measured JNI policy**: the JNI bridge now has a documented profiling gate for future `@FastNative` and `@CriticalNative` work.
-- **Retroid 6 validation**: the ARM64 debug APK was smoke tested over wireless ADB with Polaris library launch, HEVC stream resume, NovaHUD, Command Center disconnect, and clean crash checks.
+- **Richer Polaris Library**: improved game cards, focus behavior, launch detail sheets, active-session states, and Polaris-backed launch context.
+- **Clearer launch choices**: Headless, Virtual Display, resume/watch, host recommendations, and next-launch tuning are easier to understand before starting a stream.
+- **Command Center polish**: in-stream tuning, overlay controls, NovaHUD toggles, and safe disconnect actions are easier to reach during play.
+- **Lower-overhead NovaHUD**: structured renderer samples and a fixed sparkline buffer reduce stream-loop allocation pressure while keeping legacy overlay compatibility.
+- **Better startup/recovery states**: stream initialization, lock-screen unlock, reconnect, stale host ports, and direct launch preflight paths are more reliable and readable.
+- **Controller-first focus polish**: Nova's focus motion system improves D-pad/controller navigation across Library, detail, settings, and overlay surfaces.
+- **Release hardening**: expanded Baseline Profile coverage, clearer native submodule preflight errors, bounded emulator smoke, and Retroid ARM64 validation.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 
@@ -165,7 +167,7 @@ Nova opens on a controller-friendly dashboard for servers, themes, help, and str
 
 ### Polaris Library
 
-The Polaris library gives Nova the context a plain app list cannot: cover art, filters, source badges, launch modes, Continue/watch states, and per-game guidance.
+The Polaris library gives Nova the context a plain app list cannot: cover art, filters, source badges, launch modes, Continue/watch states, host recommendations, and per-game guidance before you start a stream.
 
 <table>
   <tr>
@@ -186,7 +188,7 @@ The Polaris library gives Nova the context a plain app list cannot: cover art, f
 
 ### Stream Controls
 
-During a stream, Nova shifts from browsing to operations: HUD modes, quick controls, reconnect state, tuning actions, and input helpers stay reachable without leaving the session.
+During a stream, Nova shifts from browsing to operations: Command Center, HUD modes, tuning actions, reconnect state, input helpers, and disconnect controls stay reachable without leaving the session.
 
 <table>
   <tr>
@@ -232,6 +234,7 @@ For the deeper source layout and build model, see [Technical Overview](docs/tech
 | [F-Droid Packaging Notes](docs/fdroid.md) | F-Droid and IzzyOnDroid packaging status |
 | [Kotlin Optimization Audit](docs/kotlin_optimization_audit.md) | Kotlin migration and optimization notes |
 | [Video Baseline Evidence](docs/video_baseline_evidence.md) | Baseline profile and release-performance evidence |
+| [JNI Bridge Measurement](docs/jni_bridge_measurement.md) | Measurement gate for future JNI annotation work |
 | [Multi-platform Study](docs/multi_platform_monorepo.md) | Native client expansion notes |
 | [Steam Deck Native Port Study](docs/steam_deck_native_port_study.md) | Steam Deck client research |
 

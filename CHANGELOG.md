@@ -1,16 +1,87 @@
 # Changelog
 
+## 1.1.1 - 2026-05-28
+
+Nova 1.1.1 is the public release candidate for the 1.1 line. It keeps the 1.1 feature set intact and focuses on release readiness, contributor build guardrails, and current-surface smoke stability instead of rewriting the older `v1.1.0` tag.
+
+### Release hardening
+
+- Prepared the public 1.1 release candidate from the current `master` branch instead of rewriting the older `v1.1.0` tag.
+- Added an actionable Gradle preflight for missing `moonlight-common-c` submodule sources before Android native build errors cascade.
+- Hardened Compose smoke assertions around the settings refactor so the release line tracks the current settings/library surfaces.
+- Kept release workflow checks green across lint, unit tests, CodeQL, public hygiene, dependency submission, and release APK assembly.
+
 ## 1.1.0 - 2026-05-20
 
-- Added structured stream performance samples from the video renderer so NovaHUD can consume typed metrics without reparsing the legacy overlay text path.
-- Reworked the NovaHUD sparkline path around a fixed primitive ring buffer and focused snapshots to reduce stream-loop allocation pressure.
-- Routed structured performance samples into NovaHUD while preserving the legacy performance overlay behavior.
-- Expanded Baseline Profile coverage for library detail, settings, and launch-adjacent Compose surfaces.
-- Documented the JNI bridge measurement gate for future `@FastNative` and `@CriticalNative` work instead of annotating JNI calls before profiling proves they are safe.
-- Kept the lock-screen overlay retryable by treating Polaris unlock responses as successful only when the host reports `success: true`.
-- Normalized raw `idle` stream progress into the initializing overlay state so handheld users do not see an internal state label.
-- Added saved-host port recovery so Nova retries a stale local address on the default Polaris HTTP port and persists the corrected port after a successful poll.
-- Verified the debug ARM64 APK on a Retroid Pocket 6 over wireless ADB with Polaris library launch, HEVC stream resume, NovaHUD enablement, Command Center disconnect, and clean log/crash-buffer checks.
+Nova 1.1.0 is a major handheld-focused polish release for Polaris-backed play. It upgrades the Library, launch flow, Command Center, NovaHUD, stream startup states, controller behavior, and release validation path so Nova feels less like a generic Moonlight-style grid and more like a purpose-built Android console client for real couch and handheld sessions.
+
+### Highlights
+
+- **Richer Polaris Library experience**
+  - Refined the Polaris-backed Library into a more console-like browsing surface with stronger game cards, clearer launch context, better focus behavior, and more useful session state.
+  - Improved game detail and launch sheets so Headless, Virtual Display, active-session, watch/resume, and host recommendation states are easier to understand before launching.
+  - Added more explicit launch-profile summaries so Nova can explain what the host is about to do instead of hiding launch-mode decisions behind generic buttons.
+
+- **Command Center and NovaHUD polish**
+  - Improved the in-stream Command Center as the main operations surface for tuning, overlays, session actions, and disconnect behavior.
+  - Routed structured stream performance samples from the video renderer into NovaHUD while preserving the legacy overlay text path.
+  - Reworked NovaHUD sparkline sampling around a fixed primitive ring buffer to reduce stream-loop allocation pressure.
+  - Improved HUD state handling for target FPS, host-render-limited state, stream health, and Polaris-backed tuning/session context.
+
+- **Better stream startup and recovery states**
+  - Normalized raw stream progress states so users see readable startup language instead of internal labels like `idle`.
+  - Improved lock-screen/unlock retry behavior by only treating Polaris unlock responses as successful when the host reports a real success.
+  - Improved reconnect/resume confidence for active Polaris sessions.
+  - Added saved-host port recovery so Nova can retry a stale local address on the default Polaris HTTP port and persist the corrected port after a successful poll.
+
+- **Direct launch and shortcut reliability**
+  - Improved Polaris preflight handling for direct launches and shortcut-driven flows.
+  - Strengthened launch behavior when Nova enters through launcher shortcuts, host grids, or Library detail flows.
+  - Added regression coverage around launch profile summaries, Polaris API parsing, stream sync, and shortcut state.
+
+- **Focus, motion, and handheld UX**
+  - Added Nova's focus motion system for clearer controller/D-pad navigation.
+  - Improved focus visibility across Compose and legacy Android views.
+  - Refined handheld-first Library, detail, overlay, and settings surfaces with more consistent Nova visual language.
+  - Added source guards and tests to prevent polished surfaces from regressing back into cramped generic Android layouts.
+
+- **Performance hardening**
+  - Expanded Baseline Profile coverage for startup, Library detail, settings, and launch-adjacent Compose journeys.
+  - Reduced hot-path HUD allocation overhead during streams.
+  - Documented a measured JNI bridge policy for future `@FastNative` and `@CriticalNative` work instead of applying risky annotations before profiling proves they help.
+  - Kept stream-loop work focused on measured improvements rather than speculative native/JNI changes.
+
+- **Settings and release polish**
+  - Refined settings copy, version display, and profile/default state handling.
+  - Updated public release notes, reliability notes, and 1.1 release documentation.
+  - Added/hardened tests for settings definitions, settings UI state, theme resources, HUD state, launch summaries, Library state, quick menu state, focus drawables, and stream overlays.
+
+- **Build, CI, and contributor guardrails**
+  - Added actionable Gradle/native-build preflight behavior for missing `moonlight-common-c` submodule sources before opaque NDK errors cascade.
+  - Bounded emulator smoke runtime in CI.
+  - Kept release workflow checks aligned across lint, unit tests, CodeQL, dependency submission, public hygiene, and release APK assembly.
+  - Added/updated Retroid smoke tooling for repeatable handheld validation.
+
+### Device validation
+
+- Verified the ARM64 debug APK on Retroid hardware over ADB with:
+  - Polaris Library launch
+  - HEVC stream resume
+  - NovaHUD enablement from Command Center
+  - Command Center disconnect back to the Library
+  - bounded logcat/crash-buffer checks
+
+### Upgrade notes
+
+- Nova 1.1.0 keeps compatibility with Moonlight/GameStream-style hosts, but the richest new Library, launch, tuning, session, and HUD states require a recent Polaris host.
+- Existing installs that already received the 1.0.10 stream-resolution migration keep those repaired stream defaults.
+- Contributors building from source should initialize submodules with:
+
+  ```bash
+  git submodule update --init --recursive
+  ```
+
+  Nova now fails earlier with a clearer message when required native submodule sources are missing.
 
 ## 1.0.10 - 2026-05-19
 

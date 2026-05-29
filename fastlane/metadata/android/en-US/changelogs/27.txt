@@ -1,0 +1,8 @@
+Nova 1.1.1
+
+- Refines the Polaris Library with clearer game cards, launch detail, active-session state, and controller focus.
+- Improves Command Center and NovaHUD for in-stream tuning, overlays, stream health, and disconnect.
+- Adds lower-overhead structured HUD performance samples.
+- Improves stream startup, lock-screen unlock retry, direct launch preflight, and stale host port recovery.
+- Adds focus motion polish and stronger handheld/Retroid validation.
+- Hardens release builds with Baseline Profile coverage and clearer native submodule setup errors.
