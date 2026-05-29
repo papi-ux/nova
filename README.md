@@ -245,7 +245,15 @@ cd nova
 ./gradlew assembleNonRoot_gameDebug
 ```
 
-Local builds produce split APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64` by default. Release builds, test commands, local ABI overrides, and the architecture diagram live in [Technical Overview](docs/technical-overview.md).
+If you cloned without `--recursive`, initialize the native streaming submodule before building:
+
+```bash
+git submodule update --init --recursive
+```
+
+Nova pins Android NDK `27.0.12077973`. Local builds produce split APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64` by default. Release builds, test commands, local ABI overrides, and the architecture diagram live in [Technical Overview](docs/technical-overview.md).
+
+Nova currently builds the checked-out native streaming tree directly. Any move to prebuilt native artifacts or AAR packaging should be handled as a separate release-engineering decision, not as a silent replacement for the source build.
 
 ## FAQ
 
