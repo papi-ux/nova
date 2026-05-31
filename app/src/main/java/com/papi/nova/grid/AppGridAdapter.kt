@@ -180,7 +180,7 @@ class AppGridAdapter(
         parentView: View,
         imgView: ImageView,
         gridMask: RelativeLayout?,
-        prgView: ProgressBar,
+        prgView: ProgressBar?,
         txtView: TextView,
         overlayView: ImageView,
         obj: AppView.AppObject
