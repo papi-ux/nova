@@ -238,7 +238,7 @@ class CachedAppAssetLoader(
             return null
         }
 
-        val drawable: Drawable = imageView.drawable
+        val drawable: Drawable? = imageView.drawable
         return if (drawable is AsyncDrawable) {
             drawable.getLoaderTask()
         } else {
