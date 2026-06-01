@@ -30,7 +30,7 @@ abstract class GenericGridAdapter<T>(
         @JvmField val gridMask: RelativeLayout? = itemView.findViewById(R.id.grid_mask)
         @JvmField val overlayView: ImageView = itemView.findViewById(R.id.grid_overlay)
         @JvmField val txtView: TextView = itemView.findViewById(R.id.grid_text)
-        @JvmField val prgView: ProgressBar = itemView.findViewById(R.id.grid_spinner)
+        @JvmField val prgView: ProgressBar? = itemView.findViewById(R.id.grid_spinner)
     }
 
     fun setOnItemClickListener(listener: OnItemClickListener<T>?) {
@@ -68,7 +68,7 @@ abstract class GenericGridAdapter<T>(
         parentView: View,
         imgView: ImageView,
         gridMask: RelativeLayout?,
-        prgView: ProgressBar,
+        prgView: ProgressBar?,
         txtView: TextView,
         overlayView: ImageView,
         obj: T

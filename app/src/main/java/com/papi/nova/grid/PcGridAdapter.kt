@@ -68,12 +68,12 @@ class PcGridAdapter(
         parentView: View,
         imgView: ImageView,
         gridMask: RelativeLayout?,
-        prgView: ProgressBar,
+        prgView: ProgressBar?,
         txtView: TextView,
         overlayView: ImageView,
         obj: PcViewModel.ComputerObject
     ) {
-        applyCardTheme(parentView, imgView, prgView, txtView)
+        applyCardTheme(parentView, imgView, prgView!!, txtView)
 
         imgView.setImageResource(R.drawable.ic_computer)
         imgView.setColorFilter(NovaThemeManager.getTextSecondaryColor(context))
