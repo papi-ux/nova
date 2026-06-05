@@ -168,6 +168,25 @@ class KotlinGameRuntimeMigrationTest {
     }
 
     @Test
+    fun stylusEventsTryNativePenBeforePointerCaptureGate() {
+        val source = readGameSource()
+        val pointerInputBranch = source.substring(
+            source.indexOf("// This case is for mice and non-finger touch devices"),
+            source.indexOf("// Handle stylus presses")
+        )
+
+        val nativePenAttempt = pointerInputBranch.indexOf("trySendPenEvent(view, event)")
+        val captureGate = pointerInputBranch.indexOf("if (!inputCaptureProvider!!.isCapturingActive())")
+
+        assertTrue("Game should attempt native pen events from stylus/eraser MotionEvents", nativePenAttempt >= 0)
+        assertTrue("Game should still guard mouse input on inactive pointer capture", captureGate >= 0)
+        assertTrue(
+            "Native pen events must be attempted before the pointer-capture gate so touchscreen stylus pressure survives on devices without SOURCE_MOUSE_RELATIVE",
+            nativePenAttempt < captureGate
+        )
+    }
+
+    @Test
     fun quickMenuKeyboardActionTogglesFullKeyboardOverlay() {
         val source = String(
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt")),

@@ -3565,6 +3565,17 @@ buttonState = buttonState or (lastButtonState and MotionEvent.BUTTON_PRIMARY)
 changedButtons = buttonState xor lastButtonState
 }
 
+if (view != null && event!!.getPointerCount() >= 1 &&
+(event!!.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
+event!!.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER) &&
+trySendPenEvent(view, event))
+{
+ // If our host supports pen events, send stylus/eraser input directly before the
+                    // mouse pointer-capture gate. Pure touchscreen stylus devices do not expose
+                    // SOURCE_MOUSE_RELATIVE, so Android pointer capture may never become active.
+                    return true
+}
+
  // Ignore mouse input if we're not capturing from our input source
                 if (!inputCaptureProvider!!.isCapturingActive())
 {
