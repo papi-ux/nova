@@ -45,6 +45,8 @@ plugins {
 }
 
 def patchedNettyVersion = '4.1.133.Final'
+def patchedWireVersion = '6.3.0'
+def patchedWireModules = ['wire-runtime', 'wire-runtime-jvm'] as Set
 
 allprojects { project ->
     configurations.configureEach { configuration ->
@@ -52,6 +54,10 @@ allprojects { project ->
             if (details.requested.group == 'io.netty') {
                 details.useVersion patchedNettyVersion
                 details.because 'Dependabot flags Netty from Gradle/Android test tooling transitives'
+            }
+            if (details.requested.group == 'com.squareup.wire' && patchedWireModules.contains(details.requested.name)) {
+                details.useVersion patchedWireVersion
+                details.because 'Dependabot flags Wire from AndroidX benchmark/baseline-profile transitives'
             }
         }
     }
