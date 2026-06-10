@@ -51,7 +51,7 @@ class NovaComposeBuildConfigurationTest {
 
         assertTrue(
             "root build should keep a single patched Netty version for Gradle and Android test tooling",
-            rootBuild.contains("patchedNettyVersion = '4.1.133.Final'")
+            rootBuild.contains("patchedNettyVersion = '4.1.135.Final'")
         )
         assertTrue(
             "all project configurations should force Netty transitives onto the patched line",
@@ -60,10 +60,10 @@ class NovaComposeBuildConfigurationTest {
         )
         assertTrue(
             "the existing buildscript classpath constraints should still cover settings/build-tool Netty transitives",
-            rootBuild.contains("classpath('io.netty:netty-codec:4.1.133.Final')") &&
-                rootBuild.contains("classpath('io.netty:netty-codec-http:4.1.133.Final')") &&
-                rootBuild.contains("classpath('io.netty:netty-codec-http2:4.1.133.Final')") &&
-                rootBuild.contains("classpath('io.netty:netty-handler-proxy:4.1.133.Final')")
+            rootBuild.contains("classpath('io.netty:netty-codec:4.1.135.Final')") &&
+                rootBuild.contains("classpath('io.netty:netty-codec-http:4.1.135.Final')") &&
+                rootBuild.contains("classpath('io.netty:netty-codec-http2:4.1.135.Final')") &&
+                rootBuild.contains("classpath('io.netty:netty-handler-proxy:4.1.135.Final')")
         )
     }
 
