@@ -2355,104 +2355,140 @@ class NovaLibraryActivity : AppCompatActivity() {
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (game.hdrSupported) {
-                                NovaMiniBadge(text = stringResource(R.string.badge_hdr))
-                            }
-                            if (game.lastLaunched > 0) {
-                                NovaMiniBadge(text = stringResource(R.string.nova_library_filter_recent))
-                            }
-                        }
+                        NovaLibraryCardBadgeRow(
+                            game = game,
+                            compact = compact
+                        )
                     }
                     if (focused) {
                         NovaMiniBadge(text = stringResource(R.string.nova_library_card_action_details))
                     }
                 }
             } else {
-            key(game.id, game.coverUrl) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        ImageView(context).apply {
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
-                            contentDescription = context.getString(R.string.nova_a11y_game_cover)
-                            apiClient.loadCoverInto(this, game)
+                key(game.id, game.coverUrl) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            ImageView(context).apply {
+                                scaleType = ImageView.ScaleType.CENTER_CROP
+                                setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
+                                contentDescription = context.getString(R.string.nova_a11y_game_cover)
+                                apiClient.loadCoverInto(this, game)
+                            }
                         }
-                    }
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to surfaces.mediaScrimTop,
-                                0.50f to surfaces.mediaScrimTop,
-                                1.0f to surfaces.mediaScrimBottom
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to surfaces.mediaScrimTop,
+                                    0.50f to surfaces.mediaScrimTop,
+                                    1.0f to surfaces.mediaScrimBottom
+                                )
                             )
                         )
+                )
+                if (focused) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(surfaces.focusHalo.copy(alpha = 0.28f))
                     )
-            )
-            if (focused) {
-                Box(
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .border(4.dp, surfaces.focusRing, RoundedCornerShape(14.dp))
+                            .padding(4.dp)
+                            .border(2.dp, colors.onAccent.copy(alpha = 0.82f), RoundedCornerShape(10.dp))
+                    )
+                    NovaMiniBadge(
+                        text = stringResource(R.string.nova_library_card_action_details),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    )
+                }
+                NovaLibraryCardBadgeRow(
+                    game = game,
+                    compact = compact,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(surfaces.focusHalo.copy(alpha = 0.28f))
+                        .align(Alignment.TopStart)
+                        .padding(7.dp)
                 )
-                Box(
+                NovaLibraryCardTitleScrim(
+                    compact = compact,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .border(4.dp, surfaces.focusRing, RoundedCornerShape(14.dp))
-                        .padding(4.dp)
-                        .border(2.dp, colors.onAccent.copy(alpha = 0.82f), RoundedCornerShape(10.dp))
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
                 )
-                NovaMiniBadge(
-                    text = stringResource(R.string.nova_library_card_action_details),
+                Column(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
                         .padding(8.dp)
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (game.hdrSupported) {
-                    NovaMiniBadge(text = stringResource(R.string.badge_hdr))
-                }
-                if (game.lastLaunched > 0) {
-                    NovaMiniBadge(text = stringResource(R.string.nova_library_filter_recent))
-                }
-            }
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Text(
-                    text = title,
-                    color = surfaces.onMedia,
-                    fontSize = if (compact) 13.sp else 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = if (compact) 1 else 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (meta.isNotBlank()) {
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(surfaces.mediaScrimBottom.copy(alpha = 0.34f))
+                        .padding(horizontal = 7.dp, vertical = 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
                     Text(
-                        text = meta,
-                        color = surfaces.onMediaSecondary,
-                        fontSize = 11.sp,
-                        maxLines = 1,
+                        text = title,
+                        color = surfaces.onMedia,
+                        fontSize = if (compact) 13.sp else 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = if (compact) 1 else 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (meta.isNotBlank()) {
+                        Text(
+                            text = meta,
+                            color = surfaces.onMediaSecondary,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun NovaLibraryCardTitleScrim(compact: Boolean, modifier: Modifier = Modifier) {
+        val surfaces = LocalNovaLibrarySurfaces.current
+        Box(
+            modifier = modifier
+                .height(if (compact) 64.dp else 88.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to surfaces.mediaScrimBottom.copy(alpha = 0f),
+                            0.36f to surfaces.mediaScrimBottom.copy(alpha = 0.64f),
+                            1.0f to surfaces.mediaScrimBottom.copy(alpha = 0.96f)
+                        )
+                    )
+                )
+        )
+    }
+
+    @Composable
+    private fun NovaLibraryCardBadgeRow(
+        game: PolarisGame,
+        compact: Boolean,
+        modifier: Modifier = Modifier
+    ) {
+        Row(
+            modifier = modifier.widthIn(max = if (compact) 92.dp else 128.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (game.hdrSupported) {
+                NovaMiniBadge(text = stringResource(R.string.badge_hdr))
+            }
+            if (game.lastLaunched > 0) {
+                NovaMiniBadge(text = stringResource(R.string.nova_library_filter_recent))
             }
         }
     }
@@ -2463,14 +2499,14 @@ class NovaLibraryActivity : AppCompatActivity() {
         Text(
             text = text,
             color = surfaces.onMedia,
-            fontSize = 9.sp,
+            fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
-            lineHeight = 10.sp,
+            lineHeight = 9.sp,
             modifier = modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(surfaces.mediaScrimBottom.copy(alpha = 0.68f))
-                .border(1.dp, surfaces.onMedia.copy(alpha = 0.22f), RoundedCornerShape(999.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .background(surfaces.mediaScrimBottom.copy(alpha = 0.60f))
+                .border(1.dp, surfaces.onMedia.copy(alpha = 0.20f), RoundedCornerShape(999.dp))
+                .padding(horizontal = 5.dp, vertical = 1.dp)
         )
     }
 

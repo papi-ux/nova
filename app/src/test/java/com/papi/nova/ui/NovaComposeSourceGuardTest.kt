@@ -804,23 +804,72 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryGameCardsReserveReadableTitleBandOnBusyArtwork() {
+        val activity = readNovaLibraryActivity()
+        val gameCard = activity.section(
+            "private fun NovaLibraryGameCard(",
+            "private fun NovaMiniBadge("
+        )
+        val titleScrim = if (activity.contains("private fun NovaLibraryCardTitleScrim(")) {
+            activity.section(
+                "private fun NovaLibraryCardTitleScrim(",
+                "private fun NovaLibraryCardBadgeRow("
+            )
+        } else {
+            ""
+        }
+
+        assertTrue(
+            "grid game cards should draw a dedicated title-safe scrim above cover art before title text",
+            gameCard.contains("NovaLibraryCardTitleScrim(") &&
+                gameCard.indexOf("NovaLibraryCardTitleScrim(") in 0 until gameCard.lastIndexOf("text = title")
+        )
+        assertTrue(
+            "title scrim should be a bounded bottom band, not a weak full-card wash that leaves white logo art behind white text",
+            titleScrim.contains(".height(if (compact) 64.dp else 88.dp)") &&
+                titleScrim.contains("0.36f to surfaces.mediaScrimBottom.copy(alpha = 0.64f)") &&
+                titleScrim.contains("1.0f to surfaces.mediaScrimBottom.copy(alpha = 0.96f)")
+        )
+        assertTrue(
+            "title and metadata should sit inside a small padded caption panel for extra contrast over noisy cover art",
+            gameCard.contains(".background(surfaces.mediaScrimBottom.copy(alpha = 0.34f))") &&
+                gameCard.contains(".padding(horizontal = 7.dp, vertical = 5.dp)")
+        )
+    }
+
+    @Test
     fun libraryMiniBadgesStaySmallOnDenseCards() {
-        val miniBadge = readNovaLibraryActivity().section(
+        val activity = readNovaLibraryActivity()
+        val miniBadge = activity.section(
             "private fun NovaMiniBadge(",
             "@Composable\n    private fun NovaLibraryLoadingGrid("
         )
+        val badgeRow = if (activity.contains("private fun NovaLibraryCardBadgeRow(")) {
+            activity.section(
+                "private fun NovaLibraryCardBadgeRow(",
+                "private fun NovaMiniBadge("
+            )
+        } else {
+            ""
+        }
 
         assertTrue(
             "library card badges should use compact text",
-            miniBadge.contains("fontSize = 9.sp")
+            miniBadge.contains("fontSize = 8.sp")
         )
         assertTrue(
             "library card badges should pin a compact line height",
-            miniBadge.contains("lineHeight = 10.sp")
+            miniBadge.contains("lineHeight = 9.sp")
         )
         assertTrue(
             "library card badges should use tighter pill padding",
-            miniBadge.contains(".padding(horizontal = 6.dp, vertical = 2.dp)")
+            miniBadge.contains(".padding(horizontal = 5.dp, vertical = 1.dp)")
+        )
+        assertTrue(
+            "grid cards should render badges through a bounded row so repeated HDR/Recent chips do not dominate cover art",
+            badgeRow.contains("private fun NovaLibraryCardBadgeRow(") &&
+                badgeRow.contains(".widthIn(max = if (compact) 92.dp else 128.dp)") &&
+                badgeRow.contains("horizontalArrangement = Arrangement.spacedBy(4.dp)")
         )
     }
 
