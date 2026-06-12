@@ -926,6 +926,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                             NovaLibraryHomeHero(
                                 hero = model.hero,
                                 compact = true,
+                                apiClient = apiClient,
                                 onPrimaryAction = {
                                     when (model.hero.primaryAction) {
                                         NovaLibraryHeroPrimaryAction.RESUME,
@@ -992,6 +993,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                             NovaLibraryHomeHero(
                                 hero = model.hero,
                                 compact = false,
+                                apiClient = apiClient,
                                 onPrimaryAction = {
                                     when (model.hero.primaryAction) {
                                         NovaLibraryHeroPrimaryAction.RESUME,
@@ -1196,6 +1198,7 @@ class NovaLibraryActivity : AppCompatActivity() {
     private fun NovaLibraryHomeHero(
         hero: NovaLibraryHeroState,
         compact: Boolean,
+        apiClient: PolarisApiClient,
         onPrimaryAction: () -> Unit,
         onSecondaryAction: (() -> Unit)? = null,
         onGameFocused: (PolarisGame) -> Unit
@@ -1246,6 +1249,13 @@ class NovaLibraryActivity : AppCompatActivity() {
             horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            NovaLibraryHeroArtwork(
+                game = heroGame,
+                apiClient = apiClient,
+                fallbackTitle = hero.artworkFallbackTitle,
+                fallbackSubtitle = hero.artworkFallbackSubtitle,
+                compact = compact
+            )
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 5.dp)
@@ -1309,13 +1319,8 @@ class NovaLibraryActivity : AppCompatActivity() {
                     }
                 }
             }
-            NovaLibraryHeroFallbackArtwork(
-                title = hero.artworkFallbackTitle,
-                subtitle = hero.artworkFallbackSubtitle,
-                compact = compact
-            )
             Column(
-                modifier = Modifier.widthIn(min = if (compact) 104.dp else 148.dp),
+                modifier = Modifier.width(if (compact) 132.dp else 168.dp),
                 verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)
             ) {
                 NovaActionButton(
@@ -1336,6 +1341,63 @@ class NovaLibraryActivity : AppCompatActivity() {
                     )
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun NovaLibraryHeroArtwork(
+        game: PolarisGame?,
+        apiClient: PolarisApiClient,
+        fallbackTitle: String,
+        fallbackSubtitle: String,
+        compact: Boolean
+    ) {
+        val targetGame = game
+        if (targetGame == null) {
+            NovaLibraryHeroFallbackArtwork(
+                title = fallbackTitle,
+                subtitle = fallbackSubtitle,
+                compact = compact
+            )
+            return
+        }
+
+        val surfaces = LocalNovaLibrarySurfaces.current
+        val shape = RoundedCornerShape(if (compact) 14.dp else 18.dp)
+        Box(
+            modifier = Modifier
+                .width(if (compact) 58.dp else 108.dp)
+                .fillMaxHeight()
+                .clip(shape)
+                .background(surfaces.mediaPlaceholder)
+                .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f), shape)
+        ) {
+            key(targetGame.id, targetGame.coverUrl) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { context ->
+                        ImageView(context).apply {
+                            scaleType = ImageView.ScaleType.CENTER_CROP
+                            setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
+                            contentDescription = context.getString(R.string.nova_a11y_game_cover)
+                            apiClient.loadCoverInto(this, targetGame)
+                        }
+                    }
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to surfaces.mediaScrimTop.copy(alpha = 0.18f),
+                                0.62f to surfaces.mediaScrimTop.copy(alpha = 0.08f),
+                                1.0f to surfaces.mediaScrimBottom.copy(alpha = 0.68f)
+                            )
+                        )
+                    )
+            )
         }
     }
 

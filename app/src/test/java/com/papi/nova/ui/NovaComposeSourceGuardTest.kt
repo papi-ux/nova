@@ -475,10 +475,12 @@ class NovaComposeSourceGuardTest {
                 hero.contains("if (compact && hero.supportingLine.isNotBlank())")
         )
         assertTrue(
-            "hero should render a deterministic fallback artwork tile so blank cover/backdrop art still has a useful console identity",
-            hero.contains("NovaLibraryHeroFallbackArtwork(") &&
-                hero.contains("title = hero.artworkFallbackTitle") &&
-                hero.contains("subtitle = hero.artworkFallbackSubtitle")
+            "hero should render the selected game's real cover before falling back to a deterministic Nova artwork tile",
+            hero.contains("NovaLibraryHeroArtwork(") &&
+                hero.contains("game = heroGame") &&
+                hero.contains("apiClient = apiClient") &&
+                hero.contains("fallbackTitle = hero.artworkFallbackTitle") &&
+                hero.contains("fallbackSubtitle = hero.artworkFallbackSubtitle")
         )
         assertTrue(
             "hero height should be mapper-driven so Retroid landscape can shrink the resume surface without source spelunking",
@@ -520,6 +522,31 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "hero focus should update the focused backdrop/focus restore model for D-pad users",
             hero.contains("onGameFocused(heroGame)")
+        )
+    }
+
+    @Test
+    fun libraryHomeHeroKeepsTitleVisibleBesideBoundedCoverAndCta() {
+        val source = readNovaLibraryActivity()
+        val hero = source.section(
+            "private fun NovaLibraryHomeHero(",
+            "private fun NovaLibraryHeroFallbackArtwork("
+        )
+
+        assertTrue(
+            "home hero needs the Polaris API client so selected games use the same cover loader as grid/detail cards",
+            hero.contains("apiClient: PolarisApiClient") &&
+                source.contains("private fun NovaLibraryHeroArtwork(") &&
+                source.contains("apiClient.loadCoverInto(this, targetGame)")
+        )
+        assertTrue(
+            "compact landscape hero should place artwork, title context, and a bounded launch CTA in that order",
+            hero.indexOf("NovaLibraryHeroArtwork(") in 0 until hero.indexOf("Column(\n                modifier = Modifier.weight(1f)") &&
+                hero.contains("Modifier.width(if (compact) 132.dp else 168.dp)")
+        )
+        assertFalse(
+            "hero CTA column must not use unconstrained widthIn + fillMaxWidth because it gobbles the row and hides the title",
+            hero.contains("Modifier.widthIn(min = if (compact) 104.dp else 148.dp)")
         )
     }
 

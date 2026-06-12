@@ -264,7 +264,7 @@ class NovaLibraryUiStateTest {
         assertEquals("match", model.hero.game?.id)
         assertEquals(NovaLibraryHeroReason.FIRST_FILTERED, model.hero.reason)
         assertEquals("Filtered library", model.hero.eyebrow)
-        assertEquals("Launch options", model.hero.actionLabel)
+        assertEquals("Launch", model.hero.actionLabel)
         assertEquals("Filters active - clear to browse every game.", model.hero.caption)
     }
 
@@ -374,7 +374,7 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroReason.LAST_PLAYED, hero.reason)
         assertEquals(NovaLibraryHeroPrimaryAction.OPEN_DETAIL, hero.primaryAction)
         assertEquals("Continue playing", hero.eyebrow)
-        assertEquals("Launch options", hero.actionLabel)
+        assertEquals("Launch", hero.actionLabel)
         assertNull(hero.secondaryActionLabel)
         assertEquals("Continue • Steam", hero.supportingLine)
         assertEquals("Recent Game", hero.artworkFallbackTitle)
@@ -511,7 +511,7 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroPrimaryAction.OPEN_DETAIL, hero.primaryAction)
         assertEquals("Heroic", hero.subtitle)
         assertEquals("Ready when you are", hero.eyebrow)
-        assertEquals("Launch options", hero.actionLabel)
+        assertEquals("Launch", hero.actionLabel)
         assertEquals("Choose profile, display, and stream settings.", hero.caption)
 
         assertEquals(NovaLibraryHeroReason.EMPTY, emptyHero.reason)
@@ -523,6 +523,7 @@ class NovaLibraryUiStateTest {
 
     @Test
     fun gridColumnsMatchCurrentBreakpoints() {
+        assertEquals(2, NovaLibraryUiStateMapper.gridColumns(widthDp = 430, isLandscape = false))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 540, isLandscape = false))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 600, isLandscape = false))
         assertEquals(4, NovaLibraryUiStateMapper.gridColumns(widthDp = 720, isLandscape = false))
@@ -538,6 +539,7 @@ class NovaLibraryUiStateTest {
         assertFalse(NovaLibraryUiStateMapper.showLandscapeControlRail())
         assertEquals(813, NovaLibraryUiStateMapper.contentWidthDp(widthDp = 833, isLandscape = true))
         assertEquals(4, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 833, isLandscape = true))
+        assertEquals(2, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 430, isLandscape = false))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 720, isLandscape = true))
         assertEquals(5, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 960, isLandscape = false))
     }

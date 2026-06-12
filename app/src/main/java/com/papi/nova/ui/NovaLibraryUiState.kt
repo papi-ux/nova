@@ -465,7 +465,7 @@ object NovaLibraryUiStateMapper {
             subtitle = subtitle,
             caption = caption,
             eyebrow = eyebrow,
-            actionLabel = "Launch options",
+            actionLabel = "Launch",
             badges = badges,
             reason = reason,
             primaryAction = NovaLibraryHeroPrimaryAction.OPEN_DETAIL,
@@ -734,7 +734,8 @@ object NovaLibraryUiStateMapper {
                 widthDp >= 960 -> 5
                 widthDp >= 720 -> 4
                 widthDp >= 600 -> 3
-                else -> 3
+                widthDp >= 520 -> 3
+                else -> 2
             }
         }
     }
