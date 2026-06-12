@@ -1,8 +1,7 @@
 Nova 1.1.2
 
-- Adds Insert to Command Center Quick Keys and More Keys / Send special keys.
-- Adds a first-screen End session path for owned active streams stuck on Resume.
-- Hardens fallback app-list data so incomplete host results stay out of Library.
-- Improves High FPS stream wording so 120 FPS is clearly the stream target.
-- Fixes app-grid null crashes and preserves stylus pressure paths before mouse capture.
-- Updates Netty/Wire dependency pins and current release validation.
+- Cleaner handheld Library: better hero art, card readability, grid spacing, and optional Plain artwork posters.
+- Actionable NovaHUD diagnostics: HOST / NET / CLIENT chips, stream-truth copy, long-press Command Center, and safe diagnostic copy.
+- Adds Insert to Command Center Quick Keys and More Keys.
+- Adds End session recovery for stuck owned streams.
+- Hardens fallback Library truth, stylus pressure, app-data crashes, and Netty/Wire pins.

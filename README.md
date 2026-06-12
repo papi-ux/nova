@@ -83,14 +83,15 @@ If a sleeping host does not report a MAC address, open the host menu and choose 
 
 ## Latest release: v1.1.2
 
-Nova `v1.1.2` is a confidence patch for the 1.1 line. It makes the Polaris Library more truthful when host metadata is incomplete, improves stale-session recovery, adds the requested Insert key affordance, and rolls in crash/input/dependency hardening from the current release branch.
+Nova `v1.1.2` is a confidence patch for the 1.1 line. It makes the Polaris Library cleaner on handhelds, adds optional plain-artwork posters, turns NovaHUD into a clearer stream-health explainer, adds the requested Insert key affordance, and rolls in crash/input/dependency hardening from the current release branch.
 
+- **Cleaner Library**: hero artwork, card readability, compact grid density, landscape footer spacing, and selected-game context are tuned for handheld browsing.
+- **Plain artwork posters**: Library Options now includes **Poster titles**, so users can keep readable title bars or switch to clean cover art.
 - **Safer Library truth**: incomplete fallback app-list data stays out of the Library, and fallback failures use clearer in-app provenance instead of confusing legacy wording.
-- **Stale stream recovery**: owned active sessions now expose **End session** next to **Resume stream**, so users have a first-screen escape hatch when a host session goes stale.
+- **NovaHUD diagnostics**: HUD copy now explains host/network/client health, exposes **HOST / NET / CLIENT** debug chips, supports long-press back into Command Center, and adds privacy-safe **Copy HUD Diagnostics**.
 - **Insert in Quick Keys**: Command Center Quick Keys and More Keys / Send special keys now include **Insert** for tools and overlays that bind to it.
-- **Clearer high-FPS copy**: 120 FPS wording now describes the **High FPS stream** target instead of implying the game itself is guaranteed to render at 120.
 - **Input and crash hardening**: stylus pen events reach the pressure-capable path before pointer-capture mouse gates, and malformed app data no longer trips the app grid.
-- **Release validation**: current master passed public hygiene, lint/unit, CodeQL, dependency submission, release APK assembly, and a Retroid ARM64 stream/control cleanup smoke.
+- **Release validation**: current master passed public hygiene, lint/unit, CodeQL, dependency submission, release APK assembly, and a Retroid ARM64 Library → stream → Command Center → NovaHUD diagnostics → disconnect smoke.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 

@@ -2,17 +2,21 @@
 
 ## 1.1.2 - 2026-06-12
 
-Nova 1.1.2 is a confidence patch for the 1.1 line. It keeps the Polaris-backed Library and stream surfaces honest when host data or sessions get weird, adds the requested Insert key affordance, and rolls in current dependency/security pins.
+Nova 1.1.2 is a confidence patch for the 1.1 line. It makes the Polaris-backed Library cleaner on handhelds, adds a plain-artwork poster option, turns NovaHUD into a useful stream-health explainer, adds the requested Insert key affordance, and rolls in current crash/input/dependency hardening.
 
 ### Highlights
 
-- **Safer Library and launch truth**
-  - Prevented incomplete fallback app-list data from showing up as reliable Library entries when Polaris metadata is not available.
+- **Cleaner Polaris Library**
+  - Polishes hero artwork, card readability, compact grid density, landscape footer spacing, and selected-game context so Retroid-style layouts feel less cramped.
+  - Adds **Poster titles** in Library Options: keep readable title/caption overlays by default, or choose **Plain artwork** for clean cover-art posters.
+  - Prevents incomplete fallback app-list data from showing up as reliable Library entries when Polaris metadata is not available.
   - Keeps fallback failures in-app with clearer provenance instead of confusing legacy wording.
   - Adds a first-screen **End session** escape hatch next to **Resume stream** for owned active sessions, so stale streams can be cleared without resuming into a dead surface.
 
-- **Command Center and special keys**
+- **Command Center, NovaHUD, and special keys**
   - Adds **Insert** to Command Center Quick Keys and More Keys / Send special keys for overlays and tools that use Insert, including OptiScaler-style workflows.
+  - Adds actionable NovaHUD diagnostics: health reasons such as **Host capped**, stream-truth copy such as **Stream 30 • Host capped**, debug **HOST / NET / CLIENT** chips, and a privacy-safe **Copy HUD Diagnostics** row.
+  - Lets long-press on NovaHUD reopen Command Center, while HUD position is persisted and clamped inside the safe zone.
   - Updates high-FPS launch copy to say **High FPS stream**, making 120 FPS read as a stream target instead of a guaranteed game-render promise.
 
 - **Input, crash, and dependency hardening**
@@ -22,17 +26,18 @@ Nova 1.1.2 is a confidence patch for the 1.1 line. It keeps the Polaris-backed L
 
 ### Device validation
 
-- Verified the current `master` ARM64 debug APK on Retroid Pocket 6 after the Insert key merge:
+- Verified the current `master` ARM64 debug APK on Retroid Pocket 6:
   - populated Polaris Library grid returned after cleanup,
-  - Steam Big Picture reached the stream Activity with HEVC, audio, and `stream_active` lifecycle logs,
-  - Command Center exposed **Disconnect** and **End session**,
-  - Quick Keys exposed **Insert** after scrolling the Command Center controls,
-  - confirmed **End session** returned to the Library, with `Nova SSE: Stopped` and no Nova fatal crash in the bounded log window.
+  - Steam Big Picture resumed into the stream Activity,
+  - Command Center exposed **Disconnect**, **End session**, **Nova HUD**, **Stats Overlay**, and **Copy HUD Diagnostics**,
+  - NovaHUD toggled on, cycled into debug mode, showed **HOST / NET / CLIENT**, dragged safely, and long-pressed back into Command Center,
+  - non-destructive **Disconnect** returned to the populated Library,
+  - bounded logcat scan found no Nova fatal / ANR / native crash signatures.
 
 ### Caveats
 
-- The Retroid smoke reached the stream launch surface, not a gameplay movement pass.
-- The smoke helper still expected the old `End` label; manual cleanup confirmed the current **End session** path.
+- The Retroid smoke reached the stream/control surfaces, not a gameplay movement pass.
+- Retroid shell clipboard readback reported `No shell command implementation`; diagnostic-copy behavior is covered by visible UI/tap-no-crash evidence plus unit tests for privacy-safe formatting.
 - No fresh MagicPad / MagicOS / Apollo device logcat was collected in this release pass.
 
 ## 1.1.1 - 2026-05-28
