@@ -2148,7 +2148,12 @@ class NovaLibraryActivity : AppCompatActivity() {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(gridColumns),
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(10.dp),
+                            contentPadding = PaddingValues(
+                                start = NovaLibraryUiStateMapper.gridContentPaddingDp().dp,
+                                top = NovaLibraryUiStateMapper.gridContentPaddingDp().dp,
+                                end = NovaLibraryUiStateMapper.gridContentPaddingDp().dp,
+                                bottom = NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape).dp
+                            ),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {

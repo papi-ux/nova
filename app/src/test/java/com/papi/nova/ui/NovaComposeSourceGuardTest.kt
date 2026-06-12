@@ -564,6 +564,33 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryGridKeepsPosterRowsAboveFooterChrome() {
+        val activity = readNovaLibraryActivity()
+        val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
+        val screen = activity.section(
+            "private fun NovaLibraryScreen(",
+            "@Composable\n    private fun NovaLibraryFocusedBackdrop("
+        )
+        val content = activity.section(
+            "private fun NovaLibraryContent(",
+            "private fun NovaLibraryRecentRail("
+        )
+
+        assertTrue(
+            "landscape shell should reserve a mapper-owned footer gutter for the overlaid controller hints instead of letting poster rows render under the bar",
+            screen.contains("NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
+                mapper.contains("private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 48")
+        )
+        assertTrue(
+            "game grid should use mapper-owned inner padding with extra bottom scroll room so the final poster row can settle above the footer",
+            content.contains("contentPadding = PaddingValues(") &&
+                content.contains("NovaLibraryUiStateMapper.gridContentPaddingDp().dp") &&
+                content.contains("bottom = NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape).dp") &&
+                mapper.contains("fun gridBottomContentPaddingDp(isLandscape: Boolean): Int")
+        )
+    }
+
+    @Test
     fun libraryEmptyAndOfflineRecoveryStatesUseDeliberateCtas() {
         val activity = readNovaLibraryActivity()
         val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")

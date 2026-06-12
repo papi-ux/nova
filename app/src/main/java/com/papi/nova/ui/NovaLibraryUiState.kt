@@ -199,6 +199,8 @@ object NovaLibraryUiStateMapper {
     const val RECENT_RAIL_VISIBLE_COLUMNS = 4
     private const val RECENT_RAIL_HORIZONTAL_PADDING_DP = 24
     private const val GAME_CARD_GAP_DP = 10
+    private const val GRID_CONTENT_PADDING_DP = 10
+    private const val LANDSCAPE_GRID_BOTTOM_CONTENT_PADDING_DP = 24
     private const val MIN_RECENT_RAIL_CARD_WIDTH_DP = 72
     private const val RAIL_SCROLL_BOTTOM_PADDING_DP = 96
     private const val RAIL_VERTICAL_SPACING_DP = 4
@@ -212,7 +214,7 @@ object NovaLibraryUiStateMapper {
     private const val LANDSCAPE_SCREEN_PADDING_DP = 8
     private const val PORTRAIT_SCREEN_PADDING_DP = 8
     private const val LANDSCAPE_CONTENT_SPACING_DP = 6
-    private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 32
+    private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 48
     private const val PORTRAIT_CONTROLLER_HINT_BOTTOM_PADDING_DP = 40
 
     fun build(
@@ -773,6 +775,12 @@ object NovaLibraryUiStateMapper {
         val gapWidth = GAME_CARD_GAP_DP * (columns - 1)
         return ((availableWidthDp - RECENT_RAIL_HORIZONTAL_PADDING_DP - gapWidth) / columns)
             .coerceAtLeast(MIN_RECENT_RAIL_CARD_WIDTH_DP)
+    }
+
+    fun gridContentPaddingDp(): Int = GRID_CONTENT_PADDING_DP
+
+    fun gridBottomContentPaddingDp(isLandscape: Boolean): Int {
+        return if (isLandscape) LANDSCAPE_GRID_BOTTOM_CONTENT_PADDING_DP else GRID_CONTENT_PADDING_DP
     }
 
     fun gameCardHeightDp(compact: Boolean, isLandscape: Boolean): Int {

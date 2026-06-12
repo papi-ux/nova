@@ -620,17 +620,32 @@ class NovaLibraryUiStateTest {
             NovaLibraryUiStateMapper.landscapeContentSpacingDp() <= 6
         )
         assertTrue(
-            "Retroid landscape footer reserve should clear the controller hint bar without eating another game row",
-            NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true) <= 32
+            "Retroid landscape footer reserve should clear the full controller hint bar plus breathing room so poster rows do not sit underneath it",
+            NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true) in 44..52
         )
         assertEquals(
             "portrait footer reserve should stay unchanged while the compact landscape shell is tightened",
             40,
             NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = false)
         )
+        assertEquals(
+            "default grid inset should keep the first poster row tucked inside the glass panel",
+            10,
+            NovaLibraryUiStateMapper.gridContentPaddingDp()
+        )
+        assertTrue(
+            "landscape grid scroll padding should leave the final poster row clear of the footer hint chrome",
+            NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape = true) >=
+                NovaLibraryUiStateMapper.gridContentPaddingDp() + 12
+        )
+        assertEquals(
+            "portrait grid bottom inset should stay compact because portrait already reserves a taller footer",
+            NovaLibraryUiStateMapper.gridContentPaddingDp(),
+            NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape = false)
+        )
         assertTrue(
             "compact landscape persistent chrome should leave the game grid as the visual primary surface",
-            persistentChromeBudget <= 140
+            persistentChromeBudget <= 156
         )
     }
 
