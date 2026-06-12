@@ -70,29 +70,42 @@ class NovaComposeSourceGuardTest {
                 optionsSheet.contains("NovaLibraryLayoutMode.entries")
         )
         assertTrue(
-            "quick options sheet should expose Sort and Layout sections rather than hiding browsing decisions in the rail",
+            "quick options sheet should expose Sort, Layout, and Poster title sections rather than hiding browsing decisions in the rail",
             optionsSheet.contains("R.string.nova_library_options_sort_title") &&
                 optionsSheet.contains("R.string.nova_library_options_layout_title") &&
+                optionsSheet.contains("R.string.nova_library_options_poster_titles_title") &&
                 optionsSheet.contains("onSortMode(sortMode)") &&
-                optionsSheet.contains("onLayoutMode(layoutMode)")
+                optionsSheet.contains("onLayoutMode(layoutMode)") &&
+                optionsSheet.contains("onPosterTitlesVisible(true)") &&
+                optionsSheet.contains("onPosterTitlesVisible(false)")
         )
         assertTrue(
-            "layout modes should be wired into the actual library card density, including the Y shortcut list mode",
+            "poster-title visibility should be persisted from the Library drawer so users can keep plain artwork posters across launches",
+            activity.contains("POSTER_TITLES_PREF") &&
+                activity.contains("loadPosterTitlesPreference()") &&
+                activity.contains("persistPosterTitlesPreference(showPosterTitles)") &&
+                activity.contains("optionsState.copy(showPosterTitles = showPosterTitles)")
+        )
+        assertTrue(
+            "layout modes and poster-title visibility should be wired into actual library card rendering",
             activity.contains("val layoutMode = model.optionsState.layoutMode") &&
                 activity.contains("val compactCards = layoutMode == NovaLibraryLayoutMode.COMPACT_GRID") &&
                 activity.contains("val listCards = layoutMode == NovaLibraryLayoutMode.LIST") &&
                 activity.contains("compact = compactCards") &&
-                activity.contains("listStyle = listCards")
+                activity.contains("listStyle = listCards") &&
+                activity.contains("showPosterTitle = model.optionsState.showPosterTitles")
         )
         assertTrue(
-            "quick options strings should cover the GameNative-inspired Sort/Layout surface",
+            "quick options strings should cover the Sort/Layout/Poster title surface",
             strings.contains("name=\"nova_library_options_title\">Library Options") &&
                 strings.contains("name=\"nova_library_options_sort_recent\">Recent") &&
                 strings.contains("name=\"nova_library_options_sort_name_asc\">Name A-Z") &&
                 strings.contains("name=\"nova_library_options_sort_name_desc\">Name Z-A") &&
                 strings.contains("name=\"nova_library_options_sort_source\">Source") &&
                 strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR first") &&
-                strings.contains("name=\"nova_library_options_layout_compact_grid\">Compact grid")
+                strings.contains("name=\"nova_library_options_layout_compact_grid\">Compact grid") &&
+                strings.contains("name=\"nova_library_options_poster_titles_title\">Poster titles") &&
+                strings.contains("name=\"nova_library_options_poster_titles_hide\">Plain artwork")
         )
     }
 
@@ -475,10 +488,12 @@ class NovaComposeSourceGuardTest {
                 hero.contains("if (compact && hero.supportingLine.isNotBlank())")
         )
         assertTrue(
-            "hero should render a deterministic fallback artwork tile so blank cover/backdrop art still has a useful console identity",
-            hero.contains("NovaLibraryHeroFallbackArtwork(") &&
-                hero.contains("title = hero.artworkFallbackTitle") &&
-                hero.contains("subtitle = hero.artworkFallbackSubtitle")
+            "hero should render the selected game's real cover before falling back to a deterministic Nova artwork tile",
+            hero.contains("NovaLibraryHeroArtwork(") &&
+                hero.contains("game = heroGame") &&
+                hero.contains("apiClient = apiClient") &&
+                hero.contains("fallbackTitle = hero.artworkFallbackTitle") &&
+                hero.contains("fallbackSubtitle = hero.artworkFallbackSubtitle")
         )
         assertTrue(
             "hero height should be mapper-driven so Retroid landscape can shrink the resume surface without source spelunking",
@@ -520,6 +535,58 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "hero focus should update the focused backdrop/focus restore model for D-pad users",
             hero.contains("onGameFocused(heroGame)")
+        )
+    }
+
+    @Test
+    fun libraryHomeHeroKeepsTitleVisibleBesideBoundedCoverAndCta() {
+        val source = readNovaLibraryActivity()
+        val hero = source.section(
+            "private fun NovaLibraryHomeHero(",
+            "private fun NovaLibraryHeroFallbackArtwork("
+        )
+
+        assertTrue(
+            "home hero needs the Polaris API client so selected games use the same cover loader as grid/detail cards",
+            hero.contains("apiClient: PolarisApiClient") &&
+                source.contains("private fun NovaLibraryHeroArtwork(") &&
+                source.contains("apiClient.loadCoverInto(this, targetGame)")
+        )
+        assertTrue(
+            "compact landscape hero should place artwork, title context, and a bounded launch CTA in that order",
+            hero.indexOf("NovaLibraryHeroArtwork(") in 0 until hero.indexOf("Column(\n                modifier = Modifier.weight(1f)") &&
+                hero.contains("Modifier.width(if (compact) 132.dp else 168.dp)")
+        )
+        assertFalse(
+            "hero CTA column must not use unconstrained widthIn + fillMaxWidth because it gobbles the row and hides the title",
+            hero.contains("Modifier.widthIn(min = if (compact) 104.dp else 148.dp)")
+        )
+    }
+
+    @Test
+    fun libraryGridKeepsPosterRowsAboveFooterChrome() {
+        val activity = readNovaLibraryActivity()
+        val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
+        val screen = activity.section(
+            "private fun NovaLibraryScreen(",
+            "@Composable\n    private fun NovaLibraryFocusedBackdrop("
+        )
+        val content = activity.section(
+            "private fun NovaLibraryContent(",
+            "private fun NovaLibraryRecentRail("
+        )
+
+        assertTrue(
+            "landscape shell should reserve a mapper-owned footer gutter for the overlaid controller hints instead of letting poster rows render under the bar",
+            screen.contains("NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
+                mapper.contains("private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 48")
+        )
+        assertTrue(
+            "game grid should use mapper-owned inner padding with extra bottom scroll room so the final poster row can settle above the footer",
+            content.contains("contentPadding = PaddingValues(") &&
+                content.contains("NovaLibraryUiStateMapper.gridContentPaddingDp().dp") &&
+                content.contains("bottom = NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape).dp") &&
+                mapper.contains("fun gridBottomContentPaddingDp(isLandscape: Boolean): Int")
         )
     }
 
@@ -777,23 +844,79 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun libraryGameCardsReserveReadableTitleBandOnBusyArtwork() {
+        val activity = readNovaLibraryActivity()
+        val gameCard = activity.section(
+            "private fun NovaLibraryGameCard(",
+            "private fun NovaMiniBadge("
+        )
+        val titleScrim = if (activity.contains("private fun NovaLibraryCardTitleScrim(")) {
+            activity.section(
+                "private fun NovaLibraryCardTitleScrim(",
+                "private fun NovaLibraryCardBadgeRow("
+            )
+        } else {
+            ""
+        }
+
+        assertTrue(
+            "grid game cards should gate the poster title/caption overlay so users can choose plain artwork posters",
+            gameCard.contains("showPosterTitle: Boolean = true") &&
+                gameCard.contains("if (showPosterTitle) {") &&
+                gameCard.contains("NovaLibraryCardTitleScrim(") &&
+                gameCard.indexOf("if (showPosterTitle) {") in 0 until gameCard.lastIndexOf("text = title")
+        )
+        assertTrue(
+            "grid game cards should draw a dedicated title-safe scrim above cover art before title text when titles are enabled",
+            gameCard.contains("NovaLibraryCardTitleScrim(") &&
+                gameCard.indexOf("NovaLibraryCardTitleScrim(") in 0 until gameCard.lastIndexOf("text = title")
+        )
+        assertTrue(
+            "title scrim should be a bounded bottom band, not a weak full-card wash that leaves white logo art behind white text",
+            titleScrim.contains(".height(if (compact) 64.dp else 88.dp)") &&
+                titleScrim.contains("0.36f to surfaces.mediaScrimBottom.copy(alpha = 0.64f)") &&
+                titleScrim.contains("1.0f to surfaces.mediaScrimBottom.copy(alpha = 0.96f)")
+        )
+        assertTrue(
+            "title and metadata should sit inside a small padded caption panel for extra contrast over noisy cover art",
+            gameCard.contains(".background(surfaces.mediaScrimBottom.copy(alpha = 0.34f))") &&
+                gameCard.contains(".padding(horizontal = 7.dp, vertical = 5.dp)")
+        )
+    }
+
+    @Test
     fun libraryMiniBadgesStaySmallOnDenseCards() {
-        val miniBadge = readNovaLibraryActivity().section(
+        val activity = readNovaLibraryActivity()
+        val miniBadge = activity.section(
             "private fun NovaMiniBadge(",
             "@Composable\n    private fun NovaLibraryLoadingGrid("
         )
+        val badgeRow = if (activity.contains("private fun NovaLibraryCardBadgeRow(")) {
+            activity.section(
+                "private fun NovaLibraryCardBadgeRow(",
+                "private fun NovaMiniBadge("
+            )
+        } else {
+            ""
+        }
 
         assertTrue(
             "library card badges should use compact text",
-            miniBadge.contains("fontSize = 9.sp")
+            miniBadge.contains("fontSize = 8.sp")
         )
         assertTrue(
             "library card badges should pin a compact line height",
-            miniBadge.contains("lineHeight = 10.sp")
+            miniBadge.contains("lineHeight = 9.sp")
         )
         assertTrue(
             "library card badges should use tighter pill padding",
-            miniBadge.contains(".padding(horizontal = 6.dp, vertical = 2.dp)")
+            miniBadge.contains(".padding(horizontal = 5.dp, vertical = 1.dp)")
+        )
+        assertTrue(
+            "grid cards should render badges through a bounded row so repeated HDR/Recent chips do not dominate cover art",
+            badgeRow.contains("private fun NovaLibraryCardBadgeRow(") &&
+                badgeRow.contains(".widthIn(max = if (compact) 92.dp else 128.dp)") &&
+                badgeRow.contains("horizontalArrangement = Arrangement.spacedBy(4.dp)")
         )
     }
 

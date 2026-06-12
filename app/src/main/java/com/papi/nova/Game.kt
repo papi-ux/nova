@@ -5615,6 +5615,14 @@ novaHud?.dismiss()
 novaHud = null
 }
 
+fun copyNovaHudDiagnostics() {
+val diagnosticText:String = novaHud?.getDiagnosticSummaryText()
+    ?: "Nova stream diagnostics\nNo active Nova HUD sample yet. Enable Nova HUD during a stream and try again."
+val clipboard:ClipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+clipboard.setPrimaryClip(ClipData.newPlainText("Nova HUD diagnostics", diagnosticText))
+Toast.makeText(this, R.string.nova_quick_menu_hud_diagnostics_copied, Toast.LENGTH_SHORT).show()
+}
+
 fun showNovaHud():com.papi.nova.ui.NovaStreamHud {
 if (::prefConfig.isInitialized && prefConfig!!.enablePerfOverlay)
 {
@@ -5628,7 +5636,9 @@ configureNovaHud(hud!!)
 return hud!!
 }
 
-hud = com.papi.nova.ui.NovaStreamHud(this@Game)
+hud = com.papi.nova.ui.NovaStreamHud(this@Game) {
+showGameMenu(null)
+}
 novaHud = hud
 hud!!.show()
 configureNovaHud(hud!!)

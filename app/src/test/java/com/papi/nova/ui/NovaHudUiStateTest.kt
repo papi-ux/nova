@@ -256,6 +256,68 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun diagnosticsExplainHealthReasonStreamTruthAndLayerHealth() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 59.2,
+            targetFps = 120.0,
+            latencyMs = 18,
+            codec = "hevc_nvenc",
+            bitrateKbps = 22000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    primaryIssue = "host_render_limited",
+                    hostRenderLimited = true,
+                    safeTargetFps = 60.0,
+                    relaunchRecommended = true
+                )
+            ),
+            sparklineSamples = listOf(58f, 60f, 59f)
+        )
+
+        assertEquals("Host capped", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertEquals("Stream 120 • Game capped 60", state.streamTruthLabel)
+        assertEquals(
+            listOf(
+                NovaHudLayerHealth("HOST", NovaHudTone.WARNING),
+                NovaHudLayerHealth("NET", NovaHudTone.STABLE),
+                NovaHudLayerHealth("CLIENT", NovaHudTone.STABLE)
+            ),
+            state.layerHealth
+        )
+    }
+
+    @Test
+    fun eventBreadcrumbTrailKeepsLatestActionableHudEvent() {
+        val trail = NovaHudEventTrail(capacity = 3)
+
+        trail.recordBitrateChange(fromKbps = 30000, toKbps = 22000)
+        assertEquals("Bitrate lowered: 30M → 22M", trail.latestLabel)
+
+        trail.recordRecoveryProfile(targetFps = 60.0)
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.PERFORMANCE,
+            fps = 59.0,
+            targetFps = 120.0,
+            latencyMs = 20,
+            codec = "hevc",
+            bitrateKbps = 22000,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = listOf(59f),
+            eventBreadcrumbLabel = trail.latestLabel
+        )
+
+        assertEquals("Recovery profile ready: 60 FPS", trail.latestLabel)
+        assertEquals("Recovery profile ready: 60 FPS", state.eventBreadcrumbLabel)
+    }
+
+    @Test
     fun sparklineBufferKeepsLatestSixtySamplesInOrder() {
         val buffer = NovaHudSparklineBuffer(capacity = 60)
 

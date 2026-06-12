@@ -383,7 +383,7 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
 
         args = type("Args", (), {"activity": "com.papi.nova.ui.NovaLibraryActivity", "timeout": 45})()
         xmls = [
-            '<hierarchy><node text="End" bounds="[825,220][934,276]" /></hierarchy>',
+            '<hierarchy><node text="End session" bounds="[825,220][934,276]" /></hierarchy>',
             '<hierarchy><node text="Yes" bounds="[700,600][900,700]" /></hierarchy>',
         ]
 
@@ -409,7 +409,7 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
 
         args = type("Args", (), {"activity": "com.papi.nova.ui.NovaLibraryActivity", "timeout": 45})()
         xmls = [
-            '<hierarchy><node text="End" bounds="[825,220][934,276]" /></hierarchy>',
+            '<hierarchy><node text="End session" bounds="[825,220][934,276]" /></hierarchy>',
             '<hierarchy><node text="Cancel" bounds="[700,600][900,700]" /></hierarchy>',
         ]
 

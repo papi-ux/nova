@@ -65,8 +65,10 @@ COMMAND_CENTER_LABELS = (
     "ESC",
     "Alt + Enter",
     "Alt + F4",
+    "F11",
+    "Insert",
     "Stats Overlay",
-    "End",
+    "End session",
     "Disconnect",
 )
 TOUCH_CONTROLS_CAPTION = "On-screen overlay; physical gamepad stays active."
@@ -1174,7 +1176,7 @@ def end_stream_from_command_center(adb: Adb, args: argparse.Namespace, prefix: P
     for attempt in range(1, 5):
         xml_path = prefix.with_name(f"{prefix.name}_end_attempt_{attempt}").with_suffix(".xml")
         xml_text = dump_xml(adb, xml_path)
-        if tap_first_label(adb, xml_text, "End"):
+        if tap_first_label(adb, xml_text, "End session") or tap_first_label(adb, xml_text, "End"):
             time.sleep(0.8)
             confirm_xml = dump_xml(adb, prefix.with_name(prefix.name + "_end_confirm").with_suffix(".xml"))
             confirmed = tap_first_label(adb, confirm_xml, "YES") or tap_first_label(adb, confirm_xml, "Yes")

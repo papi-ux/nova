@@ -95,6 +95,7 @@ class NovaLibraryUiStateTest {
 
         assertEquals(NovaLibrarySortMode.LIBRARY_ORDER, model.optionsState.sortMode)
         assertEquals(NovaLibraryLayoutMode.GRID, model.optionsState.layoutMode)
+        assertTrue(model.optionsState.showPosterTitles)
         assertEquals(listOf("Beta", "Alpha", "Charlie"), model.filteredGames.map { it.name })
     }
 
@@ -264,7 +265,7 @@ class NovaLibraryUiStateTest {
         assertEquals("match", model.hero.game?.id)
         assertEquals(NovaLibraryHeroReason.FIRST_FILTERED, model.hero.reason)
         assertEquals("Filtered library", model.hero.eyebrow)
-        assertEquals("Launch options", model.hero.actionLabel)
+        assertEquals("Launch", model.hero.actionLabel)
         assertEquals("Filters active - clear to browse every game.", model.hero.caption)
     }
 
@@ -374,7 +375,7 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroReason.LAST_PLAYED, hero.reason)
         assertEquals(NovaLibraryHeroPrimaryAction.OPEN_DETAIL, hero.primaryAction)
         assertEquals("Continue playing", hero.eyebrow)
-        assertEquals("Launch options", hero.actionLabel)
+        assertEquals("Launch", hero.actionLabel)
         assertNull(hero.secondaryActionLabel)
         assertEquals("Continue • Steam", hero.supportingLine)
         assertEquals("Recent Game", hero.artworkFallbackTitle)
@@ -511,7 +512,7 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroPrimaryAction.OPEN_DETAIL, hero.primaryAction)
         assertEquals("Heroic", hero.subtitle)
         assertEquals("Ready when you are", hero.eyebrow)
-        assertEquals("Launch options", hero.actionLabel)
+        assertEquals("Launch", hero.actionLabel)
         assertEquals("Choose profile, display, and stream settings.", hero.caption)
 
         assertEquals(NovaLibraryHeroReason.EMPTY, emptyHero.reason)
@@ -523,6 +524,7 @@ class NovaLibraryUiStateTest {
 
     @Test
     fun gridColumnsMatchCurrentBreakpoints() {
+        assertEquals(2, NovaLibraryUiStateMapper.gridColumns(widthDp = 430, isLandscape = false))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 540, isLandscape = false))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumns(widthDp = 600, isLandscape = false))
         assertEquals(4, NovaLibraryUiStateMapper.gridColumns(widthDp = 720, isLandscape = false))
@@ -538,6 +540,7 @@ class NovaLibraryUiStateTest {
         assertFalse(NovaLibraryUiStateMapper.showLandscapeControlRail())
         assertEquals(813, NovaLibraryUiStateMapper.contentWidthDp(widthDp = 833, isLandscape = true))
         assertEquals(4, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 833, isLandscape = true))
+        assertEquals(2, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 430, isLandscape = false))
         assertEquals(3, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 720, isLandscape = true))
         assertEquals(5, NovaLibraryUiStateMapper.gridColumnsForScreen(widthDp = 960, isLandscape = false))
     }
@@ -617,17 +620,32 @@ class NovaLibraryUiStateTest {
             NovaLibraryUiStateMapper.landscapeContentSpacingDp() <= 6
         )
         assertTrue(
-            "Retroid landscape footer reserve should clear the controller hint bar without eating another game row",
-            NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true) <= 32
+            "Retroid landscape footer reserve should clear the full controller hint bar plus breathing room so poster rows do not sit underneath it",
+            NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true) in 44..52
         )
         assertEquals(
             "portrait footer reserve should stay unchanged while the compact landscape shell is tightened",
             40,
             NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = false)
         )
+        assertEquals(
+            "default grid inset should keep the first poster row tucked inside the glass panel",
+            10,
+            NovaLibraryUiStateMapper.gridContentPaddingDp()
+        )
+        assertTrue(
+            "landscape grid scroll padding should leave the final poster row clear of the footer hint chrome",
+            NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape = true) >=
+                NovaLibraryUiStateMapper.gridContentPaddingDp() + 12
+        )
+        assertEquals(
+            "portrait grid bottom inset should stay compact because portrait already reserves a taller footer",
+            NovaLibraryUiStateMapper.gridContentPaddingDp(),
+            NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape = false)
+        )
         assertTrue(
             "compact landscape persistent chrome should leave the game grid as the visual primary surface",
-            persistentChromeBudget <= 140
+            persistentChromeBudget <= 156
         )
     }
 
