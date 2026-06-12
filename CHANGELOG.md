@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.1.2 - 2026-06-12
+
+Nova 1.1.2 is a confidence patch for the 1.1 line. It keeps the Polaris-backed Library and stream surfaces honest when host data or sessions get weird, adds the requested Insert key affordance, and rolls in current dependency/security pins.
+
+### Highlights
+
+- **Safer Library and launch truth**
+  - Prevented incomplete fallback app-list data from showing up as reliable Library entries when Polaris metadata is not available.
+  - Keeps fallback failures in-app with clearer provenance instead of confusing legacy wording.
+  - Adds a first-screen **End session** escape hatch next to **Resume stream** for owned active sessions, so stale streams can be cleared without resuming into a dead surface.
+
+- **Command Center and special keys**
+  - Adds **Insert** to Command Center Quick Keys and More Keys / Send special keys for overlays and tools that use Insert, including OptiScaler-style workflows.
+  - Updates high-FPS launch copy to say **High FPS stream**, making 120 FPS read as a stream target instead of a guaranteed game-render promise.
+
+- **Input, crash, and dependency hardening**
+  - Sends stylus pen events before pointer-capture mouse gates so pressure-capable touch/stylus paths are not swallowed.
+  - Avoids app-grid null crashes on malformed or incomplete app data.
+  - Updates Netty and Wire runtime dependency pins and keeps the release build checks green.
+
+### Device validation
+
+- Verified the current `master` ARM64 debug APK on Retroid Pocket 6 after the Insert key merge:
+  - populated Polaris Library grid returned after cleanup,
+  - Steam Big Picture reached the stream Activity with HEVC, audio, and `stream_active` lifecycle logs,
+  - Command Center exposed **Disconnect** and **End session**,
+  - Quick Keys exposed **Insert** after scrolling the Command Center controls,
+  - confirmed **End session** returned to the Library, with `Nova SSE: Stopped` and no Nova fatal crash in the bounded log window.
+
+### Caveats
+
+- The Retroid smoke reached the stream launch surface, not a gameplay movement pass.
+- The smoke helper still expected the old `End` label; manual cleanup confirmed the current **End session** path.
+- No fresh MagicPad / MagicOS / Apollo device logcat was collected in this release pass.
+
 ## 1.1.1 - 2026-05-28
 
 Nova 1.1.1 is the public release candidate for the 1.1 line. It keeps the 1.1 feature set intact and focuses on release readiness, contributor build guardrails, and current-surface smoke stability instead of rewriting the older `v1.1.0` tag.

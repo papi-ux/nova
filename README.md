@@ -15,7 +15,7 @@ while you play, and what is safe to do when you leave.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Why Nova](#why-nova) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v111) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Why Nova](#why-nova) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v112) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -81,17 +81,16 @@ Nova is built for that messy reality.
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## Latest release: v1.1.1
+## Latest release: v1.1.2
 
-Nova `v1.1.1` is the public release candidate for the 1.1 line. The 1.1 release upgrades the Polaris Library, launch flow, Command Center, NovaHUD, startup states, controller focus, and release validation path so handheld play feels less like a generic grid and more like a small Android console.
+Nova `v1.1.2` is a confidence patch for the 1.1 line. It makes the Polaris Library more truthful when host metadata is incomplete, improves stale-session recovery, adds the requested Insert key affordance, and rolls in crash/input/dependency hardening from the current release branch.
 
-- **Richer Polaris Library**: improved game cards, focus behavior, launch detail sheets, active-session states, and Polaris-backed launch context.
-- **Clearer launch choices**: Private Stream, Virtual Display, resume/watch, host recommendations, and next-launch tuning are easier to understand before starting a stream.
-- **Command Center polish**: in-stream tuning, overlay controls, NovaHUD toggles, and safe disconnect actions are easier to reach during play.
-- **Lower-overhead NovaHUD**: structured renderer samples and a fixed sparkline buffer reduce stream-loop allocation pressure while keeping legacy overlay compatibility.
-- **Better startup/recovery states**: stream initialization, lock-screen unlock, reconnect, stale host ports, and direct launch preflight paths are more reliable and readable.
-- **Controller-first focus polish**: Nova's focus motion system improves D-pad/controller navigation across Library, detail, settings, and overlay surfaces.
-- **Release hardening**: expanded Baseline Profile coverage, clearer native submodule preflight errors, bounded emulator smoke, and Retroid ARM64 validation.
+- **Safer Library truth**: incomplete fallback app-list data stays out of the Library, and fallback failures use clearer in-app provenance instead of confusing legacy wording.
+- **Stale stream recovery**: owned active sessions now expose **End session** next to **Resume stream**, so users have a first-screen escape hatch when a host session goes stale.
+- **Insert in Quick Keys**: Command Center Quick Keys and More Keys / Send special keys now include **Insert** for tools and overlays that bind to it.
+- **Clearer high-FPS copy**: 120 FPS wording now describes the **High FPS stream** target instead of implying the game itself is guaranteed to render at 120.
+- **Input and crash hardening**: stylus pen events reach the pressure-capable path before pointer-capture mouse gates, and malformed app data no longer trips the app grid.
+- **Release validation**: current master passed public hygiene, lint/unit, CodeQL, dependency submission, release APK assembly, and a Retroid ARM64 stream/control cleanup smoke.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 
