@@ -203,6 +203,11 @@
     <string name="nova_library_options_layout_compact_grid_hint">More games on screen for fast controller sweeps.</string>
     <string name="nova_library_options_layout_list">List</string>
     <string name="nova_library_options_layout_list_hint">One-column rows for quick title scanning.</string>
+    <string name="nova_library_options_poster_titles_title">Poster titles</string>
+    <string name="nova_library_options_poster_titles_show">Show titles</string>
+    <string name="nova_library_options_poster_titles_show_hint">Keep the readable title bar on poster cards.</string>
+    <string name="nova_library_options_poster_titles_hide">Plain artwork</string>
+    <string name="nova_library_options_poster_titles_hide_hint">Hide the title bar so posters show as clean artwork.</string>
     <string name="nova_library_layout_toast_format">Layout: %1$s</string>
     <string name="nova_system_menu_title">System</string>
     <string name="nova_system_menu_host_format">Host: %1$s</string>

@@ -44,7 +44,8 @@ enum class NovaLibraryLayoutMode {
 
 data class NovaLibraryOptionsState(
     val sortMode: NovaLibrarySortMode = NovaLibrarySortMode.LIBRARY_ORDER,
-    val layoutMode: NovaLibraryLayoutMode = NovaLibraryLayoutMode.GRID
+    val layoutMode: NovaLibraryLayoutMode = NovaLibraryLayoutMode.GRID,
+    val showPosterTitles: Boolean = true
 )
 
 enum class NovaLibraryEmptyState {

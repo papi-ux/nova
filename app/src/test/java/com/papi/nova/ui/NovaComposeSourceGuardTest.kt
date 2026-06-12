@@ -70,29 +70,42 @@ class NovaComposeSourceGuardTest {
                 optionsSheet.contains("NovaLibraryLayoutMode.entries")
         )
         assertTrue(
-            "quick options sheet should expose Sort and Layout sections rather than hiding browsing decisions in the rail",
+            "quick options sheet should expose Sort, Layout, and Poster title sections rather than hiding browsing decisions in the rail",
             optionsSheet.contains("R.string.nova_library_options_sort_title") &&
                 optionsSheet.contains("R.string.nova_library_options_layout_title") &&
+                optionsSheet.contains("R.string.nova_library_options_poster_titles_title") &&
                 optionsSheet.contains("onSortMode(sortMode)") &&
-                optionsSheet.contains("onLayoutMode(layoutMode)")
+                optionsSheet.contains("onLayoutMode(layoutMode)") &&
+                optionsSheet.contains("onPosterTitlesVisible(true)") &&
+                optionsSheet.contains("onPosterTitlesVisible(false)")
         )
         assertTrue(
-            "layout modes should be wired into the actual library card density, including the Y shortcut list mode",
+            "poster-title visibility should be persisted from the Library drawer so users can keep plain artwork posters across launches",
+            activity.contains("POSTER_TITLES_PREF") &&
+                activity.contains("loadPosterTitlesPreference()") &&
+                activity.contains("persistPosterTitlesPreference(showPosterTitles)") &&
+                activity.contains("optionsState.copy(showPosterTitles = showPosterTitles)")
+        )
+        assertTrue(
+            "layout modes and poster-title visibility should be wired into actual library card rendering",
             activity.contains("val layoutMode = model.optionsState.layoutMode") &&
                 activity.contains("val compactCards = layoutMode == NovaLibraryLayoutMode.COMPACT_GRID") &&
                 activity.contains("val listCards = layoutMode == NovaLibraryLayoutMode.LIST") &&
                 activity.contains("compact = compactCards") &&
-                activity.contains("listStyle = listCards")
+                activity.contains("listStyle = listCards") &&
+                activity.contains("showPosterTitle = model.optionsState.showPosterTitles")
         )
         assertTrue(
-            "quick options strings should cover the GameNative-inspired Sort/Layout surface",
+            "quick options strings should cover the Sort/Layout/Poster title surface",
             strings.contains("name=\"nova_library_options_title\">Library Options") &&
                 strings.contains("name=\"nova_library_options_sort_recent\">Recent") &&
                 strings.contains("name=\"nova_library_options_sort_name_asc\">Name A-Z") &&
                 strings.contains("name=\"nova_library_options_sort_name_desc\">Name Z-A") &&
                 strings.contains("name=\"nova_library_options_sort_source\">Source") &&
                 strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR first") &&
-                strings.contains("name=\"nova_library_options_layout_compact_grid\">Compact grid")
+                strings.contains("name=\"nova_library_options_layout_compact_grid\">Compact grid") &&
+                strings.contains("name=\"nova_library_options_poster_titles_title\">Poster titles") &&
+                strings.contains("name=\"nova_library_options_poster_titles_hide\">Plain artwork")
         )
     }
 
@@ -820,7 +833,14 @@ class NovaComposeSourceGuardTest {
         }
 
         assertTrue(
-            "grid game cards should draw a dedicated title-safe scrim above cover art before title text",
+            "grid game cards should gate the poster title/caption overlay so users can choose plain artwork posters",
+            gameCard.contains("showPosterTitle: Boolean = true") &&
+                gameCard.contains("if (showPosterTitle) {") &&
+                gameCard.contains("NovaLibraryCardTitleScrim(") &&
+                gameCard.indexOf("if (showPosterTitle) {") in 0 until gameCard.lastIndexOf("text = title")
+        )
+        assertTrue(
+            "grid game cards should draw a dedicated title-safe scrim above cover art before title text when titles are enabled",
             gameCard.contains("NovaLibraryCardTitleScrim(") &&
                 gameCard.indexOf("NovaLibraryCardTitleScrim(") in 0 until gameCard.lastIndexOf("text = title")
         )

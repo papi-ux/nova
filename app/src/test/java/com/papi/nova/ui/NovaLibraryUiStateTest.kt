@@ -95,6 +95,7 @@ class NovaLibraryUiStateTest {
 
         assertEquals(NovaLibrarySortMode.LIBRARY_ORDER, model.optionsState.sortMode)
         assertEquals(NovaLibraryLayoutMode.GRID, model.optionsState.layoutMode)
+        assertTrue(model.optionsState.showPosterTitles)
         assertEquals(listOf("Beta", "Alpha", "Charlie"), model.filteredGames.map { it.name })
     }
 

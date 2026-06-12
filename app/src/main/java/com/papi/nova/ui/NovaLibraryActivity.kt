@@ -106,6 +106,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import com.papi.nova.LimeLog
 import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
@@ -194,6 +195,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
 
         apiClient = PolarisApiClient(this, streamHost, streamHttpsPort, streamServerCert)
+        optionsState = optionsState.copy(showPosterTitles = loadPosterTitlesPreference())
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -249,6 +251,10 @@ class NovaLibraryActivity : AppCompatActivity() {
                         onOpenAbout = ::showAboutNova,
                         onSortMode = { sortMode -> optionsState = optionsState.copy(sortMode = sortMode) },
                         onLayoutMode = { layoutMode -> optionsState = optionsState.copy(layoutMode = layoutMode) },
+                        onPosterTitlesVisible = { showPosterTitles ->
+                            optionsState = optionsState.copy(showPosterTitles = showPosterTitles)
+                            persistPosterTitlesPreference(showPosterTitles)
+                        },
                         onDismissFilterSheet = { activeFilterSheet = null },
                         onSourceFilter = ::applySourceFilter,
                         onCategoryFilter = ::applyCategoryFilter,
@@ -301,6 +307,18 @@ class NovaLibraryActivity : AppCompatActivity() {
             }
             else -> false
         }
+    }
+
+    private fun loadPosterTitlesPreference(): Boolean {
+        return PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(POSTER_TITLES_PREF, true)
+    }
+
+    private fun persistPosterTitlesPreference(showPosterTitles: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit()
+            .putBoolean(POSTER_TITLES_PREF, showPosterTitles)
+            .apply()
     }
 
     override fun onResume() {
@@ -839,6 +857,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         onOpenAbout: () -> Unit,
         onSortMode: (NovaLibrarySortMode) -> Unit,
         onLayoutMode: (NovaLibraryLayoutMode) -> Unit,
+        onPosterTitlesVisible: (Boolean) -> Unit,
         onDismissFilterSheet: () -> Unit,
         onSourceFilter: (String?) -> Unit,
         onCategoryFilter: (String) -> Unit,
@@ -967,6 +986,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                                     games = model.recentGames,
                                     apiClient = apiClient,
                                     restoreFocusGameId = restoreFocusGameId,
+                                    showPosterTitles = model.optionsState.showPosterTitles,
                                     onGameFocused = onGameFocused,
                                     onOpenDetail = onOpenDetail
                                 )
@@ -1016,6 +1036,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                                     games = model.recentGames,
                                     apiClient = apiClient,
                                     restoreFocusGameId = restoreFocusGameId,
+                                    showPosterTitles = model.optionsState.showPosterTitles,
                                     onGameFocused = onGameFocused,
                                     onOpenDetail = onOpenDetail
                                 )
@@ -1084,7 +1105,8 @@ class NovaLibraryActivity : AppCompatActivity() {
                         onOpenSystemMenu = onOpenSystemMenu,
                         onRefresh = onRefresh,
                         onSortMode = onSortMode,
-                        onLayoutMode = onLayoutMode
+                        onLayoutMode = onLayoutMode,
+                        onPosterTitlesVisible = onPosterTitlesVisible
                     )
                 }
                 activeFilterSheet != null -> {
@@ -2140,6 +2162,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                                     apiClient = apiClient,
                                     compact = compactCards,
                                     listStyle = listCards,
+                                    showPosterTitle = model.optionsState.showPosterTitles,
                                     isLandscape = isLandscape,
                                     restoreFocus = game.id == restoreFocusGameId,
                                     onFocused = { onGameFocused(game) },
@@ -2158,6 +2181,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         games: List<PolarisGame>,
         apiClient: PolarisApiClient,
         restoreFocusGameId: String?,
+        showPosterTitles: Boolean,
         onGameFocused: (PolarisGame) -> Unit,
         onOpenDetail: (PolarisGame) -> Unit
     ) {
@@ -2204,6 +2228,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                                 game = game,
                                 apiClient = apiClient,
                                 compact = true,
+                                showPosterTitle = showPosterTitles,
                                 isLandscape = false,
                                 modifier = Modifier.width(cardWidth),
                                 restoreFocus = game.id == restoreFocusGameId,
@@ -2224,6 +2249,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         apiClient: PolarisApiClient,
         compact: Boolean,
         listStyle: Boolean = false,
+        showPosterTitle: Boolean = true,
         isLandscape: Boolean,
         modifier: Modifier = Modifier,
         restoreFocus: Boolean = false,
@@ -2418,38 +2444,40 @@ class NovaLibraryActivity : AppCompatActivity() {
                         .align(Alignment.TopStart)
                         .padding(7.dp)
                 )
-                NovaLibraryCardTitleScrim(
-                    compact = compact,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                )
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(surfaces.mediaScrimBottom.copy(alpha = 0.34f))
-                        .padding(horizontal = 7.dp, vertical = 5.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Text(
-                        text = title,
-                        color = surfaces.onMedia,
-                        fontSize = if (compact) 13.sp else 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = if (compact) 1 else 2,
-                        overflow = TextOverflow.Ellipsis
+                if (showPosterTitle) {
+                    NovaLibraryCardTitleScrim(
+                        compact = compact,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
                     )
-                    if (meta.isNotBlank()) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(surfaces.mediaScrimBottom.copy(alpha = 0.34f))
+                            .padding(horizontal = 7.dp, vertical = 5.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
                         Text(
-                            text = meta,
-                            color = surfaces.onMediaSecondary,
-                            fontSize = 11.sp,
-                            maxLines = 1,
+                            text = title,
+                            color = surfaces.onMedia,
+                            fontSize = if (compact) 13.sp else 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = if (compact) 1 else 2,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (meta.isNotBlank()) {
+                            Text(
+                                text = meta,
+                                color = surfaces.onMediaSecondary,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -2986,7 +3014,8 @@ class NovaLibraryActivity : AppCompatActivity() {
         onOpenSystemMenu: () -> Unit,
         onRefresh: () -> Unit,
         onSortMode: (NovaLibrarySortMode) -> Unit,
-        onLayoutMode: (NovaLibraryLayoutMode) -> Unit
+        onLayoutMode: (NovaLibraryLayoutMode) -> Unit,
+        onPosterTitlesVisible: (Boolean) -> Unit
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
@@ -3166,6 +3195,28 @@ class NovaLibraryActivity : AppCompatActivity() {
                             onClick = { onLayoutMode(layoutMode) }
                         )
                     }
+                    Text(
+                        text = stringResource(R.string.nova_library_options_poster_titles_title),
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.7.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    NovaSelectableChip(
+                        label = stringResource(R.string.nova_library_options_poster_titles_show),
+                        detail = stringResource(R.string.nova_library_options_poster_titles_show_hint),
+                        selected = optionsState.showPosterTitles,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onPosterTitlesVisible(true) }
+                    )
+                    NovaSelectableChip(
+                        label = stringResource(R.string.nova_library_options_poster_titles_hide),
+                        detail = stringResource(R.string.nova_library_options_poster_titles_hide_hint),
+                        selected = !optionsState.showPosterTitles,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onPosterTitlesVisible(false) }
+                    )
                     Spacer(modifier = Modifier.height(14.dp))
                 }
             }
@@ -3465,6 +3516,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         const val EXTRA_PC_UUID = "pc_uuid"
         const val EXTRA_SERVER_COMMANDS = "server_commands"
         const val EXTRA_SERVER_CERT = "server_cert"
+        private const val POSTER_TITLES_PREF = "nova_library_poster_titles"
         private val ACTIVE_SESSION_RESUME_REFRESH_DELAYS_MS = longArrayOf(1500L, 2000L, 3000L, 5000L, 8000L)
     }
 }
