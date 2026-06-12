@@ -193,16 +193,73 @@
         </LinearLayout>
 
         <!-- App grid -->
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-            android:id="@+id/appSwipeRefresh"
+        <FrameLayout
+            android:id="@+id/appListContent"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
-            <FrameLayout
-                android:id="@+id/appFragmentContainer"
+
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/appSwipeRefresh"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+                android:layout_height="match_parent">
+                <FrameLayout
+                    android:id="@+id/appFragmentContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+            <LinearLayout
+                android:id="@+id/appListErrorCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginStart="24dp"
+                android:layout_marginEnd="24dp"
+                android:background="@drawable/nova_card_bg_focusable"
+                android:orientation="vertical"
+                android:paddingStart="22dp"
+                android:paddingTop="22dp"
+                android:paddingEnd="22dp"
+                android:paddingBottom="22dp"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/appListErrorTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/applist_error_title"
+                    android:textColor="@color/nova_ice"
+                    android:textSize="20sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <TextView
+                    android:id="@+id/appListErrorMessage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/applist_error_message"
+                    android:textColor="@color/nova_text_secondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/appListErrorDetail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textColor="@color/nova_text_muted"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/appListRetryButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/applist_error_retry" />
+            </LinearLayout>
+        </FrameLayout>
 
     </LinearLayout>
 

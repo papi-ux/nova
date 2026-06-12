@@ -1019,13 +1019,15 @@ class NvHTTP @Throws(IOException::class) constructor(
                         }
                     }
                     XmlPullParser.TEXT -> {
-                        val app = appList.last()
-                        when (currentTag.peek()) {
-                            "AppTitle" -> app.appName = xpp.text
-                            "UUID" -> app.appUUID = xpp.text
-                            "IDX" -> app.appIndex = xpp.text.toInt()
-                            "ID" -> app.setAppId(xpp.text)
-                            "IsHdrSupported" -> app.isHdrSupported = xpp.text == "1"
+                        if (currentTag.isNotEmpty() && currentTag.contains("App") && appList.isNotEmpty()) {
+                            val app = appList.last()
+                            when (currentTag.peek()) {
+                                "AppTitle" -> app.appName = xpp.text
+                                "UUID" -> app.appUUID = xpp.text
+                                "IDX" -> app.setAppIndex(xpp.text)
+                                "ID" -> app.setAppId(xpp.text)
+                                "IsHdrSupported" -> app.isHdrSupported = xpp.text == "1"
+                            }
                         }
                     }
                 }

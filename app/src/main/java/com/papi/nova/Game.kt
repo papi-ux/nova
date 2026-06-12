@@ -216,6 +216,8 @@ private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 @Volatile private var lastReportedClientPresentationKey:String = ""
 @Volatile private var lastPolarisDeviceCapabilities:JSONObject? = null
 @Volatile private var lastPolarisAppliedStreamSettings:JSONObject? = null
+@Volatile private var lastClientProfileProvenance:com.papi.nova.manager.ClientProfileProvenance =
+com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfileSource.LOCAL_DEFAULT)
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
 private var clientPresentationReportInFlight:AtomicBoolean = AtomicBoolean(false)
@@ -739,6 +741,7 @@ return
 }
 
 var launchOptimization:JSONObject? = if (watchOnlyRequested) null else loadLaunchOptimization(appName)
+lastClientProfileProvenance = com.papi.nova.manager.StreamSyncManager.resolveProfileProvenance(launchOptimization, manualOverride = isManualProfileOverride())
 
  // Initialize the MediaCodec helper before creating the decoder
         var glPrefs:GlPreferences? = GlPreferences.readPreferences(this)
@@ -1891,6 +1894,10 @@ getConfiguredStreamFrameRateFps() > 0f &&
 getConfiguredStreamFrameRateFps() <= 60f &&
 !preferStableRefreshMultipleForAutoSafe &&
 !isOnExternalDisplay)
+}
+
+private fun isManualProfileOverride():Boolean {
+return launchProfilePreference.isNotBlank() && !launchProfilePreference.equals("auto", ignoreCase = true)
 }
 
 private fun loadLaunchOptimization(appName:String?):JSONObject? {
@@ -5297,18 +5304,33 @@ if ((novaApiClient == null || !com.papi.nova.manager.FeatureFlagManager.hasClien
 return false
 }
 
+var targetRefreshRateHz:Float = 0f
+var refreshRatePolicy:String = ""
+try
+{
+if (clientPresentation != null)
+{
+targetRefreshRateHz = clientPresentation!!.optDouble("target_refresh_rate_hz", 0.0).toFloat()
+refreshRatePolicy = clientPresentation!!.optString("refresh_rate_policy", "")
+}
+}
+catch (ignored:Exception) {}
 var runtime:JSONObject? = com.papi.nova.manager.StreamSyncManager.buildClientRuntime(
 this,
 decoderRenderer,
 if (lastClientPresentationRefreshRate > 0f) lastClientPresentationRefreshRate else desiredRefreshRate,
 lastClientPresentationDisplayModeId,
 lastClientPresentationDisplayMode,
-if (prefConfig != null) prefConfig!!.framePacing else 0
+if (prefConfig != null) prefConfig!!.framePacing else 0,
+lastClientProfileProvenance,
+targetRefreshRateHz,
+refreshRatePolicy
 )
 
+var manualProfileOverride:Boolean = isManualProfileOverride()
 var syncStatus:com.papi.nova.api.PolarisSessionStatus.SyncStatus? = novaApiClient!!.reportClientSettings(
 com.papi.nova.manager.StreamSyncManager.SYNC_MODE_AUTO_SAFE,
-false,
+manualProfileOverride,
 lastPolarisDeviceCapabilities,
 runtime,
 lastPolarisAppliedStreamSettings,

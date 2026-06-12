@@ -187,6 +187,40 @@ class PolarisApiClient @JvmOverloads constructor(
         }
 
         @JvmStatic
+        internal fun buildClientSettingsBody(
+            syncMode: String,
+            manualOverride: Boolean,
+            deviceCapabilities: JSONObject?,
+            clientRuntime: JSONObject?,
+            appliedStreamSettings: JSONObject?,
+            clientPresentation: JSONObject?
+        ): JSONObject = JSONObject().apply {
+            put("sync_mode", syncMode)
+            put("manual_override", manualOverride)
+            deviceCapabilities?.let { put("device_capabilities", it) }
+            clientRuntime?.let { put("client_runtime", it) }
+            appliedStreamSettings?.let { put("applied_stream_settings", it) }
+            clientPresentation?.let { put("client_presentation", it) }
+        }
+
+        @JvmStatic
+        fun buildClientSettingsBodyForTest(
+            syncMode: String,
+            manualOverride: Boolean,
+            deviceCapabilities: JSONObject?,
+            clientRuntime: JSONObject?,
+            appliedStreamSettings: JSONObject?,
+            clientPresentation: JSONObject?
+        ): JSONObject = buildClientSettingsBody(
+            syncMode = syncMode,
+            manualOverride = manualOverride,
+            deviceCapabilities = deviceCapabilities,
+            clientRuntime = clientRuntime,
+            appliedStreamSettings = appliedStreamSettings,
+            clientPresentation = clientPresentation
+        )
+
+        @JvmStatic
         fun buildClientSettingsUpdateBody(
             streamDisplayMode: String? = null,
             displayMode: String? = null,
@@ -1107,14 +1141,14 @@ class PolarisApiClient @JvmOverloads constructor(
                              appliedStreamSettings: JSONObject? = null,
                              clientPresentation: JSONObject? = null): PolarisSessionStatus.SyncStatus? {
         return try {
-            val body = org.json.JSONObject().apply {
-                put("sync_mode", syncMode)
-                put("manual_override", manualOverride)
-                deviceCapabilities?.let { put("device_capabilities", it) }
-                clientRuntime?.let { put("client_runtime", it) }
-                appliedStreamSettings?.let { put("applied_stream_settings", it) }
-                clientPresentation?.let { put("client_presentation", it) }
-            }
+            val body = buildClientSettingsBody(
+                syncMode = syncMode,
+                manualOverride = manualOverride,
+                deviceCapabilities = deviceCapabilities,
+                clientRuntime = clientRuntime,
+                appliedStreamSettings = appliedStreamSettings,
+                clientPresentation = clientPresentation
+            )
             val request = Request.Builder()
                 .url("$baseUrl/client-settings")
                 .post(okhttp3.RequestBody.create(

@@ -47,7 +47,7 @@ class NovaLaunchProfileSummaryTest {
 
         requireNotNull(summary)
         assertEquals("Launch Recovery profile 40 FPS", summary.primaryLaunchLabel)
-        assertEquals("Requested: High FPS profile / 120 FPS", summary.requestedLine)
+        assertEquals("Requested: High FPS stream / 120 FPS", summary.requestedLine)
         assertEquals("Selected: Recovery profile / 40 FPS", summary.selectedLine)
         assertEquals("Limited by: Decoder path", summary.limitingLine)
         assertEquals("Recovery active from last session · 1 min ago", summary.freshnessLine)
@@ -89,8 +89,8 @@ class NovaLaunchProfileSummaryTest {
         )
 
         requireNotNull(summary)
-        assertEquals("Try High FPS profile 120 FPS", summary.primaryLaunchLabel)
-        assertEquals("Requested: High FPS profile / 120 FPS", summary.requestedLine)
+        assertEquals("Try High FPS stream 120 FPS", summary.primaryLaunchLabel)
+        assertEquals("Requested: High FPS stream / 120 FPS", summary.requestedLine)
         assertEquals("Selected: High FPS trial / 120 FPS", summary.selectedLine)
         assertFalse(summary.showRetryHighFps)
     }
@@ -124,8 +124,8 @@ class NovaLaunchProfileSummaryTest {
         )
 
         requireNotNull(summary)
-        assertEquals("Launch High FPS profile 120 FPS", summary.primaryLaunchLabel)
-        assertEquals("Selected: High FPS profile / 120 FPS", summary.selectedLine)
+        assertEquals("Launch High FPS stream 120 FPS", summary.primaryLaunchLabel)
+        assertEquals("Selected: High FPS stream / 120 FPS", summary.selectedLine)
         assertFalse(summary.showRetryHighFps)
     }
 
@@ -159,7 +159,7 @@ class NovaLaunchProfileSummaryTest {
     }
 
     @Test
-    fun highFpsRecommendationReadsLikeANovaLaunchProfile() {
+    fun highFpsRecommendationNamesStreamTargetInsteadOfGameRenderPromise() {
         val summary = buildNovaLaunchProfileSummary(
             JSONObject(
                 "{" +
@@ -179,9 +179,9 @@ class NovaLaunchProfileSummaryTest {
         )
 
         requireNotNull(summary)
-        assertEquals("Launch High FPS profile 120 FPS", summary.primaryLaunchLabel)
-        assertEquals("Requested: High FPS profile / 120 FPS", summary.requestedLine)
-        assertEquals("Selected: High FPS profile / 120 FPS", summary.selectedLine)
+        assertEquals("Launch High FPS stream 120 FPS", summary.primaryLaunchLabel)
+        assertEquals("Requested: High FPS stream / 120 FPS", summary.requestedLine)
+        assertEquals("Selected: High FPS stream / 120 FPS", summary.selectedLine)
         assertEquals("Reason: Nova recommends High FPS for this game.", summary.reasonLine)
     }
 

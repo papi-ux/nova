@@ -86,13 +86,13 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
 
                     val uuid = uuidString
                     if (uuid == null) {
-                        finish()
+                        showAppListError(getString(R.string.applist_error_invalid_host))
                         return@Thread
                     }
 
                     val loadedComputer = localBinder.getComputer(uuid)
                     if (loadedComputer == null) {
-                        finish()
+                        showAppListError(getString(R.string.applist_error_host_missing))
                         return@Thread
                     }
                     computer = loadedComputer
@@ -210,6 +210,14 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
                         return
                     }
 
+                    if (details.appListLoadError != null &&
+                        (appGridAdapter?.getTotalAppCount() ?: 0) == 0
+                    ) {
+                        activeComputer.update(details)
+                        showAppListError(details.appListLoadError ?: getString(R.string.applist_error_message))
+                        return
+                    }
+
                     if (details.rawAppList == null || details.rawAppList == lastRawAppList) {
                         activeComputer.update(details)
                         if (details.runningGameId != lastRunningAppId) {
@@ -224,17 +232,17 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
                     lastRawAppList = details.rawAppList
 
                     try {
+                        clearAppListError()
                         updateUiWithAppList(NvHTTP.getAppListByReader(StringReader(details.rawAppList)))
                         updateUiWithServerInfo(details)
 
-                        if (blockingLoadSpinner != null) {
-                            blockingLoadSpinner?.dismiss()
-                            blockingLoadSpinner = null
-                        }
+                        runOnUiThread { dismissBlockingLoadSpinner() }
                     } catch (e: XmlPullParserException) {
-                        LimeLog.warning(Log.getStackTraceString(e))
+                        handleAppListLoadFailure(e)
                     } catch (e: IOException) {
-                        LimeLog.warning(Log.getStackTraceString(e))
+                        handleAppListLoadFailure(e)
+                    } catch (e: RuntimeException) {
+                        handleAppListLoadFailure(e)
                     }
                 }
             },
@@ -304,6 +312,8 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
 
         findViewById<View>(R.id.profilesButton)
             .setOnClickListener { startActivity(Intent(this, ProfilesActivity::class.java)) }
+        findViewById<View>(R.id.appListRetryButton)
+            ?.setOnClickListener { retryAppListLoad() }
 
         showHiddenApps = intent.getBooleanExtra(SHOW_HIDDEN_APPS_EXTRA, false)
         uuidString = intent.getStringExtra(UUID_EXTRA)
@@ -372,6 +382,8 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
             handleCachedAppListLoadFailure(e)
         } catch (e: XmlPullParserException) {
             handleCachedAppListLoadFailure(e)
+        } catch (e: RuntimeException) {
+            handleCachedAppListLoadFailure(e)
         }
     }
 
@@ -392,6 +404,51 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
                 resources.getString(R.string.applist_refresh_msg),
                 true,
             )
+    }
+
+    private fun dismissBlockingLoadSpinner() {
+        if (blockingLoadSpinner != null) {
+            blockingLoadSpinner?.dismiss()
+            blockingLoadSpinner = null
+        }
+    }
+
+    private fun handleAppListLoadFailure(e: Exception) {
+        LimeLog.warning(Log.getStackTraceString(e))
+        val detail = e.message ?: e.javaClass.simpleName
+        showAppListError(detail)
+    }
+
+    private fun showAppListError(message: String) {
+        runOnUiThread {
+            dismissBlockingLoadSpinner()
+            val swipeRefresh = findViewById<SwipeRefreshLayout>(R.id.appSwipeRefresh)
+            swipeRefresh?.isRefreshing = false
+
+            val errorCard = findViewById<View>(R.id.appListErrorCard) ?: return@runOnUiThread
+            val detailView = findViewById<TextView>(R.id.appListErrorDetail)
+            val retryButton = findViewById<View>(R.id.appListRetryButton)
+
+            detailView?.text = getString(R.string.applist_error_detail_format, message)
+            detailView?.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
+            retryButton?.requestFocus()
+            errorCard.visibility = View.VISIBLE
+        }
+    }
+
+    private fun clearAppListError() {
+        runOnUiThread {
+            findViewById<View>(R.id.appListErrorCard)?.visibility = View.GONE
+        }
+    }
+
+    private fun retryAppListLoad() {
+        clearAppListError()
+        loadAppsBlocking()
+        poller?.pollNow()
+        if (poller == null) {
+            startComputerUpdates()
+        }
     }
 
     override fun finish() {

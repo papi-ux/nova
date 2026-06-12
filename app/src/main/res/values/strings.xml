@@ -18,6 +18,12 @@
     <string name="server_library_label">Server Library</string>
     <string name="server_library_search_hint">Search games…</string>
     <string name="badge_streaming">Streaming</string>
+    <string name="applist_error_title">Standard app list unavailable</string>
+    <string name="applist_error_message">Nova couldn’t load the Moonlight-compatible app list from this Apollo/Sunshine host. The app is still open; retry when the host is ready.</string>
+    <string name="applist_error_detail_format">Host detail: %1$s</string>
+    <string name="applist_error_retry">Retry</string>
+    <string name="applist_error_invalid_host">Nova cannot identify this host. Go back and select it again.</string>
+    <string name="applist_error_host_missing">This host disappeared from Nova’s service state. Go back and select it again, or retry after discovery refreshes.</string>
 
     <!-- Alignments -->
     <string name="align_left">Align Left</string>
@@ -85,7 +91,7 @@
     <string name="pcview_empty_hint_no_streaming">Start a session from a server to see it here.</string>
     <string name="pcview_empty_title_no_pairing">Nothing needs pairing</string>
     <string name="pcview_empty_hint_no_pairing">All discovered servers are already paired or offline.</string>
-    <string name="pcview_card_action_open_apps">Open Apps</string>
+    <string name="pcview_card_action_open_apps">Open App List</string>
     <string name="pcview_card_action_open_library">Open Library</string>
     <string name="pcview_card_action_checking_library">Checking</string>
     <string name="pcview_card_action_resume">Resume</string>
@@ -106,7 +112,7 @@
     <string name="pcview_card_hint_streaming">Resume or watch the active stream.</string>
     <string name="pcview_card_hint_open_library">Open the Polaris game library.</string>
     <string name="pcview_card_hint_checking_library">Waiting for Polaris library readiness.</string>
-    <string name="pcview_card_hint_open_apps">Use the legacy app list for this host.</string>
+    <string name="pcview_card_hint_open_apps">Open the standard Moonlight-compatible app list for Apollo, Sunshine, and other compatible hosts.</string>
     <string name="pcview_card_hint_wake">Wake this host or check the network.</string>
     <string name="pcview_card_hint_offline_no_wake">This host is offline and has no wake target saved.</string>
     <string name="pcview_card_hint_refreshing">Refreshing host status.</string>

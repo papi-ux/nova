@@ -199,7 +199,7 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
-    fun heroHomeStatePrioritizesOwnedActiveSessionWithSingleResumeAction() {
+    fun heroHomeStatePrioritizesOwnedActiveSessionWithResumeAndEndActions() {
         val games = listOf(
             game("recent", "Recent Game", lastLaunched = 100),
             game("active", "Active Game", lastLaunched = 10)
@@ -229,13 +229,13 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroPrimaryAction.RESUME, hero.primaryAction)
         assertEquals("Retroid Pocket", hero.subtitle)
         assertEquals("Resume stream", hero.actionLabel)
-        assertNull(hero.secondaryActionLabel)
+        assertEquals("End session", hero.secondaryActionLabel)
         assertEquals("Resume • Retroid Pocket • 1920×1080 60fps", hero.supportingLine)
         assertEquals("Active Game", hero.artworkFallbackTitle)
         assertEquals("Active session • Retroid Pocket", hero.artworkFallbackSubtitle)
         assertTrue(hero.badges.contains("Active session"))
         assertTrue(hero.badges.contains("Virtual display"))
-        assertEquals("Resume the current stream and quality settings.", hero.caption)
+        assertEquals("Resume this stream, or end it if the host game is stale.", hero.caption)
         assertTrue(hero.badges.contains("1920×1080 60fps"))
         assertFalse(
             NovaLibraryUiStateMapper.showLandscapeRecentRail(

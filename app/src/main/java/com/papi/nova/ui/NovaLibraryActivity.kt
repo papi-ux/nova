@@ -935,6 +935,12 @@ class NovaLibraryActivity : AppCompatActivity() {
                                         NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
                                     }
                                 },
+                                onSecondaryAction = {
+                                    when (model.hero.secondaryAction) {
+                                        NovaLibraryHeroSecondaryAction.END_SESSION -> activeSession?.let(onEndSession)
+                                        null -> Unit
+                                    }
+                                },
                                 onGameFocused = onGameFocused
                             )
                             NovaLibraryContent(
@@ -993,6 +999,12 @@ class NovaLibraryActivity : AppCompatActivity() {
                                         NovaLibraryHeroPrimaryAction.OPEN_DETAIL -> model.hero.game?.let(onOpenDetail)
                                         NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
                                         NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
+                                    }
+                                },
+                                onSecondaryAction = {
+                                    when (model.hero.secondaryAction) {
+                                        NovaLibraryHeroSecondaryAction.END_SESSION -> activeSession?.let(onEndSession)
+                                        null -> Unit
                                     }
                                 },
                                 onGameFocused = onGameFocused
@@ -1185,6 +1197,7 @@ class NovaLibraryActivity : AppCompatActivity() {
         hero: NovaLibraryHeroState,
         compact: Boolean,
         onPrimaryAction: () -> Unit,
+        onSecondaryAction: (() -> Unit)? = null,
         onGameFocused: (PolarisGame) -> Unit
     ) {
         val colors = LocalNovaComposeColors.current
@@ -1301,13 +1314,28 @@ class NovaLibraryActivity : AppCompatActivity() {
                 subtitle = hero.artworkFallbackSubtitle,
                 compact = compact
             )
-            NovaActionButton(
-                text = hero.actionLabel,
-                onClick = onPrimaryAction,
+            Column(
                 modifier = Modifier.widthIn(min = if (compact) 104.dp else 148.dp),
-                minHeight = if (compact) 34.dp else 48.dp,
-                fontSize = if (compact) 10.sp else 14.sp
-            )
+                verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)
+            ) {
+                NovaActionButton(
+                    text = hero.actionLabel,
+                    onClick = onPrimaryAction,
+                    modifier = Modifier.fillMaxWidth(),
+                    minHeight = if (compact) 28.dp else 48.dp,
+                    fontSize = if (compact) 9.sp else 14.sp
+                )
+                if (hero.secondaryActionLabel != null && onSecondaryAction != null) {
+                    NovaActionButton(
+                        text = hero.secondaryActionLabel,
+                        onClick = onSecondaryAction,
+                        modifier = Modifier.fillMaxWidth(),
+                        primary = false,
+                        minHeight = if (compact) 26.dp else 40.dp,
+                        fontSize = if (compact) 9.sp else 13.sp
+                    )
+                }
+            }
         }
     }
 

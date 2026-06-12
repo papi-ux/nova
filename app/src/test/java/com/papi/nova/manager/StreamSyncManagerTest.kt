@@ -14,6 +14,56 @@ import org.robolectric.annotation.Config
 class StreamSyncManagerTest {
 
     @Test
+    fun resolveProfileProvenance_marksManualOverride() {
+        val optimization = JSONObject("{\"source\":\"ai_cached\",\"recommendation_version\":2}")
+
+        val provenance = StreamSyncManager.resolveProfileProvenance(optimization, manualOverride = true)
+
+        assertEquals(ClientProfileSource.MANUAL_OVERRIDE, provenance.source)
+        assertTrue(provenance.manualOverride)
+        assertEquals(2, provenance.version)
+    }
+
+    @Test
+    fun resolveProfileProvenance_preservesHistorySafeRecoverySource() {
+        val optimization = JSONObject(
+            "{\"source\":\"history_safe\",\"confidence\":\"medium\"," +
+                "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"}}"
+        )
+
+        val provenance = StreamSyncManager.resolveProfileProvenance(optimization, manualOverride = false)
+
+        assertEquals(ClientProfileSource.HISTORY_SAFE, provenance.source)
+        assertEquals("medium", provenance.confidence)
+    }
+
+    @Test
+    fun buildClientRuntime_includesProfileProvenance() {
+        val profile = ClientProfileProvenance(
+            source = ClientProfileSource.POLARIS_CACHED,
+            version = 4,
+            confidence = "high",
+            cacheStatus = "hit",
+            manualOverride = false
+        )
+
+        val runtime = StreamSyncManager.buildClientRuntimeSnapshotForTest(
+            deviceModel = "Retroid Pocket",
+            androidSdk = 35,
+            decoder = "c2.qti.hevc.decoder.low_latency",
+            targetRefreshRateHz = 60.0,
+            appliedRefreshRateHz = 120.0,
+            displayMode = "1920x1080x120",
+            refreshRatePolicy = "whole_multiple",
+            profile = profile
+        )
+
+        assertEquals("Retroid Pocket", runtime.getString("device_model"))
+        assertEquals("polaris_cached", runtime.getJSONObject("profile").getString("source"))
+        assertEquals(4, runtime.getJSONObject("profile").getInt("version"))
+    }
+
+    @Test
     fun resolveAutoSafeResolution_keepsBalancedFloorForCached720Profile() {
         val optimization = JSONObject("{\"display_mode\":\"1280x720x60\",\"source\":\"ai_cached\"}")
 

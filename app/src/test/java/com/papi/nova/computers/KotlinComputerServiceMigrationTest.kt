@@ -95,6 +95,20 @@ class KotlinComputerServiceMigrationTest {
     }
 
     @Test
+    fun appListPollerReportsHostDataFailuresInsteadOfEscapingRuntimeExceptions() {
+        val serviceSource = File("src/main/java/com/papi/nova/computers/ComputerManagerService.kt").readText()
+        val detailsSource = File("src/main/java/com/papi/nova/nvstream/http/ComputerDetails.kt").readText()
+
+        assertTrue(serviceSource.contains("private fun reportAppListLoadFailure"))
+        assertTrue(serviceSource.contains("computer.appListLoadError"))
+        assertTrue(serviceSource.contains("catch (e: RuntimeException)"))
+        assertTrue(serviceSource.contains("The host did not advertise any standard app list entries."))
+        assertFalse(serviceSource.contains("EMPTY_LIST_THRESHOLD"))
+        assertFalse(serviceSource.contains("emptyAppListResponses"))
+        assertTrue(detailsSource.contains("var appListLoadError: String? = null"))
+    }
+
+    @Test
     fun blankUuidManualPollAcceptsReturnedComputerUuid() {
         val service = ComputerManagerService()
         val matcher = ComputerManagerService::class.java.getDeclaredMethod(
