@@ -121,6 +121,17 @@ class NovaQuickMenuUiStateTest {
         assertTrue(state.sessionRows.any { it.id == NovaQuickMenuActionId.MORE_KEYS && it.label == "More Keys" })
     }
 
+    @Test
+    fun overlayRowsExposePrivacySafeHudDiagnosticCopy() {
+        val state = quickState(status = status(), currentGameName = "Portal")
+        val diagnostics = state.overlayRows.first { it.id == NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS }
+
+        assertEquals("Copy HUD Diagnostics", diagnostics.label)
+        assertEquals("Privacy-safe stream summary for bug reports.", diagnostics.caption)
+        assertEquals("Safe", diagnostics.chip!!.label)
+        assertEquals(NovaQuickMenuTone.INFO, diagnostics.chip.tone)
+    }
+
     private fun quickState(
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,

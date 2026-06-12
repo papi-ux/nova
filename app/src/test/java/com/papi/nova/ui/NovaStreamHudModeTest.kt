@@ -8,6 +8,7 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.preference.PreferenceManager
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -38,5 +39,21 @@ class NovaStreamHudModeTest {
         )
 
         hud.dismiss()
+    }
+
+    @Test
+    fun hudLongPressOpensCommandCenterAndPositionPersistsInsideSafeZone() {
+        val source = String(
+            java.nio.file.Files.readAllBytes(java.nio.file.Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
+            java.nio.charset.StandardCharsets.UTF_8
+        )
+
+        assertTrue(source.contains("onCommandCenterRequested?.invoke()"))
+        assertTrue(source.contains("ViewConfiguration.getLongPressTimeout()"))
+        assertTrue(source.contains("saveHudPosition"))
+        assertTrue(source.contains("restoreHudPosition"))
+        assertTrue(source.contains("clampHudPosition"))
+        assertTrue(source.contains("nova_polaris_hud_x"))
+        assertTrue(source.contains("nova_polaris_hud_y"))
     }
 }

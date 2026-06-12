@@ -1,9 +1,12 @@
 package com.papi.nova.ui
 
 import android.app.Activity
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.runtime.mutableStateOf
@@ -21,10 +24,15 @@ import kotlin.math.abs
  * The public methods are intentionally kept stable for Game.java:
  * show/dismiss, metric updates, Polaris status updates, and session summary reporting.
  */
-class NovaStreamHud(private val activity: Activity) {
+class NovaStreamHud(
+    private val activity: Activity,
+    private val onCommandCenterRequested: (() -> Unit)? = null
+) {
     private var hudView: ComposeView? = null
     private val hudState = mutableStateOf(NovaHudUiState.empty())
     private val sessionStats = NovaHudSessionStats()
+    private val eventTrail = NovaHudEventTrail()
+    private val longPressHandler = Handler(Looper.getMainLooper())
 
     private var currentMode = NovaHudMode.MINIMAL
     private var targetFps = 0.0
@@ -51,6 +59,8 @@ class NovaStreamHud(private val activity: Activity) {
     private var viewStartX = 0f
     private var viewStartY = 0f
     private var isDragging = false
+    private var longPressTriggered = false
+    private var pendingLongPress: Runnable? = null
 
     fun show() {
         activity.runOnUiThread {
@@ -84,6 +94,9 @@ class NovaStreamHud(private val activity: Activity) {
             }
             val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
             rootView.addView(composeView, params)
+            rootView.post {
+                restoreHudPosition(composeView, rootView, margin.toFloat())
+            }
         }
     }
 
@@ -93,6 +106,7 @@ class NovaStreamHud(private val activity: Activity) {
         degradedFrames = 0
         recoveredFrames = 0
         bitrateReduced = false
+        eventTrail.clear()
     }
 
     private fun setupTouchHandler(view: View) {
@@ -104,6 +118,8 @@ class NovaStreamHud(private val activity: Activity) {
                     viewStartX = touchedView.x
                     viewStartY = touchedView.y
                     isDragging = false
+                    longPressTriggered = false
+                    scheduleLongPress(touchedView)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -111,6 +127,7 @@ class NovaStreamHud(private val activity: Activity) {
                     val dy = event.rawY - dragStartY
                     if (abs(dx) > DRAG_THRESHOLD || abs(dy) > DRAG_THRESHOLD) {
                         isDragging = true
+                        cancelLongPress()
                     }
                     if (isDragging) {
                         touchedView.x = viewStartX + dx
@@ -119,14 +136,37 @@ class NovaStreamHud(private val activity: Activity) {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!isDragging) {
-                        cycleMode()
+                    cancelLongPress()
+                    when {
+                        longPressTriggered -> Unit
+                        isDragging -> clampAndSaveHudPosition(touchedView)
+                        else -> cycleMode()
                     }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    cancelLongPress()
                     true
                 }
                 else -> false
             }
         }
+    }
+
+    private fun scheduleLongPress(view: View) {
+        cancelLongPress()
+        val task = Runnable {
+            longPressTriggered = true
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            onCommandCenterRequested?.invoke()
+        }
+        pendingLongPress = task
+        longPressHandler.postDelayed(task, ViewConfiguration.getLongPressTimeout().toLong())
+    }
+
+    private fun cancelLongPress() {
+        pendingLongPress?.let(longPressHandler::removeCallbacks)
+        pendingLongPress = null
     }
 
     fun cycleMode() {
@@ -145,6 +185,7 @@ class NovaStreamHud(private val activity: Activity) {
         view.post {
             view.x = savedX
             view.y = savedY
+            clampAndSaveHudPosition(view)
         }
     }
 
@@ -227,6 +268,10 @@ class NovaStreamHud(private val activity: Activity) {
             hostAdaptiveBitrateActive = status?.tuning?.adaptiveBitrateEnabled == true ||
                 status?.adaptiveBitrateEnabled == true
             streamPolicy = StreamPolicyUiState.from(status, lastBitrateKbps, targetFps)
+            val safeTarget = status?.health?.safeTargetFps ?: 0.0
+            if (status?.health?.relaunchRecommended == true && safeTarget > 0.0) {
+                eventTrail.recordRecoveryProfile(safeTarget)
+            }
             if (streamPolicy.effectiveBitrateKbps > 0) {
                 currentBitrateKbps = streamPolicy.effectiveBitrateKbps
             }
@@ -260,8 +305,10 @@ class NovaStreamHud(private val activity: Activity) {
             degradedFrames++
             recoveredFrames = 0
             if (degradedFrames >= 3 && !bitrateReduced && currentBitrateKbps > 3000) {
+                val previousBitrate = currentBitrateKbps
                 val newBitrate = (currentBitrateKbps * 0.75).toInt().coerceAtLeast(2000)
                 onBitrateAdjust?.invoke(newBitrate)
+                eventTrail.recordBitrateChange(previousBitrate, newBitrate)
                 currentBitrateKbps = newBitrate
                 bitrateReduced = true
                 degradedFrames = 0
@@ -270,8 +317,10 @@ class NovaStreamHud(private val activity: Activity) {
             recoveredFrames++
             degradedFrames = 0
             if (recoveredFrames >= 10 && bitrateReduced) {
+                val previousBitrate = currentBitrateKbps
                 val newBitrate = (currentBitrateKbps * 1.15).toInt().coerceAtMost(lastBitrateKbps)
                 onBitrateAdjust?.invoke(newBitrate)
+                eventTrail.recordBitrateChange(previousBitrate, newBitrate)
                 currentBitrateKbps = newBitrate
                 if (currentBitrateKbps >= lastBitrateKbps) {
                     bitrateReduced = false
@@ -314,8 +363,52 @@ class NovaStreamHud(private val activity: Activity) {
             height = height,
             status = lastSessionStatus,
             sparklineSamples = sparklineData.snapshot(),
+            eventBreadcrumbLabel = eventTrail.latestLabel,
             lowOnePercentFps = sparklineData.lowOnePercent()
         )
+    }
+
+    private fun restoreHudPosition(view: View, rootView: ViewGroup, fallbackMargin: Float) {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
+        val savedX = prefs.getFloat(PREF_HUD_X, Float.NaN)
+        val savedY = prefs.getFloat(PREF_HUD_Y, Float.NaN)
+        if (savedX.isNaN() || savedY.isNaN()) {
+            return
+        }
+        val clamped = clampHudPosition(view, rootView, savedX, savedY, fallbackMargin)
+        view.x = clamped.first
+        view.y = clamped.second
+    }
+
+    private fun clampAndSaveHudPosition(view: View) {
+        val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content) ?: return
+        val margin = HUD_SAFE_MARGIN_DP * activity.resources.displayMetrics.density
+        val clamped = clampHudPosition(view, rootView, view.x, view.y, margin)
+        view.x = clamped.first
+        view.y = clamped.second
+        saveHudPosition(clamped.first, clamped.second)
+    }
+
+    private fun clampHudPosition(
+        view: View,
+        rootView: ViewGroup,
+        desiredX: Float,
+        desiredY: Float,
+        margin: Float
+    ): Pair<Float, Float> {
+        val viewWidth = view.width.takeIf { it > 0 } ?: view.measuredWidth.takeIf { it > 0 } ?: 1
+        val viewHeight = view.height.takeIf { it > 0 } ?: view.measuredHeight.takeIf { it > 0 } ?: 1
+        val maxX = (rootView.width - viewWidth - margin).coerceAtLeast(margin)
+        val maxY = (rootView.height - viewHeight - margin).coerceAtLeast(margin)
+        return desiredX.coerceIn(margin, maxX) to desiredY.coerceIn(margin, maxY)
+    }
+
+    private fun saveHudPosition(x: Float, y: Float) {
+        PreferenceManager.getDefaultSharedPreferences(activity)
+            .edit()
+            .putFloat(PREF_HUD_X, x)
+            .putFloat(PREF_HUD_Y, y)
+            .apply()
     }
 
     private fun resolveTargetFps(status: PolarisSessionStatus): Double {
@@ -345,10 +438,15 @@ class NovaStreamHud(private val activity: Activity) {
 
     fun getSessionSummary(): Map<String, Any> = sessionStats.summary()
 
+    fun getDiagnosticSummaryText(): String = NovaHudDiagnosticReport.format(getSessionSummary())
+
     val isShowing get() = hudView != null
 
     companion object {
         private const val DRAG_THRESHOLD = 12f
+        private const val HUD_SAFE_MARGIN_DP = 12f
+        private const val PREF_HUD_X = "nova_polaris_hud_x"
+        private const val PREF_HUD_Y = "nova_polaris_hud_y"
 
         fun isEnabled(activity: Activity): Boolean {
             return PreferenceManager.getDefaultSharedPreferences(activity)

@@ -97,7 +97,8 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.QUICK_META,
             NovaQuickMenuActionId.QUICK_CTRL_V -> onQuickKey(action.id)
             NovaQuickMenuActionId.NOVA_HUD,
-            NovaQuickMenuActionId.PERF_STATS -> onOverlayAction(action.id)
+            NovaQuickMenuActionId.PERF_STATS,
+            NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> onOverlayAction(action.id)
             NovaQuickMenuActionId.MOUSE_MODE,
             NovaQuickMenuActionId.CONTROLLER,
             NovaQuickMenuActionId.KEYBOARD -> onControlAction(action.id)
@@ -750,6 +751,7 @@ private fun toneColor(tone: NovaQuickMenuTone): Color {
         NovaQuickMenuTone.ACTIVE -> Color(0xFF4ADE80)
         NovaQuickMenuTone.INACTIVE -> colors.textSecondary
         NovaQuickMenuTone.MUTED -> colors.textMuted
+        NovaQuickMenuTone.INFO -> colors.accent
         NovaQuickMenuTone.WARNING -> colors.warning
         NovaQuickMenuTone.DANGER -> Color(0xFFF87171)
     }

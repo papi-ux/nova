@@ -115,9 +115,9 @@ class NovaHudSessionStatsTest {
             "issues" to listOf("decoder_watch"),
             "safe_target_fps" to 60.0,
             "relaunch_recommended" to false,
-            "device" to "Retroid Pocket Flip2",
+            "device" to "Generic Handheld",
             "unique_id" to "abc123",
-            "host" to "pc-papi.lan"
+            "host" to "example-stream-host.lan"
         )
 
         val json = JsonParser.parseString(NovaHudSessionSummaryLog.format(summary)).asJsonObject
@@ -130,5 +130,35 @@ class NovaHudSessionStatsTest {
         assertFalse(json.has("device"))
         assertFalse(json.has("unique_id"))
         assertFalse(json.has("host"))
+    }
+
+    @Test
+    fun diagnosticReportIsHumanReadableAndPrivacySafe() {
+        val summary = mapOf(
+            "avg_fps" to 59.5,
+            "target_fps" to 120.0,
+            "safe_target_fps" to 60.0,
+            "avg_latency_ms" to 24.0,
+            "avg_bitrate_kbps" to 18000,
+            "packet_loss_pct" to 0.25,
+            "codec" to "HEVC",
+            "primary_issue" to "host_render_limited",
+            "health_grade" to "watch",
+            "relaunch_recommended" to true,
+            "device" to "Generic Handheld",
+            "host" to "example-stream-host.lan",
+            "unique_id" to "abc123"
+        )
+
+        val text = NovaHudDiagnosticReport.format(summary)
+
+        assertTrue(text.contains("Nova stream diagnostics"))
+        assertTrue(text.contains("Observed: 59.5 FPS / target 120 FPS"))
+        assertTrue(text.contains("Suggested: relaunch at 60 FPS"))
+        assertTrue(text.contains("Health: watch / host_render_limited"))
+        assertTrue(text.contains("Network: 24 ms RTT / 0.25% loss"))
+        assertFalse(text.contains("Generic Handheld"))
+        assertFalse(text.contains("example-stream-host"))
+        assertFalse(text.contains("abc123"))
     }
 }

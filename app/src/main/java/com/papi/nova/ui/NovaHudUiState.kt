@@ -35,6 +35,11 @@ enum class NovaHudTone {
     MUTED
 }
 
+data class NovaHudLayerHealth(
+    val label: String,
+    val tone: NovaHudTone
+)
+
 data class NovaHudPerfSample(
     val fps: Double? = null,
     val width: Int? = null,
@@ -85,6 +90,11 @@ data class NovaHudUiState(
     val fpsTone: NovaHudTone,
     val latencyTone: NovaHudTone,
     val statusTone: NovaHudTone,
+    val healthReasonLabel: String,
+    val healthReasonTone: NovaHudTone,
+    val streamTruthLabel: String,
+    val layerHealth: List<NovaHudLayerHealth>,
+    val eventBreadcrumbLabel: String,
     val sparklineSamples: List<Float>
 ) {
     companion object {
@@ -152,9 +162,11 @@ data class NovaHudUiState(
             height: Int,
             status: PolarisSessionStatus?,
             sparklineSamples: List<Float>,
+            eventBreadcrumbLabel: String = "",
             lowOnePercentFps: Double = calculateLowOnePercent(sparklineSamples)
         ): NovaHudUiState {
             val autoQuality = AutoQualityUiState.from(status, targetFps, fps)
+            val healthReason = buildHealthReason(status, fps, targetFps, latencyMs)
             return NovaHudUiState(
                 mode = mode,
                 fpsLabel = fps.takeIf { it > 0.0 }?.toInt()?.toString() ?: "--",
@@ -171,6 +183,11 @@ data class NovaHudUiState(
                 fpsTone = toneForFps(fps, targetFps),
                 latencyTone = toneForLatency(latencyMs),
                 statusTone = autoQuality.tone.toHudTone(),
+                healthReasonLabel = healthReason.first,
+                healthReasonTone = healthReason.second,
+                streamTruthLabel = buildStreamTruth(status, targetFps, codec, height),
+                layerHealth = buildLayerHealth(status, latencyMs),
+                eventBreadcrumbLabel = eventBreadcrumbLabel,
                 sparklineSamples = sparklineSamples.takeLast(60)
             )
         }
@@ -253,6 +270,82 @@ data class NovaHudUiState(
             else -> NovaHudTone.DANGER
         }
 
+        private fun buildHealthReason(
+            status: PolarisSessionStatus?,
+            fps: Double,
+            targetFps: Double,
+            latencyMs: Int
+        ): Pair<String, NovaHudTone> {
+            val primaryIssue = status?.health?.primaryIssue.orEmpty().lowercase()
+            val issues = status?.health?.issues.orEmpty().map { it.lowercase() }
+            return when {
+                status?.isHostRenderLimited == true || primaryIssue == "host_render_limited" || issues.contains("host_render_limited") ->
+                    "Host capped" to NovaHudTone.WARNING
+                primaryIssue.contains("network") || status?.health?.networkRisk?.isNotBlank() == true ->
+                    "Network jitter" to NovaHudTone.WARNING
+                primaryIssue.contains("decoder") || status?.health?.decoderRisk?.isNotBlank() == true ->
+                    "Decoder late" to NovaHudTone.WARNING
+                latencyMs > 50 -> "High latency" to NovaHudTone.DANGER
+                targetFps > 0.0 && fps > 0.0 && fps < targetFps * 0.75 ->
+                    "FPS below target" to NovaHudTone.WARNING
+                status == null -> "Waiting" to NovaHudTone.MUTED
+                else -> "Stable" to NovaHudTone.STABLE
+            }
+        }
+
+        private fun buildStreamTruth(
+            status: PolarisSessionStatus?,
+            targetFps: Double,
+            codec: String,
+            height: Int
+        ): String {
+            val target = targetFps.takeIf { it > 0.0 }?.roundToInt()
+            val streamLabel = when {
+                target != null -> "Stream $target"
+                height > 0 -> "Stream ${height}p"
+                else -> "Stream"
+            }
+            val safeTarget = status?.health?.safeTargetFps?.takeIf { it > 0.0 }?.roundToInt()
+            return when {
+                status?.isHostRenderLimited == true && safeTarget != null -> "$streamLabel • Game capped $safeTarget"
+                status?.isHostRenderLimited == true -> "$streamLabel • Host capped"
+                status?.profileState?.preferenceLabel?.isNotBlank() == true ->
+                    "$streamLabel • ${status.profileState.preferenceLabel} profile"
+                codec.isNotBlank() -> "$streamLabel • ${normalizeCodecLabel(codec)}"
+                status != null -> "$streamLabel • ${status.sessionModeLabel}"
+                else -> streamLabel
+            }
+        }
+
+        private fun buildLayerHealth(status: PolarisSessionStatus?, latencyMs: Int): List<NovaHudLayerHealth> {
+            val primaryIssue = status?.health?.primaryIssue.orEmpty().lowercase()
+            val issues = status?.health?.issues.orEmpty().map { it.lowercase() }
+            val hostTone = when {
+                status?.isHostRenderLimited == true || primaryIssue.contains("host") || issues.any { it.contains("host") } ->
+                    NovaHudTone.WARNING
+                status?.health?.grade.equals("degraded", ignoreCase = true) -> NovaHudTone.WARNING
+                else -> NovaHudTone.STABLE
+            }
+            val networkTone = when {
+                primaryIssue.contains("network") || issues.any { it.contains("network") } ||
+                    status?.health?.networkRisk?.isNotBlank() == true -> NovaHudTone.WARNING
+                latencyMs > 50 -> NovaHudTone.DANGER
+                latencyMs > 20 -> NovaHudTone.WARNING
+                else -> NovaHudTone.STABLE
+            }
+            val clientTone = when {
+                primaryIssue.contains("decoder") || issues.any { it.contains("decoder") } ||
+                    status?.health?.decoderRisk?.isNotBlank() == true -> NovaHudTone.WARNING
+                status?.encoder?.targetResidency.equals("cpu", ignoreCase = true) -> NovaHudTone.WARNING
+                else -> NovaHudTone.STABLE
+            }
+            return listOf(
+                NovaHudLayerHealth("HOST", hostTone),
+                NovaHudLayerHealth("NET", networkTone),
+                NovaHudLayerHealth("CLIENT", clientTone)
+            )
+        }
+
         private fun buildSessionModeLabel(status: PolarisSessionStatus): String {
             val mode = status.sessionModeLabel
             val bitDepth = if (status.isTenBitActive) "10b" else "8b"
@@ -324,6 +417,54 @@ data class NovaHudUiState(
             AutoQualityUiState.Tone.WARNING -> NovaHudTone.WARNING
             AutoQualityUiState.Tone.DANGER -> NovaHudTone.DANGER
         }
+    }
+}
+
+class NovaHudEventTrail(private val capacity: Int = 4) {
+    private val labels = ArrayDeque<String>()
+
+    val latestLabel: String
+        get() = labels.lastOrNull().orEmpty()
+
+    fun clear() {
+        labels.clear()
+    }
+
+    fun record(label: String) {
+        val clean = label.trim()
+        if (clean.isBlank() || clean == latestLabel) {
+            return
+        }
+        labels.addLast(clean)
+        while (labels.size > capacity.coerceAtLeast(1)) {
+            labels.removeFirst()
+        }
+    }
+
+    fun recordBitrateChange(fromKbps: Int, toKbps: Int) {
+        if (fromKbps <= 0 || toKbps <= 0 || fromKbps == toKbps) {
+            return
+        }
+        val direction = if (toKbps < fromKbps) "lowered" else "recovered"
+        record("Bitrate $direction: ${formatHudMbps(fromKbps)} → ${formatHudMbps(toKbps)}")
+    }
+
+    fun recordRecoveryProfile(targetFps: Double) {
+        if (targetFps <= 0.0) {
+            return
+        }
+        record("Recovery profile ready: ${targetFps.roundToInt()} FPS")
+    }
+}
+
+private fun formatHudMbps(kbps: Int): String {
+    if (kbps <= 0) return "--"
+    val mbps = kbps / 1000.0
+    val rounded = mbps.roundToInt()
+    return if (kotlin.math.abs(mbps - rounded) < 0.05) {
+        "${rounded}M"
+    } else {
+        "${String.format(java.util.Locale.US, "%.1f", mbps)}M"
     }
 }
 

@@ -8,6 +8,7 @@ enum class NovaQuickMenuTone {
     ACTIVE,
     INACTIVE,
     MUTED,
+    INFO,
     WARNING,
     DANGER
 }
@@ -30,6 +31,7 @@ enum class NovaQuickMenuActionId {
     QUICK_CTRL_V,
     NOVA_HUD,
     PERF_STATS,
+    COPY_HUD_DIAGNOSTICS,
     MOUSE_MODE,
     CONTROLLER,
     KEYBOARD,
@@ -287,6 +289,7 @@ data class NovaQuickMenuUiState(
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.NOVA_HUD,
                     label = context.getString(R.string.nova_quick_menu_nova_hud),
+                    caption = context.getString(R.string.nova_quick_menu_nova_hud_caption),
                     chip = onOffChip(context, hudShowing),
                     enabled = true
                 ),
@@ -294,6 +297,13 @@ data class NovaQuickMenuUiState(
                     id = NovaQuickMenuActionId.PERF_STATS,
                     label = context.getString(R.string.nova_quick_menu_perf_stats),
                     chip = onOffChip(context, perfOverlayEnabled),
+                    enabled = true
+                ),
+                NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS,
+                    label = context.getString(R.string.nova_quick_menu_copy_hud_diagnostics),
+                    caption = context.getString(R.string.nova_quick_menu_copy_hud_diagnostics_caption),
+                    chip = chip(context.getString(R.string.nova_quick_menu_safe), NovaQuickMenuTone.INFO),
                     enabled = true
                 )
             )

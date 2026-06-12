@@ -121,6 +121,9 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 .height(22.dp)
                 .padding(top = 7.dp)
         )
+        HudDiagnosticStrip(state)
+        HudLayerHealthRow(state.layerHealth)
+        HudEventBreadcrumb(state.eventBreadcrumbLabel)
 
         Row(
             modifier = Modifier
@@ -195,6 +198,8 @@ private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) 
                     .height(15.dp)
             )
         }
+        HudCompactDiagnosticStrip(state)
+        HudEventBreadcrumb(state.eventBreadcrumbLabel)
     }
 }
 
@@ -243,6 +248,9 @@ private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
                 )
             }
         }
+        if (state.eventBreadcrumbLabel.isNotBlank()) {
+            HudEventBreadcrumb(state.eventBreadcrumbLabel)
+        }
     }
 }
 
@@ -263,6 +271,107 @@ private fun HudPanel(
             .border(1.dp, surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border), panelShape)
             .padding(padding),
         content = content
+    )
+}
+
+@Composable
+private fun HudDiagnosticStrip(state: NovaHudUiState) {
+    if (state.healthReasonLabel.isBlank() && state.streamTruthLabel.isBlank()) return
+    val surfaces = LocalNovaLibrarySurfaces.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 7.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl))
+            .padding(horizontal = 7.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = state.healthReasonLabel,
+            color = state.healthReasonTone.hudColor(),
+            fontSize = 10.sp,
+            lineHeight = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.7f)
+        )
+        Text(
+            text = state.streamTruthLabel,
+            color = LocalNovaComposeColors.current.textSecondary,
+            fontSize = 9.sp,
+            lineHeight = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1.3f)
+        )
+    }
+}
+
+@Composable
+private fun HudCompactDiagnosticStrip(state: NovaHudUiState) {
+    if (state.healthReasonLabel == "Stable" && state.streamTruthLabel.isBlank()) return
+    Text(
+        text = listOf(state.healthReasonLabel, state.streamTruthLabel).filter { it.isNotBlank() }.joinToString(" · "),
+        color = state.healthReasonTone.hudColor(),
+        fontSize = 8.sp,
+        lineHeight = 10.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(top = 5.dp)
+    )
+}
+
+@Composable
+private fun HudLayerHealthRow(layers: List<NovaHudLayerHealth>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        layers.forEach { layer ->
+            HudLayerChip(layer, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun HudLayerChip(layer: NovaHudLayerHealth, modifier: Modifier = Modifier) {
+    val surfaces = LocalNovaLibrarySurfaces.current
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl))
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = layer.label,
+            color = layer.tone.hudColor(),
+            fontSize = 8.sp,
+            lineHeight = 9.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun HudEventBreadcrumb(label: String) {
+    if (label.isBlank()) return
+    Text(
+        text = label,
+        color = LocalNovaComposeColors.current.accent,
+        fontSize = 8.sp,
+        lineHeight = 10.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(top = 5.dp)
     )
 }
 

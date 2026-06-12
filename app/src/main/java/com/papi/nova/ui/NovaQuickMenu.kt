@@ -396,6 +396,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             }
                             game.toggleHUD()
                         }
+                        NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> {
+                            game.copyNovaHudDiagnostics()
+                        }
                         else -> Unit
                     }
                     refreshState()
