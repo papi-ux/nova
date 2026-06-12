@@ -167,6 +167,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 NovaQuickMenuActionId.QUICK_ALT_ENTER -> keys(KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_RETURN)
                 NovaQuickMenuActionId.QUICK_ALT_F4 -> keys(KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_F4)
                 NovaQuickMenuActionId.QUICK_F11 -> keys(KeyboardTranslator.VK_F11)
+                NovaQuickMenuActionId.QUICK_INSERT -> keys(KeyboardTranslator.VK_INSERT)
                 NovaQuickMenuActionId.QUICK_META -> keys(KeyboardTranslator.VK_LWIN)
                 NovaQuickMenuActionId.QUICK_CTRL_V -> keys(KeyboardTranslator.VK_LCONTROL, KeyboardTranslator.VK_V)
                 else -> return

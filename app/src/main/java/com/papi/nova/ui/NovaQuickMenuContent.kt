@@ -93,6 +93,7 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.QUICK_ALT_ENTER,
             NovaQuickMenuActionId.QUICK_ALT_F4,
             NovaQuickMenuActionId.QUICK_F11,
+            NovaQuickMenuActionId.QUICK_INSERT,
             NovaQuickMenuActionId.QUICK_META,
             NovaQuickMenuActionId.QUICK_CTRL_V -> onQuickKey(action.id)
             NovaQuickMenuActionId.NOVA_HUD,

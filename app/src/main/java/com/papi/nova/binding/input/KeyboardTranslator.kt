@@ -103,7 +103,7 @@ class KeyboardTranslator(private val prefConfig: PreferenceConfiguration) : Inpu
                 KeyEvent.KEYCODE_EQUALS -> 0xbb
                 KeyEvent.KEYCODE_ESCAPE -> VK_ESCAPE
                 KeyEvent.KEYCODE_FORWARD_DEL -> 0x2e
-                KeyEvent.KEYCODE_INSERT -> 0x2d
+                KeyEvent.KEYCODE_INSERT -> VK_INSERT
                 KeyEvent.KEYCODE_LEFT_BRACKET -> 0xdb
                 KeyEvent.KEYCODE_META_LEFT -> 0x5b
                 KeyEvent.KEYCODE_META_RIGHT -> 0x5c
@@ -193,6 +193,7 @@ class KeyboardTranslator(private val prefConfig: PreferenceConfiguration) : Inpu
         const val VK_BACK_SPACE = 8
         const val VK_EQUALS = 61
         const val VK_ESCAPE = 27
+        const val VK_INSERT = 45
         const val VK_F1 = 112
         const val VK_F12 = 123
         const val VK_END = 35
