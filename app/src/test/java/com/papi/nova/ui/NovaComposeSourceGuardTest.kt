@@ -1739,6 +1739,39 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun commandCenterExposesInsertThroughExistingSpecialKeyTranslator() {
+        val state = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt")
+        val content = readNovaQuickMenuContent()
+        val menu = readNovaQuickMenu()
+        val legacyGameMenu = readSource("src/main/java/com/papi/nova/GameMenu.kt")
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(
+            "Command Center Quick Keys should expose Insert for OptiScaler without hiding it behind a keyboard pairing workaround",
+            state.contains("QUICK_INSERT") &&
+                state.contains("R.string.game_menu_send_keys_insert")
+        )
+        assertTrue(
+            "Insert quick key should route through the same Command Center quick-key callback bucket as the other special keys",
+            content.contains("NovaQuickMenuActionId.QUICK_INSERT,") &&
+                content.contains("NovaQuickMenuActionId.QUICK_CTRL_V -> onQuickKey(action.id)")
+        )
+        assertTrue(
+            "Insert quick key should route through the existing Windows VK_INSERT translator path",
+            menu.contains("NovaQuickMenuActionId.QUICK_INSERT -> keys(KeyboardTranslator.VK_INSERT)")
+        )
+        assertTrue(
+            "legacy Send special keys menu should also expose Insert for users entering through More Keys",
+            legacyGameMenu.contains("R.string.game_menu_send_keys_insert") &&
+                legacyGameMenu.contains("KeyboardTranslator.VK_INSERT.toShort()")
+        )
+        assertTrue(
+            "Insert label should be public-resource backed like the other special keys",
+            strings.contains("<string name=\"game_menu_send_keys_insert\">Insert</string>")
+        )
+    }
+
+    @Test
     fun legacyAppLibraryHeroExposesEndSessionForOwnedStreams() {
         val layout = readSource("src/main/res/layout/activity_app_view.xml")
         val source = readSource("src/main/java/com/papi/nova/AppView.kt")

@@ -116,6 +116,9 @@ class GameMenu(
             options.add(MenuOption(getString(R.string.game_menu_send_keys_f11), Runnable {
                 sendKeys(shortArrayOf(KeyboardTranslator.VK_F11.toShort()))
             }))
+            options.add(MenuOption(getString(R.string.game_menu_send_keys_insert), Runnable {
+                sendKeys(shortArrayOf(KeyboardTranslator.VK_INSERT.toShort()))
+            }))
             options.add(MenuOption(getString(R.string.game_menu_send_keys_alt_f4), Runnable {
                 sendKeys(shortArrayOf(KeyboardTranslator.VK_LMENU.toShort(), KeyboardTranslator.VK_F4.toShort()))
             }))
