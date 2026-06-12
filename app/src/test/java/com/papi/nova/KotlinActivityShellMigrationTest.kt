@@ -76,6 +76,26 @@ class KotlinActivityShellMigrationTest {
     }
 
     @Test
+    fun appViewKeepsFallbackAppListErrorsInActivityWithRetry() {
+        val appViewSource = readSource("src/main/java/com/papi/nova/AppView.kt")
+        val appViewLayout = readSource("src/main/res/layout/activity_app_view.xml")
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(appViewSource.contains("private fun showAppListError"))
+        assertTrue(appViewSource.contains("private fun retryAppListLoad"))
+        assertTrue(appViewSource.contains("R.id.appListErrorCard"))
+        assertTrue(appViewSource.contains("R.id.appListRetryButton"))
+        assertTrue(appViewSource.contains("poller?.pollNow()"))
+        assertTrue(appViewSource.contains("catch (e: RuntimeException)"))
+        assertTrue(appViewLayout.contains("@+id/appListErrorCard"))
+        assertTrue(appViewLayout.contains("@+id/appListErrorDetail"))
+        assertTrue(appViewLayout.contains("@+id/appListRetryButton"))
+        assertTrue(strings.contains("name=\"applist_error_title\""))
+        assertTrue(strings.contains("name=\"applist_error_message\""))
+        assertTrue(strings.contains("name=\"applist_error_retry\""))
+    }
+
+    @Test
     fun pcViewPolarisBackgroundWorkUsesRuntimeTasks() {
         val pcViewSource = readSource("src/main/java/com/papi/nova/PcView.kt")
 

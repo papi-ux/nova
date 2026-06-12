@@ -462,7 +462,7 @@ class NovaComposeSourceGuardTest {
         assertEquals(
             "home hero should not grow a duplicate primary launch/resume button beside the mapped CTA",
             1,
-            hero.split("NovaActionButton(").size - 1
+            hero.split("text = hero.actionLabel").size - 1
         )
         assertTrue(
             "hero should render the mapped caption so filtered, recent, active, and empty states explain the CTA",
@@ -1801,6 +1801,29 @@ class NovaComposeSourceGuardTest {
                 source.contains("ServerHelper.doQuit(") &&
                 source.contains("activeSession = null") &&
                 source.contains("scheduleActiveSessionFollowUpRefreshes(clearOnly = true)")
+        )
+    }
+
+    @Test
+    fun libraryHeroExposesEndSessionForOwnedActiveStreams() {
+        val source = readNovaLibraryActivity()
+        val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
+        val hero = source.section(
+            "private fun NovaLibraryHomeHero(",
+            "private fun NovaLibraryHeroFallbackArtwork("
+        )
+
+        assertTrue(
+            "owned active-session hero should expose a direct End session recovery action for stale host/game sessions",
+            mapper.contains("secondaryActionLabel = if (session.ownedByClient) \"End session\" else null") &&
+                mapper.contains("Resume this stream, or end it if the host game is stale.")
+        )
+        assertTrue(
+            "Library screen should wire the hero secondary action to the confirmed end-session path",
+            source.contains("onSecondaryAction = {") &&
+                source.contains("activeSession?.let(onEndSession)") &&
+                hero.contains("hero.secondaryActionLabel") &&
+                hero.contains("onSecondaryAction")
         )
     }
 

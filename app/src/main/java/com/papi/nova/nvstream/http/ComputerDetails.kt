@@ -84,6 +84,7 @@ class ComputerDetails {
     @JvmField var currentGameOwnerName: String? = null
     @JvmField var currentGameViewerCount: Int = 0
     @JvmField var rawAppList: String? = null
+    @JvmField var appListLoadError: String? = null
     @JvmField var nvidiaServer: Boolean = false
     @JvmField var serverMaxLaunchRefreshRate: Int = 0
     @JvmField var libraryState: LibraryState = LibraryState.UNKNOWN
@@ -160,6 +161,7 @@ class ComputerDetails {
         currentGameViewerCount = details.currentGameViewerCount
         nvidiaServer = details.nvidiaServer
         rawAppList = details.rawAppList
+        appListLoadError = details.appListLoadError
         serverMaxLaunchRefreshRate = details.serverMaxLaunchRefreshRate
         if (details.libraryState != LibraryState.UNKNOWN ||
             state != State.ONLINE ||

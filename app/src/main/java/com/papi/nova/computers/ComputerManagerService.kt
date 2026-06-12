@@ -850,10 +850,23 @@ class ComputerManagerService : Service() {
             return pollingTuples[details.uuid]
         }
 
+        private fun reportAppListLoadFailure(message: String, e: Exception? = null) {
+            if (e != null) {
+                LimeLog.warning("$message (${e.javaClass.simpleName}: ${e.message ?: "no details"})")
+                e.printStackTrace()
+            } else {
+                LimeLog.warning(message)
+            }
+
+            computer.appListLoadError = message
+            if (listener != null && thread != null) {
+                listener!!.notifyComputerUpdated(computer)
+            }
+        }
+
         fun start() {
             thread = object : Thread() {
                 override fun run() {
-                    var emptyAppListResponses = 0
                     do {
                         // Can't poll if it's not online or paired
                         if (computer.state != ComputerDetails.State.ONLINE ||
@@ -895,16 +908,7 @@ class ComputerManagerService : Service() {
                             }
 
                             val list: List<NvApp> = NvHTTP.getAppListByReader(StringReader(appList))
-                            if (list.isEmpty()) {
-                                LimeLog.warning("Empty app list received from " + computer.uuid)
-
-                                // The app list might actually be empty, so if we get an empty response a few times
-                                // in a row, we'll go ahead and believe it.
-                                emptyAppListResponses++
-                            }
-                            if (appList.isNotEmpty() &&
-                                (list.isNotEmpty() || emptyAppListResponses >= EMPTY_LIST_THRESHOLD)
-                            ) {
+                            if (appList.isNotEmpty() && list.isNotEmpty()) {
                                 // Open the cache file
                                 try {
                                     val cacheOut: OutputStream = CacheHelper.openCacheFileForOutput(
@@ -919,13 +923,9 @@ class ComputerManagerService : Service() {
                                     e.printStackTrace()
                                 }
 
-                                // Reset empty count if it wasn't empty this time
-                                if (list.isNotEmpty()) {
-                                    emptyAppListResponses = 0
-                                }
-
                                 // Update the computer
                                 computer.rawAppList = appList
+                                computer.appListLoadError = null
                                 receivedAppList = true
 
                                 // Notify that the app list has been updated
@@ -934,12 +934,29 @@ class ComputerManagerService : Service() {
                                     listener!!.notifyComputerUpdated(computer)
                                 }
                             } else if (appList.isEmpty()) {
-                                LimeLog.warning("Null app list received from " + computer.uuid)
+                                reportAppListLoadFailure(
+                                    "The host returned an empty standard app list response.",
+                                )
+                            } else {
+                                reportAppListLoadFailure(
+                                    "The host did not advertise any standard app list entries.",
+                                )
                             }
                         } catch (e: IOException) {
-                            e.printStackTrace()
+                            reportAppListLoadFailure(
+                                "Couldn't load the standard app list from this host.",
+                                e,
+                            )
                         } catch (e: XmlPullParserException) {
-                            e.printStackTrace()
+                            reportAppListLoadFailure(
+                                "The host returned malformed standard app list data.",
+                                e,
+                            )
+                        } catch (e: RuntimeException) {
+                            reportAppListLoadFailure(
+                                "The host returned unsupported standard app list data.",
+                                e,
+                            )
                         }
                     } while (waitPollingDelay())
                 }
@@ -966,7 +983,6 @@ class ComputerManagerService : Service() {
         private const val MDNS_QUERY_PERIOD_MS = 1000
         private const val OFFLINE_POLL_TRIES = 3
         private const val INITIAL_POLL_TRIES = 2
-        private const val EMPTY_LIST_THRESHOLD = 3
         private const val POLL_DATA_TTL_MS = 30000
 
         @JvmStatic

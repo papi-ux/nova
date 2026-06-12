@@ -23,6 +23,15 @@ class StreamSyncManager private constructor() {
         private const val BALANCED_FLOOR_HEIGHT = 1080
 
         @JvmStatic
+        fun resolveProfileProvenance(
+            optimization: JSONObject?,
+            manualOverride: Boolean
+        ): ClientProfileProvenance = ClientProfileProvenance.fromOptimization(
+            optimization = optimization,
+            manualOverride = manualOverride
+        )
+
+        @JvmStatic
         fun resolveAutoSafeBitrateKbps(configuredBitrateKbps: Int, optimization: JSONObject?): Int {
             if (optimization == null) {
                 return configuredBitrateKbps
@@ -467,27 +476,60 @@ class StreamSyncManager private constructor() {
         }
 
         @JvmStatic
+        @JvmOverloads
         fun buildClientRuntime(
             context: Context,
             renderer: MediaCodecDecoderRenderer?,
             appliedRefreshRateHz: Float,
             displayModeId: Int,
             displayMode: String?,
-            framePacing: Int
+            framePacing: Int,
+            profile: ClientProfileProvenance? = null,
+            targetRefreshRateHz: Float = 0f,
+            refreshRatePolicy: String = ""
         ): JSONObject {
-            val json = JSONObject()
+            val decoderName = renderer?.activeDecoderName ?: ""
+            val json = ClientRuntimeSnapshot.fromAppliedStream(
+                deviceModel = Build.MODEL ?: "",
+                androidSdk = Build.VERSION.SDK_INT,
+                decoder = decoderName,
+                targetRefreshRateHz = targetRefreshRateHz.toDouble(),
+                appliedRefreshRateHz = appliedRefreshRateHz.toDouble(),
+                displayMode = displayMode ?: "",
+                refreshRatePolicy = refreshRatePolicy,
+                profile = profile ?: ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT)
+            ).toJson()
             put(json, "sync_mode", SYNC_MODE_AUTO_SAFE)
             put(json, "metered_network", isMetered(context))
             put(json, "frame_pacing", framePacing)
-            if (appliedRefreshRateHz > 0f) put(json, "applied_refresh_rate_hz", appliedRefreshRateHz)
             if (displayModeId > 0) put(json, "display_mode_id", displayModeId)
-            if (!displayMode.isNullOrEmpty()) put(json, "display_mode", displayMode)
             if (renderer != null) {
                 put(json, "active_decoder", renderer.activeDecoderName)
                 put(json, "active_video_format", renderer.activeVideoFormat)
             }
             return json
         }
+
+        @JvmStatic
+        fun buildClientRuntimeSnapshotForTest(
+            deviceModel: String,
+            androidSdk: Int,
+            decoder: String,
+            targetRefreshRateHz: Double,
+            appliedRefreshRateHz: Double,
+            displayMode: String,
+            refreshRatePolicy: String,
+            profile: ClientProfileProvenance
+        ): JSONObject = ClientRuntimeSnapshot.fromAppliedStream(
+            deviceModel = deviceModel,
+            androidSdk = androidSdk,
+            decoder = decoder,
+            targetRefreshRateHz = targetRefreshRateHz,
+            appliedRefreshRateHz = appliedRefreshRateHz,
+            displayMode = displayMode,
+            refreshRatePolicy = refreshRatePolicy,
+            profile = profile
+        ).toJson()
 
         @JvmStatic
         fun buildAppliedStreamSettings(

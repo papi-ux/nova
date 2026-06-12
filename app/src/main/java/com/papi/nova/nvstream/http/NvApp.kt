@@ -56,7 +56,6 @@ class NvApp {
     fun setAppIndex(appIndex: String?) {
         try {
             this.appIndex = Integer.parseInt(appIndex ?: "null")
-            initialized = true
         } catch (e: NumberFormatException) {
             LimeLog.warning("Malformed app index: $appIndex")
         }

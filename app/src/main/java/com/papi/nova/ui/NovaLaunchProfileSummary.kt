@@ -64,14 +64,14 @@ internal fun buildNovaLaunchProfileSummary(
         effectiveFps + 0.5 >= requestedFps
     val selectedLabel = when {
         trialProfile -> "High FPS trial"
-        highFpsRequestSatisfied -> "High FPS profile"
+        highFpsRequestSatisfied -> "High FPS stream"
         else -> launchProfileDisplayLabel(rawSelectedLabel)
     }
 
     val primaryLabel = when {
-        trialProfile && effectiveFps > 0.0 -> "Try High FPS profile ${formatFps(effectiveFps)} FPS"
-        selectedLabel.equals("High FPS profile", ignoreCase = true) && effectiveFps > 0.0 ->
-            "Launch High FPS profile ${formatFps(effectiveFps)} FPS"
+        trialProfile && effectiveFps > 0.0 -> "Try High FPS stream ${formatFps(effectiveFps)} FPS"
+        selectedLabel.equals("High FPS stream", ignoreCase = true) && effectiveFps > 0.0 ->
+            "Launch High FPS stream ${formatFps(effectiveFps)} FPS"
         selectedLabel.equals("Recovery profile", ignoreCase = true) && effectiveFps > 0.0 ->
             "Launch Recovery profile ${formatFps(effectiveFps)} FPS"
         effectiveFps > 0.0 -> "Launch ${formatFps(effectiveFps)} FPS"
@@ -187,7 +187,7 @@ private fun meaningfulIssue(value: String): String {
 private fun preferenceLabel(preference: String): String {
     return when (preference) {
         "quality" -> "Quality profile"
-        "high_fps" -> "High FPS profile"
+        "high_fps" -> "High FPS stream"
         "stability" -> "Stability profile"
         else -> "Auto"
     }
@@ -195,8 +195,9 @@ private fun preferenceLabel(preference: String): String {
 
 private fun launchProfileDisplayLabel(label: String): String {
     return when {
-        label.equals("High FPS", ignoreCase = true) -> "High FPS profile"
-        label.equals("Prefer High FPS", ignoreCase = true) -> "High FPS profile"
+        label.equals("High FPS", ignoreCase = true) -> "High FPS stream"
+        label.equals("Prefer High FPS", ignoreCase = true) -> "High FPS stream"
+        label.equals("High FPS profile", ignoreCase = true) -> "High FPS stream"
         label.equals("High FPS Trial", ignoreCase = true) -> "High FPS trial"
         label.equals("Recovery", ignoreCase = true) -> "Recovery profile"
         label.equals("Prefer Quality", ignoreCase = true) -> "Quality profile"

@@ -1,5 +1,6 @@
 package com.papi.nova.nvstream.http
 
+import java.io.StringReader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -12,6 +13,64 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 @RunWith(RobolectricTestRunner::class)
 class NvHttpServerInfoParsingTest {
+
+    @Test
+    fun parsesPrettyPrintedApolloAppListWithWhitespace() {
+        val appList = """
+            <root status_code="200">
+              <App>
+                <AppTitle>Steam Big Picture</AppTitle>
+                <UUID>steam-uuid</UUID>
+                <ID>123</ID>
+                <IDX>1</IDX>
+                <IsHdrSupported>1</IsHdrSupported>
+              </App>
+            </root>
+        """.trimIndent()
+
+        val apps = NvHTTP.getAppListByReader(StringReader(appList))
+
+        assertEquals(1, apps.size)
+        val app = apps.first()
+        assertEquals("Steam Big Picture", app.appName)
+        assertEquals("steam-uuid", app.appUUID)
+        assertEquals(123, app.appId)
+        assertEquals(1, app.appIndex)
+        assertTrue(app.isHdrSupported)
+    }
+
+    @Test
+    fun prettyPrintedEmptyApolloAppListReturnsEmptyList() {
+        val appList = """
+            <root status_code="200">
+            </root>
+        """.trimIndent()
+
+        assertTrue(NvHTTP.getAppListByReader(StringReader(appList)).isEmpty())
+    }
+
+    @Test
+    fun malformedApolloAppListIndexDoesNotAbortParse() {
+        val appList = """
+            <root status_code="200"><App><AppTitle>Bad IDX</AppTitle><ID>44</ID><IDX>not-a-number</IDX></App></root>
+        """.trimIndent()
+
+        val apps = NvHTTP.getAppListByReader(StringReader(appList))
+
+        assertEquals(1, apps.size)
+        assertEquals("Bad IDX", apps.first().appName)
+        assertEquals(44, apps.first().appId)
+        assertEquals(0, apps.first().appIndex)
+    }
+
+    @Test
+    fun appListEntryWithOnlyIndexIsDroppedAsIncomplete() {
+        val appList = """
+            <root status_code="200"><App><AppTitle>Missing ID</AppTitle><IDX>7</IDX></App></root>
+        """.trimIndent()
+
+        assertTrue(NvHTTP.getAppListByReader(StringReader(appList)).isEmpty())
+    }
 
     @Test
     fun parsesAdvertisedServerMaxLaunchRefreshRate() {

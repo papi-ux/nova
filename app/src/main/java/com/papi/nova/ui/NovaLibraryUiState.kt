@@ -76,6 +76,10 @@ enum class NovaLibraryHeroPrimaryAction {
     CLEAR_FILTERS
 }
 
+enum class NovaLibraryHeroSecondaryAction {
+    END_SESSION
+}
+
 enum class NovaLibraryRecoveryAction {
     RETRY,
     MANAGE_LIBRARY,
@@ -106,7 +110,8 @@ data class NovaLibraryHeroState(
     val supportingLine: String,
     val artworkFallbackTitle: String,
     val artworkFallbackSubtitle: String,
-    val secondaryActionLabel: String? = null
+    val secondaryActionLabel: String? = null,
+    val secondaryAction: NovaLibraryHeroSecondaryAction? = null
 )
 
 data class NovaLibraryUiModel(
@@ -383,7 +388,7 @@ object NovaLibraryUiStateMapper {
             title = session.gameName.ifBlank { "Active session" },
             subtitle = ownerDetail,
             caption = if (session.ownedByClient) {
-                "Resume the current stream and quality settings."
+                "Resume this stream, or end it if the host game is stale."
             } else {
                 "Watch-only view; owner stays in control."
             },
@@ -400,7 +405,13 @@ object NovaLibraryUiStateMapper {
             artworkFallbackTitle = session.gameName.ifBlank { "Active session" },
             artworkFallbackSubtitle = listOf("Active session", ownerDetail)
                 .filter { it.isNotBlank() }
-                .joinToString(" • ")
+                .joinToString(" • "),
+            secondaryActionLabel = if (session.ownedByClient) "End session" else null,
+            secondaryAction = if (session.ownedByClient) {
+                NovaLibraryHeroSecondaryAction.END_SESSION
+            } else {
+                null
+            }
         )
     }
 
