@@ -28,6 +28,20 @@ struct DeckHostListItem {
     bool initialFocus;
 };
 
+struct DeckHostDetail {
+    std::string_view id;
+    std::string_view displayName;
+    std::string_view statusLabel;
+    std::string_view subtitle;
+};
+
+struct DeckLaunchCta {
+    std::string_view id;
+    std::string_view label;
+    std::string_view helpText;
+    bool enabled;
+};
+
 enum class DeckFocusDirection {
     Left,
     Right,
@@ -54,6 +68,17 @@ std::string_view initialHostFocusTarget(const std::vector<DeckHostListItem>& hos
 
 std::string_view nextHostFocusTarget(
     const std::vector<DeckHostListItem>& hosts,
+    std::string_view currentId,
+    DeckFocusDirection direction);
+
+DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, std::string_view hostId);
+
+DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail);
+
+std::vector<DeckFocusTarget> hostDetailFocusTargets(const DeckHostDetail& detail, const DeckLaunchCta& launchCta);
+
+std::string_view nextHostDetailFocusTarget(
+    const std::vector<DeckFocusTarget>& targets,
     std::string_view currentId,
     DeckFocusDirection direction);
 

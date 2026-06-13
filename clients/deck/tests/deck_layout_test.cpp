@@ -43,6 +43,27 @@ int main() {
     assert(nova::deck::nextHostFocusTarget(demoHosts, "host-living-room-pc", nova::deck::DeckFocusDirection::Down)
         == std::string_view("host-living-room-pc"));
 
+    const auto detail = nova::deck::resolveHostDetail(demoHosts, "host-gaming-pc");
+    assert(detail.id == std::string_view("host-gaming-pc"));
+    assert(detail.displayName == std::string_view("Gaming PC"));
+    assert(detail.statusLabel == std::string_view("Ready for local demo"));
+    assert(detail.subtitle == std::string_view("Demo host detail only — not discovered from the network."));
+
+    const auto launchCta = nova::deck::inertLaunchCtaFor(detail);
+    assert(launchCta.id == std::string_view("host-detail-launch-cta"));
+    assert(launchCta.label == std::string_view("Launch coming soon"));
+    assert(launchCta.helpText == std::string_view("Placeholder only — not wired to launch, Moonlight, or a network backend yet."));
+    assert(!launchCta.enabled);
+
+    const auto detailFocus = nova::deck::hostDetailFocusTargets(detail, launchCta);
+    assert(detailFocus.size() == 2);
+    assert(detailFocus[0].id == std::string_view("host-detail-panel"));
+    assert(detailFocus[1].id == std::string_view("host-detail-launch-cta"));
+    assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-panel", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-detail-launch-cta"));
+    assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-launch-cta", nova::deck::DeckFocusDirection::Up)
+        == std::string_view("host-detail-panel"));
+
     assert(nova::deck::isDeckNativeAspect(1280, 800));
     assert(nova::deck::isDeckNativeAspect(2560, 1600));
     assert(!nova::deck::isDeckNativeAspect(1920, 1080));

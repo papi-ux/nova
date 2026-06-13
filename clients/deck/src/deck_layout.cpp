@@ -145,6 +145,84 @@ std::string_view nextHostFocusTarget(
     return current->id;
 }
 
+DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, const std::string_view hostId) {
+    const auto host = std::ranges::find_if(hosts, [hostId](const DeckHostListItem& item) {
+        return item.id == hostId;
+    });
+
+    if (host == hosts.end()) {
+        return DeckHostDetail{
+            .id = "host-detail-empty",
+            .displayName = "No demo host selected",
+            .statusLabel = "Select a demo host",
+            .subtitle = "Demo host detail only — not discovered from the network.",
+        };
+    }
+
+    return DeckHostDetail{
+        .id = host->id,
+        .displayName = host->displayName,
+        .statusLabel = host->statusLabel,
+        .subtitle = "Demo host detail only — not discovered from the network.",
+    };
+}
+
+DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail&) {
+    return DeckLaunchCta{
+        .id = "host-detail-launch-cta",
+        .label = "Launch coming soon",
+        .helpText = "Placeholder only — not wired to launch, Moonlight, or a network backend yet.",
+        .enabled = false,
+    };
+}
+
+std::vector<DeckFocusTarget> hostDetailFocusTargets(const DeckHostDetail& detail, const DeckLaunchCta& launchCta) {
+    return {
+        DeckFocusTarget{
+            .id = "host-detail-panel",
+            .label = detail.displayName,
+            .row = 0,
+            .column = 0,
+            .initialFocus = true,
+        },
+        DeckFocusTarget{
+            .id = launchCta.id,
+            .label = launchCta.label,
+            .row = 1,
+            .column = 0,
+            .initialFocus = false,
+        },
+    };
+}
+
+std::string_view nextHostDetailFocusTarget(
+    const std::vector<DeckFocusTarget>& targets,
+    const std::string_view currentId,
+    const DeckFocusDirection direction) {
+    const auto current = std::ranges::find_if(targets, [currentId](const DeckFocusTarget& target) {
+        return target.id == currentId;
+    });
+
+    if (current == targets.end()) {
+        return initialLibraryFocusTarget(targets);
+    }
+
+    const int verticalDelta = direction == DeckFocusDirection::Up ? -1 : direction == DeckFocusDirection::Down ? 1 : 0;
+    if (verticalDelta == 0) {
+        return current->id;
+    }
+
+    const auto next = std::ranges::find_if(targets, [&](const DeckFocusTarget& target) {
+        return target.row == current->row + verticalDelta && target.column == current->column;
+    });
+
+    if (next != targets.end()) {
+        return next->id;
+    }
+
+    return current->id;
+}
+
 bool isDeckNativeAspect(const int width, const int height) {
     if (width <= 0 || height <= 0) {
         return false;

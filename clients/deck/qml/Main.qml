@@ -83,8 +83,8 @@ ApplicationWindow {
                         border.width: activeFocus ? 5 : 2
                         focus: visible
                         activeFocusOnTab: visible
-                        KeyNavigation.right: sampleGameCard
-                        Keys.onRightPressed: sampleGameCard.forceActiveFocus()
+                        KeyNavigation.right: hostDetailPanel
+                        Keys.onRightPressed: hostDetailPanel.forceActiveFocus()
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -123,8 +123,8 @@ ApplicationWindow {
                             border.width: activeFocus ? 5 : 3
                             focus: modelData.initialFocus
                             activeFocusOnTab: true
-                            KeyNavigation.right: sampleGameCard
-                            Keys.onRightPressed: sampleGameCard.forceActiveFocus()
+                            KeyNavigation.right: hostDetailPanel
+                            Keys.onRightPressed: hostDetailPanel.forceActiveFocus()
                             Keys.onDownPressed: {
                                 const next = hostRepeater.itemAt(index + 1)
                                 if (next !== null) {
@@ -171,9 +171,9 @@ ApplicationWindow {
                     border.width: activeFocus ? 5 : 3
                     focus: true
                     activeFocusOnTab: true
-                    KeyNavigation.right: detailsPlaceholder
-                    Keys.onRightPressed: detailsPlaceholder.forceActiveFocus()
-                    Keys.onDownPressed: detailsPlaceholder.forceActiveFocus()
+                    KeyNavigation.right: hostDetailPanel
+                    Keys.onRightPressed: hostDetailPanel.forceActiveFocus()
+                    Keys.onDownPressed: hostDetailPanel.forceActiveFocus()
                     Keys.onLeftPressed: {
                         if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                             hostRepeater.itemAt(0).forceActiveFocus()
@@ -218,8 +218,8 @@ ApplicationWindow {
                     spacing: 12
 
                     Rectangle {
-                        id: detailsPlaceholder
-                        objectName: "details-placeholder"
+                        id: hostDetailPanel
+                        objectName: "host-detail-panel"
                         Layout.preferredWidth: 410
                         Layout.preferredHeight: 220
                         radius: 22
@@ -228,44 +228,91 @@ ApplicationWindow {
                         border.width: activeFocus ? 5 : 2
                         focus: true
                         activeFocusOnTab: true
-                        KeyNavigation.left: sampleGameCard
-                        Keys.onLeftPressed: sampleGameCard.forceActiveFocus()
-                        Keys.onUpPressed: sampleGameCard.forceActiveFocus()
+                        KeyNavigation.left: hostRepeater.itemAt(0) !== null ? hostRepeater.itemAt(0) : emptyHostState
+                        KeyNavigation.down: launchCtaPlaceholder
+                        Keys.onLeftPressed: {
+                            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                                hostRepeater.itemAt(0).forceActiveFocus()
+                            } else {
+                                emptyHostState.forceActiveFocus()
+                            }
+                        }
+                        Keys.onDownPressed: launchCtaPlaceholder.forceActiveFocus()
 
                         ColumnLayout {
                             anchors.fill: parent
                             anchors.margins: 24
-                            spacing: 12
+                            spacing: 10
 
                             Label {
-                                text: "Controller placeholder scope"
+                                text: "Demo host detail"
+                                color: "#7C88B8"
+                                font.pixelSize: 18
+                            }
+
+                            Label {
+                                text: novaSelectedHostDetail.displayName
                                 color: "#E9ECFF"
-                                font.pixelSize: 28
+                                font.pixelSize: 30
                                 font.bold: true
                             }
 
-                            Repeater {
-                                model: [
-                                    "Initial focus starts on the first demo host",
-                                    "D-pad down moves through host rows",
-                                    "D-pad right enters the library/details lane"
-                                ]
+                            Label {
+                                text: novaSelectedHostDetail.statusLabel
+                                color: "#B8C2F0"
+                                font.pixelSize: 19
+                            }
 
-                                delegate: Rectangle {
-                                    Layout.preferredWidth: 354
-                                    Layout.preferredHeight: 44
-                                    radius: 14
-                                    color: "#1B2445"
-                                    border.color: index === 0 ? "#7C73FF" : "#39466F"
-                                    border.width: 2
+                            Label {
+                                Layout.preferredWidth: 354
+                                text: novaSelectedHostDetail.subtitle
+                                color: "#A8B0D8"
+                                font.pixelSize: 16
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
 
-                                    Label {
-                                        anchors.centerIn: parent
-                                        text: modelData
-                                        color: "#E9ECFF"
-                                        font.pixelSize: 16
-                                    }
-                                }
+                    Rectangle {
+                        id: launchCtaPlaceholder
+                        objectName: novaHostLaunchCta.id
+                        Layout.preferredWidth: 410
+                        Layout.preferredHeight: 116
+                        radius: 20
+                        color: activeFocus ? "#2A2948" : "#181D34"
+                        border.color: activeFocus ? "#B8C2FF" : "#39466F"
+                        border.width: activeFocus ? 5 : 2
+                        opacity: novaHostLaunchCta.enabled ? 1.0 : 0.72
+                        focus: false
+                        activeFocusOnTab: true
+                        KeyNavigation.up: hostDetailPanel
+                        Keys.onUpPressed: hostDetailPanel.forceActiveFocus()
+                        Keys.onLeftPressed: {
+                            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                                hostRepeater.itemAt(0).forceActiveFocus()
+                            } else {
+                                emptyHostState.forceActiveFocus()
+                            }
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 20
+                            spacing: 6
+
+                            Label {
+                                text: novaHostLaunchCta.label
+                                color: "#E9ECFF"
+                                font.pixelSize: 23
+                                font.bold: true
+                            }
+
+                            Label {
+                                Layout.preferredWidth: 354
+                                text: novaHostLaunchCta.helpText
+                                color: "#B8C2F0"
+                                font.pixelSize: 15
+                                wrapMode: Text.WordWrap
                             }
                         }
                     }

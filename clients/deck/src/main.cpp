@@ -33,6 +33,24 @@ QVariantList toHostModel(const std::vector<nova::deck::DeckHostListItem>& hosts)
     }
     return model;
 }
+
+QVariantMap toHostDetailModel(const nova::deck::DeckHostDetail& detail) {
+    QVariantMap model;
+    model.insert("id", toQString(detail.id));
+    model.insert("displayName", toQString(detail.displayName));
+    model.insert("statusLabel", toQString(detail.statusLabel));
+    model.insert("subtitle", toQString(detail.subtitle));
+    return model;
+}
+
+QVariantMap toLaunchCtaModel(const nova::deck::DeckLaunchCta& launchCta) {
+    QVariantMap model;
+    model.insert("id", toQString(launchCta.id));
+    model.insert("label", toQString(launchCta.label));
+    model.insert("helpText", toQString(launchCta.helpText));
+    model.insert("enabled", launchCta.enabled);
+    return model;
+}
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -41,6 +59,8 @@ int main(int argc, char *argv[]) {
     const auto profile = nova::deck::defaultWindowProfile();
     const auto sampleGame = nova::deck::loadSamplePolarisGameFixture();
     const auto demoHosts = nova::deck::demoHostListState();
+    const auto selectedHostDetail = nova::deck::resolveHostDetail(demoHosts, nova::deck::initialHostFocusTarget(demoHosts));
+    const auto launchCta = nova::deck::inertLaunchCtaFor(selectedHostDetail);
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaDeckShellName", toQString(profile.shellName));
@@ -53,6 +73,8 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaSampleGameLaunchMode", toQString(sampleGame.launchMode.recommendedMode));
     engine.rootContext()->setContextProperty("novaSampleGameSteamMode", toQString(sampleGame.steamLaunch.recommendedMode));
     engine.rootContext()->setContextProperty("novaDemoHosts", toHostModel(demoHosts));
+    engine.rootContext()->setContextProperty("novaSelectedHostDetail", toHostDetailModel(selectedHostDetail));
+    engine.rootContext()->setContextProperty("novaHostLaunchCta", toLaunchCtaModel(launchCta));
     engine.rootContext()->setContextProperty("novaInitialHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(demoHosts)));
     engine.rootContext()->setContextProperty("novaEmptyHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(nova::deck::emptyHostListState())));
 
