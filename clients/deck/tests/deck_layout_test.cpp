@@ -22,6 +22,27 @@ int main() {
     assert(nova::deck::nextLibraryFocusTarget(focusTargets, "details-placeholder", nova::deck::DeckFocusDirection::Left)
         == std::string_view("sample-game-card"));
 
+    const auto emptyHosts = nova::deck::emptyHostListState();
+    assert(emptyHosts.empty());
+    assert(nova::deck::initialHostFocusTarget(emptyHosts) == std::string_view("host-empty-state"));
+    assert(nova::deck::nextHostFocusTarget(emptyHosts, "missing-host", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-empty-state"));
+
+    const auto demoHosts = nova::deck::demoHostListState();
+    assert(demoHosts.size() >= 2);
+    assert(demoHosts[0].id == std::string_view("host-gaming-pc"));
+    assert(demoHosts[0].displayName == std::string_view("Gaming PC"));
+    assert(demoHosts[0].statusLabel == std::string_view("Ready for local demo"));
+    assert(demoHosts[1].id == std::string_view("host-living-room-pc"));
+    assert(demoHosts[1].displayName == std::string_view("Living Room PC"));
+    assert(nova::deck::initialHostFocusTarget(demoHosts) == std::string_view("host-gaming-pc"));
+    assert(nova::deck::nextHostFocusTarget(demoHosts, "host-gaming-pc", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-living-room-pc"));
+    assert(nova::deck::nextHostFocusTarget(demoHosts, "host-living-room-pc", nova::deck::DeckFocusDirection::Up)
+        == std::string_view("host-gaming-pc"));
+    assert(nova::deck::nextHostFocusTarget(demoHosts, "host-living-room-pc", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-living-room-pc"));
+
     assert(nova::deck::isDeckNativeAspect(1280, 800));
     assert(nova::deck::isDeckNativeAspect(2560, 1600));
     assert(!nova::deck::isDeckNativeAspect(1920, 1080));

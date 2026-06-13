@@ -20,6 +20,14 @@ struct DeckFocusTarget {
     bool initialFocus;
 };
 
+struct DeckHostListItem {
+    std::string_view id;
+    std::string_view displayName;
+    std::string_view statusLabel;
+    int row;
+    bool initialFocus;
+};
+
 enum class DeckFocusDirection {
     Left,
     Right,
@@ -35,6 +43,17 @@ std::string_view initialLibraryFocusTarget(const std::vector<DeckFocusTarget>& t
 
 std::string_view nextLibraryFocusTarget(
     const std::vector<DeckFocusTarget>& targets,
+    std::string_view currentId,
+    DeckFocusDirection direction);
+
+std::vector<DeckHostListItem> emptyHostListState();
+
+std::vector<DeckHostListItem> demoHostListState();
+
+std::string_view initialHostFocusTarget(const std::vector<DeckHostListItem>& hosts);
+
+std::string_view nextHostFocusTarget(
+    const std::vector<DeckHostListItem>& hosts,
     std::string_view currentId,
     DeckFocusDirection direction);
 

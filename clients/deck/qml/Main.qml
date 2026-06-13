@@ -23,7 +23,13 @@ ApplicationWindow {
         id: libraryFocusScope
         anchors.fill: parent
         focus: true
-        Component.onCompleted: sampleGameCard.forceActiveFocus()
+        Component.onCompleted: Qt.callLater(function() {
+            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                hostRepeater.itemAt(0).forceActiveFocus()
+            } else {
+                emptyHostState.forceActiveFocus()
+            }
+        })
 
         ColumnLayout {
             anchors.fill: parent
@@ -54,6 +60,106 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 spacing: 24
 
+                ColumnLayout {
+                    Layout.preferredWidth: 480
+                    spacing: 12
+
+                    Label {
+                        text: "Demo hosts"
+                        color: "#E9ECFF"
+                        font.pixelSize: 28
+                        font.bold: true
+                    }
+
+                    Rectangle {
+                        id: emptyHostState
+                        objectName: "host-empty-state"
+                        visible: novaDemoHosts.length === 0
+                        Layout.preferredWidth: 480
+                        Layout.preferredHeight: visible ? 132 : 0
+                        radius: 20
+                        color: activeFocus ? "#202B55" : "#151D39"
+                        border.color: activeFocus ? "#B8C2FF" : "#39466F"
+                        border.width: activeFocus ? 5 : 2
+                        focus: visible
+                        activeFocusOnTab: visible
+                        KeyNavigation.right: sampleGameCard
+                        Keys.onRightPressed: sampleGameCard.forceActiveFocus()
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 20
+                            spacing: 8
+
+                            Label {
+                                text: "No demo hosts yet"
+                                color: "#E9ECFF"
+                                font.pixelSize: 24
+                                font.bold: true
+                            }
+
+                            Label {
+                                text: "Empty host state is focusable and deterministic."
+                                color: "#A8B0D8"
+                                font.pixelSize: 17
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        id: hostRepeater
+                        model: novaDemoHosts
+
+                        delegate: Rectangle {
+                            required property int index
+                            required property var modelData
+
+                            objectName: modelData.id
+                            Layout.preferredWidth: 480
+                            Layout.preferredHeight: 116
+                            radius: 20
+                            color: activeFocus ? "#202B55" : "#151D39"
+                            border.color: activeFocus ? "#B8C2FF" : "#7C73FF"
+                            border.width: activeFocus ? 5 : 3
+                            focus: modelData.initialFocus
+                            activeFocusOnTab: true
+                            KeyNavigation.right: sampleGameCard
+                            Keys.onRightPressed: sampleGameCard.forceActiveFocus()
+                            Keys.onDownPressed: {
+                                const next = hostRepeater.itemAt(index + 1)
+                                if (next !== null) {
+                                    next.forceActiveFocus()
+                                }
+                            }
+                            Keys.onUpPressed: {
+                                const previous = hostRepeater.itemAt(index - 1)
+                                if (previous !== null) {
+                                    previous.forceActiveFocus()
+                                }
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 20
+                                spacing: 6
+
+                                Label {
+                                    text: modelData.displayName
+                                    color: "#E9ECFF"
+                                    font.pixelSize: 26
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    text: modelData.statusLabel
+                                    color: "#B8C2F0"
+                                    font.pixelSize: 18
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Rectangle {
                     id: sampleGameCard
                     objectName: "sample-game-card"
@@ -68,6 +174,13 @@ ApplicationWindow {
                     KeyNavigation.right: detailsPlaceholder
                     Keys.onRightPressed: detailsPlaceholder.forceActiveFocus()
                     Keys.onDownPressed: detailsPlaceholder.forceActiveFocus()
+                    Keys.onLeftPressed: {
+                        if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                            hostRepeater.itemAt(0).forceActiveFocus()
+                        } else {
+                            emptyHostState.forceActiveFocus()
+                        }
+                    }
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -107,7 +220,7 @@ ApplicationWindow {
                     Rectangle {
                         id: detailsPlaceholder
                         objectName: "details-placeholder"
-                        Layout.preferredWidth: 650
+                        Layout.preferredWidth: 410
                         Layout.preferredHeight: 220
                         radius: 22
                         color: activeFocus ? "#202B55" : "#151D39"
@@ -133,13 +246,13 @@ ApplicationWindow {
 
                             Repeater {
                                 model: [
-                                    "Initial focus starts on the library card",
-                                    "D-pad right moves focus to this details placeholder",
-                                    "D-pad left returns focus to the library card"
+                                    "Initial focus starts on the first demo host",
+                                    "D-pad down moves through host rows",
+                                    "D-pad right enters the library/details lane"
                                 ]
 
                                 delegate: Rectangle {
-                                    Layout.preferredWidth: 594
+                                    Layout.preferredWidth: 354
                                     Layout.preferredHeight: 44
                                     radius: 14
                                     color: "#1B2445"
@@ -150,7 +263,7 @@ ApplicationWindow {
                                         anchors.centerIn: parent
                                         text: modelData
                                         color: "#E9ECFF"
-                                        font.pixelSize: 18
+                                        font.pixelSize: 16
                                     }
                                 }
                             }

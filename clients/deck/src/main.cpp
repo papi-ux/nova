@@ -7,6 +7,8 @@
 #include <QQmlContext>
 #include <QString>
 #include <QTimer>
+#include <QVariantList>
+#include <QVariantMap>
 
 #include <string_view>
 
@@ -18,6 +20,19 @@ QString toQString(const std::string_view value) {
 QString toQString(const std::string& value) {
     return QString::fromStdString(value);
 }
+
+QVariantList toHostModel(const std::vector<nova::deck::DeckHostListItem>& hosts) {
+    QVariantList model;
+    for (const auto& host : hosts) {
+        QVariantMap item;
+        item.insert("id", toQString(host.id));
+        item.insert("displayName", toQString(host.displayName));
+        item.insert("statusLabel", toQString(host.statusLabel));
+        item.insert("initialFocus", host.initialFocus);
+        model.append(item);
+    }
+    return model;
+}
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -25,6 +40,7 @@ int main(int argc, char *argv[]) {
 
     const auto profile = nova::deck::defaultWindowProfile();
     const auto sampleGame = nova::deck::loadSamplePolarisGameFixture();
+    const auto demoHosts = nova::deck::demoHostListState();
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaDeckShellName", toQString(profile.shellName));
@@ -36,6 +52,9 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaSampleGameRuntime", toQString(sampleGame.runtime));
     engine.rootContext()->setContextProperty("novaSampleGameLaunchMode", toQString(sampleGame.launchMode.recommendedMode));
     engine.rootContext()->setContextProperty("novaSampleGameSteamMode", toQString(sampleGame.steamLaunch.recommendedMode));
+    engine.rootContext()->setContextProperty("novaDemoHosts", toHostModel(demoHosts));
+    engine.rootContext()->setContextProperty("novaInitialHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(demoHosts)));
+    engine.rootContext()->setContextProperty("novaEmptyHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(nova::deck::emptyHostListState())));
 
     const bool smokeExit = QCoreApplication::arguments().contains("--smoke-exit");
 
