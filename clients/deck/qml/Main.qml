@@ -351,9 +351,18 @@ ApplicationWindow {
                                         emptyHostState.forceActiveFocus()
                                     }
                                 }
-                                onClicked: copyStatusLabel.text = novaLaunchPreviewCopyAction.enabled
-                                    ? novaLaunchPreviewCopyAction.successToast
-                                    : novaLaunchPreviewCopyAction.inertToast
+                                onClicked: {
+                                    const canCopyPreview = novaLaunchPreviewCopyAction.enabled
+                                        && novaLaunchPreviewCopyAction.previewText.length > 0
+                                        && novaLaunchPreviewCopyAction.copyOnly
+                                        && novaLaunchPreviewCopyAction.uiLocalClipboardOnly
+                                        && !novaLaunchPreviewCopyAction.executable
+                                    const didCopyPreview = canCopyPreview
+                                        && novaLocalClipboard.copyPreviewText(novaLaunchPreviewCopyAction.previewText)
+                                    copyStatusLabel.text = didCopyPreview
+                                        ? novaLaunchPreviewCopyAction.successToast
+                                        : novaLaunchPreviewCopyAction.inertToast
+                                }
                             }
 
                             Label {

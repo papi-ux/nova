@@ -224,6 +224,7 @@ DeckLaunchPreviewCopyAction copyLaunchPreviewActionFor(const DeckLaunchPreview& 
         .inertToast = std::string(kCopyInertToast),
         .enabled = hasPreviewText,
         .copyOnly = true,
+        .uiLocalClipboardOnly = true,
         .executable = false,
     };
 }
@@ -236,6 +237,30 @@ DeckLaunchPreviewCopyResult activateLaunchPreviewCopy(const DeckLaunchPreviewCop
         .statusLabel = status,
         .toastLabel = status,
         .copied = canCopyPreview,
+    };
+}
+
+DeckLaunchPreviewCopyResult copyLaunchPreviewToLocalClipboard(
+    const DeckLaunchPreviewCopyAction& action,
+    DeckLocalClipboard& clipboard) {
+    const bool canCopyPreview = action.enabled && !action.previewText.empty() && action.copyOnly
+        && action.uiLocalClipboardOnly && !action.executable;
+    if (!canCopyPreview) {
+        return DeckLaunchPreviewCopyResult{
+            .previewText = {},
+            .statusLabel = action.inertToast,
+            .toastLabel = action.inertToast,
+            .copied = false,
+        };
+    }
+
+    const bool published = clipboard.publishPreviewText(action.previewText);
+    const std::string status = published ? action.successToast : action.inertToast;
+    return DeckLaunchPreviewCopyResult{
+        .previewText = published ? action.previewText : std::string{},
+        .statusLabel = status,
+        .toastLabel = status,
+        .copied = published,
     };
 }
 

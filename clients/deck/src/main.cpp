@@ -1,10 +1,12 @@
 #include "deck_layout.h"
 #include "polaris_game_fixture.h"
 
+#include <QClipboard>
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QObject>
 #include <QString>
 #include <QTimer>
 #include <QVariantList>
@@ -13,6 +15,24 @@
 #include <string_view>
 
 namespace {
+class QtLocalClipboardBridge final : public QObject {
+    Q_OBJECT
+public:
+    using QObject::QObject;
+
+    Q_INVOKABLE bool copyPreviewText(const QString& text) {
+        if (text.isEmpty()) {
+            return false;
+        }
+        QClipboard* clipboard = QGuiApplication::clipboard();
+        if (clipboard == nullptr) {
+            return false;
+        }
+        clipboard->setText(text, QClipboard::Clipboard);
+        return clipboard->text(QClipboard::Clipboard) == text;
+    }
+};
+
 QString toQString(const std::string_view value) {
     return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
 }
@@ -64,6 +84,7 @@ QVariantMap toPreviewCopyActionModel(const nova::deck::DeckLaunchPreviewCopyActi
     model.insert("inertToast", toQString(copyAction.inertToast));
     model.insert("enabled", copyAction.enabled);
     model.insert("copyOnly", copyAction.copyOnly);
+    model.insert("uiLocalClipboardOnly", copyAction.uiLocalClipboardOnly);
     model.insert("executable", copyAction.executable);
     return model;
 }
@@ -84,6 +105,8 @@ int main(int argc, char *argv[]) {
         .executable = false,
     });
 
+    QtLocalClipboardBridge localClipboard;
+
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaDeckShellName", toQString(profile.shellName));
     engine.rootContext()->setContextProperty("novaDeckWidth", profile.width);
@@ -98,6 +121,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaSelectedHostDetail", toHostDetailModel(selectedHostDetail));
     engine.rootContext()->setContextProperty("novaHostLaunchCta", toLaunchCtaModel(launchCta));
     engine.rootContext()->setContextProperty("novaLaunchPreviewCopyAction", toPreviewCopyActionModel(launchPreviewCopyAction));
+    engine.rootContext()->setContextProperty("novaLocalClipboard", &localClipboard);
     engine.rootContext()->setContextProperty("novaInitialHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(demoHosts)));
     engine.rootContext()->setContextProperty("novaEmptyHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(nova::deck::emptyHostListState())));
 
@@ -126,3 +150,5 @@ int main(int argc, char *argv[]) {
 
     return app.exec();
 }
+
+#include "main.moc"

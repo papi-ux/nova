@@ -28,6 +28,18 @@ bool containsIpv4AddressLike(const std::string& text) {
     }
     return false;
 }
+class RecordingLocalClipboard final : public nova::deck::DeckLocalClipboard {
+public:
+    bool publishPreviewText(std::string_view value) override {
+        ++writeCount;
+        publishedText = std::string(value);
+        return allowWrite;
+    }
+
+    bool allowWrite = true;
+    int writeCount = 0;
+    std::string publishedText;
+};
 } // namespace
 
 int main() {
@@ -114,12 +126,22 @@ int main() {
     assert(copyAction.successToast == "Preview text copied for inspection only — still not executable.");
     assert(copyAction.inertToast == "No preview text to copy — preview-only action stayed inert.");
     assert(copyAction.copyOnly);
+    assert(copyAction.uiLocalClipboardOnly);
     assert(!copyAction.executable);
     assert(copyAction.enabled);
     assert(!containsIpv4AddressLike(copyAction.previewText));
     assert(copyAction.previewText.find(";") == std::string::npos);
     assert(copyAction.previewText.find("&&") == std::string::npos);
     assert(copyAction.previewText.find("|") == std::string::npos);
+
+    RecordingLocalClipboard recordingClipboard;
+    const auto localClipboardResult = nova::deck::copyLaunchPreviewToLocalClipboard(copyAction, recordingClipboard);
+    assert(localClipboardResult.copied);
+    assert(localClipboardResult.previewText == commandPreview.text);
+    assert(localClipboardResult.statusLabel == copyAction.successToast);
+    assert(localClipboardResult.toastLabel == copyAction.successToast);
+    assert(recordingClipboard.writeCount == 1);
+    assert(recordingClipboard.publishedText == commandPreview.text);
 
     const auto copiedResult = nova::deck::activateLaunchPreviewCopy(copyAction);
     assert(copiedResult.copied);
@@ -140,9 +162,19 @@ int main() {
     assert(emptyCopyAction.previewText.empty());
     assert(!emptyCopyAction.enabled);
     assert(emptyCopyAction.copyOnly);
+    assert(emptyCopyAction.uiLocalClipboardOnly);
     assert(!emptyCopyAction.executable);
     assert(emptyCopyAction.idleStatusLabel == "No preview text to copy — preview-only action stayed inert.");
     assert(emptyCopyAction.inertToast == "No preview text to copy — preview-only action stayed inert.");
+
+    RecordingLocalClipboard inertRecordingClipboard;
+    const auto inertLocalClipboardResult = nova::deck::copyLaunchPreviewToLocalClipboard(emptyCopyAction, inertRecordingClipboard);
+    assert(!inertLocalClipboardResult.copied);
+    assert(inertLocalClipboardResult.previewText.empty());
+    assert(inertLocalClipboardResult.statusLabel == emptyCopyAction.inertToast);
+    assert(inertLocalClipboardResult.toastLabel == emptyCopyAction.inertToast);
+    assert(inertRecordingClipboard.writeCount == 0);
+    assert(inertRecordingClipboard.publishedText.empty());
 
     const auto inertCopiedResult = nova::deck::activateLaunchPreviewCopy(emptyCopyAction);
     assert(!inertCopiedResult.copied);

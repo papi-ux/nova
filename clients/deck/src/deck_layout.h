@@ -72,6 +72,7 @@ struct DeckLaunchPreviewCopyAction {
     std::string inertToast;
     bool enabled = false;
     bool copyOnly = true;
+    bool uiLocalClipboardOnly = true;
     bool executable = false;
 };
 
@@ -80,6 +81,12 @@ struct DeckLaunchPreviewCopyResult {
     std::string statusLabel;
     std::string toastLabel;
     bool copied = false;
+};
+
+class DeckLocalClipboard {
+public:
+    virtual ~DeckLocalClipboard() = default;
+    virtual bool publishPreviewText(std::string_view value) = 0;
 };
 
 enum class DeckFocusDirection {
@@ -120,6 +127,10 @@ DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent);
 DeckLaunchPreviewCopyAction copyLaunchPreviewActionFor(const DeckLaunchPreview& preview);
 
 DeckLaunchPreviewCopyResult activateLaunchPreviewCopy(const DeckLaunchPreviewCopyAction& action);
+
+DeckLaunchPreviewCopyResult copyLaunchPreviewToLocalClipboard(
+    const DeckLaunchPreviewCopyAction& action,
+    DeckLocalClipboard& clipboard);
 
 DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail);
 
