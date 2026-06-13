@@ -1,6 +1,6 @@
 package com.papi.nova.nvstream
 
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.nvstream.http.NvHTTP

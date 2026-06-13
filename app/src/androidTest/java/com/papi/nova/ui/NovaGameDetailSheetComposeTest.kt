@@ -7,7 +7,7 @@ import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.NovaComposeTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule

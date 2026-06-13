@@ -1,5 +1,6 @@
 package com.papi.nova.api
 
+import com.papi.nova.shared.polaris.model.PolarisGame
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -262,7 +263,7 @@ class PolarisApiClientParsingTest {
                 "\"mode_reason\":\"Headless is recommended because this Polaris host is already configured for headless streaming.\"}}"
         )
 
-        val game = PolarisGame.fromJson(json)
+        val game = PolarisGameJsonAdapter.fromJson(json)
         val launchMode = game.launchMode!!
 
         assertEquals("game-uuid", game.id)
@@ -280,7 +281,7 @@ class PolarisApiClientParsingTest {
                 "\"allowed_modes\":[],\"mode_reason\":\"Default launch mode.\"}}"
         )
 
-        val game = PolarisGame.fromJson(json)
+        val game = PolarisGameJsonAdapter.fromJson(json)
         val launchMode = game.launchMode!!
 
         assertEquals("headless", launchMode.preferredMode)
@@ -304,7 +305,7 @@ class PolarisApiClientParsingTest {
                 "\"mode_reason\":\"Virtual display preferred.\"}}"
         )
 
-        val game = PolarisGame.fromJson(gameJson)
+        val game = PolarisGameJsonAdapter.fromJson(gameJson)
         val choice = game.resolveLaunchModeChoice(true, settings)
 
         assertEquals("headless", choice.preferredMode)
@@ -333,7 +334,7 @@ class PolarisApiClientParsingTest {
                 "\"mode_reason\":\"This app is configured to prefer a dedicated virtual display on the host.\"}}"
         )
 
-        val game = PolarisGame.fromJson(gameJson)
+        val game = PolarisGameJsonAdapter.fromJson(gameJson)
         val choice = game.resolveLaunchModeChoice(true, settings)
 
         assertEquals("virtual_display", choice.preferredMode)
@@ -349,7 +350,7 @@ class PolarisApiClientParsingTest {
 
     @Test
     fun parseGame_includesSteamLaunchContract() {
-        val game = PolarisGame.fromJson(
+        val game = PolarisGameJsonAdapter.fromJson(
             JSONObject(
                 """
                 {

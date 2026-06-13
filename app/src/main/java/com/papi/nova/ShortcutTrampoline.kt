@@ -11,7 +11,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.api.PolarisApiClient
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.computers.ComputerDatabaseManager
 import com.papi.nova.computers.ComputerManagerListener
 import com.papi.nova.computers.ComputerManagerService

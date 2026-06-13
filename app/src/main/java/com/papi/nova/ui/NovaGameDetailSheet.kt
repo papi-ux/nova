@@ -64,7 +64,7 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.LocalNovaComposeColors
@@ -576,7 +576,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                 .takeIf { it.isNotBlank() }
                 ?: getString(R.string.nova_library_launch_intro_virtual_unavailable)
             uiState.launchChoice.hostModeReason.isNotBlank() -> uiState.launchChoice.hostModeReason
-            uiState.game.launchMode?.modeReason?.isNotBlank() == true -> uiState.game.launchMode.modeReason
+            uiState.game.launchMode?.modeReason?.isNotBlank() == true -> uiState.game.launchMode?.modeReason.orEmpty()
             uiState.recommendedMode == "virtual_display" -> getString(R.string.nova_library_launch_intro_virtual_default)
             else -> getString(R.string.nova_library_launch_intro_headless_default)
         }

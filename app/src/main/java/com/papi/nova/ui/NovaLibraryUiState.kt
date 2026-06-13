@@ -1,6 +1,6 @@
 package com.papi.nova.ui
 
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.api.PolarisSessionStatus
 
 enum class NovaLibraryPrimaryFilter {
