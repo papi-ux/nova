@@ -1,0 +1,33 @@
+{
+  "id": "game-123",
+  "app_id": 456,
+  "name": "Portal 2",
+  "source": "steam",
+  "launcher_source": "steam",
+  "launcher_detail": "library",
+  "platform": "linux",
+  "runtime": "proton",
+  "platform_label": "Linux",
+  "runtime_label": "Proton",
+  "steam_appid": "620",
+  "category": "fast_action",
+  "installed": true,
+  "cover_url": "/polaris/v1/games/game-123/cover",
+  "genres": ["Action", "Puzzle"],
+  "last_launched": 1718187600000,
+  "mangohud": true,
+  "hdr_supported": true,
+  "launch_mode": {
+    "preferred_mode": "virtual_display",
+    "recommended_mode": "headless",
+    "allowed_modes": ["headless", "virtual_display"],
+    "mode_reason": "Host default is headless."
+  },
+  "steam_launch": {
+    "available": true,
+    "mode": "big-picture",
+    "recommended_mode": "direct",
+    "allowed_modes": ["direct", "big-picture"],
+    "mode_reason": "Steam Input fallback."
+  }
+}
