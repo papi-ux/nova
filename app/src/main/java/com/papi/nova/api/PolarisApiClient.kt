@@ -7,6 +7,7 @@ import com.papi.nova.binding.PlatformBinding
 import android.widget.ImageView
 import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.nvstream.http.LimelightCryptoProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -866,7 +867,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 val json = org.json.JSONObject(response.body?.string() ?: return emptyList())
                 val gamesArray = json.optJSONArray("games") ?: return emptyList()
 
-                (0 until gamesArray.length()).map { PolarisGame.fromJson(gamesArray.getJSONObject(it)) }
+                (0 until gamesArray.length()).map { PolarisGameJsonAdapter.fromJson(gamesArray.getJSONObject(it)) }
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Game library fetch failed: ${errorMessage(e)}")

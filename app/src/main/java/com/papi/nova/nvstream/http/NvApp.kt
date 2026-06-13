@@ -1,7 +1,7 @@
 package com.papi.nova.nvstream.http
 
 import com.papi.nova.LimeLog
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import java.util.Locale
 
 class NvApp {

@@ -1,7 +1,7 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

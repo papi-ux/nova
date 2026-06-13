@@ -4,6 +4,11 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+    plugins {
+        // Explicitly declare Kotlin plugin versions here, as they are needed for resolution
+        id("org.jetbrains.kotlin.multiplatform") version "2.3.21"
+        id("org.jetbrains.kotlin.plugin.serialization") version "2.3.21"
+    }
 }
 
 dependencyResolutionManagement {
@@ -18,3 +23,6 @@ dependencyResolutionManagement {
 rootProject.name = "nova"
 include ':app'
 include ':baselineprofile'
+include ':shared'
+include ':shared:polaris'
+include ':shared:polaris:model'

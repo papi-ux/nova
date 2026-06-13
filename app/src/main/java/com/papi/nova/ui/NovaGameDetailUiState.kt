@@ -1,7 +1,8 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.api.resolveLaunchModeChoice
+import com.papi.nova.shared.polaris.model.PolarisGame
 
 data class NovaGameDetailUiState(
     val game: PolarisGame,
@@ -51,9 +52,10 @@ data class NovaGameDetailUiState(
                 else -> MangoHudRisk.NONE
             }
             val steamLaunchMode = game.steamLaunchMode
+            val steamLaunch = game.steamLaunch
             val showSteamLaunchMode = game.supportsSteamLaunchMode &&
-                game.steamLaunch?.allows("direct") == true &&
-                game.steamLaunch.allows("big-picture")
+                steamLaunch?.allows("direct") == true &&
+                steamLaunch.allows("big-picture")
             val steamLaunchWarning = steamLaunchMode == "big-picture"
 
             return NovaGameDetailUiState(

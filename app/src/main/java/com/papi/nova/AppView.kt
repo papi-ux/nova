@@ -30,7 +30,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.papi.nova.api.PolarisApiClient
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.computers.ComputerManagerListener
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.grid.AppGridAdapter

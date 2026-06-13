@@ -112,7 +112,7 @@ import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisGame
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
