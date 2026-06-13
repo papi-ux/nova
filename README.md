@@ -81,9 +81,9 @@ Nova is built for that messy reality.
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## Latest release: v1.1.2
+## Latest release: v1.1.3
 
-Nova `v1.1.2` is a confidence patch for the 1.1 line. It makes the Polaris Library cleaner on handhelds, adds optional plain-artwork posters, turns NovaHUD into a clearer stream-health explainer, adds the requested Insert key affordance, and rolls in crash/input/dependency hardening from the current release branch.
+Nova `v1.1.3` is the public APK publishing patch for the 1.1 confidence line. It makes the Polaris Library cleaner on handhelds, adds optional plain-artwork posters, turns NovaHUD into a clearer stream-health explainer, adds the requested Insert key affordance, and rolls in crash/input/dependency hardening from the current release branch.
 
 - **Cleaner Library**: hero artwork, card readability, compact grid density, landscape footer spacing, and selected-game context are tuned for handheld browsing.
 - **Plain artwork posters**: Library Options now includes **Poster titles**, so users can keep readable title bars or switch to clean cover art.
@@ -91,7 +91,7 @@ Nova `v1.1.2` is a confidence patch for the 1.1 line. It makes the Polaris Libra
 - **NovaHUD diagnostics**: HUD copy now explains host/network/client health, exposes **HOST / NET / CLIENT** debug chips, supports long-press back into Command Center, and adds privacy-safe **Copy HUD Diagnostics**.
 - **Insert in Quick Keys**: Command Center Quick Keys and More Keys / Send special keys now include **Insert** for tools and overlays that bind to it.
 - **Input and crash hardening**: stylus pen events reach the pressure-capable path before pointer-capture mouse gates, and malformed app data no longer trips the app grid.
-- **Release validation**: current master passed public hygiene, lint/unit, CodeQL, dependency submission, release APK assembly, and a Retroid ARM64 Library → stream → Command Center → NovaHUD diagnostics → disconnect smoke.
+- **Release validation**: current master passed public hygiene, lint/unit, CodeQL, dependency submission, release APK assembly, and a Retroid ARM64 Library → stream → Command Center → NovaHUD diagnostics → disconnect smoke. VersionCode is bumped to 29 so Obtainium/GitHub installs update cleanly.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 

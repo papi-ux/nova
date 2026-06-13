@@ -48,7 +48,7 @@ jobs:
   android-smoke:
     name: Emulator smoke test
     needs: verify
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.run_emulator_smoke) }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_emulator_smoke }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
 

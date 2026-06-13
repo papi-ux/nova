@@ -1,0 +1,8 @@
+Nova 1.1.3
+
+- Cleaner handheld Library: better hero art, card readability, grid spacing, and optional Plain artwork posters.
+- Actionable NovaHUD diagnostics: HOST / NET / CLIENT chips, stream-truth copy, long-press Command Center, and safe diagnostic copy.
+- Adds Insert to Command Center Quick Keys and More Keys.
+- Adds End session recovery for stuck owned streams.
+- Hardens fallback Library truth, stylus pressure, app-data crashes, and Netty/Wire pins.
+- Bumps the Android package version for clean GitHub Releases / Obtainium updates.

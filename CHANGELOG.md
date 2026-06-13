@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.3 - 2026-06-12
+
+Nova 1.1.3 is the public APK publishing patch for the 1.1.2 confidence build. It preserves the same handheld Library, Command Center, NovaHUD, Insert-key, stale-session recovery, input, crash, and dependency hardening work from 1.1.2, while bumping the Android package version so GitHub Releases / Obtainium installs can update cleanly.
+
+### Release packaging
+
+- Bumps the Android app to versionName `1.1.3` and versionCode `29`.
+- Publishes fresh signed release APK assets for ARM64, ARMv7, and x86_64 through the release workflow.
+- Keeps the 1.1.2 device-validation story intact: Retroid ARM64 Library → stream → Command Center → NovaHUD diagnostics → non-destructive disconnect.
+
+### Upgrade notes
+
+- Users on `1.1.2` or earlier should receive this as a normal Android update because the package versionCode increases to `29`.
+
 ## 1.1.2 - 2026-06-12
 
 Nova 1.1.2 is a confidence patch for the 1.1 line. It makes the Polaris-backed Library cleaner on handhelds, adds a plain-artwork poster option, turns NovaHUD into a useful stream-health explainer, adds the requested Insert key affordance, and rolls in current crash/input/dependency hardening.
