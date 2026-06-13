@@ -2,6 +2,7 @@
 #include "polaris_game_fixture.h"
 
 #include <cassert>
+#include <string>
 #include <string_view>
 
 int main() {
@@ -51,9 +52,35 @@ int main() {
 
     const auto launchCta = nova::deck::inertLaunchCtaFor(detail);
     assert(launchCta.id == std::string_view("host-detail-launch-cta"));
-    assert(launchCta.label == std::string_view("Launch coming soon"));
-    assert(launchCta.helpText == std::string_view("Placeholder only — not wired to launch, Moonlight, or a network backend yet."));
+    assert(launchCta.label == std::string_view("Launch preview only"));
+    assert(launchCta.helpText == std::string_view("Display-only preview — not wired to launch, Moonlight, or a network backend."));
     assert(!launchCta.enabled);
+    assert(launchCta.previewStateLabel == std::string_view("Preview only — not executable"));
+    assert(launchCta.previewText == std::string_view("preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&state=copy-preview-only"));
+
+    const auto launchGame = nova::deck::loadSamplePolarisGameFixture();
+    const auto launchIntent = nova::deck::resolveLaunchIntent(detail, launchGame);
+    assert(launchIntent.targetHostId == "host-gaming-pc");
+    assert(launchIntent.targetHostName == "Gaming PC");
+    assert(launchIntent.gameTitle == "Portal 2");
+    assert(launchIntent.sampleGameId == "game-123");
+    assert(!launchIntent.executable);
+    assert(launchIntent.safetyLabel == "Preview only — not executable");
+
+    const auto commandPreview = nova::deck::fakeLaunchCommandPreviewFor(launchIntent);
+    assert(commandPreview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&state=copy-preview-only");
+    assert(commandPreview.stateLabel == "Preview only — not executable");
+    assert(commandPreview.copyOnly);
+    assert(!commandPreview.executable);
+    assert(commandPreview.text.find("moonlight") == std::string::npos);
+    assert(commandPreview.text.find("http") == std::string::npos);
+    assert(commandPreview.text.find("ssh") == std::string::npos);
+    assert(commandPreview.text.find(";") == std::string::npos);
+    assert(commandPreview.text.find("&&") == std::string::npos);
+    assert(commandPreview.text.find("|") == std::string::npos);
+    assert(commandPreview.text.find("/home/") == std::string::npos);
+    assert(commandPreview.text.find("Users") == std::string::npos);
+
 
     const auto detailFocus = nova::deck::hostDetailFocusTargets(detail, launchCta);
     assert(detailFocus.size() == 2);

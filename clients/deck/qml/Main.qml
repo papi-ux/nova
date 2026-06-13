@@ -277,7 +277,7 @@ ApplicationWindow {
                         id: launchCtaPlaceholder
                         objectName: novaHostLaunchCta.id
                         Layout.preferredWidth: 410
-                        Layout.preferredHeight: 116
+                        Layout.preferredHeight: 172
                         radius: 20
                         color: activeFocus ? "#2A2948" : "#181D34"
                         border.color: activeFocus ? "#B8C2FF" : "#39466F"
@@ -313,6 +313,24 @@ ApplicationWindow {
                                 color: "#B8C2F0"
                                 font.pixelSize: 15
                                 wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.preferredWidth: 354
+                                text: novaHostLaunchCta.previewStateLabel
+                                color: "#FFDDA8"
+                                font.pixelSize: 14
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.preferredWidth: 354
+                                text: novaHostLaunchCta.previewText
+                                color: "#A8B0D8"
+                                font.pixelSize: 13
+                                font.family: "monospace"
+                                wrapMode: Text.WrapAnywhere
                             }
                         }
                     }

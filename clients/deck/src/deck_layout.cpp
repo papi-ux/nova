@@ -1,8 +1,29 @@
 #include "deck_layout.h"
+#include "polaris_game_fixture.h"
 
 #include <algorithm>
+#include <cctype>
+#include <string>
 
 namespace nova::deck {
+namespace {
+
+constexpr std::string_view kPreviewStateLabel = "Preview only — not executable";
+
+std::string encodePreviewComponent(const std::string& value) {
+    std::string encoded;
+    for (const unsigned char ch : value) {
+        if (std::isalnum(ch) || ch == char(45) || ch == char(95)) {
+            encoded.push_back(static_cast<char>(ch));
+        } else if (ch == char(32)) {
+            encoded += "%20";
+        }
+    }
+    return encoded;
+}
+
+} // namespace
+
 
 DeckWindowProfile defaultWindowProfile() {
     return DeckWindowProfile{
@@ -167,11 +188,38 @@ DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, con
     };
 }
 
-DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail&) {
+DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const PolarisGameFixture& game) {
+    return DeckLaunchIntent{
+        .targetHostId = std::string(detail.id),
+        .targetHostName = std::string(detail.displayName),
+        .sampleGameId = game.id,
+        .gameTitle = game.name,
+        .executable = false,
+        .safetyLabel = std::string(kPreviewStateLabel),
+    };
+}
+
+DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent) {
+    return DeckLaunchPreview{
+        .text = "preview://nova-deck/launch?host=" + encodePreviewComponent(intent.targetHostId)
+            + "&game=" + encodePreviewComponent(intent.gameTitle)
+            + "&state=copy-preview-only",
+        .stateLabel = std::string(kPreviewStateLabel),
+        .copyOnly = true,
+        .executable = false,
+    };
+}
+
+DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail) {
+    const auto launchIntent = resolveLaunchIntent(detail, loadSamplePolarisGameFixture());
+    const auto preview = fakeLaunchCommandPreviewFor(launchIntent);
+    (void)preview;
     return DeckLaunchCta{
         .id = "host-detail-launch-cta",
-        .label = "Launch coming soon",
-        .helpText = "Placeholder only — not wired to launch, Moonlight, or a network backend yet.",
+        .label = "Launch preview only",
+        .helpText = "Display-only preview — not wired to launch, Moonlight, or a network backend.",
+        .previewStateLabel = preview.stateLabel,
+        .previewText = preview.text,
         .enabled = false,
     };
 }

@@ -1,9 +1,12 @@
 #pragma once
 
+#include <string>
 #include <string_view>
 #include <vector>
 
 namespace nova::deck {
+
+struct PolarisGameFixture;
 
 struct DeckWindowProfile {
     int width;
@@ -39,7 +42,25 @@ struct DeckLaunchCta {
     std::string_view id;
     std::string_view label;
     std::string_view helpText;
+    std::string previewStateLabel;
+    std::string previewText;
     bool enabled;
+};
+
+struct DeckLaunchIntent {
+    std::string targetHostId;
+    std::string targetHostName;
+    std::string sampleGameId;
+    std::string gameTitle;
+    bool executable = false;
+    std::string safetyLabel;
+};
+
+struct DeckLaunchPreview {
+    std::string text;
+    std::string stateLabel;
+    bool copyOnly = true;
+    bool executable = false;
 };
 
 enum class DeckFocusDirection {
@@ -72,6 +93,10 @@ std::string_view nextHostFocusTarget(
     DeckFocusDirection direction);
 
 DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, std::string_view hostId);
+
+DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const PolarisGameFixture& game);
+
+DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent);
 
 DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail);
 

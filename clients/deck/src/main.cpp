@@ -48,6 +48,8 @@ QVariantMap toLaunchCtaModel(const nova::deck::DeckLaunchCta& launchCta) {
     model.insert("id", toQString(launchCta.id));
     model.insert("label", toQString(launchCta.label));
     model.insert("helpText", toQString(launchCta.helpText));
+    model.insert("previewStateLabel", toQString(launchCta.previewStateLabel));
+    model.insert("previewText", toQString(launchCta.previewText));
     model.insert("enabled", launchCta.enabled);
     return model;
 }
