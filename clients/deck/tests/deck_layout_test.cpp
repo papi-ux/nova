@@ -2,8 +2,33 @@
 #include "polaris_game_fixture.h"
 
 #include <cassert>
+#include <cctype>
 #include <string>
 #include <string_view>
+
+namespace {
+bool containsIpv4AddressLike(const std::string& text) {
+    int dotSeparatedNumberRuns = 0;
+    bool inDigits = false;
+    for (const unsigned char ch : text) {
+        if (std::isdigit(ch)) {
+            inDigits = true;
+            continue;
+        }
+        if (ch == char(46) && inDigits) {
+            ++dotSeparatedNumberRuns;
+            inDigits = false;
+            if (dotSeparatedNumberRuns >= 3) {
+                return true;
+            }
+            continue;
+        }
+        dotSeparatedNumberRuns = 0;
+        inDigits = false;
+    }
+    return false;
+}
+} // namespace
 
 int main() {
     const auto profile = nova::deck::defaultWindowProfile();
@@ -81,6 +106,25 @@ int main() {
     assert(commandPreview.text.find("/home/") == std::string::npos);
     assert(commandPreview.text.find("Users") == std::string::npos);
 
+    const auto copyAction = nova::deck::copyLaunchPreviewActionFor(commandPreview);
+    assert(copyAction.id == std::string_view("host-detail-copy-preview"));
+    assert(copyAction.label == std::string_view("Copy preview text"));
+    assert(copyAction.previewText == commandPreview.text);
+    assert(copyAction.statusLabel == "Preview copied for inspection only — copy-only, not executable.");
+    assert(copyAction.copyOnly);
+    assert(!copyAction.executable);
+    assert(copyAction.enabled);
+    assert(!containsIpv4AddressLike(copyAction.previewText));
+    assert(copyAction.previewText.find(";") == std::string::npos);
+    assert(copyAction.previewText.find("&&") == std::string::npos);
+    assert(copyAction.previewText.find("|") == std::string::npos);
+
+    const auto emptyCopyAction = nova::deck::copyLaunchPreviewActionFor(nova::deck::DeckLaunchPreview{});
+    assert(emptyCopyAction.previewText.empty());
+    assert(!emptyCopyAction.enabled);
+    assert(emptyCopyAction.copyOnly);
+    assert(!emptyCopyAction.executable);
+    assert(emptyCopyAction.statusLabel == "No preview text to copy — preview-only action stayed inert.");
 
     const auto detailFocus = nova::deck::hostDetailFocusTargets(detail, launchCta);
     assert(detailFocus.size() == 2);

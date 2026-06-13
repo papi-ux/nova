@@ -210,6 +210,21 @@ DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent) {
     };
 }
 
+DeckLaunchPreviewCopyAction copyLaunchPreviewActionFor(const DeckLaunchPreview& preview) {
+    const bool hasPreviewText = !preview.text.empty();
+    return DeckLaunchPreviewCopyAction{
+        .id = "host-detail-copy-preview",
+        .label = "Copy preview text",
+        .previewText = preview.text,
+        .statusLabel = hasPreviewText
+            ? "Preview copied for inspection only — copy-only, not executable."
+            : "No preview text to copy — preview-only action stayed inert.",
+        .enabled = hasPreviewText,
+        .copyOnly = true,
+        .executable = false,
+    };
+}
+
 DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail) {
     const auto launchIntent = resolveLaunchIntent(detail, loadSamplePolarisGameFixture());
     const auto preview = fakeLaunchCommandPreviewFor(launchIntent);

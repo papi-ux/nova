@@ -277,7 +277,7 @@ ApplicationWindow {
                         id: launchCtaPlaceholder
                         objectName: novaHostLaunchCta.id
                         Layout.preferredWidth: 410
-                        Layout.preferredHeight: 172
+                        Layout.preferredHeight: 240
                         radius: 20
                         color: activeFocus ? "#2A2948" : "#181D34"
                         border.color: activeFocus ? "#B8C2FF" : "#39466F"
@@ -331,6 +331,25 @@ ApplicationWindow {
                                 font.pixelSize: 13
                                 font.family: "monospace"
                                 wrapMode: Text.WrapAnywhere
+                            }
+
+                            Button {
+                                objectName: novaLaunchPreviewCopyAction.id
+                                text: novaLaunchPreviewCopyAction.label
+                                enabled: novaLaunchPreviewCopyAction.enabled
+                                focusPolicy: Qt.NoFocus
+                                onClicked: copyStatusLabel.text = novaLaunchPreviewCopyAction.statusLabel
+                            }
+
+                            Label {
+                                id: copyStatusLabel
+                                Layout.preferredWidth: 354
+                                text: novaLaunchPreviewCopyAction.enabled
+                                    ? "Copy action is preview-only and not executable."
+                                    : novaLaunchPreviewCopyAction.statusLabel
+                                color: "#FFDDA8"
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
                             }
                         }
                     }

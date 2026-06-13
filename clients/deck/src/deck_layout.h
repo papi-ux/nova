@@ -63,6 +63,16 @@ struct DeckLaunchPreview {
     bool executable = false;
 };
 
+struct DeckLaunchPreviewCopyAction {
+    std::string_view id;
+    std::string_view label;
+    std::string previewText;
+    std::string statusLabel;
+    bool enabled = false;
+    bool copyOnly = true;
+    bool executable = false;
+};
+
 enum class DeckFocusDirection {
     Left,
     Right,
@@ -97,6 +107,8 @@ DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, std
 DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const PolarisGameFixture& game);
 
 DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent);
+
+DeckLaunchPreviewCopyAction copyLaunchPreviewActionFor(const DeckLaunchPreview& preview);
 
 DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail);
 
