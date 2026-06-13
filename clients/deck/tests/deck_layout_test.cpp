@@ -12,6 +12,16 @@ int main() {
     assert(profile.fullscreenPreferred);
     assert(profile.shellName == std::string_view("Nova Deck"));
 
+    const auto focusTargets = nova::deck::defaultLibraryFocusTargets();
+    assert(focusTargets.size() >= 2);
+    assert(focusTargets.front().id == std::string_view("sample-game-card"));
+    assert(focusTargets.front().initialFocus);
+    assert(nova::deck::initialLibraryFocusTarget(focusTargets) == std::string_view("sample-game-card"));
+    assert(nova::deck::nextLibraryFocusTarget(focusTargets, "sample-game-card", nova::deck::DeckFocusDirection::Right)
+        == std::string_view("details-placeholder"));
+    assert(nova::deck::nextLibraryFocusTarget(focusTargets, "details-placeholder", nova::deck::DeckFocusDirection::Left)
+        == std::string_view("sample-game-card"));
+
     assert(nova::deck::isDeckNativeAspect(1280, 800));
     assert(nova::deck::isDeckNativeAspect(2560, 1600));
     assert(!nova::deck::isDeckNativeAspect(1920, 1080));
