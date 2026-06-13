@@ -110,7 +110,9 @@ int main() {
     assert(copyAction.id == std::string_view("host-detail-copy-preview"));
     assert(copyAction.label == std::string_view("Copy preview text"));
     assert(copyAction.previewText == commandPreview.text);
-    assert(copyAction.statusLabel == "Preview copied for inspection only — copy-only, not executable.");
+    assert(copyAction.idleStatusLabel == "Copy action is preview-only and not executable.");
+    assert(copyAction.successToast == "Preview text copied for inspection only — still not executable.");
+    assert(copyAction.inertToast == "No preview text to copy — preview-only action stayed inert.");
     assert(copyAction.copyOnly);
     assert(!copyAction.executable);
     assert(copyAction.enabled);
@@ -119,21 +121,51 @@ int main() {
     assert(copyAction.previewText.find("&&") == std::string::npos);
     assert(copyAction.previewText.find("|") == std::string::npos);
 
+    const auto copiedResult = nova::deck::activateLaunchPreviewCopy(copyAction);
+    assert(copiedResult.copied);
+    assert(copiedResult.previewText == commandPreview.text);
+    assert(copiedResult.statusLabel == "Preview text copied for inspection only — still not executable.");
+    assert(copiedResult.toastLabel == "Preview text copied for inspection only — still not executable.");
+    assert(copiedResult.statusLabel.find("Preview") != std::string::npos);
+    assert(copiedResult.statusLabel.find("not executable") != std::string::npos);
+    assert(copiedResult.previewText.find("moonlight") == std::string::npos);
+    assert(copiedResult.previewText.find("http") == std::string::npos);
+    assert(copiedResult.previewText.find("ssh") == std::string::npos);
+    assert(copiedResult.previewText.find(";") == std::string::npos);
+    assert(copiedResult.previewText.find("&&") == std::string::npos);
+    assert(copiedResult.previewText.find("|") == std::string::npos);
+    assert(!containsIpv4AddressLike(copiedResult.previewText));
+
     const auto emptyCopyAction = nova::deck::copyLaunchPreviewActionFor(nova::deck::DeckLaunchPreview{});
     assert(emptyCopyAction.previewText.empty());
     assert(!emptyCopyAction.enabled);
     assert(emptyCopyAction.copyOnly);
     assert(!emptyCopyAction.executable);
-    assert(emptyCopyAction.statusLabel == "No preview text to copy — preview-only action stayed inert.");
+    assert(emptyCopyAction.idleStatusLabel == "No preview text to copy — preview-only action stayed inert.");
+    assert(emptyCopyAction.inertToast == "No preview text to copy — preview-only action stayed inert.");
 
-    const auto detailFocus = nova::deck::hostDetailFocusTargets(detail, launchCta);
-    assert(detailFocus.size() == 2);
+    const auto inertCopiedResult = nova::deck::activateLaunchPreviewCopy(emptyCopyAction);
+    assert(!inertCopiedResult.copied);
+    assert(inertCopiedResult.previewText.empty());
+    assert(inertCopiedResult.statusLabel == "No preview text to copy — preview-only action stayed inert.");
+    assert(inertCopiedResult.toastLabel == "No preview text to copy — preview-only action stayed inert.");
+
+    const auto detailFocus = nova::deck::hostDetailFocusTargets(detail, launchCta, copyAction);
+    assert(detailFocus.size() == 3);
     assert(detailFocus[0].id == std::string_view("host-detail-panel"));
     assert(detailFocus[1].id == std::string_view("host-detail-launch-cta"));
+    assert(detailFocus[2].id == std::string_view("host-detail-copy-preview"));
+    assert(detailFocus[2].label == std::string_view("Copy preview text"));
     assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-panel", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-detail-launch-cta"));
+    assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-launch-cta", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-detail-copy-preview"));
+    assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-copy-preview", nova::deck::DeckFocusDirection::Up)
         == std::string_view("host-detail-launch-cta"));
     assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-launch-cta", nova::deck::DeckFocusDirection::Up)
         == std::string_view("host-detail-panel"));
+    assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-copy-preview", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-detail-copy-preview"));
 
     assert(nova::deck::isDeckNativeAspect(1280, 800));
     assert(nova::deck::isDeckNativeAspect(2560, 1600));

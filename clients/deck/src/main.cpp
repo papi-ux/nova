@@ -59,7 +59,9 @@ QVariantMap toPreviewCopyActionModel(const nova::deck::DeckLaunchPreviewCopyActi
     model.insert("id", toQString(copyAction.id));
     model.insert("label", toQString(copyAction.label));
     model.insert("previewText", toQString(copyAction.previewText));
-    model.insert("statusLabel", toQString(copyAction.statusLabel));
+    model.insert("idleStatusLabel", toQString(copyAction.idleStatusLabel));
+    model.insert("successToast", toQString(copyAction.successToast));
+    model.insert("inertToast", toQString(copyAction.inertToast));
     model.insert("enabled", copyAction.enabled);
     model.insert("copyOnly", copyAction.copyOnly);
     model.insert("executable", copyAction.executable);

@@ -67,10 +67,19 @@ struct DeckLaunchPreviewCopyAction {
     std::string_view id;
     std::string_view label;
     std::string previewText;
-    std::string statusLabel;
+    std::string idleStatusLabel;
+    std::string successToast;
+    std::string inertToast;
     bool enabled = false;
     bool copyOnly = true;
     bool executable = false;
+};
+
+struct DeckLaunchPreviewCopyResult {
+    std::string previewText;
+    std::string statusLabel;
+    std::string toastLabel;
+    bool copied = false;
 };
 
 enum class DeckFocusDirection {
@@ -110,9 +119,14 @@ DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent);
 
 DeckLaunchPreviewCopyAction copyLaunchPreviewActionFor(const DeckLaunchPreview& preview);
 
+DeckLaunchPreviewCopyResult activateLaunchPreviewCopy(const DeckLaunchPreviewCopyAction& action);
+
 DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail);
 
-std::vector<DeckFocusTarget> hostDetailFocusTargets(const DeckHostDetail& detail, const DeckLaunchCta& launchCta);
+std::vector<DeckFocusTarget> hostDetailFocusTargets(
+    const DeckHostDetail& detail,
+    const DeckLaunchCta& launchCta,
+    const DeckLaunchPreviewCopyAction& copyAction);
 
 std::string_view nextHostDetailFocusTarget(
     const std::vector<DeckFocusTarget>& targets,

@@ -9,6 +9,9 @@ namespace nova::deck {
 namespace {
 
 constexpr std::string_view kPreviewStateLabel = "Preview only — not executable";
+constexpr std::string_view kCopyIdleStatusLabel = "Copy action is preview-only and not executable.";
+constexpr std::string_view kCopySuccessToast = "Preview text copied for inspection only — still not executable.";
+constexpr std::string_view kCopyInertToast = "No preview text to copy — preview-only action stayed inert.";
 
 std::string encodePreviewComponent(const std::string& value) {
     std::string encoded;
@@ -216,12 +219,23 @@ DeckLaunchPreviewCopyAction copyLaunchPreviewActionFor(const DeckLaunchPreview& 
         .id = "host-detail-copy-preview",
         .label = "Copy preview text",
         .previewText = preview.text,
-        .statusLabel = hasPreviewText
-            ? "Preview copied for inspection only — copy-only, not executable."
-            : "No preview text to copy — preview-only action stayed inert.",
+        .idleStatusLabel = hasPreviewText ? std::string(kCopyIdleStatusLabel) : std::string(kCopyInertToast),
+        .successToast = std::string(kCopySuccessToast),
+        .inertToast = std::string(kCopyInertToast),
         .enabled = hasPreviewText,
         .copyOnly = true,
         .executable = false,
+    };
+}
+
+DeckLaunchPreviewCopyResult activateLaunchPreviewCopy(const DeckLaunchPreviewCopyAction& action) {
+    const bool canCopyPreview = action.enabled && !action.previewText.empty() && action.copyOnly && !action.executable;
+    const std::string status = canCopyPreview ? action.successToast : action.inertToast;
+    return DeckLaunchPreviewCopyResult{
+        .previewText = canCopyPreview ? action.previewText : std::string{},
+        .statusLabel = status,
+        .toastLabel = status,
+        .copied = canCopyPreview,
     };
 }
 
@@ -239,7 +253,10 @@ DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail) {
     };
 }
 
-std::vector<DeckFocusTarget> hostDetailFocusTargets(const DeckHostDetail& detail, const DeckLaunchCta& launchCta) {
+std::vector<DeckFocusTarget> hostDetailFocusTargets(
+    const DeckHostDetail& detail,
+    const DeckLaunchCta& launchCta,
+    const DeckLaunchPreviewCopyAction& copyAction) {
     return {
         DeckFocusTarget{
             .id = "host-detail-panel",
@@ -252,6 +269,13 @@ std::vector<DeckFocusTarget> hostDetailFocusTargets(const DeckHostDetail& detail
             .id = launchCta.id,
             .label = launchCta.label,
             .row = 1,
+            .column = 0,
+            .initialFocus = false,
+        },
+        DeckFocusTarget{
+            .id = copyAction.id,
+            .label = copyAction.label,
+            .row = 2,
             .column = 0,
             .initialFocus = false,
         },

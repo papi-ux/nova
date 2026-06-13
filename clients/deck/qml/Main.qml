@@ -286,7 +286,9 @@ ApplicationWindow {
                         focus: false
                         activeFocusOnTab: true
                         KeyNavigation.up: hostDetailPanel
+                        KeyNavigation.down: copyPreviewButton
                         Keys.onUpPressed: hostDetailPanel.forceActiveFocus()
+                        Keys.onDownPressed: copyPreviewButton.forceActiveFocus()
                         Keys.onLeftPressed: {
                             if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                                 hostRepeater.itemAt(0).forceActiveFocus()
@@ -334,19 +336,30 @@ ApplicationWindow {
                             }
 
                             Button {
+                                id: copyPreviewButton
                                 objectName: novaLaunchPreviewCopyAction.id
                                 text: novaLaunchPreviewCopyAction.label
                                 enabled: novaLaunchPreviewCopyAction.enabled
-                                focusPolicy: Qt.NoFocus
-                                onClicked: copyStatusLabel.text = novaLaunchPreviewCopyAction.statusLabel
+                                focusPolicy: Qt.StrongFocus
+                                activeFocusOnTab: true
+                                KeyNavigation.up: launchCtaPlaceholder
+                                Keys.onUpPressed: launchCtaPlaceholder.forceActiveFocus()
+                                Keys.onLeftPressed: {
+                                    if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                                        hostRepeater.itemAt(0).forceActiveFocus()
+                                    } else {
+                                        emptyHostState.forceActiveFocus()
+                                    }
+                                }
+                                onClicked: copyStatusLabel.text = novaLaunchPreviewCopyAction.enabled
+                                    ? novaLaunchPreviewCopyAction.successToast
+                                    : novaLaunchPreviewCopyAction.inertToast
                             }
 
                             Label {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: 354
-                                text: novaLaunchPreviewCopyAction.enabled
-                                    ? "Copy action is preview-only and not executable."
-                                    : novaLaunchPreviewCopyAction.statusLabel
+                                text: novaLaunchPreviewCopyAction.idleStatusLabel
                                 color: "#FFDDA8"
                                 font.pixelSize: 13
                                 wrapMode: Text.WordWrap
