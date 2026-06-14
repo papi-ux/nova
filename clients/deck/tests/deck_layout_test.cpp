@@ -73,6 +73,7 @@ int main() {
     assert(mainQml.find("target: novaGamepad") != std::string::npos);
     assert(mainQml.find("onPrimaryActionPressed") != std::string::npos);
     assert(mainQml.find("novaLibraryGames") != std::string::npos);
+    assert(mainQml.find("novaLibraryHosts") != std::string::npos);
     assert(mainQml.find("libraryGameRepeater") != std::string::npos);
     assert(mainQml.find("Read-only Polaris library") != std::string::npos);
     assert(mainQml.find("novaLaunchIntentBoundary") != std::string::npos);
@@ -132,6 +133,19 @@ int main() {
     assert(demoHosts[1].id == std::string_view("host-living-room-pc"));
     assert(demoHosts[1].displayName == std::string_view("Living Room PC"));
     assert(nova::deck::initialHostFocusTarget(demoHosts) == std::string_view("host-gaming-pc"));
+
+    const auto realLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
+    const auto libraryHosts = nova::deck::libraryHostListStateFor(realLibrary);
+    assert(libraryHosts.size() == 2);
+    assert(libraryHosts[0].id == std::string_view("host-snapshot-primary"));
+    assert(libraryHosts[0].displayName == std::string_view("Polaris Snapshot Primary"));
+    assert(libraryHosts[0].statusLabel == std::string_view("Ready from read-only library snapshot"));
+    assert(libraryHosts[0].initialFocus);
+    assert(libraryHosts[1].id == std::string_view("host-snapshot-living-room"));
+    assert(libraryHosts[1].displayName == std::string_view("Polaris Snapshot Living Room"));
+    assert(libraryHosts[1].statusLabel == std::string_view("Available from read-only library snapshot"));
+    assert(!libraryHosts[1].initialFocus);
+    assert(nova::deck::initialHostFocusTarget(libraryHosts) == std::string_view("host-snapshot-primary"));
     assert(nova::deck::nextHostFocusTarget(demoHosts, "host-gaming-pc", nova::deck::DeckFocusDirection::Down)
         == std::string_view("host-living-room-pc"));
     assert(nova::deck::nextHostFocusTarget(demoHosts, "host-living-room-pc", nova::deck::DeckFocusDirection::Up)

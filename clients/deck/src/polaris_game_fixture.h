@@ -22,6 +22,13 @@ struct PolarisSteamLaunchFixture {
     std::string modeReason;
 };
 
+struct PolarisHostFixture {
+    std::string id;
+    std::string displayName;
+    std::string statusLabel;
+    std::string subtitle;
+};
+
 struct PolarisGameFixture {
     std::string id;
     int appId = 0;
@@ -48,6 +55,7 @@ struct PolarisGameFixture {
 struct PolarisGameLibraryFixture {
     std::string sourceLabel;
     bool readOnly = true;
+    std::vector<PolarisHostFixture> hosts;
     std::vector<PolarisGameFixture> games;
 };
 

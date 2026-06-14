@@ -209,6 +209,23 @@ std::vector<DeckHostListItem> demoHostListState() {
     };
 }
 
+std::vector<DeckHostListItem> libraryHostListStateFor(const PolarisGameLibraryFixture& library) {
+    std::vector<DeckHostListItem> hosts;
+    hosts.reserve(library.hosts.size());
+    int row = 0;
+    for (const auto& host : library.hosts) {
+        hosts.push_back(DeckHostListItem{
+            .id = host.id.empty() ? std::string_view("library-host") : std::string_view(host.id),
+            .displayName = host.displayName.empty() ? std::string_view("Read-only library host") : std::string_view(host.displayName),
+            .statusLabel = host.statusLabel.empty() ? std::string_view("Available from read-only library snapshot") : std::string_view(host.statusLabel),
+            .row = row,
+            .initialFocus = row == 0,
+        });
+        ++row;
+    }
+    return hosts;
+}
+
 std::vector<DeckLibraryGameCard> libraryGameCardsFor(const PolarisGameLibraryFixture& library) {
     std::vector<DeckLibraryGameCard> cards;
     cards.reserve(library.games.size());

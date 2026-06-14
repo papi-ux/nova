@@ -31,7 +31,7 @@ ApplicationWindow {
     property var launchPreviewCopyAction: novaLaunchPreviewCopyAction
 
     function selectedHostSubtitle() {
-        return "Demo host detail only — not discovered from the network."
+        return "Read-only host detail only — not discovered from the network."
     }
 
     function previewComponent(value) {
@@ -123,7 +123,7 @@ ApplicationWindow {
         focus: true
         Component.onCompleted: Qt.callLater(function() {
             refreshLaunchPreviewBinding()
-            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+            if (novaLibraryHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                 hostRepeater.itemAt(0).forceActiveFocus()
             } else {
                 emptyHostState.forceActiveFocus()
@@ -164,7 +164,7 @@ ApplicationWindow {
                     spacing: deckPanelSpacing
 
                     Label {
-                        text: "Demo hosts"
+                        text: "Library hosts"
                         color: "#E9ECFF"
                         font.pixelSize: 28
                         font.bold: true
@@ -173,7 +173,7 @@ ApplicationWindow {
                     Rectangle {
                         id: emptyHostState
                         objectName: "host-empty-state"
-                        visible: novaDemoHosts.length === 0
+                        visible: novaLibraryHosts.length === 0
                         Layout.preferredWidth: hostColumnWidth
                         Layout.preferredHeight: visible ? 120 : 0
                         radius: 20
@@ -207,7 +207,7 @@ ApplicationWindow {
 
                     Repeater {
                         id: hostRepeater
-                        model: novaDemoHosts
+                        model: novaLibraryHosts
 
                         delegate: Rectangle {
                             required property int index
@@ -326,7 +326,7 @@ ApplicationWindow {
                                 }
                             }
                             Keys.onLeftPressed: {
-                                if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                                if (novaLibraryHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                                     hostRepeater.itemAt(0).forceActiveFocus()
                                 } else {
                                     emptyHostState.forceActiveFocus()
@@ -379,7 +379,7 @@ ApplicationWindow {
                         KeyNavigation.left: hostRepeater.itemAt(0) !== null ? hostRepeater.itemAt(0) : emptyHostState
                         KeyNavigation.down: launchCtaPlaceholder
                         Keys.onLeftPressed: {
-                            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                            if (novaLibraryHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                                 hostRepeater.itemAt(0).forceActiveFocus()
                             } else {
                                 emptyHostState.forceActiveFocus()
@@ -393,7 +393,7 @@ ApplicationWindow {
                             spacing: 8
 
                             Label {
-                                text: "Demo host detail"
+                                text: "Read-only host detail"
                                 color: "#7C88B8"
                                 font.pixelSize: 16
                             }
@@ -449,7 +449,7 @@ ApplicationWindow {
                         Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
                         Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
                         Keys.onLeftPressed: {
-                            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                            if (novaLibraryHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                                 hostRepeater.itemAt(0).forceActiveFocus()
                             } else {
                                 emptyHostState.forceActiveFocus()
@@ -520,7 +520,7 @@ ApplicationWindow {
                                 KeyNavigation.up: launchCtaPlaceholder
                                 Keys.onUpPressed: launchCtaPlaceholder.forceActiveFocus()
                                 Keys.onLeftPressed: {
-                                    if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                                    if (novaLibraryHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                                         hostRepeater.itemAt(0).forceActiveFocus()
                                     } else {
                                         emptyHostState.forceActiveFocus()

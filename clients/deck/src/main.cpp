@@ -235,12 +235,12 @@ int main(int argc, char *argv[]) {
     const auto profile = nova::deck::defaultWindowProfile();
     const auto sampleLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
     const auto libraryGames = nova::deck::libraryGameCardsFor(sampleLibrary);
-    const auto demoHosts = nova::deck::demoHostListState();
+    const auto libraryHosts = nova::deck::libraryHostListStateFor(sampleLibrary);
     const std::string initialGameId = sampleLibrary.games.empty() ? std::string{} : sampleLibrary.games.front().id;
     const auto selectedBinding = nova::deck::resolveLaunchPreviewBinding(
-        demoHosts,
+        libraryHosts,
         sampleLibrary,
-        nova::deck::initialHostFocusTarget(demoHosts),
+        nova::deck::initialHostFocusTarget(libraryHosts),
         initialGameId);
     const auto& selectedHostDetail = selectedBinding.hostDetail;
     const auto& launchIntent = selectedBinding.intent;
@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaLibraryFixtureSource", toQString(sampleLibrary.sourceLabel));
     engine.rootContext()->setContextProperty("novaLibraryReadOnly", sampleLibrary.readOnly);
     engine.rootContext()->setContextProperty("novaLibraryGames", toLibraryGameModel(libraryGames));
-    engine.rootContext()->setContextProperty("novaDemoHosts", toHostModel(demoHosts));
+    engine.rootContext()->setContextProperty("novaLibraryHosts", toHostModel(libraryHosts));
     engine.rootContext()->setContextProperty("novaSelectedHostDetail", toHostDetailModel(selectedHostDetail));
     engine.rootContext()->setContextProperty("novaSelectedGameCard", toLibraryGameCardModel(selectedBinding.gameCard));
     engine.rootContext()->setContextProperty("novaSelectedLaunchPreviewText", toQString(selectedBinding.preview.text));
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaLaunchPreviewCopyAction", toPreviewCopyActionModel(launchPreviewCopyAction));
     engine.rootContext()->setContextProperty("novaLocalClipboard", &localClipboard);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepadBridge);
-    engine.rootContext()->setContextProperty("novaInitialHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(demoHosts)));
+    engine.rootContext()->setContextProperty("novaInitialHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(libraryHosts)));
     engine.rootContext()->setContextProperty("novaEmptyHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(nova::deck::emptyHostListState())));
 
     const bool smokeExit = QCoreApplication::arguments().contains("--smoke-exit");
