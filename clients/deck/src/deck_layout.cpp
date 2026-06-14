@@ -9,6 +9,9 @@ namespace nova::deck {
 namespace {
 
 constexpr std::string_view kPreviewStateLabel = "Preview only — not executable";
+constexpr std::string_view kPreviewBoundaryId = "deck-launch-preview-only";
+constexpr std::string_view kPreviewBoundaryLabel = "Preview-only typed intent boundary";
+constexpr std::string_view kPreviewBoundaryReason = "Deck shell may build copyable preview text, but launch execution is blocked.";
 constexpr std::string_view kCopyIdleStatusLabel = "Copy action is preview-only and not executable.";
 constexpr std::string_view kCopySuccessToast = "Preview text copied for inspection only — still not executable.";
 constexpr std::string_view kCopyInertToast = "No preview text to copy — preview-only action stayed inert.";
@@ -255,15 +258,41 @@ DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, con
     };
 }
 
+DeckLaunchIntentBoundary previewOnlyLaunchIntentBoundary() {
+    return DeckLaunchIntentBoundary{
+        .kind = DeckLaunchIntentBoundaryKind::PreviewOnly,
+        .id = std::string(kPreviewBoundaryId),
+        .label = std::string(kPreviewBoundaryLabel),
+        .reason = std::string(kPreviewBoundaryReason),
+        .previewOnly = true,
+        .allowsNetwork = false,
+        .allowsProcessExecution = false,
+        .allowsMoonlight = false,
+        .allowsHostMutation = false,
+    };
+}
+
 DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const PolarisGameFixture& game) {
     return DeckLaunchIntent{
         .targetHostId = std::string(detail.id),
         .targetHostName = std::string(detail.displayName),
         .sampleGameId = game.id,
         .gameTitle = game.name,
+        .streamLaunchMode = game.launchMode.recommendedMode.empty() ? std::string{"preview"} : game.launchMode.recommendedMode,
+        .steamLaunchMode = game.steamLaunch.recommendedMode.empty() ? std::string{"direct"} : game.steamLaunch.recommendedMode,
+        .boundary = previewOnlyLaunchIntentBoundary(),
         .executable = false,
         .safetyLabel = std::string(kPreviewStateLabel),
     };
+}
+
+bool canExecuteLaunchIntent(const DeckLaunchIntent& intent) {
+    return intent.executable
+        && !intent.boundary.previewOnly
+        && intent.boundary.allowsNetwork
+        && intent.boundary.allowsProcessExecution
+        && intent.boundary.allowsMoonlight
+        && intent.boundary.allowsHostMutation;
 }
 
 DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent) {
@@ -272,8 +301,14 @@ DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent) {
             + "&game=" + encodePreviewComponent(intent.gameTitle)
             + "&state=copy-preview-only",
         .stateLabel = std::string(kPreviewStateLabel),
+        .boundaryId = intent.boundary.id,
+        .boundaryLabel = intent.boundary.label,
         .copyOnly = true,
-        .executable = false,
+        .executable = canExecuteLaunchIntent(intent),
+        .networkAllowed = intent.boundary.allowsNetwork,
+        .processExecutionAllowed = intent.boundary.allowsProcessExecution,
+        .moonlightAllowed = intent.boundary.allowsMoonlight,
+        .hostMutationAllowed = intent.boundary.allowsHostMutation,
     };
 }
 

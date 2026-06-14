@@ -405,6 +405,22 @@ ApplicationWindow {
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
+                                text: "Typed launch boundary: " + novaLaunchIntentBoundary.label + " · network/process/Moonlight blocked"
+                                color: "#FFDDA8"
+                                font.pixelSize: 11
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: novaLaunchIntentBoundary.reason
+                                color: "#A8B0D8"
+                                font.pixelSize: 10
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
                                 text: novaHostLaunchCta.previewText
                                 color: "#A8B0D8"
                                 font.pixelSize: 12

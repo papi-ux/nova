@@ -58,11 +58,30 @@ struct DeckLaunchCta {
     bool enabled;
 };
 
+enum class DeckLaunchIntentBoundaryKind {
+    PreviewOnly,
+};
+
+struct DeckLaunchIntentBoundary {
+    DeckLaunchIntentBoundaryKind kind = DeckLaunchIntentBoundaryKind::PreviewOnly;
+    std::string id;
+    std::string label;
+    std::string reason;
+    bool previewOnly = true;
+    bool allowsNetwork = false;
+    bool allowsProcessExecution = false;
+    bool allowsMoonlight = false;
+    bool allowsHostMutation = false;
+};
+
 struct DeckLaunchIntent {
     std::string targetHostId;
     std::string targetHostName;
     std::string sampleGameId;
     std::string gameTitle;
+    std::string streamLaunchMode;
+    std::string steamLaunchMode;
+    DeckLaunchIntentBoundary boundary;
     bool executable = false;
     std::string safetyLabel;
 };
@@ -70,8 +89,14 @@ struct DeckLaunchIntent {
 struct DeckLaunchPreview {
     std::string text;
     std::string stateLabel;
+    std::string boundaryId;
+    std::string boundaryLabel;
     bool copyOnly = true;
     bool executable = false;
+    bool networkAllowed = false;
+    bool processExecutionAllowed = false;
+    bool moonlightAllowed = false;
+    bool hostMutationAllowed = false;
 };
 
 struct DeckLaunchPreviewCopyAction {
@@ -133,7 +158,11 @@ std::string_view nextHostFocusTarget(
 
 DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, std::string_view hostId);
 
+DeckLaunchIntentBoundary previewOnlyLaunchIntentBoundary();
+
 DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const PolarisGameFixture& game);
+
+bool canExecuteLaunchIntent(const DeckLaunchIntent& intent);
 
 DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent);
 

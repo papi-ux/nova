@@ -75,6 +75,9 @@ int main() {
     assert(mainQml.find("novaLibraryGames") != std::string::npos);
     assert(mainQml.find("libraryGameRepeater") != std::string::npos);
     assert(mainQml.find("Read-only Polaris library") != std::string::npos);
+    assert(mainQml.find("novaLaunchIntentBoundary") != std::string::npos);
+    assert(mainQml.find("Typed launch boundary") != std::string::npos);
+    assert(mainQml.find("network/process/Moonlight blocked") != std::string::npos);
 
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 10,
@@ -152,14 +155,32 @@ int main() {
     assert(launchIntent.targetHostName == "Gaming PC");
     assert(launchIntent.gameTitle == "Portal 2");
     assert(launchIntent.sampleGameId == "game-123");
+    assert(launchIntent.streamLaunchMode == "headless");
+    assert(launchIntent.steamLaunchMode == "direct");
+    assert(launchIntent.boundary.kind == nova::deck::DeckLaunchIntentBoundaryKind::PreviewOnly);
+    assert(launchIntent.boundary.id == "deck-launch-preview-only");
+    assert(launchIntent.boundary.label == "Preview-only typed intent boundary");
+    assert(launchIntent.boundary.previewOnly);
+    assert(!launchIntent.boundary.allowsNetwork);
+    assert(!launchIntent.boundary.allowsProcessExecution);
+    assert(!launchIntent.boundary.allowsMoonlight);
+    assert(!launchIntent.boundary.allowsHostMutation);
+    assert(launchIntent.boundary.reason == "Deck shell may build copyable preview text, but launch execution is blocked.");
     assert(!launchIntent.executable);
     assert(launchIntent.safetyLabel == "Preview only — not executable");
+    assert(!nova::deck::canExecuteLaunchIntent(launchIntent));
 
     const auto commandPreview = nova::deck::fakeLaunchCommandPreviewFor(launchIntent);
     assert(commandPreview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&state=copy-preview-only");
     assert(commandPreview.stateLabel == "Preview only — not executable");
+    assert(commandPreview.boundaryId == "deck-launch-preview-only");
+    assert(commandPreview.boundaryLabel == "Preview-only typed intent boundary");
     assert(commandPreview.copyOnly);
     assert(!commandPreview.executable);
+    assert(!commandPreview.networkAllowed);
+    assert(!commandPreview.processExecutionAllowed);
+    assert(!commandPreview.moonlightAllowed);
+    assert(!commandPreview.hostMutationAllowed);
     assert(commandPreview.text.find("moonlight") == std::string::npos);
     assert(commandPreview.text.find("http") == std::string::npos);
     assert(commandPreview.text.find("ssh") == std::string::npos);

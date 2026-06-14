@@ -187,6 +187,28 @@ QVariantMap toLaunchCtaModel(const nova::deck::DeckLaunchCta& launchCta) {
     return model;
 }
 
+QString launchIntentBoundaryKindLabel(nova::deck::DeckLaunchIntentBoundaryKind kind) {
+    switch (kind) {
+    case nova::deck::DeckLaunchIntentBoundaryKind::PreviewOnly:
+        return QStringLiteral("preview_only");
+    }
+    return QStringLiteral("unknown");
+}
+
+QVariantMap toLaunchIntentBoundaryModel(const nova::deck::DeckLaunchIntentBoundary& boundary) {
+    QVariantMap model;
+    model.insert("id", toQString(boundary.id));
+    model.insert("kind", launchIntentBoundaryKindLabel(boundary.kind));
+    model.insert("label", toQString(boundary.label));
+    model.insert("reason", toQString(boundary.reason));
+    model.insert("previewOnly", boundary.previewOnly);
+    model.insert("allowsNetwork", boundary.allowsNetwork);
+    model.insert("allowsProcessExecution", boundary.allowsProcessExecution);
+    model.insert("allowsMoonlight", boundary.allowsMoonlight);
+    model.insert("allowsHostMutation", boundary.allowsHostMutation);
+    return model;
+}
+
 QVariantMap toPreviewCopyActionModel(const nova::deck::DeckLaunchPreviewCopyAction& copyAction) {
     QVariantMap model;
     model.insert("id", toQString(copyAction.id));
@@ -212,13 +234,10 @@ int main(int argc, char *argv[]) {
     const auto& selectedGame = sampleLibrary.games.front();
     const auto demoHosts = nova::deck::demoHostListState();
     const auto selectedHostDetail = nova::deck::resolveHostDetail(demoHosts, nova::deck::initialHostFocusTarget(demoHosts));
+    const auto launchIntent = nova::deck::resolveLaunchIntent(selectedHostDetail, selectedGame);
+    const auto launchPreview = nova::deck::fakeLaunchCommandPreviewFor(launchIntent);
     const auto launchCta = nova::deck::inertLaunchCtaFor(selectedHostDetail, selectedGame);
-    const auto launchPreviewCopyAction = nova::deck::copyLaunchPreviewActionFor(nova::deck::DeckLaunchPreview{
-        .text = launchCta.previewText,
-        .stateLabel = launchCta.previewStateLabel,
-        .copyOnly = true,
-        .executable = false,
-    });
+    const auto launchPreviewCopyAction = nova::deck::copyLaunchPreviewActionFor(launchPreview);
 
     QtLocalClipboardBridge localClipboard;
     QtDeckGamepadBridge gamepadBridge;
@@ -234,6 +253,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaDemoHosts", toHostModel(demoHosts));
     engine.rootContext()->setContextProperty("novaSelectedHostDetail", toHostDetailModel(selectedHostDetail));
     engine.rootContext()->setContextProperty("novaHostLaunchCta", toLaunchCtaModel(launchCta));
+    engine.rootContext()->setContextProperty("novaLaunchIntentBoundary", toLaunchIntentBoundaryModel(launchIntent.boundary));
     engine.rootContext()->setContextProperty("novaLaunchPreviewCopyAction", toPreviewCopyActionModel(launchPreviewCopyAction));
     engine.rootContext()->setContextProperty("novaLocalClipboard", &localClipboard);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepadBridge);
