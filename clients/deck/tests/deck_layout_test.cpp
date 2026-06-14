@@ -78,6 +78,10 @@ int main() {
     assert(mainQml.find("novaLaunchIntentBoundary") != std::string::npos);
     assert(mainQml.find("Typed launch boundary") != std::string::npos);
     assert(mainQml.find("network/process/Moonlight blocked") != std::string::npos);
+    assert(mainQml.find("selectedHostForPreview") != std::string::npos);
+    assert(mainQml.find("selectedGameForPreview") != std::string::npos);
+    assert(mainQml.find("refreshLaunchPreviewBinding") != std::string::npos);
+    assert(mainQml.find("selectedLaunchPreviewText") != std::string::npos);
 
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 10,
@@ -169,6 +173,49 @@ int main() {
     assert(!launchIntent.executable);
     assert(launchIntent.safetyLabel == "Preview only — not executable");
     assert(!nova::deck::canExecuteLaunchIntent(launchIntent));
+
+    const auto previewLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
+    const auto selectedBinding = nova::deck::resolveLaunchPreviewBinding(
+        demoHosts,
+        previewLibrary,
+        "host-living-room-pc",
+        "game-456");
+    assert(selectedBinding.selectedHostId == "host-living-room-pc");
+    assert(selectedBinding.selectedHostName == "Living Room PC");
+    assert(selectedBinding.selectedGameId == "game-456");
+    assert(selectedBinding.selectedGameTitle == "Hades");
+    assert(selectedBinding.hostDetail.id == std::string_view("host-living-room-pc"));
+    assert(selectedBinding.gameCard.title == "Hades");
+    assert(selectedBinding.intent.targetHostId == "host-living-room-pc");
+    assert(selectedBinding.intent.targetHostName == "Living Room PC");
+    assert(selectedBinding.intent.sampleGameId == "game-456");
+    assert(selectedBinding.intent.gameTitle == "Hades");
+    assert(selectedBinding.intent.streamLaunchMode == "virtual_display");
+    assert(selectedBinding.intent.steamLaunchMode == "big-picture");
+    assert(!selectedBinding.intent.executable);
+    assert(!nova::deck::canExecuteLaunchIntent(selectedBinding.intent));
+    assert(selectedBinding.preview.text == "preview://nova-deck/launch?host=host-living-room-pc&game=Hades&state=copy-preview-only");
+    assert(selectedBinding.preview.copyOnly);
+    assert(!selectedBinding.preview.executable);
+    assert(!selectedBinding.preview.networkAllowed);
+    assert(!selectedBinding.preview.processExecutionAllowed);
+    assert(!selectedBinding.preview.moonlightAllowed);
+    assert(!selectedBinding.preview.hostMutationAllowed);
+    assert(selectedBinding.launchCta.previewText == selectedBinding.preview.text);
+    assert(!selectedBinding.launchCta.enabled);
+    assert(selectedBinding.copyAction.previewText == selectedBinding.preview.text);
+    assert(selectedBinding.copyAction.enabled);
+    assert(selectedBinding.copyAction.copyOnly);
+    assert(!selectedBinding.copyAction.executable);
+
+    const auto fallbackBinding = nova::deck::resolveLaunchPreviewBinding(
+        demoHosts,
+        previewLibrary,
+        "missing-host",
+        "missing-game");
+    assert(fallbackBinding.selectedHostId == "host-gaming-pc");
+    assert(fallbackBinding.selectedGameId == "game-123");
+    assert(fallbackBinding.preview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&state=copy-preview-only");
 
     const auto commandPreview = nova::deck::fakeLaunchCommandPreviewFor(launchIntent);
     assert(commandPreview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&state=copy-preview-only");

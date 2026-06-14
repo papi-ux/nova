@@ -25,21 +25,80 @@ ApplicationWindow {
     readonly property int sampleTextWidth: sampleCardWidth - 48
     readonly property int detailTextWidth: detailColumnWidth - 48
     property int previewCopyActivationCount: 0
+    property var selectedHostForPreview: novaSelectedHostDetail
+    property var selectedGameForPreview: novaSelectedGameCard
+    property string selectedLaunchPreviewText: novaSelectedLaunchPreviewText
+    property var launchPreviewCopyAction: novaLaunchPreviewCopyAction
+
+    function selectedHostSubtitle() {
+        return "Demo host detail only — not discovered from the network."
+    }
+
+    function previewComponent(value) {
+        return encodeURIComponent(value === undefined || value === null ? "" : String(value))
+    }
+
+    function refreshLaunchPreviewBinding() {
+        const hostId = selectedHostForPreview && selectedHostForPreview.id
+            ? selectedHostForPreview.id
+            : "host-empty-state"
+        const gameTitle = selectedGameForPreview && selectedGameForPreview.title
+            ? selectedGameForPreview.title
+            : "No game selected"
+        selectedLaunchPreviewText = "preview://nova-deck/launch?host="
+            + previewComponent(hostId)
+            + "&game="
+            + previewComponent(gameTitle)
+            + "&state=copy-preview-only"
+        launchPreviewCopyAction = {
+            "id": novaLaunchPreviewCopyAction.id,
+            "label": novaLaunchPreviewCopyAction.label,
+            "previewText": selectedLaunchPreviewText,
+            "idleStatusLabel": novaLaunchPreviewCopyAction.idleStatusLabel,
+            "successToast": novaLaunchPreviewCopyAction.successToast,
+            "inertToast": novaLaunchPreviewCopyAction.inertToast,
+            "enabled": selectedLaunchPreviewText.length > 0,
+            "copyOnly": true,
+            "uiLocalClipboardOnly": true,
+            "executable": false
+        }
+    }
+
+    function selectHostForPreview(hostModel) {
+        selectedHostForPreview = {
+            "id": hostModel.id,
+            "displayName": hostModel.displayName,
+            "statusLabel": hostModel.statusLabel,
+            "subtitle": selectedHostSubtitle()
+        }
+        refreshLaunchPreviewBinding()
+    }
+
+    function selectGameForPreview(gameModel) {
+        selectedGameForPreview = {
+            "id": gameModel.id,
+            "title": gameModel.title,
+            "sourceRuntimeLabel": gameModel.sourceRuntimeLabel,
+            "launchModeLabel": gameModel.launchModeLabel,
+            "installedLabel": gameModel.installedLabel
+        }
+        refreshLaunchPreviewBinding()
+    }
 
     function activateLaunchPreviewCopyFromController() {
-        const canCopyPreview = novaLaunchPreviewCopyAction.enabled
-            && novaLaunchPreviewCopyAction.previewText.length > 0
-            && novaLaunchPreviewCopyAction.copyOnly
-            && novaLaunchPreviewCopyAction.uiLocalClipboardOnly
-            && !novaLaunchPreviewCopyAction.executable
+        const canCopyPreview = launchPreviewCopyAction.enabled
+            && launchPreviewCopyAction.previewText.length > 0
+            && launchPreviewCopyAction.copyOnly
+            && launchPreviewCopyAction.uiLocalClipboardOnly
+            && !launchPreviewCopyAction.executable
         const didCopyPreview = canCopyPreview
-            && novaLocalClipboard.copyPreviewText(novaLaunchPreviewCopyAction.previewText)
+            && novaLocalClipboard.copyPreviewText(launchPreviewCopyAction.previewText)
         if (didCopyPreview) {
             previewCopyActivationCount += 1
         }
         copyStatusLabel.text = didCopyPreview
-            ? novaLaunchPreviewCopyAction.successToast + " · A pressed #" + previewCopyActivationCount
-            : novaLaunchPreviewCopyAction.inertToast + " · A press stayed preview-only"
+            ? launchPreviewCopyAction.successToast + " · A pressed #" + previewCopyActivationCount
+            : launchPreviewCopyAction.inertToast + " · A press stayed preview-only"
         copyStatusLabel.color = didCopyPreview ? "#8AFFC1" : "#FFDDA8"
     }
 
@@ -63,6 +122,7 @@ ApplicationWindow {
         anchors.fill: parent
         focus: true
         Component.onCompleted: Qt.callLater(function() {
+            refreshLaunchPreviewBinding()
             if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                 hostRepeater.itemAt(0).forceActiveFocus()
             } else {
@@ -157,13 +217,20 @@ ApplicationWindow {
                             Layout.preferredWidth: hostColumnWidth
                             Layout.preferredHeight: hostCardHeight
                             radius: 20
-                            color: activeFocus ? "#202B55" : "#151D39"
-                            border.color: activeFocus ? "#B8C2FF" : "#7C73FF"
-                            border.width: activeFocus ? 5 : 3
+                            color: selectedHostForPreview.id === modelData.id ? "#202B55" : "#151D39"
+                            border.color: activeFocus ? "#B8C2FF" : selectedHostForPreview.id === modelData.id ? "#8AFFC1" : "#7C73FF"
+                            border.width: activeFocus ? 5 : selectedHostForPreview.id === modelData.id ? 4 : 3
                             focus: modelData.initialFocus
                             activeFocusOnTab: true
                             KeyNavigation.right: hostDetailPanel
-                            Keys.onRightPressed: hostDetailPanel.forceActiveFocus()
+                            onActiveFocusChanged: if (activeFocus) selectHostForPreview(modelData)
+                            Keys.onRightPressed: {
+                                selectHostForPreview(modelData)
+                                hostDetailPanel.forceActiveFocus()
+                            }
+                            Keys.onReturnPressed: selectHostForPreview(modelData)
+                            Keys.onEnterPressed: selectHostForPreview(modelData)
+                            Keys.onSpacePressed: selectHostForPreview(modelData)
                             Keys.onDownPressed: {
                                 const next = hostRepeater.itemAt(index + 1)
                                 if (next !== null) {
@@ -232,13 +299,20 @@ ApplicationWindow {
                             Layout.preferredWidth: sampleCardWidth
                             Layout.preferredHeight: 88
                             radius: 18
-                            color: activeFocus ? "#202B55" : "#151D39"
-                            border.color: activeFocus ? "#B8C2FF" : "#7C73FF"
-                            border.width: activeFocus ? 5 : 2
+                            color: selectedGameForPreview.id === modelData.id ? "#202B55" : "#151D39"
+                            border.color: activeFocus ? "#B8C2FF" : selectedGameForPreview.id === modelData.id ? "#8AFFC1" : "#7C73FF"
+                            border.width: activeFocus ? 5 : selectedGameForPreview.id === modelData.id ? 4 : 2
                             focus: modelData.initialFocus
                             activeFocusOnTab: true
                             KeyNavigation.right: hostDetailPanel
-                            Keys.onRightPressed: hostDetailPanel.forceActiveFocus()
+                            onActiveFocusChanged: if (activeFocus) selectGameForPreview(modelData)
+                            Keys.onRightPressed: {
+                                selectGameForPreview(modelData)
+                                hostDetailPanel.forceActiveFocus()
+                            }
+                            Keys.onReturnPressed: selectGameForPreview(modelData)
+                            Keys.onEnterPressed: selectGameForPreview(modelData)
+                            Keys.onSpacePressed: selectGameForPreview(modelData)
                             Keys.onDownPressed: {
                                 const next = libraryGameRepeater.itemAt(index + 1)
                                 if (next !== null) {
@@ -325,23 +399,31 @@ ApplicationWindow {
                             }
 
                             Label {
-                                text: novaSelectedHostDetail.displayName
+                                text: selectedHostForPreview.displayName
                                 color: "#E9ECFF"
                                 font.pixelSize: 30
                                 font.bold: true
                             }
 
                             Label {
-                                text: novaSelectedHostDetail.statusLabel
+                                text: selectedHostForPreview.statusLabel
                                 color: "#B8C2F0"
                                 font.pixelSize: 19
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
-                                text: novaSelectedHostDetail.subtitle
+                                text: selectedHostForPreview.subtitle
                                 color: "#A8B0D8"
                                 font.pixelSize: 16
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Selected game: " + selectedGameForPreview.title
+                                color: "#8AFFC1"
+                                font.pixelSize: 14
                                 wrapMode: Text.WordWrap
                             }
                         }
@@ -421,7 +503,7 @@ ApplicationWindow {
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
-                                text: novaHostLaunchCta.previewText
+                                text: selectedLaunchPreviewText
                                 color: "#A8B0D8"
                                 font.pixelSize: 12
                                 font.family: "monospace"
@@ -430,9 +512,9 @@ ApplicationWindow {
 
                             Button {
                                 id: copyPreviewButton
-                                objectName: novaLaunchPreviewCopyAction.id
-                                text: activeFocus ? "A · " + novaLaunchPreviewCopyAction.label : novaLaunchPreviewCopyAction.label
-                                enabled: novaLaunchPreviewCopyAction.enabled
+                                objectName: launchPreviewCopyAction.id
+                                text: activeFocus ? "A · " + launchPreviewCopyAction.label : launchPreviewCopyAction.label
+                                enabled: launchPreviewCopyAction.enabled
                                 focusPolicy: Qt.StrongFocus
                                 activeFocusOnTab: true
                                 KeyNavigation.up: launchCtaPlaceholder
@@ -453,7 +535,7 @@ ApplicationWindow {
                             Label {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: detailTextWidth
-                                text: novaLaunchPreviewCopyAction.idleStatusLabel + " Press A on Copy to verify."
+                                text: launchPreviewCopyAction.idleStatusLabel + " Press A on Copy to verify."
                                 color: "#FFDDA8"
                                 font.pixelSize: 12
                                 wrapMode: Text.WordWrap

@@ -161,17 +161,21 @@ QVariantMap toHostDetailModel(const nova::deck::DeckHostDetail& detail) {
     return model;
 }
 
+QVariantMap toLibraryGameCardModel(const nova::deck::DeckLibraryGameCard& game) {
+    QVariantMap item;
+    item.insert("id", toQString(game.id));
+    item.insert("title", toQString(game.title));
+    item.insert("sourceRuntimeLabel", toQString(game.sourceRuntimeLabel));
+    item.insert("launchModeLabel", toQString(game.launchModeLabel));
+    item.insert("installedLabel", toQString(game.installedLabel));
+    item.insert("initialFocus", game.initialFocus);
+    return item;
+}
+
 QVariantList toLibraryGameModel(const std::vector<nova::deck::DeckLibraryGameCard>& games) {
     QVariantList model;
     for (const auto& game : games) {
-        QVariantMap item;
-        item.insert("id", toQString(game.id));
-        item.insert("title", toQString(game.title));
-        item.insert("sourceRuntimeLabel", toQString(game.sourceRuntimeLabel));
-        item.insert("launchModeLabel", toQString(game.launchModeLabel));
-        item.insert("installedLabel", toQString(game.installedLabel));
-        item.insert("initialFocus", game.initialFocus);
-        model.append(item);
+        model.append(toLibraryGameCardModel(game));
     }
     return model;
 }
@@ -231,13 +235,17 @@ int main(int argc, char *argv[]) {
     const auto profile = nova::deck::defaultWindowProfile();
     const auto sampleLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
     const auto libraryGames = nova::deck::libraryGameCardsFor(sampleLibrary);
-    const auto& selectedGame = sampleLibrary.games.front();
     const auto demoHosts = nova::deck::demoHostListState();
-    const auto selectedHostDetail = nova::deck::resolveHostDetail(demoHosts, nova::deck::initialHostFocusTarget(demoHosts));
-    const auto launchIntent = nova::deck::resolveLaunchIntent(selectedHostDetail, selectedGame);
-    const auto launchPreview = nova::deck::fakeLaunchCommandPreviewFor(launchIntent);
-    const auto launchCta = nova::deck::inertLaunchCtaFor(selectedHostDetail, selectedGame);
-    const auto launchPreviewCopyAction = nova::deck::copyLaunchPreviewActionFor(launchPreview);
+    const std::string initialGameId = sampleLibrary.games.empty() ? std::string{} : sampleLibrary.games.front().id;
+    const auto selectedBinding = nova::deck::resolveLaunchPreviewBinding(
+        demoHosts,
+        sampleLibrary,
+        nova::deck::initialHostFocusTarget(demoHosts),
+        initialGameId);
+    const auto& selectedHostDetail = selectedBinding.hostDetail;
+    const auto& launchIntent = selectedBinding.intent;
+    const auto& launchCta = selectedBinding.launchCta;
+    const auto& launchPreviewCopyAction = selectedBinding.copyAction;
 
     QtLocalClipboardBridge localClipboard;
     QtDeckGamepadBridge gamepadBridge;
@@ -252,6 +260,8 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaLibraryGames", toLibraryGameModel(libraryGames));
     engine.rootContext()->setContextProperty("novaDemoHosts", toHostModel(demoHosts));
     engine.rootContext()->setContextProperty("novaSelectedHostDetail", toHostDetailModel(selectedHostDetail));
+    engine.rootContext()->setContextProperty("novaSelectedGameCard", toLibraryGameCardModel(selectedBinding.gameCard));
+    engine.rootContext()->setContextProperty("novaSelectedLaunchPreviewText", toQString(selectedBinding.preview.text));
     engine.rootContext()->setContextProperty("novaHostLaunchCta", toLaunchCtaModel(launchCta));
     engine.rootContext()->setContextProperty("novaLaunchIntentBoundary", toLaunchIntentBoundaryModel(launchIntent.boundary));
     engine.rootContext()->setContextProperty("novaLaunchPreviewCopyAction", toPreviewCopyActionModel(launchPreviewCopyAction));
