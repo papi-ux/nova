@@ -11,6 +11,38 @@ ApplicationWindow {
     title: novaDeckShellName
     color: "#070B18"
 
+    readonly property int deckSafeMargin: 32
+    readonly property int deckShellSpacing: 16
+    readonly property int deckPanelSpacing: 12
+    readonly property int deckRowSpacing: 16
+    readonly property int hostColumnWidth: 336
+    readonly property int sampleCardWidth: 392
+    readonly property int detailColumnWidth: 424
+    readonly property int hostCardHeight: 104
+    readonly property int detailPanelHeight: 196
+    readonly property int launchPreviewHeight: 236
+    readonly property int hostTextWidth: hostColumnWidth - 40
+    readonly property int sampleTextWidth: sampleCardWidth - 48
+    readonly property int detailTextWidth: detailColumnWidth - 48
+    property int previewCopyActivationCount: 0
+
+    function activateLaunchPreviewCopyFromController() {
+        const canCopyPreview = novaLaunchPreviewCopyAction.enabled
+            && novaLaunchPreviewCopyAction.previewText.length > 0
+            && novaLaunchPreviewCopyAction.copyOnly
+            && novaLaunchPreviewCopyAction.uiLocalClipboardOnly
+            && !novaLaunchPreviewCopyAction.executable
+        const didCopyPreview = canCopyPreview
+            && novaLocalClipboard.copyPreviewText(novaLaunchPreviewCopyAction.previewText)
+        if (didCopyPreview) {
+            previewCopyActivationCount += 1
+        }
+        copyStatusLabel.text = didCopyPreview
+            ? novaLaunchPreviewCopyAction.successToast + " · A pressed #" + previewCopyActivationCount
+            : novaLaunchPreviewCopyAction.inertToast + " · A press stayed preview-only"
+        copyStatusLabel.color = didCopyPreview ? "#8AFFC1" : "#FFDDA8"
+    }
+
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
@@ -33,8 +65,8 @@ ApplicationWindow {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 56
-            spacing: 24
+            anchors.margins: deckSafeMargin
+            spacing: deckShellSpacing
 
             Label {
                 text: novaDeckShellName
@@ -58,11 +90,11 @@ ApplicationWindow {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 24
+                spacing: deckRowSpacing
 
                 ColumnLayout {
-                    Layout.preferredWidth: 480
-                    spacing: 12
+                    Layout.preferredWidth: hostColumnWidth
+                    spacing: deckPanelSpacing
 
                     Label {
                         text: "Demo hosts"
@@ -75,8 +107,8 @@ ApplicationWindow {
                         id: emptyHostState
                         objectName: "host-empty-state"
                         visible: novaDemoHosts.length === 0
-                        Layout.preferredWidth: 480
-                        Layout.preferredHeight: visible ? 132 : 0
+                        Layout.preferredWidth: hostColumnWidth
+                        Layout.preferredHeight: visible ? 120 : 0
                         radius: 20
                         color: activeFocus ? "#202B55" : "#151D39"
                         border.color: activeFocus ? "#B8C2FF" : "#39466F"
@@ -88,20 +120,20 @@ ApplicationWindow {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 20
-                            spacing: 8
+                            anchors.margins: 18
+                            spacing: 5
 
                             Label {
                                 text: "No demo hosts yet"
                                 color: "#E9ECFF"
-                                font.pixelSize: 24
+                                font.pixelSize: 22
                                 font.bold: true
                             }
 
                             Label {
                                 text: "Empty host state is focusable and deterministic."
                                 color: "#A8B0D8"
-                                font.pixelSize: 17
+                                font.pixelSize: 12
                             }
                         }
                     }
@@ -115,8 +147,8 @@ ApplicationWindow {
                             required property var modelData
 
                             objectName: modelData.id
-                            Layout.preferredWidth: 480
-                            Layout.preferredHeight: 116
+                            Layout.preferredWidth: hostColumnWidth
+                            Layout.preferredHeight: hostCardHeight
                             radius: 20
                             color: activeFocus ? "#202B55" : "#151D39"
                             border.color: activeFocus ? "#B8C2FF" : "#7C73FF"
@@ -140,20 +172,20 @@ ApplicationWindow {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 20
-                                spacing: 6
+                                anchors.margins: 18
+                                spacing: 5
 
                                 Label {
                                     text: modelData.displayName
                                     color: "#E9ECFF"
-                                    font.pixelSize: 26
+                                    font.pixelSize: 20
                                     font.bold: true
                                 }
 
                                 Label {
                                     text: modelData.statusLabel
                                     color: "#B8C2F0"
-                                    font.pixelSize: 18
+                                    font.pixelSize: 16
                                 }
                             }
                         }
@@ -163,8 +195,8 @@ ApplicationWindow {
                 Rectangle {
                     id: sampleGameCard
                     objectName: "sample-game-card"
-                    Layout.preferredWidth: 480
-                    Layout.preferredHeight: 220
+                    Layout.preferredWidth: sampleCardWidth
+                    Layout.preferredHeight: 196
                     radius: 22
                     color: activeFocus ? "#202B55" : "#151D39"
                     border.color: activeFocus ? "#B8C2FF" : "#7C73FF"
@@ -184,8 +216,8 @@ ApplicationWindow {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 24
-                        spacing: 10
+                        anchors.margins: 20
+                        spacing: 8
 
                         Label {
                             text: "Shared Polaris DTO fixture"
@@ -196,14 +228,14 @@ ApplicationWindow {
                         Label {
                             text: novaSampleGameName
                             color: "#E9ECFF"
-                            font.pixelSize: 34
+                            font.pixelSize: 29
                             font.bold: true
                         }
 
                         Label {
                             text: novaSampleGameSource + " · " + novaSampleGameRuntime
                             color: "#B8C2F0"
-                            font.pixelSize: 20
+                            font.pixelSize: 18
                         }
 
                         Label {
@@ -215,13 +247,14 @@ ApplicationWindow {
                 }
 
                 ColumnLayout {
-                    spacing: 12
+                    Layout.preferredWidth: detailColumnWidth
+                    spacing: deckPanelSpacing
 
                     Rectangle {
                         id: hostDetailPanel
                         objectName: "host-detail-panel"
-                        Layout.preferredWidth: 410
-                        Layout.preferredHeight: 220
+                        Layout.preferredWidth: detailColumnWidth
+                        Layout.preferredHeight: detailPanelHeight
                         radius: 22
                         color: activeFocus ? "#202B55" : "#151D39"
                         border.color: activeFocus ? "#B8C2FF" : "#39466F"
@@ -241,13 +274,13 @@ ApplicationWindow {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 24
-                            spacing: 10
+                            anchors.margins: 20
+                            spacing: 8
 
                             Label {
                                 text: "Demo host detail"
                                 color: "#7C88B8"
-                                font.pixelSize: 18
+                                font.pixelSize: 16
                             }
 
                             Label {
@@ -264,7 +297,7 @@ ApplicationWindow {
                             }
 
                             Label {
-                                Layout.preferredWidth: 354
+                                Layout.preferredWidth: detailTextWidth
                                 text: novaSelectedHostDetail.subtitle
                                 color: "#A8B0D8"
                                 font.pixelSize: 16
@@ -276,8 +309,8 @@ ApplicationWindow {
                     Rectangle {
                         id: launchCtaPlaceholder
                         objectName: novaHostLaunchCta.id
-                        Layout.preferredWidth: 410
-                        Layout.preferredHeight: 240
+                        Layout.preferredWidth: detailColumnWidth
+                        Layout.preferredHeight: launchPreviewHeight
                         radius: 20
                         color: activeFocus ? "#2A2948" : "#181D34"
                         border.color: activeFocus ? "#B8C2FF" : "#39466F"
@@ -289,6 +322,9 @@ ApplicationWindow {
                         KeyNavigation.down: copyPreviewButton
                         Keys.onUpPressed: hostDetailPanel.forceActiveFocus()
                         Keys.onDownPressed: copyPreviewButton.forceActiveFocus()
+                        Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
+                        Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
+                        Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
                         Keys.onLeftPressed: {
                             if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                                 hostRepeater.itemAt(0).forceActiveFocus()
@@ -299,38 +335,38 @@ ApplicationWindow {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 20
-                            spacing: 6
+                            anchors.margins: 18
+                            spacing: 5
 
                             Label {
                                 text: novaHostLaunchCta.label
                                 color: "#E9ECFF"
-                                font.pixelSize: 23
+                                font.pixelSize: 20
                                 font.bold: true
                             }
 
                             Label {
-                                Layout.preferredWidth: 354
+                                Layout.preferredWidth: detailTextWidth
                                 text: novaHostLaunchCta.helpText
                                 color: "#B8C2F0"
-                                font.pixelSize: 15
+                                font.pixelSize: 12
                                 wrapMode: Text.WordWrap
                             }
 
                             Label {
-                                Layout.preferredWidth: 354
+                                Layout.preferredWidth: detailTextWidth
                                 text: novaHostLaunchCta.previewStateLabel
                                 color: "#FFDDA8"
-                                font.pixelSize: 14
+                                font.pixelSize: 12
                                 font.bold: true
                                 wrapMode: Text.WordWrap
                             }
 
                             Label {
-                                Layout.preferredWidth: 354
+                                Layout.preferredWidth: detailTextWidth
                                 text: novaHostLaunchCta.previewText
                                 color: "#A8B0D8"
-                                font.pixelSize: 13
+                                font.pixelSize: 12
                                 font.family: "monospace"
                                 wrapMode: Text.WrapAnywhere
                             }
@@ -338,7 +374,7 @@ ApplicationWindow {
                             Button {
                                 id: copyPreviewButton
                                 objectName: novaLaunchPreviewCopyAction.id
-                                text: novaLaunchPreviewCopyAction.label
+                                text: activeFocus ? "A · " + novaLaunchPreviewCopyAction.label : novaLaunchPreviewCopyAction.label
                                 enabled: novaLaunchPreviewCopyAction.enabled
                                 focusPolicy: Qt.StrongFocus
                                 activeFocusOnTab: true
@@ -351,26 +387,18 @@ ApplicationWindow {
                                         emptyHostState.forceActiveFocus()
                                     }
                                 }
-                                onClicked: {
-                                    const canCopyPreview = novaLaunchPreviewCopyAction.enabled
-                                        && novaLaunchPreviewCopyAction.previewText.length > 0
-                                        && novaLaunchPreviewCopyAction.copyOnly
-                                        && novaLaunchPreviewCopyAction.uiLocalClipboardOnly
-                                        && !novaLaunchPreviewCopyAction.executable
-                                    const didCopyPreview = canCopyPreview
-                                        && novaLocalClipboard.copyPreviewText(novaLaunchPreviewCopyAction.previewText)
-                                    copyStatusLabel.text = didCopyPreview
-                                        ? novaLaunchPreviewCopyAction.successToast
-                                        : novaLaunchPreviewCopyAction.inertToast
-                                }
+                                Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
+                                Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
+                                Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
+                                onClicked: activateLaunchPreviewCopyFromController()
                             }
 
                             Label {
                                 id: copyStatusLabel
-                                Layout.preferredWidth: 354
-                                text: novaLaunchPreviewCopyAction.idleStatusLabel
+                                Layout.preferredWidth: detailTextWidth
+                                text: novaLaunchPreviewCopyAction.idleStatusLabel + " Press A on Copy to verify."
                                 color: "#FFDDA8"
-                                font.pixelSize: 13
+                                font.pixelSize: 12
                                 wrapMode: Text.WordWrap
                             }
                         }

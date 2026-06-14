@@ -25,6 +25,10 @@ if(BUILD_TESTING)
         tests/deck_layout_test.cpp
     )
     target_link_libraries(nova_deck_layout_test PRIVATE nova_deck_core)
+    target_compile_definitions(nova_deck_layout_test
+        PRIVATE
+            NOVA_DECK_MAIN_QML_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/Main.qml"
+    )
     add_test(NAME nova_deck_controller_library_smoke COMMAND nova_deck_layout_test)
 endif()
 

@@ -4,6 +4,8 @@
 #include <cassert>
 #include <cctype>
 #include <cstdlib>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
 
@@ -29,6 +31,12 @@ bool containsIpv4AddressLike(const std::string& text) {
     }
     return false;
 }
+std::string readTextFile(const char* path) {
+    std::ifstream stream(path);
+    assert(stream.good());
+    return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+}
+
 class RecordingLocalClipboard final : public nova::deck::DeckLocalClipboard {
 public:
     bool publishPreviewText(std::string_view value) override {
@@ -50,6 +58,17 @@ int main() {
     assert(profile.height == 800);
     assert(profile.fullscreenPreferred);
     assert(profile.shellName == std::string_view("Nova Deck"));
+
+#ifndef NOVA_DECK_MAIN_QML_SOURCE
+#error "NOVA_DECK_MAIN_QML_SOURCE must point at the Deck QML shell for layout regression checks"
+#endif
+    const auto mainQml = readTextFile(NOVA_DECK_MAIN_QML_SOURCE);
+    assert(mainQml.find("anchors.margins: 56") == std::string::npos);
+    assert(mainQml.find("Layout.preferredWidth: 480") == std::string::npos);
+    assert(mainQml.find("Layout.preferredWidth: 410") == std::string::npos);
+    assert(mainQml.find("property int previewCopyActivationCount: 0") != std::string::npos);
+    assert(mainQml.find("previewCopyActivationCount += 1") != std::string::npos);
+    assert(mainQml.find("A pressed #") != std::string::npos);
 
     const auto focusTargets = nova::deck::defaultLibraryFocusTargets();
     assert(focusTargets.size() >= 2);
