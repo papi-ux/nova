@@ -72,6 +72,9 @@ int main() {
     assert(mainQml.find("A pressed #") != std::string::npos);
     assert(mainQml.find("target: novaGamepad") != std::string::npos);
     assert(mainQml.find("onPrimaryActionPressed") != std::string::npos);
+    assert(mainQml.find("novaLibraryGames") != std::string::npos);
+    assert(mainQml.find("libraryGameRepeater") != std::string::npos);
+    assert(mainQml.find("Read-only Polaris library") != std::string::npos);
 
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 10,
@@ -256,6 +259,37 @@ int main() {
     assert(!compiledFixturePath.empty());
     setenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH", compiledFixturePath.c_str(), 1);
     assert(nova::deck::samplePolarisGameFixturePath() == compiledFixturePath);
+
+    const auto libraryFixturePath = nova::deck::samplePolarisGameLibraryFixturePath();
+    assert(!libraryFixturePath.empty());
+    setenv("NOVA_DECK_SAMPLE_LIBRARY_FIXTURE_PATH", libraryFixturePath.c_str(), 1);
+    assert(nova::deck::samplePolarisGameLibraryFixturePath() == libraryFixturePath);
+
+    const auto library = nova::deck::loadSamplePolarisGameLibraryFixture();
+    unsetenv("NOVA_DECK_SAMPLE_LIBRARY_FIXTURE_PATH");
+    assert(library.readOnly);
+    assert(library.sourceLabel == "Shared Polaris contract fixture");
+    assert(library.games.size() == 2);
+    assert(library.games[0].name == "Portal 2");
+    assert(library.games[1].name == "Hades");
+    assert(library.games[1].steamAppid == "1145360");
+
+    const auto libraryCards = nova::deck::libraryGameCardsFor(library);
+    assert(libraryCards.size() == 2);
+    assert(libraryCards[0].id == "game-123");
+    assert(libraryCards[0].title == "Portal 2");
+    assert(libraryCards[0].sourceRuntimeLabel == "Steam · Linux · Proton");
+    assert(libraryCards[0].launchModeLabel == "Stream: headless · Steam: direct");
+    assert(libraryCards[0].initialFocus);
+    assert(libraryCards[1].id == "game-456");
+    assert(libraryCards[1].title == "Hades");
+    assert(libraryCards[1].sourceRuntimeLabel == "Steam · Linux · Proton");
+    assert(libraryCards[1].launchModeLabel == "Stream: virtual_display · Steam: big-picture");
+    assert(!libraryCards[1].initialFocus);
+
+    const auto hadesLaunchCta = nova::deck::inertLaunchCtaFor(detail, library.games[1]);
+    assert(hadesLaunchCta.previewText == std::string_view("preview://nova-deck/launch?host=host-gaming-pc&game=Hades&state=copy-preview-only"));
+    assert(!hadesLaunchCta.enabled);
 
     const auto game = nova::deck::loadSamplePolarisGameFixture();
     unsetenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH");

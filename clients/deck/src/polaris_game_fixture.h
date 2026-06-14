@@ -45,8 +45,17 @@ struct PolarisGameFixture {
     PolarisSteamLaunchFixture steamLaunch;
 };
 
+struct PolarisGameLibraryFixture {
+    std::string sourceLabel;
+    bool readOnly = true;
+    std::vector<PolarisGameFixture> games;
+};
+
 std::filesystem::path samplePolarisGameFixturePath();
+std::filesystem::path samplePolarisGameLibraryFixturePath();
 PolarisGameFixture loadPolarisGameFixture(const std::filesystem::path& path);
 PolarisGameFixture loadSamplePolarisGameFixture();
+PolarisGameLibraryFixture loadPolarisGameLibraryFixture(const std::filesystem::path& path);
+PolarisGameLibraryFixture loadSamplePolarisGameLibraryFixture();
 
 } // namespace nova::deck

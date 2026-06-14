@@ -25,6 +25,51 @@ std::string encodePreviewComponent(const std::string& value) {
     return encoded;
 }
 
+std::string sourceLabelFor(const std::string& source) {
+    if (source == "steam") {
+        return "Steam";
+    }
+    if (source == "lutris") {
+        return "Lutris";
+    }
+    if (source == "heroic") {
+        return "Heroic";
+    }
+    if (source == "manual") {
+        return "Manual";
+    }
+    return source.empty() ? std::string{"Other"} : source;
+}
+
+std::string joinedSourceRuntimeLabelFor(const PolarisGameFixture& game) {
+    std::vector<std::string> parts;
+    parts.push_back(sourceLabelFor(game.launcherSource.empty() ? game.source : game.launcherSource));
+    if (!game.platformLabel.empty()) {
+        parts.push_back(game.platformLabel);
+    }
+    if (!game.runtimeLabel.empty() && game.runtimeLabel != game.platformLabel) {
+        parts.push_back(game.runtimeLabel);
+    }
+
+    std::string label;
+    for (const auto& part : parts) {
+        if (part.empty()) {
+            continue;
+        }
+        if (!label.empty()) {
+            label += " · ";
+        }
+        label += part;
+    }
+    return label;
+}
+
+std::string launchModeLabelFor(const PolarisGameFixture& game) {
+    const std::string streamMode = game.launchMode.recommendedMode.empty() ? "preview" : game.launchMode.recommendedMode;
+    const std::string steamMode = game.steamLaunch.recommendedMode.empty() ? "direct" : game.steamLaunch.recommendedMode;
+    return "Stream: " + streamMode + " · Steam: " + steamMode;
+}
+
 } // namespace
 
 
@@ -119,6 +164,25 @@ std::vector<DeckHostListItem> demoHostListState() {
             .initialFocus = false,
         },
     };
+}
+
+std::vector<DeckLibraryGameCard> libraryGameCardsFor(const PolarisGameLibraryFixture& library) {
+    std::vector<DeckLibraryGameCard> cards;
+    cards.reserve(library.games.size());
+    int row = 0;
+    for (const auto& game : library.games) {
+        cards.push_back(DeckLibraryGameCard{
+            .id = game.id.empty() ? "library-game-" + std::to_string(row) : game.id,
+            .title = game.name.empty() ? "Untitled game" : game.name,
+            .sourceRuntimeLabel = joinedSourceRuntimeLabelFor(game),
+            .launchModeLabel = launchModeLabelFor(game),
+            .installedLabel = game.installed ? "Installed" : "Not installed",
+            .row = row,
+            .initialFocus = row == 0,
+        });
+        ++row;
+    }
+    return cards;
 }
 
 std::string_view initialHostFocusTarget(const std::vector<DeckHostListItem>& hosts) {
@@ -264,8 +328,8 @@ DeckLaunchPreviewCopyResult copyLaunchPreviewToLocalClipboard(
     };
 }
 
-DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail) {
-    const auto launchIntent = resolveLaunchIntent(detail, loadSamplePolarisGameFixture());
+DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail, const PolarisGameFixture& game) {
+    const auto launchIntent = resolveLaunchIntent(detail, game);
     const auto preview = fakeLaunchCommandPreviewFor(launchIntent);
     (void)preview;
     return DeckLaunchCta{
@@ -276,6 +340,10 @@ DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail) {
         .previewText = preview.text,
         .enabled = false,
     };
+}
+
+DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail) {
+    return inertLaunchCtaFor(detail, loadSamplePolarisGameFixture());
 }
 
 std::vector<DeckFocusTarget> hostDetailFocusTargets(

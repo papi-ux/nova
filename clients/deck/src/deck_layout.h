@@ -7,6 +7,7 @@
 namespace nova::deck {
 
 struct PolarisGameFixture;
+struct PolarisGameLibraryFixture;
 
 struct DeckWindowProfile {
     int width;
@@ -36,6 +37,16 @@ struct DeckHostDetail {
     std::string_view displayName;
     std::string_view statusLabel;
     std::string_view subtitle;
+};
+
+struct DeckLibraryGameCard {
+    std::string id;
+    std::string title;
+    std::string sourceRuntimeLabel;
+    std::string launchModeLabel;
+    std::string installedLabel;
+    int row = 0;
+    bool initialFocus = false;
 };
 
 struct DeckLaunchCta {
@@ -111,6 +122,8 @@ std::vector<DeckHostListItem> emptyHostListState();
 
 std::vector<DeckHostListItem> demoHostListState();
 
+std::vector<DeckLibraryGameCard> libraryGameCardsFor(const PolarisGameLibraryFixture& library);
+
 std::string_view initialHostFocusTarget(const std::vector<DeckHostListItem>& hosts);
 
 std::string_view nextHostFocusTarget(
@@ -132,6 +145,7 @@ DeckLaunchPreviewCopyResult copyLaunchPreviewToLocalClipboard(
     const DeckLaunchPreviewCopyAction& action,
     DeckLocalClipboard& clipboard);
 
+DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail, const PolarisGameFixture& game);
 DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail);
 
 std::vector<DeckFocusTarget> hostDetailFocusTargets(

@@ -18,6 +18,7 @@ target_include_directories(nova_deck_core
 target_compile_definitions(nova_deck_core
     PUBLIC
         NOVA_DECK_SAMPLE_GAME_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sample_polaris_game.json\"
+        NOVA_DECK_SAMPLE_LIBRARY_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sample_polaris_library.json\"
 )
 
 include(CTest)

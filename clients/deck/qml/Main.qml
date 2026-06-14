@@ -199,56 +199,90 @@ ApplicationWindow {
                     }
                 }
 
-                Rectangle {
-                    id: sampleGameCard
-                    objectName: "sample-game-card"
+                ColumnLayout {
+                    id: libraryGameList
+                    objectName: "library-game-list"
                     Layout.preferredWidth: sampleCardWidth
-                    Layout.preferredHeight: 196
-                    radius: 22
-                    color: activeFocus ? "#202B55" : "#151D39"
-                    border.color: activeFocus ? "#B8C2FF" : "#7C73FF"
-                    border.width: activeFocus ? 5 : 3
-                    focus: true
-                    activeFocusOnTab: true
-                    KeyNavigation.right: hostDetailPanel
-                    Keys.onRightPressed: hostDetailPanel.forceActiveFocus()
-                    Keys.onDownPressed: hostDetailPanel.forceActiveFocus()
-                    Keys.onLeftPressed: {
-                        if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
-                            hostRepeater.itemAt(0).forceActiveFocus()
-                        } else {
-                            emptyHostState.forceActiveFocus()
-                        }
+                    spacing: deckPanelSpacing
+
+                    Label {
+                        text: "Read-only Polaris library"
+                        color: "#E9ECFF"
+                        font.pixelSize: 24
+                        font.bold: true
                     }
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 20
-                        spacing: 8
+                    Label {
+                        Layout.preferredWidth: sampleTextWidth
+                        text: novaLibraryFixtureSource + (novaLibraryReadOnly ? " · read-only" : "")
+                        color: "#A8B0D8"
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
+                    }
 
-                        Label {
-                            text: "Shared Polaris DTO fixture"
-                            color: "#7C88B8"
-                            font.pixelSize: 18
-                        }
+                    Repeater {
+                        id: libraryGameRepeater
+                        model: novaLibraryGames
 
-                        Label {
-                            text: novaSampleGameName
-                            color: "#E9ECFF"
-                            font.pixelSize: 29
-                            font.bold: true
-                        }
+                        delegate: Rectangle {
+                            required property int index
+                            required property var modelData
 
-                        Label {
-                            text: novaSampleGameSource + " · " + novaSampleGameRuntime
-                            color: "#B8C2F0"
-                            font.pixelSize: 18
-                        }
+                            objectName: modelData.id
+                            Layout.preferredWidth: sampleCardWidth
+                            Layout.preferredHeight: 88
+                            radius: 18
+                            color: activeFocus ? "#202B55" : "#151D39"
+                            border.color: activeFocus ? "#B8C2FF" : "#7C73FF"
+                            border.width: activeFocus ? 5 : 2
+                            focus: modelData.initialFocus
+                            activeFocusOnTab: true
+                            KeyNavigation.right: hostDetailPanel
+                            Keys.onRightPressed: hostDetailPanel.forceActiveFocus()
+                            Keys.onDownPressed: {
+                                const next = libraryGameRepeater.itemAt(index + 1)
+                                if (next !== null) {
+                                    next.forceActiveFocus()
+                                }
+                            }
+                            Keys.onUpPressed: {
+                                const previous = libraryGameRepeater.itemAt(index - 1)
+                                if (previous !== null) {
+                                    previous.forceActiveFocus()
+                                }
+                            }
+                            Keys.onLeftPressed: {
+                                if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+                                    hostRepeater.itemAt(0).forceActiveFocus()
+                                } else {
+                                    emptyHostState.forceActiveFocus()
+                                }
+                            }
 
-                        Label {
-                            text: "Stream: " + novaSampleGameLaunchMode + " · Steam: " + novaSampleGameSteamMode
-                            color: "#A8B0D8"
-                            font.pixelSize: 18
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 16
+                                spacing: 4
+
+                                Label {
+                                    text: modelData.title
+                                    color: "#E9ECFF"
+                                    font.pixelSize: 20
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    text: modelData.sourceRuntimeLabel + " · " + modelData.installedLabel
+                                    color: "#B8C2F0"
+                                    font.pixelSize: 13
+                                }
+
+                                Label {
+                                    text: modelData.launchModeLabel
+                                    color: "#A8B0D8"
+                                    font.pixelSize: 12
+                                }
+                            }
                         }
                     }
                 }

@@ -161,6 +161,21 @@ QVariantMap toHostDetailModel(const nova::deck::DeckHostDetail& detail) {
     return model;
 }
 
+QVariantList toLibraryGameModel(const std::vector<nova::deck::DeckLibraryGameCard>& games) {
+    QVariantList model;
+    for (const auto& game : games) {
+        QVariantMap item;
+        item.insert("id", toQString(game.id));
+        item.insert("title", toQString(game.title));
+        item.insert("sourceRuntimeLabel", toQString(game.sourceRuntimeLabel));
+        item.insert("launchModeLabel", toQString(game.launchModeLabel));
+        item.insert("installedLabel", toQString(game.installedLabel));
+        item.insert("initialFocus", game.initialFocus);
+        model.append(item);
+    }
+    return model;
+}
+
 QVariantMap toLaunchCtaModel(const nova::deck::DeckLaunchCta& launchCta) {
     QVariantMap model;
     model.insert("id", toQString(launchCta.id));
@@ -192,10 +207,12 @@ int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
 
     const auto profile = nova::deck::defaultWindowProfile();
-    const auto sampleGame = nova::deck::loadSamplePolarisGameFixture();
+    const auto sampleLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
+    const auto libraryGames = nova::deck::libraryGameCardsFor(sampleLibrary);
+    const auto& selectedGame = sampleLibrary.games.front();
     const auto demoHosts = nova::deck::demoHostListState();
     const auto selectedHostDetail = nova::deck::resolveHostDetail(demoHosts, nova::deck::initialHostFocusTarget(demoHosts));
-    const auto launchCta = nova::deck::inertLaunchCtaFor(selectedHostDetail);
+    const auto launchCta = nova::deck::inertLaunchCtaFor(selectedHostDetail, selectedGame);
     const auto launchPreviewCopyAction = nova::deck::copyLaunchPreviewActionFor(nova::deck::DeckLaunchPreview{
         .text = launchCta.previewText,
         .stateLabel = launchCta.previewStateLabel,
@@ -211,11 +228,9 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaDeckWidth", profile.width);
     engine.rootContext()->setContextProperty("novaDeckHeight", profile.height);
     engine.rootContext()->setContextProperty("novaDeckFullscreenPreferred", profile.fullscreenPreferred);
-    engine.rootContext()->setContextProperty("novaSampleGameName", toQString(sampleGame.name));
-    engine.rootContext()->setContextProperty("novaSampleGameSource", toQString(sampleGame.source));
-    engine.rootContext()->setContextProperty("novaSampleGameRuntime", toQString(sampleGame.runtime));
-    engine.rootContext()->setContextProperty("novaSampleGameLaunchMode", toQString(sampleGame.launchMode.recommendedMode));
-    engine.rootContext()->setContextProperty("novaSampleGameSteamMode", toQString(sampleGame.steamLaunch.recommendedMode));
+    engine.rootContext()->setContextProperty("novaLibraryFixtureSource", toQString(sampleLibrary.sourceLabel));
+    engine.rootContext()->setContextProperty("novaLibraryReadOnly", sampleLibrary.readOnly);
+    engine.rootContext()->setContextProperty("novaLibraryGames", toLibraryGameModel(libraryGames));
     engine.rootContext()->setContextProperty("novaDemoHosts", toHostModel(demoHosts));
     engine.rootContext()->setContextProperty("novaSelectedHostDetail", toHostDetailModel(selectedHostDetail));
     engine.rootContext()->setContextProperty("novaHostLaunchCta", toLaunchCtaModel(launchCta));

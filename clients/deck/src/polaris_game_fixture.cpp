@@ -11,13 +11,17 @@
 #define NOVA_DECK_SAMPLE_GAME_FIXTURE "../fixtures/sample_polaris_game.json"
 #endif
 
+#ifndef NOVA_DECK_SAMPLE_LIBRARY_FIXTURE
+#define NOVA_DECK_SAMPLE_LIBRARY_FIXTURE "../fixtures/sample_polaris_library.json"
+#endif
+
 namespace nova::deck {
 namespace {
 
 std::string readTextFile(const std::filesystem::path& path) {
     std::ifstream input(path);
     if (!input) {
-        throw std::runtime_error("Unable to open Polaris game fixture: " + path.string());
+        throw std::runtime_error("Unable to open Polaris fixture: " + path.string());
     }
 
     return std::string(
@@ -30,12 +34,12 @@ std::size_t findKey(const std::string& json, const std::string_view key, const s
     const std::string needle = "\"" + std::string(key) + "\"";
     const auto keyPos = json.find(needle, start);
     if (keyPos == std::string::npos) {
-        throw std::runtime_error("Missing Polaris game fixture key: " + std::string(key));
+        throw std::runtime_error("Missing Polaris fixture key: " + std::string(key));
     }
 
     const auto colonPos = json.find(char(58), keyPos + needle.size());
     if (colonPos == std::string::npos) {
-        throw std::runtime_error("Malformed Polaris game fixture key: " + std::string(key));
+        throw std::runtime_error("Malformed Polaris fixture key: " + std::string(key));
     }
 
     return colonPos + 1;
@@ -51,19 +55,41 @@ std::size_t skipWhitespace(const std::string& json, std::size_t pos) {
 std::string readStringAt(const std::string& json, std::size_t pos) {
     pos = skipWhitespace(json, pos);
     if (pos >= json.size() || json[pos] != char(34)) {
-        throw std::runtime_error("Expected string in Polaris game fixture");
+        throw std::runtime_error("Expected string in Polaris fixture");
     }
 
-    const auto end = json.find(char(34), pos + 1);
-    if (end == std::string::npos) {
-        throw std::runtime_error("Unterminated string in Polaris game fixture");
+    std::string value;
+    bool escaped = false;
+    for (std::size_t index = pos + 1; index < json.size(); ++index) {
+        const char ch = json[index];
+        if (escaped) {
+            value.push_back(ch);
+            escaped = false;
+            continue;
+        }
+        if (ch == char(92)) {
+            escaped = true;
+            continue;
+        }
+        if (ch == char(34)) {
+            return value;
+        }
+        value.push_back(ch);
     }
 
-    return json.substr(pos + 1, end - pos - 1);
+    throw std::runtime_error("Unterminated string in Polaris fixture");
 }
 
 std::string readString(const std::string& json, const std::string_view key, const std::size_t start = 0) {
     return readStringAt(json, findKey(json, key, start));
+}
+
+std::string readOptionalString(const std::string& json, const std::string_view key, const std::string_view fallback) {
+    try {
+        return readString(json, key);
+    } catch (const std::runtime_error&) {
+        return std::string(fallback);
+    }
 }
 
 int readInt(const std::string& json, const std::string_view key) {
@@ -75,7 +101,7 @@ int readInt(const std::string& json, const std::string_view key) {
     const auto [ptr, error] = std::from_chars(begin, finish, value);
     (void)ptr;
     if (error != std::errc()) {
-        throw std::runtime_error("Invalid integer in Polaris game fixture: " + std::string(key));
+        throw std::runtime_error("Invalid integer in Polaris fixture: " + std::string(key));
     }
     return value;
 }
@@ -89,7 +115,7 @@ std::int64_t readInt64(const std::string& json, const std::string_view key) {
     const auto [ptr, error] = std::from_chars(begin, finish, value);
     (void)ptr;
     if (error != std::errc()) {
-        throw std::runtime_error("Invalid integer in Polaris game fixture: " + std::string(key));
+        throw std::runtime_error("Invalid integer in Polaris fixture: " + std::string(key));
     }
     return value;
 }
@@ -102,13 +128,21 @@ bool readBool(const std::string& json, const std::string_view key, const std::si
     if (json.compare(pos, 5, "false") == 0) {
         return false;
     }
-    throw std::runtime_error("Invalid boolean in Polaris game fixture: " + std::string(key));
+    throw std::runtime_error("Invalid boolean in Polaris fixture: " + std::string(key));
+}
+
+bool readOptionalBool(const std::string& json, const std::string_view key, const bool fallback) {
+    try {
+        return readBool(json, key);
+    } catch (const std::runtime_error&) {
+        return fallback;
+    }
 }
 
 std::vector<std::string> readStringArray(const std::string& json, const std::string_view key, const std::size_t start = 0) {
     auto pos = skipWhitespace(json, findKey(json, key, start));
     if (pos >= json.size() || json[pos] != char(91)) {
-        throw std::runtime_error("Expected array in Polaris game fixture: " + std::string(key));
+        throw std::runtime_error("Expected array in Polaris fixture: " + std::string(key));
     }
 
     std::vector<std::string> values;
@@ -121,37 +155,100 @@ std::vector<std::string> readStringArray(const std::string& json, const std::str
         values.push_back(readStringAt(json, pos));
         pos = json.find_first_of(",]", pos + 1);
         if (pos == std::string::npos) {
-            throw std::runtime_error("Unterminated array in Polaris game fixture: " + std::string(key));
+            throw std::runtime_error("Unterminated array in Polaris fixture: " + std::string(key));
         }
         if (json[pos] == char(44)) {
             ++pos;
         }
     }
 
-    throw std::runtime_error("Unterminated array in Polaris game fixture: " + std::string(key));
+    throw std::runtime_error("Unterminated array in Polaris fixture: " + std::string(key));
 }
 
 std::size_t objectStart(const std::string& json, const std::string_view key) {
     const auto pos = skipWhitespace(json, findKey(json, key));
     if (pos >= json.size() || json[pos] != char(123)) {
-        throw std::runtime_error("Expected object in Polaris game fixture: " + std::string(key));
+        throw std::runtime_error("Expected object in Polaris fixture: " + std::string(key));
     }
     return pos;
 }
 
-} // namespace
-
-std::filesystem::path samplePolarisGameFixturePath() {
-    if (const auto* overridePath = std::getenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH")) {
-        if (overridePath[0] != char(0)) {
-            return std::filesystem::path(overridePath);
-        }
+std::size_t arrayStart(const std::string& json, const std::string_view key) {
+    const auto pos = skipWhitespace(json, findKey(json, key));
+    if (pos >= json.size() || json[pos] != char(91)) {
+        throw std::runtime_error("Expected array in Polaris fixture: " + std::string(key));
     }
-    return std::filesystem::path(NOVA_DECK_SAMPLE_GAME_FIXTURE);
+    return pos;
 }
 
-PolarisGameFixture loadPolarisGameFixture(const std::filesystem::path& path) {
-    const auto json = readTextFile(path);
+std::string readObjectAt(const std::string& json, std::size_t pos) {
+    pos = skipWhitespace(json, pos);
+    if (pos >= json.size() || json[pos] != char(123)) {
+        throw std::runtime_error("Expected object in Polaris fixture array");
+    }
+
+    int depth = 0;
+    bool inString = false;
+    bool escaped = false;
+    for (std::size_t index = pos; index < json.size(); ++index) {
+        const char ch = json[index];
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (ch == char(92)) {
+                escaped = true;
+            } else if (ch == char(34)) {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (ch == char(34)) {
+            inString = true;
+            continue;
+        }
+        if (ch == char(123)) {
+            ++depth;
+            continue;
+        }
+        if (ch == char(125)) {
+            --depth;
+            if (depth == 0) {
+                return json.substr(pos, index - pos + 1);
+            }
+        }
+    }
+
+    throw std::runtime_error("Unterminated object in Polaris fixture array");
+}
+
+std::vector<std::string> readObjectArray(const std::string& json, const std::string_view key) {
+    std::vector<std::string> objects;
+    std::size_t pos = arrayStart(json, key) + 1;
+    while (pos < json.size()) {
+        pos = skipWhitespace(json, pos);
+        if (pos < json.size() && json[pos] == char(93)) {
+            return objects;
+        }
+
+        const auto objectJson = readObjectAt(json, pos);
+        objects.push_back(objectJson);
+        pos += objectJson.size();
+        pos = skipWhitespace(json, pos);
+        if (pos < json.size() && json[pos] == char(44)) {
+            ++pos;
+            continue;
+        }
+        if (pos < json.size() && json[pos] == char(93)) {
+            return objects;
+        }
+        throw std::runtime_error("Malformed object array in Polaris fixture: " + std::string(key));
+    }
+
+    throw std::runtime_error("Unterminated object array in Polaris fixture: " + std::string(key));
+}
+
+PolarisGameFixture parsePolarisGameFixtureJson(const std::string& json) {
     const auto launchModeStart = objectStart(json, "launch_mode");
     const auto steamLaunchStart = objectStart(json, "steam_launch");
 
@@ -189,8 +286,53 @@ PolarisGameFixture loadPolarisGameFixture(const std::filesystem::path& path) {
     return game;
 }
 
+} // namespace
+
+std::filesystem::path samplePolarisGameFixturePath() {
+    if (const auto* overridePath = std::getenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH")) {
+        if (overridePath[0] != char(0)) {
+            return std::filesystem::path(overridePath);
+        }
+    }
+    return std::filesystem::path(NOVA_DECK_SAMPLE_GAME_FIXTURE);
+}
+
+std::filesystem::path samplePolarisGameLibraryFixturePath() {
+    if (const auto* overridePath = std::getenv("NOVA_DECK_SAMPLE_LIBRARY_FIXTURE_PATH")) {
+        if (overridePath[0] != char(0)) {
+            return std::filesystem::path(overridePath);
+        }
+    }
+    return std::filesystem::path(NOVA_DECK_SAMPLE_LIBRARY_FIXTURE);
+}
+
+PolarisGameFixture loadPolarisGameFixture(const std::filesystem::path& path) {
+    return parsePolarisGameFixtureJson(readTextFile(path));
+}
+
 PolarisGameFixture loadSamplePolarisGameFixture() {
     return loadPolarisGameFixture(samplePolarisGameFixturePath());
+}
+
+PolarisGameLibraryFixture loadPolarisGameLibraryFixture(const std::filesystem::path& path) {
+    const auto json = readTextFile(path);
+    PolarisGameLibraryFixture library;
+    library.sourceLabel = readOptionalString(json, "fixture_source", "Shared Polaris contract fixture");
+    library.readOnly = readOptionalBool(json, "read_only", true);
+
+    for (const auto& objectJson : readObjectArray(json, "games")) {
+        library.games.push_back(parsePolarisGameFixtureJson(objectJson));
+    }
+
+    if (library.games.empty()) {
+        throw std::runtime_error("Polaris game library fixture must contain at least one game: " + path.string());
+    }
+
+    return library;
+}
+
+PolarisGameLibraryFixture loadSamplePolarisGameLibraryFixture() {
+    return loadPolarisGameLibraryFixture(samplePolarisGameLibraryFixturePath());
 }
 
 } // namespace nova::deck
