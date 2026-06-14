@@ -51,6 +51,13 @@ ApplicationWindow {
         }
     }
 
+    Connections {
+        target: novaGamepad
+        function onPrimaryActionPressed(activationCount) {
+            activateLaunchPreviewCopyFromController()
+        }
+    }
+
     FocusScope {
         id: libraryFocusScope
         anchors.fill: parent

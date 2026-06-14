@@ -1,7 +1,9 @@
 #include "deck_layout.h"
+#include "deck_gamepad.h"
 #include "polaris_game_fixture.h"
 
 #include <QClipboard>
+#include <QSocketNotifier>
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -11,10 +13,106 @@
 #include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
+#include <cerrno>
+#include <cstring>
+#include <string>
 
 #include <string_view>
 
+#ifdef __linux__
+#include <fcntl.h>
+#include <linux/joystick.h>
+#include <unistd.h>
+#endif
+
 namespace {
+class QtDeckGamepadBridge final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool available READ available NOTIFY availabilityChanged)
+public:
+    explicit QtDeckGamepadBridge(QObject* parent = nullptr)
+        : QObject(parent) {
+        openDefaultDevice();
+    }
+
+    ~QtDeckGamepadBridge() override {
+#ifdef __linux__
+        if (gamepadFd_ >= 0) {
+            ::close(gamepadFd_);
+            gamepadFd_ = -1;
+        }
+#endif
+    }
+
+    [[nodiscard]] bool available() const {
+#ifdef __linux__
+        return gamepadFd_ >= 0;
+#else
+        return false;
+#endif
+    }
+
+signals:
+    void availabilityChanged();
+    void primaryActionPressed(int activationCount);
+
+private:
+    void openDefaultDevice() {
+#ifdef __linux__
+        const QByteArray configuredDevice = qgetenv("NOVA_DECK_GAMEPAD_DEVICE");
+        const QByteArray devicePath = configuredDevice.isEmpty() ? QByteArray("/dev/input/js0") : configuredDevice;
+        gamepadFd_ = ::open(devicePath.constData(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+        if (gamepadFd_ < 0) {
+            return;
+        }
+
+        notifier_ = new QSocketNotifier(gamepadFd_, QSocketNotifier::Read, this);
+        connect(notifier_, &QSocketNotifier::activated, this, [this]() {
+            readPendingJoystickEvents();
+        });
+        emit availabilityChanged();
+#endif
+    }
+
+#ifdef __linux__
+    void readPendingJoystickEvents() {
+        js_event rawEvent{};
+        for (;;) {
+            const ssize_t bytesRead = ::read(gamepadFd_, &rawEvent, sizeof(rawEvent));
+            if (bytesRead == static_cast<ssize_t>(sizeof(rawEvent))) {
+                const auto action = nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
+                    .timeMs = rawEvent.time,
+                    .value = rawEvent.value,
+                    .type = rawEvent.type,
+                    .number = rawEvent.number,
+                });
+                if (action == nova::deck::DeckGamepadAction::PrimaryPressed) {
+                    ++primaryActivationCount_;
+                    emit primaryActionPressed(primaryActivationCount_);
+                }
+                continue;
+            }
+
+            if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+                return;
+            }
+
+            notifier_->setEnabled(false);
+            ::close(gamepadFd_);
+            gamepadFd_ = -1;
+            emit availabilityChanged();
+            return;
+        }
+    }
+
+    int gamepadFd_ = -1;
+    QSocketNotifier* notifier_ = nullptr;
+#else
+    void readPendingJoystickEvents() {}
+#endif
+    int primaryActivationCount_ = 0;
+};
+
 class QtLocalClipboardBridge final : public QObject {
     Q_OBJECT
 public:
@@ -106,6 +204,7 @@ int main(int argc, char *argv[]) {
     });
 
     QtLocalClipboardBridge localClipboard;
+    QtDeckGamepadBridge gamepadBridge;
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaDeckShellName", toQString(profile.shellName));
@@ -122,6 +221,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaHostLaunchCta", toLaunchCtaModel(launchCta));
     engine.rootContext()->setContextProperty("novaLaunchPreviewCopyAction", toPreviewCopyActionModel(launchPreviewCopyAction));
     engine.rootContext()->setContextProperty("novaLocalClipboard", &localClipboard);
+    engine.rootContext()->setContextProperty("novaGamepad", &gamepadBridge);
     engine.rootContext()->setContextProperty("novaInitialHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(demoHosts)));
     engine.rootContext()->setContextProperty("novaEmptyHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(nova::deck::emptyHostListState())));
 

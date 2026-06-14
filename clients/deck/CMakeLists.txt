@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(nova_deck_core
+    src/deck_gamepad.cpp
     src/deck_layout.cpp
     src/polaris_game_fixture.cpp
 )

@@ -1,4 +1,5 @@
 #include "deck_layout.h"
+#include "deck_gamepad.h"
 #include "polaris_game_fixture.h"
 
 #include <cassert>
@@ -69,6 +70,33 @@ int main() {
     assert(mainQml.find("property int previewCopyActivationCount: 0") != std::string::npos);
     assert(mainQml.find("previewCopyActivationCount += 1") != std::string::npos);
     assert(mainQml.find("A pressed #") != std::string::npos);
+    assert(mainQml.find("target: novaGamepad") != std::string::npos);
+    assert(mainQml.find("onPrimaryActionPressed") != std::string::npos);
+
+    assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
+        .timeMs = 10,
+        .value = 1,
+        .type = nova::deck::kDeckGamepadButtonEvent,
+        .number = nova::deck::kDeckGamepadPrimaryButton,
+    }) == nova::deck::DeckGamepadAction::PrimaryPressed);
+    assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
+        .timeMs = 11,
+        .value = 0,
+        .type = nova::deck::kDeckGamepadButtonEvent,
+        .number = nova::deck::kDeckGamepadPrimaryButton,
+    }) == nova::deck::DeckGamepadAction::None);
+    assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
+        .timeMs = 12,
+        .value = 1,
+        .type = static_cast<unsigned char>(nova::deck::kDeckGamepadButtonEvent | nova::deck::kDeckGamepadInitEvent),
+        .number = nova::deck::kDeckGamepadPrimaryButton,
+    }) == nova::deck::DeckGamepadAction::None);
+    assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
+        .timeMs = 13,
+        .value = 1,
+        .type = nova::deck::kDeckGamepadButtonEvent,
+        .number = static_cast<unsigned char>(nova::deck::kDeckGamepadPrimaryButton + 1),
+    }) == nova::deck::DeckGamepadAction::None);
 
     const auto focusTargets = nova::deck::defaultLibraryFocusTargets();
     assert(focusTargets.size() >= 2);
