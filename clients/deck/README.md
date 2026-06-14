@@ -9,6 +9,12 @@ Current status:
 - Fallback build path keeps the core/controller/library smoke runnable without Qt.
 - The shell consumes a generated sample Polaris game fixture shaped after shared/polaris/model/src/commonMain/kotlin/com/papi/nova/shared/polaris/model/PolarisGame.kt.
 
+## Current preview smoke scope
+
+This slice is a preview-only Deck smoke shell. It validates the native window, 1280x800 controller-first layout, fake host list states, an inert launch preview, local clipboard copy feedback, and Steam Input primary-action routing for the copy-preview flow.
+
+It intentionally does **not** validate or perform backend launch, Moonlight streaming, host discovery, pairing, HostStore persistence, network calls, shell/process execution, or real game launch behavior. Keep that boundary visible until the next vertical slice wires a real read-only data source or typed launch-intent contract.
+
 Planned role:
 
 - first non-Android Nova client
