@@ -1,6 +1,7 @@
 #include "polaris_game_fixture.h"
 
 #include <charconv>
+#include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
@@ -141,6 +142,11 @@ std::size_t objectStart(const std::string& json, const std::string_view key) {
 } // namespace
 
 std::filesystem::path samplePolarisGameFixturePath() {
+    if (const auto* overridePath = std::getenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH")) {
+        if (overridePath[0] != char(0)) {
+            return std::filesystem::path(overridePath);
+        }
+    }
     return std::filesystem::path(NOVA_DECK_SAMPLE_GAME_FIXTURE);
 }
 

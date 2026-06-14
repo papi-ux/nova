@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cctype>
+#include <cstdlib>
 #include <string>
 #include <string_view>
 
@@ -204,7 +205,13 @@ int main() {
     assert(!nova::deck::isDeckNativeAspect(1920, 1080));
     assert(!nova::deck::isDeckNativeAspect(0, 800));
 
+    const auto compiledFixturePath = nova::deck::samplePolarisGameFixturePath();
+    assert(!compiledFixturePath.empty());
+    setenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH", compiledFixturePath.c_str(), 1);
+    assert(nova::deck::samplePolarisGameFixturePath() == compiledFixturePath);
+
     const auto game = nova::deck::loadSamplePolarisGameFixture();
+    unsetenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH");
     assert(game.id == "game-123");
     assert(game.appId == 456);
     assert(game.name == "Portal 2");
