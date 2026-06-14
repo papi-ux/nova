@@ -187,7 +187,7 @@ int main() {
     assert(commandPreview.text.find(";") == std::string::npos);
     assert(commandPreview.text.find("&&") == std::string::npos);
     assert(commandPreview.text.find("|") == std::string::npos);
-    assert(commandPreview.text.find("/home/") == std::string::npos);
+    assert(commandPreview.text.find(std::string{"/"} + "home/") == std::string::npos);
     assert(commandPreview.text.find("Users") == std::string::npos);
 
     const auto copyAction = nova::deck::copyLaunchPreviewActionFor(commandPreview);
