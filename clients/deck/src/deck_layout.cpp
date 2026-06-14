@@ -73,6 +73,46 @@ std::string launchModeLabelFor(const PolarisGameFixture& game) {
     return "Stream: " + streamMode + " · Steam: " + steamMode;
 }
 
+DeckLibraryGameCard libraryGameCardFor(const PolarisGameFixture& game, const int row) {
+    return DeckLibraryGameCard{
+        .id = game.id.empty() ? "library-game-" + std::to_string(row) : game.id,
+        .title = game.name.empty() ? "Untitled game" : game.name,
+        .sourceRuntimeLabel = joinedSourceRuntimeLabelFor(game),
+        .launchModeLabel = launchModeLabelFor(game),
+        .installedLabel = game.installed ? "Installed" : "Not installed",
+        .row = row,
+        .initialFocus = row == 0,
+    };
+}
+
+std::size_t selectedGameIndexFor(const PolarisGameLibraryFixture& library, const std::string_view selectedGameId) {
+    if (library.games.empty()) {
+        return 0;
+    }
+
+    const auto selected = std::ranges::find_if(library.games, [selectedGameId](const PolarisGameFixture& game) {
+        return game.id == selectedGameId;
+    });
+
+    if (selected == library.games.end()) {
+        return 0;
+    }
+
+    return static_cast<std::size_t>(std::distance(library.games.begin(), selected));
+}
+
+PolarisGameFixture emptySelectedGameFixture() {
+    return PolarisGameFixture{
+        .id = "game-empty-state",
+        .name = "No game selected",
+        .source = "manual",
+        .launcherSource = "manual",
+        .platformLabel = "Preview",
+        .runtimeLabel = "No runtime",
+        .installed = false,
+    };
+}
+
 } // namespace
 
 
@@ -174,15 +214,7 @@ std::vector<DeckLibraryGameCard> libraryGameCardsFor(const PolarisGameLibraryFix
     cards.reserve(library.games.size());
     int row = 0;
     for (const auto& game : library.games) {
-        cards.push_back(DeckLibraryGameCard{
-            .id = game.id.empty() ? "library-game-" + std::to_string(row) : game.id,
-            .title = game.name.empty() ? "Untitled game" : game.name,
-            .sourceRuntimeLabel = joinedSourceRuntimeLabelFor(game),
-            .launchModeLabel = launchModeLabelFor(game),
-            .installedLabel = game.installed ? "Installed" : "Not installed",
-            .row = row,
-            .initialFocus = row == 0,
-        });
+        cards.push_back(libraryGameCardFor(game, row));
         ++row;
     }
     return cards;
@@ -283,6 +315,38 @@ DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const Polaris
         .boundary = previewOnlyLaunchIntentBoundary(),
         .executable = false,
         .safetyLabel = std::string(kPreviewStateLabel),
+    };
+}
+
+DeckLaunchPreviewBinding resolveLaunchPreviewBinding(
+    const std::vector<DeckHostListItem>& hosts,
+    const PolarisGameLibraryFixture& library,
+    const std::string_view selectedHostId,
+    const std::string_view selectedGameId) {
+    const std::string_view resolvedHostId = resolveHostDetail(hosts, selectedHostId).id == std::string_view("host-detail-empty")
+        ? initialHostFocusTarget(hosts)
+        : selectedHostId;
+    const auto hostDetail = resolveHostDetail(hosts, resolvedHostId);
+
+    const auto gameIndex = selectedGameIndexFor(library, selectedGameId);
+    const auto selectedGame = library.games.empty() ? emptySelectedGameFixture() : library.games.at(gameIndex);
+    const auto gameCard = libraryGameCardFor(selectedGame, static_cast<int>(gameIndex));
+    const auto intent = resolveLaunchIntent(hostDetail, selectedGame);
+    const auto preview = fakeLaunchCommandPreviewFor(intent);
+    const auto launchCta = inertLaunchCtaFor(hostDetail, selectedGame);
+    const auto copyAction = copyLaunchPreviewActionFor(preview);
+
+    return DeckLaunchPreviewBinding{
+        .selectedHostId = std::string(hostDetail.id),
+        .selectedHostName = std::string(hostDetail.displayName),
+        .selectedGameId = selectedGame.id,
+        .selectedGameTitle = selectedGame.name,
+        .hostDetail = hostDetail,
+        .gameCard = gameCard,
+        .intent = intent,
+        .preview = preview,
+        .launchCta = launchCta,
+        .copyAction = copyAction,
     };
 }
 

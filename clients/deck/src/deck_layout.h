@@ -119,6 +119,19 @@ struct DeckLaunchPreviewCopyResult {
     bool copied = false;
 };
 
+struct DeckLaunchPreviewBinding {
+    std::string selectedHostId;
+    std::string selectedHostName;
+    std::string selectedGameId;
+    std::string selectedGameTitle;
+    DeckHostDetail hostDetail;
+    DeckLibraryGameCard gameCard;
+    DeckLaunchIntent intent;
+    DeckLaunchPreview preview;
+    DeckLaunchCta launchCta;
+    DeckLaunchPreviewCopyAction copyAction;
+};
+
 class DeckLocalClipboard {
 public:
     virtual ~DeckLocalClipboard() = default;
@@ -161,6 +174,12 @@ DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, std
 DeckLaunchIntentBoundary previewOnlyLaunchIntentBoundary();
 
 DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const PolarisGameFixture& game);
+
+DeckLaunchPreviewBinding resolveLaunchPreviewBinding(
+    const std::vector<DeckHostListItem>& hosts,
+    const PolarisGameLibraryFixture& library,
+    std::string_view selectedHostId,
+    std::string_view selectedGameId);
 
 bool canExecuteLaunchIntent(const DeckLaunchIntent& intent);
 
