@@ -73,6 +73,7 @@ int main() {
     assert(mainQml.find("target: novaGamepad") != std::string::npos);
     assert(mainQml.find("onPrimaryActionPressed") != std::string::npos);
     assert(mainQml.find("novaLibraryGames") != std::string::npos);
+    assert(mainQml.find("novaLibraryHosts") != std::string::npos);
     assert(mainQml.find("libraryGameRepeater") != std::string::npos);
     assert(mainQml.find("Read-only Polaris library") != std::string::npos);
     assert(mainQml.find("novaLaunchIntentBoundary") != std::string::npos);
@@ -82,6 +83,12 @@ int main() {
     assert(mainQml.find("selectedGameForPreview") != std::string::npos);
     assert(mainQml.find("refreshLaunchPreviewBinding") != std::string::npos);
     assert(mainQml.find("selectedLaunchPreviewText") != std::string::npos);
+    assert(mainQml.find("Selected host") != std::string::npos);
+    assert(mainQml.find("Selected game") != std::string::npos);
+    assert(mainQml.find("No games in read-only snapshot") != std::string::npos);
+    assert(mainQml.find("Read-only snapshot loaded") != std::string::npos);
+    assert(mainQml.find("Snapshot unavailable in this preview shell") != std::string::npos);
+    assert(mainQml.find("A copies the preview URI locally only") != std::string::npos);
 
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 10,
@@ -132,11 +139,26 @@ int main() {
     assert(demoHosts[1].id == std::string_view("host-living-room-pc"));
     assert(demoHosts[1].displayName == std::string_view("Living Room PC"));
     assert(nova::deck::initialHostFocusTarget(demoHosts) == std::string_view("host-gaming-pc"));
+
+    const auto realLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
+    const auto libraryHosts = nova::deck::libraryHostListStateFor(realLibrary);
+    assert(libraryHosts.size() == 2);
+    assert(libraryHosts[0].id == std::string_view("host-snapshot-primary"));
+    assert(libraryHosts[0].displayName == std::string_view("Polaris Snapshot Primary"));
+    assert(libraryHosts[0].statusLabel == std::string_view("Ready from read-only library snapshot"));
+    assert(libraryHosts[0].initialFocus);
+    assert(libraryHosts[1].id == std::string_view("host-snapshot-living-room"));
+    assert(libraryHosts[1].displayName == std::string_view("Polaris Snapshot Living Room"));
+    assert(libraryHosts[1].statusLabel == std::string_view("Available from read-only library snapshot"));
+    assert(!libraryHosts[1].initialFocus);
+    assert(nova::deck::initialHostFocusTarget(libraryHosts) == std::string_view("host-snapshot-primary"));
     assert(nova::deck::nextHostFocusTarget(demoHosts, "host-gaming-pc", nova::deck::DeckFocusDirection::Down)
         == std::string_view("host-living-room-pc"));
     assert(nova::deck::nextHostFocusTarget(demoHosts, "host-living-room-pc", nova::deck::DeckFocusDirection::Up)
         == std::string_view("host-gaming-pc"));
     assert(nova::deck::nextHostFocusTarget(demoHosts, "host-living-room-pc", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-gaming-pc"));
+    assert(nova::deck::nextHostFocusTarget(demoHosts, "host-gaming-pc", nova::deck::DeckFocusDirection::Up)
         == std::string_view("host-living-room-pc"));
 
     const auto detail = nova::deck::resolveHostDetail(demoHosts, "host-gaming-pc");
@@ -239,9 +261,9 @@ int main() {
 
     const auto copyAction = nova::deck::copyLaunchPreviewActionFor(commandPreview);
     assert(copyAction.id == std::string_view("host-detail-copy-preview"));
-    assert(copyAction.label == std::string_view("Copy preview text"));
+    assert(copyAction.label == std::string_view("Copy preview URI (no launch)"));
     assert(copyAction.previewText == commandPreview.text);
-    assert(copyAction.idleStatusLabel == "Copy action is preview-only and not executable.");
+    assert(copyAction.idleStatusLabel == "A copies the preview URI locally only — no launch, stream, backend, or Moonlight.");
     assert(copyAction.successToast == "Preview text copied for inspection only — still not executable.");
     assert(copyAction.inertToast == "No preview text to copy — preview-only action stayed inert.");
     assert(copyAction.copyOnly);
@@ -306,7 +328,7 @@ int main() {
     assert(detailFocus[0].id == std::string_view("host-detail-panel"));
     assert(detailFocus[1].id == std::string_view("host-detail-launch-cta"));
     assert(detailFocus[2].id == std::string_view("host-detail-copy-preview"));
-    assert(detailFocus[2].label == std::string_view("Copy preview text"));
+    assert(detailFocus[2].label == std::string_view("Copy preview URI (no launch)"));
     assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-panel", nova::deck::DeckFocusDirection::Down)
         == std::string_view("host-detail-launch-cta"));
     assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-launch-cta", nova::deck::DeckFocusDirection::Down)
@@ -316,6 +338,8 @@ int main() {
     assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-launch-cta", nova::deck::DeckFocusDirection::Up)
         == std::string_view("host-detail-panel"));
     assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-copy-preview", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("host-detail-panel"));
+    assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-panel", nova::deck::DeckFocusDirection::Up)
         == std::string_view("host-detail-copy-preview"));
 
     assert(nova::deck::isDeckNativeAspect(1280, 800));
@@ -354,6 +378,16 @@ int main() {
     assert(libraryCards[1].sourceRuntimeLabel == "Steam · Linux · Proton");
     assert(libraryCards[1].launchModeLabel == "Stream: virtual_display · Steam: big-picture");
     assert(!libraryCards[1].initialFocus);
+    assert(nova::deck::initialLibraryGameFocusTarget({}) == std::string_view("game-empty-state"));
+    assert(nova::deck::initialLibraryGameFocusTarget(libraryCards) == std::string_view("game-123"));
+    assert(nova::deck::nextLibraryGameFocusTarget(libraryCards, "game-123", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("game-456"));
+    assert(nova::deck::nextLibraryGameFocusTarget(libraryCards, "game-456", nova::deck::DeckFocusDirection::Down)
+        == std::string_view("game-123"));
+    assert(nova::deck::nextLibraryGameFocusTarget(libraryCards, "game-123", nova::deck::DeckFocusDirection::Up)
+        == std::string_view("game-456"));
+    assert(nova::deck::nextLibraryGameFocusTarget({}, "missing-game", nova::deck::DeckFocusDirection::Up)
+        == std::string_view("game-empty-state"));
 
     const auto hadesLaunchCta = nova::deck::inertLaunchCtaFor(detail, library.games[1]);
     assert(hadesLaunchCta.previewText == std::string_view("preview://nova-deck/launch?host=host-gaming-pc&game=Hades&state=copy-preview-only"));

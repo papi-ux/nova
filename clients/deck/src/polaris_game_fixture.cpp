@@ -248,6 +248,15 @@ std::vector<std::string> readObjectArray(const std::string& json, const std::str
     throw std::runtime_error("Unterminated object array in Polaris fixture: " + std::string(key));
 }
 
+PolarisHostFixture parsePolarisHostFixtureJson(const std::string& json) {
+    PolarisHostFixture host;
+    host.id = readString(json, "id");
+    host.displayName = readString(json, "display_name");
+    host.statusLabel = readString(json, "status_label");
+    host.subtitle = readOptionalString(json, "subtitle", "Read-only host snapshot fixture — not discovered from the network.");
+    return host;
+}
+
 PolarisGameFixture parsePolarisGameFixtureJson(const std::string& json) {
     const auto launchModeStart = objectStart(json, "launch_mode");
     const auto steamLaunchStart = objectStart(json, "steam_launch");
@@ -319,6 +328,10 @@ PolarisGameLibraryFixture loadPolarisGameLibraryFixture(const std::filesystem::p
     PolarisGameLibraryFixture library;
     library.sourceLabel = readOptionalString(json, "fixture_source", "Shared Polaris contract fixture");
     library.readOnly = readOptionalBool(json, "read_only", true);
+
+    for (const auto& objectJson : readObjectArray(json, "hosts")) {
+        library.hosts.push_back(parsePolarisHostFixtureJson(objectJson));
+    }
 
     for (const auto& objectJson : readObjectArray(json, "games")) {
         library.games.push_back(parsePolarisGameFixtureJson(objectJson));

@@ -31,7 +31,7 @@ ApplicationWindow {
     property var launchPreviewCopyAction: novaLaunchPreviewCopyAction
 
     function selectedHostSubtitle() {
-        return "Demo host detail only — not discovered from the network."
+        return "Read-only host detail only — not discovered from the network."
     }
 
     function previewComponent(value) {
@@ -85,6 +85,36 @@ ApplicationWindow {
         refreshLaunchPreviewBinding()
     }
 
+    function focusSelectedLibraryItem() {
+        for (let i = 0; i < libraryGameRepeater.count; ++i) {
+            const gameItem = libraryGameRepeater.itemAt(i)
+            if (gameItem !== null && selectedGameForPreview && gameItem.objectName === selectedGameForPreview.id) {
+                gameItem.forceActiveFocus()
+                return
+            }
+        }
+        for (let i = 0; i < hostRepeater.count; ++i) {
+            const hostItem = hostRepeater.itemAt(i)
+            if (hostItem !== null && selectedHostForPreview && hostItem.objectName === selectedHostForPreview.id) {
+                hostItem.forceActiveFocus()
+                return
+            }
+        }
+        if (novaLibraryHosts.length === 0) {
+            emptyHostState.forceActiveFocus()
+            return
+        }
+        if (novaLibraryGames.length === 0 && emptyGameState.visible) {
+            emptyGameState.forceActiveFocus()
+            return
+        }
+        if (hostRepeater.itemAt(0) !== null) {
+            hostRepeater.itemAt(0).forceActiveFocus()
+        } else {
+            emptyHostState.forceActiveFocus()
+        }
+    }
+
     function activateLaunchPreviewCopyFromController() {
         const canCopyPreview = launchPreviewCopyAction.enabled
             && launchPreviewCopyAction.previewText.length > 0
@@ -123,7 +153,7 @@ ApplicationWindow {
         focus: true
         Component.onCompleted: Qt.callLater(function() {
             refreshLaunchPreviewBinding()
-            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
+            if (novaLibraryHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
                 hostRepeater.itemAt(0).forceActiveFocus()
             } else {
                 emptyHostState.forceActiveFocus()
@@ -164,7 +194,7 @@ ApplicationWindow {
                     spacing: deckPanelSpacing
 
                     Label {
-                        text: "Demo hosts"
+                        text: "Library hosts"
                         color: "#E9ECFF"
                         font.pixelSize: 28
                         font.bold: true
@@ -173,7 +203,7 @@ ApplicationWindow {
                     Rectangle {
                         id: emptyHostState
                         objectName: "host-empty-state"
-                        visible: novaDemoHosts.length === 0
+                        visible: novaLibraryHosts.length === 0
                         Layout.preferredWidth: hostColumnWidth
                         Layout.preferredHeight: visible ? 120 : 0
                         radius: 20
@@ -207,7 +237,7 @@ ApplicationWindow {
 
                     Repeater {
                         id: hostRepeater
-                        model: novaDemoHosts
+                        model: novaLibraryHosts
 
                         delegate: Rectangle {
                             required property int index
@@ -232,13 +262,13 @@ ApplicationWindow {
                             Keys.onEnterPressed: selectHostForPreview(modelData)
                             Keys.onSpacePressed: selectHostForPreview(modelData)
                             Keys.onDownPressed: {
-                                const next = hostRepeater.itemAt(index + 1)
+                                const next = hostRepeater.itemAt((index + 1) % hostRepeater.count)
                                 if (next !== null) {
                                     next.forceActiveFocus()
                                 }
                             }
                             Keys.onUpPressed: {
-                                const previous = hostRepeater.itemAt(index - 1)
+                                const previous = hostRepeater.itemAt((index + hostRepeater.count - 1) % hostRepeater.count)
                                 if (previous !== null) {
                                     previous.forceActiveFocus()
                                 }
@@ -261,6 +291,14 @@ ApplicationWindow {
                                     color: "#B8C2F0"
                                     font.pixelSize: 16
                                 }
+
+                                Label {
+                                    visible: selectedHostForPreview.id === modelData.id
+                                    text: "Selected host"
+                                    color: "#8AFFC1"
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                }
                             }
                         }
                     }
@@ -281,10 +319,49 @@ ApplicationWindow {
 
                     Label {
                         Layout.preferredWidth: sampleTextWidth
-                        text: novaLibraryFixtureSource + (novaLibraryReadOnly ? " · read-only" : "")
+                        text: novaLibraryFixtureSource + (novaLibraryReadOnly ? " · read-only · Read-only snapshot loaded" : " · Snapshot unavailable in this preview shell — no backend request will be made")
                         color: "#A8B0D8"
                         font.pixelSize: 13
                         wrapMode: Text.WordWrap
+                    }
+
+                    Rectangle {
+                        id: emptyGameState
+                        objectName: "game-empty-state"
+                        visible: novaLibraryGames.length === 0
+                        Layout.preferredWidth: sampleCardWidth
+                        Layout.preferredHeight: visible ? 116 : 0
+                        radius: 18
+                        color: activeFocus ? "#202B55" : "#151D39"
+                        border.color: activeFocus ? "#B8C2FF" : "#39466F"
+                        border.width: activeFocus ? 5 : 2
+                        focus: visible
+                        activeFocusOnTab: visible
+                        KeyNavigation.left: novaLibraryHosts.length > 0 ? hostRepeater.itemAt(0) : emptyHostState
+                        KeyNavigation.right: hostDetailPanel
+                        Keys.onLeftPressed: focusSelectedLibraryItem()
+                        Keys.onRightPressed: hostDetailPanel.forceActiveFocus()
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 5
+
+                            Label {
+                                text: "No games in read-only snapshot"
+                                color: "#E9ECFF"
+                                font.pixelSize: 20
+                                font.bold: true
+                            }
+
+                            Label {
+                                Layout.preferredWidth: sampleTextWidth
+                                text: "Snapshot unavailable in this preview shell — no backend request will be made."
+                                color: "#A8B0D8"
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
+                        }
                     }
 
                     Repeater {
@@ -314,24 +391,18 @@ ApplicationWindow {
                             Keys.onEnterPressed: selectGameForPreview(modelData)
                             Keys.onSpacePressed: selectGameForPreview(modelData)
                             Keys.onDownPressed: {
-                                const next = libraryGameRepeater.itemAt(index + 1)
+                                const next = libraryGameRepeater.itemAt((index + 1) % libraryGameRepeater.count)
                                 if (next !== null) {
                                     next.forceActiveFocus()
                                 }
                             }
                             Keys.onUpPressed: {
-                                const previous = libraryGameRepeater.itemAt(index - 1)
+                                const previous = libraryGameRepeater.itemAt((index + libraryGameRepeater.count - 1) % libraryGameRepeater.count)
                                 if (previous !== null) {
                                     previous.forceActiveFocus()
                                 }
                             }
-                            Keys.onLeftPressed: {
-                                if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
-                                    hostRepeater.itemAt(0).forceActiveFocus()
-                                } else {
-                                    emptyHostState.forceActiveFocus()
-                                }
-                            }
+                            Keys.onLeftPressed: focusSelectedLibraryItem()
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -356,6 +427,14 @@ ApplicationWindow {
                                     color: "#A8B0D8"
                                     font.pixelSize: 12
                                 }
+
+                                Label {
+                                    visible: selectedGameForPreview.id === modelData.id
+                                    text: "Selected game"
+                                    color: "#8AFFC1"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
                             }
                         }
                     }
@@ -377,14 +456,10 @@ ApplicationWindow {
                         focus: true
                         activeFocusOnTab: true
                         KeyNavigation.left: hostRepeater.itemAt(0) !== null ? hostRepeater.itemAt(0) : emptyHostState
+                        KeyNavigation.up: copyPreviewButton
                         KeyNavigation.down: launchCtaPlaceholder
-                        Keys.onLeftPressed: {
-                            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
-                                hostRepeater.itemAt(0).forceActiveFocus()
-                            } else {
-                                emptyHostState.forceActiveFocus()
-                            }
-                        }
+                        Keys.onLeftPressed: focusSelectedLibraryItem()
+                        Keys.onUpPressed: copyPreviewButton.forceActiveFocus()
                         Keys.onDownPressed: launchCtaPlaceholder.forceActiveFocus()
 
                         ColumnLayout {
@@ -393,7 +468,7 @@ ApplicationWindow {
                             spacing: 8
 
                             Label {
-                                text: "Demo host detail"
+                                text: "Read-only host detail"
                                 color: "#7C88B8"
                                 font.pixelSize: 16
                             }
@@ -448,13 +523,7 @@ ApplicationWindow {
                         Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
                         Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
                         Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
-                        Keys.onLeftPressed: {
-                            if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
-                                hostRepeater.itemAt(0).forceActiveFocus()
-                            } else {
-                                emptyHostState.forceActiveFocus()
-                            }
-                        }
+                        Keys.onLeftPressed: focusSelectedLibraryItem()
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -518,14 +587,10 @@ ApplicationWindow {
                                 focusPolicy: Qt.StrongFocus
                                 activeFocusOnTab: true
                                 KeyNavigation.up: launchCtaPlaceholder
+                                KeyNavigation.down: hostDetailPanel
                                 Keys.onUpPressed: launchCtaPlaceholder.forceActiveFocus()
-                                Keys.onLeftPressed: {
-                                    if (novaDemoHosts.length > 0 && hostRepeater.itemAt(0) !== null) {
-                                        hostRepeater.itemAt(0).forceActiveFocus()
-                                    } else {
-                                        emptyHostState.forceActiveFocus()
-                                    }
-                                }
+                                Keys.onDownPressed: hostDetailPanel.forceActiveFocus()
+                                Keys.onLeftPressed: focusSelectedLibraryItem()
                                 Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
                                 Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
                                 Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
@@ -535,7 +600,7 @@ ApplicationWindow {
                             Label {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: detailTextWidth
-                                text: launchPreviewCopyAction.idleStatusLabel + " Press A on Copy to verify."
+                                text: launchPreviewCopyAction.idleStatusLabel + " Press A on Copy to verify. A copies the preview URI locally only."
                                 color: "#FFDDA8"
                                 font.pixelSize: 12
                                 wrapMode: Text.WordWrap

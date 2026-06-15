@@ -17,21 +17,30 @@
       "category": "fast_action",
       "installed": true,
       "cover_url": "/polaris/v1/games/game-123/cover",
-      "genres": ["Action", "Puzzle"],
+      "genres": [
+        "Action",
+        "Puzzle"
+      ],
       "last_launched": 1718187600000,
       "mangohud": true,
       "hdr_supported": true,
       "launch_mode": {
         "preferred_mode": "virtual_display",
         "recommended_mode": "headless",
-        "allowed_modes": ["headless", "virtual_display"],
+        "allowed_modes": [
+          "headless",
+          "virtual_display"
+        ],
         "mode_reason": "Host default is headless."
       },
       "steam_launch": {
         "available": true,
         "mode": "big-picture",
         "recommended_mode": "direct",
-        "allowed_modes": ["direct", "big-picture"],
+        "allowed_modes": [
+          "direct",
+          "big-picture"
+        ],
         "mode_reason": "Steam Input fallback."
       }
     },
@@ -50,23 +59,46 @@
       "category": "fast_action",
       "installed": true,
       "cover_url": "/polaris/v1/games/game-456/cover",
-      "genres": ["Action", "Roguelike"],
+      "genres": [
+        "Action",
+        "Roguelike"
+      ],
       "last_launched": 1718191200000,
       "mangohud": true,
       "hdr_supported": false,
       "launch_mode": {
         "preferred_mode": "headless",
         "recommended_mode": "virtual_display",
-        "allowed_modes": ["headless", "virtual_display"],
+        "allowed_modes": [
+          "headless",
+          "virtual_display"
+        ],
         "mode_reason": "Virtual display is available for this host."
       },
       "steam_launch": {
         "available": true,
         "mode": "direct",
         "recommended_mode": "big-picture",
-        "allowed_modes": ["direct", "big-picture"],
+        "allowed_modes": [
+          "direct",
+          "big-picture"
+        ],
         "mode_reason": "Big Picture is controller-friendly."
       }
+    }
+  ],
+  "hosts": [
+    {
+      "id": "host-snapshot-primary",
+      "display_name": "Polaris Snapshot Primary",
+      "status_label": "Ready from read-only library snapshot",
+      "subtitle": "Read-only host snapshot fixture \u2014 not discovered from the network."
+    },
+    {
+      "id": "host-snapshot-living-room",
+      "display_name": "Polaris Snapshot Living Room",
+      "status_label": "Available from read-only library snapshot",
+      "subtitle": "Read-only host snapshot fixture \u2014 not discovered from the network."
     }
   ]
 }

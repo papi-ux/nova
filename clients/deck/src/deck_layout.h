@@ -160,7 +160,16 @@ std::vector<DeckHostListItem> emptyHostListState();
 
 std::vector<DeckHostListItem> demoHostListState();
 
+std::vector<DeckHostListItem> libraryHostListStateFor(const PolarisGameLibraryFixture& library);
+
 std::vector<DeckLibraryGameCard> libraryGameCardsFor(const PolarisGameLibraryFixture& library);
+
+std::string_view initialLibraryGameFocusTarget(const std::vector<DeckLibraryGameCard>& games);
+
+std::string_view nextLibraryGameFocusTarget(
+    const std::vector<DeckLibraryGameCard>& games,
+    std::string_view currentId,
+    DeckFocusDirection direction);
 
 std::string_view initialHostFocusTarget(const std::vector<DeckHostListItem>& hosts);
 
