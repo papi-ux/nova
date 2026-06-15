@@ -213,6 +213,25 @@ QVariantMap toLaunchIntentBoundaryModel(const nova::deck::DeckLaunchIntentBounda
     return model;
 }
 
+QVariantMap toLaunchIntentPreviewModel(
+    const nova::deck::DeckLaunchIntent& intent,
+    const nova::deck::DeckStreamIntent& streamIntent) {
+    QVariantMap model;
+    model.insert("hostId", toQString(intent.host.id));
+    model.insert("hostDisplayName", toQString(intent.host.displayName));
+    model.insert("gameId", toQString(intent.game.libraryId));
+    model.insert("gameTitle", toQString(intent.game.title));
+    model.insert("streamProfileId", toQString(intent.streamProfile.id));
+    model.insert("streamProfileLabel", toQString(intent.streamProfile.displayName));
+    model.insert("preflightReason", toQString(intent.preflight.reason));
+    model.insert("publicCopy", toQString(intent.publicPreviewCopy));
+    model.insert("inertPreviewUri", toQString(intent.inertPreviewUri));
+    model.insert("streamLifecycleCopy", toQString(streamIntent.publicCopy));
+    model.insert("noopPreview", true);
+    model.insert("notStarted", true);
+    return model;
+}
+
 QVariantMap toPreviewCopyActionModel(const nova::deck::DeckLaunchPreviewCopyAction& copyAction) {
     QVariantMap model;
     model.insert("id", toQString(copyAction.id));
@@ -244,6 +263,7 @@ int main(int argc, char *argv[]) {
         initialGameId);
     const auto& selectedHostDetail = selectedBinding.hostDetail;
     const auto& launchIntent = selectedBinding.intent;
+    const auto streamIntent = nova::deck::resolveStreamIntent(launchIntent);
     const auto& launchCta = selectedBinding.launchCta;
     const auto& launchPreviewCopyAction = selectedBinding.copyAction;
 
@@ -264,6 +284,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaSelectedLaunchPreviewText", toQString(selectedBinding.preview.text));
     engine.rootContext()->setContextProperty("novaHostLaunchCta", toLaunchCtaModel(launchCta));
     engine.rootContext()->setContextProperty("novaLaunchIntentBoundary", toLaunchIntentBoundaryModel(launchIntent.boundary));
+    engine.rootContext()->setContextProperty("novaLaunchIntentPreview", toLaunchIntentPreviewModel(launchIntent, streamIntent));
     engine.rootContext()->setContextProperty("novaLaunchPreviewCopyAction", toPreviewCopyActionModel(launchPreviewCopyAction));
     engine.rootContext()->setContextProperty("novaLocalClipboard", &localClipboard);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepadBridge);

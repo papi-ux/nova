@@ -74,6 +74,78 @@ struct DeckLaunchIntentBoundary {
     bool allowsHostMutation = false;
 };
 
+enum class DeckHostAddressClass {
+    DemoOnly,
+    SnapshotOnly,
+    UnknownUnavailable,
+};
+
+enum class DeckGameIdentityKind {
+    SteamApp,
+    LibraryFixture,
+    Unknown,
+};
+
+enum class DeckLaunchMode {
+    SteamDirect,
+    SteamBigPicture,
+    UnsupportedPreview,
+};
+
+enum class DeckPreflightState {
+    ReadyPreview,
+    HostUnavailable,
+    HostBusy,
+    PairingNeeded,
+    UnsupportedLaunchMode,
+};
+
+enum class DeckPreviewRedactionPolicy {
+    PublicSafe,
+    LocalPrivateRedacted,
+};
+
+struct DeckHostIdentity {
+    std::string id;
+    std::string displayName;
+    DeckHostAddressClass addressClass = DeckHostAddressClass::DemoOnly;
+    std::string addressLabel;
+};
+
+struct DeckGameIdentity {
+    DeckGameIdentityKind identityKind = DeckGameIdentityKind::Unknown;
+    std::string libraryId;
+    std::string title;
+    int appId = 0;
+    std::string steamAppId;
+};
+
+struct DeckStreamProfilePreview {
+    std::string id;
+    std::string displayName;
+    bool virtualDisplayRecommended = false;
+    bool headlessRecommended = false;
+};
+
+struct DeckPreflightFailureState {
+    DeckPreflightState state = DeckPreflightState::ReadyPreview;
+    std::string reason;
+};
+
+struct DeckPreviewPrivacyPolicy {
+    DeckPreviewRedactionPolicy redactionPolicy = DeckPreviewRedactionPolicy::PublicSafe;
+    bool publicSafeCopyOnly = true;
+    bool localPrivateArtRedacted = true;
+};
+
+struct DeckPreviewSafetyBooleans {
+    bool allowsNetwork = false;
+    bool allowsProcessExecution = false;
+    bool allowsMoonlight = false;
+    bool allowsHostMutation = false;
+    bool executable = false;
+};
+
 struct DeckLaunchIntent {
     std::string targetHostId;
     std::string targetHostName;
@@ -84,6 +156,51 @@ struct DeckLaunchIntent {
     DeckLaunchIntentBoundary boundary;
     bool executable = false;
     std::string safetyLabel;
+    DeckHostIdentity host;
+    DeckGameIdentity game;
+    DeckLaunchMode launchMode = DeckLaunchMode::UnsupportedPreview;
+    DeckStreamProfilePreview streamProfile;
+    DeckPreflightFailureState preflight;
+    DeckPreviewPrivacyPolicy privacy;
+    DeckPreviewSafetyBooleans safety;
+    std::string publicPreviewCopy;
+    std::string inertPreviewUri;
+};
+
+enum class DeckStreamProvider {
+    PreviewOnly,
+};
+
+enum class DeckStreamAction {
+    NoopPreview,
+};
+
+enum class DeckStreamSessionState {
+    NotStarted,
+};
+
+enum class DeckStreamLifecycle {
+    PreflightOnly,
+};
+
+enum class DeckStreamRecovery {
+    UserReviewRequired,
+};
+
+struct DeckStreamSessionPreview {
+    DeckStreamSessionState state = DeckStreamSessionState::NotStarted;
+    std::string reason;
+};
+
+struct DeckStreamIntent {
+    DeckStreamProvider provider = DeckStreamProvider::PreviewOnly;
+    DeckStreamAction action = DeckStreamAction::NoopPreview;
+    DeckStreamSessionPreview session;
+    DeckStreamLifecycle lifecycle = DeckStreamLifecycle::PreflightOnly;
+    DeckStreamRecovery recovery = DeckStreamRecovery::UserReviewRequired;
+    DeckPreviewPrivacyPolicy privacy;
+    DeckPreviewSafetyBooleans safety;
+    std::string publicCopy;
 };
 
 struct DeckLaunchPreview {
@@ -183,6 +300,8 @@ DeckHostDetail resolveHostDetail(const std::vector<DeckHostListItem>& hosts, std
 DeckLaunchIntentBoundary previewOnlyLaunchIntentBoundary();
 
 DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const PolarisGameFixture& game);
+
+DeckStreamIntent resolveStreamIntent(const DeckLaunchIntent& intent);
 
 DeckLaunchPreviewBinding resolveLaunchPreviewBinding(
     const std::vector<DeckHostListItem>& hosts,

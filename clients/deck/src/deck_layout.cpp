@@ -383,17 +383,114 @@ DeckLaunchIntentBoundary previewOnlyLaunchIntentBoundary() {
     };
 }
 
+DeckLaunchMode launchModeFor(const PolarisGameFixture& game) {
+    const std::string mode = game.steamLaunch.recommendedMode.empty() ? "direct" : game.steamLaunch.recommendedMode;
+    if (mode == "direct") {
+        return DeckLaunchMode::SteamDirect;
+    }
+    if (mode == "big-picture") {
+        return DeckLaunchMode::SteamBigPicture;
+    }
+    return DeckLaunchMode::UnsupportedPreview;
+}
+
+std::string launchModeIdFor(const DeckLaunchMode mode) {
+    if (mode == DeckLaunchMode::SteamDirect) {
+        return "steam-direct";
+    }
+    if (mode == DeckLaunchMode::SteamBigPicture) {
+        return "steam-big-picture";
+    }
+    return "unsupported-preview";
+}
+
+std::string launchModeCopyFor(const DeckLaunchMode mode) {
+    if (mode == DeckLaunchMode::SteamDirect) {
+        return "Steam direct";
+    }
+    if (mode == DeckLaunchMode::SteamBigPicture) {
+        return "Steam Big Picture";
+    }
+    return "unsupported preview";
+}
+
+DeckStreamProfilePreview streamProfileFor(const PolarisGameFixture& game) {
+    const std::string id = game.launchMode.recommendedMode.empty() ? "preview" : game.launchMode.recommendedMode;
+    return DeckStreamProfilePreview{
+        .id = id,
+        .displayName = id == "headless" ? std::string{"Headless preview"}
+            : id == "virtual_display" ? std::string{"Virtual display preview"}
+            : std::string{"Preview profile"},
+        .virtualDisplayRecommended = id == "virtual_display",
+        .headlessRecommended = id == "headless",
+    };
+}
+
 DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const PolarisGameFixture& game) {
+    const auto mode = launchModeFor(game);
+    const auto streamProfile = streamProfileFor(game);
+    const std::string hostId(detail.id);
+    const std::string hostName(detail.displayName);
+    const std::string gameTitle = game.name.empty() ? std::string{"Untitled game"} : game.name;
+    const auto boundary = previewOnlyLaunchIntentBoundary();
+    const std::string uri = "preview://nova-deck/launch?host=" + encodePreviewComponent(hostId)
+        + "&game=" + encodePreviewComponent(gameTitle)
+        + "&mode=" + launchModeIdFor(mode)
+        + "&stream=" + encodePreviewComponent(streamProfile.id)
+        + "&state=noop-preview";
     return DeckLaunchIntent{
-        .targetHostId = std::string(detail.id),
-        .targetHostName = std::string(detail.displayName),
+        .targetHostId = hostId,
+        .targetHostName = hostName,
         .sampleGameId = game.id,
-        .gameTitle = game.name,
-        .streamLaunchMode = game.launchMode.recommendedMode.empty() ? std::string{"preview"} : game.launchMode.recommendedMode,
+        .gameTitle = gameTitle,
+        .streamLaunchMode = streamProfile.id,
         .steamLaunchMode = game.steamLaunch.recommendedMode.empty() ? std::string{"direct"} : game.steamLaunch.recommendedMode,
-        .boundary = previewOnlyLaunchIntentBoundary(),
+        .boundary = boundary,
         .executable = false,
         .safetyLabel = std::string(kPreviewStateLabel),
+        .host = DeckHostIdentity{
+            .id = hostId,
+            .displayName = hostName,
+            .addressClass = hostId == "host-detail-empty" ? DeckHostAddressClass::UnknownUnavailable : DeckHostAddressClass::DemoOnly,
+            .addressLabel = "redacted preview host",
+        },
+        .game = DeckGameIdentity{
+            .identityKind = game.steamAppid.empty() ? DeckGameIdentityKind::LibraryFixture : DeckGameIdentityKind::SteamApp,
+            .libraryId = game.id,
+            .title = gameTitle,
+            .appId = game.appId,
+            .steamAppId = game.steamAppid,
+        },
+        .launchMode = mode,
+        .streamProfile = streamProfile,
+        .preflight = DeckPreflightFailureState{
+            .state = mode == DeckLaunchMode::UnsupportedPreview ? DeckPreflightState::UnsupportedLaunchMode : DeckPreflightState::ReadyPreview,
+            .reason = "Preflight-only preview; no backend, launch, or stream session starts.",
+        },
+        .privacy = DeckPreviewPrivacyPolicy{
+            .redactionPolicy = DeckPreviewRedactionPolicy::PublicSafe,
+            .publicSafeCopyOnly = true,
+            .localPrivateArtRedacted = true,
+        },
+        .safety = DeckPreviewSafetyBooleans{},
+        .publicPreviewCopy = "Preview " + gameTitle + " on " + hostName + " via " + launchModeCopyFor(mode) + "; no launch will run.",
+        .inertPreviewUri = uri,
+    };
+}
+
+DeckStreamIntent resolveStreamIntent(const DeckLaunchIntent& intent) {
+    return DeckStreamIntent{
+        .provider = DeckStreamProvider::PreviewOnly,
+        .action = DeckStreamAction::NoopPreview,
+        .session = DeckStreamSessionPreview{
+            .state = DeckStreamSessionState::NotStarted,
+            .reason = "not_started: preview-only boundary never opens a stream session",
+        },
+        .lifecycle = DeckStreamLifecycle::PreflightOnly,
+        .recovery = DeckStreamRecovery::UserReviewRequired,
+        .privacy = intent.privacy,
+        .safety = intent.safety,
+        .publicCopy = "Preview stream for " + intent.gameTitle + " on " + intent.targetHostName + " remains noop_preview/not_started.",
     };
 }
 
@@ -440,9 +537,7 @@ bool canExecuteLaunchIntent(const DeckLaunchIntent& intent) {
 
 DeckLaunchPreview fakeLaunchCommandPreviewFor(const DeckLaunchIntent& intent) {
     return DeckLaunchPreview{
-        .text = "preview://nova-deck/launch?host=" + encodePreviewComponent(intent.targetHostId)
-            + "&game=" + encodePreviewComponent(intent.gameTitle)
-            + "&state=copy-preview-only",
+        .text = intent.inertPreviewUri,
         .stateLabel = std::string(kPreviewStateLabel),
         .boundaryId = intent.boundary.id,
         .boundaryLabel = intent.boundary.label,

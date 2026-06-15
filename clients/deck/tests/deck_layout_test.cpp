@@ -89,6 +89,10 @@ int main() {
     assert(mainQml.find("Read-only snapshot loaded") != std::string::npos);
     assert(mainQml.find("Snapshot unavailable in this preview shell") != std::string::npos);
     assert(mainQml.find("A copies the preview URI locally only") != std::string::npos);
+    assert(mainQml.find("novaLaunchIntentPreview") != std::string::npos);
+    assert(mainQml.find("selectedLaunchPublicCopy") != std::string::npos);
+    assert(mainQml.find("selectedStreamLifecycleCopy") != std::string::npos);
+    assert(mainQml.find("state=copy-preview-only") == std::string::npos);
 
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 10,
@@ -173,7 +177,7 @@ int main() {
     assert(launchCta.helpText == std::string_view("Display-only preview — not wired to launch, Moonlight, or a network backend."));
     assert(!launchCta.enabled);
     assert(launchCta.previewStateLabel == std::string_view("Preview only — not executable"));
-    assert(launchCta.previewText == std::string_view("preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&state=copy-preview-only"));
+    assert(launchCta.previewText == std::string_view("preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&mode=steam-direct&stream=headless&state=noop-preview"));
 
     const auto launchGame = nova::deck::loadSamplePolarisGameFixture();
     const auto launchIntent = nova::deck::resolveLaunchIntent(detail, launchGame);
@@ -194,7 +198,32 @@ int main() {
     assert(launchIntent.boundary.reason == "Deck shell may build copyable preview text, but launch execution is blocked.");
     assert(!launchIntent.executable);
     assert(launchIntent.safetyLabel == "Preview only — not executable");
+    assert(launchIntent.host.addressClass == nova::deck::DeckHostAddressClass::DemoOnly);
+    assert(launchIntent.host.id == "host-gaming-pc");
+    assert(launchIntent.host.displayName == "Gaming PC");
+    assert(launchIntent.game.identityKind == nova::deck::DeckGameIdentityKind::SteamApp);
+    assert(launchIntent.game.libraryId == "game-123");
+    assert(launchIntent.game.steamAppId == "620");
+    assert(launchIntent.launchMode == nova::deck::DeckLaunchMode::SteamDirect);
+    assert(launchIntent.streamProfile.id == "headless");
+    assert(launchIntent.streamProfile.displayName == "Headless preview");
+    assert(launchIntent.preflight.state == nova::deck::DeckPreflightState::ReadyPreview);
+    assert(launchIntent.privacy.redactionPolicy == nova::deck::DeckPreviewRedactionPolicy::PublicSafe);
+    assert(launchIntent.publicPreviewCopy == "Preview Portal 2 on Gaming PC via Steam direct; no launch will run.");
+    assert(launchIntent.inertPreviewUri == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&mode=steam-direct&stream=headless&state=noop-preview");
     assert(!nova::deck::canExecuteLaunchIntent(launchIntent));
+
+    const auto streamIntent = nova::deck::resolveStreamIntent(launchIntent);
+    assert(streamIntent.provider == nova::deck::DeckStreamProvider::PreviewOnly);
+    assert(streamIntent.action == nova::deck::DeckStreamAction::NoopPreview);
+    assert(streamIntent.session.state == nova::deck::DeckStreamSessionState::NotStarted);
+    assert(streamIntent.lifecycle == nova::deck::DeckStreamLifecycle::PreflightOnly);
+    assert(streamIntent.recovery == nova::deck::DeckStreamRecovery::UserReviewRequired);
+    assert(streamIntent.privacy.redactionPolicy == nova::deck::DeckPreviewRedactionPolicy::PublicSafe);
+    assert(streamIntent.publicCopy == "Preview stream for Portal 2 on Gaming PC remains noop_preview/not_started.");
+    assert(!streamIntent.safety.allowsNetwork);
+    assert(!streamIntent.safety.allowsProcessExecution);
+    assert(!streamIntent.safety.allowsMoonlight);
 
     const auto previewLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
     const auto selectedBinding = nova::deck::resolveLaunchPreviewBinding(
@@ -216,7 +245,7 @@ int main() {
     assert(selectedBinding.intent.steamLaunchMode == "big-picture");
     assert(!selectedBinding.intent.executable);
     assert(!nova::deck::canExecuteLaunchIntent(selectedBinding.intent));
-    assert(selectedBinding.preview.text == "preview://nova-deck/launch?host=host-living-room-pc&game=Hades&state=copy-preview-only");
+    assert(selectedBinding.preview.text == "preview://nova-deck/launch?host=host-living-room-pc&game=Hades&mode=steam-big-picture&stream=virtual_display&state=noop-preview");
     assert(selectedBinding.preview.copyOnly);
     assert(!selectedBinding.preview.executable);
     assert(!selectedBinding.preview.networkAllowed);
@@ -237,10 +266,10 @@ int main() {
         "missing-game");
     assert(fallbackBinding.selectedHostId == "host-gaming-pc");
     assert(fallbackBinding.selectedGameId == "game-123");
-    assert(fallbackBinding.preview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&state=copy-preview-only");
+    assert(fallbackBinding.preview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&mode=steam-direct&stream=headless&state=noop-preview");
 
     const auto commandPreview = nova::deck::fakeLaunchCommandPreviewFor(launchIntent);
-    assert(commandPreview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&state=copy-preview-only");
+    assert(commandPreview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&mode=steam-direct&stream=headless&state=noop-preview");
     assert(commandPreview.stateLabel == "Preview only — not executable");
     assert(commandPreview.boundaryId == "deck-launch-preview-only");
     assert(commandPreview.boundaryLabel == "Preview-only typed intent boundary");
@@ -390,7 +419,7 @@ int main() {
         == std::string_view("game-empty-state"));
 
     const auto hadesLaunchCta = nova::deck::inertLaunchCtaFor(detail, library.games[1]);
-    assert(hadesLaunchCta.previewText == std::string_view("preview://nova-deck/launch?host=host-gaming-pc&game=Hades&state=copy-preview-only"));
+    assert(hadesLaunchCta.previewText == std::string_view("preview://nova-deck/launch?host=host-gaming-pc&game=Hades&mode=steam-big-picture&stream=virtual_display&state=noop-preview"));
     assert(!hadesLaunchCta.enabled);
 
     const auto game = nova::deck::loadSamplePolarisGameFixture();

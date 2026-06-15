@@ -29,6 +29,9 @@ ApplicationWindow {
     property var selectedGameForPreview: novaSelectedGameCard
     property string selectedLaunchPreviewText: novaSelectedLaunchPreviewText
     property var launchPreviewCopyAction: novaLaunchPreviewCopyAction
+    property var launchIntentPreview: novaLaunchIntentPreview
+    property string selectedLaunchPublicCopy: launchIntentPreview.publicCopy
+    property string selectedStreamLifecycleCopy: launchIntentPreview.streamLifecycleCopy
 
     function selectedHostSubtitle() {
         return "Read-only host detail only — not discovered from the network."
@@ -42,14 +45,31 @@ ApplicationWindow {
         const hostId = selectedHostForPreview && selectedHostForPreview.id
             ? selectedHostForPreview.id
             : "host-empty-state"
+        const hostName = selectedHostForPreview && selectedHostForPreview.displayName
+            ? selectedHostForPreview.displayName
+            : "No host selected"
         const gameTitle = selectedGameForPreview && selectedGameForPreview.title
             ? selectedGameForPreview.title
             : "No game selected"
+        const launchModeLabel = selectedGameForPreview && selectedGameForPreview.launchModeLabel
+            ? selectedGameForPreview.launchModeLabel
+            : "Stream: preview · Steam: direct"
+        const streamMode = launchModeLabel.indexOf("virtual_display") >= 0 ? "virtual_display"
+            : launchModeLabel.indexOf("headless") >= 0 ? "headless"
+            : "preview"
+        const steamMode = launchModeLabel.indexOf("big-picture") >= 0 ? "steam-big-picture" : "steam-direct"
+        const steamCopy = steamMode === "steam-big-picture" ? "Steam Big Picture" : "Steam direct"
         selectedLaunchPreviewText = "preview://nova-deck/launch?host="
             + previewComponent(hostId)
             + "&game="
             + previewComponent(gameTitle)
-            + "&state=copy-preview-only"
+            + "&mode="
+            + steamMode
+            + "&stream="
+            + previewComponent(streamMode)
+            + "&state=noop-preview"
+        selectedLaunchPublicCopy = "Preview " + gameTitle + " on " + hostName + " via " + steamCopy + "; no launch will run."
+        selectedStreamLifecycleCopy = "Preview stream for " + gameTitle + " on " + hostName + " remains noop_preview/not_started."
         launchPreviewCopyAction = {
             "id": novaLaunchPreviewCopyAction.id,
             "label": novaLaunchPreviewCopyAction.label,
@@ -565,6 +585,22 @@ ApplicationWindow {
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: novaLaunchIntentBoundary.reason
+                                color: "#A8B0D8"
+                                font.pixelSize: 10
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: selectedLaunchPublicCopy
+                                color: "#C9F0D4"
+                                font.pixelSize: 11
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: selectedStreamLifecycleCopy
                                 color: "#A8B0D8"
                                 font.pixelSize: 10
                                 wrapMode: Text.WordWrap
