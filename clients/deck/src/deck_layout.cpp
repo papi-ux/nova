@@ -12,7 +12,7 @@ constexpr std::string_view kPreviewStateLabel = "Preview only — not executable
 constexpr std::string_view kPreviewBoundaryId = "deck-launch-preview-only";
 constexpr std::string_view kPreviewBoundaryLabel = "Preview-only typed intent boundary";
 constexpr std::string_view kPreviewBoundaryReason = "Deck shell may build copyable preview text, but launch execution is blocked.";
-constexpr std::string_view kCopyIdleStatusLabel = "Copy action is preview-only and not executable.";
+constexpr std::string_view kCopyIdleStatusLabel = "A copies the preview URI locally only — no launch, stream, backend, or Moonlight.";
 constexpr std::string_view kCopySuccessToast = "Preview text copied for inspection only — still not executable.";
 constexpr std::string_view kCopyInertToast = "No preview text to copy — preview-only action stayed inert.";
 
@@ -237,6 +237,61 @@ std::vector<DeckLibraryGameCard> libraryGameCardsFor(const PolarisGameLibraryFix
     return cards;
 }
 
+std::string_view initialLibraryGameFocusTarget(const std::vector<DeckLibraryGameCard>& games) {
+    const auto initial = std::ranges::find_if(games, [](const DeckLibraryGameCard& game) {
+        return game.initialFocus;
+    });
+
+    if (initial != games.end()) {
+        return initial->id;
+    }
+
+    if (!games.empty()) {
+        return games.front().id;
+    }
+
+    return "game-empty-state";
+}
+
+std::string_view nextLibraryGameFocusTarget(
+    const std::vector<DeckLibraryGameCard>& games,
+    const std::string_view currentId,
+    const DeckFocusDirection direction) {
+    if (games.empty()) {
+        return "game-empty-state";
+    }
+
+    const auto current = std::ranges::find_if(games, [currentId](const DeckLibraryGameCard& game) {
+        return game.id == currentId;
+    });
+
+    if (current == games.end()) {
+        return initialLibraryGameFocusTarget(games);
+    }
+
+    const int verticalDelta = direction == DeckFocusDirection::Up ? -1 : direction == DeckFocusDirection::Down ? 1 : 0;
+    if (verticalDelta == 0) {
+        return current->id;
+    }
+
+    const auto next = std::ranges::find_if(games, [&](const DeckLibraryGameCard& game) {
+        return game.row == current->row + verticalDelta;
+    });
+
+    if (next != games.end()) {
+        return next->id;
+    }
+
+    if (direction == DeckFocusDirection::Up) {
+        return games.back().id;
+    }
+    if (direction == DeckFocusDirection::Down) {
+        return games.front().id;
+    }
+
+    return current->id;
+}
+
 std::string_view initialHostFocusTarget(const std::vector<DeckHostListItem>& hosts) {
     const auto initial = std::ranges::find_if(hosts, [](const DeckHostListItem& host) {
         return host.initialFocus;
@@ -280,6 +335,13 @@ std::string_view nextHostFocusTarget(
 
     if (next != hosts.end()) {
         return next->id;
+    }
+
+    if (direction == DeckFocusDirection::Up) {
+        return hosts.back().id;
+    }
+    if (direction == DeckFocusDirection::Down) {
+        return hosts.front().id;
     }
 
     return current->id;
@@ -397,7 +459,7 @@ DeckLaunchPreviewCopyAction copyLaunchPreviewActionFor(const DeckLaunchPreview& 
     const bool hasPreviewText = !preview.text.empty();
     return DeckLaunchPreviewCopyAction{
         .id = "host-detail-copy-preview",
-        .label = "Copy preview text",
+        .label = "Copy preview URI (no launch)",
         .previewText = preview.text,
         .idleStatusLabel = hasPreviewText ? std::string(kCopyIdleStatusLabel) : std::string(kCopyInertToast),
         .successToast = std::string(kCopySuccessToast),
@@ -514,6 +576,13 @@ std::string_view nextHostDetailFocusTarget(
 
     if (next != targets.end()) {
         return next->id;
+    }
+
+    if (direction == DeckFocusDirection::Up) {
+        return targets.back().id;
+    }
+    if (direction == DeckFocusDirection::Down) {
+        return targets.front().id;
     }
 
     return current->id;
