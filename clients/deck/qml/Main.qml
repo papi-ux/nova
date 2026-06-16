@@ -24,6 +24,8 @@ ApplicationWindow {
     readonly property int hostTextWidth: hostColumnWidth - 40
     readonly property int sampleTextWidth: sampleCardWidth - 48
     readonly property int detailTextWidth: detailColumnWidth - 48
+    readonly property color focusRingColor: "#8AFFC1"
+    readonly property color focusGlowColor: "#243D57"
     property int previewCopyActivationCount: 0
     property var selectedHostForPreview: novaSelectedHostDetail
     property var selectedGameForPreview: novaSelectedGameCard
@@ -167,6 +169,14 @@ ApplicationWindow {
         }
     }
 
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
+        hoverEnabled: true
+        cursorShape: Qt.BlankCursor
+        z: 1000
+    }
+
     FocusScope {
         id: libraryFocusScope
         anchors.fill: parent
@@ -227,8 +237,8 @@ ApplicationWindow {
                         Layout.preferredWidth: hostColumnWidth
                         Layout.preferredHeight: visible ? 120 : 0
                         radius: 20
-                        color: activeFocus ? "#202B55" : "#151D39"
-                        border.color: activeFocus ? "#B8C2FF" : "#39466F"
+                        color: activeFocus ? focusGlowColor : "#151D39"
+                        border.color: activeFocus ? focusRingColor : "#39466F"
                         border.width: activeFocus ? 5 : 2
                         focus: visible
                         activeFocusOnTab: visible
@@ -268,7 +278,7 @@ ApplicationWindow {
                             Layout.preferredHeight: hostCardHeight
                             radius: 20
                             color: selectedHostForPreview.id === modelData.id ? "#202B55" : "#151D39"
-                            border.color: activeFocus ? "#B8C2FF" : selectedHostForPreview.id === modelData.id ? "#8AFFC1" : "#7C73FF"
+                            border.color: activeFocus ? focusRingColor : selectedHostForPreview.id === modelData.id ? "#8AFFC1" : "#7C73FF"
                             border.width: activeFocus ? 5 : selectedHostForPreview.id === modelData.id ? 4 : 3
                             focus: modelData.initialFocus
                             activeFocusOnTab: true
@@ -352,8 +362,8 @@ ApplicationWindow {
                         Layout.preferredWidth: sampleCardWidth
                         Layout.preferredHeight: visible ? 116 : 0
                         radius: 18
-                        color: activeFocus ? "#202B55" : "#151D39"
-                        border.color: activeFocus ? "#B8C2FF" : "#39466F"
+                        color: activeFocus ? focusGlowColor : "#151D39"
+                        border.color: activeFocus ? focusRingColor : "#39466F"
                         border.width: activeFocus ? 5 : 2
                         focus: visible
                         activeFocusOnTab: visible
@@ -397,7 +407,7 @@ ApplicationWindow {
                             Layout.preferredHeight: 88
                             radius: 18
                             color: selectedGameForPreview.id === modelData.id ? "#202B55" : "#151D39"
-                            border.color: activeFocus ? "#B8C2FF" : selectedGameForPreview.id === modelData.id ? "#8AFFC1" : "#7C73FF"
+                            border.color: activeFocus ? focusRingColor : selectedGameForPreview.id === modelData.id ? "#8AFFC1" : "#7C73FF"
                             border.width: activeFocus ? 5 : selectedGameForPreview.id === modelData.id ? 4 : 2
                             focus: modelData.initialFocus
                             activeFocusOnTab: true
@@ -470,8 +480,8 @@ ApplicationWindow {
                         Layout.preferredWidth: detailColumnWidth
                         Layout.preferredHeight: detailPanelHeight
                         radius: 22
-                        color: activeFocus ? "#202B55" : "#151D39"
-                        border.color: activeFocus ? "#B8C2FF" : "#39466F"
+                        color: activeFocus ? focusGlowColor : "#151D39"
+                        border.color: activeFocus ? focusRingColor : "#39466F"
                         border.width: activeFocus ? 5 : 2
                         focus: true
                         activeFocusOnTab: true
@@ -530,8 +540,8 @@ ApplicationWindow {
                         Layout.preferredWidth: detailColumnWidth
                         Layout.preferredHeight: launchPreviewHeight
                         radius: 20
-                        color: activeFocus ? "#2A2948" : "#181D34"
-                        border.color: activeFocus ? "#B8C2FF" : "#39466F"
+                        color: activeFocus ? focusGlowColor : "#181D34"
+                        border.color: activeFocus ? focusRingColor : "#39466F"
                         border.width: activeFocus ? 5 : 2
                         opacity: novaHostLaunchCta.enabled ? 1.0 : 0.72
                         focus: false
@@ -608,17 +618,16 @@ ApplicationWindow {
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
-                                text: selectedLaunchPreviewText
-                                color: "#A8B0D8"
-                                font.pixelSize: 14
-                                font.family: "monospace"
-                                wrapMode: Text.WrapAnywhere
+                                text: "Exact preview details stay behind Copy preview details — copy locally to inspect the preview URI."
+                                color: "#7C88B8"
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
                             }
 
                             Button {
                                 id: copyPreviewButton
                                 objectName: launchPreviewCopyAction.id
-                                text: activeFocus ? "A · " + launchPreviewCopyAction.label : launchPreviewCopyAction.label
+                                text: activeFocus ? "D-pad focus · A · " + launchPreviewCopyAction.label : launchPreviewCopyAction.label
                                 enabled: launchPreviewCopyAction.enabled
                                 focusPolicy: Qt.StrongFocus
                                 activeFocusOnTab: true
