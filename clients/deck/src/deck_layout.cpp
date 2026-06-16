@@ -10,9 +10,9 @@ namespace {
 
 constexpr std::string_view kPreviewStateLabel = "Preview only — not executable";
 constexpr std::string_view kPreviewBoundaryId = "deck-launch-preview-only";
-constexpr std::string_view kPreviewBoundaryLabel = "Preview-only typed intent boundary";
-constexpr std::string_view kPreviewBoundaryReason = "Deck shell may build copyable preview text, but launch execution is blocked.";
-constexpr std::string_view kCopyIdleStatusLabel = "A copies the preview URI locally only — no launch, stream, backend, or Moonlight.";
+constexpr std::string_view kPreviewBoundaryLabel = "Safe preview: no game, stream, or network launch starts from this screen.";
+constexpr std::string_view kPreviewBoundaryReason = "Nova Deck shows a copyable preview plan only; games, streams, and network launches stay off.";
+constexpr std::string_view kCopyIdleStatusLabel = "A Copy preview saves this safe plan locally for inspection. No game, stream, or network launch starts.";
 constexpr std::string_view kCopySuccessToast = "Preview text copied for inspection only — still not executable.";
 constexpr std::string_view kCopyInertToast = "No preview text to copy — preview-only action stayed inert.";
 
@@ -473,7 +473,7 @@ DeckLaunchIntent resolveLaunchIntent(const DeckHostDetail& detail, const Polaris
             .localPrivateArtRedacted = true,
         },
         .safety = DeckPreviewSafetyBooleans{},
-        .publicPreviewCopy = "Preview " + gameTitle + " on " + hostName + " via " + launchModeCopyFor(mode) + "; no launch will run.",
+        .publicPreviewCopy = "Review " + gameTitle + " on " + hostName + " via " + launchModeCopyFor(mode) + ". Safe preview only; no game or stream starts.",
         .inertPreviewUri = uri,
     };
 }
@@ -490,7 +490,7 @@ DeckStreamIntent resolveStreamIntent(const DeckLaunchIntent& intent) {
         .recovery = DeckStreamRecovery::UserReviewRequired,
         .privacy = intent.privacy,
         .safety = intent.safety,
-        .publicCopy = "Preview stream for " + intent.gameTitle + " on " + intent.targetHostName + " remains noop_preview/not_started.",
+        .publicCopy = "Safe preview of " + intent.gameTitle + " on " + intent.targetHostName + "; stream remains not started.",
     };
 }
 
@@ -554,7 +554,7 @@ DeckLaunchPreviewCopyAction copyLaunchPreviewActionFor(const DeckLaunchPreview& 
     const bool hasPreviewText = !preview.text.empty();
     return DeckLaunchPreviewCopyAction{
         .id = "host-detail-copy-preview",
-        .label = "Copy preview URI (no launch)",
+        .label = "Copy preview details",
         .previewText = preview.text,
         .idleStatusLabel = hasPreviewText ? std::string(kCopyIdleStatusLabel) : std::string(kCopyInertToast),
         .successToast = std::string(kCopySuccessToast),
@@ -607,8 +607,8 @@ DeckLaunchCta inertLaunchCtaFor(const DeckHostDetail& detail, const PolarisGameF
     (void)preview;
     return DeckLaunchCta{
         .id = "host-detail-launch-cta",
-        .label = "Launch preview only",
-        .helpText = "Display-only preview — not wired to launch, Moonlight, or a network backend.",
+        .label = "Safe launch preview",
+        .helpText = "Safe preview: no game, stream, or network launch starts from this screen.",
         .previewStateLabel = preview.stateLabel,
         .previewText = preview.text,
         .enabled = false,

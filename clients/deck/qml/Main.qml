@@ -19,8 +19,8 @@ ApplicationWindow {
     readonly property int sampleCardWidth: 392
     readonly property int detailColumnWidth: 424
     readonly property int hostCardHeight: 104
-    readonly property int detailPanelHeight: 196
-    readonly property int launchPreviewHeight: 236
+    readonly property int detailPanelHeight: 184
+    readonly property int launchPreviewHeight: 258
     readonly property int hostTextWidth: hostColumnWidth - 40
     readonly property int sampleTextWidth: sampleCardWidth - 48
     readonly property int detailTextWidth: detailColumnWidth - 48
@@ -34,7 +34,7 @@ ApplicationWindow {
     property string selectedStreamLifecycleCopy: launchIntentPreview.streamLifecycleCopy
 
     function selectedHostSubtitle() {
-        return "Read-only host detail only — not discovered from the network."
+        return "Selected host only — not discovered from the network."
     }
 
     function previewComponent(value) {
@@ -68,8 +68,8 @@ ApplicationWindow {
             + "&stream="
             + previewComponent(streamMode)
             + "&state=noop-preview"
-        selectedLaunchPublicCopy = "Preview " + gameTitle + " on " + hostName + " via " + steamCopy + "; no launch will run."
-        selectedStreamLifecycleCopy = "Preview stream for " + gameTitle + " on " + hostName + " remains noop_preview/not_started."
+        selectedLaunchPublicCopy = "Review " + gameTitle + " on " + hostName + " via " + steamCopy + ". Safe preview only; no game or stream starts."
+        selectedStreamLifecycleCopy = "Safe preview of " + gameTitle + " on " + hostName + "; stream remains not started."
         launchPreviewCopyAction = {
             "id": novaLaunchPreviewCopyAction.id,
             "label": novaLaunchPreviewCopyAction.label,
@@ -193,7 +193,7 @@ ApplicationWindow {
             }
 
             Label {
-                text: "Controller-first Steam Deck shell scaffold"
+                text: "Your couch-ready Nova command center"
                 color: "#A8B0D8"
                 font.pixelSize: 24
             }
@@ -250,7 +250,7 @@ ApplicationWindow {
                             Label {
                                 text: "Empty host state is focusable and deterministic."
                                 color: "#A8B0D8"
-                                font.pixelSize: 12
+                                font.pixelSize: 14
                             }
                         }
                     }
@@ -316,7 +316,7 @@ ApplicationWindow {
                                     visible: selectedHostForPreview.id === modelData.id
                                     text: "Selected host"
                                     color: "#8AFFC1"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     font.bold: true
                                 }
                             }
@@ -331,7 +331,7 @@ ApplicationWindow {
                     spacing: deckPanelSpacing
 
                     Label {
-                        text: "Read-only Polaris library"
+                        text: "Polaris library preview"
                         color: "#E9ECFF"
                         font.pixelSize: 24
                         font.bold: true
@@ -339,7 +339,7 @@ ApplicationWindow {
 
                     Label {
                         Layout.preferredWidth: sampleTextWidth
-                        text: novaLibraryFixtureSource + (novaLibraryReadOnly ? " · read-only · Read-only snapshot loaded" : " · Snapshot unavailable in this preview shell — no backend request will be made")
+                        text: novaLibraryFixtureSource + (novaLibraryReadOnly ? " · read-only · Preview snapshot ready" : " · Snapshot unavailable in this preview shell — no backend request will be made")
                         color: "#A8B0D8"
                         font.pixelSize: 13
                         wrapMode: Text.WordWrap
@@ -378,7 +378,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: sampleTextWidth
                                 text: "Snapshot unavailable in this preview shell — no backend request will be made."
                                 color: "#A8B0D8"
-                                font.pixelSize: 12
+                                font.pixelSize: 14
                                 wrapMode: Text.WordWrap
                             }
                         }
@@ -445,14 +445,14 @@ ApplicationWindow {
                                 Label {
                                     text: modelData.launchModeLabel
                                     color: "#A8B0D8"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                 }
 
                                 Label {
                                     visible: selectedGameForPreview.id === modelData.id
                                     text: "Selected game"
                                     color: "#8AFFC1"
-                                    font.pixelSize: 11
+                                    font.pixelSize: 13
                                     font.bold: true
                                 }
                             }
@@ -488,7 +488,7 @@ ApplicationWindow {
                             spacing: 8
 
                             Label {
-                                text: "Read-only host detail"
+                                text: "Selected host"
                                 color: "#7C88B8"
                                 font.pixelSize: 16
                             }
@@ -561,7 +561,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: novaHostLaunchCta.helpText
                                 color: "#B8C2F0"
-                                font.pixelSize: 12
+                                font.pixelSize: 14
                                 wrapMode: Text.WordWrap
                             }
 
@@ -569,16 +569,16 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: novaHostLaunchCta.previewStateLabel
                                 color: "#FFDDA8"
-                                font.pixelSize: 12
+                                font.pixelSize: 14
                                 font.bold: true
                                 wrapMode: Text.WordWrap
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
-                                text: "Typed launch boundary: " + novaLaunchIntentBoundary.label + " · network/process/Moonlight blocked"
+                                text: "Safe preview: no game, stream, or network launch starts from this screen."
                                 color: "#FFDDA8"
-                                font.pixelSize: 11
+                                font.pixelSize: 13
                                 wrapMode: Text.WordWrap
                             }
 
@@ -586,7 +586,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: novaLaunchIntentBoundary.reason
                                 color: "#A8B0D8"
-                                font.pixelSize: 10
+                                font.pixelSize: 13
                                 wrapMode: Text.WordWrap
                             }
 
@@ -594,7 +594,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedLaunchPublicCopy
                                 color: "#C9F0D4"
-                                font.pixelSize: 11
+                                font.pixelSize: 13
                                 wrapMode: Text.WordWrap
                             }
 
@@ -602,7 +602,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedStreamLifecycleCopy
                                 color: "#A8B0D8"
-                                font.pixelSize: 10
+                                font.pixelSize: 13
                                 wrapMode: Text.WordWrap
                             }
 
@@ -610,7 +610,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedLaunchPreviewText
                                 color: "#A8B0D8"
-                                font.pixelSize: 12
+                                font.pixelSize: 14
                                 font.family: "monospace"
                                 wrapMode: Text.WrapAnywhere
                             }
@@ -636,9 +636,9 @@ ApplicationWindow {
                             Label {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: detailTextWidth
-                                text: launchPreviewCopyAction.idleStatusLabel + " Press A on Copy to verify. A copies the preview URI locally only."
+                                text: launchPreviewCopyAction.idleStatusLabel + " Press A on Copy to verify. A Copy preview saves this safe plan locally for inspection."
                                 color: "#FFDDA8"
-                                font.pixelSize: 12
+                                font.pixelSize: 14
                                 wrapMode: Text.WordWrap
                             }
                         }
@@ -650,7 +650,7 @@ ApplicationWindow {
 
             Label {
                 text: novaDeckFullscreenPreferred
-                    ? "Deck default: 1280×800 · fullscreen-first · controller-first"
+                    ? "D-pad Navigate · A Copy preview · 1280×800 Deck-first"
                     : "Deck default: 1280×800 · windowed test mode"
                 color: "#7C88B8"
                 font.pixelSize: 18
