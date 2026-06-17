@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import pathlib
 import sys
+import tempfile
 import unittest
+from unittest import mock
 sys.dont_write_bytecode = True
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -38,6 +40,31 @@ class DeckGameModeCaptureHarnessTest(unittest.TestCase):
     def test_parses_xdotool_shell_geometry(self):
         geometry = harness.parse_xdotool_geometry("WINDOW=123\nX=12\nY=34\nWIDTH=1280\nHEIGHT=800\nSCREEN=0\n")
         self.assertEqual(geometry, harness.Geometry(12, 34, 1280, 800))
+
+    def test_capture_uses_x11grab_as_input_before_png_output(self):
+        captured = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp) / "shot.png"
+
+            def fake_run(cmd, **kwargs):
+                captured["cmd"] = list(cmd)
+                out.write_bytes(b"png")
+                return harness.subprocess.CompletedProcess(cmd, 0)
+
+            with (
+                mock.patch.object(harness.shutil, "which", return_value="/usr/bin/ffmpeg"),
+                mock.patch.object(harness.subprocess, "run", side_effect=fake_run),
+            ):
+                harness.capture_window("0x02", out, display=":1")
+
+        cmd = captured["cmd"]
+        self.assertEqual(cmd[cmd.index("-f") + 1], "x11grab")
+        self.assertIn("-i", cmd)
+        self.assertEqual(cmd[cmd.index("-i") + 1], ":1")
+        self.assertIn("-update", cmd)
+        self.assertLess(cmd.index("x11grab"), cmd.index("-i"))
+        self.assertLess(cmd.index("-i"), cmd.index("-update"))
+        self.assertEqual(cmd[-1], str(out))
 
     def test_redacts_sensitive_session_environment_output(self):
         raw = "DISPLAY=:1\nAPI_TOKEN=supersecretvalue\nHERMES_PASSWORD=badsecret\nNORMAL=value\n"

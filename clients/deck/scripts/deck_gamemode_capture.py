@@ -196,16 +196,22 @@ def redact_sensitive_output(output: str) -> str:
     return "\n".join(redacted_lines) + suffix
 
 
+def build_ffmpeg_capture_command(window_id: str, path: Path, *, display: str) -> list[str]:
+    return [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-f", "x11grab", "-window_id", str(window_id), "-i", display,
+        "-frames:v", "1", "-update", "1", str(path),
+    ]
+
+
 def capture_window(window_id: str, path: Path, *, display: str | None, timeout: int = 5) -> None:
     if shutil.which("ffmpeg") is None:
         raise HarnessError("ffmpeg not found; cannot capture selected window")
     env = os.environ.copy()
     if display:
         env["DISPLAY"] = display
-    cmd = [
-        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-        "-f", "x11grab", "-window_id", str(window_id), "-frames:v", "1", str(path),
-    ]
+    capture_display = display or env.get("DISPLAY", ":0")
+    cmd = build_ffmpeg_capture_command(window_id, path, display=capture_display)
     subprocess.run(cmd, check=True, env=env, timeout=timeout)
     if not path.exists() or path.stat().st_size == 0:
         raise HarnessError(f"capture failed or empty: {path}")
@@ -367,6 +373,10 @@ def run_self_test() -> int:
     ]
     selected = select_nova_deck_window(candidates, expected_pid=4242)
     assert selected.window_id == "0x02"
+    capture_cmd = build_ffmpeg_capture_command("0x02", Path("shot.png"), display=":1")
+    assert capture_cmd[capture_cmd.index("-f") + 1] == "x11grab"
+    assert capture_cmd[capture_cmd.index("-i") + 1] == ":1"
+    assert capture_cmd.index("x11grab") < capture_cmd.index("-i") < capture_cmd.index("-update")
     try:
         select_nova_deck_window([
             WindowCandidate("0x02", "Nova Deck", geometry=Geometry(0, 0, 1280, 800), pid=1),
