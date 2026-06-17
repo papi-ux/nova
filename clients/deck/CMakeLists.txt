@@ -57,6 +57,7 @@ target_compile_definitions(nova_deck_core
 
 include(CTest)
 if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_executable(nova_deck_layout_test
         tests/deck_layout_test.cpp
     )
@@ -77,6 +78,10 @@ if(BUILD_TESTING)
     )
     target_link_libraries(nova_deck_stream_media_adapters_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_stream_media_adapters_test COMMAND nova_deck_stream_media_adapters_test)
+
+    add_test(NAME nova_deck_gamemode_capture_harness_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_gamemode_capture_test.py
+    )
 endif()
 
 option(NOVA_DECK_BUILD_QT_SHELL "Build the experimental Qt/QML Steam Deck shell" ON)

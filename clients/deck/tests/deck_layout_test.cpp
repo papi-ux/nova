@@ -67,6 +67,7 @@ int main() {
     assert(mainQml.find("anchors.margins: 56") == std::string::npos);
     assert(mainQml.find("Layout.preferredWidth: 480") == std::string::npos);
     assert(mainQml.find("Layout.preferredWidth: 410") == std::string::npos);
+    assert(mainQml.find("Controller-first Steam Deck shell scaffold") == std::string::npos);
     assert(mainQml.find("property int previewCopyActivationCount: 0") != std::string::npos);
     assert(mainQml.find("previewCopyActivationCount += 1") != std::string::npos);
     assert(mainQml.find("A pressed #") != std::string::npos);
@@ -75,10 +76,10 @@ int main() {
     assert(mainQml.find("novaLibraryGames") != std::string::npos);
     assert(mainQml.find("novaLibraryHosts") != std::string::npos);
     assert(mainQml.find("libraryGameRepeater") != std::string::npos);
-    assert(mainQml.find("Read-only Polaris library") != std::string::npos);
+    assert(mainQml.find("Polaris library preview") != std::string::npos);
     assert(mainQml.find("novaLaunchIntentBoundary") != std::string::npos);
-    assert(mainQml.find("Typed launch boundary") != std::string::npos);
-    assert(mainQml.find("network/process/Moonlight blocked") != std::string::npos);
+    assert(mainQml.find("Safe preview: no game, stream, or network launch starts from this screen.") != std::string::npos);
+    assert(mainQml.find("D-pad Navigate") != std::string::npos);
     assert(mainQml.find("selectedHostForPreview") != std::string::npos);
     assert(mainQml.find("selectedGameForPreview") != std::string::npos);
     assert(mainQml.find("refreshLaunchPreviewBinding") != std::string::npos);
@@ -86,13 +87,20 @@ int main() {
     assert(mainQml.find("Selected host") != std::string::npos);
     assert(mainQml.find("Selected game") != std::string::npos);
     assert(mainQml.find("No games in read-only snapshot") != std::string::npos);
-    assert(mainQml.find("Read-only snapshot loaded") != std::string::npos);
+    assert(mainQml.find("Preview snapshot ready") != std::string::npos);
     assert(mainQml.find("Snapshot unavailable in this preview shell") != std::string::npos);
-    assert(mainQml.find("A copies the preview URI locally only") != std::string::npos);
+    assert(mainQml.find("A Copy preview saves this safe plan locally for inspection") != std::string::npos);
     assert(mainQml.find("novaLaunchIntentPreview") != std::string::npos);
     assert(mainQml.find("selectedLaunchPublicCopy") != std::string::npos);
     assert(mainQml.find("selectedStreamLifecycleCopy") != std::string::npos);
     assert(mainQml.find("state=copy-preview-only") == std::string::npos);
+    assert(mainQml.find("readonly property color focusRingColor") != std::string::npos);
+    assert(mainQml.find("readonly property color focusGlowColor") != std::string::npos);
+    assert(mainQml.find("cursorShape: Qt.BlankCursor") != std::string::npos);
+    assert(mainQml.find("D-pad focus") != std::string::npos);
+    assert(mainQml.find("Exact preview details stay behind Copy preview details") != std::string::npos);
+    assert(mainQml.find("text: selectedLaunchPreviewText") == std::string::npos);
+    assert(mainQml.find("font.family: monospace") == std::string::npos);
 
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 10,
@@ -173,8 +181,8 @@ int main() {
 
     const auto launchCta = nova::deck::inertLaunchCtaFor(detail);
     assert(launchCta.id == std::string_view("host-detail-launch-cta"));
-    assert(launchCta.label == std::string_view("Launch preview only"));
-    assert(launchCta.helpText == std::string_view("Display-only preview — not wired to launch, Moonlight, or a network backend."));
+    assert(launchCta.label == std::string_view("Safe launch preview"));
+    assert(launchCta.helpText == std::string_view("Safe preview: no game, stream, or network launch starts from this screen."));
     assert(!launchCta.enabled);
     assert(launchCta.previewStateLabel == std::string_view("Preview only — not executable"));
     assert(launchCta.previewText == std::string_view("preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&mode=steam-direct&stream=headless&state=noop-preview"));
@@ -189,13 +197,13 @@ int main() {
     assert(launchIntent.steamLaunchMode == "direct");
     assert(launchIntent.boundary.kind == nova::deck::DeckLaunchIntentBoundaryKind::PreviewOnly);
     assert(launchIntent.boundary.id == "deck-launch-preview-only");
-    assert(launchIntent.boundary.label == "Preview-only typed intent boundary");
+    assert(launchIntent.boundary.label == "Safe preview: no game, stream, or network launch starts from this screen.");
     assert(launchIntent.boundary.previewOnly);
     assert(!launchIntent.boundary.allowsNetwork);
     assert(!launchIntent.boundary.allowsProcessExecution);
     assert(!launchIntent.boundary.allowsMoonlight);
     assert(!launchIntent.boundary.allowsHostMutation);
-    assert(launchIntent.boundary.reason == "Deck shell may build copyable preview text, but launch execution is blocked.");
+    assert(launchIntent.boundary.reason == "Nova Deck shows a copyable preview plan only; games, streams, and network launches stay off.");
     assert(!launchIntent.executable);
     assert(launchIntent.safetyLabel == "Preview only — not executable");
     assert(launchIntent.host.addressClass == nova::deck::DeckHostAddressClass::DemoOnly);
@@ -209,7 +217,7 @@ int main() {
     assert(launchIntent.streamProfile.displayName == "Headless preview");
     assert(launchIntent.preflight.state == nova::deck::DeckPreflightState::ReadyPreview);
     assert(launchIntent.privacy.redactionPolicy == nova::deck::DeckPreviewRedactionPolicy::PublicSafe);
-    assert(launchIntent.publicPreviewCopy == "Preview Portal 2 on Gaming PC via Steam direct; no launch will run.");
+    assert(launchIntent.publicPreviewCopy == "Review Portal 2 on Gaming PC via Steam direct. Safe preview only; no game or stream starts.");
     assert(launchIntent.inertPreviewUri == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&mode=steam-direct&stream=headless&state=noop-preview");
     assert(!nova::deck::canExecuteLaunchIntent(launchIntent));
 
@@ -220,7 +228,7 @@ int main() {
     assert(streamIntent.lifecycle == nova::deck::DeckStreamLifecycle::PreflightOnly);
     assert(streamIntent.recovery == nova::deck::DeckStreamRecovery::UserReviewRequired);
     assert(streamIntent.privacy.redactionPolicy == nova::deck::DeckPreviewRedactionPolicy::PublicSafe);
-    assert(streamIntent.publicCopy == "Preview stream for Portal 2 on Gaming PC remains noop_preview/not_started.");
+    assert(streamIntent.publicCopy == "Safe preview of Portal 2 on Gaming PC; stream remains not started.");
     assert(!streamIntent.safety.allowsNetwork);
     assert(!streamIntent.safety.allowsProcessExecution);
     assert(!streamIntent.safety.allowsMoonlight);
@@ -272,7 +280,7 @@ int main() {
     assert(commandPreview.text == "preview://nova-deck/launch?host=host-gaming-pc&game=Portal%202&mode=steam-direct&stream=headless&state=noop-preview");
     assert(commandPreview.stateLabel == "Preview only — not executable");
     assert(commandPreview.boundaryId == "deck-launch-preview-only");
-    assert(commandPreview.boundaryLabel == "Preview-only typed intent boundary");
+    assert(commandPreview.boundaryLabel == "Safe preview: no game, stream, or network launch starts from this screen.");
     assert(commandPreview.copyOnly);
     assert(!commandPreview.executable);
     assert(!commandPreview.networkAllowed);
@@ -290,9 +298,9 @@ int main() {
 
     const auto copyAction = nova::deck::copyLaunchPreviewActionFor(commandPreview);
     assert(copyAction.id == std::string_view("host-detail-copy-preview"));
-    assert(copyAction.label == std::string_view("Copy preview URI (no launch)"));
+    assert(copyAction.label == std::string_view("Copy preview details"));
     assert(copyAction.previewText == commandPreview.text);
-    assert(copyAction.idleStatusLabel == "A copies the preview URI locally only — no launch, stream, backend, or Moonlight.");
+    assert(copyAction.idleStatusLabel == "A Copy preview saves this safe plan locally for inspection. No game, stream, or network launch starts.");
     assert(copyAction.successToast == "Preview text copied for inspection only — still not executable.");
     assert(copyAction.inertToast == "No preview text to copy — preview-only action stayed inert.");
     assert(copyAction.copyOnly);
@@ -357,7 +365,7 @@ int main() {
     assert(detailFocus[0].id == std::string_view("host-detail-panel"));
     assert(detailFocus[1].id == std::string_view("host-detail-launch-cta"));
     assert(detailFocus[2].id == std::string_view("host-detail-copy-preview"));
-    assert(detailFocus[2].label == std::string_view("Copy preview URI (no launch)"));
+    assert(detailFocus[2].label == std::string_view("Copy preview details"));
     assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-panel", nova::deck::DeckFocusDirection::Down)
         == std::string_view("host-detail-launch-cta"));
     assert(nova::deck::nextHostDetailFocusTarget(detailFocus, "host-detail-launch-cta", nova::deck::DeckFocusDirection::Down)
