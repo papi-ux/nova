@@ -276,12 +276,215 @@ Non-goals for the MVP:
 - perfect gyro and haptics parity
 - background-service behavior identical to Android
 
-## First implementation spike
+## Deck-T4 streaming backend decision
 
-Before full implementation, run one short spike that answers these questions decisively:
+Decision: proceed with a Nova-owned native Linux streaming backend that links
+`moonlight-common-c` directly and supplies Deck-specific adapters for decode,
+presentation, audio, input, discovery, pairing, persistence, and Polaris session
+orchestration.
 
-1. Is a new Qt/QML client with `moonlight-common-c` easier to shape around Nova than adapting an existing Linux Moonlight client?
-2. Which Linux decode and presentation backend gives the cleanest Steam Deck path with acceptable latency?
-3. What is the minimum Polaris surface needed to make the Deck client feel meaningfully like Nova instead of a generic Moonlight shell?
+Reject adapting an existing Linux Moonlight client as the product base for the
+next Deck slice. Existing Linux Moonlight clients remain useful references for
+backend behavior, SteamOS quirks, and dependency choices, but Nova should not
+inherit another client's shell, state model, settings, or launch/session UX.
 
-If that spike does not invalidate the assumptions above, proceed with Option A.
+Detailed spike notes live in
+`clients/deck/spikes/streaming-backend-notes.md`.
+
+### Why the direct `moonlight-common-c` path wins
+
+The current Android implementation already shows the seam Nova needs to keep:
+Android owns product orchestration while `moonlight-common-c` owns the stream
+transport. Android's `NvConnection` negotiates host/app/session state, installs
+video/audio/listener callbacks through `MoonBridge`, and then starts the native
+connection. The native bridge eventually calls `LiStartConnection(...)` with
+`CONNECTION_LISTENER_CALLBACKS`, `DECODER_RENDERER_CALLBACKS`, and
+`AUDIO_RENDERER_CALLBACKS`.
+
+For Deck, the reusable boundary is that C callback contract, not the Android JNI
+bridge. The JNI layer is tied to the JVM, Android logcat, Android CPU feature
+helpers, `MediaCodecDecoderRenderer`, `AndroidAudioRenderer`, Android discovery,
+Android input capture, activities, services, notifications, and other lifecycle
+assumptions. Those pieces should remain behavior references only.
+
+Direct integration keeps Nova's product shape intact:
+
+- Standard Moonlight-compatible hosts still work through `moonlight-common-c`.
+- Polaris can stay first-class instead of being grafted onto a generic client UI.
+- Continue, launch modes, watch/owned-session state, tuning sync, NovaHUD copy,
+  reconnect messaging, and safe diagnostics can be modeled as Deck-native Nova
+  surfaces from the start.
+- `shared/stream-core` can become the cross-client session boundary Android and
+  Deck both converge toward, rather than wrapping a forked Linux app.
+
+### Rejected alternative: adapt an existing Linux Moonlight client
+
+This path remains a fallback, not the default.
+
+It is attractive because a mature Linux client may already have working decode,
+audio, input, fullscreen, and packaging behavior. It could get a generic first
+picture on screen faster.
+
+It is rejected for Deck-T4 because Nova's value is not just launching an app list
+and displaying a stream. Nova needs Polaris-aware library metadata, launch-mode
+intent, watch/resume/replace semantics, session ownership truth, tuning sync,
+controller-first overlays, and handheld recovery copy. Retrofitting those into
+another client's screens and state machine risks producing Moonlight cosplay with
+Nova labels bolted on. It would also duplicate or discard the existing
+`clients/deck` shell and delay the shared-stream boundary Nova needs for Android,
+Deck, and future clients.
+
+Revisit this only if the direct backend cannot produce stable low-latency
+SteamOS video/audio after focused testing, or if a small separable backend
+component can be reused with clean provenance and attribution. Nova is already
+GPLv3-lineage, but any copied client code still needs explicit license and
+maintenance review before entering the repo.
+
+### Linux backend candidates for the direct path
+
+**Video and presentation** should be the first technical proof. Start with H.264
+hardware decode on a Linux media stack such as FFmpeg/libavcodec with VA-API on
+Steam Deck-class AMD hardware, then prove fullscreen presentation and overlay
+composition hooks. Consider GStreamer only if it shortens VA-API and
+presentation integration without hiding frame pacing control. Treat software
+decode as a fallback or diagnostic path, not the target.
+
+**Audio** should prefer PipeWire for SteamOS-era integration, with PulseAudio as
+the compatibility fallback. SDL audio is acceptable as a temporary spike adapter
+only if it gets decoded PCM playing while the session lifecycle boundary is being
+validated.
+
+**Controller input** should use the Deck's built-in controls as a normal gamepad
+path first, likely through SDL/GameController-style mapping or a minimal evdev
+adapter if SDL is not introduced yet. Keep shell shortcuts separate from
+in-stream Moonlight packets so Nova can own Command Center, NovaHUD, stream stop,
+and diagnostic copy without stealing gameplay input accidentally.
+
+**Discovery and pairing** should start with manual host add plus pairing/cert
+storage. LAN mDNS/zeroconf can follow after the no-Android credential and host
+record contracts are stable.
+
+**Fullscreen and suspend/resume** must be tested in a Game Mode-like fullscreen
+path, not only a Desktop Mode window. The stream boundary must handle connecting,
+active streaming, disconnecting, suspend, interrupt, and reconnect states without
+corrupting `moonlight-common-c` lifecycle.
+
+### Minimum Polaris surface for the next Deck vertical slice
+
+The next real slice should include only the Polaris surface needed to make Deck
+feel like Nova instead of a generic Moonlight client:
+
+- host capability probe that distinguishes Polaris from standard
+  Moonlight-compatible hosts
+- library/app card model with Polaris metadata when available and standard app
+  list fallback
+- launch intent containing host id, game id/UUID, launch mode, stream display
+  mode/headless/virtual-display hint, and safe debug copy
+- session truth for active/inactive, owned-by-this-client, owner name/device,
+  watch eligibility, quit/resume/replace permissions, and session token plumbing
+  where exposed
+- client presentation/tuning summary for target fps, bitrate, codec, display
+  mode, sync state, source of truth, and relaunch-required messaging
+- HUD/reconnect event stream for connection stages, transient warnings, poor
+  connection, no-video/no-frame/protected-content/early-termination, suspend,
+  and reconnect status
+
+Defer rich optimizer controls, profile editing, capture diagnostics UI, full
+NovaHUD parity, gyro/haptics polish, touch overlays, and every Android quick-menu
+action until after the first real Deck stream works.
+
+### First technical risks to test next
+
+1. Video presentation: can a Deck-native adapter consume `moonlight-common-c`
+   decode units and present low-latency fullscreen frames with overlay hooks?
+2. Audio: can decoded PCM play through PipeWire, PulseAudio, or temporary SDL
+   without drift or bad teardown?
+3. Controller input: can Deck controls be split cleanly between shell shortcuts
+   and in-stream Moonlight controller packets in Game Mode?
+4. Host discovery/pairing: can manual add, pairing, and pinned certificate
+   storage work without Android `Context`, NSD, or keystore assumptions?
+5. Suspend/resume: can the session boundary interrupt, stop, reconnect, and
+   report recovery states safely?
+6. Game Mode fullscreen: can the Qt shell enter stream fullscreen, keep focus,
+   and exit/recover with readable Nova copy?
+
+## Deck-T7 hardware-backed Linux video/audio prototype decision
+
+Decision: the first hardware-backed Deck prototype should use
+FFmpeg/libavcodec H.264 decode with VA-API on Steam Deck-class AMD Linux
+hardware, then present through the existing Qt Deck shell via a Qt Quick/QRhi
+scene-graph item instead of taking over raw DRM/KMS. Audio should start with a
+native PipeWire stream fed from the Moonlight Opus/audio callback path, with
+PulseAudio compatibility as the first fallback and SDL audio only as a temporary
+throwaway spike if PipeWire blocks the lifecycle proof.
+
+This keeps the direct `moonlight-common-c` decision intact while choosing the
+first concrete Linux media boundary. The existing Deck CMake target already links
+the checked-out `moonlight-common-c` tree, and the no-network stream-core seam in
+`clients/deck/src/stream/deck_stream_core.h` owns real
+`CONNECTION_LISTENER_CALLBACKS`, `DECODER_RENDERER_CALLBACKS`,
+`AUDIO_RENDERER_CALLBACKS`, and `STREAM_CONFIGURATION` storage. Deck-T6 proved
+those callbacks can be initialized and routed through Nova-owned renderer,
+audio, input, and session-event interfaces without `LiStartConnection` or
+sockets. Deck-T7 therefore chooses the first hardware-backed adapter
+implementation target rather than changing the product shell or claiming a real
+stream.
+
+### Why this path wins
+
+- FFmpeg fits `moonlight-common-c`'s Annex-B decode-unit callback shape and lets
+  the first proof focus on H.264 before HEVC, AV1, 10-bit, HDR, and advanced
+  reference-frame invalidation capability gates.
+- VA-API is the lowest-friction hardware-decode target for Steam Deck-class AMD
+  Linux systems. Vulkan decode may become useful later, but it is too much API
+  surface for the first offline harness.
+- Presenting inside Qt Quick/QRhi preserves Nova's controller-first shell,
+  overlays, copy affordances, stream-stop confirmation, focus recovery, and
+  suspend/resume messaging. Raw DRM/KMS is rejected for the first product slice
+  because Steam Deck Game Mode already runs apps under gamescope; bypassing the
+  shell would fight the compositor and NovaHUD composition before the stream
+  lifecycle is proven.
+- PipeWire is the right SteamOS-era audio target and still gives a PulseAudio
+  compatibility lane. ALSA-only output is too low-level for the first handheld
+  lifecycle proof, and SDL should not become a product dependency just because it
+  can make PCM noise quickly.
+- Local Fedora dependency probes found the expected development packages for the
+  next CMake probe (`libavcodec`, `libavutil`, `libva`, `libva-drm`, `libdrm`,
+  `egl`, `wayland-client`, `Qt6Quick`, `libpipewire-0.3`, and `sdl2`). That does
+  not guarantee SteamOS packaging, but it means the next local harness can test
+  real headers/libraries rather than a paper backend.
+
+### Rejected alternatives
+
+- **Raw DRM/KMS/EGL first:** useful later for benchmarking or a minimal renderer
+  harness, but rejected as the first product path because it bypasses the Qt
+  shell and risks gamescope/focus/suspend fights.
+- **SDL2 as the main stream runtime:** useful for isolated probes, but rejected
+  as the primary path because it would introduce a second window/input/audio
+  model beside the existing Qt shell before Nova has proven the stream lifecycle.
+- **GStreamer first:** defer unless FFmpeg/VA-API integration stalls. It can hide
+  frame pacing, callback error handling, and overlay timing decisions Nova needs
+  to own directly.
+- **Software decode first:** diagnostic fallback only; it does not answer the
+  hardware-backed Deck question.
+- **PulseAudio-only or ALSA-only first:** PulseAudio remains a compatibility
+  fallback through PipeWire; ALSA is too raw for the first suspend/resume and
+  device-routing proof.
+
+Detailed Deck-T7 notes and the Deck-T8 card live in
+`clients/deck/spikes/streaming-backend-notes.md`.
+
+### Recommended next implementation card
+
+Deck-T8 first hardware-backed Linux renderer/audio harness: add a local/offline
+prototype under `clients/deck` that builds only when the required development
+packages are present. Connect the existing no-network stream-core callbacks to an
+FFmpeg+VA-API H.264 renderer adapter and a PipeWire audio adapter, feed them from
+deterministic test data created at test time or checked-in source code only when
+licensing/provenance is explicit, and prove setup/start/submit or
+decode/play/stop/cleanup boundaries without `LiStartConnection`, sockets, host
+discovery, pairing, credentials, native asset blobs, Android changes, or fake
+streaming UI. Required verification: core Deck CMake/CTest, Qt smoke when
+available, adapter CTest or probe skip with a clear dependency message,
+fullscreen/offscreen shell boundary notes, `git diff --check`, and independent
+review before commit.

@@ -44,9 +44,15 @@ Native C++ cannot include Kotlin source directly. For this first slice, fixtures
 
 Keep this boundary explicit until the shared contract is exported through a real native-consumable API. Do not fake Kotlin/C++ interop by including .kt files.
 
+## Stream core skeleton boundary
+
+clients/deck/src/stream/deck_stream_core.h is the first no-network native stream-core seam for the direct moonlight-common-c path. The CMake target links the real app/src/main/jni/moonlight-core/moonlight-common-c tree and the focused CTest includes Limelight.h, initializes STREAM_CONFIGURATION plus listener/video/audio callback structs, and verifies that the Deck lifecycle can move through idle, preparing, starting, active, stopping, stopped, cancelled, and failed states without opening sockets or calling LiStartConnection.
+
+The skeleton intentionally exposes adapter seams for renderer/presentation, audio, input, and session events, but ships only inert Linux-facing interfaces. Next backend work should add a hardware-backed Linux renderer/audio/input spike behind those seams while keeping host pairing, credentials, and real network start disabled until the lifecycle contract is reviewed.
+
 ## Fedora or SteamOS dependency notes
 
-The fallback smoke only needs CMake and a C++20 compiler.
+The fallback smoke needs CMake, C/C++ compilers, OpenSSL crypto development headers, and the checked-out moonlight-common-c submodule.
 
 For the Qt shell on Fedora, install the Qt 6 development packages if CMake warns that Qt6 Quick or QuickControls2 is missing:
 

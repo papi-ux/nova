@@ -1,19 +1,53 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(NovaDeck LANGUAGES CXX)
+project(NovaDeck LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(NOVA_DECK_FFMPEG_VAAPI REQUIRED IMPORTED_TARGET
+    libavcodec
+    libavutil
+    libva
+    libva-drm
+)
+pkg_check_modules(NOVA_DECK_LINUX_AUDIO REQUIRED IMPORTED_TARGET
+    libpipewire-0.3
+    libpulse
+)
+find_package(Qt6 REQUIRED COMPONENTS Quick)
+
 add_library(nova_deck_core
     src/deck_gamepad.cpp
     src/deck_layout.cpp
     src/polaris_game_fixture.cpp
+    src/stream/deck_stream_core.cpp
+    src/stream/deck_stream_media_adapters.cpp
 )
+
+set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c
+    CACHE PATH
+    "Path to the checked-out moonlight-common-c source tree used by the Deck stream skeleton"
+)
+if(EXISTS "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/Limelight.h")
+    add_subdirectory("${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/moonlight-common-c")
+    target_link_libraries(nova_deck_core PUBLIC moonlight-common-c)
+else()
+    message(FATAL_ERROR "moonlight-common-c is required for the Deck stream skeleton; expected ${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/Limelight.h")
+endif()
+
 target_include_directories(nova_deck_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(nova_deck_core
+    PUBLIC
+        PkgConfig::NOVA_DECK_FFMPEG_VAAPI
+        PkgConfig::NOVA_DECK_LINUX_AUDIO
+        Qt6::Quick
 )
 target_compile_definitions(nova_deck_core
     PUBLIC
@@ -32,6 +66,17 @@ if(BUILD_TESTING)
             NOVA_DECK_MAIN_QML_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/Main.qml"
     )
     add_test(NAME nova_deck_controller_library_smoke COMMAND nova_deck_layout_test)
+    add_executable(nova_deck_stream_core_test
+        tests/deck_stream_core_test.cpp
+    )
+    target_link_libraries(nova_deck_stream_core_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_stream_core_test COMMAND nova_deck_stream_core_test)
+
+    add_executable(nova_deck_stream_media_adapters_test
+        tests/deck_stream_media_adapters_test.cpp
+    )
+    target_link_libraries(nova_deck_stream_media_adapters_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_stream_media_adapters_test COMMAND nova_deck_stream_media_adapters_test)
 endif()
 
 option(NOVA_DECK_BUILD_QT_SHELL "Build the experimental Qt/QML Steam Deck shell" ON)
