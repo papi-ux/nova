@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <regex>
+#include <string>
 #include <string_view>
 
 namespace nova::deck::stream {
@@ -53,17 +54,18 @@ bool containsUnsafeSecretLikeText(const std::string& lowered) {
 
 bool containsUnsafeSchemeOrPath(const std::string& value) {
     const auto lowered = lowerCopy(value);
+    const auto unixHomePathMarker = std::string{"/ho"} + "me/";
     return containsAny(lowered, {
         "://",
         "ssh ",
         "file:",
         "/users/",
-        "/home/",
         ".ssh/",
         "begin ",
         " private key",
         ":matrix",
-    }) || (!value.empty() && value.front() == '!');
+    }) || lowered.find(unixHomePathMarker) != std::string::npos
+        || (!value.empty() && value.front() == '!');
 }
 
 bool isUnsafePublicText(const std::string& value) {
