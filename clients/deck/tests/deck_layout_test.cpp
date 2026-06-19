@@ -99,8 +99,28 @@ int main() {
     assert(mainQml.find("cursorShape: Qt.BlankCursor") != std::string::npos);
     assert(mainQml.find("D-pad focus") != std::string::npos);
     assert(mainQml.find("Exact preview details stay behind Copy preview details") != std::string::npos);
+    assert(mainQml.find("objectName: \"moonlight-handoff-panel\"") != std::string::npos);
+    assert(mainQml.find("Moonlight handoff preview") != std::string::npos);
+    assert(mainQml.find("selectedMoonlightHandoffCopy") != std::string::npos);
+    assert(mainQml.find("selectedMoonlightHandoffArgvPreview") != std::string::npos);
+    assert(mainQml.find("Typed argv plan") != std::string::npos);
+    assert(mainQml.find("redacted host selector") != std::string::npos);
+    assert(mainQml.find("Runtime gates: network off · process off · Moonlight off · host mutation off") != std::string::npos);
+    assert(mainQml.find("unproven_static") != std::string::npos);
+    assert(mainQml.find("Nothing will launch yet") != std::string::npos);
+    assert(mainQml.find("novaMoonlightHandoffPreflightBridge.resolve") != std::string::npos);
+    assert(mainQml.find("moonlightHandoffPreflight.executable") != std::string::npos);
+    assert(mainQml.find("moonlightHandoffPreflight.safeToRender") != std::string::npos);
+    assert(mainQml.find("moonlightHandoffRuntimeGatesClosed") != std::string::npos);
+    assert(mainQml.find("!moonlightHandoffPreflight.allowsNetwork") != std::string::npos);
+    assert(mainQml.find("!moonlightHandoffPreflight.allowsProcessExecution") != std::string::npos);
+    assert(mainQml.find("!moonlightHandoffPreflight.allowsMoonlight") != std::string::npos);
+    assert(mainQml.find("!moonlightHandoffPreflight.allowsHostMutation") != std::string::npos);
+    assert(mainQml.find("Moonlight handoff preview blocked until safe public copy is available") != std::string::npos);
     assert(mainQml.find("text: selectedLaunchPreviewText") == std::string::npos);
     assert(mainQml.find("font.family: monospace") == std::string::npos);
+    assert(mainQml.find("onClicked: activateMoonlight") == std::string::npos);
+    assert(mainQml.find("QProcess") == std::string::npos);
 
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 10,

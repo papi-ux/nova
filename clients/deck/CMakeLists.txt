@@ -23,6 +23,7 @@ add_library(nova_deck_core
     src/deck_gamepad.cpp
     src/deck_layout.cpp
     src/polaris_game_fixture.cpp
+    src/stream/deck_moonlight_handoff_preflight.cpp
     src/stream/deck_stream_core.cpp
     src/stream/deck_stream_media_adapters.cpp
 )
@@ -78,6 +79,16 @@ if(BUILD_TESTING)
     )
     target_link_libraries(nova_deck_stream_media_adapters_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_stream_media_adapters_test COMMAND nova_deck_stream_media_adapters_test)
+
+    add_executable(nova_deck_moonlight_handoff_preflight_test
+        tests/deck_moonlight_handoff_preflight_test.cpp
+    )
+    target_link_libraries(nova_deck_moonlight_handoff_preflight_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_moonlight_handoff_preflight_test COMMAND nova_deck_moonlight_handoff_preflight_test)
+
+    add_test(NAME nova_deck_moonlight_handoff_source_guard_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_moonlight_handoff_source_guard_test.py
+    )
 
     add_test(NAME nova_deck_gamemode_capture_harness_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_gamemode_capture_test.py
