@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCAN_FILES = [
     ROOT / "src" / "stream" / "deck_moonlight_handoff_preflight.h",
     ROOT / "src" / "stream" / "deck_moonlight_handoff_preflight.cpp",
+    ROOT / "src" / "main.cpp",
+    ROOT / "qml" / "Main.qml",
     ROOT / "CMakeLists.txt",
 ]
 
@@ -38,6 +40,14 @@ def normalized_text(path: Path) -> str:
     if path.name == "CMakeLists.txt":
         # Target/file names necessarily contain the feature name. Keep command/runtime checks active.
         text = ALLOWED_CMAKE_PATTERN.sub("PRELIGHT_TARGET_NAME", text)
+    if path.name == "main.cpp":
+        # Qt signal wiring/event loop are not network connect/probe or process exec surfaces.
+        text = text.replace("QObject::connect", "QT_SIGNAL_CONNECT")
+        text = text.replace("connect(notifier_", "QT_SIGNAL_CONNECT(notifier_")
+        text = text.replace("return app.exec();", "return QT_APP_EVENT_LOOP;")
+    if path.name == "Main.qml":
+        # Existing inert preview URI path is local copy text, not a host HTTP launch endpoint.
+        text = text.replace("preview://nova-deck/launch", "preview://nova-deck/PREVIEW_PATH")
     return text
 
 

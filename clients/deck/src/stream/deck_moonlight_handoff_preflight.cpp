@@ -226,6 +226,12 @@ DeckMoonlightHandoffPreflightResult resolveDeckMoonlightHandoffPreflight(
         + ". Nothing will launch yet.";
     result.candidatePlan.publicSummary = result.publicPreviewCopy;
     result.safeToRender = !isUnsafePublicText(result.publicPreviewCopy);
+    if (!result.safeToRender) {
+        return blocked(
+            request,
+            {DeckMoonlightHandoffBlockReason::UnsafePublicCopy},
+            "Nova blocked this Moonlight handoff preview because the public review copy is not safe to render. Nothing will launch yet.");
+    }
     return result;
 }
 

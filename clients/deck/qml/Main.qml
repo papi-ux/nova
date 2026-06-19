@@ -19,8 +19,8 @@ ApplicationWindow {
     readonly property int sampleCardWidth: 392
     readonly property int detailColumnWidth: 424
     readonly property int hostCardHeight: 104
-    readonly property int detailPanelHeight: 184
-    readonly property int launchPreviewHeight: 258
+    readonly property int detailPanelHeight: 150
+    readonly property int launchPreviewHeight: 400
     readonly property int hostTextWidth: hostColumnWidth - 40
     readonly property int sampleTextWidth: sampleCardWidth - 48
     readonly property int detailTextWidth: detailColumnWidth - 48
@@ -32,8 +32,13 @@ ApplicationWindow {
     property string selectedLaunchPreviewText: novaSelectedLaunchPreviewText
     property var launchPreviewCopyAction: novaLaunchPreviewCopyAction
     property var launchIntentPreview: novaLaunchIntentPreview
+    property var moonlightHandoffPreflight: novaMoonlightHandoffPreflight
     property string selectedLaunchPublicCopy: launchIntentPreview.publicCopy
     property string selectedStreamLifecycleCopy: launchIntentPreview.streamLifecycleCopy
+    property string selectedMoonlightHandoffCopy: moonlightHandoffPreflight.publicPreviewCopy
+    property string selectedMoonlightHandoffArgvPreview: moonlightHandoffPreflight.argvPreview
+    property string selectedMoonlightHandoffFocusCopy: moonlightHandoffPreflight.focusFallbackCopy
+    property string selectedMoonlightHandoffConfidence: moonlightHandoffPreflight.focusConfidence
 
     function selectedHostSubtitle() {
         return "Selected host only — not discovered from the network."
@@ -41,6 +46,36 @@ ApplicationWindow {
 
     function previewComponent(value) {
         return encodeURIComponent(value === undefined || value === null ? "" : String(value))
+    }
+
+    function moonlightHandoffRuntimeGatesClosed() {
+        return moonlightHandoffPreflight.safeToRender
+            && !moonlightHandoffPreflight.executable
+            && !moonlightHandoffPreflight.allowsNetwork
+            && !moonlightHandoffPreflight.allowsProcessExecution
+            && !moonlightHandoffPreflight.allowsMoonlight
+            && !moonlightHandoffPreflight.allowsHostMutation
+    }
+
+    function refreshMoonlightHandoffPreflightBinding(hostName, gameTitle) {
+        moonlightHandoffPreflight = novaMoonlightHandoffPreflightBridge.resolve(
+            hostName,
+            gameTitle,
+            novaLibraryReadOnly,
+            novaLibraryGames.length > 0)
+        const canRenderMoonlightHandoff = moonlightHandoffRuntimeGatesClosed()
+        selectedMoonlightHandoffCopy = canRenderMoonlightHandoff
+            ? moonlightHandoffPreflight.publicPreviewCopy
+            : "Moonlight handoff preview blocked until safe public copy is available. Nothing will launch yet."
+        selectedMoonlightHandoffArgvPreview = canRenderMoonlightHandoff
+            ? moonlightHandoffPreflight.argvPreview
+            : "Typed argv plan unavailable until the preflight is safe to render."
+        selectedMoonlightHandoffFocusCopy = canRenderMoonlightHandoff
+            ? moonlightHandoffPreflight.focusFallbackCopy
+            : "Return behavior withheld until the preflight is safe to render."
+        selectedMoonlightHandoffConfidence = canRenderMoonlightHandoff
+            ? moonlightHandoffPreflight.focusConfidence
+            : "blocked_static"
     }
 
     function refreshLaunchPreviewBinding() {
@@ -72,6 +107,7 @@ ApplicationWindow {
             + "&state=noop-preview"
         selectedLaunchPublicCopy = "Review " + gameTitle + " on " + hostName + " via " + steamCopy + ". Safe preview only; no game or stream starts."
         selectedStreamLifecycleCopy = "Safe preview of " + gameTitle + " on " + hostName + "; stream remains not started."
+        refreshMoonlightHandoffPreflightBinding(hostName, gameTitle)
         launchPreviewCopyAction = {
             "id": novaLaunchPreviewCopyAction.id,
             "label": novaLaunchPreviewCopyAction.label,
@@ -616,12 +652,63 @@ ApplicationWindow {
                                 wrapMode: Text.WordWrap
                             }
 
-                            Label {
+                            Rectangle {
+                                id: moonlightHandoffPanel
+                                objectName: "moonlight-handoff-panel"
                                 Layout.preferredWidth: detailTextWidth
-                                text: "Exact preview details stay behind Copy preview details — copy locally to inspect the preview URI."
-                                color: "#7C88B8"
-                                font.pixelSize: 12
-                                wrapMode: Text.WordWrap
+                                Layout.preferredHeight: 118
+                                radius: 14
+                                color: "#101A30"
+                                border.color: "#7C73FF"
+                                border.width: 2
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 12
+                                    spacing: 3
+
+                                    Label {
+                                        text: "Moonlight handoff preview — Nothing will launch yet"
+                                        color: "#E9ECFF"
+                                        font.pixelSize: 14
+                                        font.bold: true
+                                    }
+
+                                    Label {
+                                        Layout.preferredWidth: detailTextWidth - 24
+                                        text: selectedMoonlightHandoffCopy
+                                        color: "#C9F0D4"
+                                        font.pixelSize: 11
+                                        wrapMode: Text.WordWrap
+                                    }
+
+                                    Label {
+                                        Layout.preferredWidth: detailTextWidth - 24
+                                        text: "Typed argv plan · redacted host selector · " + selectedMoonlightHandoffArgvPreview
+                                        color: "#B8C2F0"
+                                        font.pixelSize: 10
+                                        wrapMode: Text.WordWrap
+                                    }
+
+                                    Label {
+                                        Layout.preferredWidth: detailTextWidth - 24
+                                        text: moonlightHandoffRuntimeGatesClosed()
+                                            ? "Runtime gates: network off · process off · Moonlight off · host mutation off"
+                                            : "Runtime gate failed — review blocked"
+                                        color: "#FFDDA8"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        wrapMode: Text.WordWrap
+                                    }
+
+                                    Label {
+                                        Layout.preferredWidth: detailTextWidth - 24
+                                        text: "Focus return: unproven_static"
+                                        color: "#7C88B8"
+                                        font.pixelSize: 10
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
                             }
 
                             Button {
@@ -643,11 +730,19 @@ ApplicationWindow {
                             }
 
                             Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Exact preview details stay behind Copy preview details — copy locally to inspect the preview URI."
+                                color: "#7C88B8"
+                                font.pixelSize: 10
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: detailTextWidth
-                                text: launchPreviewCopyAction.idleStatusLabel + " Press A on Copy to verify. A Copy preview saves this safe plan locally for inspection."
+                                text: launchPreviewCopyAction.idleStatusLabel + " · A Copy preview saves this safe plan locally for inspection."
                                 color: "#FFDDA8"
-                                font.pixelSize: 14
+                                font.pixelSize: 10
                                 wrapMode: Text.WordWrap
                             }
                         }

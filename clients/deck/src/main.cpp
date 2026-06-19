@@ -1,6 +1,7 @@
 #include "deck_layout.h"
 #include "deck_gamepad.h"
 #include "polaris_game_fixture.h"
+#include "stream/deck_moonlight_handoff_preflight.h"
 
 #include <QClipboard>
 #include <QSocketNotifier>
@@ -246,6 +247,115 @@ QVariantMap toPreviewCopyActionModel(const nova::deck::DeckLaunchPreviewCopyActi
     model.insert("executable", copyAction.executable);
     return model;
 }
+
+QString moonlightHandoffVerdictLabel(const nova::deck::stream::DeckMoonlightHandoffVerdict verdict) {
+    using nova::deck::stream::DeckMoonlightHandoffVerdict;
+    switch (verdict) {
+    case DeckMoonlightHandoffVerdict::ReadyForReview:
+        return QStringLiteral("ready_for_review");
+    case DeckMoonlightHandoffVerdict::BlockedStatic:
+        return QStringLiteral("blocked_static");
+    case DeckMoonlightHandoffVerdict::ForbiddenRuntimeBoundary:
+        return QStringLiteral("forbidden_runtime_boundary");
+    }
+    return QStringLiteral("unknown");
+}
+
+QString moonlightHandoffSurfaceLabel(const nova::deck::stream::DeckMoonlightHandoffSurface surface) {
+    using nova::deck::stream::DeckMoonlightHandoffSurface;
+    switch (surface) {
+    case DeckMoonlightHandoffSurface::MoonlightQtCli:
+        return QStringLiteral("moonlight_qt_cli");
+    case DeckMoonlightHandoffSurface::HostAppSnapshot:
+        return QStringLiteral("host_app_snapshot");
+    case DeckMoonlightHandoffSurface::DesktopEntry:
+        return QStringLiteral("desktop_entry");
+    case DeckMoonlightHandoffSurface::FlatpakIdentity:
+        return QStringLiteral("flatpak_identity");
+    case DeckMoonlightHandoffSurface::SteamShortcut:
+        return QStringLiteral("steam_shortcut");
+    case DeckMoonlightHandoffSurface::CustomUri:
+        return QStringLiteral("custom_uri");
+    case DeckMoonlightHandoffSurface::NovaOwnedCommonCFuture:
+        return QStringLiteral("nova_owned_common_c_future");
+    case DeckMoonlightHandoffSurface::Unsupported:
+        return QStringLiteral("unsupported");
+    }
+    return QStringLiteral("unknown");
+}
+
+QVariantList toStringListModel(const std::vector<std::string>& values) {
+    QVariantList model;
+    for (const auto& value : values) {
+        model.append(toQString(value));
+    }
+    return model;
+}
+
+QString argvPreviewFor(const std::vector<std::string>& tokens) {
+    if (tokens.size() == 4) {
+        return QStringLiteral("Typed argv plan: app token + stream action + redacted host selector + ")
+            + toQString(tokens[3]);
+    }
+    return QStringLiteral("Typed argv plan unavailable until the preflight is ready for review.");
+}
+
+QVariantMap toMoonlightHandoffPreflightModel(
+    const nova::deck::stream::DeckMoonlightHandoffPreflightResult& result) {
+    QVariantMap model;
+    model.insert("verdict", moonlightHandoffVerdictLabel(result.verdict));
+    model.insert("candidateSurface", moonlightHandoffSurfaceLabel(result.candidatePlan.surface));
+    model.insert("publicPreviewCopy", toQString(result.publicPreviewCopy));
+    model.insert("publicSummary", toQString(result.candidatePlan.publicSummary));
+    model.insert("argvTokens", toStringListModel(result.candidatePlan.argvTokens));
+    model.insert("argvTokenCount", static_cast<int>(result.candidatePlan.argvTokens.size()));
+    model.insert("argvPreview", argvPreviewFor(result.candidatePlan.argvTokens));
+    model.insert("sourceSurface", toQString(result.focusReturnPlan.sourceSurface));
+    model.insert("intendedReturnTarget", toQString(result.focusReturnPlan.intendedReturnTarget));
+    model.insert("focusFallbackCopy", toQString(result.focusReturnPlan.fallbackCopy));
+    model.insert("focusConfidence", toQString(result.focusReturnPlan.confidence));
+    model.insert("safeToRender", result.safeToRender);
+    model.insert("executable", result.executable);
+    model.insert("allowsNetwork", result.allowsNetwork);
+    model.insert("allowsProcessExecution", result.allowsProcessExecution);
+    model.insert("allowsMoonlight", result.allowsMoonlight);
+    model.insert("allowsHostMutation", result.allowsHostMutation);
+    return model;
+}
+
+nova::deck::stream::DeckMoonlightHandoffPreflightResult resolveMoonlightHandoffPreflightFor(
+    const QString& hostDisplayNamePublic,
+    const QString& gameTitlePublic,
+    const bool hasSafeSnapshot,
+    const bool appPresentInSnapshot) {
+    return nova::deck::stream::resolveDeckMoonlightHandoffPreflight(
+        nova::deck::stream::DeckMoonlightHandoffPreflightRequest{
+            .hostDisplayNamePublic = hostDisplayNamePublic.toStdString(),
+            .gameTitlePublic = gameTitlePublic.toStdString(),
+            .privateHostSelectorRedactedForDebug = "redacted-host-selector",
+            .requestedSurface = nova::deck::stream::DeckMoonlightHandoffSurface::MoonlightQtCli,
+            .hasSafeSnapshot = hasSafeSnapshot,
+            .appPresentInSnapshot = appPresentInSnapshot,
+        });
+}
+
+class QtMoonlightHandoffPreflightBridge final : public QObject {
+    Q_OBJECT
+public:
+    using QObject::QObject;
+
+    Q_INVOKABLE QVariantMap resolve(
+        const QString& hostDisplayNamePublic,
+        const QString& gameTitlePublic,
+        const bool hasSafeSnapshot,
+        const bool appPresentInSnapshot) const {
+        return toMoonlightHandoffPreflightModel(resolveMoonlightHandoffPreflightFor(
+            hostDisplayNamePublic,
+            gameTitlePublic,
+            hasSafeSnapshot,
+            appPresentInSnapshot));
+    }
+};
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -268,7 +378,14 @@ int main(int argc, char *argv[]) {
     const auto& launchPreviewCopyAction = selectedBinding.copyAction;
 
     QtLocalClipboardBridge localClipboard;
+    QtMoonlightHandoffPreflightBridge moonlightHandoffBridge;
     QtDeckGamepadBridge gamepadBridge;
+
+    const auto initialMoonlightHandoffPreflight = resolveMoonlightHandoffPreflightFor(
+        toQString(selectedBinding.selectedHostName),
+        toQString(selectedBinding.selectedGameTitle),
+        sampleLibrary.readOnly,
+        !sampleLibrary.games.empty());
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaDeckShellName", toQString(profile.shellName));
@@ -286,6 +403,8 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaLaunchIntentBoundary", toLaunchIntentBoundaryModel(launchIntent.boundary));
     engine.rootContext()->setContextProperty("novaLaunchIntentPreview", toLaunchIntentPreviewModel(launchIntent, streamIntent));
     engine.rootContext()->setContextProperty("novaLaunchPreviewCopyAction", toPreviewCopyActionModel(launchPreviewCopyAction));
+    engine.rootContext()->setContextProperty("novaMoonlightHandoffPreflight", toMoonlightHandoffPreflightModel(initialMoonlightHandoffPreflight));
+    engine.rootContext()->setContextProperty("novaMoonlightHandoffPreflightBridge", &moonlightHandoffBridge);
     engine.rootContext()->setContextProperty("novaLocalClipboard", &localClipboard);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepadBridge);
     engine.rootContext()->setContextProperty("novaInitialHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(libraryHosts)));
