@@ -19,8 +19,8 @@ ApplicationWindow {
     readonly property int sampleCardWidth: 392
     readonly property int detailColumnWidth: 424
     readonly property int hostCardHeight: 104
-    readonly property int detailPanelHeight: 150
-    readonly property int launchPreviewHeight: 372
+    readonly property int detailPanelHeight: 132
+    readonly property int launchPreviewHeight: 400
     readonly property int hostTextWidth: hostColumnWidth - 40
     readonly property int sampleTextWidth: sampleCardWidth - 48
     readonly property int detailTextWidth: detailColumnWidth - 48
@@ -530,20 +530,20 @@ ApplicationWindow {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 18
-                            spacing: 6
+                            anchors.margins: 14
+                            spacing: 4
 
                             Label {
                                 text: "Selected host"
                                 color: "#7C88B8"
-                                font.pixelSize: 16
+                                font.pixelSize: 13
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.displayName
                                 color: "#E9ECFF"
-                                font.pixelSize: 28
+                                font.pixelSize: 24
                                 font.bold: true
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
@@ -553,7 +553,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.statusLabel
                                 color: "#B8C2F0"
-                                font.pixelSize: 17
+                                font.pixelSize: 14
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
                             }
@@ -562,7 +562,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.subtitle
                                 color: "#A8B0D8"
-                                font.pixelSize: 14
+                                font.pixelSize: 12
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
                             }
@@ -638,21 +638,55 @@ ApplicationWindow {
                                 }
                             }
 
-                            Label {
+                            Rectangle {
+                                id: launchTargetSummaryCard
+                                objectName: "launch-target-summary-card"
                                 Layout.preferredWidth: detailTextWidth
-                                text: selectedLaunchPublicCopy
-                                color: "#C9F0D4"
-                                font.pixelSize: 12
-                                wrapMode: Text.WordWrap
-                                maximumLineCount: 2
-                                elide: Text.ElideRight
+                                Layout.preferredHeight: 70
+                                radius: 14
+                                color: "#10172B"
+                                border.color: "#2E3B66"
+                                border.width: 1
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 10
+                                    spacing: 3
+
+                                    Label {
+                                        text: "Review path"
+                                        color: "#7C88B8"
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                    }
+
+                                    Label {
+                                        objectName: "launch-target-title"
+                                        Layout.preferredWidth: detailTextWidth - 20
+                                        text: selectedGameForPreview.title + "  →  " + selectedHostForPreview.displayName
+                                        color: "#C9F0D4"
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        maximumLineCount: 1
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Label {
+                                        Layout.preferredWidth: detailTextWidth - 20
+                                        text: "Safe preview only · no game or stream starts"
+                                        color: "#FFDDA8"
+                                        font.pixelSize: 11
+                                        maximumLineCount: 1
+                                        elide: Text.ElideRight
+                                    }
+                                }
                             }
 
                             Rectangle {
                                 id: moonlightHandoffPanel
                                 objectName: "moonlight-handoff-panel"
                                 Layout.preferredWidth: detailTextWidth
-                                Layout.preferredHeight: 166
+                                Layout.preferredHeight: 178
                                 radius: 16
                                 color: "#101A30"
                                 border.color: "#7C73FF"
@@ -760,25 +794,43 @@ ApplicationWindow {
                                         }
                                     }
 
-                                    Label {
+                                    RowLayout {
+                                        objectName: "moonlight-plan-row"
                                         Layout.preferredWidth: detailTextWidth - 24
-                                        text: "Typed argv plan · redacted host selector · " + selectedMoonlightHandoffArgvPreview
-                                        color: "#B8C2F0"
-                                        font.pixelSize: 10
-                                        wrapMode: Text.WordWrap
-                                        maximumLineCount: 2
-                                        elide: Text.ElideRight
+                                        spacing: 8
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: "Typed argv plan"
+                                            color: "#B8C2F0"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            maximumLineCount: 1
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Label {
+                                            Layout.preferredWidth: 210
+                                            text: "redacted argv · local preview only"
+                                            color: "#B8C2F0"
+                                            font.pixelSize: 10
+                                            horizontalAlignment: Text.AlignRight
+                                            maximumLineCount: 1
+                                            elide: Text.ElideRight
+                                        }
                                     }
 
                                     Label {
+                                        objectName: "moonlight-runtime-gates-line"
                                         Layout.preferredWidth: detailTextWidth - 24
                                         text: moonlightHandoffRuntimeGatesClosed()
-                                            ? "Runtime gates: network off · process off · Moonlight off · host mutation off"
+                                            ? "Runtime locked: network · process · Moonlight · host off"
                                             : "Runtime gate failed — review blocked"
                                         color: "#FFDDA8"
                                         font.pixelSize: 10
                                         font.bold: true
-                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 1
+                                        elide: Text.ElideRight
                                     }
                                 }
                             }
@@ -821,7 +873,9 @@ ApplicationWindow {
                             Label {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: detailTextWidth
-                                text: "D-pad focus · A copies preview locally; no launch."
+                                Layout.preferredHeight: visible ? 14 : 0
+                                text: ""
+                                visible: text.length > 0
                                 color: "#FFDDA8"
                                 font.pixelSize: 9
                                 wrapMode: Text.NoWrap
