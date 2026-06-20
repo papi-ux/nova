@@ -103,6 +103,8 @@ int main() {
     assert(mainQml.find("objectName: \"launch-target-summary-card\"") != std::string::npos);
     assert(mainQml.find("objectName: \"launch-target-title\"") != std::string::npos);
     assert(mainQml.find("Review path") != std::string::npos);
+    assert(mainQml.find("Layout.preferredWidth: detailTextWidth - 148") != std::string::npos);
+    assert(mainQml.find("Layout.preferredWidth: detailTextWidth - 124") == std::string::npos);
     assert(mainQml.find("objectName: \"moonlight-handoff-panel\"") != std::string::npos);
     assert(mainQml.find("objectName: \"moonlight-handoff-title-row\"") != std::string::npos);
     assert(mainQml.find("objectName: \"moonlight-safety-chip-row\"") != std::string::npos);
@@ -122,6 +124,10 @@ int main() {
     assert(mainQml.find("selectedMoonlightHandoffCopy") != std::string::npos);
     assert(mainQml.find("selectedMoonlightHandoffArgvPreview") != std::string::npos);
     assert(mainQml.find("Typed argv plan") != std::string::npos);
+    assert(mainQml.find("Review blocked") != std::string::npos);
+    assert(mainQml.find("text: moonlightHandoffRuntimeGatesClosed() ? \"Typed argv plan\" : \"Review blocked\"") != std::string::npos);
+    assert(mainQml.find("text: moonlightHandoffRuntimeGatesClosed() ? \"redacted argv · local preview only\" : selectedMoonlightHandoffArgvPreview") != std::string::npos);
+    assert(mainQml.find("Typed argv plan unavailable until the preflight is safe to render") != std::string::npos);
     assert(mainQml.find("redacted argv · local preview only") != std::string::npos);
     assert(mainQml.find("Typed argv plan · redacted host selector · ") == std::string::npos);
     assert(mainQml.find("Runtime locked: network · process · Moonlight · host off") != std::string::npos);

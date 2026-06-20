@@ -611,7 +611,7 @@ ApplicationWindow {
                                     }
 
                                     Label {
-                                        Layout.preferredWidth: detailTextWidth - 124
+                                        Layout.preferredWidth: detailTextWidth - 148
                                         text: novaHostLaunchCta.helpText
                                         color: "#B8C2F0"
                                         font.pixelSize: 12
@@ -801,7 +801,7 @@ ApplicationWindow {
 
                                         Label {
                                             Layout.fillWidth: true
-                                            text: "Typed argv plan"
+                                            text: moonlightHandoffRuntimeGatesClosed() ? "Typed argv plan" : "Review blocked"
                                             color: "#B8C2F0"
                                             font.pixelSize: 10
                                             font.bold: true
@@ -811,7 +811,7 @@ ApplicationWindow {
 
                                         Label {
                                             Layout.preferredWidth: 210
-                                            text: "redacted argv · local preview only"
+                                            text: moonlightHandoffRuntimeGatesClosed() ? "redacted argv · local preview only" : selectedMoonlightHandoffArgvPreview
                                             color: "#B8C2F0"
                                             font.pixelSize: 10
                                             horizontalAlignment: Text.AlignRight
