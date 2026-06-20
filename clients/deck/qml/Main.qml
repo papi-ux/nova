@@ -19,7 +19,7 @@ ApplicationWindow {
     readonly property int sampleCardWidth: 392
     readonly property int detailColumnWidth: 424
     readonly property int hostCardHeight: 104
-    readonly property int detailPanelHeight: 150
+    readonly property int detailPanelHeight: 132
     readonly property int launchPreviewHeight: 400
     readonly property int hostTextWidth: hostColumnWidth - 40
     readonly property int sampleTextWidth: sampleCardWidth - 48
@@ -530,42 +530,41 @@ ApplicationWindow {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 20
-                            spacing: 8
+                            anchors.margins: 14
+                            spacing: 4
 
                             Label {
                                 text: "Selected host"
                                 color: "#7C88B8"
-                                font.pixelSize: 16
+                                font.pixelSize: 13
                             }
 
                             Label {
+                                Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.displayName
                                 color: "#E9ECFF"
-                                font.pixelSize: 30
+                                font.pixelSize: 24
                                 font.bold: true
+                                maximumLineCount: 1
+                                elide: Text.ElideRight
                             }
 
                             Label {
+                                Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.statusLabel
                                 color: "#B8C2F0"
-                                font.pixelSize: 19
+                                font.pixelSize: 14
+                                maximumLineCount: 1
+                                elide: Text.ElideRight
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.subtitle
                                 color: "#A8B0D8"
-                                font.pixelSize: 16
-                                wrapMode: Text.WordWrap
-                            }
-
-                            Label {
-                                Layout.preferredWidth: detailTextWidth
-                                text: "Selected game: " + selectedGameForPreview.title
-                                color: "#8AFFC1"
-                                font.pixelSize: 14
-                                wrapMode: Text.WordWrap
+                                font.pixelSize: 12
+                                maximumLineCount: 1
+                                elide: Text.ElideRight
                             }
                         }
                     }
@@ -593,71 +592,102 @@ ApplicationWindow {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 18
-                            spacing: 5
+                            anchors.margins: 16
+                            spacing: 8
 
-                            Label {
-                                text: novaHostLaunchCta.label
-                                color: "#E9ECFF"
-                                font.pixelSize: 20
-                                font.bold: true
+                            RowLayout {
+                                Layout.preferredWidth: detailTextWidth
+                                spacing: 10
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    Label {
+                                        text: novaHostLaunchCta.label
+                                        color: "#E9ECFF"
+                                        font.pixelSize: 19
+                                        font.bold: true
+                                    }
+
+                                    Label {
+                                        Layout.preferredWidth: detailTextWidth - 148
+                                        text: novaHostLaunchCta.helpText
+                                        color: "#B8C2F0"
+                                        font.pixelSize: 12
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 138
+                                    Layout.preferredHeight: 30
+                                    radius: 15
+                                    color: "#2A2539"
+                                    border.color: "#FFDDA8"
+                                    border.width: 1
+
+                                    Label {
+                                        anchors.centerIn: parent
+                                        text: novaHostLaunchCta.previewStateLabel.replace(" — not executable", "")
+                                        color: "#FFDDA8"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        elide: Text.ElideRight
+                                    }
+                                }
                             }
 
-                            Label {
+                            Rectangle {
+                                id: launchTargetSummaryCard
+                                objectName: "launch-target-summary-card"
                                 Layout.preferredWidth: detailTextWidth
-                                text: novaHostLaunchCta.helpText
-                                color: "#B8C2F0"
-                                font.pixelSize: 14
-                                wrapMode: Text.WordWrap
-                            }
+                                Layout.preferredHeight: 70
+                                radius: 14
+                                color: "#10172B"
+                                border.color: "#2E3B66"
+                                border.width: 1
 
-                            Label {
-                                Layout.preferredWidth: detailTextWidth
-                                text: novaHostLaunchCta.previewStateLabel
-                                color: "#FFDDA8"
-                                font.pixelSize: 14
-                                font.bold: true
-                                wrapMode: Text.WordWrap
-                            }
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 10
+                                    spacing: 3
 
-                            Label {
-                                Layout.preferredWidth: detailTextWidth
-                                text: "Safe preview: no game, stream, or network launch starts from this screen."
-                                color: "#FFDDA8"
-                                font.pixelSize: 13
-                                wrapMode: Text.WordWrap
-                            }
+                                    Label {
+                                        text: "Review path"
+                                        color: "#7C88B8"
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                    }
 
-                            Label {
-                                Layout.preferredWidth: detailTextWidth
-                                text: novaLaunchIntentBoundary.reason
-                                color: "#A8B0D8"
-                                font.pixelSize: 13
-                                wrapMode: Text.WordWrap
-                            }
+                                    Label {
+                                        objectName: "launch-target-title"
+                                        Layout.preferredWidth: detailTextWidth - 20
+                                        text: selectedGameForPreview.title + "  →  " + selectedHostForPreview.displayName
+                                        color: "#C9F0D4"
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        maximumLineCount: 1
+                                        elide: Text.ElideRight
+                                    }
 
-                            Label {
-                                Layout.preferredWidth: detailTextWidth
-                                text: selectedLaunchPublicCopy
-                                color: "#C9F0D4"
-                                font.pixelSize: 13
-                                wrapMode: Text.WordWrap
-                            }
-
-                            Label {
-                                Layout.preferredWidth: detailTextWidth
-                                text: selectedStreamLifecycleCopy
-                                color: "#A8B0D8"
-                                font.pixelSize: 13
-                                wrapMode: Text.WordWrap
+                                    Label {
+                                        Layout.preferredWidth: detailTextWidth - 20
+                                        text: "Safe preview only · no game or stream starts"
+                                        color: "#FFDDA8"
+                                        font.pixelSize: 11
+                                        maximumLineCount: 1
+                                        elide: Text.ElideRight
+                                    }
+                                }
                             }
 
                             Rectangle {
                                 id: moonlightHandoffPanel
                                 objectName: "moonlight-handoff-panel"
                                 Layout.preferredWidth: detailTextWidth
-                                Layout.preferredHeight: 118
-                                radius: 14
+                                Layout.preferredHeight: 178
+                                radius: 16
                                 color: "#101A30"
                                 border.color: "#7C73FF"
                                 border.width: 2
@@ -665,13 +695,38 @@ ApplicationWindow {
                                 ColumnLayout {
                                     anchors.fill: parent
                                     anchors.margins: 12
-                                    spacing: 3
+                                    spacing: 5
 
-                                    Label {
-                                        text: "Moonlight handoff preview — Nothing will launch yet"
-                                        color: "#E9ECFF"
-                                        font.pixelSize: 14
-                                        font.bold: true
+                                    RowLayout {
+                                        objectName: "moonlight-handoff-title-row"
+                                        Layout.preferredWidth: detailTextWidth - 24
+                                        spacing: 8
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: "Moonlight handoff preview"
+                                            color: "#E9ECFF"
+                                            font.pixelSize: 14
+                                            font.bold: true
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Rectangle {
+                                            Layout.preferredWidth: 132
+                                            Layout.preferredHeight: 24
+                                            radius: 12
+                                            color: "#1E2846"
+                                            border.color: "#8AFFC1"
+                                            border.width: 1
+
+                                            Label {
+                                                anchors.centerIn: parent
+                                                text: "Nothing will launch yet"
+                                                color: "#8AFFC1"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+                                        }
                                     }
 
                                     Label {
@@ -680,70 +735,152 @@ ApplicationWindow {
                                         color: "#C9F0D4"
                                         font.pixelSize: 11
                                         wrapMode: Text.WordWrap
+                                        maximumLineCount: 2
+                                        elide: Text.ElideRight
                                     }
 
-                                    Label {
+                                    RowLayout {
+                                        objectName: "moonlight-safety-chip-row"
                                         Layout.preferredWidth: detailTextWidth - 24
-                                        text: "Typed argv plan · redacted host selector · " + selectedMoonlightHandoffArgvPreview
-                                        color: "#B8C2F0"
-                                        font.pixelSize: 10
-                                        wrapMode: Text.WordWrap
+                                        spacing: 6
+
+                                        Rectangle {
+                                            Layout.preferredWidth: 86
+                                            Layout.preferredHeight: 24
+                                            radius: 12
+                                            color: "#192842"
+
+                                            Label {
+                                                anchors.centerIn: parent
+                                                text: "No launch"
+                                                color: "#E9ECFF"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            id: moonlightRuntimeGateChip
+                                            objectName: "moonlight-runtime-gate-chip"
+                                            Layout.preferredWidth: 134
+                                            Layout.preferredHeight: 24
+                                            radius: 12
+                                            color: moonlightHandoffRuntimeGatesClosed() ? "#173326" : "#3A2224"
+
+                                            Label {
+                                                anchors.centerIn: parent
+                                                text: moonlightHandoffRuntimeGatesClosed() ? "No network/process" : "Blocked"
+                                                color: moonlightHandoffRuntimeGatesClosed() ? "#8AFFC1" : "#FFDDA8"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            id: moonlightFocusChip
+                                            objectName: "moonlight-focus-chip"
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 24
+                                            radius: 12
+                                            color: "#151D39"
+
+                                            Label {
+                                                anchors.centerIn: parent
+                                                text: "Focus: unproven_static"
+                                                color: "#B8C2F0"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        objectName: "moonlight-plan-row"
+                                        Layout.preferredWidth: detailTextWidth - 24
+                                        spacing: 8
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: moonlightHandoffRuntimeGatesClosed() ? "Typed argv plan" : "Review blocked"
+                                            color: "#B8C2F0"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            maximumLineCount: 1
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Label {
+                                            Layout.preferredWidth: 210
+                                            text: moonlightHandoffRuntimeGatesClosed() ? "redacted argv · local preview only" : selectedMoonlightHandoffArgvPreview
+                                            color: "#B8C2F0"
+                                            font.pixelSize: 10
+                                            horizontalAlignment: Text.AlignRight
+                                            maximumLineCount: 1
+                                            elide: Text.ElideRight
+                                        }
                                     }
 
                                     Label {
+                                        objectName: "moonlight-runtime-gates-line"
                                         Layout.preferredWidth: detailTextWidth - 24
                                         text: moonlightHandoffRuntimeGatesClosed()
-                                            ? "Runtime gates: network off · process off · Moonlight off · host mutation off"
+                                            ? "Runtime locked: network · process · Moonlight · host off"
                                             : "Runtime gate failed — review blocked"
                                         color: "#FFDDA8"
                                         font.pixelSize: 10
                                         font.bold: true
-                                        wrapMode: Text.WordWrap
-                                    }
-
-                                    Label {
-                                        Layout.preferredWidth: detailTextWidth - 24
-                                        text: "Focus return: unproven_static"
-                                        color: "#7C88B8"
-                                        font.pixelSize: 10
-                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 1
+                                        elide: Text.ElideRight
                                     }
                                 }
                             }
 
-                            Button {
-                                id: copyPreviewButton
-                                objectName: launchPreviewCopyAction.id
-                                text: activeFocus ? "D-pad focus · A · " + launchPreviewCopyAction.label : launchPreviewCopyAction.label
-                                enabled: launchPreviewCopyAction.enabled
-                                focusPolicy: Qt.StrongFocus
-                                activeFocusOnTab: true
-                                KeyNavigation.up: launchCtaPlaceholder
-                                KeyNavigation.down: hostDetailPanel
-                                Keys.onUpPressed: launchCtaPlaceholder.forceActiveFocus()
-                                Keys.onDownPressed: hostDetailPanel.forceActiveFocus()
-                                Keys.onLeftPressed: focusSelectedLibraryItem()
-                                Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
-                                Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
-                                Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
-                                onClicked: activateLaunchPreviewCopyFromController()
-                            }
-
-                            Label {
+                            RowLayout {
+                                objectName: "copy-preview-action-row"
                                 Layout.preferredWidth: detailTextWidth
-                                text: "Exact preview details stay behind Copy preview details — copy locally to inspect the preview URI."
-                                color: "#7C88B8"
-                                font.pixelSize: 10
-                                wrapMode: Text.WordWrap
+                                spacing: 10
+
+                                Button {
+                                    id: copyPreviewButton
+                                    objectName: launchPreviewCopyAction.id
+                                    Layout.preferredWidth: 184
+                                    Layout.preferredHeight: 30
+                                    text: launchPreviewCopyAction.label
+                                    enabled: launchPreviewCopyAction.enabled
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    KeyNavigation.up: launchCtaPlaceholder
+                                    KeyNavigation.down: hostDetailPanel
+                                    Keys.onUpPressed: launchCtaPlaceholder.forceActiveFocus()
+                                    Keys.onDownPressed: hostDetailPanel.forceActiveFocus()
+                                    Keys.onLeftPressed: focusSelectedLibraryItem()
+                                    Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
+                                    Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
+                                    Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
+                                    onClicked: activateLaunchPreviewCopyFromController()
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: "Copy locally — no launch"
+                                    color: "#8AFFC1"
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    wrapMode: Text.WordWrap
+                                }
                             }
 
                             Label {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: detailTextWidth
-                                text: launchPreviewCopyAction.idleStatusLabel + " · A Copy preview saves this safe plan locally for inspection."
+                                Layout.preferredHeight: visible ? 14 : 0
+                                text: ""
+                                visible: text.length > 0
                                 color: "#FFDDA8"
-                                font.pixelSize: 10
-                                wrapMode: Text.WordWrap
+                                font.pixelSize: 9
+                                wrapMode: Text.NoWrap
+                                maximumLineCount: 1
+                                elide: Text.ElideRight
                             }
                         }
                     }
