@@ -5,6 +5,7 @@
 #include <regex>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace nova::deck::stream {
 
@@ -84,6 +85,74 @@ bool isUnsafeArgvToken(const std::string& value) {
         || containsUnsafeSecretLikeText(lowerCopy(value));
 }
 
+DeckMoonlightReadinessCheck readinessCheck(
+    std::string id,
+    std::string label,
+    DeckMoonlightReadinessCheckStatus status,
+    std::string detail) {
+    return DeckMoonlightReadinessCheck{
+        .id = std::move(id),
+        .label = std::move(label),
+        .detail = std::move(detail),
+        .status = status,
+    };
+}
+
+std::vector<DeckMoonlightReadinessCheck> readinessChecksFor(
+    const DeckMoonlightHandoffPreflightRequest& request) {
+    std::vector<DeckMoonlightReadinessCheck> checks;
+    checks.reserve(4);
+
+    checks.push_back(readinessCheck(
+        "safe-snapshot",
+        "Safe snapshot",
+        request.hasSafeSnapshot ? DeckMoonlightReadinessCheckStatus::Passed : DeckMoonlightReadinessCheckStatus::Blocked,
+        request.hasSafeSnapshot
+            ? "Read-only host snapshot is available for local review."
+            : "Needs safe host snapshot before typed handoff review."));
+
+    checks.push_back(readinessCheck(
+        "app-snapshot",
+        "App in snapshot",
+        request.appPresentInSnapshot ? DeckMoonlightReadinessCheckStatus::Passed : DeckMoonlightReadinessCheckStatus::Blocked,
+        request.appPresentInSnapshot
+            ? "Game appears in snapshot for local review."
+            : "Game missing from snapshot; review stays blocked."));
+
+    const auto privateHostSelector = isBlank(request.privateHostSelectorRedactedForDebug)
+        ? std::string{"redacted-host-selector"}
+        : request.privateHostSelectorRedactedForDebug;
+    DeckMoonlightReadinessCheckStatus argvStatus = DeckMoonlightReadinessCheckStatus::Passed;
+    std::string argvDetail = "Typed argv preview is redacted and copy-only.";
+    if (!request.hasSafeSnapshot) {
+        argvStatus = DeckMoonlightReadinessCheckStatus::Blocked;
+        argvDetail = "Snapshot gate must pass first; no typed handoff review yet.";
+    } else if (!request.appPresentInSnapshot) {
+        argvStatus = DeckMoonlightReadinessCheckStatus::Blocked;
+        argvDetail = "App snapshot gate must pass first; no typed handoff review yet.";
+    } else if (request.requestedSurface != DeckMoonlightHandoffSurface::MoonlightQtCli) {
+        argvStatus = DeckMoonlightReadinessCheckStatus::Blocked;
+        argvDetail = "Moonlight Qt CLI surface is required for typed handoff review.";
+    } else if (isUnsafePublicText(request.hostDisplayNamePublic) || isUnsafePublicText(request.gameTitlePublic)
+        || isUnsafeArgvToken(privateHostSelector)) {
+        argvStatus = DeckMoonlightReadinessCheckStatus::Blocked;
+        argvDetail = "Typed argv preview is not public-safe; review stays blocked.";
+    }
+    checks.push_back(readinessCheck(
+        "typed-argv",
+        "Typed argv",
+        argvStatus,
+        argvDetail));
+
+    checks.push_back(readinessCheck(
+        "focus-return",
+        "Focus return",
+        DeckMoonlightReadinessCheckStatus::ReviewOnly,
+        "Focus return remains unproven_static until a later approved runtime check."));
+
+    return checks;
+}
+
 DeckMoonlightFocusReturnPlan focusReturnPlanFor(const DeckMoonlightHandoffPreflightRequest& request) {
     const auto target = (!isBlank(request.hostDisplayNamePublic) && !isBlank(request.gameTitlePublic))
         ? request.hostDisplayNamePublic + " / " + request.gameTitlePublic
@@ -99,6 +168,7 @@ DeckMoonlightFocusReturnPlan focusReturnPlanFor(const DeckMoonlightHandoffPrefli
 DeckMoonlightHandoffPreflightResult baseResult(const DeckMoonlightHandoffPreflightRequest& request) {
     DeckMoonlightHandoffPreflightResult result;
     result.focusReturnPlan = focusReturnPlanFor(request);
+    result.readinessChecks = readinessChecksFor(request);
     return result;
 }
 

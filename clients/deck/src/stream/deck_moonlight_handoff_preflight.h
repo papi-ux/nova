@@ -62,6 +62,19 @@ struct DeckMoonlightFocusReturnPlan {
     std::string confidence;
 };
 
+enum class DeckMoonlightReadinessCheckStatus {
+    Passed,
+    Blocked,
+    ReviewOnly,
+};
+
+struct DeckMoonlightReadinessCheck {
+    std::string id;
+    std::string label;
+    std::string detail;
+    DeckMoonlightReadinessCheckStatus status = DeckMoonlightReadinessCheckStatus::ReviewOnly;
+};
+
 struct DeckMoonlightHandoffPreflightResult {
     DeckMoonlightHandoffVerdict verdict = DeckMoonlightHandoffVerdict::BlockedStatic;
     bool executable = false;
@@ -72,6 +85,7 @@ struct DeckMoonlightHandoffPreflightResult {
     bool safeToRender = false;
     DeckMoonlightHandoffCandidatePlan candidatePlan;
     DeckMoonlightFocusReturnPlan focusReturnPlan;
+    std::vector<DeckMoonlightReadinessCheck> readinessChecks;
     std::string publicPreviewCopy;
     std::vector<DeckMoonlightHandoffBlockReason> blockedReasons;
 };

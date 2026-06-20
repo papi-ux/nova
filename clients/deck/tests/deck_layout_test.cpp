@@ -108,6 +108,12 @@ int main() {
     assert(mainQml.find("objectName: \"moonlight-handoff-panel\"") != std::string::npos);
     assert(mainQml.find("objectName: \"moonlight-handoff-title-row\"") != std::string::npos);
     assert(mainQml.find("objectName: \"moonlight-safety-chip-row\"") != std::string::npos);
+    assert(mainQml.find("objectName: \"moonlight-readiness-row\"") != std::string::npos);
+    assert(mainQml.find("Checks") != std::string::npos);
+    assert(mainQml.find("moonlightHandoffPreflight.readinessChecks") != std::string::npos);
+    assert(mainQml.find("readonly property var selectedMoonlightReadinessChecks") != std::string::npos);
+    assert(mainQml.find("function readinessStatusColor") != std::string::npos);
+    assert(mainQml.find("function readinessStatusCopy") != std::string::npos);
     assert(mainQml.find("objectName: \"moonlight-plan-row\"") != std::string::npos);
     assert(mainQml.find("objectName: \"moonlight-runtime-gates-line\"") != std::string::npos);
     assert(mainQml.find("objectName: \"moonlight-runtime-gate-chip\"") != std::string::npos);
