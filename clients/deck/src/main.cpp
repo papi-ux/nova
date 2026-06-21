@@ -292,6 +292,34 @@ QVariantList toStringListModel(const std::vector<std::string>& values) {
     return model;
 }
 
+QString moonlightReadinessStatusLabel(
+    const nova::deck::stream::DeckMoonlightReadinessCheckStatus status) {
+    using nova::deck::stream::DeckMoonlightReadinessCheckStatus;
+    switch (status) {
+    case DeckMoonlightReadinessCheckStatus::Passed:
+        return QStringLiteral("passed");
+    case DeckMoonlightReadinessCheckStatus::Blocked:
+        return QStringLiteral("blocked");
+    case DeckMoonlightReadinessCheckStatus::ReviewOnly:
+        return QStringLiteral("review_only");
+    }
+    return QStringLiteral("unknown");
+}
+
+QVariantList toMoonlightReadinessCheckModel(
+    const std::vector<nova::deck::stream::DeckMoonlightReadinessCheck>& checks) {
+    QVariantList model;
+    for (const auto& check : checks) {
+        QVariantMap item;
+        item.insert("id", toQString(check.id));
+        item.insert("label", toQString(check.label));
+        item.insert("detail", toQString(check.detail));
+        item.insert("status", moonlightReadinessStatusLabel(check.status));
+        model.append(item);
+    }
+    return model;
+}
+
 QString argvPreviewFor(const std::vector<std::string>& tokens) {
     if (tokens.size() == 4) {
         return QStringLiteral("Typed argv plan: app token + stream action + redacted host selector + ")
@@ -310,6 +338,7 @@ QVariantMap toMoonlightHandoffPreflightModel(
     model.insert("argvTokens", toStringListModel(result.candidatePlan.argvTokens));
     model.insert("argvTokenCount", static_cast<int>(result.candidatePlan.argvTokens.size()));
     model.insert("argvPreview", argvPreviewFor(result.candidatePlan.argvTokens));
+    model.insert("readinessChecks", toMoonlightReadinessCheckModel(result.readinessChecks));
     model.insert("sourceSurface", toQString(result.focusReturnPlan.sourceSurface));
     model.insert("intendedReturnTarget", toQString(result.focusReturnPlan.intendedReturnTarget));
     model.insert("focusFallbackCopy", toQString(result.focusReturnPlan.fallbackCopy));

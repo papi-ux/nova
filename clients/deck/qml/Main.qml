@@ -20,7 +20,7 @@ ApplicationWindow {
     readonly property int detailColumnWidth: 424
     readonly property int hostCardHeight: 104
     readonly property int detailPanelHeight: 132
-    readonly property int launchPreviewHeight: 400
+    readonly property int launchPreviewHeight: 424
     readonly property int hostTextWidth: hostColumnWidth - 40
     readonly property int sampleTextWidth: sampleCardWidth - 48
     readonly property int detailTextWidth: detailColumnWidth - 48
@@ -39,6 +39,43 @@ ApplicationWindow {
     property string selectedMoonlightHandoffArgvPreview: moonlightHandoffPreflight.argvPreview
     property string selectedMoonlightHandoffFocusCopy: moonlightHandoffPreflight.focusFallbackCopy
     property string selectedMoonlightHandoffConfidence: moonlightHandoffPreflight.focusConfidence
+    readonly property var selectedMoonlightReadinessChecks: moonlightHandoffPreflight.readinessChecks ? moonlightHandoffPreflight.readinessChecks : []
+
+    function readinessStatusColor(status) {
+        if (status === "passed") {
+            return "#8AFFC1"
+        }
+        if (status === "blocked") {
+            return "#FFDDA8"
+        }
+        return "#B8C2F0"
+    }
+
+    function readinessStatusCopy(status) {
+        if (status === "passed") {
+            return "Ready"
+        }
+        if (status === "blocked") {
+            return "Blocked"
+        }
+        return "Review"
+    }
+
+    function readinessShortLabel(id, label) {
+        if (id === "safe-snapshot") {
+            return "Snap"
+        }
+        if (id === "app-snapshot") {
+            return "App"
+        }
+        if (id === "typed-argv") {
+            return "Argv"
+        }
+        if (id === "focus-return") {
+            return "Focus"
+        }
+        return label
+    }
 
     function selectedHostSubtitle() {
         return "Selected host only — not discovered from the network."
@@ -686,7 +723,7 @@ ApplicationWindow {
                                 id: moonlightHandoffPanel
                                 objectName: "moonlight-handoff-panel"
                                 Layout.preferredWidth: detailTextWidth
-                                Layout.preferredHeight: 178
+                                Layout.preferredHeight: 202
                                 radius: 16
                                 color: "#101A30"
                                 border.color: "#7C73FF"
@@ -790,6 +827,46 @@ ApplicationWindow {
                                                 color: "#B8C2F0"
                                                 font.pixelSize: 10
                                                 font.bold: true
+                                            }
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        objectName: "moonlight-readiness-row"
+                                        Layout.preferredWidth: detailTextWidth - 24
+                                        spacing: 5
+
+                                        Label {
+                                            Layout.preferredWidth: 48
+                                            text: "Checks"
+                                            color: "#7C88B8"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            maximumLineCount: 2
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Repeater {
+                                            model: selectedMoonlightReadinessChecks
+
+                                            Rectangle {
+                                                objectName: "moonlight-readiness-chip"
+                                                Layout.preferredWidth: 72
+                                                Layout.preferredHeight: 22
+                                                radius: 11
+                                                color: modelData.status === "blocked" ? "#3A2224" : "#151D39"
+                                                border.color: readinessStatusColor(modelData.status)
+                                                border.width: 1
+
+                                                Label {
+                                                    anchors.centerIn: parent
+                                                    text: readinessShortLabel(modelData.id, modelData.label) + " " + readinessStatusCopy(modelData.status)
+                                                    color: readinessStatusColor(modelData.status)
+                                                    font.pixelSize: 8
+                                                    font.bold: true
+                                                    maximumLineCount: 1
+                                                    elide: Text.ElideRight
+                                                }
                                             }
                                         }
                                     }

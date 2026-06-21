@@ -17,6 +17,8 @@ using nova::deck::stream::DeckMoonlightHandoffPreflightRequest;
 using nova::deck::stream::DeckMoonlightHandoffPreflightResult;
 using nova::deck::stream::DeckMoonlightHandoffSurface;
 using nova::deck::stream::DeckMoonlightHandoffVerdict;
+using nova::deck::stream::DeckMoonlightReadinessCheck;
+using nova::deck::stream::DeckMoonlightReadinessCheckStatus;
 using nova::deck::stream::resolveDeckMoonlightHandoffPreflight;
 
 DeckMoonlightHandoffPreflightRequest validRequest(
@@ -75,6 +77,34 @@ void assertFocusReturnUnproven(const DeckMoonlightFocusReturnPlan& plan) {
     assert(contains(plan.fallbackCopy, "later approved launch"));
 }
 
+const DeckMoonlightReadinessCheck& readinessCheck(
+    const DeckMoonlightHandoffPreflightResult& result,
+    const std::string_view id) {
+    const auto match = std::find_if(
+        result.readinessChecks.begin(),
+        result.readinessChecks.end(),
+        [&](const DeckMoonlightReadinessCheck& check) {
+            return check.id == id;
+        });
+    assert(match != result.readinessChecks.end());
+    return *match;
+}
+
+void assertReadinessCheck(
+    const DeckMoonlightHandoffPreflightResult& result,
+    const std::string_view id,
+    const DeckMoonlightReadinessCheckStatus status,
+    const std::string_view detailNeedle) {
+    const auto& check = readinessCheck(result, id);
+    assert(check.status == status);
+    assert(!check.label.empty());
+    assert(contains(check.detail, detailNeedle));
+    assert(!contains(check.detail, "moonlight://"));
+    assert(!contains(check.detail, "http://"));
+    assert(!contains(check.detail, "https://"));
+    assert(!contains(check.detail, "ssh"));
+}
+
 } // namespace
 
 static_assert(std::is_default_constructible_v<DeckMoonlightHandoffPreflightRequest>);
@@ -100,6 +130,11 @@ int main() {
         assert(!contains(result.publicPreviewCopy, "redacted-host-selector"));
         assertFocusReturnUnproven(result.focusReturnPlan);
         assert(result.blockedReasons.empty());
+        assert(result.readinessChecks.size() == 4);
+        assertReadinessCheck(result, "safe-snapshot", DeckMoonlightReadinessCheckStatus::Passed, "Read-only host snapshot");
+        assertReadinessCheck(result, "app-snapshot", DeckMoonlightReadinessCheckStatus::Passed, "Game appears in snapshot");
+        assertReadinessCheck(result, "typed-argv", DeckMoonlightReadinessCheckStatus::Passed, "Typed argv preview is redacted");
+        assertReadinessCheck(result, "focus-return", DeckMoonlightReadinessCheckStatus::ReviewOnly, "Focus return remains unproven_static");
     }
 
     {
@@ -130,6 +165,9 @@ int main() {
         assert(hasReason(result, DeckMoonlightHandoffBlockReason::FocusReturnUnprovenStatic));
         assert(contains(result.publicPreviewCopy, "cannot verify Moonlight readiness"));
         assertFocusReturnUnproven(result.focusReturnPlan);
+        assertReadinessCheck(result, "safe-snapshot", DeckMoonlightReadinessCheckStatus::Blocked, "Needs safe host snapshot");
+        assertReadinessCheck(result, "app-snapshot", DeckMoonlightReadinessCheckStatus::Passed, "Game appears in snapshot");
+        assertReadinessCheck(result, "typed-argv", DeckMoonlightReadinessCheckStatus::Blocked, "Snapshot gate must pass first");
     }
 
     {
@@ -139,6 +177,9 @@ int main() {
         assertBlockedStatic(result);
         assert(hasReason(result, DeckMoonlightHandoffBlockReason::AppNotInSnapshot));
         assert(hasReason(result, DeckMoonlightHandoffBlockReason::HostPairingUnprovenStatic));
+        assertReadinessCheck(result, "safe-snapshot", DeckMoonlightReadinessCheckStatus::Passed, "Read-only host snapshot");
+        assertReadinessCheck(result, "app-snapshot", DeckMoonlightReadinessCheckStatus::Blocked, "Game missing from snapshot");
+        assertReadinessCheck(result, "typed-argv", DeckMoonlightReadinessCheckStatus::Blocked, "App snapshot gate must pass first");
     }
 
     {
@@ -207,6 +248,7 @@ int main() {
         assertBlockedStatic(result);
         assert(hasReason(result, DeckMoonlightHandoffBlockReason::UnsafeArgvToken));
         assert(!contains(result.publicPreviewCopy, "host selector; launch"));
+        assertReadinessCheck(result, "typed-argv", DeckMoonlightReadinessCheckStatus::Blocked, "Typed argv preview is not public-safe");
     }
 
     return 0;
