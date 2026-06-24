@@ -55,6 +55,32 @@
     <color name="nova_miami_accent_glow">#73FF5CAB</color>
     <color name="nova_miami_ripple">#22FF5CAB</color>
 
+    <!-- Portable Chrome - Moonlight-grey early-2000s silver with restrained status accents. -->
+    <color name="nova_portable_void">#FF98A6B5</color>
+    <color name="nova_portable_deep">#FFB8C1CC</color>
+    <color name="nova_portable_twilight">#FFA7B2BE</color>
+    <color name="nova_portable_storm">#FF7F8C9A</color>
+    <color name="nova_portable_silver">#FFD6DDE5</color>
+    <color name="nova_portable_ice">#FFEAF0F5</color>
+    <color name="nova_portable_bg_primary">#FFB8C1CC</color>
+    <color name="nova_portable_bg_window">#FFB8C1CC</color>
+    <color name="nova_portable_bg_card">#E6D6DDE5</color>
+    <color name="nova_portable_bg_elevated">#FFE0E6EC</color>
+    <color name="nova_portable_bg_input">#FFC8D1DC</color>
+    <color name="nova_portable_dialog_bg">#FFD6DDE5</color>
+    <color name="nova_portable_context_bg">#FFC7D1DD</color>
+    <color name="nova_portable_divider">#FF7F8C9A</color>
+    <color name="nova_portable_text_primary">#FF25313D</color>
+    <color name="nova_portable_text_secondary">#FF4F5D6B</color>
+    <color name="nova_portable_text_muted">#FF667584</color>
+    <color name="nova_portable_accent">#FF557395</color>
+    <color name="nova_portable_accent_surface">#22557395</color>
+    <color name="nova_portable_accent_glow">#33557395</color>
+    <color name="nova_portable_ripple">#22557395</color>
+    <color name="nova_portable_success">#FF315B45</color>
+    <color name="nova_portable_streaming">#FF315B45</color>
+    <color name="nova_portable_online">#FF557395</color>
+    <color name="nova_portable_on_accent">#FFFFFFFF</color>
     <!-- High Contrast — brighter copy, firm outlines, and blue focus for readability. -->
     <color name="nova_hc_bg_primary">#FF05070c</color>
     <color name="nova_hc_bg_card">#F00f172a</color>

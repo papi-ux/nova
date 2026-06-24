@@ -4,6 +4,7 @@
         <item>Polaris Aurora</item>
         <item>Console OLED</item>
         <item>Miami Nebula</item>
+        <item>Portable Chrome</item>
         <item>High Contrast</item>
         <item>Material You</item>
     </string-array>
@@ -11,6 +12,7 @@
         <item>polaris</item>
         <item>oled</item>
         <item>miami</item>
+        <item>portable_chrome</item>
         <item>high_contrast</item>
         <item>material_you</item>
     </string-array>

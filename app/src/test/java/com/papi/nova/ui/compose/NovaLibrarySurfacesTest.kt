@@ -45,6 +45,25 @@ class NovaLibrarySurfacesTest {
     }
 
     @Test
+    fun portableChromeLibrarySurfacesUseDimSilverPanelsAndSubduedParticles() {
+        val portableColors = portableChromeColors()
+
+        val portableChrome = portableColors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME)
+
+        assertTrue(portableChrome.particlesEnabled)
+        assertEquals(portableColors.accent, portableChrome.focusRing)
+        assertTrue(portableChrome.panel.alpha >= 0.86f)
+        assertTrue(portableChrome.panelBorder.alpha >= 0.56f)
+        assertTrue(portableChrome.particleAlpha in 0.20f..0.45f)
+        assertTrue(portableChrome.focusHalo.alpha < 0.24f)
+        assertEquals(Color(0xFFB8C1CC), portableChrome.mediaPlaceholder)
+    }
+
+    @Test
+    fun portableChromeOnAccentUsesWhiteForReadableBlueControls() {
+        assertEquals(Color.White, portableChromeColors().onAccent)
+    }
+    @Test
     fun miamiLibrarySurfacesUsePlumGlassMagentaFocusAndParticles() {
         val miamiColors = miamiColors()
 
@@ -75,6 +94,20 @@ class NovaLibrarySurfacesTest {
         assertEquals(Color(0xFF130817), miamiColors().onAccent)
     }
 
+    private fun portableChromeColors(): NovaComposeColors = NovaComposeColors(
+        window = Color(0xFFB8C1CC),
+        card = Color(0xE6D6DDE5),
+        dialog = Color(0xFFD6DDE5),
+        badge = Color(0x33557395),
+        divider = Color(0xFF7F8C9A),
+        accent = Color(0xFF557395),
+        accentSurface = Color(0x22557395),
+        warning = Color(0xFFFBBF24),
+        textPrimary = Color(0xFF25313D),
+        textSecondary = Color(0xFF4F5D6B),
+        textMuted = Color(0xFF667584),
+        onAccent = Color.White
+    )
     private fun miamiColors(): NovaComposeColors = NovaComposeColors(
         window = Color(0xFF130817),
         card = Color(0xE6241429),

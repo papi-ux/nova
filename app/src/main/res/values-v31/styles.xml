@@ -27,4 +27,10 @@
         <item name="android:windowSplashScreenBackground">@color/nova_miami_bg_window</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_miami_bg_window</item>
     </style>
+    <style name="AppTheme.PortableChrome">
+        <item name="android:colorBackground">@color/nova_portable_bg_window</item>
+        <item name="android:windowBackground">@color/nova_portable_bg_window</item>
+        <item name="android:windowSplashScreenBackground">@color/nova_portable_bg_window</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_portable_bg_window</item>
+    </style>
 </resources>

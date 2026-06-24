@@ -608,7 +608,7 @@
         <ListPreference
             android:key="nova_theme"
             android:title="Theme"
-            android:summary="Polaris Aurora, Console OLED, Miami Nebula, High Contrast, or Material You"
+            android:summary="Polaris Aurora, Console OLED, Miami Nebula, Portable Chrome, High Contrast, or Material You"
             android:entries="@array/nova_theme_names"
             android:entryValues="@array/nova_theme_values"
             android:defaultValue="polaris"

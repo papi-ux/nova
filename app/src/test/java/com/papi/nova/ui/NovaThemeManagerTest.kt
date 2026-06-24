@@ -31,6 +31,14 @@ class NovaThemeManagerTest {
     }
 
     @Test
+    fun portableChromeThemeIsRecognizedStoredAndLabeled() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
+
+        assertEquals(NovaThemeManager.THEME_PORTABLE_CHROME, NovaThemeManager.getTheme(context))
+        assertEquals("Portable Chrome", NovaThemeManager.getThemeLabel(context))
+    }
+
+    @Test
     fun unknownThemeFallsBackToPolaris() {
         NovaThemeManager.setTheme(context, "south_beach_laser_flamingo")
 
@@ -44,6 +52,7 @@ class NovaThemeManagerTest {
 
         assertEquals(NovaThemeManager.THEME_OLED, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_MIAMI, NovaThemeManager.cycleTheme(context))
+        assertEquals(NovaThemeManager.THEME_PORTABLE_CHROME, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_HIGH_CONTRAST, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_POLARIS, NovaThemeManager.cycleTheme(context))
     }
@@ -55,6 +64,21 @@ class NovaThemeManagerTest {
 
         assertEquals(NovaThemeManager.THEME_MATERIAL_YOU, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_POLARIS, NovaThemeManager.cycleTheme(context))
+    }
+
+    @Test
+    fun portableChromeThemeResolvesSemanticColors() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
+
+        assertEquals(context.getColor(R.color.nova_portable_bg_window), NovaThemeManager.getWindowBackgroundColor(context))
+        assertEquals(context.getColor(R.color.nova_portable_bg_card), NovaThemeManager.getCardBackgroundColor(context))
+        assertEquals(context.getColor(R.color.nova_portable_dialog_bg), NovaThemeManager.getDialogBackgroundColor(context))
+        assertEquals(context.getColor(R.color.nova_portable_accent), NovaThemeManager.getAccentColor(context))
+        assertEquals(context.getColor(R.color.nova_portable_accent_surface), NovaThemeManager.getAccentSurfaceColor(context))
+        assertEquals(context.getColor(R.color.nova_portable_text_primary), NovaThemeManager.getTextPrimaryColor(context))
+        assertEquals(context.getColor(R.color.nova_portable_text_secondary), NovaThemeManager.getTextSecondaryColor(context))
+        assertEquals(context.getColor(R.color.nova_portable_text_muted), NovaThemeManager.getTextMutedColor(context))
+        assertEquals(context.getColor(R.color.nova_portable_divider), NovaThemeManager.getDividerColor(context))
     }
 
     @Test
