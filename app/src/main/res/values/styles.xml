@@ -55,6 +55,20 @@
         <item name="colorOnSurface">@color/nova_miami_text_primary</item>
     </style>
 
+    <!-- Portable Chrome - dim Moonlight-grey silver shell matching Polaris Portable Chrome. -->
+    <style name="AppTheme.PortableChrome">
+        <item name="android:colorBackground">@color/nova_portable_bg_window</item>
+        <item name="android:windowBackground">@color/nova_portable_bg_window</item>
+        <item name="android:textColor">@color/nova_portable_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_portable_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_portable_text_secondary</item>
+        <item name="android:navigationBarColor">@color/nova_portable_deep</item>
+        <item name="android:statusBarColor">@color/nova_portable_deep</item>
+        <item name="colorPrimary">@color/nova_portable_accent</item>
+        <item name="colorAccent">@color/nova_portable_accent</item>
+        <item name="colorSurface">@color/nova_portable_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_portable_text_primary</item>
+    </style>
     <!-- High Contrast — firm outlines and bright copy without abandoning Nova's dark UI. -->
     <style name="AppTheme.HighContrast">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
@@ -126,6 +140,18 @@
         <item name="android:statusBarColor">@color/nova_miami_void</item>
     </style>
 
+    <style name="SettingsTheme.PortableChrome" parent="SettingsTheme">
+        <item name="android:colorBackground">@color/nova_portable_bg_window</item>
+        <item name="android:windowBackground">@color/nova_portable_bg_window</item>
+        <item name="android:textColorPrimary">@color/nova_portable_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_portable_text_secondary</item>
+        <item name="colorPrimary">@color/nova_portable_accent</item>
+        <item name="colorAccent">@color/nova_portable_accent</item>
+        <item name="colorSurface">@color/nova_portable_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_portable_text_primary</item>
+        <item name="android:navigationBarColor">@color/nova_portable_deep</item>
+        <item name="android:statusBarColor">@color/nova_portable_deep</item>
+    </style>
     <style name="SettingsTheme.HighContrast" parent="SettingsTheme">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
         <item name="android:windowBackground">@color/nova_hc_bg_window</item>

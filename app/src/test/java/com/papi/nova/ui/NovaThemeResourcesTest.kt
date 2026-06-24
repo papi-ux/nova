@@ -13,24 +13,25 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class NovaThemeResourcesTest {
     @Test
-    fun themeArraysExposeMiamiInPredictableOrder() {
+    fun themeArraysExposePortableChromeInPredictableOrder() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val names = context.resources.getStringArray(R.array.nova_theme_names).toList()
         val values = context.resources.getStringArray(R.array.nova_theme_values).toList()
 
         assertEquals(names.size, values.size)
         assertEquals(
-            listOf("polaris", "oled", "miami", "high_contrast", "material_you"),
+            listOf("polaris", "oled", "miami", "portable_chrome", "high_contrast", "material_you"),
             values
         )
         assertEquals("Miami Nebula", names[values.indexOf("miami")])
+        assertEquals("Portable Chrome", names[values.indexOf("portable_chrome")])
     }
 
     @Test
-    fun preferencesThemeSummaryMentionsMiami() {
+    fun preferencesThemeSummaryMentionsPortableChrome() {
         val preferencesXml = File("src/main/res/xml/preferences.xml").readText()
 
         assertTrue(preferencesXml.contains("android:key=\"nova_theme\""))
-        assertTrue(preferencesXml.contains("Miami Nebula"))
+        assertTrue(preferencesXml.contains("Portable Chrome"))
     }
 }

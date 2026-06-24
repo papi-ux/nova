@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Adds a Portable Chrome Nova theme matching the Polaris dim Moonlight-grey early-2000s silver palette, including settings/theme-picker entries and restrained Compose library surfaces.
+
 ## 1.1.3 - 2026-06-12
 
 Nova 1.1.3 is the public APK publishing patch for the 1.1.2 confidence build. It preserves the same handheld Library, Command Center, NovaHUD, Insert-key, stale-session recovery, input, crash, and dependency hardening work from 1.1.2, while bumping the Android package version so GitHub Releases / Obtainium installs can update cleanly.
