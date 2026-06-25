@@ -4,6 +4,6 @@
     <solid android:color="@color/nova_bg_elevated" />
     <stroke
         android:width="2dp"
-        android:color="@color/nova_accent" />
+        android:color="?attr/colorAccent" />
     <corners android:radius="18dp" />
 </shape>

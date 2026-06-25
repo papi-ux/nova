@@ -313,7 +313,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         spaceParticleView = findViewById(R.id.space_particles)
         val swipeRefresh = findViewById<SwipeRefreshLayout>(R.id.swipe_refresh)
         if (swipeRefresh != null) {
-            swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.nova_accent))
+            swipeRefresh.setColorSchemeColors(NovaThemeManager.getAccentColor(this))
             swipeRefresh.setProgressBackgroundColorSchemeColor(
                 ContextCompat.getColor(this, R.color.nova_bg_elevated),
             )
@@ -433,6 +433,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             swipeRefresh.setColorSchemeColors(accent)
             swipeRefresh.setProgressBackgroundColorSchemeColor(surface)
         }
+        findViewById<android.widget.ProgressBar>(R.id.pcs_loading)?.indeterminateTintList =
+            ColorStateList.valueOf(accent)
 
         findViewById<TextView>(R.id.pcViewTitle)?.setTextColor(textPrimary)
         findViewById<TextView>(R.id.pcViewSectionLabel)?.setTextColor(textMuted)

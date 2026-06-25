@@ -12,7 +12,7 @@
 
     <!-- Inner accent — small 4-pointed sparkle -->
     <path
-        android:fillColor="#FF7c73ff"
+        android:fillColor="?attr/colorAccent"
         android:pathData="M54,42 Q55.5,52.5 64,54 Q55.5,55.5 54,66 Q52.5,55.5 44,54 Q52.5,52.5 54,42 Z" />
 
     <!-- Center dot -->

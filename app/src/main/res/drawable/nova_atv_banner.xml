@@ -20,7 +20,7 @@
             android:pathData="M60,10 Q63,52 100,60 Q63,68 60,110 Q57,68 20,60 Q57,52 60,10 Z" />
         <!-- Inner accent -->
         <path
-            android:fillColor="#7c73ff"
+            android:fillColor="?attr/colorAccent"
             android:pathData="M60,40 Q62,57 75,60 Q62,63 60,80 Q58,63 45,60 Q58,57 60,40 Z" />
         <!-- Center dot -->
         <path

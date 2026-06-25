@@ -21,14 +21,14 @@ class NovaFocusDrawableTest {
             doc.documentElement.tagName == "shape"
         )
         assertTrue(
-            "focus ring should include a clear nova_accent stroke",
-            hasStroke(doc, "3dp", "@color/nova_accent")
+            "focus ring should follow the active theme accent instead of hardcoding Polaris violet",
+            hasStroke(doc, "3dp", "?attr/colorAccent")
         )
     }
 
     @Test
-    fun chipFocusedStatesUseCleanHighContrastStroke() {
-        assertFocusedStroke("src/main/res/drawable/nova_chip_default.xml", "3dp", "@color/nova_accent")
+    fun chipFocusedStatesUseCleanThemeAwareStroke() {
+        assertFocusedStroke("src/main/res/drawable/nova_chip_default.xml", "3dp", "?attr/colorAccent")
         assertFocusedStroke("src/main/res/drawable/nova_chip_selected.xml", "3dp", "@color/nova_ice")
     }
 
@@ -50,7 +50,7 @@ class NovaFocusDrawableTest {
         val rowRing = parseXml("src/main/res/drawable/nova_server_row_focus_ring.xml")
         assertTrue(
             "server row focus ring should use a slimmer accent stroke",
-            hasStroke(rowRing, "2dp", "@color/nova_accent")
+            hasStroke(rowRing, "2dp", "?attr/colorAccent")
         )
     }
 

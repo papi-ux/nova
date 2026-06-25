@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.papi.nova.R
+import com.papi.nova.ui.NovaThemeManager
 
 /**
  * Manages the persistent streaming notification.
@@ -52,7 +53,7 @@ object NovaStreamNotification {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(returnPending)
             .addAction(0, "Disconnect", disconnectPending)
-            .setColor(context.getColor(R.color.nova_accent))
+            .setColor(NovaThemeManager.getAccentColor(context))
             .build()
 
         val mgr = context.getSystemService(NotificationManager::class.java)

@@ -9,8 +9,7 @@
     <ProgressBar
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:indeterminate="true"
-        android:indeterminateTint="@color/nova_accent" />
+        android:indeterminate="true" />
 
     <TextView
         android:id="@+id/spinner_message"

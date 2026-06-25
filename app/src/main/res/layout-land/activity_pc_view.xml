@@ -147,7 +147,7 @@
                     app:cardBackgroundColor="@color/nova_bg_elevated"
                     app:cardCornerRadius="18dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/nova_accent"
+                    app:strokeColor="?attr/colorAccent"
                     app:strokeWidth="1dp">
 
                     <LinearLayout
@@ -163,7 +163,7 @@
                             android:letterSpacing="0.04"
                             android:text="@string/pcview_destination_current"
                             android:textAllCaps="true"
-                            android:textColor="@color/nova_accent"
+                            android:textColor="?attr/colorAccent"
                             android:textSize="10sp" />
 
                         <TextView
@@ -298,7 +298,7 @@
                     android:layout_weight="1"
                     android:text="@string/pcview_quick_add_server"
                     android:textAllCaps="false"
-                    app:backgroundTint="@color/nova_accent_surface"
+                    app:backgroundTint="?attr/colorControlHighlight"
                     app:cornerRadius="14dp"
                     app:elevation="0dp"
                     app:icon="@drawable/ic_add"
@@ -461,8 +461,7 @@
                         android:layout_width="32dp"
                         android:layout_height="32dp"
                         android:layout_marginTop="20dp"
-                        android:indeterminate="true"
-                        android:indeterminateTint="@color/nova_accent" />
+                        android:indeterminate="true" />
 
                     <TextView
                         android:id="@+id/pcViewEmptyTitle"

@@ -278,7 +278,7 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
             if (UiHelper.isTvDevice(this)) {
                 swipeRefresh.isEnabled = false
             }
-            swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.nova_accent))
+            swipeRefresh.setColorSchemeColors(NovaThemeManager.getAccentColor(this))
             swipeRefresh.setProgressBackgroundColorSchemeColor(
                 ContextCompat.getColor(this, R.color.nova_bg_elevated),
             )

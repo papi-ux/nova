@@ -119,7 +119,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/applist_hero_continue"
                     android:textSize="10sp"
-                    android:textColor="@color/nova_accent"
+                    android:textColor="?attr/colorAccent"
                     android:fontFamily="sans-serif-medium"
                     android:letterSpacing="0.1" />
 
@@ -273,7 +273,7 @@
         android:layout_marginEnd="24dp"
         android:contentDescription="@string/profile_manager_choose_profile"
         app:icon="@drawable/ic_profiles"
-        app:backgroundTint="@color/nova_accent"
+        app:backgroundTint="?attr/colorAccent"
         app:iconTint="@color/nova_ice" />
 
 </FrameLayout>

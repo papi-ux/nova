@@ -9,6 +9,7 @@
         <item name="colorPrimary">@color/nova_accent</item>
         <item name="colorPrimaryDark">@android:color/transparent</item>
         <item name="colorAccent">@color/nova_accent</item>
+        <item name="colorControlHighlight">@color/nova_accent_surface</item>
         <item name="colorSurface">@color/nova_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_text_primary</item>
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
@@ -38,6 +39,7 @@
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="colorPrimary">@color/nova_oled_accent</item>
         <item name="colorAccent">@color/nova_oled_accent</item>
+        <item name="colorControlHighlight">@color/nova_oled_accent_surface</item>
     </style>
 
     <!-- Miami Nebula — deep plum shell with neon flamingo accent. -->
@@ -51,6 +53,7 @@
         <item name="android:statusBarColor">@color/nova_miami_void</item>
         <item name="colorPrimary">@color/nova_miami_accent</item>
         <item name="colorAccent">@color/nova_miami_accent</item>
+        <item name="colorControlHighlight">@color/nova_miami_accent_surface</item>
         <item name="colorSurface">@color/nova_miami_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_miami_text_primary</item>
     </style>
@@ -66,6 +69,7 @@
         <item name="android:statusBarColor">@color/nova_portable_deep</item>
         <item name="colorPrimary">@color/nova_portable_accent</item>
         <item name="colorAccent">@color/nova_portable_accent</item>
+        <item name="colorControlHighlight">@color/nova_portable_accent_surface</item>
         <item name="colorSurface">@color/nova_portable_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_portable_text_primary</item>
     </style>
@@ -78,6 +82,7 @@
         <item name="android:textColorSecondary">@color/nova_hc_text_secondary</item>
         <item name="colorPrimary">@color/nova_hc_accent</item>
         <item name="colorAccent">@color/nova_hc_accent</item>
+        <item name="colorControlHighlight">@color/nova_hc_accent_surface</item>
         <item name="colorSurface">@color/nova_hc_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_hc_text_primary</item>
     </style>
@@ -121,6 +126,7 @@
         <item name="android:textColorSecondary">@color/nova_oled_text_secondary</item>
         <item name="colorPrimary">@color/nova_oled_accent</item>
         <item name="colorAccent">@color/nova_oled_accent</item>
+        <item name="colorControlHighlight">@color/nova_oled_accent_surface</item>
         <item name="colorSurface">@color/nova_oled_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_oled_text_primary</item>
         <item name="android:navigationBarColor">@android:color/black</item>
@@ -134,6 +140,7 @@
         <item name="android:textColorSecondary">@color/nova_miami_text_secondary</item>
         <item name="colorPrimary">@color/nova_miami_accent</item>
         <item name="colorAccent">@color/nova_miami_accent</item>
+        <item name="colorControlHighlight">@color/nova_miami_accent_surface</item>
         <item name="colorSurface">@color/nova_miami_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_miami_text_primary</item>
         <item name="android:navigationBarColor">@color/nova_miami_void</item>
@@ -147,6 +154,7 @@
         <item name="android:textColorSecondary">@color/nova_portable_text_secondary</item>
         <item name="colorPrimary">@color/nova_portable_accent</item>
         <item name="colorAccent">@color/nova_portable_accent</item>
+        <item name="colorControlHighlight">@color/nova_portable_accent_surface</item>
         <item name="colorSurface">@color/nova_portable_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_portable_text_primary</item>
         <item name="android:navigationBarColor">@color/nova_portable_deep</item>
@@ -159,6 +167,7 @@
         <item name="android:textColorSecondary">@color/nova_hc_text_secondary</item>
         <item name="colorPrimary">@color/nova_hc_accent</item>
         <item name="colorAccent">@color/nova_hc_accent</item>
+        <item name="colorControlHighlight">@color/nova_hc_accent_surface</item>
         <item name="colorSurface">@color/nova_hc_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_hc_text_primary</item>
     </style>
@@ -170,6 +179,7 @@
         <item name="android:windowBackground">@color/nova_bg_window</item>
         <item name="colorPrimary">@color/nova_accent</item>
         <item name="colorAccent">@color/nova_accent</item>
+        <item name="colorControlHighlight">@color/nova_accent_surface</item>
         <item name="colorSurface">@color/nova_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_text_primary</item>
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
@@ -187,7 +197,7 @@
     </style>
 
     <style name="NovaPrefCategory" parent="Preference.Category">
-        <item name="android:textColor">@color/nova_accent</item>
+        <item name="android:textColor">?attr/colorAccent</item>
     </style>
 
     <style name="ExternalDisplayControllerTheme" parent="AppTheme">
@@ -203,14 +213,15 @@
         <item name="android:windowBackground">@color/nova_dialog_bg</item>
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
         <item name="android:textColorSecondary">@color/nova_text_secondary</item>
-        <item name="colorAccent">@color/nova_accent</item>
+        <item name="colorAccent">?attr/colorAccent</item>
+        <item name="colorControlHighlight">?attr/colorControlHighlight</item>
         <item name="buttonBarPositiveButtonStyle">@style/NovaDialogButton</item>
         <item name="buttonBarNegativeButtonStyle">@style/NovaDialogButton</item>
         <item name="buttonBarNeutralButtonStyle">@style/NovaDialogButton</item>
     </style>
 
     <style name="NovaDialogButton" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
-        <item name="android:textColor">@color/nova_accent</item>
+        <item name="android:textColor">?attr/colorAccent</item>
     </style>
 
     <!-- Nova popup/context menu -->
