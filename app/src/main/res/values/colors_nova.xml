@@ -55,31 +55,31 @@
     <color name="nova_miami_accent_glow">#73FF5CAB</color>
     <color name="nova_miami_ripple">#22FF5CAB</color>
 
-    <!-- Portable Chrome - Moonlight-grey early-2000s silver with restrained status accents. -->
-    <color name="nova_portable_void">#FF98A6B5</color>
-    <color name="nova_portable_deep">#FFB8C1CC</color>
-    <color name="nova_portable_twilight">#FFA7B2BE</color>
-    <color name="nova_portable_storm">#FF7F8C9A</color>
-    <color name="nova_portable_silver">#FFD6DDE5</color>
-    <color name="nova_portable_ice">#FFEAF0F5</color>
-    <color name="nova_portable_bg_primary">#FFB8C1CC</color>
-    <color name="nova_portable_bg_window">#FFB8C1CC</color>
-    <color name="nova_portable_bg_card">#E6D6DDE5</color>
-    <color name="nova_portable_bg_elevated">#FFE0E6EC</color>
-    <color name="nova_portable_bg_input">#FFC8D1DC</color>
-    <color name="nova_portable_dialog_bg">#FFD6DDE5</color>
-    <color name="nova_portable_context_bg">#FFC7D1DD</color>
-    <color name="nova_portable_divider">#FF7F8C9A</color>
-    <color name="nova_portable_text_primary">#FF25313D</color>
-    <color name="nova_portable_text_secondary">#FF4F5D6B</color>
-    <color name="nova_portable_text_muted">#FF667584</color>
-    <color name="nova_portable_accent">#FF557395</color>
-    <color name="nova_portable_accent_surface">#22557395</color>
-    <color name="nova_portable_accent_glow">#33557395</color>
-    <color name="nova_portable_ripple">#22557395</color>
-    <color name="nova_portable_success">#FF315B45</color>
-    <color name="nova_portable_streaming">#FF315B45</color>
-    <color name="nova_portable_online">#FF557395</color>
+    <!-- Portable Chrome / PSP - smoked graphite handheld chrome with restrained status accents. -->
+    <color name="nova_portable_void">#FF7C8998</color>
+    <color name="nova_portable_deep">#FFA2ADBA</color>
+    <color name="nova_portable_twilight">#FF8E9BAA</color>
+    <color name="nova_portable_storm">#FF667484</color>
+    <color name="nova_portable_silver">#FFC4CDD8</color>
+    <color name="nova_portable_ice">#FFD7DEE7</color>
+    <color name="nova_portable_bg_primary">#FFA2ADBA</color>
+    <color name="nova_portable_bg_window">#FFA2ADBA</color>
+    <color name="nova_portable_bg_card">#E6C4CDD8</color>
+    <color name="nova_portable_bg_elevated">#FFCBD3DD</color>
+    <color name="nova_portable_bg_input">#FFB1BCC9</color>
+    <color name="nova_portable_dialog_bg">#FFC0CAD5</color>
+    <color name="nova_portable_context_bg">#FFAFBAC7</color>
+    <color name="nova_portable_divider">#FF667484</color>
+    <color name="nova_portable_text_primary">#FF1F2A35</color>
+    <color name="nova_portable_text_secondary">#FF465464</color>
+    <color name="nova_portable_text_muted">#FF5A6877</color>
+    <color name="nova_portable_accent">#FF4B6686</color>
+    <color name="nova_portable_accent_surface">#264B6686</color>
+    <color name="nova_portable_accent_glow">#334B6686</color>
+    <color name="nova_portable_ripple">#244B6686</color>
+    <color name="nova_portable_success">#FF294F3D</color>
+    <color name="nova_portable_streaming">#FF294F3D</color>
+    <color name="nova_portable_online">#FF4B6686</color>
     <color name="nova_portable_on_accent">#FFFFFFFF</color>
     <!-- High Contrast — brighter copy, firm outlines, and blue focus for readability. -->
     <color name="nova_hc_bg_primary">#FF05070c</color>

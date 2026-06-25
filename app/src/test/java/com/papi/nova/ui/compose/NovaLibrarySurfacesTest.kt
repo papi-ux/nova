@@ -45,18 +45,19 @@ class NovaLibrarySurfacesTest {
     }
 
     @Test
-    fun portableChromeLibrarySurfacesUseDimSilverPanelsAndSubduedParticles() {
+    fun portableChromeLibrarySurfacesUseSmokedGraphiteShellAndSubduedParticles() {
         val portableColors = portableChromeColors()
 
         val portableChrome = portableColors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME)
 
         assertTrue(portableChrome.particlesEnabled)
         assertEquals(portableColors.accent, portableChrome.focusRing)
-        assertTrue(portableChrome.panel.alpha >= 0.86f)
-        assertTrue(portableChrome.panelBorder.alpha >= 0.56f)
-        assertTrue(portableChrome.particleAlpha in 0.20f..0.45f)
-        assertTrue(portableChrome.focusHalo.alpha < 0.24f)
-        assertEquals(Color(0xFFB8C1CC), portableChrome.mediaPlaceholder)
+        assertTrue(portableChrome.backgroundScrim.alpha >= 0.24f)
+        assertTrue(portableChrome.panel.alpha >= 0.92f)
+        assertTrue(portableChrome.panelBorder.alpha >= 0.68f)
+        assertTrue(portableChrome.particleAlpha in 0.16f..0.28f)
+        assertTrue(portableChrome.focusHalo.alpha < 0.18f)
+        assertEquals(Color(0xFFA2ADBA), portableChrome.mediaPlaceholder)
     }
 
     @Test
@@ -95,17 +96,17 @@ class NovaLibrarySurfacesTest {
     }
 
     private fun portableChromeColors(): NovaComposeColors = NovaComposeColors(
-        window = Color(0xFFB8C1CC),
-        card = Color(0xE6D6DDE5),
-        dialog = Color(0xFFD6DDE5),
-        badge = Color(0x33557395),
-        divider = Color(0xFF7F8C9A),
-        accent = Color(0xFF557395),
-        accentSurface = Color(0x22557395),
+        window = Color(0xFFA2ADBA),
+        card = Color(0xE6C4CDD8),
+        dialog = Color(0xFFC0CAD5),
+        badge = Color(0x334B6686),
+        divider = Color(0xFF667484),
+        accent = Color(0xFF4B6686),
+        accentSurface = Color(0x264B6686),
         warning = Color(0xFFFBBF24),
-        textPrimary = Color(0xFF25313D),
-        textSecondary = Color(0xFF4F5D6B),
-        textMuted = Color(0xFF667584),
+        textPrimary = Color(0xFF1F2A35),
+        textSecondary = Color(0xFF465464),
+        textMuted = Color(0xFF5A6877),
         onAccent = Color.White
     )
     private fun miamiColors(): NovaComposeColors = NovaComposeColors(
