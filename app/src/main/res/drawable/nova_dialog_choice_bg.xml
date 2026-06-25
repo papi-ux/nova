@@ -3,28 +3,28 @@
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <corners android:radius="4dp" />
-            <solid android:color="#407C73FF" />
-            <stroke android:width="2dp" android:color="@color/nova_accent" />
+            <solid android:color="?attr/colorControlHighlight" />
+            <stroke android:width="2dp" android:color="?attr/colorAccent" />
         </shape>
     </item>
     <item android:state_selected="true">
         <shape android:shape="rectangle">
             <corners android:radius="4dp" />
-            <solid android:color="#337C73FF" />
-            <stroke android:width="2dp" android:color="@color/nova_accent" />
+            <solid android:color="?attr/colorControlHighlight" />
+            <stroke android:width="2dp" android:color="?attr/colorAccent" />
         </shape>
     </item>
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <corners android:radius="4dp" />
-            <solid android:color="#337C73FF" />
-            <stroke android:width="2dp" android:color="@color/nova_accent" />
+            <solid android:color="?attr/colorControlHighlight" />
+            <stroke android:width="2dp" android:color="?attr/colorAccent" />
         </shape>
     </item>
     <item android:state_activated="true">
         <shape android:shape="rectangle">
             <corners android:radius="4dp" />
-            <solid android:color="#247C73FF" />
+            <solid android:color="?attr/colorControlHighlight" />
         </shape>
     </item>
     <item android:drawable="@android:color/transparent" />

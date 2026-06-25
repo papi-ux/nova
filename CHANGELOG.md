@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Removes hardcoded Polaris-purple accents from legacy Nova XML/views so PSP / Portable Chrome uses theme-aware steel highlights.
 - Deepens the PSP / Portable Chrome theme into a sleeker smoked-graphite handheld shell with less washed-out white.
 - Adds a PSP / Portable Chrome Nova theme matching the Polaris dim Moonlight-grey early-2000s silver palette, including settings/theme-picker entries and restrained Compose library surfaces.
 

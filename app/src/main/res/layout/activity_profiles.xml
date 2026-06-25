@@ -66,7 +66,7 @@
         android:layout_marginBottom="24dp"
         android:contentDescription="@string/profile_manager_new_profile"
         android:src="@drawable/ic_add_base"
-        app:backgroundTint="@color/nova_accent"
+        app:backgroundTint="?attr/colorAccent"
         xmlns:app="http://schemas.android.com/apk/res-auto" />
 
 </RelativeLayout>

@@ -17,7 +17,7 @@ object NovaSnackbar {
         val snackbar = Snackbar.make(rootView, message, duration)
         snackbar.setBackgroundTint(activity.getColor(R.color.nova_bg_elevated))
         snackbar.setTextColor(activity.getColor(R.color.nova_text_primary))
-        snackbar.setActionTextColor(activity.getColor(R.color.nova_accent))
+        snackbar.setActionTextColor(NovaThemeManager.getAccentColor(activity))
         snackbar.show()
     }
 
@@ -26,7 +26,7 @@ object NovaSnackbar {
         val snackbar = Snackbar.make(rootView, message, Snackbar.LENGTH_LONG)
         snackbar.setBackgroundTint(activity.getColor(R.color.nova_bg_elevated))
         snackbar.setTextColor(activity.getColor(R.color.nova_error))
-        snackbar.setActionTextColor(activity.getColor(R.color.nova_accent))
+        snackbar.setActionTextColor(NovaThemeManager.getAccentColor(activity))
         snackbar.show()
     }
 
@@ -35,7 +35,7 @@ object NovaSnackbar {
         val snackbar = Snackbar.make(rootView, message, Snackbar.LENGTH_SHORT)
         snackbar.setBackgroundTint(activity.getColor(R.color.nova_bg_elevated))
         snackbar.setTextColor(activity.getColor(R.color.nova_success))
-        snackbar.setActionTextColor(activity.getColor(R.color.nova_accent))
+        snackbar.setActionTextColor(NovaThemeManager.getAccentColor(activity))
         snackbar.show()
     }
 }

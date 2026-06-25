@@ -5,7 +5,7 @@
             <solid android:color="#3Ac8d6e5" />
             <stroke
                 android:width="2dp"
-                android:color="@color/nova_accent" />
+                android:color="?attr/colorAccent" />
             <corners android:radius="16dp" />
         </shape>
     </item>

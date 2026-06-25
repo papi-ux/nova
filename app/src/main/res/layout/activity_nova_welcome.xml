@@ -67,7 +67,7 @@
                     android:letterSpacing="0.08"
                     android:text="01  Find your host"
                     android:textAllCaps="true"
-                    android:textColor="@color/nova_accent"
+                    android:textColor="?attr/colorAccent"
                     android:textSize="11sp" />
 
                 <TextView
@@ -93,7 +93,7 @@
                     android:letterSpacing="0.08"
                     android:text="02  Pair with confidence"
                     android:textAllCaps="true"
-                    android:textColor="@color/nova_accent"
+                    android:textColor="?attr/colorAccent"
                     android:textSize="11sp" />
 
                 <TextView
@@ -119,7 +119,7 @@
                     android:letterSpacing="0.08"
                     android:text="03  Built for the screen in your hands"
                     android:textAllCaps="true"
-                    android:textColor="@color/nova_accent"
+                    android:textColor="?attr/colorAccent"
                     android:textSize="11sp" />
 
                 <TextView
@@ -142,7 +142,7 @@
                 android:textColor="@android:color/white"
                 android:textSize="17sp"
                 android:textStyle="bold"
-                app:backgroundTint="@color/nova_accent"
+                app:backgroundTint="?attr/colorAccent"
                 app:cornerRadius="26dp"
                 app:strokeColor="@color/nova_focus_stroke_selector"
                 app:strokeWidth="2dp" />
