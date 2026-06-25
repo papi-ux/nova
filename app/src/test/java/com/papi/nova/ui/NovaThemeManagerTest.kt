@@ -35,7 +35,7 @@ class NovaThemeManagerTest {
         NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
 
         assertEquals(NovaThemeManager.THEME_PORTABLE_CHROME, NovaThemeManager.getTheme(context))
-        assertEquals("Portable Chrome", NovaThemeManager.getThemeLabel(context))
+        assertEquals("PSP / Portable Chrome", NovaThemeManager.getThemeLabel(context))
     }
 
     @Test
