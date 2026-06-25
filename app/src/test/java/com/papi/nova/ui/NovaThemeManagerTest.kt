@@ -82,6 +82,19 @@ class NovaThemeManagerTest {
     }
 
     @Test
+    fun portableChromePaletteUsesSmokedPspGraphiteInsteadOfWashedSilver() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
+
+        assertEquals(0xFFA2ADBA.toInt(), context.getColor(R.color.nova_portable_bg_window))
+        assertEquals(0xE6C4CDD8.toInt(), context.getColor(R.color.nova_portable_bg_card))
+        assertEquals(0xFFC0CAD5.toInt(), context.getColor(R.color.nova_portable_dialog_bg))
+        assertEquals(0xFF667484.toInt(), context.getColor(R.color.nova_portable_divider))
+        assertEquals(0xFF1F2A35.toInt(), context.getColor(R.color.nova_portable_text_primary))
+        assertEquals(0xFF4B6686.toInt(), NovaThemeManager.getAccentColor(context))
+        assertEquals(0xFF294F3D.toInt(), context.getColor(R.color.nova_portable_success))
+    }
+
+    @Test
     fun miamiThemeResolvesSemanticColors() {
         NovaThemeManager.setTheme(context, NovaThemeManager.THEME_MIAMI)
 
