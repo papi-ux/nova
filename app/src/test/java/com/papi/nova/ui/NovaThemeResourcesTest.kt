@@ -24,7 +24,7 @@ class NovaThemeResourcesTest {
             values
         )
         assertEquals("Miami Nebula", names[values.indexOf("miami")])
-        assertEquals("Portable Chrome", names[values.indexOf("portable_chrome")])
+        assertEquals("PSP / Portable Chrome", names[values.indexOf("portable_chrome")])
     }
 
     @Test
@@ -32,6 +32,6 @@ class NovaThemeResourcesTest {
         val preferencesXml = File("src/main/res/xml/preferences.xml").readText()
 
         assertTrue(preferencesXml.contains("android:key=\"nova_theme\""))
-        assertTrue(preferencesXml.contains("Portable Chrome"))
+        assertTrue(preferencesXml.contains("PSP / Portable Chrome"))
     }
 }
