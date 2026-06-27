@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="@color/nova_ice" android:state_focused="true" />
+    <item android:color="?attr/colorAccent" android:state_focused="true" />
     <item android:color="?attr/colorAccent" android:state_pressed="true" />
     <item android:color="@android:color/transparent" />
 </selector>

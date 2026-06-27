@@ -50,6 +50,7 @@ app/.externalNativeBuild/
 .cxx/
 
 # agent files
+.hermes/
 AGENTS.md
 CLAUDE.md
 .githooks/

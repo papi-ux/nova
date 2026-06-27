@@ -1,6 +1,7 @@
 package com.papi.nova.ui.compose
 
 import androidx.compose.ui.graphics.Color
+import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaThemeManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,8 +54,8 @@ class NovaLibrarySurfacesTest {
         assertTrue(portableChrome.particlesEnabled)
         assertEquals(portableColors.accent, portableChrome.focusRing)
         assertTrue(portableChrome.backgroundScrim.alpha >= 0.24f)
-        assertTrue(portableChrome.panel.alpha >= 0.92f)
-        assertTrue(portableChrome.panelBorder.alpha >= 0.68f)
+        assertEquals(NovaSheetChrome.PORTABLE_CHROME_SHEET_GLASS_ALPHA, portableChrome.panel.alpha, 0.001f)
+        assertTrue(portableChrome.panelBorder.alpha in 0.40f..0.52f)
         assertTrue(portableChrome.particleAlpha in 0.16f..0.28f)
         assertTrue(portableChrome.focusHalo.alpha < 0.18f)
         assertEquals(Color(0xFFA2ADBA), portableChrome.mediaPlaceholder)
@@ -76,9 +77,11 @@ class NovaLibrarySurfacesTest {
             "Miami halo should be stronger than default but not a hot pink foghorn",
             miami.focusHalo.alpha in 0.24f..0.34f
         )
-        assertTrue(
-            "Miami panels should keep readable plum glass",
-            miami.panel.alpha >= 0.78f
+        assertEquals(
+            "Miami panels should use shared readable plum glass alpha",
+            NovaSheetChrome.MIAMI_SHEET_GLASS_ALPHA,
+            miami.panel.alpha,
+            0.001f
         )
         assertTrue(
             "Miami focused artwork needs enough scrim for rose text",

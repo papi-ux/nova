@@ -2,14 +2,12 @@ package com.papi.nova.ui
 
 import android.app.Dialog
 import android.content.Context
-import android.content.res.Configuration
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import android.widget.ScrollView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.background
@@ -55,9 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.papi.nova.LimeLog
@@ -117,7 +113,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-            setBackgroundResource(sheetBackgroundRes())
+            background = NovaSheetChrome.createSheetBackground(requireContext())
         }
     }
 
@@ -820,65 +816,14 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         ).filterNotNull().joinToString(" · ")
     }
 
-    private fun sheetBackgroundRes(): Int {
-        return if (NovaThemeManager.isOled(requireContext())) {
-            R.drawable.nova_sheet_bg_oled
-        } else {
-            R.drawable.nova_sheet_bg
-        }
-    }
-
     private fun expandBottomSheet(bottomSheetDialog: BottomSheetDialog?) {
-        val sheet = bottomSheetDialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
+        bottomSheetDialog ?: return
         val contentView = view ?: return
-        sheet.setBackgroundResource(sheetBackgroundRes())
-        contentView.post {
-            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            val maxHeightRatio = if (isLandscape) 0.96f else 0.90f
-            val maxHeight = (resources.displayMetrics.heightPixels * maxHeightRatio).toInt()
-            val contentHeight = contentView.measuredHeight.takeIf { it > 0 } ?: return@post
-            val desiredHeight = contentHeight.coerceAtMost(maxHeight)
-            val displayWidth = resources.displayMetrics.widthPixels
-            val density = resources.displayMetrics.density
-            val desiredWidth = if (isLandscape) {
-                val minWidth = (720 * density).toInt()
-                val maxWidth = (1260 * density).toInt()
-                (displayWidth * 0.7f).toInt().coerceIn(minWidth, maxWidth)
-            } else {
-                displayWidth
-            }
-            val horizontalMargin = if (isLandscape) {
-                ((displayWidth - desiredWidth) / 2).coerceAtLeast((18 * density).toInt())
-            } else {
-                0
-            }
-
-            contentView.layoutParams = contentView.layoutParams.apply {
-                height = if (contentHeight > maxHeight) desiredHeight else ViewGroup.LayoutParams.WRAP_CONTENT
-            }
-            sheet.layoutParams = sheet.layoutParams.apply {
-                width = if (isLandscape) displayWidth - (horizontalMargin * 2) else ViewGroup.LayoutParams.MATCH_PARENT
-                height = desiredHeight
-            }
-            (sheet.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
-                lp.marginStart = horizontalMargin
-                lp.marginEnd = horizontalMargin
-                sheet.layoutParams = lp
-            }
-            sheet.minimumHeight = 0
-            sheet.requestLayout()
-
-            val behavior = BottomSheetBehavior.from(sheet)
-            behavior.isFitToContents = true
-            behavior.skipCollapsed = true
-            behavior.peekHeight = desiredHeight
-            behavior.state = BottomSheetBehavior.STATE_EXPANDED
-
-            when (contentView) {
-                is NestedScrollView -> contentView.post { contentView.scrollTo(0, 0) }
-                is ScrollView -> contentView.post { contentView.scrollTo(0, 0) }
-            }
-        }
+        NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog,
+            contentView,
+            minLandscapeWidthDp = 720,
+            maxLandscapeWidthDp = 1260
+        )
     }
 }
 
@@ -939,7 +884,10 @@ fun NovaGameDetailSheetContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .clip(RoundedCornerShape(
+                topStart = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp,
+                topEnd = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp
+            ))
             .background(surfaces.panel)
             .verticalScroll(verticalScroll)
             .padding(bottom = 16.dp)

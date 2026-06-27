@@ -21,15 +21,15 @@ class NovaFocusDrawableTest {
             doc.documentElement.tagName == "shape"
         )
         assertTrue(
-            "focus ring should follow the active theme accent instead of hardcoding Polaris violet",
+            "focus ring should include a clear themed accent stroke",
             hasStroke(doc, "3dp", "?attr/colorAccent")
         )
     }
 
     @Test
-    fun chipFocusedStatesUseCleanThemeAwareStroke() {
+    fun chipFocusedStatesUseCleanHighContrastStroke() {
         assertFocusedStroke("src/main/res/drawable/nova_chip_default.xml", "3dp", "?attr/colorAccent")
-        assertFocusedStroke("src/main/res/drawable/nova_chip_selected.xml", "3dp", "@color/nova_ice")
+        assertFocusedStroke("src/main/res/drawable/nova_chip_selected.xml", "3dp", "?attr/colorOnSurface")
     }
 
     @Test
@@ -49,7 +49,7 @@ class NovaFocusDrawableTest {
 
         val rowRing = parseXml("src/main/res/drawable/nova_server_row_focus_ring.xml")
         assertTrue(
-            "server row focus ring should use a slimmer accent stroke",
+            "server row focus ring should use a slimmer themed accent stroke",
             hasStroke(rowRing, "2dp", "?attr/colorAccent")
         )
     }
@@ -59,6 +59,7 @@ class NovaFocusDrawableTest {
         val dimens = parseXml("src/main/res/values/dimens.xml")
         val landDimens = parseXml("src/main/res/values-land/dimens.xml")
         val ripple = parseXml("src/main/res/drawable/nova_ripple_accent.xml")
+        val legacyFocusableCard = parseXml("src/main/res/drawable/nova_card_bg_focusable.xml")
 
         assertTrue(
             "AppView search height should keep the established portrait height",
@@ -79,6 +80,10 @@ class NovaFocusDrawableTest {
         assertTrue(
             "server card ripple should continue to follow the shared card radius",
             hasCorners(ripple, "@dimen/nova_card_corner_radius")
+        )
+        assertTrue(
+            "legacy XML focusable cards should use the active theme accent instead of a static global accent",
+            hasStroke(legacyFocusableCard, "2dp", "?attr/colorAccent")
         )
     }
 
@@ -241,12 +246,15 @@ class NovaFocusDrawableTest {
         val picker = source.substringAfter("private fun showThemePicker(")
             .substringBefore("private fun applyThemeSelection")
 
+        assertTrue(picker.contains("NovaThemeManager.THEME_PORTABLE_CHROME"))
         assertTrue(picker.contains("NovaThemeManager.THEME_OLED"))
         assertTrue(picker.contains("NovaThemeManager.THEME_MIAMI"))
         assertTrue(picker.contains("NovaThemeManager.THEME_HIGH_CONTRAST"))
         assertTrue(
-            "Miami should sit between OLED and High Contrast in the dashboard picker",
-            picker.indexOf("NovaThemeManager.THEME_OLED") < picker.indexOf("NovaThemeManager.THEME_MIAMI") &&
+            "Portable Chrome should be selectable before OLED, with Miami between OLED and High Contrast",
+            picker.indexOf("NovaThemeManager.THEME_POLARIS") < picker.indexOf("NovaThemeManager.THEME_PORTABLE_CHROME") &&
+                picker.indexOf("NovaThemeManager.THEME_PORTABLE_CHROME") < picker.indexOf("NovaThemeManager.THEME_OLED") &&
+                picker.indexOf("NovaThemeManager.THEME_OLED") < picker.indexOf("NovaThemeManager.THEME_MIAMI") &&
                 picker.indexOf("NovaThemeManager.THEME_MIAMI") < picker.indexOf("NovaThemeManager.THEME_HIGH_CONTRAST")
         )
     }

@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.papi.nova.R
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.NovaSheetChrome
 
 @Immutable
 data class NovaComposeColors(
@@ -56,8 +57,8 @@ private fun defaultNovaComposeColors(): NovaComposeColors {
         dialog = Color(0xFF232340),
         badge = Color(0x33687B81),
         divider = Color(0xFF393C51),
-        accent = Color(0xFF7C73FF),
-        accentSurface = Color(0x1A7C73FF),
+        accent = Color(0xFF78A6FF),
+        accentSurface = Color(0x1A78A6FF),
         warning = Color(0xFFFBBF24),
         textPrimary = Color(0xFFD4DDE8),
         textSecondary = Color(0xFFA8B0B8),
@@ -84,54 +85,54 @@ fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
         backgroundScrim = when {
             isOled -> Color.Transparent
             isMiami -> window.copy(alpha = 0.60f)
-            isPortableChrome -> Color.Black.copy(alpha = 0.28f)
+            isPortableChrome -> window.copy(alpha = 0.34f)
             isHighContrast -> Color.Black.copy(alpha = 0.72f)
             isMaterialYou -> window.copy(alpha = 0.28f)
             else -> window.copy(alpha = 0.56f)
         },
         panel = when {
-            isOled -> dialog.copy(alpha = 0.88f)
-            isMiami -> dialog.copy(alpha = 0.82f)
-            isPortableChrome -> dialog.copy(alpha = 0.94f)
-            isHighContrast -> dialog.copy(alpha = 0.96f)
-            isMaterialYou -> card.copy(alpha = 0.76f)
-            else -> dialog.copy(alpha = 0.64f)
+            isOled -> dialog.copy(alpha = NovaSheetChrome.OLED_SHEET_GLASS_ALPHA)
+            isMiami -> dialog.copy(alpha = NovaSheetChrome.MIAMI_SHEET_GLASS_ALPHA)
+            isPortableChrome -> dialog.copy(alpha = NovaSheetChrome.PORTABLE_CHROME_SHEET_GLASS_ALPHA)
+            isHighContrast -> dialog.copy(alpha = NovaSheetChrome.HIGH_CONTRAST_SHEET_GLASS_ALPHA)
+            isMaterialYou -> card.copy(alpha = NovaSheetChrome.MATERIAL_YOU_SHEET_GLASS_ALPHA)
+            else -> dialog.copy(alpha = NovaSheetChrome.SHEET_GLASS_ALPHA)
         },
         panelBorder = when {
             isOled -> divider.copy(alpha = 0.78f)
             isMiami -> accent.copy(alpha = 0.18f)
-            isPortableChrome -> divider.copy(alpha = 0.70f)
+            isPortableChrome -> divider.copy(alpha = 0.46f)
             isHighContrast -> divider.copy(alpha = 0.92f)
             isMaterialYou -> divider.copy(alpha = 0.46f)
             else -> divider.copy(alpha = 0.44f)
         },
         tile = when {
-            isOled -> card.copy(alpha = 0.90f)
-            isMiami -> card.copy(alpha = 0.82f)
-            isPortableChrome -> card.copy(alpha = 0.92f)
+            isOled -> card.copy(alpha = 0.82f)
+            isMiami -> card.copy(alpha = 0.70f)
+            isPortableChrome -> card.copy(alpha = 0.62f)
             isHighContrast -> card.copy(alpha = 0.98f)
-            isMaterialYou -> card.copy(alpha = 0.78f)
-            else -> card.copy(alpha = 0.74f)
+            isMaterialYou -> card.copy(alpha = 0.68f)
+            else -> card.copy(alpha = 0.66f)
         },
         tileBorder = when {
             isOled -> divider.copy(alpha = 0.78f)
             isMiami -> divider.copy(alpha = 0.58f)
-            isPortableChrome -> divider.copy(alpha = 0.62f)
+            isPortableChrome -> divider.copy(alpha = 0.46f)
             isHighContrast -> divider.copy(alpha = 0.90f)
             else -> divider.copy(alpha = 0.50f)
         },
         control = when {
-            isOled -> card.copy(alpha = 0.78f)
-            isMiami -> card.copy(alpha = 0.76f)
-            isPortableChrome -> card.copy(alpha = 0.88f)
+            isOled -> card.copy(alpha = 0.74f)
+            isMiami -> card.copy(alpha = 0.64f)
+            isPortableChrome -> card.copy(alpha = 0.58f)
             isHighContrast -> card.copy(alpha = 1f)
-            isMaterialYou -> card.copy(alpha = 0.70f)
-            else -> card.copy(alpha = 0.72f)
+            isMaterialYou -> card.copy(alpha = 0.62f)
+            else -> card.copy(alpha = 0.60f)
         },
         selectedControl = accent.copy(alpha = when {
             isHighContrast -> 0.34f
             isMiami -> 0.22f
-            isPortableChrome -> 0.18f
+            isPortableChrome -> 0.16f
             isOled -> 0.22f
             else -> 0.18f
         }),
@@ -139,14 +140,14 @@ fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
         focusHalo = accent.copy(alpha = when {
             isHighContrast -> 0.36f
             isMiami -> 0.28f
-            isPortableChrome -> 0.16f
+            isPortableChrome -> 0.14f
             isOled -> 0.24f
             else -> 0.18f
         }),
         mediaPlaceholder = when {
             isOled -> Color(0xFF08080C)
             isMiami -> Color(0xFF2C1734)
-            isPortableChrome -> Color(0xFFA2ADBA)
+            isPortableChrome -> window.copy(alpha = 1f)
             isHighContrast -> Color(0xFF111827)
             isMaterialYou -> card.copy(alpha = 1f)
             else -> divider.copy(alpha = 1f)
@@ -162,14 +163,14 @@ fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
         focusedArtworkAlpha = when {
             isOled -> 0.10f
             isMiami -> 0.26f
-            isPortableChrome -> 0.12f
+            isPortableChrome -> 0.18f
             isMaterialYou -> 0.18f
             else -> 0.24f
         },
         focusedArtworkScrim = Color.Black.copy(alpha = when {
             isOled -> 0.82f
             isMiami -> 0.76f
-            isPortableChrome -> 0.70f
+            isPortableChrome -> 0.66f
             else -> 0.72f
         }),
         particlesEnabled = !isOled,
@@ -177,7 +178,7 @@ fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
             isOled -> 0f
             isHighContrast -> 0.28f
             isMiami -> 0.68f
-            isPortableChrome -> 0.24f
+            isPortableChrome -> 0.22f
             isMaterialYou -> 0.42f
             else -> 1f
         }
@@ -203,11 +204,7 @@ fun NovaComposeTheme(content: @Composable () -> Unit) {
         onAccent = Color(
             ContextCompat.getColor(
                 context,
-                when (theme) {
-                    NovaThemeManager.THEME_MIAMI -> R.color.nova_miami_void
-                    NovaThemeManager.THEME_PORTABLE_CHROME -> R.color.nova_portable_on_accent
-                    else -> R.color.nova_ice
-                }
+                if (theme == NovaThemeManager.THEME_MIAMI) R.color.nova_miami_void else R.color.nova_ice
             )
         )
     )

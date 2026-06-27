@@ -3248,10 +3248,13 @@ class NovaLibraryActivity : AppCompatActivity() {
         ModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            shape = RoundedCornerShape(
+                topStart = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp,
+                topEnd = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp
+            ),
             containerColor = surfaces.panel,
             contentColor = colors.textPrimary,
-            scrimColor = surfaces.backgroundScrim.copy(alpha = 0.30f)
+            scrimColor = surfaces.backgroundScrim.copy(alpha = NovaSheetChrome.SCRIM_ALPHA)
         ) {
             Column(
                 modifier = Modifier
