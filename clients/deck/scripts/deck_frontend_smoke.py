@@ -18,8 +18,8 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable, Sequence
 
 DEFAULT_DECK = "deck@" + "10.0." + "0.39"
-DEFAULT_REMOTE_SOURCE = PurePosixPath("/home/deck/nova-frontend-smoke-src")
-DEFAULT_ARTIFACT_DIR = PurePosixPath("/home/deck/nova-frontend-smoke-src/build/deck-frontend-smoke-artifacts")
+DEFAULT_REMOTE_SOURCE = PurePosixPath("/var/tmp/nova-frontend-smoke-src")
+DEFAULT_ARTIFACT_DIR = PurePosixPath("/var/tmp/nova-frontend-smoke-src/build/deck-frontend-smoke-artifacts")
 DEFAULT_IMAGE = "localhost/nova-t24-arch-qt-buildtools"
 DEFAULT_BUILD_DIR = "build/deck-frontend-smoke"
 
@@ -105,7 +105,7 @@ def validate_local_artifact_dir(local_artifacts: Path) -> None:
     resolved = local_artifacts.expanduser().resolve()
     forbidden_roots = {Path('/'), Path.home().resolve(), REPO_ROOT.resolve()}
     if resolved in forbidden_roots:
-        raise ValueError("local artifact directory refuses broad root/home/repo cleanup")
+        raise ValueError("local artifact directory refuses broad system/source cleanup")
     safe_root = REPO_ROOT.resolve() / "build"
     try:
         resolved.relative_to(safe_root)

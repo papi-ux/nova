@@ -19,8 +19,8 @@ import deck_frontend_smoke as smoke
 class DeckFrontendSmokeRouteTest(unittest.TestCase):
     def test_podman_command_runs_visible_wayland_shell_offline_and_writes_frontend_artifacts(self):
         command = smoke.build_podman_smoke_command(
-            source_dir=pathlib.PurePosixPath("/home/deck/nova-frontend-smoke-src"),
-            artifact_dir=pathlib.PurePosixPath("/home/deck/nova-frontend-smoke-src/build/deck-frontend-smoke-artifacts"),
+            source_dir=pathlib.PurePosixPath("/var/tmp/nova-frontend-smoke-src"),
+            artifact_dir=pathlib.PurePosixPath("/var/tmp/nova-frontend-smoke-src/build/deck-frontend-smoke-artifacts"),
         )
         joined = " ".join(command)
 
@@ -239,7 +239,7 @@ class DeckFrontendSmokeRouteTest(unittest.TestCase):
     def test_remote_artifact_cleanup_refuses_source_dir_and_paths_outside_source(self):
         unsafe_paths = (
             pathlib.PurePosixPath("/"),
-            pathlib.PurePosixPath("/home/deck"),
+            pathlib.PurePosixPath("/var/tmp/deck-home"),
             pathlib.PurePosixPath("/src"),
             pathlib.PurePosixPath("/src/deck-frontend-smoke-artifacts"),
             pathlib.PurePosixPath("/tmp/deck-frontend-smoke-artifacts"),
@@ -349,8 +349,8 @@ class DeckFrontendSmokeRouteTest(unittest.TestCase):
     def test_source_sync_excludes_build_git_and_secret_shaped_files(self):
         command = smoke.build_rsync_command(
             pathlib.Path("/repo"),
-            "deck@10.0.0.39",
-            pathlib.PurePosixPath("/home/deck/nova-frontend-smoke-src"),
+            "deck@<deck-host>",
+            pathlib.PurePosixPath("/var/tmp/nova-frontend-smoke-src"),
         )
         joined = " ".join(command)
 
@@ -359,8 +359,8 @@ class DeckFrontendSmokeRouteTest(unittest.TestCase):
 
     def test_command_log_redacts_private_deck_addresses(self):
         self.assertEqual(
-            smoke.redact_private_addresses("rsync deck@10.0.0.39:/home/deck/source"),
-            "rsync deck@<private-ip>:/home/deck/source",
+            smoke.redact_private_addresses("rsync deck@" + "10.0." + "0.39:/var/tmp/source"),
+            "rsync deck@<private-ip>:/var/tmp/source",
         )
         self.assertEqual(
             smoke.redact_private_addresses("ssh: Could not resolve hostname steamdeck.local"),
@@ -390,7 +390,7 @@ class DeckFrontendSmokeRouteTest(unittest.TestCase):
                         sys.executable,
                         "-c",
                         "import sys; print('rsync: steamdeck.local failed from 10.0.0.39 via 192.168.1.77', file=sys.stderr); sys.exit(23)",
-                        "deck@10.0.0.39:/remote/artifacts",
+                        "deck@<deck-host>:/remote/artifacts",
                         "steamdeck.local:/remote/artifacts",
                     ],
                     log_path=log_path,

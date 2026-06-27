@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import deck_t32_preview_pump_oracle as oracle
 
 
-CTEST_LOG = """Test project /home/deck/nova-t31-src/build/deck-t31
+CTEST_LOG = """Test project /var/tmp/nova-t31-src/build/deck-t31
     Start 3: nova_deck_stream_media_adapters_test
 3/8 Test #3: nova_deck_stream_media_adapters_test .........   Passed    0.32 sec
     Start 4: nova_deck_qsg_render_node_scenegraph_smoke

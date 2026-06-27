@@ -17,9 +17,9 @@ import sys
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Sequence
 
-DEFAULT_DECK = "deck@10.0.0.39"
-DEFAULT_REMOTE_SOURCE = PurePosixPath("/home/deck/nova-t31-src")
-DEFAULT_ARTIFACT_DIR = PurePosixPath("/home/deck/nova-t31-src/build/deck-t31-artifacts")
+DEFAULT_DECK = "deck@<deck-host>"
+DEFAULT_REMOTE_SOURCE = PurePosixPath("/var/tmp/nova-t31-src")
+DEFAULT_ARTIFACT_DIR = PurePosixPath("/var/tmp/nova-t31-src/build/deck-t31-artifacts")
 DEFAULT_IMAGE = "localhost/nova-t24-arch-qt-buildtools"
 DEFAULT_BUILD_DIR = "build/deck-t31"
 DEFAULT_ORACLE = "deck_t32_preview_pump_oracle.py"
@@ -187,7 +187,7 @@ def run_command(command: Sequence[str], *, log_path: Path | None = None) -> None
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--deck", default=DEFAULT_DECK, help="SSH target, default deck@10.0.0.39")
+    parser.add_argument("--deck", default=DEFAULT_DECK, help="SSH target, default deck@<deck-host>")
     parser.add_argument("--source", type=Path, default=REPO_ROOT, help="local repo/source root to sync")
     parser.add_argument("--remote-source", default=str(DEFAULT_REMOTE_SOURCE), help="Deck source directory")
     parser.add_argument("--remote-artifacts", default=str(DEFAULT_ARTIFACT_DIR), help="Deck artifact directory")

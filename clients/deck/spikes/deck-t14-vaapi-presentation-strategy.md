@@ -23,7 +23,7 @@ This is the safest next step because it stays on public Qt Quick API for the sce
 
 ### Local Qt/API facts
 
-Commands run from `/home/papi/Documents/github/nova`:
+Commands run from `<repo-root>`:
 
 ```text
 pkg-config --modversion Qt6Quick Qt6Gui Qt6Multimedia
@@ -93,7 +93,7 @@ Result: 5/5 tests passed locally:
 ### Steam Deck probe attempt
 
 ```text
-ssh -o BatchMode=yes -o ConnectTimeout=8 deck@10.0.0.39 '...'
+ssh -o BatchMode=yes -o ConnectTimeout=8 deck@<deck-host> '...'
 => ssh: connect to host 10.0.0.39 port 22: Connection timed out
 ```
 

@@ -16,8 +16,8 @@ import deck_t31_podman_validation as route
 class DeckT31PodmanValidationRouteTest(unittest.TestCase):
     def test_podman_command_mounts_gamescope_runtime_dri_and_forces_deck_render_environment(self):
         command = route.build_podman_validation_command(
-            source_dir=pathlib.PurePosixPath("/home/deck/nova-t31-src"),
-            artifact_dir=pathlib.PurePosixPath("/home/deck/nova-t31-src/build/deck-t31-artifacts"),
+            source_dir=pathlib.PurePosixPath("/var/tmp/nova-t31-src"),
+            artifact_dir=pathlib.PurePosixPath("/var/tmp/nova-t31-src/build/deck-t31-artifacts"),
         )
         joined = " ".join(command)
 
@@ -49,8 +49,8 @@ class DeckT31PodmanValidationRouteTest(unittest.TestCase):
     def test_source_sync_excludes_local_build_git_and_secret_shaped_files(self):
         command = route.build_rsync_command(
             pathlib.Path("/repo"),
-            "deck@10.0.0.39",
-            pathlib.PurePosixPath("/home/deck/nova-t31-src"),
+            "deck@<deck-host>",
+            pathlib.PurePosixPath("/var/tmp/nova-t31-src"),
         )
         joined = " ".join(command)
 
