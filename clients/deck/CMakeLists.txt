@@ -12,6 +12,8 @@ pkg_check_modules(NOVA_DECK_FFMPEG_VAAPI REQUIRED IMPORTED_TARGET
     libavutil
     libva
     libva-drm
+    egl
+    glesv2
 )
 pkg_check_modules(NOVA_DECK_LINUX_AUDIO REQUIRED IMPORTED_TARGET
     libpipewire-0.3
@@ -23,7 +25,7 @@ add_library(nova_deck_core
     src/deck_gamepad.cpp
     src/deck_layout.cpp
     src/polaris_game_fixture.cpp
-    src/stream/deck_moonlight_handoff_preflight.cpp
+    src/backend/deck_backend_interfaces.cpp
     src/stream/deck_stream_core.cpp
     src/stream/deck_stream_media_adapters.cpp
 )
@@ -80,18 +82,36 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_stream_media_adapters_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_stream_media_adapters_test COMMAND nova_deck_stream_media_adapters_test)
 
-    add_executable(nova_deck_moonlight_handoff_preflight_test
-        tests/deck_moonlight_handoff_preflight_test.cpp
+    add_executable(nova_deck_backend_interfaces_test
+        tests/deck_backend_interfaces_test.cpp
     )
-    target_link_libraries(nova_deck_moonlight_handoff_preflight_test PRIVATE nova_deck_core)
-    add_test(NAME nova_deck_moonlight_handoff_preflight_test COMMAND nova_deck_moonlight_handoff_preflight_test)
+    target_link_libraries(nova_deck_backend_interfaces_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_backend_interfaces_test COMMAND nova_deck_backend_interfaces_test)
 
-    add_test(NAME nova_deck_moonlight_handoff_source_guard_test
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_moonlight_handoff_source_guard_test.py
+    add_executable(nova_deck_qsg_render_node_scenegraph_smoke
+        tests/deck_qsg_render_node_scenegraph_smoke.cpp
+    )
+    target_link_libraries(nova_deck_qsg_render_node_scenegraph_smoke PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_qsg_render_node_scenegraph_smoke COMMAND nova_deck_qsg_render_node_scenegraph_smoke)
+    set_tests_properties(nova_deck_qsg_render_node_scenegraph_smoke PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QSG_RHI_BACKEND=opengl"
+        TIMEOUT 15
     )
 
     add_test(NAME nova_deck_gamemode_capture_harness_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_gamemode_capture_test.py
+    )
+    add_test(NAME nova_deck_media_assert_guard_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_media_assert_guard_test.py
+    )
+    add_test(NAME nova_deck_t31_podman_validation_route_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_t31_podman_validation_test.py
+    )
+    add_test(NAME nova_deck_t32_preview_pump_oracle_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_t32_preview_pump_oracle_test.py
+    )
+    add_test(NAME nova_deck_frontend_smoke_route_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_frontend_smoke_test.py
     )
 endif()
 

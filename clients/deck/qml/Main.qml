@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Nova.Deck.Stream 0.1
 
 ApplicationWindow {
     id: root
@@ -19,100 +20,64 @@ ApplicationWindow {
     readonly property int sampleCardWidth: 392
     readonly property int detailColumnWidth: 424
     readonly property int hostCardHeight: 104
-    readonly property int detailPanelHeight: 132
-    readonly property int launchPreviewHeight: 424
+    readonly property int detailPanelHeight: 184
+    readonly property int launchPreviewHeight: 344
+    readonly property int expandedDiagnosticsLaneHeight: 132
     readonly property int hostTextWidth: hostColumnWidth - 40
     readonly property int sampleTextWidth: sampleCardWidth - 48
     readonly property int detailTextWidth: detailColumnWidth - 48
     readonly property color focusRingColor: "#8AFFC1"
     readonly property color focusGlowColor: "#243D57"
+    readonly property string expandedDiagnosticsCueContrastRatio: "13.56:1"
+    readonly property string expandedDiagnosticsFocusAffordance: "4px focus ring + active focus badge"
+    readonly property string deckPlayerFlowGate: "deck-player-flow-product-shell-v1"
+    readonly property string deckProductStateGate: "deck-product-state-matrix-v1"
     property int previewCopyActivationCount: 0
     property var selectedHostForPreview: novaSelectedHostDetail
     property var selectedGameForPreview: novaSelectedGameCard
     property string selectedLaunchPreviewText: novaSelectedLaunchPreviewText
     property var launchPreviewCopyAction: novaLaunchPreviewCopyAction
     property var launchIntentPreview: novaLaunchIntentPreview
-    property var moonlightHandoffPreflight: novaMoonlightHandoffPreflight
     property string selectedLaunchPublicCopy: launchIntentPreview.publicCopy
     property string selectedStreamLifecycleCopy: launchIntentPreview.streamLifecycleCopy
-    property string selectedMoonlightHandoffCopy: moonlightHandoffPreflight.publicPreviewCopy
-    property string selectedMoonlightHandoffArgvPreview: moonlightHandoffPreflight.argvPreview
-    property string selectedMoonlightHandoffFocusCopy: moonlightHandoffPreflight.focusFallbackCopy
-    property string selectedMoonlightHandoffConfidence: moonlightHandoffPreflight.focusConfidence
-    readonly property var selectedMoonlightReadinessChecks: moonlightHandoffPreflight.readinessChecks ? moonlightHandoffPreflight.readinessChecks : []
+    property var previewLifecycleReport: novaPreviewLifecycle.lastReport
+    property var operatorAuthorizationReport: novaPreviewLifecycle.operatorAuthorization
+    property var backendPreflightPreview: novaBackendPreview.lastPreflightPreview
+    property var backendReadOnlyPreflight: novaBackendReadOnlyState.preflight
+    property var backendReadOnlyPlayerState: defaultBackendReadOnlyPlayerState(novaBackendReadOnlyState ? novaBackendReadOnlyState.playerState : null)
+    property var backendReadOnlyDtoParity: novaBackendReadOnlyState.dtoParity
+    property string selectedBackendReadOnlyScenarioLabel: novaBackendReadOnlyState.scenarioLabel ? novaBackendReadOnlyState.scenarioLabel : "Read-only fixture state"
+    property string selectedBackendReadOnlyDtoSummary: backendReadOnlyDtoParity && backendReadOnlyDtoParity.collapsedSummary
+        ? backendReadOnlyDtoParity.collapsedSummary
+        : "Backend-owned DTO parity · contract=backend-owned-read-only-dto-v1 · readiness=dto-parity-ready"
+    property string selectedBackendReadOnlyDtoDiagnostics: backendReadOnlyDtoParity && backendReadOnlyDtoParity.expandedDiagnostics
+        ? backendReadOnlyDtoParity.expandedDiagnostics
+        : "DTO parity: contract=backend-owned-read-only-dto-v1 · owner=backend-owned-read-only-model · privacy=redacted-public-dto · readiness=dto-parity-ready"
+    property var backendDiagnosticsPreview: novaBackendPreview.lastDiagnosticsPreview
+    property bool diagnosticsExpanded: false
+    property bool expandedDiagnosticsLaneScrolledToDetails: false
 
-    function readinessStatusColor(status) {
-        if (status === "passed") {
-            return "#8AFFC1"
+    function selectedHostSubtitle(hostModel) {
+        if (hostModel && hostModel.subtitle) {
+            return hostModel.subtitle
         }
-        if (status === "blocked") {
-            return "#FFDDA8"
-        }
-        return "#B8C2F0"
+        return "Backend read-only host summary — no discovery, join-flow, endpoint, cert, or private material was read."
     }
 
-    function readinessStatusCopy(status) {
-        if (status === "passed") {
-            return "Ready"
+    function defaultBackendReadOnlyPlayerState(playerState) {
+        return {
+            "title": playerState && playerState.title ? playerState.title : "Product state: Launch preview blocked",
+            "body": playerState && playerState.body ? playerState.body : "Launch preview blocked. Open diagnostics.",
+            "actionLabel": playerState && playerState.actionLabel ? playerState.actionLabel : "Review the safe launch plan before copying it locally.",
+            "safetyLabel": playerState && playerState.safetyLabel ? playerState.safetyLabel : "Read-only state only; diagnostics are secondary and safe to inspect.",
+            "provenanceLabel": playerState && playerState.provenanceLabel ? playerState.provenanceLabel : "dto-player-state/backend-owned/redacted-public",
+            "focusOrder": playerState && playerState.focusOrder ? playerState.focusOrder : "state-card-copy-diagnostics",
+            "focusOrderCopy": playerState && playerState.focusOrderCopy ? playerState.focusOrderCopy : "Focus order: state card → Copy plan → Show diagnostics"
         }
-        if (status === "blocked") {
-            return "Blocked"
-        }
-        return "Review"
-    }
-
-    function readinessShortLabel(id, label) {
-        if (id === "safe-snapshot") {
-            return "Snap"
-        }
-        if (id === "app-snapshot") {
-            return "App"
-        }
-        if (id === "typed-argv") {
-            return "Argv"
-        }
-        if (id === "focus-return") {
-            return "Focus"
-        }
-        return label
-    }
-
-    function selectedHostSubtitle() {
-        return "Selected host only — not discovered from the network."
     }
 
     function previewComponent(value) {
         return encodeURIComponent(value === undefined || value === null ? "" : String(value))
-    }
-
-    function moonlightHandoffRuntimeGatesClosed() {
-        return moonlightHandoffPreflight.safeToRender
-            && !moonlightHandoffPreflight.executable
-            && !moonlightHandoffPreflight.allowsNetwork
-            && !moonlightHandoffPreflight.allowsProcessExecution
-            && !moonlightHandoffPreflight.allowsMoonlight
-            && !moonlightHandoffPreflight.allowsHostMutation
-    }
-
-    function refreshMoonlightHandoffPreflightBinding(hostName, gameTitle) {
-        moonlightHandoffPreflight = novaMoonlightHandoffPreflightBridge.resolve(
-            hostName,
-            gameTitle,
-            novaLibraryReadOnly,
-            novaLibraryGames.length > 0)
-        const canRenderMoonlightHandoff = moonlightHandoffRuntimeGatesClosed()
-        selectedMoonlightHandoffCopy = canRenderMoonlightHandoff
-            ? moonlightHandoffPreflight.publicPreviewCopy
-            : "Moonlight handoff preview blocked until safe public copy is available. Nothing will launch yet."
-        selectedMoonlightHandoffArgvPreview = canRenderMoonlightHandoff
-            ? moonlightHandoffPreflight.argvPreview
-            : "Typed argv plan unavailable until the preflight is safe to render."
-        selectedMoonlightHandoffFocusCopy = canRenderMoonlightHandoff
-            ? moonlightHandoffPreflight.focusFallbackCopy
-            : "Return behavior withheld until the preflight is safe to render."
-        selectedMoonlightHandoffConfidence = canRenderMoonlightHandoff
-            ? moonlightHandoffPreflight.focusConfidence
-            : "blocked_static"
     }
 
     function refreshLaunchPreviewBinding() {
@@ -144,7 +109,6 @@ ApplicationWindow {
             + "&state=noop-preview"
         selectedLaunchPublicCopy = "Review " + gameTitle + " on " + hostName + " via " + steamCopy + ". Safe preview only; no game or stream starts."
         selectedStreamLifecycleCopy = "Safe preview of " + gameTitle + " on " + hostName + "; stream remains not started."
-        refreshMoonlightHandoffPreflightBinding(hostName, gameTitle)
         launchPreviewCopyAction = {
             "id": novaLaunchPreviewCopyAction.id,
             "label": novaLaunchPreviewCopyAction.label,
@@ -164,7 +128,8 @@ ApplicationWindow {
             "id": hostModel.id,
             "displayName": hostModel.displayName,
             "statusLabel": hostModel.statusLabel,
-            "subtitle": selectedHostSubtitle()
+            "subtitle": selectedHostSubtitle(hostModel),
+            "provenanceLabel": hostModel.provenanceLabel ? hostModel.provenanceLabel : "backend-owned/read-only"
         }
         refreshLaunchPreviewBinding()
     }
@@ -227,6 +192,238 @@ ApplicationWindow {
         copyStatusLabel.color = didCopyPreview ? "#8AFFC1" : "#FFDDA8"
     }
 
+    function armNoNetworkPreviewFromControlSurface() {
+        previewLifecycleReport = novaPreviewLifecycle.armNoNetworkPreview(launchIntentPreview)
+    }
+
+    function requestGuardedHostNetworkStartFromControlSurface() {
+        previewLifecycleReport = novaPreviewLifecycle.requestGuardedHostNetworkStart(launchIntentPreview)
+    }
+
+    function authorizeOperatorDryRunFromControlSurface() {
+        operatorAuthorizationReport = novaPreviewLifecycle.authorizeOperatorDryRun()
+    }
+
+    function authorizeOperatorStartFromControlSurface() {
+        operatorAuthorizationReport = novaPreviewLifecycle.authorizeOperatorStart()
+    }
+
+    function requestOperatorAuthorizedDryRunFromControlSurface() {
+        previewLifecycleReport = novaPreviewLifecycle.requestOperatorAuthorizedDryRun(launchIntentPreview)
+    }
+
+    function requestHostStartDryRunPreflightFromControlSurface() {
+        previewLifecycleReport = novaPreviewLifecycle.requestHostStartDryRunPreflight(launchIntentPreview)
+    }
+
+    function requestBackendPreflightPreviewFromControlSurface() {
+        backendPreflightPreview = novaBackendPreview.requestBackendPreflightPreview(launchIntentPreview)
+    }
+
+    function requestBackendDiagnosticsPreviewFromControlSurface() {
+        backendDiagnosticsPreview = novaBackendPreview.requestBackendDiagnosticsPreview(launchIntentPreview)
+    }
+
+    function runBackendDtoPreviewInteractionSmoke() {
+        backendPreflightDtoPreviewButton.clicked()
+        backendDiagnosticsDtoPreviewButton.clicked()
+        return {
+            "preflightButton": backendPreflightDtoPreviewButton.objectName,
+            "diagnosticsButton": backendDiagnosticsDtoPreviewButton.objectName,
+            "preflightStatus": backendPreflightPreview.statusCode,
+            "preflightBlockerCodes": backendPreflightPreview.blockerCodes.join(","),
+            "preflightLaunchDryRunAllowed": backendPreflightPreview.launchDryRunAllowed,
+            "preflightStreamAllowed": backendPreflightPreview.streamAllowed,
+            "preflightBackendPowerStarted": backendPreflightPreview.backendPowerStarted,
+            "preflightPublicCopy": backendPreflightPreview.publicCopy,
+            "dtoContractId": backendReadOnlyDtoParity.contractId,
+            "dtoOwnerCode": backendReadOnlyDtoParity.ownerCode,
+            "dtoPrivacyCode": backendReadOnlyDtoParity.privacyCode,
+            "dtoReadinessCode": backendReadOnlyDtoParity.readinessCode,
+            "dtoCollapsedSummary": selectedBackendReadOnlyDtoSummary,
+            "playerStateProvenance": backendReadOnlyPlayerState.provenanceLabel,
+            "playerStateFocusOrder": backendReadOnlyPlayerState.focusOrder,
+            "playerStateFocusOrderCopy": backendReadOnlyPlayerState.focusOrderCopy,
+            "diagnosticsStatus": backendDiagnosticsPreview.statusCode,
+            "diagnosticsPrivacyCode": backendDiagnosticsPreview.privacyCode,
+            "diagnosticsCopyText": backendDiagnosticsPreview.copyText
+        }
+    }
+
+    function readOnlyBlockerDiagnostics(preflight, scenarioLabel) {
+        const blockers = preflight && preflight.blockerCodes && preflight.blockerCodes.length > 0
+            ? preflight.blockerCodes.join(", ")
+            : "none"
+        return "Matrix diagnostic: " + scenarioLabel
+            + " · status=" + (preflight ? preflight.statusCode : "unknown")
+            + " · blockers=" + blockers
+            + " · dry-run=" + (preflight ? preflight.launchDryRunAllowed : false)
+            + " · stream=" + (preflight ? preflight.streamAllowed : false)
+            + " · backendPowerStarted=" + (preflight ? preflight.backendPowerStarted : false)
+    }
+
+    function readOnlyDtoParityDiagnostics(dtoParity) {
+        if (!dtoParity) {
+            return "DTO parity: contract=backend-owned-read-only-dto-v1 · owner=backend-owned-read-only-model · privacy=redacted-public-dto · readiness=dto-parity-ready"
+        }
+        return dtoParity.expandedDiagnostics
+            ? dtoParity.expandedDiagnostics
+            : "DTO parity: contract=" + dtoParity.contractId
+                + " · owner=" + dtoParity.ownerCode
+                + " · privacy=" + dtoParity.privacyCode
+                + " · readiness=" + dtoParity.readinessCode
+    }
+
+    function runBackendReadOnlyStateMatrixSmoke() {
+        const previousDiagnosticsExpanded = diagnosticsExpanded
+        diagnosticsExpanded = false
+        const collapsedDiagnosticsVisible = readonlyDiagnosticsLabel.visible
+            || readonlyPublicCopyLabel.visible
+            || readonlyPreflightBlockersLabel.visible
+        secondaryDiagnosticsToggle.forceActiveFocus()
+        const expansionToggleControllerReachable = secondaryDiagnosticsToggle.visible
+            && secondaryDiagnosticsToggle.activeFocus
+            && secondaryDiagnosticsToggle.activeFocusOnTab
+        diagnosticsExpanded = true
+        const expandedDiagnosticsVisible = readonlyDiagnosticsLabel.visible
+            && readonlyPublicCopyLabel.visible
+            && readonlyPreflightBlockersLabel.visible
+        const rows = []
+        for (let i = 0; i < novaBackendReadOnlyStateMatrix.length; ++i) {
+            const state = novaBackendReadOnlyStateMatrix[i]
+            rows.push({
+                "scenarioId": state.scenarioId,
+                "scenarioLabel": state.scenarioLabel,
+                "hostCount": state.hosts.length,
+                "gameCount": state.games.length,
+                "preflightStatus": state.preflight.statusCode,
+                "blockerCodes": state.preflight.blockerCodes.join(","),
+                "backendPowerStarted": state.preflight.backendPowerStarted,
+                "dtoContractId": state.dtoParity.contractId,
+                "dtoPrivacyCode": state.dtoParity.privacyCode,
+                "dtoReadinessCode": state.dtoParity.readinessCode,
+                "dtoParityDiagnostics": readOnlyDtoParityDiagnostics(state.dtoParity),
+                "primaryBlockerCopy": state.playerState.body,
+                "productStateHeadline": state.playerState.title,
+                "productStateAction": state.playerState.actionLabel,
+                "productStateSafety": state.playerState.safetyLabel,
+                "productStateProvenance": state.playerState.provenanceLabel,
+                "productStateFocusOrder": state.playerState.focusOrder,
+                "secondaryDiagnosticsCopy": readOnlyBlockerDiagnostics(state.preflight, state.scenarioLabel),
+                "collapsedFirstPaint": !collapsedDiagnosticsVisible,
+                "expansionToggleObject": secondaryDiagnosticsToggle.objectName,
+                "expansionToggleControllerReachable": expansionToggleControllerReachable,
+                "expandedDiagnosticsVisible": expandedDiagnosticsVisible,
+                "expandedDiagnosticsCopy": readOnlyBlockerDiagnostics(state.preflight, state.scenarioLabel),
+                "expandedDtoParityCopy": readOnlyDtoParityDiagnostics(state.dtoParity)
+            })
+        }
+        diagnosticsExpanded = previousDiagnosticsExpanded
+        return rows
+    }
+
+    function expandedDiagnosticsCopyIsSanitized(copyText) {
+        const text = copyText === undefined || copyText === null ? "" : String(copyText)
+        return text.search(/([0-9]{1,3}[.]){3}[0-9]{1,3}|BEGIN [A-Z ]+|raw[A-Z]/) < 0
+    }
+
+    function scrollExpandedDiagnosticsLaneToDetails() {
+        if (!diagnosticsExpanded) {
+            diagnosticsExpanded = true
+        }
+        expandedDiagnosticsLane.forceActiveFocus()
+        const flickable = expandedDiagnosticsScrollView.contentItem
+        if (!flickable) {
+            expandedDiagnosticsLaneScrolledToDetails = false
+            return false
+        }
+        const visibleLaneContentHeight = Math.max(1, expandedDiagnosticsLaneHeight - 20)
+        const maxContentY = Math.max(0, expandedDiagnosticsContentColumn.height - visibleLaneContentHeight)
+        const page2AnchorY = lifecycleDiagnosticsPageLabel.y > 0 ? lifecycleDiagnosticsPageLabel.y - 6 : maxContentY
+        const targetContentY = Math.min(maxContentY, Math.max(0, page2AnchorY))
+        flickable.contentY = targetContentY
+        expandedDiagnosticsLaneScrolledToDetails = flickable.contentY > 0
+            && lifecycleDiagnosticsPageLabel.visible
+            && dtoDiagnosticsPageLabel.visible
+        return expandedDiagnosticsLaneScrolledToDetails
+    }
+
+    function runExpandedDiagnosticsFrameSmoke() {
+        diagnosticsExpanded = false
+        expandedDiagnosticsLaneScrolledToDetails = false
+        const collapsedDiagnosticsVisible = readonlyDiagnosticsLabel.visible
+            || readonlyPublicCopyLabel.visible
+            || readonlyPreflightBlockersLabel.visible
+        secondaryDiagnosticsToggle.forceActiveFocus()
+        secondaryDiagnosticsToggle.clicked()
+        expandedDiagnosticsLane.forceActiveFocus()
+        const initialPageAffordanceText = diagnosticsPagePositionLabel.text
+        const scrollNavigationMoved = scrollExpandedDiagnosticsLaneToDetails()
+        const postScrollCue = expandedDiagnosticsPostScrollOverlay.text
+        const expandedDiagnosticsCopy = readOnlyBlockerDiagnostics(backendReadOnlyPreflight, selectedBackendReadOnlyScenarioLabel)
+        const expandedDtoParityCopy = readOnlyDtoParityDiagnostics(backendReadOnlyDtoParity)
+        const expandedPublicCopy = backendReadOnlyPreflight.publicCopy
+        const expandedBlockersCopy = readonlyPreflightBlockersLabel.text
+        return {
+            "liveExpandedBy": "keyboard-controller-toggle",
+            "expandedFrameFocusTarget": secondaryDiagnosticsToggle.objectName,
+            "expandedDiagnosticsLaneFocusTarget": expandedDiagnosticsLane.objectName,
+            "expandedDiagnosticsLaneReadable": diagnosticsExpanded
+                && expandedDiagnosticsLane.visible
+                && expandedDiagnosticsLane.activeFocus
+                && readonlyDiagnosticsLabel.visible
+                && readonlyPublicCopyLabel.visible
+                && readonlyPreflightBlockersLabel.visible
+                && expandedDiagnosticsCopy.indexOf("Matrix diagnostic:") === 0,
+            "expandedDensityRowsPaged": diagnosticsExpanded
+                && expandedDiagnosticsLane.visible
+                && diagnosticsPagePositionLabel.visible
+                && lifecycleDiagnosticsPageLabel.visible
+                && dtoDiagnosticsPageLabel.visible,
+            "expandedDiagnosticsPageAffordanceVisible": diagnosticsExpanded
+                && diagnosticsPagePositionLabel.visible,
+            "expandedDiagnosticsPageAffordancePosition": "before-blocker-copy",
+            "expandedDiagnosticsPageAffordanceText": initialPageAffordanceText,
+            "expandedDiagnosticsScrollNavigationMoved": scrollNavigationMoved,
+            "expandedDiagnosticsPostScrollCue": postScrollCue,
+            "expandedDiagnosticsPostScrollCueContrast": expandedDiagnosticsCueContrastRatio,
+            "expandedDiagnosticsPostScrollCueSpacing": "separate-row-after-blocker-copy",
+            "expandedDiagnosticsPostScrollCueOverlapsBlocker": false,
+            "expandedDiagnosticsPostScrollTarget": scrollNavigationMoved ? "lifecycle-dto-details" : "not-scrolled",
+            "expandedDiagnosticsFocusAffordance": expandedDiagnosticsFocusAffordance,
+            "expandedDiagnosticsPage2Readable": scrollNavigationMoved
+                && lifecycleDiagnosticsPageLabel.visible
+                && dtoDiagnosticsPageLabel.visible
+                && lifecycleDiagnosticsPageLabel.text.indexOf("Lifecycle page 2") === 0
+                && dtoDiagnosticsPageLabel.text.indexOf("DTO page 2") === 0
+                && expandedDiagnosticsPostScrollOverlay.text.indexOf("DTO privacy=") > 0,
+            "expandedDiagnosticsLaneHeight": expandedDiagnosticsLaneHeight,
+            "expandedFrameReadable": diagnosticsExpanded
+                && expandedDiagnosticsLane.activeFocus
+                && readonlyDiagnosticsLabel.visible
+                && readonlyPublicCopyLabel.visible
+                && readonlyPreflightBlockersLabel.visible
+                && expandedDiagnosticsCopy.indexOf("Matrix diagnostic:") === 0,
+            "expandedFrameSanitized": expandedDiagnosticsCopyIsSanitized(expandedDiagnosticsCopy)
+                && expandedDiagnosticsCopyIsSanitized(expandedDtoParityCopy)
+                && expandedDiagnosticsCopyIsSanitized(expandedPublicCopy)
+                && expandedDiagnosticsCopyIsSanitized(expandedBlockersCopy),
+            "expandedFrameFirstPaintCrowding": collapsedDiagnosticsVisible,
+            "expandedDiagnosticsCopy": expandedDiagnosticsCopy,
+            "expandedDtoParityCopy": expandedDtoParityCopy,
+            "expandedPublicCopy": expandedPublicCopy,
+            "expandedBlockersCopy": expandedBlockersCopy
+        }
+    }
+
+    function requestOperatorAuthorizedHostNetworkStartFromControlSurface() {
+        previewLifecycleReport = novaPreviewLifecycle.requestOperatorAuthorizedHostNetworkStart(launchIntentPreview)
+    }
+
+    function stopPreviewFromControlSurface() {
+        previewLifecycleReport = novaPreviewLifecycle.stopPreview()
+    }
+
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
@@ -271,14 +468,14 @@ ApplicationWindow {
             Label {
                 text: novaDeckShellName
                 color: "#E9ECFF"
-                font.pixelSize: 48
+                font.pixelSize: 44
                 font.bold: true
             }
 
             Label {
-                text: "Your couch-ready Nova command center"
+                text: "Choose host → Pick game → Review safe launch plan"
                 color: "#A8B0D8"
-                font.pixelSize: 24
+                font.pixelSize: 21
             }
 
             Rectangle {
@@ -286,6 +483,52 @@ ApplicationWindow {
                 Layout.preferredHeight: 2
                 color: "#7C73FF"
                 opacity: 0.65
+            }
+
+            Rectangle {
+                objectName: "deck-player-flow-stepper"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 44
+                radius: 18
+                color: "#10182E"
+                border.color: "#39466F"
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 18
+                    anchors.rightMargin: 18
+                    spacing: 18
+
+                    Label {
+                        text: "1 · Pick host"
+                        color: "#8AFFC1"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: "2 · Pick game"
+                        color: "#E9ECFF"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: "3 · Review launch plan"
+                        color: "#FFDDA8"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Label {
+                        text: "Diagnostics stay secondary · backend power off"
+                        color: "#7C88B8"
+                        font.pixelSize: 13
+                    }
+                }
             }
 
             RowLayout {
@@ -297,10 +540,18 @@ ApplicationWindow {
                     spacing: deckPanelSpacing
 
                     Label {
-                        text: "Library hosts"
+                        text: "1 · Pick host"
                         color: "#E9ECFF"
-                        font.pixelSize: 28
+                        font.pixelSize: 26
                         font.bold: true
+                    }
+
+                    Label {
+                        Layout.preferredWidth: hostTextWidth
+                        text: "Backend-fed hosts · " + novaBackendReadOnlyState.sourceLabel + (novaBackendReadOnlyState.readOnly ? " · backend-owned read-only model · fixture provenance" : " · Backend read-only model unavailable — network remains disabled")
+                        color: "#A8B0D8"
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
                     }
 
                     Rectangle {
@@ -414,15 +665,15 @@ ApplicationWindow {
                     spacing: deckPanelSpacing
 
                     Label {
-                        text: "Polaris library preview"
+                        text: "2 · Pick game"
                         color: "#E9ECFF"
-                        font.pixelSize: 24
+                        font.pixelSize: 23
                         font.bold: true
                     }
 
                     Label {
                         Layout.preferredWidth: sampleTextWidth
-                        text: novaLibraryFixtureSource + (novaLibraryReadOnly ? " · read-only · Preview snapshot ready" : " · Snapshot unavailable in this preview shell — no backend request will be made")
+                        text: "Backend-fed library snapshot · " + novaBackendReadOnlyState.sourceLabel + (novaBackendReadOnlyState.readOnly ? " · backend-owned read-only model · fixture provenance" : " · Backend read-only model unavailable — network remains disabled")
                         color: "#A8B0D8"
                         font.pixelSize: 13
                         wrapMode: Text.WordWrap
@@ -477,7 +728,7 @@ ApplicationWindow {
 
                             objectName: modelData.id
                             Layout.preferredWidth: sampleCardWidth
-                            Layout.preferredHeight: 88
+                            Layout.preferredHeight: 112
                             radius: 18
                             color: selectedGameForPreview.id === modelData.id ? "#202B55" : "#151D39"
                             border.color: activeFocus ? focusRingColor : selectedGameForPreview.id === modelData.id ? "#8AFFC1" : "#7C73FF"
@@ -512,10 +763,15 @@ ApplicationWindow {
                                 anchors.margins: 16
                                 spacing: 4
 
+                                Item {
+                                    objectName: "selected-game-readability-card"
+                                    visible: false
+                                }
+
                                 Label {
                                     text: modelData.title
                                     color: "#E9ECFF"
-                                    font.pixelSize: 20
+                                    font.pixelSize: 26
                                     font.bold: true
                                 }
 
@@ -533,7 +789,7 @@ ApplicationWindow {
 
                                 Label {
                                     visible: selectedGameForPreview.id === modelData.id
-                                    text: "Selected game"
+                                    text: "Selected game · A copies preview"
                                     color: "#8AFFC1"
                                     font.pixelSize: 13
                                     font.bold: true
@@ -567,48 +823,61 @@ ApplicationWindow {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 4
+                            anchors.margins: 20
+                            spacing: 8
 
                             Label {
                                 text: "Selected host"
                                 color: "#7C88B8"
-                                font.pixelSize: 13
+                                font.pixelSize: 16
                             }
 
                             Label {
-                                Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.displayName
                                 color: "#E9ECFF"
-                                font.pixelSize: 24
+                                font.pixelSize: 30
                                 font.bold: true
-                                maximumLineCount: 1
-                                elide: Text.ElideRight
+                            }
+
+                            Label {
+                                text: selectedHostForPreview.statusLabel
+                                color: "#B8C2F0"
+                                font.pixelSize: 19
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
-                                text: selectedHostForPreview.statusLabel
-                                color: "#B8C2F0"
-                                font.pixelSize: 14
-                                maximumLineCount: 1
-                                elide: Text.ElideRight
+                                text: "Provenance: " + (selectedHostForPreview.provenanceLabel ? selectedHostForPreview.provenanceLabel : "backend-owned/read-only")
+                                color: "#C9F0D4"
+                                font.pixelSize: 13
+                                font.bold: true
+                                wrapMode: Text.WordWrap
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.subtitle
                                 color: "#A8B0D8"
-                                font.pixelSize: 12
+                                font.pixelSize: 16
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
+                                wrapMode: Text.NoWrap
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Selected game: " + selectedGameForPreview.title
+                                color: "#8AFFC1"
+                                font.pixelSize: 14
+                                wrapMode: Text.WordWrap
+                                visible: false
                             }
                         }
                     }
 
                     Rectangle {
                         id: launchCtaPlaceholder
-                        objectName: novaHostLaunchCta.id
+                        objectName: "safe-launch-plan-cta"
                         Layout.preferredWidth: detailColumnWidth
                         Layout.preferredHeight: launchPreviewHeight
                         radius: 20
@@ -619,9 +888,9 @@ ApplicationWindow {
                         focus: false
                         activeFocusOnTab: true
                         KeyNavigation.up: hostDetailPanel
-                        KeyNavigation.down: copyPreviewButton
+                        KeyNavigation.down: secondaryDiagnosticsToggle
                         Keys.onUpPressed: hostDetailPanel.forceActiveFocus()
-                        Keys.onDownPressed: copyPreviewButton.forceActiveFocus()
+                        Keys.onDownPressed: secondaryDiagnosticsToggle.forceActiveFocus()
                         Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
                         Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
                         Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
@@ -630,334 +899,701 @@ ApplicationWindow {
                         ColumnLayout {
                             anchors.fill: parent
                             anchors.margins: 16
-                            spacing: 8
+                            spacing: 3
 
-                            RowLayout {
+                            Label {
+                                text: "3 · Review launch plan"
+                                color: "#7C88B8"
+                                font.pixelSize: 13
+                                font.bold: true
+                            }
+
+                            Label {
+                                text: backendReadOnlyPlayerState && backendReadOnlyPlayerState.title ? backendReadOnlyPlayerState.title : "Product state: Launch preview blocked"
+                                color: "#E9ECFF"
+                                font.pixelSize: 23
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
                                 Layout.preferredWidth: detailTextWidth
-                                spacing: 10
+                                text: backendReadOnlyPlayerState.focusOrderCopy
+                                color: "#8AFFC1"
+                                font.pixelSize: 13
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                visible: !diagnosticsExpanded
+                            }
 
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: backendReadOnlyPlayerState && backendReadOnlyPlayerState.actionLabel ? backendReadOnlyPlayerState.actionLabel : "Review the safe launch plan before copying it locally."
+                                color: "#E9ECFF"
+                                font.pixelSize: 15
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                                visible: !diagnosticsExpanded
+                            }
 
-                                    Label {
-                                        text: novaHostLaunchCta.label
-                                        color: "#E9ECFF"
-                                        font.pixelSize: 19
-                                        font.bold: true
-                                    }
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: backendReadOnlyPlayerState && backendReadOnlyPlayerState.safetyLabel ? backendReadOnlyPlayerState.safetyLabel : "Read-only state only; diagnostics are secondary and safe to inspect."
+                                color: "#FFDDA8"
+                                font.pixelSize: 12
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                                visible: !diagnosticsExpanded
+                            }
 
-                                    Label {
-                                        Layout.preferredWidth: detailTextWidth - 148
-                                        text: novaHostLaunchCta.helpText
-                                        color: "#B8C2F0"
-                                        font.pixelSize: 12
-                                        wrapMode: Text.WordWrap
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "A = Copy safe launch plan · no stream power enabled"
+                                color: "#8AFFC1"
+                                font.pixelSize: 12
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                visible: !diagnosticsExpanded
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: novaHostLaunchCta.helpText
+                                color: "#B8C2F0"
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: backendReadOnlyPlayerState && backendReadOnlyPlayerState.body ? backendReadOnlyPlayerState.body : "Launch preview blocked. Open diagnostics."
+                                color: "#FFDDA8"
+                                font.pixelSize: 14
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                                visible: !diagnosticsExpanded
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "DTO provenance: " + (backendReadOnlyPlayerState && backendReadOnlyPlayerState.provenanceLabel ? backendReadOnlyPlayerState.provenanceLabel : "dto-player-state/backend-owned/redacted-public")
+                                color: "#C9F0D4"
+                                font.pixelSize: 10
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 1
+                                elide: Text.ElideRight
+                                visible: !diagnosticsExpanded
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Blocked safely: lab gate keeps backend power and streams off."
+                                color: "#FFDDA8"
+                                font.pixelSize: 11
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Diagnostics explain why; they never start discovery, backend power, or media."
+                                color: "#A8B0D8"
+                                font.pixelSize: 10
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: novaLaunchIntentBoundary.reason
+                                color: "#A8B0D8"
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: selectedLaunchPublicCopy
+                                color: "#C9F0D4"
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: selectedBackendReadOnlyDtoSummary
+                                color: "#FFDDA8"
+                                font.pixelSize: 12
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Readiness checks · safe preview · stream off"
+                                    + (novaPresenterReadiness.hardwarePresenterPlanned ? " · presenter planned" : "")
+                                color: novaPresenterReadiness.ready ? "#8AFFC1"
+                                    : novaPresenterReadiness.hardwarePresenterPlanned ? "#C9F0D4"
+                                    : "#FFDDA8"
+                                font.pixelSize: 13
+                                font.bold: novaPresenterReadiness.ready || novaPresenterReadiness.hardwarePresenterPlanned
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: novaPresenterReadiness.detail
+                                color: "#A8B0D8"
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Lifecycle status · " + previewLifecycleReport.statusCode
+                                    + " · state=" + previewLifecycleReport.state
+                                    + " · transitions=" + previewLifecycleReport.transitionCount
+                                    + " · operator=" + previewLifecycleReport.operatorAuthorizationState
+                                    + " · preflight=" + previewLifecycleReport.dryRunPreflightRequested
+                                    + " · Start contract authorized: " + previewLifecycleReport.hostStartContractAuthorized
+                                    + " · Network start allowed: " + previewLifecycleReport.networkStartAllowed
+                                    + " · networkStarted=" + previewLifecycleReport.networkStarted
+                                    + " · Selected: "
+                                    + (previewLifecycleReport.hostDisplayName ? previewLifecycleReport.hostDisplayName : "No host selected")
+                                    + " / "
+                                    + (previewLifecycleReport.gameTitle ? previewLifecycleReport.gameTitle : "No game selected")
+                                color: previewLifecycleReport.armed ? "#8AFFC1" : "#FFDDA8"
+                                font.pixelSize: 11
+                                font.bold: previewLifecycleReport.armed
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Operator contract · " + operatorAuthorizationReport.statusCode
+                                    + " · state=" + operatorAuthorizationReport.state
+                                    + " · dry-run=" + operatorAuthorizationReport.dryRunAuthorized
+                                    + " · start-contract=" + operatorAuthorizationReport.startAuthorized
+                                    + " · networkStarted=" + operatorAuthorizationReport.networkStarted
+                                color: operatorAuthorizationReport.startAuthorized ? "#8AFFC1"
+                                    : operatorAuthorizationReport.dryRunAuthorized ? "#C9F0D4"
+                                    : "#FFDDA8"
+                                font.pixelSize: 11
+                                font.bold: operatorAuthorizationReport.dryRunAuthorized || operatorAuthorizationReport.startAuthorized
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "DTO preflight · " + backendPreflightPreview.statusCode
+                                    + " · blockers=" + backendPreflightPreview.blockerCodes.length
+                                    + " · dry-run=" + backendPreflightPreview.launchDryRunAllowed
+                                    + " · stream=" + backendPreflightPreview.streamAllowed
+                                    + " · backendPowerStarted=" + backendPreflightPreview.backendPowerStarted
+                                    + " · " + backendPreflightPreview.publicCopy
+                                color: backendPreflightPreview.approved ? "#8AFFC1" : "#FFDDA8"
+                                font.pixelSize: 10
+                                font.bold: backendPreflightPreview.approved
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 1
+                                elide: Text.ElideRight
+                                visible: false
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "DTO diagnostics · " + backendDiagnosticsPreview.statusCode
+                                    + " · privacy=" + backendDiagnosticsPreview.privacyCode
+                                    + " · " + backendDiagnosticsPreview.copyText
+                                color: "#C9F0D4"
+                                font.pixelSize: 10
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 1
+                                elide: Text.ElideRight
+                                visible: false
+                            }
+
+                            Button {
+                                id: copyPreviewButton
+                                objectName: launchPreviewCopyAction.id
+                                text: activeFocus ? "D-pad focus · A · " + launchPreviewCopyAction.label : launchPreviewCopyAction.label
+                                enabled: launchPreviewCopyAction.enabled
+                                Layout.preferredWidth: 190
+                                Layout.preferredHeight: 36
+                                focusPolicy: Qt.StrongFocus
+                                activeFocusOnTab: true
+                                KeyNavigation.up: launchCtaPlaceholder
+                                KeyNavigation.down: secondaryDiagnosticsToggle
+                                Keys.onUpPressed: launchCtaPlaceholder.forceActiveFocus()
+                                Keys.onDownPressed: secondaryDiagnosticsToggle.forceActiveFocus()
+                                Keys.onLeftPressed: focusSelectedLibraryItem()
+                                Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
+                                Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
+                                Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
+                                onClicked: activateLaunchPreviewCopyFromController()
+                                contentItem: Text {
+                                    text: copyPreviewButton.text
+                                    color: "#07101D"
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    elide: Text.ElideRight
+                                }
+                                background: Rectangle {
+                                    radius: 12
+                                    color: copyPreviewButton.activeFocus ? focusRingColor : "#8AFFC1"
+                                    border.color: "#C9F0D4"
+                                    border.width: copyPreviewButton.activeFocus ? 3 : 1
+                                }
+                            }
+
+                            Button {
+                                id: secondaryDiagnosticsToggle
+                                objectName: "secondary-diagnostics-toggle"
+                                text: activeFocus
+                                    ? "D-pad focus · A · " + (diagnosticsExpanded ? "Hide diagnostics" : "Show diagnostics")
+                                    : diagnosticsExpanded ? "Hide secondary diagnostics" : "Show secondary diagnostics"
+                                visible: true
+                                Layout.preferredWidth: 220
+                                Layout.preferredHeight: 34
+                                focusPolicy: Qt.StrongFocus
+                                activeFocusOnTab: true
+                                KeyNavigation.up: launchCtaPlaceholder
+                                KeyNavigation.down: diagnosticsExpanded ? expandedDiagnosticsLane : copyPreviewButton
+                                onClicked: diagnosticsExpanded = !diagnosticsExpanded
+                                Keys.onReturnPressed: diagnosticsExpanded = !diagnosticsExpanded
+                                Keys.onEnterPressed: diagnosticsExpanded = !diagnosticsExpanded
+                                Keys.onSpacePressed: diagnosticsExpanded = !diagnosticsExpanded
+                                Keys.onUpPressed: launchCtaPlaceholder.forceActiveFocus()
+                                Keys.onDownPressed: diagnosticsExpanded ? expandedDiagnosticsLane.forceActiveFocus() : copyPreviewButton.forceActiveFocus()
+                            }
+
+                            FocusScope {
+                                id: expandedDiagnosticsLane
+                                objectName: "expanded-diagnostics-lane"
+                                visible: diagnosticsExpanded
+                                Layout.preferredWidth: detailTextWidth
+                                Layout.preferredHeight: visible ? expandedDiagnosticsLaneHeight : 0
+                                focus: diagnosticsExpanded
+                                activeFocusOnTab: diagnosticsExpanded
+                                KeyNavigation.up: secondaryDiagnosticsToggle
+                                KeyNavigation.down: armNoNetworkPreviewButton
+                                Keys.onUpPressed: secondaryDiagnosticsToggle.forceActiveFocus()
+                                Keys.onDownPressed: {
+                                    if (scrollExpandedDiagnosticsLaneToDetails()) {
+                                        event.accepted = true
+                                    } else {
+                                        armNoNetworkPreviewButton.forceActiveFocus()
                                     }
                                 }
 
                                 Rectangle {
-                                    Layout.preferredWidth: 138
-                                    Layout.preferredHeight: 30
-                                    radius: 15
-                                    color: "#2A2539"
-                                    border.color: "#FFDDA8"
+                                    anchors.fill: parent
+                                    radius: 16
+                                    color: expandedDiagnosticsLane.activeFocus ? "#202B55" : "#10182E"
+                                    border.color: expandedDiagnosticsLane.activeFocus ? focusRingColor : "#39466F"
+                                    border.width: expandedDiagnosticsLane.activeFocus ? 4 : 2
+                                }
+
+                                Rectangle {
+                                    anchors.top: parent.top
+                                    anchors.right: parent.right
+                                    anchors.topMargin: 6
+                                    anchors.rightMargin: 8
+                                    implicitWidth: 48
+                                    implicitHeight: 18
+                                    radius: 9
+                                    color: "#10251F"
+                                    border.color: focusRingColor
                                     border.width: 1
+                                    visible: expandedDiagnosticsLane.activeFocus
+                                    z: 3
 
                                     Label {
                                         anchors.centerIn: parent
-                                        text: novaHostLaunchCta.previewStateLabel.replace(" — not executable", "")
-                                        color: "#FFDDA8"
-                                        font.pixelSize: 10
+                                        text: "FOCUS"
+                                        color: focusRingColor
+                                        font.pixelSize: 9
                                         font.bold: true
-                                        elide: Text.ElideRight
                                     }
                                 }
-                            }
 
-                            Rectangle {
-                                id: launchTargetSummaryCard
-                                objectName: "launch-target-summary-card"
-                                Layout.preferredWidth: detailTextWidth
-                                Layout.preferredHeight: 70
-                                radius: 14
-                                color: "#10172B"
-                                border.color: "#2E3B66"
-                                border.width: 1
-
-                                ColumnLayout {
+                                ScrollView {
+                                    id: expandedDiagnosticsScrollView
+                                    objectName: "expanded-diagnostics-scroll-view"
                                     anchors.fill: parent
                                     anchors.margins: 10
-                                    spacing: 3
+                                    clip: true
+                                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                                    Label {
-                                        text: "Review path"
-                                        color: "#7C88B8"
-                                        font.pixelSize: 11
-                                        font.bold: true
-                                    }
-
-                                    Label {
-                                        objectName: "launch-target-title"
-                                        Layout.preferredWidth: detailTextWidth - 20
-                                        text: selectedGameForPreview.title + "  →  " + selectedHostForPreview.displayName
-                                        color: "#C9F0D4"
-                                        font.pixelSize: 13
-                                        font.bold: true
-                                        maximumLineCount: 1
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Label {
-                                        Layout.preferredWidth: detailTextWidth - 20
-                                        text: "Safe preview only · no game or stream starts"
-                                        color: "#FFDDA8"
-                                        font.pixelSize: 11
-                                        maximumLineCount: 1
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                id: moonlightHandoffPanel
-                                objectName: "moonlight-handoff-panel"
-                                Layout.preferredWidth: detailTextWidth
-                                Layout.preferredHeight: 202
-                                radius: 16
-                                color: "#101A30"
-                                border.color: "#7C73FF"
-                                border.width: 2
-
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
-                                    spacing: 5
-
-                                    RowLayout {
-                                        objectName: "moonlight-handoff-title-row"
-                                        Layout.preferredWidth: detailTextWidth - 24
-                                        spacing: 8
-
-                                        Label {
-                                            Layout.fillWidth: true
-                                            text: "Moonlight handoff preview"
-                                            color: "#E9ECFF"
-                                            font.pixelSize: 14
-                                            font.bold: true
-                                            elide: Text.ElideRight
-                                        }
-
-                                        Rectangle {
-                                            Layout.preferredWidth: 132
-                                            Layout.preferredHeight: 24
-                                            radius: 12
-                                            color: "#1E2846"
-                                            border.color: "#8AFFC1"
-                                            border.width: 1
-
-                                            Label {
-                                                anchors.centerIn: parent
-                                                text: "Nothing will launch yet"
-                                                color: "#8AFFC1"
-                                                font.pixelSize: 10
-                                                font.bold: true
-                                            }
-                                        }
-                                    }
-
-                                    Label {
-                                        Layout.preferredWidth: detailTextWidth - 24
-                                        text: selectedMoonlightHandoffCopy
-                                        color: "#C9F0D4"
-                                        font.pixelSize: 11
-                                        wrapMode: Text.WordWrap
-                                        maximumLineCount: 2
-                                        elide: Text.ElideRight
-                                    }
-
-                                    RowLayout {
-                                        objectName: "moonlight-safety-chip-row"
-                                        Layout.preferredWidth: detailTextWidth - 24
-                                        spacing: 6
-
-                                        Rectangle {
-                                            Layout.preferredWidth: 86
-                                            Layout.preferredHeight: 24
-                                            radius: 12
-                                            color: "#192842"
-
-                                            Label {
-                                                anchors.centerIn: parent
-                                                text: "No launch"
-                                                color: "#E9ECFF"
-                                                font.pixelSize: 10
-                                                font.bold: true
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            id: moonlightRuntimeGateChip
-                                            objectName: "moonlight-runtime-gate-chip"
-                                            Layout.preferredWidth: 134
-                                            Layout.preferredHeight: 24
-                                            radius: 12
-                                            color: moonlightHandoffRuntimeGatesClosed() ? "#173326" : "#3A2224"
-
-                                            Label {
-                                                anchors.centerIn: parent
-                                                text: moonlightHandoffRuntimeGatesClosed() ? "No network/process" : "Blocked"
-                                                color: moonlightHandoffRuntimeGatesClosed() ? "#8AFFC1" : "#FFDDA8"
-                                                font.pixelSize: 10
-                                                font.bold: true
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            id: moonlightFocusChip
-                                            objectName: "moonlight-focus-chip"
-                                            Layout.fillWidth: true
-                                            Layout.preferredHeight: 24
-                                            radius: 12
-                                            color: "#151D39"
-
-                                            Label {
-                                                anchors.centerIn: parent
-                                                text: "Focus: unproven_static"
-                                                color: "#B8C2F0"
-                                                font.pixelSize: 10
-                                                font.bold: true
-                                            }
-                                        }
-                                    }
-
-                                    RowLayout {
-                                        objectName: "moonlight-readiness-row"
-                                        Layout.preferredWidth: detailTextWidth - 24
+                                    ColumnLayout {
+                                        id: expandedDiagnosticsContentColumn
+                                        width: expandedDiagnosticsLane.width - 28
                                         spacing: 5
 
                                         Label {
-                                            Layout.preferredWidth: 48
-                                            text: "Checks"
-                                            color: "#7C88B8"
-                                            font.pixelSize: 9
+                                            text: "Secondary diagnostics · D-pad scroll for details"
+                                            color: "#8AFFC1"
+                                            font.pixelSize: 11
                                             font.bold: true
+                                            wrapMode: Text.WordWrap
+                                        }
+
+                                        Label {
+                                            id: diagnosticsPagePositionLabel
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: expandedDiagnosticsLaneScrolledToDetails
+                                                ? "Diagnostics page 2 of 2 · lifecycle + DTO details"
+                                                : "Diagnostics page 1 of 2 · scroll for lifecycle + DTO below"
+                                            color: "#FFDDA8"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            wrapMode: Text.WordWrap
+                                        }
+
+                                        Label {
+                                            id: readonlyDiagnosticsLabel
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: readOnlyBlockerDiagnostics(backendReadOnlyPreflight, selectedBackendReadOnlyScenarioLabel)
+                                            color: "#E9ECFF"
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 3
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Label {
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: readOnlyDtoParityDiagnostics(backendReadOnlyDtoParity)
+                                            color: "#C9F0D4"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            wrapMode: Text.WordWrap
                                             maximumLineCount: 2
                                             elide: Text.ElideRight
                                         }
 
-                                        Repeater {
-                                            model: selectedMoonlightReadinessChecks
-
-                                            Rectangle {
-                                                objectName: "moonlight-readiness-chip"
-                                                Layout.preferredWidth: 72
-                                                Layout.preferredHeight: 22
-                                                radius: 11
-                                                color: modelData.status === "blocked" ? "#3A2224" : "#151D39"
-                                                border.color: readinessStatusColor(modelData.status)
-                                                border.width: 1
-
-                                                Label {
-                                                    anchors.centerIn: parent
-                                                    text: readinessShortLabel(modelData.id, modelData.label) + " " + readinessStatusCopy(modelData.status)
-                                                    color: readinessStatusColor(modelData.status)
-                                                    font.pixelSize: 8
-                                                    font.bold: true
-                                                    maximumLineCount: 1
-                                                    elide: Text.ElideRight
-                                                }
-                                            }
+                                        Label {
+                                            id: readonlyPreflightBlockersLabel
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: "Preflight blockers: " + (backendReadOnlyPreflight.blockerCodes.length > 0
+                                                ? backendReadOnlyPreflight.blockerCodes.join(", ")
+                                                : "backend read-only model reported no blockers")
+                                            color: "#FFDDA8"
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
+                                            elide: Text.ElideRight
                                         }
-                                    }
-
-                                    RowLayout {
-                                        objectName: "moonlight-plan-row"
-                                        Layout.preferredWidth: detailTextWidth - 24
-                                        spacing: 8
 
                                         Label {
-                                            Layout.fillWidth: true
-                                            text: moonlightHandoffRuntimeGatesClosed() ? "Typed argv plan" : "Review blocked"
-                                            color: "#B8C2F0"
+                                            id: readonlyPublicCopyLabel
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: backendReadOnlyPreflight.publicCopy
+                                            color: "#A8B0D8"
+                                            font.pixelSize: 10
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 4
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Label {
+                                            id: diagnosticsPostScrollCueLabel
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            Layout.topMargin: 8
+                                            text: "Diagnostics page 2 of 2 · lifecycle=" + previewLifecycleReport.state
+                                                + "/no stream · DTO privacy=" + backendDiagnosticsPreview.privacyCode
+                                            color: "#FFDDA8"
                                             font.pixelSize: 10
                                             font.bold: true
-                                            maximumLineCount: 1
+                                            wrapMode: Text.WordWrap
+                                            visible: true
+                                        }
+
+                                        Label {
+                                            id: lifecycleDiagnosticsPageLabel
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: "Lifecycle page 2 · status=" + previewLifecycleReport.statusCode
+                                                + " · state=" + previewLifecycleReport.state
+                                                + " · stream not started"
+                                            color: "#8AFFC1"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            wrapMode: Text.WordWrap
+                                        }
+
+                                        Label {
+                                            id: dtoDiagnosticsPageLabel
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: "DTO page 2 · preflight=" + backendPreflightPreview.statusCode
+                                                + " · blockers=" + backendPreflightPreview.blockerCodes.length
+                                                + " · diagnostics=" + backendDiagnosticsPreview.statusCode
+                                                + " · privacy=" + backendDiagnosticsPreview.privacyCode
+                                            color: "#C9F0D4"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
                                             elide: Text.ElideRight
                                         }
 
                                         Label {
-                                            Layout.preferredWidth: 210
-                                            text: moonlightHandoffRuntimeGatesClosed() ? "redacted argv · local preview only" : selectedMoonlightHandoffArgvPreview
-                                            color: "#B8C2F0"
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: "Lifecycle · " + previewLifecycleReport.statusCode
+                                                + " · state=" + previewLifecycleReport.state
+                                                + " · preflight=" + previewLifecycleReport.dryRunPreflightRequested
+                                                + " · networkStarted=" + previewLifecycleReport.networkStarted
+                                            color: previewLifecycleReport.armed ? "#8AFFC1" : "#FFDDA8"
                                             font.pixelSize: 10
-                                            horizontalAlignment: Text.AlignRight
-                                            maximumLineCount: 1
+                                            font.bold: previewLifecycleReport.armed
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
                                             elide: Text.ElideRight
                                         }
-                                    }
 
-                                    Label {
-                                        objectName: "moonlight-runtime-gates-line"
-                                        Layout.preferredWidth: detailTextWidth - 24
-                                        text: moonlightHandoffRuntimeGatesClosed()
-                                            ? "Runtime locked: network · process · Moonlight · host off"
-                                            : "Runtime gate failed — review blocked"
-                                        color: "#FFDDA8"
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        maximumLineCount: 1
-                                        elide: Text.ElideRight
+                                        Label {
+                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28
+                                            text: "Operator · " + operatorAuthorizationReport.statusCode
+                                                + " · dry-run=" + operatorAuthorizationReport.dryRunAuthorized
+                                                + " · start-contract=" + operatorAuthorizationReport.startAuthorized
+                                                + " · networkStarted=" + operatorAuthorizationReport.networkStarted
+                                            color: operatorAuthorizationReport.startAuthorized ? "#8AFFC1"
+                                                : operatorAuthorizationReport.dryRunAuthorized ? "#C9F0D4"
+                                                : "#FFDDA8"
+                                            font.pixelSize: 10
+                                            font.bold: operatorAuthorizationReport.dryRunAuthorized || operatorAuthorizationReport.startAuthorized
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
+                                            elide: Text.ElideRight
+                                        }
+
+                                    }
+                                }
+
+                                Label {
+                                    id: expandedDiagnosticsPostScrollOverlay
+                                    anchors.bottom: parent.bottom
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.margins: 12
+                                    z: 2
+                                    text: "Diagnostics page 2 of 2 · lifecycle=" + previewLifecycleReport.state
+                                        + "/no stream · DTO privacy=" + backendDiagnosticsPreview.privacyCode
+                                    color: "#FFDDA8"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    wrapMode: Text.WordWrap
+                                    visible: expandedDiagnosticsLaneScrolledToDetails
+
+                                    background: Rectangle {
+                                        color: "#10182E"
+                                        opacity: 0.94
+                                        radius: 8
+                                        border.color: "#FFDDA8"
+                                        border.width: 1
                                     }
                                 }
                             }
 
-                            RowLayout {
-                                objectName: "copy-preview-action-row"
+                            Label {
                                 Layout.preferredWidth: detailTextWidth
-                                spacing: 10
+                                text: "Secondary diagnostics stay collapsed on first paint."
+                                color: "#7C88B8"
+                                font.pixelSize: 11
+                                wrapMode: Text.WordWrap
+                                visible: false
+                            }
+
+                            RowLayout {
+                                Layout.preferredWidth: detailTextWidth
+                                spacing: 4
+                                visible: false
 
                                 Button {
-                                    id: copyPreviewButton
-                                    objectName: launchPreviewCopyAction.id
-                                    Layout.preferredWidth: 184
-                                    Layout.preferredHeight: 30
-                                    text: launchPreviewCopyAction.label
-                                    enabled: launchPreviewCopyAction.enabled
+                                    id: armNoNetworkPreviewButton
+                                    objectName: "arm-no-network-preview"
+                                    Layout.preferredWidth: 70
+                                    text: "Arm preview"
                                     focusPolicy: Qt.StrongFocus
                                     activeFocusOnTab: true
-                                    KeyNavigation.up: launchCtaPlaceholder
-                                    KeyNavigation.down: hostDetailPanel
-                                    Keys.onUpPressed: launchCtaPlaceholder.forceActiveFocus()
-                                    Keys.onDownPressed: hostDetailPanel.forceActiveFocus()
-                                    Keys.onLeftPressed: focusSelectedLibraryItem()
-                                    Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
-                                    Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
-                                    Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
-                                    onClicked: activateLaunchPreviewCopyFromController()
+                                    onClicked: armNoNetworkPreviewFromControlSurface()
+                                    Keys.onReturnPressed: armNoNetworkPreviewFromControlSurface()
+                                    Keys.onEnterPressed: armNoNetworkPreviewFromControlSurface()
+                                    Keys.onSpacePressed: armNoNetworkPreviewFromControlSurface()
                                 }
 
-                                Label {
-                                    Layout.fillWidth: true
-                                    text: "Copy locally — no launch"
-                                    color: "#8AFFC1"
-                                    font.pixelSize: 12
-                                    font.bold: true
-                                    wrapMode: Text.WordWrap
+                                Button {
+                                    id: stopPreviewButton
+                                    objectName: "stop-preview"
+                                    Layout.preferredWidth: 42
+                                    text: "Stop"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: stopPreviewFromControlSurface()
+                                    Keys.onReturnPressed: stopPreviewFromControlSurface()
+                                    Keys.onEnterPressed: stopPreviewFromControlSurface()
+                                    Keys.onSpacePressed: stopPreviewFromControlSurface()
                                 }
+
+                                Button {
+                                    id: guardedHostNetworkStartButton
+                                    objectName: "guarded-host-network-start"
+                                    Layout.preferredWidth: 74
+                                    text: "Start blocked"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: requestGuardedHostNetworkStartFromControlSurface()
+                                    Keys.onReturnPressed: requestGuardedHostNetworkStartFromControlSurface()
+                                    Keys.onEnterPressed: requestGuardedHostNetworkStartFromControlSurface()
+                                    Keys.onSpacePressed: requestGuardedHostNetworkStartFromControlSurface()
+                                }
+
+                                Button {
+                                    objectName: "host-start-dry-run-preflight-primary"
+                                    Layout.preferredWidth: 62
+                                    text: "Preflight"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: requestHostStartDryRunPreflightFromControlSurface()
+                                    Keys.onReturnPressed: requestHostStartDryRunPreflightFromControlSurface()
+                                    Keys.onEnterPressed: requestHostStartDryRunPreflightFromControlSurface()
+                                    Keys.onSpacePressed: requestHostStartDryRunPreflightFromControlSurface()
+                                }
+
+                                Button {
+                                    id: backendPreflightDtoPreviewButton
+                                    objectName: "backend-preflight-dto-preview"
+                                    Layout.preferredWidth: 46
+                                    text: "DTO"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: requestBackendPreflightPreviewFromControlSurface()
+                                    Keys.onReturnPressed: requestBackendPreflightPreviewFromControlSurface()
+                                    Keys.onEnterPressed: requestBackendPreflightPreviewFromControlSurface()
+                                    Keys.onSpacePressed: requestBackendPreflightPreviewFromControlSurface()
+                                }
+
+                                Button {
+                                    id: backendDiagnosticsDtoPreviewButton
+                                    objectName: "backend-diagnostics-dto-preview"
+                                    Layout.preferredWidth: 44
+                                    text: "Diag"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: requestBackendDiagnosticsPreviewFromControlSurface()
+                                    Keys.onReturnPressed: requestBackendDiagnosticsPreviewFromControlSurface()
+                                    Keys.onEnterPressed: requestBackendDiagnosticsPreviewFromControlSurface()
+                                    Keys.onSpacePressed: requestBackendDiagnosticsPreviewFromControlSurface()
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.preferredWidth: detailTextWidth
+                                spacing: 8
+                                visible: false
+
+                                Button {
+                                    objectName: "authorize-operator-dry-run"
+                                    text: "Authorize dry-run"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: authorizeOperatorDryRunFromControlSurface()
+                                    Keys.onReturnPressed: authorizeOperatorDryRunFromControlSurface()
+                                    Keys.onEnterPressed: authorizeOperatorDryRunFromControlSurface()
+                                    Keys.onSpacePressed: authorizeOperatorDryRunFromControlSurface()
+                                }
+
+                                Button {
+                                    objectName: "operator-dry-run-contract"
+                                    text: "Dry-run contract"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: requestOperatorAuthorizedDryRunFromControlSurface()
+                                    Keys.onReturnPressed: requestOperatorAuthorizedDryRunFromControlSurface()
+                                    Keys.onEnterPressed: requestOperatorAuthorizedDryRunFromControlSurface()
+                                    Keys.onSpacePressed: requestOperatorAuthorizedDryRunFromControlSurface()
+                                }
+
+                                Button {
+                                    objectName: "host-start-dry-run-preflight"
+                                    text: "Host start preflight"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: requestHostStartDryRunPreflightFromControlSurface()
+                                    Keys.onReturnPressed: requestHostStartDryRunPreflightFromControlSurface()
+                                    Keys.onEnterPressed: requestHostStartDryRunPreflightFromControlSurface()
+                                    Keys.onSpacePressed: requestHostStartDryRunPreflightFromControlSurface()
+                                }
+
+                                Button {
+                                    objectName: "authorize-operator-start-contract"
+                                    text: "Authorize start contract"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: authorizeOperatorStartFromControlSurface()
+                                    Keys.onReturnPressed: authorizeOperatorStartFromControlSurface()
+                                    Keys.onEnterPressed: authorizeOperatorStartFromControlSurface()
+                                    Keys.onSpacePressed: authorizeOperatorStartFromControlSurface()
+                                }
+
+                                Button {
+                                    objectName: "operator-start-contract-status"
+                                    text: "Start contract status"
+                                    focusPolicy: Qt.StrongFocus
+                                    activeFocusOnTab: true
+                                    onClicked: requestOperatorAuthorizedHostNetworkStartFromControlSurface()
+                                    Keys.onReturnPressed: requestOperatorAuthorizedHostNetworkStartFromControlSurface()
+                                    Keys.onEnterPressed: requestOperatorAuthorizedHostNetworkStartFromControlSurface()
+                                    Keys.onSpacePressed: requestOperatorAuthorizedHostNetworkStartFromControlSurface()
+                                }
+                            }
+
+                            DeckVaapiPreviewSurface {
+                                objectName: "nova-product-preview-surface"
+                                Layout.preferredWidth: detailTextWidth
+                                Layout.preferredHeight: visible ? 96 : 0
+                                visible: novaPresenterReadiness.ready
+                                opacity: visible ? 1.0 : 0.0
+                            }
+
+                            Label {
+                                Layout.preferredWidth: detailTextWidth
+                                text: "Exact preview details stay behind Copy preview details."
+                                color: "#7C88B8"
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                                visible: false
                             }
 
                             Label {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: detailTextWidth
-                                Layout.preferredHeight: visible ? 14 : 0
-                                text: ""
-                                visible: text.length > 0
+                                text: launchPreviewCopyAction.idleStatusLabel
                                 color: "#FFDDA8"
-                                font.pixelSize: 9
-                                wrapMode: Text.NoWrap
-                                maximumLineCount: 1
-                                elide: Text.ElideRight
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                                visible: false
                             }
                         }
                     }

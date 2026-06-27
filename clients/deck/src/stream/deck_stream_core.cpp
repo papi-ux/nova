@@ -823,7 +823,7 @@ DeckStreamTransition DeckStreamSession::startNoNetwork() {
         return fail("start requested before prepare");
     }
 
-    transitionTo(DeckStreamSessionState::Starting, "start requested; no-network skeleton keeps LiStartConnection disabled");
+    transitionTo(DeckStreamSessionState::Starting, "start requested; no-network skeleton keeps raw stream start disabled");
     return transitionTo(DeckStreamSessionState::Active, "active skeleton session; no sockets or host connection opened");
 }
 
