@@ -38,6 +38,22 @@ Full Qt shell smoke, when Qt deps are present:
 
 The Qt smoke runs nova-deck --smoke-exit with QT_QPA_PLATFORM=offscreen, so it verifies QML object creation and sample library-card data binding without launching a visible desktop window. It does not verify real D-pad focus or game launch behavior yet.
 
+Steam Deck Game Mode rootless Podman validation route, for preview/QSG render cards that must run against the actual Deck gamescope socket:
+
+    python3 clients/deck/scripts/deck_t31_podman_validation.py
+
+The script syncs the current source tree to `deck@10.0.0.39:/home/deck/nova-t31-src`, runs `localhost/nova-t24-arch-qt-buildtools` with `/run/user/1000` and `/dev/dri` mounted, builds `clients/deck` with CMake/Ninja, runs Deck CTest, runs `nova_deck_qsg_render_node_scenegraph_smoke` directly with `QT_QPA_PLATFORM=wayland WAYLAND_DISPLAY=gamescope-0 QSG_RHI_BACKEND=opengl LIBVA_DRIVER_NAME=radeonsi` so the CTest offscreen property cannot mask the live gamescope route, and pulls logs into `build/deck-t31-artifacts`. Use `--dry-run` to print the exact sync/container/artifact commands, or `--skip-sync` when the Deck source directory is already prepared.
+
+The route now runs the T32 preview pump oracle after pulling artifacts, so the same command exits non-zero unless the Deck artifacts machine-prove all of the following: `nova_deck_stream_media_adapters_test` covered newest-frame coalescing and invalid-reset stale-presentation clearing, full remote CTest passed, `qsg-gamescope-smoke.log` contains a real Deck render proof with `status=ready objects=1 layers=2 ready=1`, and the route source still avoids host streaming, discovery, pairing, credential, and Polaris launch paths. To check already-pulled artifacts directly, run:
+
+    python3 clients/deck/scripts/deck_t32_preview_pump_oracle.py --artifacts build/deck-t31-artifacts
+
+Visible frontend smoke route, for judging the Deck product shell on the actual Game Mode Wayland path without host networking:
+
+    python3 clients/deck/scripts/deck_frontend_smoke.py --local-artifacts build/deck-frontend-smoke-artifacts
+
+The frontend smoke uses the same rootless Deck Podman image with `--network=none`, launches `nova-deck` visibly through `QT_QPA_PLATFORM=wayland WAYLAND_DISPLAY=gamescope-0`, and asks the app to save its own `frontend-frame-capture.png`. Artifacts include `environment-summary.txt`, `ui-launch.log`, `qml-runtime.log`, `smoke-summary.txt`, and the frame capture when Qt can grab the window.
+
 ## Shared Polaris DTO boundary
 
 Native C++ cannot include Kotlin source directly. For this first slice, fixtures/sample_polaris_game.json is a generated/shared-contract sample using the same snake_case keys covered by the Kotlin shared DTO tests. src/polaris_game_fixture.h and src/polaris_game_fixture.cpp load that fixture into a tiny native projection so the Deck shell can exercise a real library-card shape while the actual native Polaris API/client bridge is still future work.

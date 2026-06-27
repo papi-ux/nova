@@ -32,6 +32,17 @@ bool containsIpv4AddressLike(const std::string& text) {
     }
     return false;
 }
+
+int qmlReadonlyIntProperty(const std::string& qml, std::string_view propertyName) {
+    const std::string needle = "readonly property int " + std::string(propertyName) + ": ";
+    const auto propertyStart = qml.find(needle);
+    assert(propertyStart != std::string::npos);
+    const auto valueStart = propertyStart + needle.size();
+    const auto valueEnd = qml.find_first_not_of("0123456789", valueStart);
+    assert(valueEnd != valueStart);
+    return std::stoi(qml.substr(valueStart, valueEnd - valueStart));
+}
+
 std::string readTextFile(const char* path) {
     std::ifstream stream(path);
     assert(stream.good());
@@ -76,82 +87,214 @@ int main() {
     assert(mainQml.find("novaLibraryGames") != std::string::npos);
     assert(mainQml.find("novaLibraryHosts") != std::string::npos);
     assert(mainQml.find("libraryGameRepeater") != std::string::npos);
-    assert(mainQml.find("Polaris library preview") != std::string::npos);
+    assert(mainQml.find("Backend-fed library snapshot") != std::string::npos);
+    assert(mainQml.find("novaLaunchIntentBoundary") != std::string::npos);
     assert(mainQml.find("novaHostLaunchCta.helpText") != std::string::npos);
-    assert(mainQml.find("novaHostLaunchCta.previewStateLabel") != std::string::npos);
-    assert(mainQml.find("text: novaHostLaunchCta.helpText") != std::string::npos);
     assert(mainQml.find("D-pad Navigate") != std::string::npos);
     assert(mainQml.find("selectedHostForPreview") != std::string::npos);
     assert(mainQml.find("selectedGameForPreview") != std::string::npos);
     assert(mainQml.find("refreshLaunchPreviewBinding") != std::string::npos);
     assert(mainQml.find("selectedLaunchPreviewText") != std::string::npos);
     assert(mainQml.find("Selected host") != std::string::npos);
-    assert(mainQml.find("selectedGameForPreview.title") != std::string::npos);
+    assert(mainQml.find("Selected game") != std::string::npos);
     assert(mainQml.find("No games in read-only snapshot") != std::string::npos);
-    assert(mainQml.find("Preview snapshot ready") != std::string::npos);
+    assert(mainQml.find("backend-owned read-only model") != std::string::npos);
     assert(mainQml.find("Snapshot unavailable in this preview shell") != std::string::npos);
-    assert(mainQml.find("copyStatusLabel.text = didCopyPreview") != std::string::npos);
+    assert(mainQml.find("launchPreviewCopyAction.idleStatusLabel") != std::string::npos);
     assert(mainQml.find("novaLaunchIntentPreview") != std::string::npos);
+    assert(mainQml.find("novaBackendReadOnlyState") != std::string::npos);
+    assert(mainQml.find("novaBackendReadOnlyStateMatrix") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyDtoParity") != std::string::npos);
+    assert(mainQml.find("selectedBackendReadOnlyDtoSummary") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyDtoParity.collapsedSummary") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyDtoParity.expandedDiagnostics") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState.title") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState.body") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState.actionLabel") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState.safetyLabel") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState.provenanceLabel") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState.focusOrder") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState.focusOrderCopy") != std::string::npos);
+    assert(mainQml.find("function defaultBackendReadOnlyPlayerState") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState && backendReadOnlyPlayerState.title") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPlayerState && backendReadOnlyPlayerState.focusOrder") == std::string::npos);
+    assert(mainQml.find("text: backendReadOnlyPlayerState.focusOrderCopy") != std::string::npos);
+    assert(mainQml.find("Focus order: state card → Copy plan → Show diagnostics · DTO focus=") == std::string::npos);
+    assert(mainQml.find("Backend-owned DTO parity") != std::string::npos);
+    assert(mainQml.find("selectedBackendReadOnlyScenarioLabel") != std::string::npos);
+    assert(mainQml.find("compactReadOnlyBlockerCopy(backendReadOnlyPreflight, selectedBackendReadOnlyScenarioLabel)") == std::string::npos);
+    assert(mainQml.find("runBackendReadOnlyStateMatrixSmoke") != std::string::npos);
+    assert(mainQml.find("backendReadOnlyPreflight") != std::string::npos);
     assert(mainQml.find("selectedLaunchPublicCopy") != std::string::npos);
     assert(mainQml.find("selectedStreamLifecycleCopy") != std::string::npos);
+    assert(mainQml.find("novaPresenterReadiness") != std::string::npos);
+    assert(mainQml.find("text: \"VAAPI/EGL presenter readiness: \"") == std::string::npos);
+    assert(mainQml.find("Readiness checks · safe preview · stream off") != std::string::npos);
+    assert(mainQml.find("hardwarePresenterPlanned") != std::string::npos);
+    assert(mainQml.find("statusCode") != std::string::npos);
+    assert(mainQml.find("import Nova.Deck.Stream 0.1") != std::string::npos);
+    assert(mainQml.find("DeckVaapiPreviewSurface") != std::string::npos);
+    assert(mainQml.find("nova-product-preview-surface") != std::string::npos);
+    assert(mainQml.find("visible: novaPresenterReadiness.ready") != std::string::npos);
+    assert(qmlReadonlyIntProperty(mainQml, "launchPreviewHeight") >= 286);
+    assert(qmlReadonlyIntProperty(mainQml, "detailPanelHeight") + qmlReadonlyIntProperty(mainQml, "deckPanelSpacing")
+        + qmlReadonlyIntProperty(mainQml, "launchPreviewHeight") <= 540);
+    assert(mainQml.find("Press A on Copy to verify. A Copy preview saves this safe plan locally for inspection.") == std::string::npos);
+    assert(mainQml.find("text: selectedStreamLifecycleCopy") == std::string::npos);
+    assert(mainQml.find("copy locally to inspect the preview URI") == std::string::npos);
     assert(mainQml.find("state=copy-preview-only") == std::string::npos);
     assert(mainQml.find("readonly property color focusRingColor") != std::string::npos);
     assert(mainQml.find("readonly property color focusGlowColor") != std::string::npos);
     assert(mainQml.find("cursorShape: Qt.BlankCursor") != std::string::npos);
-    assert(mainQml.find("D-pad Navigate") != std::string::npos);
-    assert(mainQml.find("Exact preview details stay behind Copy preview details") == std::string::npos);
-    assert(mainQml.find("objectName: \"launch-target-summary-card\"") != std::string::npos);
-    assert(mainQml.find("objectName: \"launch-target-title\"") != std::string::npos);
-    assert(mainQml.find("Review path") != std::string::npos);
-    assert(mainQml.find("Layout.preferredWidth: detailTextWidth - 148") != std::string::npos);
-    assert(mainQml.find("Layout.preferredWidth: detailTextWidth - 124") == std::string::npos);
-    assert(mainQml.find("objectName: \"moonlight-handoff-panel\"") != std::string::npos);
-    assert(mainQml.find("objectName: \"moonlight-handoff-title-row\"") != std::string::npos);
-    assert(mainQml.find("objectName: \"moonlight-safety-chip-row\"") != std::string::npos);
-    assert(mainQml.find("objectName: \"moonlight-readiness-row\"") != std::string::npos);
-    assert(mainQml.find("Checks") != std::string::npos);
-    assert(mainQml.find("moonlightHandoffPreflight.readinessChecks") != std::string::npos);
-    assert(mainQml.find("readonly property var selectedMoonlightReadinessChecks") != std::string::npos);
-    assert(mainQml.find("function readinessStatusColor") != std::string::npos);
-    assert(mainQml.find("function readinessStatusCopy") != std::string::npos);
-    assert(mainQml.find("objectName: \"moonlight-plan-row\"") != std::string::npos);
-    assert(mainQml.find("objectName: \"moonlight-runtime-gates-line\"") != std::string::npos);
-    assert(mainQml.find("objectName: \"moonlight-runtime-gate-chip\"") != std::string::npos);
-    assert(mainQml.find("objectName: \"moonlight-focus-chip\"") != std::string::npos);
-    assert(mainQml.find("objectName: \"copy-preview-action-row\"") != std::string::npos);
-    assert(mainQml.find("Moonlight handoff preview") != std::string::npos);
-    assert(mainQml.find("No launch") != std::string::npos);
-    assert(mainQml.find("No network/process") != std::string::npos);
-    assert(mainQml.find("Focus: unproven_static") != std::string::npos);
-    assert(mainQml.find("Copy locally — no launch") != std::string::npos);
-    assert(mainQml.find("id: copyStatusLabel") != std::string::npos);
-    assert(mainQml.find("visible: text.length > 0") != std::string::npos);
-    assert(mainQml.find("D-pad focus · A copies preview locally; no launch.") == std::string::npos);
-    assert(mainQml.find("selectedMoonlightHandoffCopy") != std::string::npos);
-    assert(mainQml.find("selectedMoonlightHandoffArgvPreview") != std::string::npos);
-    assert(mainQml.find("Typed argv plan") != std::string::npos);
-    assert(mainQml.find("Review blocked") != std::string::npos);
-    assert(mainQml.find("text: moonlightHandoffRuntimeGatesClosed() ? \"Typed argv plan\" : \"Review blocked\"") != std::string::npos);
-    assert(mainQml.find("text: moonlightHandoffRuntimeGatesClosed() ? \"redacted argv · local preview only\" : selectedMoonlightHandoffArgvPreview") != std::string::npos);
-    assert(mainQml.find("Typed argv plan unavailable until the preflight is safe to render") != std::string::npos);
-    assert(mainQml.find("redacted argv · local preview only") != std::string::npos);
-    assert(mainQml.find("Typed argv plan · redacted host selector · ") == std::string::npos);
-    assert(mainQml.find("Runtime locked: network · process · Moonlight · host off") != std::string::npos);
-    assert(mainQml.find("unproven_static") != std::string::npos);
-    assert(mainQml.find("Nothing will launch yet") != std::string::npos);
-    assert(mainQml.find("novaMoonlightHandoffPreflightBridge.resolve") != std::string::npos);
-    assert(mainQml.find("moonlightHandoffPreflight.executable") != std::string::npos);
-    assert(mainQml.find("moonlightHandoffPreflight.safeToRender") != std::string::npos);
-    assert(mainQml.find("moonlightHandoffRuntimeGatesClosed") != std::string::npos);
-    assert(mainQml.find("!moonlightHandoffPreflight.allowsNetwork") != std::string::npos);
-    assert(mainQml.find("!moonlightHandoffPreflight.allowsProcessExecution") != std::string::npos);
-    assert(mainQml.find("!moonlightHandoffPreflight.allowsMoonlight") != std::string::npos);
-    assert(mainQml.find("!moonlightHandoffPreflight.allowsHostMutation") != std::string::npos);
-    assert(mainQml.find("Moonlight handoff preview blocked until safe public copy is available") != std::string::npos);
+    assert(mainQml.find("D-pad focus") != std::string::npos);
+    assert(mainQml.find("Exact preview details stay behind Copy preview details") != std::string::npos);
     assert(mainQml.find("text: selectedLaunchPreviewText") == std::string::npos);
     assert(mainQml.find("font.family: monospace") == std::string::npos);
-    assert(mainQml.find("onClicked: activateMoonlight") == std::string::npos);
-    assert(mainQml.find("QProcess") == std::string::npos);
+    assert(mainQml.find("Backend-fed library snapshot") != std::string::npos);
+    assert(mainQml.find("Backend-fed hosts") != std::string::npos);
+    assert(mainQml.find("Provenance: ") != std::string::npos);
+    assert(mainQml.find("backend-owned read-only model") != std::string::npos);
+    assert(mainQml.find("Preflight blockers") != std::string::npos);
+    assert(mainQml.find("compactReadOnlyBlockerCopy") == std::string::npos);
+    assert(mainQml.find("readOnlyBlockerDiagnostics") != std::string::npos);
+    assert(mainQml.find("readOnlyDtoParityDiagnostics") != std::string::npos);
+    assert(mainQml.find("primaryBlockerCopy") != std::string::npos);
+    assert(mainQml.find("secondaryDiagnosticsCopy") != std::string::npos);
+    assert(mainQml.find("Launch blocked by lab gate.") == std::string::npos);
+    assert(mainQml.find("Host offline. Reconnect or pick another host.") == std::string::npos);
+    assert(mainQml.find("Pair this host before launch preview.") == std::string::npos);
+    assert(mainQml.find("Library unavailable. Try again when the read-only snapshot is back.") == std::string::npos);
+    assert(mainQml.find("backendReadOnlyPreflight.publicCopy") != std::string::npos);
+    assert(mainQml.find("Secondary diagnostics stay collapsed on first paint") != std::string::npos);
+    assert(mainQml.find("visible: diagnosticsExpanded") != std::string::npos);
+    assert(mainQml.find("property bool diagnosticsExpanded: false") != std::string::npos);
+    assert(mainQml.find("id: secondaryDiagnosticsToggle") != std::string::npos);
+    assert(mainQml.find("objectName: \"secondary-diagnostics-toggle\"") != std::string::npos);
+    assert(mainQml.find("visible: true") != std::string::npos);
+    assert(mainQml.find("D-pad focus · A · ") != std::string::npos);
+    assert(mainQml.find("KeyNavigation.down: secondaryDiagnosticsToggle") != std::string::npos);
+    assert(mainQml.find("secondaryDiagnosticsToggle.forceActiveFocus()") != std::string::npos);
+    assert(mainQml.find("collapsedFirstPaint") != std::string::npos);
+    assert(mainQml.find("expansionToggleControllerReachable") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsVisible") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsCopy") != std::string::npos);
+    assert(mainQml.find("runExpandedDiagnosticsFrameSmoke") != std::string::npos);
+    assert(mainQml.find("liveExpandedBy") != std::string::npos);
+    assert(mainQml.find("expandedFrameSanitized") != std::string::npos);
+    assert(mainQml.find("expandedFrameReadable") != std::string::npos);
+    assert(mainQml.find("expandedFrameFocusTarget") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsLaneFocusTarget") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsLaneReadable") != std::string::npos);
+    assert(mainQml.find("expandedDensityRowsPaged") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPageAffordanceVisible") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPageAffordancePosition") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPageAffordanceText") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsScrollNavigationMoved") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPostScrollCue") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPostScrollCueContrast") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPostScrollCueSpacing") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPostScrollCueOverlapsBlocker") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPostScrollTarget") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsFocusAffordance") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsPage2Readable") != std::string::npos);
+    assert(mainQml.find("readonly property int expandedDiagnosticsLaneHeight: 132") != std::string::npos);
+    assert(mainQml.find("readonly property string expandedDiagnosticsCueContrastRatio: \"13.56:1\"") != std::string::npos);
+    assert(mainQml.find("readonly property string expandedDiagnosticsFocusAffordance: \"4px focus ring + active focus badge\"") != std::string::npos);
+    assert(mainQml.find("id: diagnosticsPagePositionLabel") != std::string::npos);
+    assert(mainQml.find("Diagnostics page 1 of 2 · scroll for lifecycle + DTO below") != std::string::npos);
+    assert(mainQml.find("Diagnostics page 2 of 2 · lifecycle=") != std::string::npos);
+    assert(mainQml.find("DTO privacy=") != std::string::npos);
+    assert(mainQml.find("id: diagnosticsPostScrollCueLabel") != std::string::npos);
+    assert(mainQml.find("id: diagnosticsPostScrollCueLabel\n"
+                        "                                            Layout.preferredWidth: expandedDiagnosticsLane.width - 28\n"
+                        "                                            Layout.topMargin: 8\n"
+                        "                                            text: \"Diagnostics page 2 of 2 · lifecycle=\" + previewLifecycleReport.state\n"
+                        "                                                + \"/no stream · DTO privacy=\" + backendDiagnosticsPreview.privacyCode\n"
+                        "                                            color: \"#FFDDA8\"\n"
+                        "                                            font.pixelSize: 10\n"
+                        "                                            font.bold: true\n"
+                        "                                            wrapMode: Text.WordWrap\n"
+                        "                                            visible: true") != std::string::npos);
+    assert(mainQml.find("id: expandedDiagnosticsPostScrollOverlay") != std::string::npos);
+    assert(mainQml.find("Layout.topMargin: 8") != std::string::npos);
+    assert(mainQml.find("id: expandedDiagnosticsPostScrollOverlay\n"
+                        "                                    anchors.bottom: parent.bottom\n"
+                        "                                    anchors.left: parent.left\n"
+                        "                                    anchors.right: parent.right\n"
+                        "                                    anchors.margins: 12\n"
+                        "                                    z: 2\n"
+                        "                                    text: \"Diagnostics page 2 of 2 · lifecycle=\" + previewLifecycleReport.state\n"
+                        "                                        + \"/no stream · DTO privacy=\" + backendDiagnosticsPreview.privacyCode\n"
+                        "                                    color: \"#FFDDA8\"\n"
+                        "                                    font.pixelSize: 10\n"
+                        "                                    font.bold: true\n"
+                        "                                    wrapMode: Text.WordWrap\n"
+                        "                                    visible: expandedDiagnosticsLaneScrolledToDetails") != std::string::npos);
+    assert(mainQml.find("background: Rectangle") != std::string::npos);
+    assert(mainQml.find("opacity: 0.94") != std::string::npos);
+    assert(mainQml.find("text: \"FOCUS\"") != std::string::npos);
+    assert(mainQml.find("Lifecycle page 2 · status=") != std::string::npos);
+    assert(mainQml.find("DTO page 2 · preflight=") != std::string::npos);
+    assert(mainQml.find("backend-owned-read-only-dto-v1") != std::string::npos);
+    assert(mainQml.find("dto-parity-ready") != std::string::npos);
+    assert(mainQml.find("id: lifecycleDiagnosticsPageLabel") != std::string::npos);
+    assert(mainQml.find("id: dtoDiagnosticsPageLabel") != std::string::npos);
+    assert(mainQml.find("id: expandedDiagnosticsLane") != std::string::npos);
+    assert(mainQml.find("objectName: \"expanded-diagnostics-lane\"") != std::string::npos);
+    assert(mainQml.find("id: expandedDiagnosticsScrollView") != std::string::npos);
+    assert(mainQml.find("objectName: \"expanded-diagnostics-scroll-view\"") != std::string::npos);
+    assert(mainQml.find("scrollExpandedDiagnosticsLaneToDetails") != std::string::npos);
+    assert(mainQml.find("const page2AnchorY = lifecycleDiagnosticsPageLabel.y > 0 ? lifecycleDiagnosticsPageLabel.y - 6 : maxContentY") != std::string::npos);
+    assert(mainQml.find("const targetContentY = Math.min(maxContentY, Math.max(0, page2AnchorY))") != std::string::npos);
+    assert(mainQml.find("ScrollView") != std::string::npos);
+    assert(mainQml.find("KeyNavigation.down: diagnosticsExpanded ? expandedDiagnosticsLane : copyPreviewButton") != std::string::npos);
+    assert(mainQml.find("Keys.onDownPressed: diagnosticsExpanded ? expandedDiagnosticsLane.forceActiveFocus() : copyPreviewButton.forceActiveFocus()") != std::string::npos);
+    assert(mainQml.find("expandedDiagnosticsLane.forceActiveFocus()") != std::string::npos);
+    assert(mainQml.find("expandedFrameFirstPaintCrowding") != std::string::npos);
+    assert(mainQml.find("secondaryDiagnosticsToggle.clicked()") != std::string::npos);
+    assert(mainQml.find("id: diagnosticsPagePositionLabel") < mainQml.find("id: readonlyDiagnosticsLabel"));
+    assert(mainQml.find("text: selectedLaunchPublicCopy\n                                color: \"#C9F0D4\"") != std::string::npos);
+    assert(mainQml.find("visible: diagnosticsExpanded\n                                Layout.preferredWidth: detailTextWidth") != std::string::npos);
+    assert(mainQml.find("maximumLineCount: 3") != std::string::npos);
+    assert(mainQml.find("Matrix state: "
+                        " + selectedBackendReadOnlyScenarioLabel\n"
+                        "                                    + \" · Read-only model · \" + backendReadOnlyPreflight.statusCode") == std::string::npos);
+    assert(mainQml.find("Polaris library preview") == std::string::npos);
+    assert(mainQml.find("Preview lifecycle: ") == std::string::npos);
+    assert(mainQml.find("Operator authorization: ") == std::string::npos);
+    assert(mainQml.find("Backend preflight DTO: ") == std::string::npos);
+    assert(mainQml.find("Backend diagnostics DTO: ") == std::string::npos);
+    assert(mainQml.find("readonly property string deckPlayerFlowGate: \"deck-player-flow-product-shell-v1\"") != std::string::npos);
+    assert(mainQml.find("Choose host → Pick game → Review safe launch plan") != std::string::npos);
+    assert(mainQml.find("1 · Pick host") != std::string::npos);
+    assert(mainQml.find("2 · Pick game") != std::string::npos);
+    assert(mainQml.find("3 · Review launch plan") != std::string::npos);
+    assert(mainQml.find("Selected game · A copies preview") != std::string::npos);
+    assert(mainQml.find("A = Copy safe launch plan") != std::string::npos);
+    assert(mainQml.find("Blocked safely: lab gate keeps backend power and streams off.") != std::string::npos);
+    assert(mainQml.find("Diagnostics explain why; they never start discovery, backend power, or media.") != std::string::npos);
+    assert(mainQml.find("readonly property string deckProductStateGate: \"deck-product-state-matrix-v1\"") != std::string::npos);
+    assert(mainQml.find("function readOnlyProductStateHeadline") == std::string::npos);
+    assert(mainQml.find("function readOnlyProductStateAction") == std::string::npos);
+    assert(mainQml.find("function readOnlyProductStateSafety") == std::string::npos);
+    assert(mainQml.find("Product state: Ready for setup") == std::string::npos);
+    assert(mainQml.find("Product state: Host offline") == std::string::npos);
+    assert(mainQml.find("Product state: Pair host") == std::string::npos);
+    assert(mainQml.find("Product state: Library unavailable") == std::string::npos);
+    assert(mainQml.find("Product state: Lab gate locked") == std::string::npos);
+    assert(mainQml.find("Add a backend host before previewing a launch plan.") == std::string::npos);
+    assert(mainQml.find("Reconnect the host or choose another backend-owned snapshot.") == std::string::npos);
+    assert(mainQml.find("Pair this host in an approved flow before preview launch.") == std::string::npos);
+    assert(mainQml.find("Wait for the read-only library snapshot to return.") == std::string::npos);
+    assert(mainQml.find("Ask an operator to open the lab gate before any start path.") == std::string::npos);
+    assert(mainQml.find("Focus order: state card → Copy plan → Show diagnostics") != std::string::npos);
+    assert(mainQml.find("text: backendReadOnlyPlayerState.focusOrderCopy") != std::string::npos);
+    assert(mainQml.find("DTO provenance: ") != std::string::npos);
+    assert(mainQml.find("objectName: \"selected-game-readability-card\"") != std::string::npos);
+    assert(mainQml.find("objectName: \"deck-player-flow-stepper\"") != std::string::npos);
+    assert(mainQml.find("objectName: \"safe-launch-plan-cta\"") != std::string::npos);
+    assert(mainQml.find("font.pixelSize: 26\n                                    font.bold: true") != std::string::npos);
 
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 10,
