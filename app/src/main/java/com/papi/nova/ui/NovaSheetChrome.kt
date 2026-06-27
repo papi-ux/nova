@@ -10,6 +10,7 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.setPadding
 import androidx.core.widget.NestedScrollView
@@ -134,7 +135,7 @@ object NovaSheetChrome {
     fun styleSheetAction(action: TextView, destructive: Boolean = false) {
         val context = action.context
         action.setTextColor(
-            if (destructive) context.getColor(R.color.nova_error) else NovaThemeManager.getTextPrimaryColor(context)
+            if (destructive) ContextCompat.getColor(context, R.color.nova_error) else NovaThemeManager.getTextPrimaryColor(context)
         )
         action.background = createActionBackground(context)
         action.isClickable = true
