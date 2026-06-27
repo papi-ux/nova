@@ -55,32 +55,6 @@
     <color name="nova_miami_accent_glow">#73FF5CAB</color>
     <color name="nova_miami_ripple">#22FF5CAB</color>
 
-    <!-- Portable Chrome / PSP - smoked graphite handheld chrome with restrained status accents. -->
-    <color name="nova_portable_void">#FF7C8998</color>
-    <color name="nova_portable_deep">#FFA2ADBA</color>
-    <color name="nova_portable_twilight">#FF8E9BAA</color>
-    <color name="nova_portable_storm">#FF667484</color>
-    <color name="nova_portable_silver">#FFC4CDD8</color>
-    <color name="nova_portable_ice">#FFD7DEE7</color>
-    <color name="nova_portable_bg_primary">#FFA2ADBA</color>
-    <color name="nova_portable_bg_window">#FFA2ADBA</color>
-    <color name="nova_portable_bg_card">#E6C4CDD8</color>
-    <color name="nova_portable_bg_elevated">#FFCBD3DD</color>
-    <color name="nova_portable_bg_input">#FFB1BCC9</color>
-    <color name="nova_portable_dialog_bg">#FFC0CAD5</color>
-    <color name="nova_portable_context_bg">#FFAFBAC7</color>
-    <color name="nova_portable_divider">#FF667484</color>
-    <color name="nova_portable_text_primary">#FF1F2A35</color>
-    <color name="nova_portable_text_secondary">#FF465464</color>
-    <color name="nova_portable_text_muted">#FF5A6877</color>
-    <color name="nova_portable_accent">#FF4B6686</color>
-    <color name="nova_portable_accent_surface">#264B6686</color>
-    <color name="nova_portable_accent_glow">#334B6686</color>
-    <color name="nova_portable_ripple">#244B6686</color>
-    <color name="nova_portable_success">#FF294F3D</color>
-    <color name="nova_portable_streaming">#FF294F3D</color>
-    <color name="nova_portable_online">#FF4B6686</color>
-    <color name="nova_portable_on_accent">#FFFFFFFF</color>
     <!-- High Contrast — brighter copy, firm outlines, and blue focus for readability. -->
     <color name="nova_hc_bg_primary">#FF05070c</color>
     <color name="nova_hc_bg_card">#F00f172a</color>
@@ -100,15 +74,34 @@
     <color name="nova_text_secondary">#FFa8b0b8</color>
     <color name="nova_text_muted">#FF7a8e95</color>
 
-    <color name="nova_accent">#FF7c73ff</color>
-    <color name="nova_accent_glow">#336c63ff</color>
-    <color name="nova_accent_surface">#1A7c73ff</color>
+    <color name="nova_polaris_accent">#FF78A6FF</color>
+    <color name="nova_polaris_accent_glow">#3378A6FF</color>
+    <color name="nova_polaris_accent_surface">#1A78A6FF</color>
+    <color name="nova_polaris_ripple">#2278A6FF</color>
+
+    <color name="nova_portable_bg_window">#FFA2ADBA</color>
+    <color name="nova_portable_bg_card">#FFC4CDD8</color>
+    <color name="nova_portable_bg_elevated">#FFCBD3DD</color>
+    <color name="nova_portable_bg_input">#FFB1BCC9</color>
+    <color name="nova_portable_dialog_bg">#FFC4CDD8</color>
+    <color name="nova_portable_divider">#FF83909F</color>
+    <color name="nova_portable_text_primary">#FF1F2A35</color>
+    <color name="nova_portable_text_secondary">#FF3B4856</color>
+    <color name="nova_portable_text_muted">#FF5E6B79</color>
+    <color name="nova_portable_accent">#FF7FA38D</color>
+    <color name="nova_portable_accent_glow">#337FA38D</color>
+    <color name="nova_portable_accent_surface">#1A7FA38D</color>
+    <color name="nova_portable_ripple">#227FA38D</color>
+
+    <color name="nova_accent">@color/nova_polaris_accent</color>
+    <color name="nova_accent_glow">@color/nova_polaris_accent_glow</color>
+    <color name="nova_accent_surface">@color/nova_polaris_accent_surface</color>
     <color name="nova_success">#FF4ade80</color>
     <color name="nova_warning">#FFfbbf24</color>
     <color name="nova_error">#FFf87171</color>
 
     <color name="nova_divider">#FF393c51</color>
-    <color name="nova_ripple">#226c63ff</color>
+    <color name="nova_ripple">@color/nova_polaris_ripple</color>
 
     <!-- Dialog / popup colors -->
     <color name="nova_dialog_bg">#FF252545</color>
@@ -121,5 +114,5 @@
     <color name="nova_streaming">#FF4ade80</color>
     <color name="nova_connecting">#FFfbbf24</color>
     <color name="nova_offline">#FFf87171</color>
-    <color name="nova_online">#FF7c73ff</color>
+    <color name="nova_online">#FF7FA38D</color>
 </resources>

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nova_sheet_root"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/nova_sheet_bg"
     android:paddingBottom="32dp">
 
     <!-- Drag handle -->
@@ -22,7 +22,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="18sp"
-        android:textColor="@color/nova_ice"
+        android:textColor="?android:textColorPrimary"
         android:fontFamily="sans-serif-medium"
         android:paddingStart="24dp"
         android:paddingEnd="24dp"

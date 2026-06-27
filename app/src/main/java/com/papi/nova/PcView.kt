@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.res.ColorStateList
 import android.content.res.Configuration
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.opengl.GLSurfaceView
 import android.os.Build
@@ -18,6 +20,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.text.InputFilter
 import android.text.InputType
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -67,6 +70,7 @@ import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
 import com.papi.nova.ui.NovaLibraryActivity
 import com.papi.nova.ui.NovaQrScanActivity
+import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaWelcomeActivity
@@ -87,6 +91,7 @@ import javax.microedition.khronos.opengles.GL10
 import org.xmlpull.v1.XmlPullParserException
 
 class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
+    private val THEME_PICKER_GRID_GAP_DP = 12
     private var noPcFoundLayout: View? = null
     private lateinit var pcGridAdapter: PcGridAdapter
     private lateinit var shortcutHelper: ShortcutHelper
@@ -433,8 +438,6 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             swipeRefresh.setColorSchemeColors(accent)
             swipeRefresh.setProgressBackgroundColorSchemeColor(surface)
         }
-        findViewById<android.widget.ProgressBar>(R.id.pcs_loading)?.indeterminateTintList =
-            ColorStateList.valueOf(accent)
 
         findViewById<TextView>(R.id.pcViewTitle)?.setTextColor(textPrimary)
         findViewById<TextView>(R.id.pcViewSectionLabel)?.setTextColor(textMuted)
@@ -541,8 +544,99 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     }
 
     private fun showThemePicker(anchor: View?) {
+        val themes = buildThemePickerThemes()
+        val currentTheme = NovaThemeManager.getTheme(this)
+        val surface = NovaThemeManager.getCardBackgroundColor(this)
+        val textPrimary = NovaThemeManager.getTextPrimaryColor(this)
+        val textSecondary = NovaThemeManager.getTextSecondaryColor(this)
+        val textMuted = NovaThemeManager.getTextMutedColor(this)
+
+        val dialog = BottomSheetDialog(this, R.style.NovaBottomSheet)
+        var focusTarget: View? = null
+        lateinit var themePickerFocusLabel: TextView
+
+        val content = NovaSheetChrome.createSheetContainer(this)
+
+        content.addView(
+            TextView(this).apply {
+                text = getString(R.string.pcview_theme_picker_title)
+                setTextColor(textPrimary)
+                textSize = 22f
+                typeface = Typeface.DEFAULT_BOLD
+                includeFontPadding = false
+            },
+        )
+        content.addView(
+            TextView(this).apply {
+                text = getString(R.string.pcview_theme_picker_hint)
+                setTextColor(textMuted)
+                textSize = 12f
+                setPadding(0, dp(6), 0, dp(14))
+            },
+        )
+
+        themePickerFocusLabel = TextView(this).apply {
+            text = getString(
+                R.string.pcview_theme_picker_focus_format,
+                NovaThemeManager.getThemeLabel(this@PcView, currentTheme),
+                getThemePickerSubtitle(currentTheme),
+            )
+            setTextColor(NovaThemeManager.getAccentColor(this@PcView))
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, 0, 0, dp(12))
+        }
+        content.addView(themePickerFocusLabel)
+
+        val themeGrid = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val gridGap = dp(THEME_PICKER_GRID_GAP_DP)
+            setPadding(gridGap, 0, gridGap, gridGap)
+        }
+        content.addView(themeGrid)
+        themes.chunked(2).forEach { themePair ->
+            val gridRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            themePair.forEachIndexed { index, theme ->
+                val row = createThemePickerRow(theme, currentTheme, themePickerFocusLabel, surface, textPrimary, textSecondary, dialog)
+                row.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    if (index == 0) {
+                        marginEnd = dp(THEME_PICKER_GRID_GAP_DP)
+                    }
+                    bottomMargin = dp(THEME_PICKER_GRID_GAP_DP)
+                }
+                if (focusTarget == null || theme == currentTheme) {
+                    focusTarget = row
+                }
+                gridRow.addView(row)
+            }
+            if (themePair.size == 1) {
+                gridRow.addView(
+                    View(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
+                    },
+                )
+            }
+            themeGrid.addView(gridRow)
+        }
+
+        dialog.setContentView(content)
+        dialog.setOnShowListener {
+            NovaSheetChrome.applyBottomSheetChrome(dialog, content)
+            content.post {
+                focusTarget?.requestFocus()
+            }
+        }
+        dialog.show()
+        anchor?.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+    }
+
+    private fun buildThemePickerThemes(): List<String> {
         val themes = mutableListOf(
             NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
             NovaThemeManager.THEME_OLED,
             NovaThemeManager.THEME_MIAMI,
             NovaThemeManager.THEME_HIGH_CONTRAST,
@@ -550,19 +644,173 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         if (NovaThemeManager.isMaterialYouAvailable()) {
             themes.add(NovaThemeManager.THEME_MATERIAL_YOU)
         }
-        val labels = themes.map { NovaThemeManager.getThemeLabel(this, it) }.toTypedArray()
-        val currentTheme = NovaThemeManager.getTheme(this)
-        val checkedIndex = themes.indexOf(currentTheme).coerceAtLeast(0)
-
-        AlertDialog.Builder(this)
-            .setTitle(R.string.pcview_theme_picker_title)
-            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
-                applyThemeSelection(themes[which])
-                dialog.dismiss()
-            }
-            .show()
-        anchor?.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+        return themes
     }
+
+    private fun createThemePickerRow(
+        theme: String,
+        currentTheme: String,
+        themePickerFocusLabel: TextView,
+        surface: Int,
+        textPrimary: Int,
+        textSecondary: Int,
+        dialog: BottomSheetDialog,
+    ): MaterialCardView {
+        val label = NovaThemeManager.getThemeLabel(this, theme)
+        val subtitle = getThemePickerSubtitle(theme)
+        val rowAccent = getThemePickerPreviewAccent(theme)
+        val divider = NovaThemeManager.getDividerColor(this)
+        val selected = theme == currentTheme
+
+        val card = MaterialCardView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                bottomMargin = dp(10)
+            }
+            radius = dp(18).toFloat()
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                dialog.dismiss()
+                applyThemeSelection(theme)
+            }
+            setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_UP &&
+                    (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_BUTTON_A)
+                ) {
+                    performClick()
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+        }
+        row.addView(
+            View(this).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(rowAccent)
+                    setStroke(dp(2), ColorUtils.blendARGB(rowAccent, textPrimary, 0.32f))
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(18), dp(18)).apply {
+                    marginEnd = dp(14)
+                }
+            },
+        )
+        row.addView(
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(
+                    TextView(this@PcView).apply {
+                        text = label
+                        setTextColor(textPrimary)
+                        textSize = 17f
+                        typeface = Typeface.DEFAULT_BOLD
+                        includeFontPadding = false
+                    },
+                )
+                addView(
+                    TextView(this@PcView).apply {
+                        text = subtitle
+                        setTextColor(textSecondary)
+                        textSize = 12f
+                        setPadding(0, dp(5), dp(8), 0)
+                    },
+                )
+            },
+        )
+        if (selected) {
+            row.addView(
+                TextView(this).apply {
+                    text = getString(R.string.pcview_theme_picker_current_badge)
+                    setTextColor(textPrimary)
+                    textSize = 11f
+                    typeface = Typeface.DEFAULT_BOLD
+                    gravity = Gravity.CENTER
+                    includeFontPadding = false
+                    background = GradientDrawable().apply {
+                        setColor(ColorUtils.blendARGB(surface, rowAccent, 0.30f))
+                        setStroke(dp(1), rowAccent)
+                        cornerRadius = dp(999).toFloat()
+                    }
+                    setPadding(dp(12), dp(7), dp(12), dp(7))
+                },
+            )
+        }
+        card.addView(row)
+        updateThemePickerRowState(card, selected, false, rowAccent, surface, divider, themePickerFocusLabel, label, subtitle)
+        card.setOnFocusChangeListener { _, hasFocus ->
+            updateThemePickerRowState(card, selected, hasFocus, rowAccent, surface, divider, themePickerFocusLabel, label, subtitle)
+        }
+        return card
+    }
+
+    private fun updateThemePickerRowState(
+        card: MaterialCardView,
+        selected: Boolean,
+        focused: Boolean,
+        rowAccent: Int,
+        surface: Int,
+        divider: Int,
+        themePickerFocusLabel: TextView,
+        label: String,
+        subtitle: String,
+    ) {
+        card.setCardBackgroundColor(
+            when {
+                focused -> ColorUtils.blendARGB(surface, rowAccent, 0.18f)
+                selected -> ColorUtils.blendARGB(surface, rowAccent, 0.14f)
+                else -> surface
+            },
+        )
+        card.strokeColor = if (focused || selected) rowAccent else divider
+        card.strokeWidth = dp(
+            when {
+                focused -> 4
+                selected -> 3
+                else -> 1
+            },
+        )
+        if (focused) {
+            themePickerFocusLabel.text = getString(R.string.pcview_theme_picker_focus_format, label, subtitle)
+            themePickerFocusLabel.setTextColor(rowAccent)
+        }
+    }
+
+    private fun getThemePickerSubtitle(theme: String): String {
+        return when (theme) {
+            NovaThemeManager.THEME_PORTABLE_CHROME -> getString(R.string.pcview_theme_portable_chrome_subtitle)
+            NovaThemeManager.THEME_OLED -> getString(R.string.pcview_theme_oled_subtitle)
+            NovaThemeManager.THEME_MIAMI -> getString(R.string.pcview_theme_miami_subtitle)
+            NovaThemeManager.THEME_HIGH_CONTRAST -> getString(R.string.pcview_theme_high_contrast_subtitle)
+            NovaThemeManager.THEME_MATERIAL_YOU -> getString(R.string.pcview_theme_material_you_subtitle)
+            else -> getString(R.string.pcview_theme_polaris_subtitle)
+        }
+    }
+
+    private fun getThemePickerPreviewAccent(theme: String): Int {
+        return ContextCompat.getColor(
+            this,
+            when (theme) {
+                NovaThemeManager.THEME_PORTABLE_CHROME -> R.color.nova_portable_accent
+                NovaThemeManager.THEME_OLED -> R.color.nova_oled_accent
+                NovaThemeManager.THEME_MIAMI -> R.color.nova_miami_accent
+                NovaThemeManager.THEME_HIGH_CONTRAST -> R.color.nova_hc_accent
+                else -> R.color.nova_polaris_accent
+            },
+        )
+    }
+
+    private fun dp(value: Int): Int = UiHelper.dpToPx(this, value.toFloat()).toInt()
 
     private fun applyThemeSelection(theme: String) {
         if (theme == NovaThemeManager.getTheme(this)) {
@@ -1198,8 +1446,11 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
 
         val sheet = BottomSheetDialog(this, R.style.NovaBottomSheet)
         sheet.setContentView(R.layout.nova_app_context_sheet)
-        sheet.behavior.state = BottomSheetBehavior.STATE_EXPANDED
-        sheet.behavior.skipCollapsed = true
+        val sheetRoot = sheet.findViewById<View>(R.id.nova_sheet_root)
+        sheet.setOnShowListener {
+            NovaSheetChrome.applyBottomSheetChrome(sheet, sheetRoot)
+            sheet.findViewById<TextView>(R.id.sheet_app_name)?.let(NovaSheetChrome::styleSheetTitle)
+        }
         sheet.setOnDismissListener { startComputerUpdates() }
 
         val titleView = sheet.findViewById<TextView>(R.id.sheet_app_name)
@@ -1329,11 +1580,10 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val deleteItem = TextView(this)
         deleteItem.text = getString(R.string.pcview_menu_delete_pc)
         deleteItem.textSize = 15f
-        deleteItem.setTextColor(ContextCompat.getColor(this, R.color.nova_error))
+        NovaSheetChrome.styleSheetAction(deleteItem, destructive = true)
         val pad = UiHelper.dpToPx(this, 24f).toInt()
         val padV = UiHelper.dpToPx(this, 14f).toInt()
         deleteItem.setPadding(pad, padV, pad, padV)
-        deleteItem.setBackgroundResource(R.drawable.nova_dialog_choice_bg)
         UiHelper.applyTvFocusStyle(deleteItem)
         deleteItem.setOnClickListener {
             sheet.dismiss()
@@ -1378,11 +1628,10 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val item = TextView(this)
         item.text = label
         item.textSize = 15f
-        item.setTextColor(ContextCompat.getColor(this, R.color.nova_text_primary))
+        NovaSheetChrome.styleSheetAction(item)
         val pad = UiHelper.dpToPx(this, 24f).toInt()
         val padV = UiHelper.dpToPx(this, 14f).toInt()
         item.setPadding(pad, padV, pad, padV)
-        item.setBackgroundResource(R.drawable.nova_dialog_choice_bg)
         UiHelper.applyTvFocusStyle(item)
         item.setOnClickListener { action.run() }
         container.addView(item)

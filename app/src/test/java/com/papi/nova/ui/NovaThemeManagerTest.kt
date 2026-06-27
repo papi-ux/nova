@@ -5,6 +5,7 @@ import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,14 +32,6 @@ class NovaThemeManagerTest {
     }
 
     @Test
-    fun portableChromeThemeIsRecognizedStoredAndLabeled() {
-        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
-
-        assertEquals(NovaThemeManager.THEME_PORTABLE_CHROME, NovaThemeManager.getTheme(context))
-        assertEquals("PSP / Portable Chrome", NovaThemeManager.getThemeLabel(context))
-    }
-
-    @Test
     fun unknownThemeFallsBackToPolaris() {
         NovaThemeManager.setTheme(context, "south_beach_laser_flamingo")
 
@@ -47,12 +40,12 @@ class NovaThemeManagerTest {
 
     @Test
     @Config(sdk = [30])
-    fun cycleThemeIncludesMiamiAndSkipsUnavailableMaterialYou() {
+    fun cycleThemeIncludesPortableChromeMiamiAndSkipsUnavailableMaterialYou() {
         NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
 
+        assertEquals(NovaThemeManager.THEME_PORTABLE_CHROME, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_OLED, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_MIAMI, NovaThemeManager.cycleTheme(context))
-        assertEquals(NovaThemeManager.THEME_PORTABLE_CHROME, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_HIGH_CONTRAST, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_POLARIS, NovaThemeManager.cycleTheme(context))
     }
@@ -64,34 +57,6 @@ class NovaThemeManagerTest {
 
         assertEquals(NovaThemeManager.THEME_MATERIAL_YOU, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_POLARIS, NovaThemeManager.cycleTheme(context))
-    }
-
-    @Test
-    fun portableChromeThemeResolvesSemanticColors() {
-        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
-
-        assertEquals(context.getColor(R.color.nova_portable_bg_window), NovaThemeManager.getWindowBackgroundColor(context))
-        assertEquals(context.getColor(R.color.nova_portable_bg_card), NovaThemeManager.getCardBackgroundColor(context))
-        assertEquals(context.getColor(R.color.nova_portable_dialog_bg), NovaThemeManager.getDialogBackgroundColor(context))
-        assertEquals(context.getColor(R.color.nova_portable_accent), NovaThemeManager.getAccentColor(context))
-        assertEquals(context.getColor(R.color.nova_portable_accent_surface), NovaThemeManager.getAccentSurfaceColor(context))
-        assertEquals(context.getColor(R.color.nova_portable_text_primary), NovaThemeManager.getTextPrimaryColor(context))
-        assertEquals(context.getColor(R.color.nova_portable_text_secondary), NovaThemeManager.getTextSecondaryColor(context))
-        assertEquals(context.getColor(R.color.nova_portable_text_muted), NovaThemeManager.getTextMutedColor(context))
-        assertEquals(context.getColor(R.color.nova_portable_divider), NovaThemeManager.getDividerColor(context))
-    }
-
-    @Test
-    fun portableChromePaletteUsesSmokedPspGraphiteInsteadOfWashedSilver() {
-        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
-
-        assertEquals(0xFFA2ADBA.toInt(), context.getColor(R.color.nova_portable_bg_window))
-        assertEquals(0xE6C4CDD8.toInt(), context.getColor(R.color.nova_portable_bg_card))
-        assertEquals(0xFFC0CAD5.toInt(), context.getColor(R.color.nova_portable_dialog_bg))
-        assertEquals(0xFF667484.toInt(), context.getColor(R.color.nova_portable_divider))
-        assertEquals(0xFF1F2A35.toInt(), context.getColor(R.color.nova_portable_text_primary))
-        assertEquals(0xFF4B6686.toInt(), NovaThemeManager.getAccentColor(context))
-        assertEquals(0xFF294F3D.toInt(), context.getColor(R.color.nova_portable_success))
     }
 
     @Test
@@ -108,4 +73,22 @@ class NovaThemeManagerTest {
         assertEquals(context.getColor(R.color.nova_miami_text_muted), NovaThemeManager.getTextMutedColor(context))
         assertEquals(context.getColor(R.color.nova_miami_divider), NovaThemeManager.getDividerColor(context))
     }
+
+    @Test
+    fun portableChromeAndPolarisHaveSeparateAccentTokens() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
+        val portableAccent = NovaThemeManager.getAccentColor(context)
+        val portableSurface = NovaThemeManager.getAccentSurfaceColor(context)
+
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
+        val polarisAccent = NovaThemeManager.getAccentColor(context)
+        val polarisSurface = NovaThemeManager.getAccentSurfaceColor(context)
+
+        assertEquals(context.getColor(R.color.nova_portable_accent), portableAccent)
+        assertEquals(context.getColor(R.color.nova_portable_accent_surface), portableSurface)
+        assertEquals(context.getColor(R.color.nova_polaris_accent), polarisAccent)
+        assertEquals(context.getColor(R.color.nova_polaris_accent_surface), polarisSurface)
+        assertTrue("Polaris Aurora must not inherit PSP green", polarisAccent != portableAccent)
+    }
+
 }

@@ -6,10 +6,10 @@
         by AppBaseTheme from res/values-vXX/styles.xml on newer devices.
     -->
     <style name="AppBaseTheme" parent="Theme.MaterialComponents.NoActionBar">
-        <item name="colorPrimary">@color/nova_accent</item>
+        <item name="colorPrimary">@color/nova_polaris_accent</item>
         <item name="colorPrimaryDark">@android:color/transparent</item>
-        <item name="colorAccent">@color/nova_accent</item>
-        <item name="colorControlHighlight">@color/nova_accent_surface</item>
+        <item name="colorAccent">@color/nova_polaris_accent</item>
+        <item name="colorControlHighlight">@color/nova_polaris_accent_surface</item>
         <item name="colorSurface">@color/nova_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_text_primary</item>
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
@@ -30,6 +30,22 @@
         <item name="android:textColor">@color/nova_text_primary</item>
     </style>
 
+    <!-- PSP / Portable Chrome — smoked graphite/silver shell with restrained green status accent. -->
+    <style name="AppTheme.PortableChrome" parent="AppBaseTheme">
+        <item name="android:colorBackground">@color/nova_portable_bg_window</item>
+        <item name="android:windowBackground">@color/nova_portable_bg_window</item>
+        <item name="android:textColor">@color/nova_portable_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_portable_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_portable_text_secondary</item>
+        <item name="android:navigationBarColor">@color/nova_portable_bg_window</item>
+        <item name="android:statusBarColor">@color/nova_portable_bg_window</item>
+        <item name="colorPrimary">@color/nova_portable_accent</item>
+        <item name="colorAccent">@color/nova_portable_accent</item>
+        <item name="colorControlHighlight">@color/nova_portable_accent_surface</item>
+        <item name="colorSurface">@color/nova_portable_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_portable_text_primary</item>
+    </style>
+
     <!-- Console OLED — pure black surfaces and dim accents for low-emission handheld play. -->
     <style name="AppTheme.OLED">
         <item name="android:colorBackground">@color/nova_oled_bg_window</item>
@@ -37,9 +53,13 @@
         <item name="android:textColor">@color/nova_oled_text_primary</item>
         <item name="android:navigationBarColor">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:textColorPrimary">@color/nova_oled_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_oled_text_secondary</item>
         <item name="colorPrimary">@color/nova_oled_accent</item>
         <item name="colorAccent">@color/nova_oled_accent</item>
         <item name="colorControlHighlight">@color/nova_oled_accent_surface</item>
+        <item name="colorSurface">@color/nova_oled_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_oled_text_primary</item>
     </style>
 
     <!-- Miami Nebula — deep plum shell with neon flamingo accent. -->
@@ -58,21 +78,6 @@
         <item name="colorOnSurface">@color/nova_miami_text_primary</item>
     </style>
 
-    <!-- Portable Chrome - dim Moonlight-grey silver shell matching Polaris Portable Chrome. -->
-    <style name="AppTheme.PortableChrome">
-        <item name="android:colorBackground">@color/nova_portable_bg_window</item>
-        <item name="android:windowBackground">@color/nova_portable_bg_window</item>
-        <item name="android:textColor">@color/nova_portable_text_primary</item>
-        <item name="android:textColorPrimary">@color/nova_portable_text_primary</item>
-        <item name="android:textColorSecondary">@color/nova_portable_text_secondary</item>
-        <item name="android:navigationBarColor">@color/nova_portable_deep</item>
-        <item name="android:statusBarColor">@color/nova_portable_deep</item>
-        <item name="colorPrimary">@color/nova_portable_accent</item>
-        <item name="colorAccent">@color/nova_portable_accent</item>
-        <item name="colorControlHighlight">@color/nova_portable_accent_surface</item>
-        <item name="colorSurface">@color/nova_portable_bg_elevated</item>
-        <item name="colorOnSurface">@color/nova_portable_text_primary</item>
-    </style>
     <!-- High Contrast — firm outlines and bright copy without abandoning Nova's dark UI. -->
     <style name="AppTheme.HighContrast">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
@@ -118,6 +123,20 @@
         <item name="colorButtonNormal">@android:color/white</item>
     </style>
 
+    <style name="SettingsTheme.PortableChrome" parent="SettingsTheme">
+        <item name="android:colorBackground">@color/nova_portable_bg_window</item>
+        <item name="android:windowBackground">@color/nova_portable_bg_window</item>
+        <item name="android:textColorPrimary">@color/nova_portable_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_portable_text_secondary</item>
+        <item name="colorPrimary">@color/nova_portable_accent</item>
+        <item name="colorAccent">@color/nova_portable_accent</item>
+        <item name="colorControlHighlight">@color/nova_portable_accent_surface</item>
+        <item name="colorSurface">@color/nova_portable_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_portable_text_primary</item>
+        <item name="android:navigationBarColor">@color/nova_portable_bg_window</item>
+        <item name="android:statusBarColor">@color/nova_portable_bg_window</item>
+    </style>
+
     <!-- Settings OLED variant -->
     <style name="SettingsTheme.OLED" parent="SettingsTheme">
         <item name="android:colorBackground">@color/nova_oled_bg_window</item>
@@ -126,7 +145,6 @@
         <item name="android:textColorSecondary">@color/nova_oled_text_secondary</item>
         <item name="colorPrimary">@color/nova_oled_accent</item>
         <item name="colorAccent">@color/nova_oled_accent</item>
-        <item name="colorControlHighlight">@color/nova_oled_accent_surface</item>
         <item name="colorSurface">@color/nova_oled_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_oled_text_primary</item>
         <item name="android:navigationBarColor">@android:color/black</item>
@@ -147,19 +165,6 @@
         <item name="android:statusBarColor">@color/nova_miami_void</item>
     </style>
 
-    <style name="SettingsTheme.PortableChrome" parent="SettingsTheme">
-        <item name="android:colorBackground">@color/nova_portable_bg_window</item>
-        <item name="android:windowBackground">@color/nova_portable_bg_window</item>
-        <item name="android:textColorPrimary">@color/nova_portable_text_primary</item>
-        <item name="android:textColorSecondary">@color/nova_portable_text_secondary</item>
-        <item name="colorPrimary">@color/nova_portable_accent</item>
-        <item name="colorAccent">@color/nova_portable_accent</item>
-        <item name="colorControlHighlight">@color/nova_portable_accent_surface</item>
-        <item name="colorSurface">@color/nova_portable_bg_elevated</item>
-        <item name="colorOnSurface">@color/nova_portable_text_primary</item>
-        <item name="android:navigationBarColor">@color/nova_portable_deep</item>
-        <item name="android:statusBarColor">@color/nova_portable_deep</item>
-    </style>
     <style name="SettingsTheme.HighContrast" parent="SettingsTheme">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
         <item name="android:windowBackground">@color/nova_hc_bg_window</item>
@@ -177,9 +182,9 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:colorBackground">@color/nova_bg_window</item>
         <item name="android:windowBackground">@color/nova_bg_window</item>
-        <item name="colorPrimary">@color/nova_accent</item>
-        <item name="colorAccent">@color/nova_accent</item>
-        <item name="colorControlHighlight">@color/nova_accent_surface</item>
+        <item name="colorPrimary">@color/nova_polaris_accent</item>
+        <item name="colorAccent">@color/nova_polaris_accent</item>
+        <item name="colorControlHighlight">@color/nova_polaris_accent_surface</item>
         <item name="colorSurface">@color/nova_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_text_primary</item>
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
@@ -214,7 +219,6 @@
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
         <item name="android:textColorSecondary">@color/nova_text_secondary</item>
         <item name="colorAccent">?attr/colorAccent</item>
-        <item name="colorControlHighlight">?attr/colorControlHighlight</item>
         <item name="buttonBarPositiveButtonStyle">@style/NovaDialogButton</item>
         <item name="buttonBarNegativeButtonStyle">@style/NovaDialogButton</item>
         <item name="buttonBarNeutralButtonStyle">@style/NovaDialogButton</item>

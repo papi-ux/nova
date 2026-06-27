@@ -44,6 +44,7 @@ import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
+import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.CacheHelper
 import com.papi.nova.utils.Dialog
@@ -732,8 +733,11 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
     private fun showAppBottomSheet(selectedApp: AppObject) {
         val sheet = BottomSheetDialog(this, R.style.NovaBottomSheet)
         sheet.setContentView(R.layout.nova_app_context_sheet)
-        sheet.behavior.state = BottomSheetBehavior.STATE_EXPANDED
-        sheet.behavior.skipCollapsed = true
+        val sheetRoot = sheet.findViewById<View>(R.id.nova_sheet_root)
+        sheet.setOnShowListener {
+            NovaSheetChrome.applyBottomSheetChrome(sheet, sheetRoot)
+            sheet.findViewById<TextView>(R.id.sheet_app_name)?.let(NovaSheetChrome::styleSheetTitle)
+        }
 
         val titleView = sheet.findViewById<TextView>(R.id.sheet_app_name)
         titleView?.text = selectedApp.app.appName
@@ -869,15 +873,11 @@ class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
         val item = TextView(this)
         item.text = label
         item.textSize = 15f
-        item.setTextColor(ContextCompat.getColor(this, R.color.nova_text_primary))
+        NovaSheetChrome.styleSheetAction(item)
         item.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         val pad = UiHelper.dpToPx(this, 24f).toInt()
         val padV = UiHelper.dpToPx(this, 14f).toInt()
         item.setPadding(pad, padV, pad, padV)
-
-        val outValue = android.util.TypedValue()
-        theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
-        item.setBackgroundResource(outValue.resourceId)
 
         item.setOnClickListener { action.run() }
         container.addView(item)
