@@ -5233,6 +5233,10 @@ object : com.papi.nova.api.PolarisEventSource.EventListener {
 override fun onSessionEvent(event:String, state:String, message:String) {
 LimeLog.info("Nova SSE: " + event + " [" + state + "] " + message)
 novaProgressOverlay!!.updateState(state, message)
+                if (com.papi.nova.api.PolarisSessionEvents.shouldFinishGameActivity(event, state)) {
+                    LimeLog.info("Nova SSE: terminal session event received; ending local stream activity")
+                    runOnUiThread { finishAfterRemotePolarisSessionEnd() }
+                }
 }
 override fun onStateUpdate(sessionState:String, cageRunning:Boolean, screenLocked:Boolean) {
 novaProgressOverlay!!.updateState(sessionState, "")
@@ -5820,6 +5824,22 @@ this@Game.getIntent().getStringExtra(EXTRA_PC_UUID),
 host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST)
 )
 }
+
+private fun finishAfterRemotePolarisSessionEnd() {
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        markLocalSessionEnd()
+        stopBackgroundResumeWindow()
+        stopPolarisLiveSessionStatusRefresh()
+        if (novaReconnectOverlay != null) {
+            novaReconnectOverlay!!.dismiss()
+        }
+        if (novaProgressOverlay != null) {
+            novaProgressOverlay!!.dismiss()
+        }
+        finish()
+    }
 
  fun disconnect() {
 prepareBackgroundResumeWindow()
