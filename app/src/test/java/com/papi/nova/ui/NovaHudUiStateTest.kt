@@ -66,6 +66,36 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun cudaTargetDeviceKeepsGpuPathInStreamModeLabelWhenResidencyMissing() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 59.8,
+            targetFps = 60.0,
+            latencyMs = 18,
+            codec = "hevc_nvenc",
+            bitrateKbps = 20000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc_nvenc",
+                    targetDevice = "cuda",
+                    targetResidency = "",
+                    targetFormat = "p010"
+                ),
+                capture = PolarisSessionStatus.CaptureStatus(
+                    transport = "dmabuf",
+                    residency = ""
+                )
+            ),
+            sparklineSamples = emptyList()
+        )
+
+        assertTrue(state.streamModeLabel.contains("GPU"))
+        assertTrue(state.streamModeLabel.contains("10b"))
+    }
+
+    @Test
     fun hudModesMapCasualPerformanceAndDebugPreferences() {
         assertEquals(NovaHudMode.MINIMAL, NovaHudMode.fromPreference("minimal"))
         assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.fromPreference("performance"))

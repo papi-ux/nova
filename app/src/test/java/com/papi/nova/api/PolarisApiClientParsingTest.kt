@@ -255,6 +255,23 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun parseSessionStatus_cudaTargetDeviceImpliesGpuPathWhenResidencyMissing() {
+        val status = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject(
+                "{\"state\":\"streaming\",\"streaming_active\":true," +
+                    "\"display_mode\":{\"label\":\"Virtual Display\",\"selection\":\"virtual_display\"," +
+                    "\"virtual_display\":true,\"effective_headless\":false}," +
+                    "\"capture\":{\"transport\":\"dmabuf\"}," +
+                    "\"encoder\":{\"codec\":\"hevc_nvenc\",\"target_device\":\"cuda\",\"target_format\":\"p010\"}}"
+            )
+        )
+
+        assertEquals("cuda", status.encoder.targetDevice)
+        assertTrue(status.isGpuPath)
+        assertTrue(status.isTenBitActive)
+    }
+
+    @Test
     fun parseGameResponse_includesLaunchModeContract() {
         val json = JSONObject(
             "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Steam Big Picture\"," +

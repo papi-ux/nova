@@ -33,6 +33,26 @@ class NovaGameDetailUiStateTest {
     }
 
     @Test
+    fun virtualRecommendationWinsWhenClientSettingsHaveNoDisplayMode() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                launchMode = PolarisGame.LaunchModeContract(
+                    preferredMode = "headless",
+                    recommendedMode = "virtual_display",
+                    allowedModes = listOf("headless", "virtual_display")
+                )
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(),
+            profilePreference = "auto"
+        )
+
+        assertEquals("virtual_display", state.playMode)
+        assertTrue(state.playUsesVirtualDisplay)
+        assertTrue(state.playEnabled)
+    }
+
+    @Test
     fun unavailableVirtualDisplayFallsBackToHeadlessAndShowsUnavailableState() {
         val state = NovaGameDetailUiState.from(
             game = game(

@@ -54,11 +54,14 @@ object NovaPolarisSyncUiStateMapper {
         unsetLabel: String = "Unset"
     ): NovaPolarisSyncUiState {
         val fallback = if (settingsUnavailable) unavailableLabel else loadingLabel
-        val selectedMode = settings?.desired?.streamDisplayMode?.takeIf { it.isNotBlank() }
-            ?: settings?.effective?.streamDisplayMode.orEmpty()
+        val selectedMode = canonicalDisplayMode(
+            settings?.desired?.streamDisplayMode?.takeIf { it.isNotBlank() }
+                ?: settings?.effective?.streamDisplayMode.orEmpty()
+        )
         val availableModes = settings?.capabilities?.modes
             ?.takeIf { it.isNotEmpty() }
-            ?.associateBy { it.value }
+            ?.groupBy { canonicalDisplayMode(it.value) }
+            ?.mapValues { (_, modes) -> modes.any { it.available } }
         val profileState = PolarisProfileSync.compare(novaDisplayMode, novaBitrateKbps, settings)
         val hasPolarisProfile = settings?.let { PolarisProfileSync.polarisOverrideProfile(it) } != null
         val aiAvailable = settings?.capabilities?.aiAutoQualityControl == true ||
@@ -81,10 +84,11 @@ object NovaPolarisSyncUiStateMapper {
             desiredModeLabel = settings?.desiredModeLabel?.ifBlank { unsetLabel } ?: fallback,
             effectiveModeLabel = settings?.effectiveModeLabel?.ifBlank { unsetLabel } ?: fallback,
             modes = DISPLAY_MODES.map { mode ->
-                val available = availableModes?.get(mode)?.available ?: true
+                val canonicalMode = canonicalDisplayMode(mode)
+                val available = availableModes?.get(canonicalMode) ?: true
                 NovaPolarisModeUiState(
                     mode = mode,
-                    selected = selectedMode == mode,
+                    selected = selectedMode == canonicalMode,
                     enabled = settings != null && available && !busy
                 )
             },
@@ -99,5 +103,13 @@ object NovaPolarisSyncUiStateMapper {
             autoSyncChecked = autoSyncEnabled,
             autoSyncEnabled = hasServerUuid && settings != null && !busy
         )
+    }
+
+    private fun canonicalDisplayMode(mode: String): String {
+        return when (mode.trim().lowercase()) {
+            "headless", PolarisClientSettings.MODE_HEADLESS_STREAM, "host_display" -> PolarisClientSettings.MODE_HEADLESS_STREAM
+            "virtual_display", PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
+            else -> mode.trim().lowercase()
+        }
     }
 }
