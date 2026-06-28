@@ -264,7 +264,8 @@ data class PolarisSessionStatus(
     val isShuttingDown get() = shutdownRequested || normalizedState == "tearing_down"
     val isResumable get() = !isShuttingDown && gameId > 0 && (isSessionAlive || isPausedForResume)
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
-    val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true)
+    val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true) ||
+        (encoder.targetResidency.isBlank() && encoder.targetDevice.isCudaGpuTarget)
     val isHeadlessMode get() = displayMode.effectiveHeadless
     val isVirtualDisplayMode get() = displayMode.virtualDisplay
     val sessionModeLabel get() = when {
@@ -277,6 +278,11 @@ data class PolarisSessionStatus(
     val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice
     val canAdjustHostTuning get() = controls.hostTuningAllowed || (ownedByClient && !isViewer)
     val canQuit get() = controls.quitAllowed || (ownedByClient && !isViewer)
+
+    private val String.isCudaGpuTarget: Boolean
+        get() = equals("cuda", ignoreCase = true) ||
+            equals("gpu", ignoreCase = true) ||
+            equals("nvidia", ignoreCase = true)
     val isClientPresentationSynced get() = clientPresentation.status.equals("synced", ignoreCase = true)
     val hasOptimizerSync get() = syncStatus.available
     val optimizationSourceLabel get() = when {

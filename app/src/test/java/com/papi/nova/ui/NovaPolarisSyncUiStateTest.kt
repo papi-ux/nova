@@ -56,6 +56,34 @@ class NovaPolarisSyncUiStateTest {
     }
 
     @Test
+    fun normalizedVirtualDisplayModeSelectsAndDisablesCanonicalRow() {
+        val state = NovaPolarisSyncUiStateMapper.build(
+            settings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = "virtual_display"),
+                capabilities = PolarisClientSettings.Capabilities(
+                    modes = listOf(
+                        PolarisClientSettings.ModeOption(
+                            value = "virtual_display",
+                            available = false,
+                            reason = "CUDA capture path is disabled"
+                        )
+                    )
+                )
+            ),
+            busy = false,
+            settingsUnavailable = false,
+            autoSyncEnabled = false,
+            hasServerUuid = true,
+            novaDisplayMode = "1920x1080@60",
+            novaBitrateKbps = 30000
+        )
+
+        val virtual = state.modes.first { it.mode == PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY }
+        assertTrue(virtual.selected)
+        assertFalse(virtual.enabled)
+    }
+
+    @Test
     fun busyStateDisablesAllMutatingActions() {
         val state = NovaPolarisSyncUiStateMapper.build(
             settings = settings(),
