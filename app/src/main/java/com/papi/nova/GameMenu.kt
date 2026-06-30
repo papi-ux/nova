@@ -3,16 +3,22 @@ package com.papi.nova
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.graphics.Typeface
 import android.os.Handler
 import android.os.Looper
 import android.view.ContextThemeWrapper
-import android.view.ViewTreeObserver
-import android.widget.ArrayAdapter
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.KeyboardTranslator
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.utils.KeyConfigHelper
+import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.utils.KeyMapper
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -30,7 +36,7 @@ class GameMenu(
         constructor(label: String?, runnable: Runnable?) : this(label, false, runnable)
     }
 
-    private var currentDialog: AlertDialog? = null
+    private var currentSheet: BottomSheetDialog? = null
 
     private fun getString(id: Int): String = game.resources.getString(id)
 
@@ -67,45 +73,89 @@ class GameMenu(
     private fun showMenuDialog(title: String, options: Array<MenuOption>) {
         val themeResId = game.applicationInfo.theme
         val themedContext = ContextThemeWrapper(dialogScreenContext, themeResId)
-        val builder = AlertDialog.Builder(themedContext)
-        builder.setTitle(title)
+        val sheet = BottomSheetDialog(themedContext)
+        val scrollView = ScrollView(themedContext)
+        val container = NovaSheetChrome.createSheetContainer(themedContext)
 
-        val actions = ArrayAdapter<String>(themedContext, android.R.layout.simple_list_item_1)
-        builder.setAdapter(actions) { _, which ->
-            val label = actions.getItem(which)
-            for (option in options) {
-                if (label != null && label == option.label) {
+        val titleView = TextView(themedContext).apply {
+            text = title
+            textSize = 20f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.START
+            setPadding(0, 0, 0, dp(themedContext, 12))
+            NovaSheetChrome.styleSheetTitle(this)
+        }
+        container.addView(
+            titleView,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        var firstActionRow: TextView? = null
+        options.forEach { option ->
+            val label = option.label ?: return@forEach
+            val row = TextView(themedContext).apply {
+                text = label
+                contentDescription = label
+                textSize = 16f
+                gravity = Gravity.CENTER_VERTICAL
+                minHeight = dp(themedContext, GAME_MENU_ROW_HEIGHT_DP)
+                setPadding(dp(themedContext, 16), 0, dp(themedContext, 16), 0)
+                NovaSheetChrome.styleSheetAction(
+                    this,
+                    destructive = label == getString(R.string.game_menu_quit_session)
+                )
+                setOnClickListener {
+                    hideMenu()
                     run(option)
-                    break
                 }
             }
-        }
-
-        builder.setOnCancelListener { hideMenu() }
-
-        currentDialog?.dismiss()
-        currentDialog = builder.show()
-
-        val window = currentDialog?.window
-        if (window != null) {
-            val decorView = window.decorView
-            decorView.viewTreeObserver.addOnGlobalLayoutListener(
-                object : ViewTreeObserver.OnGlobalLayoutListener {
-                    override fun onGlobalLayout() {
-                        decorView.viewTreeObserver.removeOnGlobalLayoutListener(this)
-
-                        Handler(Looper.getMainLooper()).post {
-                            for (option in options) {
-                                actions.add(option.label)
-                            }
-                            actions.notifyDataSetChanged()
-                        }
-                    }
-                },
+            if (firstActionRow == null) {
+                firstActionRow = row
+            }
+            container.addView(
+                row,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(themedContext, GAME_MENU_ROW_HEIGHT_DP)
+                ).apply {
+                    topMargin = dp(themedContext, 6)
+                }
             )
         }
-    }
 
+        scrollView.addView(
+            container,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        currentSheet?.dismiss()
+        currentSheet = sheet
+        sheet.setContentView(scrollView)
+        sheet.setOnCancelListener {
+            if (currentSheet == sheet) {
+                currentSheet = null
+            }
+        }
+        sheet.setOnDismissListener {
+            if (currentSheet == sheet) {
+                currentSheet = null
+            }
+        }
+        sheet.show()
+        NovaSheetChrome.applyBottomSheetChrome(
+            sheet,
+            scrollView,
+            minLandscapeWidthDp = 520,
+            maxLandscapeWidthDp = 820
+        )
+        firstActionRow?.let { row -> row.post { row.requestFocus() } }
+    }
     private fun showSpecialKeysMenu() {
         val options = ArrayList<MenuOption>()
 
@@ -304,10 +354,12 @@ class GameMenu(
             if (serverCmds.isEmpty()) {
                 val themeResId = game.applicationInfo.theme
                 val themedContext = ContextThemeWrapper(dialogScreenContext, themeResId)
-                AlertDialog.Builder(themedContext)
+                val serverCommandDialog = AlertDialog.Builder(themedContext)
                     .setTitle(R.string.game_dialog_title_server_cmd_empty)
                     .setMessage(R.string.game_dialog_message_server_cmd_empty)
-                    .show()
+                    .create()
+                NovaSheetChrome.applyAlertDialogChrome(serverCommandDialog)
+                serverCommandDialog.show()
             } else {
                 hideMenu()
                 showServerCmd(serverCmds)
@@ -342,19 +394,22 @@ class GameMenu(
     }
 
     override fun hideMenu() {
-        if (currentDialog != null && currentDialog?.isShowing == true) {
-            currentDialog?.dismiss()
-        }
-        currentDialog = null
+        currentSheet?.dismiss()
+        currentSheet = null
     }
 
     override fun isMenuOpen(): Boolean {
-        return currentDialog != null && currentDialog?.isShowing == true
+        return currentSheet?.isShowing == true
+    }
+
+    private fun dp(context: Context, value: Int): Int {
+        return (value * context.resources.displayMetrics.density).toInt()
     }
 
     companion object {
         const val KEY_UP_DELAY: Long = 25
         private const val TEST_GAME_FOCUS_DELAY: Long = 10
+        private const val GAME_MENU_ROW_HEIGHT_DP: Int = 52
         const val PREF_NAME: String = "specialPrefs"
         const val KEY_NAME: String = "special_key"
     }

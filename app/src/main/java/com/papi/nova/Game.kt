@@ -54,7 +54,10 @@ import com.papi.nova.utils.PerformanceDataTracker
 import com.papi.nova.utils.ServerHelper
 import com.papi.nova.utils.ShortcutHelper
 import com.papi.nova.utils.SpinnerDialog
+import com.papi.nova.ui.NovaSheetChrome
+import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.UiHelper
+import com.google.android.material.bottomsheet.BottomSheetDialog
 
 import org.json.JSONObject
 
@@ -77,6 +80,7 @@ import android.content.res.Configuration
 import android.graphics.Outline
 import android.graphics.Point
 import android.graphics.Rect
+import android.graphics.Typeface
 import android.hardware.display.DisplayManager
 import android.hardware.input.InputManager
 import android.media.AudioManager
@@ -107,6 +111,7 @@ import android.view.ViewParent
 import android.view.Window
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
@@ -481,9 +486,31 @@ getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
 
 clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
- // Start the spinner
-        spinner = SpinnerDialog.displayDialog(this, getResources().getString(R.string.conn_establishing_title),
-getResources().getString(R.string.conn_establishing_msg), true)
+ // Show Nova verbose session progress overlay immediately. The legacy spinner overlaps it.
+        novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)
+        novaProgressOverlay?.show()
+
+appName = this@Game.getIntent().getStringExtra(EXTRA_APP_NAME)
+pcName = this@Game.getIntent().getStringExtra(EXTRA_PC_NAME)
+
+host = this@Game.getIntent().getStringExtra(EXTRA_HOST)
+port = this@Game.getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT)
+httpsPort = this@Game.getIntent().getIntExtra(EXTRA_HTTPS_PORT, 0) // 0 is treated as unknown
+appUUID = this@Game.getIntent().getStringExtra(EXTRA_APP_UUID)
+appId = this@Game.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID)
+uniqueId = this@Game.getIntent().getStringExtra(EXTRA_UNIQUEID)
+vDisplay = this@Game.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false)
+var displayModeExplicit:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false)
+watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
+watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
+watchStreamHeight = this@Game.getIntent().getIntExtra(EXTRA_STREAM_HEIGHT, 0)
+watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)
+launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
+launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
+serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
+var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
+var derCertData:ByteArray? = this@Game.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT)
+
 
 
 var currentDisplay:Display? = null
@@ -539,9 +566,16 @@ displayHeight = if (shouldInvertDecoderResolution) prefConfig!!.width else prefC
 	            setPreferredOrientationForActivity()
 	}
 
-if (watchOnlyRequested && watchStreamWidth > 0 && watchStreamHeight > 0)
+if (watchStreamWidth > 0 && watchStreamHeight > 0)
+{
+if (watchOnlyRequested)
 {
 LimeLog.info("Nova: Watch mode using active stream resolution " + watchStreamWidth + "x" + watchStreamHeight)
+}
+else
+{
+LimeLog.info("Nova: Launch using explicit stream resolution " + watchStreamWidth + "x" + watchStreamHeight)
+}
 displayWidth = watchStreamWidth
 displayHeight = watchStreamHeight
 }
@@ -684,26 +718,6 @@ catch (e:SecurityException) {
             e!!.printStackTrace()
 }
 
-appName = this@Game.getIntent().getStringExtra(EXTRA_APP_NAME)
-pcName = this@Game.getIntent().getStringExtra(EXTRA_PC_NAME)
-
-host = this@Game.getIntent().getStringExtra(EXTRA_HOST)
-port = this@Game.getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT)
-httpsPort = this@Game.getIntent().getIntExtra(EXTRA_HTTPS_PORT, 0) // 0 is treated as unknown
-appUUID = this@Game.getIntent().getStringExtra(EXTRA_APP_UUID)
-appId = this@Game.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID)
-uniqueId = this@Game.getIntent().getStringExtra(EXTRA_UNIQUEID)
-vDisplay = this@Game.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false)
-var displayModeExplicit:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false)
-watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
-watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
-watchStreamHeight = this@Game.getIntent().getIntExtra(EXTRA_STREAM_HEIGHT, 0)
-watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)
-launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
-launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
-serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
-var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
-var derCertData:ByteArray? = this@Game.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT)
 
 app = NvApp(if (appName != null) appName else "app", appUUID, appId, appSupportsHdr)
 
@@ -724,7 +738,10 @@ e!!.printStackTrace()
  // Nova: set up Polaris integration without blocking stream startup on REST probes.
         com.papi.nova.manager.FeatureFlagManager.reset()
 novaApiClient = com.papi.nova.api.PolarisApiClient(this, host ?: "", httpsPort, serverCert)
+if (novaProgressOverlay == null)
+{
 novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)
+}
 novaLockScreenOverlay = com.papi.nova.ui.LockScreenOverlay(this, novaApiClient!!)
 novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this)
 novaResilienceManager = com.papi.nova.manager.ConnectionResilienceManager(
@@ -934,18 +951,25 @@ if (prefConfig!!.onscreenController)
             gamepadMask = gamepadMask or 1
 }
 
-var watchStreamFpsOverride:Boolean = watchOnlyRequested && watchStreamFps > 0f
-var launchRefreshRate:Float = if (watchStreamFpsOverride) watchStreamFps else prefConfig!!.fps
+var explicitStreamFpsOverride:Boolean = watchStreamFps > 0f
+var launchRefreshRate:Float = if (explicitStreamFpsOverride) watchStreamFps else prefConfig!!.fps
 var maxSupportedLaunchRefreshRate:Float = getMaxSupportedRefreshRate(currentDisplay)
-if (!watchStreamFpsOverride && (maxSupportedLaunchRefreshRate > 0 && launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f))
+if (!explicitStreamFpsOverride && (maxSupportedLaunchRefreshRate > 0 && launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f))
 {
 LimeLog.info(("Clamping launch refresh rate from " + launchRefreshRate +
 " to display max " + maxSupportedLaunchRefreshRate))
 launchRefreshRate = maxSupportedLaunchRefreshRate
 }
-if (watchStreamFpsOverride)
+if (explicitStreamFpsOverride)
+{
+if (watchOnlyRequested)
 {
 LimeLog.info("Nova: Watch mode using active stream FPS " + watchStreamFps)
+}
+else
+{
+LimeLog.info("Nova: Launch using explicit stream FPS " + watchStreamFps)
+}
 }
 var autoSafeTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeTargetFps(
 launchRefreshRate,
@@ -1173,6 +1197,7 @@ spinner = null
 }
 
  // If we can't find an AVC decoder, we can't proceed
+novaProgressOverlay?.dismiss()
             Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
 "This device or ROM doesn't support hardware accelerated H.264 playback.", true)
 return
@@ -4411,7 +4436,9 @@ override fun stageFailed(stage:String, portFlags:Int, errorCode:Int):Boolean {
 
 if (errorCode == 0 && portFlags != 0 && (portTestResult == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE || portTestResult == 0))
 {
-spinner!!.setMessage(getResources().getString(R.string.unlocking_or_starting))
+runOnUiThread {
+novaProgressOverlay?.updateState("unlocking_or_starting", getResources().getString(R.string.unlocking_or_starting))
+}
 return true
 }
 
@@ -4422,6 +4449,7 @@ if (spinner != null)
 spinner!!.dismiss()
 spinner = null
 }
+novaProgressOverlay?.dismiss()
 
 if (!displayedFailureDialog)
 {
@@ -5862,29 +5890,76 @@ Handler(Looper.getMainLooper()).postDelayed({ getApplicationContext().startActiv
 overridePendingTransition(0, 0) }, 900)
 }
  fun quit() {
-var context:Context?
-if (isOnExternalDisplay && ExternalDisplayControlActivity.instance != null)
+val dialogContext:Context = if (isOnExternalDisplay && ExternalDisplayControlActivity.instance != null)
 {
-context = ExternalDisplayControlActivity.instance
+ExternalDisplayControlActivity.instance!!
 }
 else
 {
-context = this
+this
 }
-var builder:AlertDialog.Builder = AlertDialog.Builder(context)
-builder.setTitle(R.string.game_dialog_title_quit_confirm)
-builder.setMessage(R.string.game_dialog_message_quit_confirm)
+fun dp(value:Float):Int = UiHelper.dpToPx(dialogContext, value).toInt()
 
-builder.setPositiveButton(getString(R.string.yes), { dialog, which->
+val sheet = BottomSheetDialog(dialogContext, R.style.NovaBottomSheet)
+val content = NovaSheetChrome.createSheetContainer(dialogContext, horizontalPaddingDp = 24, topPaddingDp = 22, bottomPaddingDp = 24)
+
+content.addView(TextView(dialogContext).apply {
+text = getString(R.string.game_dialog_title_quit_confirm)
+setTextColor(NovaThemeManager.getTextPrimaryColor(dialogContext))
+textSize = 22f
+typeface = Typeface.DEFAULT_BOLD
+includeFontPadding = false
+setPadding(0, 0, 0, dp(10f))
+NovaSheetChrome.styleSheetTitle(this)
+})
+
+content.addView(TextView(dialogContext).apply {
+text = getString(R.string.game_dialog_message_quit_confirm)
+setTextColor(NovaThemeManager.getTextSecondaryColor(dialogContext))
+textSize = 14f
+setLineSpacing(0f, 1.08f)
+setPadding(0, 0, 0, dp(20f))
+})
+
+val actions = LinearLayout(dialogContext).apply {
+orientation = LinearLayout.HORIZONTAL
+gravity = Gravity.CENTER_VERTICAL
+}
+val stayAction = TextView(dialogContext).apply {
+text = getString(R.string.game_dialog_action_stay_in_game)
+gravity = Gravity.CENTER
+textSize = 15f
+setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
+NovaSheetChrome.styleSheetAction(this)
+setOnClickListener { sheet.dismiss() }
+layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+marginEnd = dp(12f)
+}
+}
+val endAction = TextView(dialogContext).apply {
+text = getString(R.string.game_dialog_action_end_session)
+gravity = Gravity.CENTER
+textSize = 15f
+setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
+NovaSheetChrome.styleSheetAction(this, destructive = true)
+setOnClickListener {
+sheet.dismiss()
 quitOnStop = true
 markLocalSessionEnd()
-dialog!!.dismiss()
-finish() })
+finish()
+}
+layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+}
+actions.addView(stayAction)
+actions.addView(endAction)
+content.addView(actions)
 
-builder.setNegativeButton(getString(R.string.no), { dialog, which-> dialog!!.dismiss() })
-
-var dialog:AlertDialog? = builder.create()
-dialog!!.show()
+sheet.setContentView(content)
+sheet.setOnShowListener {
+NovaSheetChrome.applyBottomSheetChrome(sheet, content, widthFraction = 0.52f, minLandscapeWidthDp = 520, maxLandscapeWidthDp = 760, maxHeightLandscape = 0.82f, maxHeightPortrait = 0.70f)
+content.post { stayAction.requestFocus() }
+}
+sheet.show()
 }
 override fun showGameMenu(device:GameInputDevice?) {
 if (isOnExternalDisplay)
