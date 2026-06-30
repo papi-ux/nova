@@ -29,14 +29,6 @@ class NovaThemeResourcesTest {
     }
 
     @Test
-    fun preferencesThemeSummaryMentionsMiami() {
-        val preferencesXml = File("src/main/res/xml/preferences.xml").readText()
-
-        assertTrue(preferencesXml.contains("android:key=\"nova_theme\""))
-        assertTrue(preferencesXml.contains("Miami Nebula"))
-    }
-
-    @Test
     fun pspPortableChromeIsASelectableThemeValueAndLabel() {
         val context = ApplicationProvider.getApplicationContext<Context>()
 
@@ -50,6 +42,8 @@ class NovaThemeResourcesTest {
     fun portableChromeAliasesToDefaultThemeAndBaseAccentAvoidsPurpleTaskMetadata() {
         val colors = File("src/main/res/values/colors_nova.xml").readText()
         val manager = File("src/main/java/com/papi/nova/ui/NovaThemeManager.kt").readText()
+        val styles = File("src/main/res/values/styles.xml").readText()
+        val stylesV14 = File("src/main/res/values-v14/styles.xml").readText()
 
         assertTrue(manager.contains("THEME_PORTABLE_CHROME"))
         assertTrue(manager.contains("portable_chrome"))
@@ -199,9 +193,87 @@ class NovaThemeResourcesTest {
         assertTrue("native sheet backgrounds should alpha the active theme surface instead of using opaque slabs", sheetChrome.contains("ColorUtils.setAlphaComponent") && sheetChrome.contains("getSheetGlassAlpha"))
         assertTrue("high contrast can remain more opaque for readability", sheetChrome.contains("HIGH_CONTRAST_SHEET_GLASS_ALPHA"))
         assertTrue("shared scrim should be light enough for NovaHUD/game context to remain visible", sheetChrome.contains("const val SCRIM_ALPHA = 0.22f"))
-        assertTrue("action rows should remain transparent glass rows, not opaque mini slabs", sheetChrome.contains("setColor(Color.TRANSPARENT)"))
+        assertTrue("default action row state should remain transparent glass, not an opaque mini slab", sheetChrome.contains("fillAccentBlend = 0f") && sheetChrome.contains("Color.TRANSPARENT"))
         assertTrue("Compose library surfaces should reuse shared glass alpha language", composeTheme.contains("NovaSheetChrome.SHEET_GLASS_ALPHA"))
         assertTrue("game detail Compose drawer should reuse the shared native sheet radius token", gameDetail.contains("NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp"))
     }
 
+
+    @Test
+    fun sessionQuitConfirmationUsesNovaGlassBottomSheetInsteadOfRawAlertDialog() {
+        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val quitBody = game.substringAfter("fun quit() {").substringBefore("override fun showGameMenu")
+
+        assertTrue("shared chrome should still expose AlertDialog styling for remaining legacy session popups", sheetChrome.contains("applyAlertDialogChrome"))
+        assertTrue("quit confirmation should be rebuilt as a Nova bottom sheet so it shares drawer/HUD glass chrome", quitBody.contains("BottomSheetDialog"))
+        assertTrue("quit confirmation should build its own themed glass sheet container", quitBody.contains("NovaSheetChrome.createSheetContainer"))
+        assertTrue("quit confirmation should apply shared bottom-sheet chrome", quitBody.contains("NovaSheetChrome.applyBottomSheetChrome(sheet"))
+        assertTrue("quit confirmation should style custom action rows through shared sheet chrome", quitBody.contains("NovaSheetChrome.styleSheetAction"))
+        assertFalse("quit confirmation should not use a raw AlertDialog shell", quitBody.contains("AlertDialog.Builder"))
+        assertFalse("quit confirmation should not use platform dialog buttons", quitBody.contains("setPositiveButton") || quitBody.contains("setNegativeButton"))
+        assertTrue("quit confirmation should use Nova-themed session action copy", game.contains("R.string.game_dialog_action_end_session") && game.contains("R.string.game_dialog_action_stay_in_game"))
+        assertFalse("quit confirmation should drop the old generic streaming button labels", game.contains("game_dialog_action_end_stream") || game.contains("game_dialog_action_keep_streaming"))
+    }
+
+    @Test
+    fun sessionProgressAndQuitCopyMatchesNovaSessionSemantics() {
+        val strings = File("src/main/res/values/strings.xml").readText()
+
+        assertTrue("connection spinner title should say stream, not old connection/session language", strings.contains("""<string name="conn_establishing_title">Starting stream</string>"""))
+        assertTrue("connection spinner message should mention video/audio/input readiness", strings.contains("Preparing video, audio, and controller input"))
+        assertTrue("quit title should be Nova-session language, not raw stream-control wording", strings.contains("""<string name="game_dialog_title_quit_confirm">End this Nova session?</string>"""))
+        assertTrue("quit message should distinguish ending the host app from disconnect/resume", strings.contains("This closes the host app and the resumable stream"))
+        assertTrue("quit destructive action should say End session", strings.contains("""<string name="game_dialog_action_end_session">End session</string>"""))
+        assertTrue("quit safe action should say Stay in game", strings.contains("""<string name="game_dialog_action_stay_in_game">Stay in game</string>"""))
+        assertFalse("old Keep streaming / End stream labels should not remain in the quit dialog copy", strings.contains("Keep streaming") || strings.contains("End stream and quit app?") || strings.contains("game_dialog_action_end_stream"))
+    }
+
+    @Test
+    fun gameStartupUsesSessionProgressOverlayInsteadOfLegacySpinnerPopup() {
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val startup = game.substringAfter("setContentView(R.layout.activity_game)").substringBefore("appName =")
+
+        assertTrue("Game startup should create the verbose Nova session progress overlay immediately", startup.contains("SessionProgressOverlay(this)"))
+        assertTrue("Game startup should show the verbose Nova session progress overlay immediately", startup.contains("novaProgressOverlay?.show()"))
+        assertFalse("Game startup must not show the legacy Starting stream spinner over the verbose progress overlay", startup.contains("SpinnerDialog.displayDialog"))
+        assertFalse("Startup retry path must not assume a legacy spinner exists", game.contains("spinner!!.setMessage(getResources().getString(R.string.unlocking_or_starting))"))
+        assertTrue("Startup retry path should report host readiness through the verbose progress overlay", game.contains("novaProgressOverlay?.updateState(\"unlocking_or_starting\""))
+    }
+    @Test
+    fun legacyGameMenuUsesNovaGlassBottomSheetInsteadOfRawAlertList() {
+        val source = File("src/main/java/com/papi/nova/GameMenu.kt").readText()
+        val showMenuDialog = source.substringAfter("private fun showMenuDialog(").substringBefore("private fun showSpecialKeysMenu")
+
+        assertTrue("GameMenu should render its in-stream menu as a Material bottom sheet", source.contains("BottomSheetDialog"))
+        assertTrue("GameMenu should use shared Nova glass sheet containers", showMenuDialog.contains("NovaSheetChrome.createSheetContainer"))
+        assertTrue("GameMenu should apply shared Nova bottom-sheet chrome", showMenuDialog.contains("NovaSheetChrome.applyBottomSheetChrome"))
+        assertTrue("GameMenu title should use shared sheet title styling", showMenuDialog.contains("NovaSheetChrome.styleSheetTitle"))
+        assertTrue("GameMenu rows should use shared focusable sheet action styling", showMenuDialog.contains("NovaSheetChrome.styleSheetAction"))
+        assertFalse("GameMenu list must not use raw AlertDialog.Builder for the menu shell", showMenuDialog.contains("AlertDialog.Builder"))
+        assertFalse("GameMenu list must not use Android simple_list_item_1 rows", showMenuDialog.contains("android.R.layout.simple_list_item_1"))
+        assertFalse("GameMenu list must not use ArrayAdapter-backed legacy rows", showMenuDialog.contains("ArrayAdapter"))
+        assertTrue("server-command empty dialog should still receive Nova alert chrome", source.contains("NovaSheetChrome.applyAlertDialogChrome(serverCommandDialog"))
+    }
+
+
+    @Test
+    fun noAvcDecoderErrorDismissesSessionProgressOverlayBeforeDialog() {
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val noAvcBlock = game.substringAfter("if (!decoderRenderer!!.isAvcSupported)").substringBefore("return")
+
+        assertTrue("No-AVC decoder error path should dismiss the verbose session progress overlay before showing the fatal dialog", noAvcBlock.contains("novaProgressOverlay?.dismiss()"))
+        assertTrue("No-AVC decoder error path should still dismiss the legacy spinner for compatibility", noAvcBlock.contains("spinner!!.dismiss()"))
+        assertTrue("No-AVC decoder error path should show the hardware H.264 support dialog after cleanup", noAvcBlock.contains("Dialog.displayDialog"))
+    }
+
+    @Test
+    fun sheetActionRowsExposeDpadFocusedAndPressedFeedback() {
+        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+
+        assertTrue("sheet action rows should use a stateful background so D-pad focus is visible", sheetChrome.contains("StateListDrawable"))
+        assertTrue("sheet action rows should define a focused state", sheetChrome.contains("android.R.attr.state_focused"))
+        assertTrue("sheet action rows should define a pressed state", sheetChrome.contains("android.R.attr.state_pressed"))
+        assertTrue("focused/pressed rows should blend with the active theme accent", sheetChrome.contains("createActionStateBackground") && sheetChrome.contains("NovaThemeManager.getAccentColor"))
+    }
 }

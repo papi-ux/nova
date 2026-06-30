@@ -1,9 +1,11 @@
 package com.papi.nova.ui
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -81,7 +83,6 @@ object NovaSheetChrome {
         measuredView.post {
             val resources = context.resources
             val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            val density = resources.displayMetrics.density
             val displayWidth = resources.displayMetrics.widthPixels
             val displayHeight = resources.displayMetrics.heightPixels
             val maxHeight = (displayHeight * if (isLandscape) maxHeightLandscape else maxHeightPortrait).toInt()
@@ -125,6 +126,37 @@ object NovaSheetChrome {
                 is NestedScrollView -> contentView.post { contentView.scrollTo(0, 0) }
                 is ScrollView -> contentView.post { contentView.scrollTo(0, 0) }
             }
+        }
+    }
+
+
+    fun applyAlertDialogChrome(dialog: AlertDialog, destructivePositive: Boolean = false) {
+        dialog.setOnShowListener {
+            val context = dialog.context
+            dialog.window?.let { window ->
+                window.setDimAmount(SCRIM_ALPHA)
+                window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                window.setBackgroundDrawable(createAlertDialogBackground(context))
+            }
+            val alertTitleId = context.resources.getIdentifier("alertTitle", "id", "android")
+            dialog.findViewById<TextView>(alertTitleId)?.setTextColor(NovaThemeManager.getTextPrimaryColor(context))
+            dialog.findViewById<TextView>(android.R.id.message)?.setTextColor(NovaThemeManager.getTextPrimaryColor(context))
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.let { button ->
+                button.setTextColor(if (destructivePositive) ContextCompat.getColor(context, R.color.nova_error) else NovaThemeManager.getAccentColor(context))
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.let { button ->
+                button.setTextColor(NovaThemeManager.getTextSecondaryColor(context))
+            }
+        }
+    }
+
+    fun createAlertDialogBackground(context: Context): GradientDrawable {
+        val radius = dp(context, SHEET_CORNER_RADIUS_DP).toFloat()
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(createSheetSurfaceColor(context))
+            cornerRadius = radius
+            setStroke(dp(context, 1), getSheetStrokeColor(context))
         }
     }
 
@@ -180,17 +212,36 @@ object NovaSheetChrome {
         }
     }
 
-    private fun createActionBackground(context: Context): GradientDrawable {
+    private fun createActionBackground(context: Context): StateListDrawable {
+        return StateListDrawable().apply {
+            addState(
+                intArrayOf(android.R.attr.state_pressed),
+                createActionStateBackground(context, fillAccentBlend = 0.24f, strokeAccentBlend = 0.58f)
+            )
+            addState(
+                intArrayOf(android.R.attr.state_focused),
+                createActionStateBackground(context, fillAccentBlend = 0.18f, strokeAccentBlend = 0.50f)
+            )
+            addState(
+                intArrayOf(),
+                createActionStateBackground(context, fillAccentBlend = 0f, strokeAccentBlend = 0.18f)
+            )
+        }
+    }
+
+    private fun createActionStateBackground(
+        context: Context,
+        fillAccentBlend: Float,
+        strokeAccentBlend: Float
+    ): GradientDrawable {
         val radius = dp(context, 16).toFloat()
+        val surface = createSheetSurfaceColor(context)
+        val accent = NovaThemeManager.getAccentColor(context)
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            setColor(Color.TRANSPARENT)
+            setColor(if (fillAccentBlend > 0f) ColorUtils.blendARGB(surface, accent, fillAccentBlend) else Color.TRANSPARENT)
             cornerRadius = radius
-            setStroke(dp(context, 1), ColorUtils.blendARGB(
-                NovaThemeManager.getDialogBackgroundColor(context),
-                NovaThemeManager.getAccentColor(context),
-                0.18f
-            ))
+            setStroke(dp(context, 1), ColorUtils.blendARGB(surface, accent, strokeAccentBlend))
         }
     }
 

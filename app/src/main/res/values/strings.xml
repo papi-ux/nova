@@ -442,8 +442,8 @@
     <string name="check_ports_msg">Check your firewall and port forwarding rules for port(s):</string>
 
     <!-- Start application messages -->
-    <string name="conn_establishing_title">Establishing Connection</string>
-    <string name="conn_establishing_msg">Starting connection</string>
+    <string name="conn_establishing_title">Starting stream</string>
+    <string name="conn_establishing_msg">Preparing video, audio, and controller input…</string>
     <string name="conn_metered">Warning: Your active network connection is metered!</string>
     <string name="conn_client_latency">Average frame decoding latency:</string>
     <string name="conn_client_latency_hw">hardware decoder latency:</string>
@@ -807,6 +807,12 @@
     <string name="nova_quick_menu_session">Session</string>
     <string name="nova_quick_menu_nova_hud">Nova HUD</string>
     <string name="nova_quick_menu_nova_hud_caption">Tap HUD to cycle modes; long-press to open Command Center.</string>
+    <string name="nova_quick_menu_hud_opacity">HUD Opacity</string>
+    <string name="nova_quick_menu_hud_opacity_caption">Adjust NovaHUD glass without dimming telemetry text.</string>
+    <string name="nova_quick_menu_hud_opacity_disabled_caption">Enable Nova HUD first to change glass opacity.</string>
+    <string name="nova_quick_menu_hud_opacity_preset_cd">Set HUD opacity to %1$d percent</string>
+    <string name="nova_quick_menu_hud_opacity_selected">Selected</string>
+    <string name="nova_quick_menu_hud_opacity_not_selected">Not selected</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
     <string name="nova_quick_menu_copy_hud_diagnostics">Copy HUD Diagnostics</string>
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
@@ -1068,8 +1074,10 @@
     <string name="pref_error_occurred">An error occurred: </string>
     <string name="pref_save_keyboard_profile">Save OSK profile</string>
     <string name="game_menu_advanced">Advanced Menu</string>
-    <string name="game_dialog_title_quit_confirm">Really want to quit?</string>
-    <string name="game_dialog_message_quit_confirm">Please make sure you have no unsaved progress. Quitting the session will terminate your current running application.</string>
+    <string name="game_dialog_title_quit_confirm">End this Nova session?</string>
+    <string name="game_dialog_message_quit_confirm">This closes the host app and the resumable stream. Use Disconnect from Command Center if you want the host to keep running.</string>
+    <string name="game_dialog_action_end_session">End session</string>
+    <string name="game_dialog_action_stay_in_game">Stay in game</string>
     <string name="game_menu_quit_session">Quit Session</string>
     <string name="game_menu_server_cmd">Server Commands</string>
     <string name="game_menu_fetch_clipboard">Fetch Clipboard</string>

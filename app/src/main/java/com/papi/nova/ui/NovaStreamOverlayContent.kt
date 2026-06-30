@@ -138,6 +138,15 @@ data class NovaSessionProgressUiState(
                 aliases = setOf("input stream initialization", "input stream establishment")
             ),
             StageCopy(
+                state = "unlocking_or_starting",
+                title = "Waiting on host...",
+                stageLabel = "Host readiness",
+                confidenceLabel = "Server starting or unlocking",
+                confidenceDetail = "The host is starting the app or unlocking before video can continue.",
+                progressFraction = 0.96f,
+                aliases = setOf("unlocking or starting", "server is starting or computer is unlocking")
+            ),
+            StageCopy(
                 state = "host_locked",
                 title = "Host locked",
                 stageLabel = "Unlock host",

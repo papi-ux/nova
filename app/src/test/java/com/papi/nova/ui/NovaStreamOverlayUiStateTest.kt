@@ -132,6 +132,18 @@ class NovaStreamOverlayUiStateTest {
     }
 
     @Test
+    fun progressStateMapsUnlockingOrStartingRetryToVerboseHostReadinessCopy() {
+        val state = NovaSessionProgressUiState.from("unlocking_or_starting", "Server is starting or computer is unlocking, please wait…")
+
+        assertEquals("unlocking_or_starting", state.state)
+        assertEquals("Waiting on host...", state.title)
+        assertEquals("Host readiness", state.stageLabel)
+        assertEquals("Server starting or unlocking", state.confidenceLabel)
+        assertEquals("The host is starting the app or unlocking before video can continue.", state.confidenceDetail)
+        assertEquals(0.96f, state.progressFraction, 0.001f)
+    }
+
+    @Test
     fun progressStateMapsLockedHostToNovaUnlockPrompt() {
         val state = NovaSessionProgressUiState.from("host_locked")
 
