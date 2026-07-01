@@ -670,8 +670,8 @@
     <string name="summary_disable_frame_drop">May reduce micro-stuttering on some devices, but can increase latency</string>
     <string name="title_video_format">Change codec settings</string>
     <string name="summary_video_format">Newer codecs can lower video bandwidth requirements if your device supports them. Codec selections may be ignored if not supported by the host software or GPU.</string>
-    <string name="title_enable_hdr">Enable HDR (Experimental)</string>
-    <string name="summary_enable_hdr">Stream HDR when the game and PC GPU support it. HDR requires a GPU with HEVC Main 10 encoding support.</string>
+    <string name="title_enable_hdr">Request HDR when host supports it</string>
+    <string name="summary_enable_hdr">Asks Polaris for HDR/10-bit streaming when the game, host capture display, encoder, and client all support it. Private Headless Stream may still run as 10-bit SDR and Command Center will explain why.</string>
     <string name="summary_enable_hdr_sdr_10bit">Request a 10-bit stream even on SDR displays. On handheld SDR panels Nova will prefer a 10-bit SDR stream when the host supports Main10.</string>
     <string name="badge_hdr">HDR</string>
     <string name="title_full_range">Force full range video (Experimental)</string>
@@ -791,6 +791,8 @@
     <string name="nova_quick_menu_shutdown_subtitle">Host shutdown is in progress. Session actions are limited.</string>
     <string name="nova_quick_menu_health_checking">Checking session health</string>
     <string name="nova_quick_menu_health_host_render">Host FPS is below target. Relaunch can restore full rate.</string>
+    <string name="nova_quick_menu_health_hdr_downgrade">HDR requested, but Polaris is streaming 10-bit SDR.</string>
+    <string name="nova_quick_menu_health_hdr_headless_downgrade">HDR requested, but Private Headless Stream is 10-bit SDR.</string>
     <string name="nova_quick_menu_health_attention">Session needs attention.</string>
     <string name="nova_quick_menu_health_steady">Session looks steady.</string>
     <string name="nova_quick_menu_ai_auto_quality">AI Auto Quality</string>

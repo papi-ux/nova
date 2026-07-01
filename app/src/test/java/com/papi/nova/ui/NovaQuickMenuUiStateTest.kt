@@ -85,6 +85,26 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun headlessHdrDowngradeShowsPlayerReadableCommandCenterCopy() {
+        val state = quickState(
+            status = status(
+                displayMode = PolarisSessionStatus.DisplayModeStatus(
+                    requested = "headless",
+                    effectiveHeadless = true
+                ),
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    primaryIssue = "hdr_downgraded",
+                    issues = listOf("hdr_downgraded")
+                )
+            )
+        )
+
+        assertEquals("HDR requested, but Private Headless Stream is 10-bit SDR.", state.healthSummary)
+        assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
+    }
+
+    @Test
     fun controllerToggleCopyClarifiesTouchOverlayInsteadOfPhysicalGamepad() {
         val state = quickState(status = status(), currentGameName = "Portal")
         val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }

@@ -68,6 +68,15 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun hdrSettingCopyExplainsItRequestsHostSupportedHdr() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val hdr = definitions.require("checkbox_enable_hdr")
+
+        assertEquals("Request HDR when host supports it", hdr.title)
+        assertEquals("Asks Polaris for HDR/10-bit streaming when the game, host capture display, encoder, and client all support it. Private Headless Stream may still run as 10-bit SDR and Command Center will explain why.", hdr.summary)
+    }
+
+    @Test
     fun definitionsExposeReadOnlyNovaAppVersion() {
         val definitions = NovaSettingDefinitions.load(context)
         val version = definitions.require("nova_app_version")
