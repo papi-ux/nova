@@ -322,6 +322,37 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun hdrDowngradeUsesExplicitWarningCopyAndTenBitSdrTruth() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.PERFORMANCE,
+            fps = 59.0,
+            targetFps = 60.0,
+            latencyMs = 18,
+            codec = "hevc",
+            bitrateKbps = 22000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    primaryIssue = "hdr_downgraded",
+                    issues = listOf("hdr_downgraded"),
+                    hdrEffectiveMode = "sdr_10bit",
+                    hdrDowngradeReason = "headless_hdr_unavailable",
+                    hdrDowngradeMessage = "Polaris is streaming 10-bit SDR, not HDR.",
+                    safeHdr = false,
+                    relaunchRecommended = true
+                )
+            ),
+            sparklineSamples = listOf(59f)
+        )
+
+        assertEquals("HDR downgraded", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertEquals("Stream 60 • 10-bit SDR", state.streamTruthLabel)
+        assertEquals(NovaHudTone.WARNING, state.statusTone)
+    }
+    @Test
     fun eventBreadcrumbTrailKeepsLatestActionableHudEvent() {
         val trail = NovaHudEventTrail(capacity = 3)
 

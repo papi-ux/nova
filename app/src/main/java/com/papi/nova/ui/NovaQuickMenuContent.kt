@@ -424,15 +424,27 @@ private fun NovaQuickMenuSessionStrip(state: NovaQuickMenuUiState) {
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         NovaQuickMenuChipView(state.sessionMode)
-        Text(
-            text = state.healthSummary,
-            color = toneColor(state.healthTone),
-            fontSize = 10.sp,
-            lineHeight = 13.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = state.healthSummary,
+                color = toneColor(state.healthTone),
+                fontSize = 10.sp,
+                lineHeight = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (state.healthDetail.isNotBlank()) {
+                Text(
+                    text = state.healthDetail,
+                    color = colors.textMuted,
+                    fontSize = 9.sp,
+                    lineHeight = 12.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
     }
 }
 

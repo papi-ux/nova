@@ -116,6 +116,17 @@ data class AutoQualityUiState(
             val manualOverride = status.syncStatus.isManualOverride ||
                 syncState == "manual_override"
 
+            if (status.isHdrDowngraded) {
+                return AutoQualityUiState(
+                    state = State.NEEDS_ATTENTION,
+                    label = "HDR downgraded",
+                    compactLabel = "HDR",
+                    detail = "Polaris is sending 10-bit SDR, not HDR. Use an HDR-capable display path for true HDR.",
+                    targetSummary = streamPolicy.targetSummary,
+                    tone = Tone.WARNING,
+                    enabled = true
+                )
+            }
             if (!autoEnabled && !manualOverride) {
                 return AutoQualityUiState(
                     state = State.OFF,
