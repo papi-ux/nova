@@ -24,6 +24,15 @@ buildscript {
             classpath('org.apache.commons:commons-lang3:3.18.0') {
                 because 'Dependabot flags the AGP toolchain transitive version'
             }
+            classpath('org.bouncycastle:bcpkix-jdk18on:1.84') {
+                because 'Keep the AGP build toolchain on a patched Bouncy Castle line'
+            }
+            classpath('org.bouncycastle:bcprov-jdk18on:1.84') {
+                because 'Fix GHSA-574f-3g2m-x479 / CVE-2025-14813 in AGP transitives'
+            }
+            classpath('org.bouncycastle:bcutil-jdk18on:1.84') {
+                because 'Align Bouncy Castle build-tool transitive modules with bcprov'
+            }
             classpath('org.apache.httpcomponents:httpclient:4.5.14') {
                 because 'Keep the AGP toolchain on a patched 4.5.x line'
             }
