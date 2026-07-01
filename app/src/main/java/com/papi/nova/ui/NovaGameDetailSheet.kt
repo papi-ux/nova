@@ -151,6 +151,8 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         var mangoHudEnabled by mutableStateOf(game.mangohud)
         var resetWorking by mutableStateOf(false)
         var optimizationState by mutableStateOf(NovaGameDetailOptimizationState())
+        var launchOptionsState by mutableStateOf<NovaLaunchOptionsState?>(null)
+        var profileOptionsState by mutableStateOf<NovaProfilePreferenceOptionsState?>(null)
 
         fun refreshUiState(preference: String = profilePreference) {
             uiState = buildUiState(currentGame, preference)
@@ -251,6 +253,8 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                     steamLaunchModeLabel = steamLaunchModeLabel(uiState.steamLaunchMode),
                     steamLaunchCaption = steamLaunchCaption(uiState),
                     optimizationState = optimizationState,
+                    launchOptionsState = launchOptionsState,
+                    profileOptionsState = profileOptionsState,
                     playLabel = if (optimizationState.reviewRequired) {
                         getString(R.string.nova_library_review_and_launch)
                     } else {
@@ -311,22 +315,61 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                         }
                     },
                     onLaunchOptions = {
-                        showLaunchOptions(
-                            currentGame,
-                            uiState,
-                            mangoHudEnabled,
-                            profilePreference,
-                            optimizationState.rawOptimization
-                        )
+                        val nextState = showLaunchOptions(currentGame, uiState)
+                        if (nextState == null) {
+                            Toast.makeText(requireContext(), R.string.nova_library_no_launch_modes, Toast.LENGTH_SHORT).show()
+                        } else {
+                            launchOptionsState = nextState
+                            profileOptionsState = null
+                        }
                     },
                     onLaunchModeSelected = ::selectLaunchMode,
-                    onProfilePreference = {
-                        showProfilePreferenceOptions(currentGame) { selected ->
-                            profilePreference = selected
-                            refreshUiState(selected)
-                            optimizationState = NovaGameDetailOptimizationState()
-                            loadOptimization(selected)
+                    onLaunchOptionSelected = { option ->
+                        fun launchSelected(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
+                            onLaunch?.invoke(
+                                currentGame.copy(mangohud = mangoHudEnabled),
+                                option.usesVirtualDisplay,
+                                mirrorDesktop,
+                                forcePrivateAfterSteamClose,
+                                profilePreference,
+                                optimizationState.rawOptimization
+                            )
+                            launchOptionsState = null
+                            dismiss()
                         }
+                        val desktopSteamDecision = NovaDesktopSteamLaunchDecision.from(
+                            uiState,
+                            optimizationState.rawOptimization,
+                            usesVirtualDisplay = option.usesVirtualDisplay
+                        )
+                        if (desktopSteamDecision.required) {
+                            showDesktopSteamLaunchDecision(
+                                decision = desktopSteamDecision,
+                                onPrivateStream = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = false) },
+                                onMirrorDesktop = { launchSelected(mirrorDesktop = true, forcePrivateAfterSteamClose = false) },
+                                onForcePrivateAfterSteamClose = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }
+                            )
+                        } else {
+                            launchSelected(mirrorDesktop = false)
+                        }
+                    },
+                    onDismissLaunchOptions = {
+                        launchOptionsState = null
+                    },
+                    onProfilePreference = {
+                        profileOptionsState = showProfilePreferenceOptions(currentGame)
+                        launchOptionsState = null
+                    },
+                    onProfilePreferenceSelected = { selected ->
+                        saveProfilePreference(currentGame, selected.value)
+                        profilePreference = selected.value
+                        refreshUiState(selected.value)
+                        optimizationState = NovaGameDetailOptimizationState()
+                        profileOptionsState = null
+                        loadOptimization(selected.value)
+                    },
+                    onDismissProfileOptions = {
+                        profileOptionsState = null
                     },
                     onRetryHighFps = { retryHighFpsTrial() },
                     onResetProfile = {
@@ -429,10 +472,10 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     }
 
     private fun showProfilePreferenceOptions(
-        game: PolarisGame,
-        onChanged: (String) -> Unit
-    ) {
+        game: PolarisGame
+    ): NovaProfilePreferenceOptionsState {
         val values = AutoQualityProfilePreferences.values()
+        val current = loadProfilePreference(game)
         val labels = values.map {
             when (it) {
                 "quality" -> "Prefer Quality"
@@ -440,17 +483,18 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                 "stability" -> "Prefer Stability"
                 else -> "Auto"
             }
-        }.toTypedArray()
-        val checked = values.indexOf(loadProfilePreference(game)).coerceAtLeast(0)
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.nova_library_profile_preference_title)
-            .setSingleChoiceItems(labels, checked) { dialog, which ->
-                val selected = values[which]
-                saveProfilePreference(game, selected)
-                onChanged(selected)
-                dialog.dismiss()
+        }
+        return NovaProfilePreferenceOptionsState(
+            title = getString(R.string.nova_library_profile_preference_title),
+            closeLabel = getString(R.string.nova_controller_hint_close),
+            options = values.mapIndexed { index, value ->
+                NovaProfilePreferenceItem(
+                    label = labels[index],
+                    value = value,
+                    selected = value == current
+                )
             }
-            .show()
+        )
     }
 
     private fun showSteamLaunchModeOptions(
@@ -471,57 +515,32 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
     private fun showLaunchOptions(
         game: PolarisGame,
-        uiState: NovaGameDetailUiState,
-        mangoHudEnabled: Boolean,
-        profilePreference: String,
-        rawOptimization: JSONObject?
-    ) {
-        val options = mutableListOf<Pair<String, Boolean>>()
+        uiState: NovaGameDetailUiState
+    ): NovaLaunchOptionsState? {
+        val options = mutableListOf<NovaLaunchOptionItem>()
         if (uiState.headlessAllowed) {
-            options += optionLabel("headless", uiState.recommendedMode) to false
+            options += NovaLaunchOptionItem(
+                label = optionLabel("headless", uiState.recommendedMode),
+                usesVirtualDisplay = false,
+                recommended = uiState.recommendedMode == "headless"
+            )
         }
         if (uiState.virtualDisplayAllowed) {
-            options += optionLabel("virtual_display", uiState.recommendedMode) to true
+            options += NovaLaunchOptionItem(
+                label = optionLabel("virtual_display", uiState.recommendedMode),
+                usesVirtualDisplay = true,
+                recommended = uiState.recommendedMode == "virtual_display"
+            )
         }
 
-        if (options.isEmpty()) {
-            Toast.makeText(requireContext(), R.string.nova_library_no_launch_modes, Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (options.isEmpty()) return null
 
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.nova_library_launch_options_title)
-            .setItems(options.map { it.first }.toTypedArray()) { dialog, which ->
-                val selectedUsesVirtualDisplay = options[which].second
-                fun launchSelected(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
-                    onLaunch?.invoke(
-                        game.copy(mangohud = mangoHudEnabled),
-                        selectedUsesVirtualDisplay,
-                        mirrorDesktop,
-                        forcePrivateAfterSteamClose,
-                        profilePreference,
-                        rawOptimization
-                    )
-                    dismiss()
-                }
-                val desktopSteamDecision = NovaDesktopSteamLaunchDecision.from(
-                    uiState,
-                    rawOptimization,
-                    usesVirtualDisplay = selectedUsesVirtualDisplay
-                )
-                dialog.dismiss()
-                if (desktopSteamDecision.required) {
-                    showDesktopSteamLaunchDecision(
-                        decision = desktopSteamDecision,
-                        onPrivateStream = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = false) },
-                        onMirrorDesktop = { launchSelected(mirrorDesktop = true, forcePrivateAfterSteamClose = false) },
-                        onForcePrivateAfterSteamClose = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }
-                    )
-                } else {
-                    launchSelected(mirrorDesktop = false)
-                }
-            }
-            .show()
+        return NovaLaunchOptionsState(
+            title = getString(R.string.nova_library_launch_options_title),
+            closeLabel = getString(R.string.nova_controller_hint_close),
+            gameName = game.name,
+            options = options
+        )
     }
 
     private fun optionLabel(mode: String, recommendedMode: String): String {
@@ -1023,6 +1042,31 @@ data class NovaGameDetailOptimizationState(
     val reviewReason: String = ""
 )
 
+data class NovaLaunchOptionsState(
+    val title: String,
+    val closeLabel: String,
+    val gameName: String,
+    val options: List<NovaLaunchOptionItem>
+)
+
+data class NovaLaunchOptionItem(
+    val label: String,
+    val usesVirtualDisplay: Boolean,
+    val recommended: Boolean
+)
+
+data class NovaProfilePreferenceOptionsState(
+    val title: String,
+    val closeLabel: String,
+    val options: List<NovaProfilePreferenceItem>
+)
+
+data class NovaProfilePreferenceItem(
+    val label: String,
+    val value: String,
+    val selected: Boolean
+)
+
 data class NovaGameDetailInsightCard(
     val label: String,
     val source: String,
@@ -1048,6 +1092,8 @@ fun NovaGameDetailSheetContent(
     steamLaunchModeLabel: String,
     steamLaunchCaption: String,
     optimizationState: NovaGameDetailOptimizationState,
+    launchOptionsState: NovaLaunchOptionsState?,
+    profileOptionsState: NovaProfilePreferenceOptionsState?,
     playLabel: String,
     launchOptionsLabel: String,
     launchModeTitle: String,
@@ -1058,7 +1104,11 @@ fun NovaGameDetailSheetContent(
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
+    onLaunchOptionSelected: (NovaLaunchOptionItem) -> Unit,
+    onDismissLaunchOptions: () -> Unit,
     onProfilePreference: () -> Unit,
+    onProfilePreferenceSelected: (NovaProfilePreferenceItem) -> Unit,
+    onDismissProfileOptions: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
     onSteamLaunchMode: () -> Unit,
@@ -1106,6 +1156,22 @@ fun NovaGameDetailSheetContent(
             onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile
         )
+
+        launchOptionsState?.let {
+            NovaLaunchOptionsSheet(
+                state = it,
+                onLaunch = onLaunchOptionSelected,
+                onDismiss = onDismissLaunchOptions
+            )
+        }
+
+        profileOptionsState?.let {
+            NovaProfilePreferenceSheet(
+                state = it,
+                onSelected = onProfilePreferenceSelected,
+                onDismiss = onDismissProfileOptions
+            )
+        }
 
         SteamLaunchModeCard(
             visible = uiState.showSteamLaunchMode,
@@ -1808,6 +1874,123 @@ private fun ProfileSummaryText(text: String, topPadding: Int = 3) {
         maxLines = 3,
         overflow = TextOverflow.Ellipsis
     )
+}
+
+
+@Composable
+private fun NovaLaunchOptionsSheet(
+    state: NovaLaunchOptionsState,
+    onLaunch: (NovaLaunchOptionItem) -> Unit,
+    onDismiss: () -> Unit
+) {
+    NovaOptionPanel(
+        title = state.title,
+        subtitle = state.gameName,
+        closeLabel = state.closeLabel,
+        onDismiss = onDismiss
+    ) {
+        state.options.forEach { option ->
+            NovaActionButton(
+                text = option.label,
+                onClick = { onLaunch(option) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                primary = option.recommended,
+                contentDescription = option.label,
+                minHeight = 44.dp,
+                cornerRadius = 10.dp,
+                fontSize = 13.sp,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun NovaProfilePreferenceSheet(
+    state: NovaProfilePreferenceOptionsState,
+    onSelected: (NovaProfilePreferenceItem) -> Unit,
+    onDismiss: () -> Unit
+) {
+    NovaOptionPanel(
+        title = state.title,
+        subtitle = "Auto Quality",
+        closeLabel = state.closeLabel,
+        onDismiss = onDismiss
+    ) {
+        state.options.forEach { option ->
+            NovaActionButton(
+                text = if (option.selected) option.label + " · Selected" else option.label,
+                onClick = { onSelected(option) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                primary = option.selected,
+                contentDescription = option.label,
+                minHeight = 44.dp,
+                cornerRadius = 10.dp,
+                fontSize = 13.sp,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun NovaOptionPanel(
+    title: String,
+    subtitle: String,
+    closeLabel: String,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val colors = LocalNovaComposeColors.current
+    NovaDetailPanel(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 14.dp, end = 14.dp, top = 10.dp),
+        contentDescription = title,
+        accent = true,
+        contentPadding = PaddingValues(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (subtitle.isNotBlank()) {
+                    Text(
+                        text = subtitle,
+                        modifier = Modifier.padding(top = 2.dp),
+                        color = colors.textMuted,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            NovaActionButton(
+                text = closeLabel,
+                onClick = onDismiss,
+                modifier = Modifier.width(104.dp),
+                contentDescription = closeLabel,
+                minHeight = 36.dp,
+                cornerRadius = 10.dp,
+                fontSize = 11.sp,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 7.dp)
+            )
+        }
+        content()
+    }
 }
 
 @Composable

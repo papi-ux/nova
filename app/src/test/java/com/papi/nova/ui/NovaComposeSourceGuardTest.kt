@@ -2050,6 +2050,38 @@ class NovaComposeSourceGuardTest {
     private fun readNovaFocusComponents(): String =
         readSource("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt")
 
+    @Test
+    fun gameDetailLaunchOptionsAvoidRawAppCompatAlertDialogButtons() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val launchOptions = detail.section(
+            "private fun showLaunchOptions(",
+            "private fun optionLabel("
+        )
+
+        assertTrue(
+            "Launch Options runs from the Compose game detail sheet and must not use raw AlertDialog.Builder; Retroid Portable Chrome routes this through Nova glass option panels",
+            !launchOptions.contains("AlertDialog.Builder(") &&
+                detail.contains("data class NovaLaunchOptionsState") &&
+                detail.contains("private fun NovaLaunchOptionsSheet(")
+        )
+    }
+
+    @Test
+    fun gameDetailProfilePreferenceAvoidsRawAppCompatAlertDialogButtons() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val profileOptions = detail.section(
+            "private fun showProfilePreferenceOptions(",
+            "private fun showSteamLaunchModeOptions("
+        )
+
+        assertTrue(
+            "AI Preference/Profile selector runs from the Compose game detail sheet and must not use raw AlertDialog.Builder on Retroid Portable Chrome",
+            !profileOptions.contains("AlertDialog.Builder(") &&
+                detail.contains("data class NovaProfilePreferenceOptionsState") &&
+                detail.contains("private fun NovaProfilePreferenceSheet(")
+        )
+    }
+
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
 

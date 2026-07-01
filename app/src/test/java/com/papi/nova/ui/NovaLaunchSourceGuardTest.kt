@@ -54,8 +54,8 @@ class NovaLaunchSourceGuardTest {
             "private fun modeLabel("
         )
         val launchOptions = detail.section(
-            "private fun showLaunchOptions(",
-            "private fun syncLaunchPreflightSettings("
+            "onLaunchOptionSelected = { option ->",
+            "onDismissLaunchOptions ="
         )
 
         assertTrue(
@@ -72,7 +72,7 @@ class NovaLaunchSourceGuardTest {
         )
         assertTrue(
             "Launch Options must not bypass desktop-Steam safety for selected private headless launches",
-            launchOptions.contains("usesVirtualDisplay = selectedUsesVirtualDisplay") &&
+            launchOptions.contains("usesVirtualDisplay = option.usesVirtualDisplay") &&
                 launchOptions.contains("showDesktopSteamLaunchDecision(") &&
                 launchOptions.contains("onForcePrivateAfterSteamClose = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }")
         )
