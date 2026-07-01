@@ -93,11 +93,15 @@ data class NovaDesktopSteamLaunchDecision(
     val privateStreamUnavailableReason: String = ""
 ) {
     companion object {
-        fun from(uiState: NovaGameDetailUiState, optimization: JSONObject?): NovaDesktopSteamLaunchDecision {
+        fun from(
+            uiState: NovaGameDetailUiState,
+            optimization: JSONObject?,
+            usesVirtualDisplay: Boolean = uiState.playUsesVirtualDisplay
+        ): NovaDesktopSteamLaunchDecision {
             val policy = optimization?.optJSONObject("launch_policy")
                 ?: optimization?.optJSONObject("launchPolicy")
                 ?: return NovaDesktopSteamLaunchDecision()
-            if (uiState.playUsesVirtualDisplay) return NovaDesktopSteamLaunchDecision()
+            if (usesVirtualDisplay) return NovaDesktopSteamLaunchDecision()
 
             val desktopSteamActive = policy.optPolicyBoolean("desktop_steam_active", "desktopSteamActive")
             val physicalDisplayRisk = policy.optPolicyBoolean("physical_display_risk", "physicalDisplayRisk")

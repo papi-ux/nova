@@ -53,6 +53,10 @@ class NovaLaunchSourceGuardTest {
             "private fun showDesktopSteamLaunchDecision(",
             "private fun modeLabel("
         )
+        val launchOptions = detail.section(
+            "private fun showLaunchOptions(",
+            "private fun syncLaunchPreflightSettings("
+        )
 
         assertTrue(
             "desktop Steam active policy should open a Nova-themed Compose bottom sheet, not a legacy square AlertDialog",
@@ -67,6 +71,12 @@ class NovaLaunchSourceGuardTest {
                 decisionSheet.contains("nova_desktop_steam_cancel")
         )
         assertTrue(
+            "Launch Options must not bypass desktop-Steam safety for selected private headless launches",
+            launchOptions.contains("usesVirtualDisplay = selectedUsesVirtualDisplay") &&
+                launchOptions.contains("showDesktopSteamLaunchDecision(") &&
+                launchOptions.contains("onForcePrivateAfterSteamClose = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }")
+        )
+        assertTrue(
             "Mirror Desktop must be carried as an explicit launch override through the stream launch path",
             detail.contains("mirrorDesktop = true") &&
                 serverHelper.contains("Game.EXTRA_MIRROR_DESKTOP") &&
@@ -76,7 +86,8 @@ class NovaLaunchSourceGuardTest {
                 streamConfiguration.contains("fun setMirrorDesktop(enable: Boolean)") &&
                 streamConfiguration.contains("fun setForcePrivateAfterSteamClose(enable: Boolean)") &&
                 nvHttp.contains("&mirrorDesktop=") &&
-                nvHttp.contains("&launchMode=mirror_desktop")
+                nvHttp.contains("&launchMode=mirror_desktop") &&
+                serverHelper.contains("forcePrivateAfterSteamClose = forcePrivateAfterSteamClose")
         )
     }
 

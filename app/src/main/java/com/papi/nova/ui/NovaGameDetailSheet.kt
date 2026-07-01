@@ -491,16 +491,35 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.nova_library_launch_options_title)
-            .setItems(options.map { it.first }.toTypedArray()) { _, which ->
-                onLaunch?.invoke(
-                    game.copy(mangohud = mangoHudEnabled),
-                    options[which].second,
-                    false,
-                    false,
-                    profilePreference,
-                    rawOptimization
+            .setItems(options.map { it.first }.toTypedArray()) { dialog, which ->
+                val selectedUsesVirtualDisplay = options[which].second
+                fun launchSelected(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
+                    onLaunch?.invoke(
+                        game.copy(mangohud = mangoHudEnabled),
+                        selectedUsesVirtualDisplay,
+                        mirrorDesktop,
+                        forcePrivateAfterSteamClose,
+                        profilePreference,
+                        rawOptimization
+                    )
+                    dismiss()
+                }
+                val desktopSteamDecision = NovaDesktopSteamLaunchDecision.from(
+                    uiState,
+                    rawOptimization,
+                    usesVirtualDisplay = selectedUsesVirtualDisplay
                 )
-                dismiss()
+                dialog.dismiss()
+                if (desktopSteamDecision.required) {
+                    showDesktopSteamLaunchDecision(
+                        decision = desktopSteamDecision,
+                        onPrivateStream = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = false) },
+                        onMirrorDesktop = { launchSelected(mirrorDesktop = true, forcePrivateAfterSteamClose = false) },
+                        onForcePrivateAfterSteamClose = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }
+                    )
+                } else {
+                    launchSelected(mirrorDesktop = false)
+                }
             }
             .show()
     }

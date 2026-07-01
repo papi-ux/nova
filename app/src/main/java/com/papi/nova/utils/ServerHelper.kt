@@ -350,6 +350,7 @@ object ServerHelper {
             aiProfilePreference,
             launchOptimizationJson,
             mirrorDesktop,
+            forcePrivateAfterSteamClose,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
