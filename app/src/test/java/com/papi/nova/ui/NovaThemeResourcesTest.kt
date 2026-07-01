@@ -29,6 +29,30 @@ class NovaThemeResourcesTest {
     }
 
     @Test
+    fun novaThemeSurfaceContractDocumentsThemeAndSmokeRequirements() {
+        val contract = File("../docs/nova-theme-surface-contract.md").readText().lowercase()
+
+        listOf(
+            "latest available debug nova apk",
+            "latest available debug polaris build",
+            "psp chrome / portable chrome",
+            "steel-blue/graphite",
+            "muted green/status accents",
+            "purple/violet accents must not",
+            "transparent/glass",
+            "novahud",
+            "drawers, sheets, dialogs",
+            "game-detail",
+            "material you",
+            "no redundant press a badges",
+            "current"
+        ).forEach { required ->
+            assertTrue("Nova theme surface contract should explicitly mention ", contract.contains(required))
+        }
+    }
+
+
+    @Test
     fun pspPortableChromeIsASelectableThemeValueAndLabel() {
         val context = ApplicationProvider.getApplicationContext<Context>()
 
@@ -202,10 +226,17 @@ class NovaThemeResourcesTest {
     @Test
     fun sessionQuitConfirmationUsesNovaGlassBottomSheetInsteadOfRawAlertDialog() {
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+        val spinnerDialog = File("src/main/java/com/papi/nova/utils/SpinnerDialog.kt").readText()
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val quitBody = game.substringAfter("fun quit() {").substringBefore("override fun showGameMenu")
+        val spinnerLayout = File("src/main/res/layout/nova_spinner_dialog.xml").readText()
 
         assertTrue("shared chrome should still expose AlertDialog styling for remaining legacy session popups", sheetChrome.contains("applyAlertDialogChrome"))
+        assertTrue("establishing-session spinner should apply Nova glass dialog chrome", spinnerDialog.contains("NovaSheetChrome.applyAlertDialogChrome(createdDialog"))
+        assertFalse("spinner progress must not hardcode the Polaris accent", spinnerLayout.contains("@color/nova_accent"))
+        assertFalse("spinner progress tint should be applied at runtime instead of risky XML attr tinting", spinnerLayout.contains("indeterminateTint"))
+        assertTrue("spinner should tint progress from the active Nova theme at runtime", spinnerDialog.contains("NovaThemeManager.getAccentColor") && spinnerDialog.contains("indeterminateDrawable"))
+        assertTrue("spinner layout should consume theme text color attrs", spinnerLayout.contains("?android:attr/textColorPrimary"))
         assertTrue("quit confirmation should be rebuilt as a Nova bottom sheet so it shares drawer/HUD glass chrome", quitBody.contains("BottomSheetDialog"))
         assertTrue("quit confirmation should build its own themed glass sheet container", quitBody.contains("NovaSheetChrome.createSheetContainer"))
         assertTrue("quit confirmation should apply shared bottom-sheet chrome", quitBody.contains("NovaSheetChrome.applyBottomSheetChrome(sheet"))

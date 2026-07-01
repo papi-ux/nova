@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.preference.PreferenceManager
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
@@ -76,6 +77,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         val apiClient = game.novaApiClient ?: getServerAddress()?.let {
             PolarisApiClient(game.applicationContext, it, getHttpsPort())
         }
+        val prefs = PreferenceManager.getDefaultSharedPreferences(game)
 
         var sessionStatus: PolarisSessionStatus? = null
         var capabilities: PolarisCapabilities? = null
@@ -145,6 +147,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 currentGameUuid = currentGameUuid(),
                 profilePreference = currentProfilePreference(gameName),
                 hudShowing = game.isNovaHudShowing(),
+                hudOpacityPercent = NovaHudPreferences.readOpacityPercent(prefs),
                 perfOverlayEnabled = game.prefConfig.enablePerfOverlay,
                 onscreenControllerEnabled = game.prefConfig.onscreenController,
                 keyboardVisible = game.isKeyboardLayoutVisible,
@@ -402,6 +405,16 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         else -> Unit
                     }
                     refreshState()
+                }
+            },
+            onHudOpacityChange = { percent ->
+                haptic {
+                    game.launchRuntimeIo("NovaQuickMenuHudOpacity") {
+                        NovaHudPreferences.writeOpacityPercent(game, percent)
+                        game.runOnMainIfRuntimeActive {
+                            refreshState()
+                        }
+                    }
                 }
             },
             onControlAction = { actionId ->

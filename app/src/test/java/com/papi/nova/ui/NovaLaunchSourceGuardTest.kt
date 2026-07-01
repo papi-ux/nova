@@ -54,8 +54,8 @@ class NovaLaunchSourceGuardTest {
             "private fun modeLabel("
         )
         val launchOptions = detail.section(
-            "private fun showLaunchOptions(",
-            "private fun syncLaunchPreflightSettings("
+            "onLaunchOptionSelected = { option ->",
+            "onDismissLaunchOptions ="
         )
 
         assertTrue(
@@ -72,7 +72,7 @@ class NovaLaunchSourceGuardTest {
         )
         assertTrue(
             "Launch Options must not bypass desktop-Steam safety for selected private headless launches",
-            launchOptions.contains("usesVirtualDisplay = selectedUsesVirtualDisplay") &&
+            launchOptions.contains("usesVirtualDisplay = option.usesVirtualDisplay") &&
                 launchOptions.contains("showDesktopSteamLaunchDecision(") &&
                 launchOptions.contains("onForcePrivateAfterSteamClose = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }")
         )
@@ -364,6 +364,43 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun gameKeepsSingleSessionProgressOverlayInstanceForStartupLifecycle() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val occurrences = game.split("SessionProgressOverlay(this)").size - 1
+        val startup = game.section(
+            "setContentView(R.layout.activity_game)",
+            "appName = this@Game.getIntent().getStringExtra(EXTRA_APP_NAME)"
+        )
+        val polarisSetup = game.section(
+            "// Nova: set up Polaris integration without blocking stream startup on REST probes.",
+            "if (appId == StreamConfiguration.INVALID_APP_ID)"
+        )
+
+        assertTrue(
+            "Game should create one SessionProgressOverlay instance; replacing it later leaves the first shown overlay orphaned",
+            occurrences == 1 &&
+                startup.contains("novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)") &&
+                !polarisSetup.contains("novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)")
+        )
+    }
+
+    @Test
+    fun polarisEventSourceDoesNotReshowStartupOverlayAfterStreamIsActive() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val eventSource = game.section(
+            "private fun startNovaEventSourceIfSupported()",
+            "private fun schedulePolarisLiveSessionStatusRefresh"
+        )
+
+        assertTrue(
+            "Polaris SSE startup should not resurrect the session progress overlay once native connectionStarted made the stream active",
+            eventSource.contains("if (!connected && !isStreamActive)") &&
+                eventSource.indexOf("if (!connected && !isStreamActive)") < eventSource.indexOf("novaProgressOverlay") &&
+                eventSource.contains("show()")
+        )
+    }
+
+    @Test
     fun gameAcceptsSyntheticNovaControllerShortcutBeforeIgnoringAdbKeyEvents() {
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val handleKeyDown = game.section(
@@ -421,6 +458,93 @@ class NovaLaunchSourceGuardTest {
                 strings.contains("<string name=\"game_menu_disconnect\">Disconnect</string>") &&
                 strings.contains("<string name=\"nova_quick_menu_end_stream\">End session</string>") &&
                 strings.contains("<string name=\"applist_menu_quit\">End session</string>")
+        )
+    }
+
+    @Test
+    fun gameReturnsToLibraryWhenPolarisReportsHostSessionEnded() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val hostEnded = game.section(
+            "private fun handlePolarisHostSessionEnded(",
+            " fun disconnect() {"
+        )
+
+        assertTrue(
+            "resilience give-up should finish the Game activity when Polaris reports the host session is gone",
+            game.contains("ConnectionResilienceManager(") &&
+                game.contains("handlePolarisHostSessionEnded()") &&
+                hostEnded.contains("hostSessionEnded = true") &&
+                hostEnded.contains("markLocalSessionEnd()") &&
+                hostEnded.contains("finish()")
+        )
+        assertTrue(
+            "SSE idle/stream-ended events should use the same host-ended teardown path",
+            game.contains("event == " + 34.toChar() + "stream_ended" + 34.toChar()) &&
+                game.contains("state == " + 34.toChar() + "idle" + 34.toChar()) &&
+                game.contains("handlePolarisHostSessionEnded()")
+        )
+        assertTrue(
+            "host-ended teardown should stop background-resume state and shut down resilience executor",
+            hostEnded.contains("stopBackgroundResumeWindow()") &&
+                hostEnded.contains("novaResilienceManager?.shutdown()") &&
+                !hostEnded.contains("prepareBackgroundResumeWindow()")
+        )
+    }
+
+    @Test
+    fun gameStreamSurfaceProvidesAccessibilityNodeForDeviceSmokeAutomation() {
+        val container = readSource("src/main/java/com/papi/nova/ui/StreamContainer.kt")
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(
+            "Game stream should expose a stable accessibility node so adb UI automation can identify the foreground stream surface",
+            container.contains("importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES") &&
+                container.contains("contentDescription = context.getString(R.string.nova_stream_surface_accessibility_label)") &&
+                strings.contains("nova_stream_surface_accessibility_label")
+        )
+        assertTrue(
+            "StreamContainer should keep the container accessible and hide the raw SurfaceView child from traversal",
+            container.contains("child.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO")
+        )
+    }
+
+    @Test
+    fun drawerLaunchAppliesPreflightStreamModeToSettingsAndIntent() {
+        val activity = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val launchGame = activity.section(
+            "private fun launchGame(",
+            "private fun resumeActiveSession("
+        )
+
+        assertTrue(
+            "drawer launch should derive effective stream mode from preflight optimization before syncing settings",
+            launchGame.contains("val launchResolution = StreamSyncManager.resolveAutoSafeResolution(") &&
+                launchGame.contains("val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(") &&
+                launchGame.indexOf("val launchResolution") < launchGame.indexOf("apiClient.updateClientSettings(")
+        )
+        assertTrue(
+            "client settings and Game intent should use launchResolution and launchFps instead of saved fps only",
+            launchGame.contains("launchResolution.width") &&
+                launchGame.contains("launchResolution.height") &&
+                launchGame.contains("launchFps") &&
+                launchGame.contains("launchFps,")
+        )
+        val launchSetup = game.section(
+            "watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)",
+            "decoderRenderer = MediaCodecDecoderRenderer("
+        )
+        assertTrue(
+            "Game should read explicit stream dimensions before selecting the decoder resolution",
+            launchSetup.indexOf("watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)") <
+                launchSetup.indexOf("if (watchStreamWidth > 0 && watchStreamHeight > 0)")
+        )
+        assertTrue(
+            "Game should honor explicit stream FPS extras for normal launch paths, not watch-only paths",
+            game.contains("var explicitStreamFpsOverride:Boolean = watchStreamFps > 0f") &&
+                game.contains("Nova: Launch using explicit stream FPS") &&
+                game.indexOf("watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)") <
+                    game.indexOf("var explicitStreamFpsOverride:Boolean = watchStreamFps > 0f")
         )
     }
 
