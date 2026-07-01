@@ -1072,7 +1072,7 @@ fun NovaGameDetailSheetContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .clip(RoundedCornerShape(topStart = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp, topEnd = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp))
             .background(surfaces.panel)
             .verticalScroll(verticalScroll)
             .padding(bottom = 16.dp)
@@ -1226,7 +1226,7 @@ private fun NovaDesktopSteamLaunchDecisionContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .clip(RoundedCornerShape(topStart = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp, topEnd = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp))
             .background(LocalNovaLibrarySurfaces.current.panel)
             .padding(start = 14.dp, top = 12.dp, end = 14.dp, bottom = 16.dp)
     ) {

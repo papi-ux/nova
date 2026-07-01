@@ -492,9 +492,10 @@ getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
 
 clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
- // Start the spinner
-        spinner = SpinnerDialog.displayDialog(this, getResources().getString(R.string.conn_establishing_title),
-getResources().getString(R.string.conn_establishing_msg), true)
+ // Show the verbose Nova session progress overlay immediately; keep spinner nullable for legacy cleanup paths.
+        novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)
+        novaProgressOverlay?.show()
+        novaProgressOverlay?.updateState("conn_establishing", getResources().getString(R.string.conn_establishing_msg))
 
 
 var currentDisplay:Display? = null
@@ -1183,6 +1184,7 @@ initKeyboardController()
 
 if (!decoderRenderer!!.isAvcSupported)
 {
+novaProgressOverlay?.dismiss()
 if (spinner != null)
 {
 spinner!!.dismiss()
@@ -4432,7 +4434,7 @@ override fun stageFailed(stage:String, portFlags:Int, errorCode:Int):Boolean {
 
 if (errorCode == 0 && portFlags != 0 && (portTestResult == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE || portTestResult == 0))
 {
-spinner!!.setMessage(getResources().getString(R.string.unlocking_or_starting))
+novaProgressOverlay?.updateState("unlocking_or_starting", getResources().getString(R.string.unlocking_or_starting))
 return true
 }
 
@@ -5959,29 +5961,60 @@ Handler(Looper.getMainLooper()).postDelayed({ getApplicationContext().startActiv
 overridePendingTransition(0, 0) }, 900)
 }
  fun quit() {
-var context:Context?
-if (isOnExternalDisplay && ExternalDisplayControlActivity.instance != null)
+val context:Context = if (isOnExternalDisplay && ExternalDisplayControlActivity.instance != null)
 {
-context = ExternalDisplayControlActivity.instance
+ExternalDisplayControlActivity.instance ?: this
 }
 else
 {
-context = this
+this
 }
-var builder:AlertDialog.Builder = AlertDialog.Builder(context)
-builder.setTitle(R.string.game_dialog_title_quit_confirm)
-builder.setMessage(R.string.game_dialog_message_quit_confirm)
 
-builder.setPositiveButton(getString(R.string.yes), { dialog, which->
+val sheet = BottomSheetDialog(context)
+val container = NovaSheetChrome.createSheetContainer(context)
+
+val title = TextView(context).apply {
+setText(R.string.game_dialog_title_quit_confirm)
+textSize = 20f
+NovaSheetChrome.styleSheetTitle(this)
+}
+container.addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+val message = TextView(context).apply {
+setText(R.string.game_dialog_message_quit_confirm)
+textSize = 15f
+setPadding(0, UiHelper.dpToPx(context, 10f).toInt(), 0, UiHelper.dpToPx(context, 18f).toInt())
+setTextColor(com.papi.nova.ui.NovaThemeManager.getTextSecondaryColor(context))
+}
+container.addView(message, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+val stay = TextView(context).apply {
+text = getString(R.string.game_dialog_action_stay_in_game)
+gravity = Gravity.CENTER
+NovaSheetChrome.styleSheetAction(this)
+setOnClickListener { sheet.dismiss() }
+}
+container.addView(stay, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()))
+
+val endSession = TextView(context).apply {
+text = getString(R.string.game_dialog_action_end_session)
+gravity = Gravity.CENTER
+NovaSheetChrome.styleSheetAction(this, destructive = true)
+setOnClickListener {
 quitOnStop = true
 markLocalSessionEnd()
-dialog!!.dismiss()
-finish() })
+sheet.dismiss()
+finish()
+}
+}
+container.addView(endSession, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()).apply {
+topMargin = UiHelper.dpToPx(context, 10f).toInt()
+})
 
-builder.setNegativeButton(getString(R.string.no), { dialog, which-> dialog!!.dismiss() })
-
-var dialog:AlertDialog? = builder.create()
-dialog!!.show()
+sheet.setContentView(container)
+sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
+sheet.show()
+NovaSheetChrome.applyBottomSheetChrome(sheet, container)
 }
 override fun showGameMenu(device:GameInputDevice?) {
 if (isOnExternalDisplay)
