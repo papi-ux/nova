@@ -149,17 +149,19 @@ data class NovaQuickMenuUiState(
             val mangoToggleAllowed = canAdjustHostTuning && currentUuid != null
             val mangoRisk = status?.game.equals("Steam Big Picture", ignoreCase = true)
 
+            val hdrDowngradeSummary = status?.hdrDowngradeSummary(context)
             val healthSummary = when {
                 hostStateUnavailable -> context.getString(R.string.nova_quick_menu_host_state_unavailable)
                 status == null -> context.getString(R.string.nova_quick_menu_health_checking)
                 status.isHostRenderLimited -> context.getString(R.string.nova_quick_menu_health_host_render)
+                hdrDowngradeSummary != null -> hdrDowngradeSummary
                 status.health.summary.isNotBlank() -> status.health.summary
                 status.hasHealthConcerns -> context.getString(R.string.nova_quick_menu_health_attention)
                 else -> context.getString(R.string.nova_quick_menu_health_steady)
             }
             val healthTone = when {
                 status == null -> NovaQuickMenuTone.MUTED
-                status.isHostRenderLimited || status.hasHealthConcerns -> NovaQuickMenuTone.WARNING
+                status.isHostRenderLimited || status.isHdrDowngraded || status.hasHealthConcerns -> NovaQuickMenuTone.WARNING
                 else -> NovaQuickMenuTone.MUTED
             }
 
@@ -681,6 +683,16 @@ data class NovaQuickMenuUiState(
             }
         }
 
+        private fun PolarisSessionStatus.hdrDowngradeSummary(context: Context): String? {
+            if (!isHdrDowngraded) {
+                return null
+            }
+            return if (isHeadlessHdrUnavailable) {
+                context.getString(R.string.nova_quick_menu_health_hdr_headless_downgrade)
+            } else {
+                context.getString(R.string.nova_quick_menu_health_hdr_downgrade)
+            }
+        }
         private fun optimizationRuntimeCaption(context: Context, status: PolarisSessionStatus?): String? {
             val source = status?.optimizationSourceLabel?.takeIf { it.isNotBlank() } ?: return null
             val confidence = status.optimizationConfidenceLabel

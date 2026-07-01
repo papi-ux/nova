@@ -250,6 +250,10 @@ data class PolarisSessionStatus(
         val safeHdr: Boolean? = null,
         val decoderRisk: String = "",
         val hdrRisk: String = "",
+        val hdrEffectiveMode: String = "",
+        val hdrDowngradeReason: String = "",
+        val hdrDowngradeMessage: String = "",
+        val hdrSource: String = "",
         val networkRisk: String = "",
         val hostRenderLimited: Boolean = false,
         val renderFpsGap: Double = 0.0,
@@ -283,6 +287,8 @@ data class PolarisSessionStatus(
         get() = equals("cuda", ignoreCase = true) ||
             equals("gpu", ignoreCase = true) ||
             equals("nvidia", ignoreCase = true)
+    private val String.isActiveHdrDowngradeReason: Boolean
+        get() = isNotBlank() && !equals("none", ignoreCase = true)
     val isClientPresentationSynced get() = clientPresentation.status.equals("synced", ignoreCase = true)
     val hasOptimizerSync get() = syncStatus.available
     val optimizationSourceLabel get() = when {
@@ -308,6 +314,13 @@ data class PolarisSessionStatus(
         health.hostRenderLimited ||
             health.primaryIssue.equals("host_render_limited", ignoreCase = true) ||
             health.issues.any { it.equals("host_render_limited", ignoreCase = true) }
+    val isHdrDowngraded get() =
+        health.primaryIssue.equals("hdr_downgraded", ignoreCase = true) ||
+            health.issues.any { it.equals("hdr_downgraded", ignoreCase = true) } ||
+            health.hdrDowngradeReason.isActiveHdrDowngradeReason
+    val isHeadlessHdrUnavailable get() =
+        health.hdrDowngradeReason.equals("headless_hdr_unavailable", ignoreCase = true) ||
+            (isHdrDowngraded && isHeadlessMode)
     val hasHealthConcerns get() = health.grade.equals("watch", ignoreCase = true) || health.grade.equals("degraded", ignoreCase = true)
     val healthToneLabel get() = when {
         isHostRenderLimited -> "Host render"

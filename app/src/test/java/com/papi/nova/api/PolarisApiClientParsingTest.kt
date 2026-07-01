@@ -43,6 +43,31 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun parseSessionStatusResponse_includesHdrDowngradeTruth() {
+        val health = JSONObject()
+            .put("primary_issue", "hdr_downgraded")
+            .put("safe_hdr", false)
+            .put("hdr_effective_mode", "sdr_10bit")
+            .put("hdr_downgrade_reason", "headless_hdr_unavailable")
+            .put("hdr_downgrade_message", "Private Headless Stream is using a compositor output that does not report HDR.")
+            .put("hdr_source", "missing")
+        val json = JSONObject()
+            .put("state", "streaming")
+            .put("streaming_active", true)
+            .put("dynamic_range", 1)
+            .put("health", health)
+
+        val status = PolarisApiClient.parseSessionStatusResponse(json)
+
+        assertEquals("sdr_10bit", status.health.hdrEffectiveMode)
+        assertEquals("headless_hdr_unavailable", status.health.hdrDowngradeReason)
+        assertEquals("Private Headless Stream is using a compositor output that does not report HDR.", status.health.hdrDowngradeMessage)
+        assertEquals("missing", status.health.hdrSource)
+        assertTrue(status.isHdrDowngraded)
+        assertTrue(status.isHeadlessHdrUnavailable)
+    }
+
+    @Test
     fun parseSessionStatusResponse_includesLiveSessionFields() {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true,\"shutdown_requested\":false," +
