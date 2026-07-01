@@ -5329,7 +5329,10 @@ novaApiClient == null ||
 return
 }
 
-novaProgressOverlay!!.show()
+if (!connected && !isStreamActive)
+{
+novaProgressOverlay?.show()
+}
 novaEventSource = com.papi.nova.api.PolarisEventSource(host ?: "",
 object : com.papi.nova.api.PolarisEventSource.EventListener {
 override fun onSessionEvent(event:String, state:String, message:String) {

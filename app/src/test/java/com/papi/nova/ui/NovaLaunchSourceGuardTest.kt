@@ -364,6 +364,22 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun polarisEventSourceDoesNotReshowStartupOverlayAfterStreamIsActive() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val eventSource = game.section(
+            "private fun startNovaEventSourceIfSupported()",
+            "private fun schedulePolarisLiveSessionStatusRefresh"
+        )
+
+        assertTrue(
+            "Polaris SSE startup should not resurrect the session progress overlay once native connectionStarted made the stream active",
+            eventSource.contains("if (!connected && !isStreamActive)") &&
+                eventSource.indexOf("if (!connected && !isStreamActive)") < eventSource.indexOf("novaProgressOverlay") &&
+                eventSource.contains("show()")
+        )
+    }
+
+    @Test
     fun gameAcceptsSyntheticNovaControllerShortcutBeforeIgnoringAdbKeyEvents() {
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val handleKeyDown = game.section(
