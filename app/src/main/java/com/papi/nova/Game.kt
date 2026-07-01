@@ -745,7 +745,6 @@ e!!.printStackTrace()
  // Nova: set up Polaris integration without blocking stream startup on REST probes.
         com.papi.nova.manager.FeatureFlagManager.reset()
 novaApiClient = com.papi.nova.api.PolarisApiClient(this, host ?: "", httpsPort, serverCert)
-novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)
 novaLockScreenOverlay = com.papi.nova.ui.LockScreenOverlay(this, novaApiClient!!)
 novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this)
 novaResilienceManager = com.papi.nova.manager.ConnectionResilienceManager(

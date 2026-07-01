@@ -364,6 +364,27 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun gameKeepsSingleSessionProgressOverlayInstanceForStartupLifecycle() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val occurrences = game.split("SessionProgressOverlay(this)").size - 1
+        val startup = game.section(
+            "setContentView(R.layout.activity_game)",
+            "appName = this@Game.getIntent().getStringExtra(EXTRA_APP_NAME)"
+        )
+        val polarisSetup = game.section(
+            "// Nova: set up Polaris integration without blocking stream startup on REST probes.",
+            "if (appId == StreamConfiguration.INVALID_APP_ID)"
+        )
+
+        assertTrue(
+            "Game should create one SessionProgressOverlay instance; replacing it later leaves the first shown overlay orphaned",
+            occurrences == 1 &&
+                startup.contains("novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)") &&
+                !polarisSetup.contains("novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)")
+        )
+    }
+
+    @Test
     fun polarisEventSourceDoesNotReshowStartupOverlayAfterStreamIsActive() {
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val eventSource = game.section(
