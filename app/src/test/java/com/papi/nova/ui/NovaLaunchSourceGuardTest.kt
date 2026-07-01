@@ -42,6 +42,128 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun desktopSteamDecisionSheetUsesNovaGlassAndExplicitMirrorDesktopPlumbing() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val streamConfiguration = readSource("src/main/java/com/papi/nova/nvstream/StreamConfiguration.kt")
+        val nvHttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
+        val chrome = readSource("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt")
+        val decisionSheet = detail.section(
+            "private fun showDesktopSteamLaunchDecision(",
+            "private fun modeLabel("
+        )
+
+        assertTrue(
+            "desktop Steam active policy should open a Nova-themed Compose bottom sheet, not a legacy square AlertDialog",
+            decisionSheet.contains("BottomSheetDialog(requireContext(), theme)") &&
+                decisionSheet.contains("NovaDesktopSteamLaunchDecisionContent(") &&
+                !decisionSheet.contains("AlertDialog.Builder")
+        )
+        assertTrue(
+            "decision sheet should offer explicit Private Stream, Mirror Desktop, and Cancel actions",
+            decisionSheet.contains("nova_desktop_steam_private_stream") &&
+                decisionSheet.contains("nova_desktop_steam_mirror_desktop") &&
+                decisionSheet.contains("nova_desktop_steam_cancel")
+        )
+        assertTrue(
+            "Mirror Desktop must be carried as an explicit launch override through the stream launch path",
+            detail.contains("mirrorDesktop = true") &&
+                serverHelper.contains("Game.EXTRA_MIRROR_DESKTOP") &&
+                game.contains("EXTRA_MIRROR_DESKTOP") &&
+                game.contains(".setMirrorDesktop(mirrorDesktop)") &&
+                game.contains(".setForcePrivateAfterSteamClose(forcePrivateAfterSteamClose)") &&
+                streamConfiguration.contains("fun setMirrorDesktop(enable: Boolean)") &&
+                streamConfiguration.contains("fun setForcePrivateAfterSteamClose(enable: Boolean)") &&
+                nvHttp.contains("&mirrorDesktop=") &&
+                nvHttp.contains("&launchMode=mirror_desktop")
+        )
+    }
+
+    @Test
+    fun launchFailureAndDesktopSteamActionsUseNovaThemedFlow() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val nvHttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
+        val chrome = readSource("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt")
+        val errorSection = game.section(
+            "var dialogText:String = getResources().getString(R.string.conn_error_msg)",
+            "private fun showNovaLaunchIssueSheet"
+        )
+
+        assertTrue(
+            "desktop Steam sheet should expose an explicit force-private path that closes desktop Steam before private launch",
+            detail.contains("onForcePrivateAfterSteamClose") &&
+                detail.contains("nova_desktop_steam_force_private") &&
+                serverHelper.contains("Game.EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE") &&
+                game.contains("EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE") &&
+                nvHttp.contains("closeDesktopSteamForPrivate=1") &&
+                nvHttp.contains("launchMode=force_private_stream")
+        )
+        assertTrue(
+            "Game connection failures should route through the Nova themed launch issue drawer instead of legacy square Dialog.displayDialog",
+            game.contains("showNovaLaunchIssueSheet(") &&
+                ! errorSection.contains("Dialog.displayDialog(")
+        )
+        assertTrue(
+            "Launch issue drawer must use shared transparent Nova glass sheet chrome so the old bottom-sheet theme background cannot peek out as a clipped bump",
+            game.contains("NovaSheetChrome.applyBottomSheetChrome(") &&
+                game.contains("NovaSheetChrome.createSheetBackground(") &&
+                !game.contains("setBackgroundColor(Color.rgb(18, 22, 28))")
+        )
+        assertTrue(
+            "Nova drawers should let content scroll down without minimizing the whole sheet; only the top handle strip may drag-dismiss",
+            detail.contains("behavior.isDraggable = false") &&
+                detail.contains("novaSheetHandleDrag") &&
+                detail.contains("onSheetHandleDismiss") &&
+                syncSheetGestureIsLocked() &&
+                chrome.contains("isDraggable = false") &&
+                chrome.contains("attachHandleDragToDismiss") &&
+                game.contains("NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)")
+        )
+    }
+
+
+    @Test
+    fun transientPopupsUseQuietThemeAwareChromeInsteadOfPurpleSnackbarCards() {
+        val snackbar = readSource("src/main/java/com/papi/nova/ui/NovaSnackbar.kt")
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+
+        assertTrue(
+            "Nova Snackbar should use active NovaThemeManager glass tokens, not hardcoded elevated purple card colors",
+            snackbar.contains("NovaThemeManager.getDialogBackgroundColor(activity)") &&
+                snackbar.contains("NovaThemeManager.getTextPrimaryColor(activity)") &&
+                snackbar.contains("NovaThemeManager.getAccentColor(activity)") &&
+                !snackbar.contains("setBackgroundTint(activity.getColor(R.color.nova_bg_elevated))")
+        )
+        assertTrue(
+            "Streaming transient messages should not stack Android toast/purple card popups over the launch drawer/overlay",
+            game.contains("showQuietStreamTransientMessage") &&
+                game.contains("NovaSnackbar.showQuiet") &&
+                !game.section("override fun displayTransientMessage", "override fun rumble").contains("Toast.makeText")
+        )
+    }
+
+    @Test
+    fun composeBottomSheetsUseThemeAwareGlassHostInsteadOfStaticOldThemeInset() {
+        val gameDetailSheet = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val syncSheet = readSource("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt")
+
+        assertTrue(
+            "Game detail sheet must clear/style the Material host with shared Nova glass chrome so bottom/nav inset gaps do not show old static blue chrome",
+            gameDetailSheet.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)") &&
+                gameDetailSheet.contains("NovaSheetChrome.createSheetBackground(requireContext())") &&
+                !gameDetailSheet.contains("sheet.setBackgroundResource(sheetBackgroundRes())")
+        )
+        assertTrue(
+            "Polaris sync sheet must use the same theme-aware host chrome instead of static nova_sheet_bg inset background",
+            syncSheet.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)") &&
+                !syncSheet.contains("sheet.setBackgroundResource")
+        )
+    }
+
+    @Test
     fun shortcutLaunchUsesPolarisPreflightBeforeStartingStream() {
         val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
@@ -293,6 +415,12 @@ class NovaLaunchSourceGuardTest {
 
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
+
+
+    private fun syncSheetGestureIsLocked(): Boolean {
+        val sync = readSource("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt")
+        return sync.contains("isDraggable = false")
+    }
 
     private fun String.section(startMarker: String, endMarker: String): String =
         substring(indexOf(startMarker), indexOf(endMarker))

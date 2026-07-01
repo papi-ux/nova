@@ -2,16 +2,19 @@ package com.papi.nova.ui
 
 import android.app.Dialog
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.ScrollView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
@@ -53,7 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.papi.nova.LimeLog
@@ -90,7 +96,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     private var apiClient: PolarisApiClient? = null
     private var defaultToVirtualDisplay: Boolean = false
     private var clientSettings: PolarisClientSettings? = null
-    private var onLaunch: ((PolarisGame, Boolean, String, JSONObject?) -> Unit)? = null
+    private var onLaunch: ((PolarisGame, Boolean, Boolean, Boolean, String, JSONObject?) -> Unit)? = null
 
     companion object {
         fun newInstance(
@@ -98,7 +104,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             apiClient: PolarisApiClient,
             defaultToVirtualDisplay: Boolean,
             clientSettings: PolarisClientSettings?,
-            onLaunch: (PolarisGame, Boolean, String, JSONObject?) -> Unit
+            onLaunch: (PolarisGame, Boolean, Boolean, Boolean, String, JSONObject?) -> Unit
         ): NovaGameDetailSheet {
             return NovaGameDetailSheet().apply {
                 this.game = game
@@ -258,21 +264,35 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                     headlessModeLabel = modeBadgeLabel("headless"),
                     virtualDisplayModeLabel = modeBadgeLabel("virtual_display"),
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
+                    onSheetHandleDismiss = { dismiss() },
                     onPrimaryLaunch = {
                         if (!uiState.playEnabled) return@NovaGameDetailSheetContent
-                        val launchConfirmed = {
+                        fun launchConfirmed(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
                             onLaunch?.invoke(
                                 currentGame.copy(mangohud = mangoHudEnabled),
                                 uiState.playUsesVirtualDisplay,
+                                mirrorDesktop,
+                                forcePrivateAfterSteamClose,
                                 profilePreference,
                                 optimizationState.rawOptimization
                             )
                             dismiss()
                         }
-                        if (optimizationState.reviewRequired) {
+                        val desktopSteamDecision = NovaDesktopSteamLaunchDecision.from(
+                            uiState,
+                            optimizationState.rawOptimization
+                        )
+                        if (desktopSteamDecision.required) {
+                            showDesktopSteamLaunchDecision(
+                                decision = desktopSteamDecision,
+                                onPrivateStream = { launchConfirmed(mirrorDesktop = false, forcePrivateAfterSteamClose = false) },
+                                onMirrorDesktop = { launchConfirmed(mirrorDesktop = true, forcePrivateAfterSteamClose = false) },
+                                onForcePrivateAfterSteamClose = { launchConfirmed(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }
+                            )
+                        } else if (optimizationState.reviewRequired) {
                             showPreflightReview(
                                 optimizationState = optimizationState,
-                                onLaunchConfirmed = launchConfirmed,
+                                onLaunchConfirmed = { launchConfirmed(false) },
                                 onRetryHighFps = { retryHighFpsTrial() },
                                 onResetProfile = {
                                     resetWorking = true
@@ -287,7 +307,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                                 }
                             )
                         } else {
-                            launchConfirmed()
+                            launchConfirmed(false)
                         }
                     },
                     onLaunchOptions = {
@@ -475,6 +495,8 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                 onLaunch?.invoke(
                     game.copy(mangohud = mangoHudEnabled),
                     options[which].second,
+                    false,
+                    false,
                     profilePreference,
                     rawOptimization
                 )
@@ -523,6 +545,56 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             .setNeutralButton(R.string.nova_library_retry_high_fps) { _, _ -> onRetryHighFps() }
             .setNegativeButton(R.string.nova_library_reset_game_profile) { _, _ -> onResetProfile() }
             .show()
+    }
+
+    private fun showDesktopSteamLaunchDecision(
+        decision: NovaDesktopSteamLaunchDecision,
+        onPrivateStream: () -> Unit,
+        onMirrorDesktop: () -> Unit,
+        onForcePrivateAfterSteamClose: () -> Unit
+    ) {
+        val sheet = BottomSheetDialog(requireContext(), theme)
+        val composeView = ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            setContent {
+                NovaComposeTheme {
+                    NovaDesktopSteamLaunchDecisionContent(
+                        title = stringResource(R.string.nova_desktop_steam_title),
+                        message = decision.reason.ifBlank {
+                            stringResource(R.string.nova_desktop_steam_message)
+                        },
+                        privateStreamLabel = stringResource(R.string.nova_desktop_steam_private_stream),
+                        privateStreamUnavailableReason = decision.privateStreamUnavailableReason,
+                        privateStreamEnabled = decision.privateStreamEnabled,
+                        mirrorDesktopLabel = stringResource(R.string.nova_desktop_steam_mirror_desktop),
+                        mirrorDesktopEnabled = decision.mirrorDesktopEnabled,
+                        mirrorDesktopCaption = stringResource(R.string.nova_desktop_steam_mirror_caption),
+                        forcePrivateLabel = decision.forcePrivateAfterSteamCloseLabel.ifBlank {
+                            stringResource(R.string.nova_desktop_steam_force_private)
+                        },
+                        forcePrivateEnabled = decision.forcePrivateAfterSteamCloseEnabled,
+                        forcePrivateCaption = stringResource(R.string.nova_desktop_steam_force_private_caption),
+                        cancelLabel = stringResource(R.string.nova_desktop_steam_cancel),
+                        onPrivateStream = {
+                            sheet.dismiss()
+                            onPrivateStream()
+                        },
+                        onMirrorDesktop = {
+                            sheet.dismiss()
+                            onMirrorDesktop()
+                        },
+                        onForcePrivateAfterSteamClose = {
+                            sheet.dismiss()
+                            onForcePrivateAfterSteamClose()
+                        },
+                        onCancel = { sheet.dismiss() }
+                    )
+                }
+            }
+        }
+        sheet.setContentView(composeView)
+        sheet.setOnShowListener { expandBottomSheet(sheet) }
+        sheet.show()
     }
 
     private fun modeLabel(mode: String): String {
@@ -816,15 +888,111 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         ).filterNotNull().joinToString(" · ")
     }
 
+    private fun sheetBackgroundRes(): Int {
+        return if (NovaThemeManager.isOled(requireContext())) {
+            R.drawable.nova_sheet_bg_oled
+        } else {
+            R.drawable.nova_sheet_bg
+        }
+    }
+
     private fun expandBottomSheet(bottomSheetDialog: BottomSheetDialog?) {
-        bottomSheetDialog ?: return
+        val sheet = bottomSheetDialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
         val contentView = view ?: return
-        NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog,
-            contentView,
-            minLandscapeWidthDp = 720,
-            maxLandscapeWidthDp = 1260
+        NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)
+        contentView.post {
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val maxHeightRatio = if (isLandscape) 0.96f else 0.90f
+            val maxHeight = (resources.displayMetrics.heightPixels * maxHeightRatio).toInt()
+            val contentHeight = contentView.measuredHeight.takeIf { it > 0 } ?: return@post
+            val desiredHeight = contentHeight.coerceAtMost(maxHeight)
+            val displayWidth = resources.displayMetrics.widthPixels
+            val density = resources.displayMetrics.density
+            val desiredWidth = if (isLandscape) {
+                val minWidth = (720 * density).toInt()
+                val maxWidth = (1260 * density).toInt()
+                (displayWidth * 0.7f).toInt().coerceIn(minWidth, maxWidth)
+            } else {
+                displayWidth
+            }
+            val horizontalMargin = if (isLandscape) {
+                ((displayWidth - desiredWidth) / 2).coerceAtLeast((18 * density).toInt())
+            } else {
+                0
+            }
+
+            contentView.layoutParams = contentView.layoutParams.apply {
+                height = if (contentHeight > maxHeight) desiredHeight else ViewGroup.LayoutParams.WRAP_CONTENT
+            }
+            sheet.layoutParams = sheet.layoutParams.apply {
+                width = if (isLandscape) displayWidth - (horizontalMargin * 2) else ViewGroup.LayoutParams.MATCH_PARENT
+                height = desiredHeight
+            }
+            (sheet.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
+                lp.marginStart = horizontalMargin
+                lp.marginEnd = horizontalMargin
+                sheet.layoutParams = lp
+            }
+            sheet.minimumHeight = 0
+            sheet.requestLayout()
+
+            val behavior = BottomSheetBehavior.from(sheet)
+            behavior.isFitToContents = true
+            behavior.isDraggable = false
+            behavior.skipCollapsed = true
+            behavior.peekHeight = desiredHeight
+            behavior.state = BottomSheetBehavior.STATE_EXPANDED
+
+            when (contentView) {
+                is NestedScrollView -> contentView.post { contentView.scrollTo(0, 0) }
+                is ScrollView -> contentView.post { contentView.scrollTo(0, 0) }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun NovaSheetDragHandle(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalNovaComposeColors.current
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .size(height = 28.dp, width = 1.dp)
+            .novaSheetHandleDrag(onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 42.dp, height = 4.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(colors.divider)
         )
     }
+}
+
+private fun Modifier.novaSheetHandleDrag(onDismiss: () -> Unit): Modifier = pointerInput(onDismiss) {
+    val dismissThreshold = 42.dp.toPx()
+    var draggedDown = 0f
+    detectVerticalDragGestures(
+        onDragStart = { draggedDown = 0f },
+        onDragCancel = { draggedDown = 0f },
+        onDragEnd = {
+            if (draggedDown >= dismissThreshold) {
+                onDismiss()
+            }
+            draggedDown = 0f
+        },
+        onVerticalDrag = { change, dragAmount ->
+            if (dragAmount > 0f) {
+                draggedDown += dragAmount
+                change.consume()
+            }
+        }
+    )
 }
 
 data class NovaGameDetailOptimizationState(
@@ -867,6 +1035,7 @@ fun NovaGameDetailSheetContent(
     headlessModeLabel: String,
     virtualDisplayModeLabel: String,
     coverContentDescription: String,
+    onSheetHandleDismiss: () -> Unit,
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
@@ -884,22 +1053,12 @@ fun NovaGameDetailSheetContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(
-                topStart = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp,
-                topEnd = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp
-            ))
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(surfaces.panel)
             .verticalScroll(verticalScroll)
             .padding(bottom = 16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .padding(top = 6.dp, bottom = 6.dp)
-                .size(width = 36.dp, height = 4.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(colors.divider)
-                .align(Alignment.CenterHorizontally)
-        )
+        NovaSheetDragHandle(onDismiss = onSheetHandleDismiss)
 
         GameDetailsPanel(
             uiState = uiState,
@@ -1022,6 +1181,132 @@ private fun NovaDetailPanel(
             .padding(contentPadding)
     ) {
         content()
+    }
+}
+
+@Composable
+private fun NovaDesktopSteamLaunchDecisionContent(
+    title: String,
+    message: String,
+    privateStreamLabel: String,
+    privateStreamUnavailableReason: String,
+    privateStreamEnabled: Boolean,
+    mirrorDesktopLabel: String,
+    mirrorDesktopEnabled: Boolean,
+    mirrorDesktopCaption: String,
+    forcePrivateLabel: String,
+    forcePrivateEnabled: Boolean,
+    forcePrivateCaption: String,
+    cancelLabel: String,
+    onPrivateStream: () -> Unit,
+    onMirrorDesktop: () -> Unit,
+    onForcePrivateAfterSteamClose: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val colors = LocalNovaComposeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(LocalNovaLibrarySurfaces.current.panel)
+            .padding(start = 14.dp, top = 12.dp, end = 14.dp, bottom = 16.dp)
+    ) {
+        NovaSheetDragHandle(
+            onDismiss = onCancel,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        NovaDetailPanel(
+            modifier = Modifier.fillMaxWidth(),
+            accent = true,
+            warning = true,
+            contentPadding = PaddingValues(14.dp)
+        ) {
+            Text(
+                text = title,
+                color = colors.textPrimary,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = message,
+                modifier = Modifier.padding(top = 8.dp),
+                color = colors.textSecondary,
+                fontSize = 12.sp,
+                lineHeight = 15.sp
+            )
+            if (privateStreamUnavailableReason.isNotBlank()) {
+                Text(
+                    text = privateStreamUnavailableReason,
+                    modifier = Modifier.padding(top = 8.dp),
+                    color = colors.warning,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp
+                )
+            }
+            Text(
+                text = mirrorDesktopCaption,
+                modifier = Modifier.padding(top = 8.dp),
+                color = colors.textMuted,
+                fontSize = 11.sp,
+                lineHeight = 14.sp
+            )
+        }
+        NovaActionButton(
+            text = privateStreamLabel,
+            onClick = onPrivateStream,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
+            enabled = privateStreamEnabled,
+            contentDescription = privateStreamLabel,
+            minHeight = 46.dp,
+            cornerRadius = 12.dp,
+            fontSize = 14.sp
+        )
+        NovaActionButton(
+            text = forcePrivateLabel,
+            onClick = onForcePrivateAfterSteamClose,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            enabled = forcePrivateEnabled,
+            primary = false,
+            contentDescription = forcePrivateLabel,
+            minHeight = 46.dp,
+            cornerRadius = 12.dp,
+            fontSize = 14.sp
+        )
+        Text(
+            text = forcePrivateCaption,
+            modifier = Modifier.padding(top = 5.dp),
+            color = colors.textMuted,
+            fontSize = 11.sp,
+            lineHeight = 14.sp
+        )
+        NovaActionButton(
+            text = mirrorDesktopLabel,
+            onClick = onMirrorDesktop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            enabled = mirrorDesktopEnabled,
+            primary = true,
+            contentDescription = mirrorDesktopLabel,
+            minHeight = 48.dp,
+            cornerRadius = 12.dp,
+            fontSize = 15.sp
+        )
+        NovaActionButton(
+            text = cancelLabel,
+            onClick = onCancel,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            contentDescription = cancelLabel,
+            minHeight = 42.dp,
+            cornerRadius = 10.dp,
+            fontSize = 13.sp
+        )
     }
 }
 

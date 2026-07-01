@@ -114,6 +114,8 @@ object ServerHelper {
         streamFps: Float = 0f,
         aiProfilePreference: String = "auto",
         launchOptimizationJson: String? = null,
+        mirrorDesktop: Boolean = false,
+        forcePrivateAfterSteamClose: Boolean = false,
     ): Intent {
         val prefConfig = PreferenceConfiguration.readPreferences(parent)
         val gameIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && prefConfig.enableFullExDisplay) {
@@ -141,6 +143,8 @@ object ServerHelper {
         gameIntent.putExtra(Game.EXTRA_PC_NAME, pcName)
         gameIntent.putExtra(Game.EXTRA_VDISPLAY, withVDisplay)
         gameIntent.putExtra(Game.EXTRA_DISPLAY_MODE_EXPLICIT, displayModeExplicit)
+        gameIntent.putExtra(Game.EXTRA_MIRROR_DESKTOP, mirrorDesktop)
+        gameIntent.putExtra(Game.EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, forcePrivateAfterSteamClose)
         gameIntent.putExtra(Game.EXTRA_WATCH_ONLY, watchOnly)
         if (streamWidth > 0 && streamHeight > 0) {
             gameIntent.putExtra(Game.EXTRA_STREAM_WIDTH, streamWidth)
@@ -219,6 +223,8 @@ object ServerHelper {
         watchOnly: Boolean,
         profilePreference: String = "auto",
         launchOptimizationJson: String? = null,
+        mirrorDesktop: Boolean = false,
+        forcePrivateAfterSteamClose: Boolean = false,
     ): Intent {
         var serverCert: ByteArray? = null
         try {
@@ -249,6 +255,8 @@ object ServerHelper {
             serverCert,
             aiProfilePreference = profilePreference,
             launchOptimizationJson = launchOptimizationJson,
+            mirrorDesktop = mirrorDesktop,
+            forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
         )
     }
 
@@ -315,6 +323,8 @@ object ServerHelper {
         streamFps: Float,
         aiProfilePreference: String = "auto",
         launchOptimizationJson: String? = null,
+        mirrorDesktop: Boolean = false,
+        forcePrivateAfterSteamClose: Boolean = false,
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -339,6 +349,7 @@ object ServerHelper {
             streamFps,
             aiProfilePreference,
             launchOptimizationJson,
+            mirrorDesktop,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
@@ -402,6 +413,8 @@ object ServerHelper {
         serverCert: ByteArray?,
         aiProfilePreference: String = "auto",
         launchOptimizationJson: String? = null,
+        mirrorDesktop: Boolean = false,
+        forcePrivateAfterSteamClose: Boolean = false,
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -423,6 +436,8 @@ object ServerHelper {
             serverCert,
             aiProfilePreference = aiProfilePreference,
             launchOptimizationJson = launchOptimizationJson,
+            mirrorDesktop = mirrorDesktop,
+            forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)

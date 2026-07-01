@@ -553,8 +553,8 @@ class NovaLibraryActivity : AppCompatActivity() {
             apiClient = apiClient,
             defaultToVirtualDisplay = defaultToVirtualDisplay,
             clientSettings = clientSettings
-        ) { selectedGame, withVirtualDisplay, profilePreference, preflightOptimization ->
-            launchGame(selectedGame, withVirtualDisplay, profilePreference, preflightOptimization)
+        ) { selectedGame, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, preflightOptimization ->
+            launchGame(selectedGame, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, preflightOptimization)
         }
         detailSheet?.show(supportFragmentManager, "game_detail")
     }
@@ -562,6 +562,8 @@ class NovaLibraryActivity : AppCompatActivity() {
     private fun launchGame(
         game: PolarisGame,
         withVirtualDisplay: Boolean,
+        mirrorDesktop: Boolean = false,
+        forcePrivateAfterSteamClose: Boolean = false,
         profilePreference: String = "auto",
         preflightOptimization: org.json.JSONObject? = null
     ) {
@@ -588,8 +590,12 @@ class NovaLibraryActivity : AppCompatActivity() {
             getString(
                 R.string.nova_library_launching_mode,
                 game.name,
-                if (withVirtualDisplay) getString(R.string.nova_library_launch_virtual_display)
-                else getString(R.string.nova_library_launch_headless)
+                when {
+                    withVirtualDisplay -> getString(R.string.nova_library_launch_virtual_display)
+                    mirrorDesktop -> getString(R.string.nova_desktop_steam_mirror_desktop)
+                    forcePrivateAfterSteamClose -> getString(R.string.nova_desktop_steam_force_private)
+                    else -> getString(R.string.nova_library_launch_headless)
+                }
             ),
             Toast.LENGTH_SHORT
         ).show()
@@ -605,7 +611,11 @@ class NovaLibraryActivity : AppCompatActivity() {
                 val preferences = com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity)
                 val syncedSettings = withContext(Dispatchers.IO) {
                     apiClient.updateClientSettings(
-                        streamDisplayMode = if (withVirtualDisplay) "host_virtual_display" else "headless_stream",
+                        streamDisplayMode = when {
+                            withVirtualDisplay -> "host_virtual_display"
+                            mirrorDesktop -> "desktop_display"
+                            else -> "headless_stream"
+                        },
                         displayMode = com.papi.nova.preferences.PreferenceConfiguration.formatStreamingDisplayMode(
                             preferences.width,
                             preferences.height,
@@ -634,7 +644,9 @@ class NovaLibraryActivity : AppCompatActivity() {
                     false,
                     serverCert,
                     aiProfilePreference = profilePreference,
-                    launchOptimizationJson = preflightOptimization?.toString()
+                    launchOptimizationJson = preflightOptimization?.toString(),
+                    mirrorDesktop = mirrorDesktop,
+                    forcePrivateAfterSteamClose = forcePrivateAfterSteamClose
                 )
             } catch (e: CancellationException) {
                 throw e

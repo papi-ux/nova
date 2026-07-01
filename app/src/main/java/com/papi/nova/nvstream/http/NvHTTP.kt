@@ -694,6 +694,8 @@ class NvHTTP @Throws(IOException::class) constructor(
             .takeIf { it.isNotBlank() }
             ?.let { "&profilePreference=" + URLEncoder.encode(it, "UTF-8") }
             ?: ""
+        val mirrorDesktop = streamConfig.getMirrorDesktop()
+        val forcePrivateAfterSteamClose = streamConfig.getForcePrivateAfterSteamClose()
 
         val xmlStr = openHttpConnectionToString(
             httpClientLongConnectNoReadTimeout,
@@ -711,6 +713,9 @@ class NvHTTP @Throws(IOException::class) constructor(
                 (if (watchOnly) "&watch=1" else "") +
                 "&virtualDisplay=" + (if (streamConfig.getVirtualDisplay()) 1 else 0) +
                 "&displayModeExplicit=" + (if (streamConfig.getDisplayModeExplicit()) 1 else 0) +
+                "&mirrorDesktop=" + (if (mirrorDesktop) 1 else 0) +
+                (if (mirrorDesktop) "&launchMode=mirror_desktop" else "") +
+                (if (forcePrivateAfterSteamClose) "&closeDesktopSteamForPrivate=1&launchMode=force_private_stream" else "") +
                 profilePreference +
                 "&localAudioPlayMode=" + (if (streamConfig.getPlayLocalAudio()) 1 else 0) +
                 "&surroundAudioInfo=" + streamConfig.getAudioConfiguration()!!.getSurroundAudioInfo() +
