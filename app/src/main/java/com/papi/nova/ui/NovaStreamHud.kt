@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.app.Activity
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -51,6 +52,14 @@ class NovaStreamHud(
     private var recoveredFrames = 0
     private var bitrateReduced = false
     private val sparklineData = NovaHudSparklineBuffer()
+    private val hudOpacityScale = mutableStateOf(1f)
+    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+        if (key == NovaHudPreferences.KEY_OPACITY) {
+            hudOpacityScale.value = NovaHudPreferences.opacityScale(
+                NovaHudPreferences.readOpacityPercent(prefs)
+            )
+        }
+    }
 
     var onBitrateAdjust: ((Int) -> Unit)? = null
 
@@ -70,13 +79,20 @@ class NovaStreamHud(
             resetSessionState()
             val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
             currentMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal"))
+            hudOpacityScale.value = NovaHudPreferences.opacityScale(
+                NovaHudPreferences.readOpacityPercent(prefs)
+            )
+            prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
             publishState()
 
             val composeView = ComposeView(activity).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 setContent {
                     NovaComposeTheme {
-                        NovaStreamHudContent(state = hudState.value)
+                        NovaStreamHudContent(
+                            state = hudState.value,
+                            opacityScale = hudOpacityScale.value
+                        )
                     }
                 }
             }
@@ -423,6 +439,8 @@ class NovaStreamHud(
         activity.runOnUiThread {
             val view = hudView
             hudView = null
+            PreferenceManager.getDefaultSharedPreferences(activity)
+                .unregisterOnSharedPreferenceChangeListener(preferenceListener)
             sparklineData.clear()
             view?.let { safeRemoveFromParent(it) }
         }
@@ -447,7 +465,6 @@ class NovaStreamHud(
         private const val HUD_SAFE_MARGIN_DP = 12f
         private const val PREF_HUD_X = "nova_polaris_hud_x"
         private const val PREF_HUD_Y = "nova_polaris_hud_y"
-
         fun isEnabled(activity: Activity): Boolean {
             return PreferenceManager.getDefaultSharedPreferences(activity)
                 .getBoolean("nova_polaris_hud", false)

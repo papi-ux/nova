@@ -73,6 +73,12 @@ data class NovaQuickMenuStabilityState(
     val profileOptions: List<NovaQuickMenuPreferenceOption>
 )
 
+data class NovaQuickMenuHudOpacityState(
+    val percent: Int,
+    val presets: List<Int>,
+    val enabled: Boolean
+)
+
 data class NovaQuickMenuUiState(
     val title: String,
     val subtitle: String,
@@ -87,6 +93,7 @@ data class NovaQuickMenuUiState(
     val advancedExpanded: Boolean,
     val advancedRows: List<NovaQuickMenuAction>,
     val quickKeys: List<NovaQuickMenuAction>,
+    val hudOpacity: NovaQuickMenuHudOpacityState,
     val overlayRows: List<NovaQuickMenuAction>,
     val controlRows: List<NovaQuickMenuAction>,
     val sessionRows: List<NovaQuickMenuAction>
@@ -110,6 +117,7 @@ data class NovaQuickMenuUiState(
             currentGameUuid: String?,
             profilePreference: String,
             hudShowing: Boolean,
+            hudOpacityPercent: Int = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
             perfOverlayEnabled: Boolean,
             onscreenControllerEnabled: Boolean,
             keyboardVisible: Boolean,
@@ -285,6 +293,12 @@ data class NovaQuickMenuUiState(
                 mangoRisk
             )
 
+            val hudOpacity = NovaQuickMenuHudOpacityState(
+                percent = NovaHudPreferences.coerceOpacityPercent(hudOpacityPercent),
+                presets = NovaHudPreferences.OPACITY_PRESETS,
+                enabled = hudShowing
+            )
+
             val overlays = listOf(
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.NOVA_HUD,
@@ -376,6 +390,7 @@ data class NovaQuickMenuUiState(
                 advancedExpanded = advancedExpanded,
                 advancedRows = listOf(aiRow, clearRow, mangoRow),
                 quickKeys = quickKeyActions(context),
+                hudOpacity = hudOpacity,
                 overlayRows = overlays,
                 controlRows = controls,
                 sessionRows = sessionRows
@@ -424,6 +439,7 @@ data class NovaQuickMenuUiState(
                 currentGameUuid = "game-1",
                 profilePreference = "auto",
                 hudShowing = false,
+                hudOpacityPercent = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
                 perfOverlayEnabled = false,
                 onscreenControllerEnabled = false,
                 keyboardVisible = false,

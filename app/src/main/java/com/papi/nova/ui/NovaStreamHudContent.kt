@@ -20,6 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,13 +45,24 @@ import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
 @Composable
 fun NovaStreamHudContent(
     state: NovaHudUiState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    opacityScale: Float = 1f
 ) {
-    when (state.mode) {
-        NovaHudMode.DEBUG -> NovaStreamHudDebug(state, modifier)
-        NovaHudMode.PERFORMANCE -> NovaStreamHudPerformance(state, modifier)
-        NovaHudMode.MINIMAL -> NovaStreamHudMinimal(state, modifier)
+    val hudOpacityScale = rememberHudOpacityScale(opacityScale)
+    CompositionLocalProvider(LocalNovaHudOpacityScale provides hudOpacityScale) {
+        when (state.mode) {
+            NovaHudMode.DEBUG -> NovaStreamHudDebug(state, modifier)
+            NovaHudMode.PERFORMANCE -> NovaStreamHudPerformance(state, modifier)
+            NovaHudMode.MINIMAL -> NovaStreamHudMinimal(state, modifier)
+        }
     }
+}
+
+private val LocalNovaHudOpacityScale = compositionLocalOf { 1f }
+
+@Composable
+private fun rememberHudOpacityScale(opacityScale: Float): Float {
+    return remember(opacityScale) { opacityScale.coerceIn(NovaHudPreferences.MIN_OPACITY_PERCENT / 100f, 1f) }
 }
 
 @Composable
@@ -262,13 +276,18 @@ private fun HudPanel(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val surfaces = LocalNovaLibrarySurfaces.current
+    val hudOpacityScale = LocalNovaHudOpacityScale.current
     val panelShape = RoundedCornerShape(cornerRadius)
     Column(
         modifier = modifier
             .shadow(16.dp, panelShape, clip = false)
             .clip(panelShape)
-            .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel))
-            .border(1.dp, surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border), panelShape)
+            .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel * hudOpacityScale))
+            .border(
+                1.dp,
+                surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * hudOpacityScale),
+                panelShape
+            )
             .padding(padding),
         content = content
     )
@@ -278,12 +297,13 @@ private fun HudPanel(
 private fun HudDiagnosticStrip(state: NovaHudUiState) {
     if (state.healthReasonLabel.isBlank() && state.streamTruthLabel.isBlank()) return
     val surfaces = LocalNovaLibrarySurfaces.current
+    val hudOpacityScale = LocalNovaHudOpacityScale.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 7.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl))
+            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
             .padding(horizontal = 7.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -341,10 +361,11 @@ private fun HudLayerHealthRow(layers: List<NovaHudLayerHealth>) {
 @Composable
 private fun HudLayerChip(layer: NovaHudLayerHealth, modifier: Modifier = Modifier) {
     val surfaces = LocalNovaLibrarySurfaces.current
+    val hudOpacityScale = LocalNovaHudOpacityScale.current
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(9.dp))
-            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl))
+            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
             .padding(horizontal = 6.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -383,11 +404,12 @@ private fun HudMetric(
     valueTone: NovaHudTone = NovaHudTone.MUTED
 ) {
     val surfaces = LocalNovaLibrarySurfaces.current
+    val hudOpacityScale = LocalNovaHudOpacityScale.current
     Column(
         modifier = modifier
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl))
+            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
             .padding(horizontal = 7.dp, vertical = 5.dp),
         verticalArrangement = Arrangement.Center
     ) {
@@ -465,12 +487,17 @@ private fun HudStatusDot(tone: NovaHudTone, height: Dp) {
 
 @Composable
 private fun HudDivider(horizontalPadding: Dp = 8.dp) {
+    val hudOpacityScale = LocalNovaHudOpacityScale.current
     Spacer(
         modifier = Modifier
             .padding(horizontal = horizontalPadding)
             .width(1.dp)
             .height(16.dp)
-            .background(LocalNovaComposeColors.current.accent.copy(alpha = NovaInGameOverlayAlpha.AccentDivider))
+            .background(
+                LocalNovaComposeColors.current.accent.copy(
+                    alpha = NovaInGameOverlayAlpha.AccentDivider * hudOpacityScale
+                )
+            )
     )
 }
 
@@ -481,6 +508,7 @@ private fun NovaHudSparkline(
     modifier: Modifier = Modifier
 ) {
     val lineColor = tone.hudColor()
+    val hudOpacityScale = LocalNovaHudOpacityScale.current
     Canvas(modifier = modifier) {
         if (samples.size < 2 || size.width <= 0f || size.height <= 0f) {
             return@Canvas
@@ -506,18 +534,18 @@ private fun NovaHudSparkline(
         fillPath.lineTo((samples.size - 1) * stepX, size.height)
         fillPath.close()
         drawLine(
-            color = lineColor.copy(alpha = NovaInGameOverlayAlpha.SparklineGuide),
+            color = lineColor.copy(alpha = NovaInGameOverlayAlpha.SparklineGuide * hudOpacityScale),
             start = Offset(0f, size.height - 1f),
             end = Offset(size.width, size.height - 1f),
             strokeWidth = 1f
         )
         drawLine(
-            color = lineColor.copy(alpha = 0.10f),
+            color = lineColor.copy(alpha = 0.10f * hudOpacityScale),
             start = Offset(0f, 1f),
             end = Offset(size.width, 1f),
             strokeWidth = 1f
         )
-        drawPath(fillPath, lineColor.copy(alpha = NovaInGameOverlayAlpha.SparklineFill))
+        drawPath(fillPath, lineColor.copy(alpha = NovaInGameOverlayAlpha.SparklineFill * hudOpacityScale))
         drawPath(
             path = linePath,
             color = lineColor,

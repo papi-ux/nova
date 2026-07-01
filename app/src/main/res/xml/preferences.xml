@@ -415,6 +415,18 @@
             android:entryValues="@array/nova_hud_position_values"
             android:defaultValue="top_left"
             app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:key="nova_polaris_hud_opacity"
+            android:title="HUD Opacity"
+            android:summary="Adjust NovaHUD glass opacity without dimming telemetry text"
+            android:dialogMessage="Adjust NovaHUD glass opacity without dimming telemetry text"
+            android:dependency="nova_polaris_hud"
+            android:defaultValue="90"
+            android:max="100"
+            android:text="@string/suffix_osc_opacity"
+            app:iconSpaceReserved="false"
+            seekbar:min="25"
+            seekbar:step="1" />
 
         <!-- Legacy perf overlay (Moonlight-inherited) -->
         <CheckBoxPreference
@@ -608,7 +620,7 @@
         <ListPreference
             android:key="nova_theme"
             android:title="Theme"
-            android:summary="Polaris Aurora, Console OLED, Miami Nebula, PSP / Portable Chrome, High Contrast, or Material You"
+            android:summary="Polaris Aurora, PSP Chrome / Portable Chrome, Console OLED, Miami Nebula, High Contrast, or Material You"
             android:entries="@array/nova_theme_names"
             android:entryValues="@array/nova_theme_values"
             android:defaultValue="polaris"

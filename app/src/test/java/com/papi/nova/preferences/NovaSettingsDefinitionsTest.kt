@@ -110,6 +110,20 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun hudOpacityPreferenceIsAdjustableInstantSlider() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val hudOpacity = definitions.require("nova_polaris_hud_opacity")
+
+        assertEquals(NovaSettingType.Slider, hudOpacity.type)
+        assertEquals(NovaSettingValue.IntValue(90), hudOpacity.defaultValue)
+        assertEquals(25, hudOpacity.min)
+        assertEquals(100, hudOpacity.max)
+        assertEquals(1, hudOpacity.step)
+        assertEquals("%", hudOpacity.suffix)
+        assertEquals(NovaSettingApplyTiming.Instant, hudOpacity.applyTiming)
+    }
+
+    @Test
     fun upgradedBalancedInstallMigratesLegacy720Resolution() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         prefs.edit()

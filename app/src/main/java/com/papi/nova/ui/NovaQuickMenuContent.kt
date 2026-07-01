@@ -76,6 +76,7 @@ data class NovaQuickMenuCallbacks(
     val onProfilePreference: (String) -> Unit = {},
     val onQuickKey: (NovaQuickMenuActionId) -> Unit = {},
     val onOverlayAction: (NovaQuickMenuActionId) -> Unit = {},
+    val onHudOpacityChange: (Int) -> Unit = {},
     val onControlAction: (NovaQuickMenuActionId) -> Unit = {},
     val onSessionAction: (NovaQuickMenuActionId) -> Unit = {}
 ) {
@@ -271,6 +272,10 @@ fun NovaQuickMenuContent(
             state.overlayRows.forEach { row ->
                 NovaQuickMenuRow(action = row, callbacks = callbacks)
             }
+            NovaQuickMenuHudOpacityControl(
+                state = state,
+                callbacks = callbacks
+            )
         }
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuPanel(title = quickKeysTitle) {
@@ -673,6 +678,83 @@ private fun NovaQuickMenuRow(action: NovaQuickMenuAction, callbacks: NovaQuickMe
             action.chip?.let {
                 Spacer(Modifier.width(8.dp))
                 NovaQuickMenuChipView(it)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickMenuHudOpacityControl(
+    state: NovaQuickMenuUiState,
+    callbacks: NovaQuickMenuCallbacks
+) {
+    val colors = LocalNovaComposeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.nova_quick_menu_hud_opacity),
+                color = colors.textPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            NovaQuickMenuChipView(
+                NovaQuickMenuChip(
+                    label = state.hudOpacity.percent.toString() + "%",
+                    tone = if (state.hudOpacity.enabled) NovaQuickMenuTone.INFO else NovaQuickMenuTone.INACTIVE
+                )
+            )
+        }
+        Text(
+            text = stringResource(
+                if (state.hudOpacity.enabled) {
+                    R.string.nova_quick_menu_hud_opacity_caption
+                } else {
+                    R.string.nova_quick_menu_hud_opacity_disabled_caption
+                }
+            ),
+            color = colors.textMuted,
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 5.dp)
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            state.hudOpacity.presets.forEach { percent ->
+                val selected = percent == state.hudOpacity.percent
+                NovaActionButton(
+                    text = percent.toString() + "%",
+                    onClick = { callbacks.onHudOpacityChange(percent) },
+                    modifier = Modifier.weight(1f),
+                    enabled = state.hudOpacity.enabled,
+                    primary = selected,
+                    contentDescription = stringResource(
+                        R.string.nova_quick_menu_hud_opacity_preset_cd,
+                        percent
+                    ),
+                    selected = selected,
+                    stateDescription = stringResource(
+                        if (selected) {
+                            R.string.nova_quick_menu_hud_opacity_selected
+                        } else {
+                            R.string.nova_quick_menu_hud_opacity_not_selected
+                        }
+                    ),
+                    cornerRadius = 9.dp,
+                    minHeight = 44.dp,
+                    fontSize = 10.sp,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
+                )
             }
         }
     }

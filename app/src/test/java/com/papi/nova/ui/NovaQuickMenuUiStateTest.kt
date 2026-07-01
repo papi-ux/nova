@@ -132,6 +132,44 @@ class NovaQuickMenuUiStateTest {
         assertEquals(NovaQuickMenuTone.INFO, diagnostics.chip.tone)
     }
 
+    @Test
+    fun commandCenterStateExposesHudOpacityPresets() {
+        val state = quickState(
+            status = status(),
+            hudShowing = true,
+            hudOpacityPercent = 90
+        )
+
+        assertEquals(90, state.hudOpacity.percent)
+        assertEquals(NovaHudPreferences.OPACITY_PRESETS, state.hudOpacity.presets)
+        assertTrue(state.hudOpacity.enabled)
+    }
+
+    @Test
+    fun commandCenterStateDisablesHudOpacityWhenHudIsOff() {
+        val state = quickState(
+            status = status(),
+            hudShowing = false,
+            hudOpacityPercent = 150
+        )
+
+        assertFalse(state.hudOpacity.enabled)
+        assertEquals(100, state.hudOpacity.percent)
+    }
+
+    @Test
+    fun commandCenterStateKeepsNonPresetHudOpacityValues() {
+        val state = quickState(
+            status = status(),
+            hudShowing = true,
+            hudOpacityPercent = 87
+        )
+
+        assertTrue(state.hudOpacity.enabled)
+        assertEquals(87, state.hudOpacity.percent)
+        assertEquals(NovaHudPreferences.OPACITY_PRESETS, state.hudOpacity.presets)
+    }
+
     private fun quickState(
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,
@@ -144,7 +182,9 @@ class NovaQuickMenuUiStateTest {
         advancedExpanded: Boolean = true,
         profileClearInProgress: Boolean = false,
         currentGameName: String? = "Portal",
-        currentGameUuid: String? = "game-1"
+        currentGameUuid: String? = "game-1",
+        hudShowing: Boolean = false,
+        hudOpacityPercent: Int = 90
     ) = NovaQuickMenuUiState.from(
         context = context,
         status = status,
@@ -160,7 +200,8 @@ class NovaQuickMenuUiStateTest {
         currentGameName = currentGameName,
         currentGameUuid = currentGameUuid,
         profilePreference = "quality",
-        hudShowing = false,
+        hudShowing = hudShowing,
+        hudOpacityPercent = hudOpacityPercent,
         perfOverlayEnabled = false,
         onscreenControllerEnabled = false,
         keyboardVisible = false,
