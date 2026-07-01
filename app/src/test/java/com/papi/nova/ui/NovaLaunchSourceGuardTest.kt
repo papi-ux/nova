@@ -424,6 +424,23 @@ class NovaLaunchSourceGuardTest {
         )
     }
 
+    @Test
+    fun gameStreamSurfaceProvidesAccessibilityNodeForDeviceSmokeAutomation() {
+        val container = readSource("src/main/java/com/papi/nova/ui/StreamContainer.kt")
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(
+            "Game stream should expose a stable accessibility node so adb UI automation can identify the foreground stream surface",
+            container.contains("importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES") &&
+                container.contains("contentDescription = context.getString(R.string.nova_stream_surface_accessibility_label)") &&
+                strings.contains("nova_stream_surface_accessibility_label")
+        )
+        assertTrue(
+            "StreamContainer should keep the container accessible and hide the raw SurfaceView child from traversal",
+            container.contains("child.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO")
+        )
+    }
+
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
 

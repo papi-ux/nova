@@ -8,11 +8,13 @@ import android.view.KeyEvent
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.widget.FrameLayout
 import com.papi.nova.Game
+import com.papi.nova.R
 import com.papi.nova.preferences.PreferenceConfiguration
 
 class StreamContainer @JvmOverloads constructor(
@@ -40,6 +42,8 @@ class StreamContainer @JvmOverloads constructor(
     init {
         isFocusable = true
         isFocusableInTouchMode = true
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        contentDescription = context.getString(R.string.nova_stream_surface_accessibility_label)
     }
 
     fun init(game: Game, prefConfig: PreferenceConfiguration) {
@@ -53,6 +57,7 @@ class StreamContainer @JvmOverloads constructor(
 
         val childParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         val child = SurfaceView(context)
+        child.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         surfaceView = child
         addView(child, childParams)
 
