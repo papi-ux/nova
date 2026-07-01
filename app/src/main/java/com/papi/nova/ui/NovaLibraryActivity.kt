@@ -112,6 +112,7 @@ import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.nvstream.http.ComputerDetails
@@ -609,6 +610,22 @@ class NovaLibraryActivity : AppCompatActivity() {
                     LimeLog.warning("Nova: MangoHUD launch state sync failed; continuing launch")
                 }
                 val preferences = com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity)
+                val launchResolution = StreamSyncManager.resolveAutoSafeResolution(
+                    preferences.width,
+                    preferences.height,
+                    preflightOptimization
+                )
+                val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(
+                    preferences.fps,
+                    preflightOptimization
+                )
+                LimeLog.info(
+                    "Nova: Launch resolved stream mode " +
+                        launchResolution.width + "x" + launchResolution.height + "x" + launchFps + " " +
+                        "source=" + (preflightOptimization?.optString("source", "") ?: "") + " " +
+                        "effectiveFps=" + (preflightOptimization?.optDouble("effective_target_fps", 0.0) ?: 0.0) + " " +
+                        "displayMode=" + (preflightOptimization?.optString("display_mode", "") ?: "")
+                )
                 val syncedSettings = withContext(Dispatchers.IO) {
                     apiClient.updateClientSettings(
                         streamDisplayMode = when {
@@ -617,9 +634,9 @@ class NovaLibraryActivity : AppCompatActivity() {
                             else -> "headless_stream"
                         },
                         displayMode = com.papi.nova.preferences.PreferenceConfiguration.formatStreamingDisplayMode(
-                            preferences.width,
-                            preferences.height,
-                            preferences.fps
+                            launchResolution.width,
+                            launchResolution.height,
+                            launchFps
                         ),
                         targetBitrateKbps = preferences.bitrate.takeIf { it > 0 }
                     )
@@ -643,6 +660,9 @@ class NovaLibraryActivity : AppCompatActivity() {
                     true,
                     false,
                     serverCert,
+                    launchResolution.width,
+                    launchResolution.height,
+                    launchFps,
                     aiProfilePreference = profilePreference,
                     launchOptimizationJson = preflightOptimization?.toString(),
                     mirrorDesktop = mirrorDesktop,

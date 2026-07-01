@@ -551,9 +551,20 @@ displayHeight = if (shouldInvertDecoderResolution) prefConfig!!.width else prefC
 	            setPreferredOrientationForActivity()
 	}
 
-if (watchOnlyRequested && watchStreamWidth > 0 && watchStreamHeight > 0)
+watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
+watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
+watchStreamHeight = this@Game.getIntent().getIntExtra(EXTRA_STREAM_HEIGHT, 0)
+watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)
+if (watchStreamWidth > 0 && watchStreamHeight > 0)
+{
+if (watchOnlyRequested)
 {
 LimeLog.info("Nova: Watch mode using active stream resolution " + watchStreamWidth + "x" + watchStreamHeight)
+}
+else
+{
+LimeLog.info("Nova: Launch using explicit stream resolution " + watchStreamWidth + "x" + watchStreamHeight)
+}
 displayWidth = watchStreamWidth
 displayHeight = watchStreamHeight
 }
@@ -709,10 +720,6 @@ vDisplay = this@Game.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false)
 var displayModeExplicit:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false)
 mirrorDesktop = this@Game.getIntent().getBooleanExtra(EXTRA_MIRROR_DESKTOP, false)
 forcePrivateAfterSteamClose = this@Game.getIntent().getBooleanExtra(EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, false)
-watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
-watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
-watchStreamHeight = this@Game.getIntent().getIntExtra(EXTRA_STREAM_HEIGHT, 0)
-watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)
 launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
 launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
 serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
@@ -950,18 +957,25 @@ if (prefConfig!!.onscreenController)
             gamepadMask = gamepadMask or 1
 }
 
-var watchStreamFpsOverride:Boolean = watchOnlyRequested && watchStreamFps > 0f
-var launchRefreshRate:Float = if (watchStreamFpsOverride) watchStreamFps else prefConfig!!.fps
+var explicitStreamFpsOverride:Boolean = watchStreamFps > 0f
+var launchRefreshRate:Float = if (explicitStreamFpsOverride) watchStreamFps else prefConfig!!.fps
 var maxSupportedLaunchRefreshRate:Float = getMaxSupportedRefreshRate(currentDisplay)
-if (!watchStreamFpsOverride && (maxSupportedLaunchRefreshRate > 0 && launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f))
+if (!explicitStreamFpsOverride && (maxSupportedLaunchRefreshRate > 0 && launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f))
 {
 LimeLog.info(("Clamping launch refresh rate from " + launchRefreshRate +
 " to display max " + maxSupportedLaunchRefreshRate))
 launchRefreshRate = maxSupportedLaunchRefreshRate
 }
-if (watchStreamFpsOverride)
+if (explicitStreamFpsOverride)
+{
+if (watchOnlyRequested)
 {
 LimeLog.info("Nova: Watch mode using active stream FPS " + watchStreamFps)
+}
+else
+{
+LimeLog.info("Nova: Launch using explicit stream FPS " + watchStreamFps)
+}
 }
 var autoSafeTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeTargetFps(
 launchRefreshRate,

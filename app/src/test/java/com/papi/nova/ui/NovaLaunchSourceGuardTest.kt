@@ -441,6 +441,46 @@ class NovaLaunchSourceGuardTest {
         )
     }
 
+    @Test
+    fun drawerLaunchAppliesPreflightStreamModeToSettingsAndIntent() {
+        val activity = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val launchGame = activity.section(
+            "private fun launchGame(",
+            "private fun resumeActiveSession("
+        )
+
+        assertTrue(
+            "drawer launch should derive effective stream mode from preflight optimization before syncing settings",
+            launchGame.contains("val launchResolution = StreamSyncManager.resolveAutoSafeResolution(") &&
+                launchGame.contains("val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(") &&
+                launchGame.indexOf("val launchResolution") < launchGame.indexOf("apiClient.updateClientSettings(")
+        )
+        assertTrue(
+            "client settings and Game intent should use launchResolution and launchFps instead of saved fps only",
+            launchGame.contains("launchResolution.width") &&
+                launchGame.contains("launchResolution.height") &&
+                launchGame.contains("launchFps") &&
+                launchGame.contains("launchFps,")
+        )
+        val launchSetup = game.section(
+            "watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)",
+            "decoderRenderer = MediaCodecDecoderRenderer("
+        )
+        assertTrue(
+            "Game should read explicit stream dimensions before selecting the decoder resolution",
+            launchSetup.indexOf("watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)") <
+                launchSetup.indexOf("if (watchStreamWidth > 0 && watchStreamHeight > 0)")
+        )
+        assertTrue(
+            "Game should honor explicit stream FPS extras for normal launch paths, not watch-only paths",
+            game.contains("var explicitStreamFpsOverride:Boolean = watchStreamFps > 0f") &&
+                game.contains("Nova: Launch using explicit stream FPS") &&
+                game.indexOf("watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)") <
+                    game.indexOf("var explicitStreamFpsOverride:Boolean = watchStreamFps > 0f")
+        )
+    }
+
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
 
