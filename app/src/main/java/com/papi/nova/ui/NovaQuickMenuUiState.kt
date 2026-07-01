@@ -152,6 +152,7 @@ data class NovaQuickMenuUiState(
             val healthSummary = when {
                 hostStateUnavailable -> context.getString(R.string.nova_quick_menu_host_state_unavailable)
                 status == null -> context.getString(R.string.nova_quick_menu_health_checking)
+                status.isHdrDowngraded -> "HDR requested, but Polaris is streaming 10-bit SDR."
                 status.isHostRenderLimited -> context.getString(R.string.nova_quick_menu_health_host_render)
                 status.health.summary.isNotBlank() -> status.health.summary
                 status.hasHealthConcerns -> context.getString(R.string.nova_quick_menu_health_attention)

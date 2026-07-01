@@ -85,6 +85,28 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun hdrDowngradedSessionWarnsWithTenBitSdrCopy() {
+        val state = quickState(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    summary = "Host advertised SDR even though HDR was requested.",
+                    primaryIssue = "hdr_downgraded",
+                    issues = listOf("hdr_downgraded"),
+                    hdrEffectiveMode = "sdr_10bit",
+                    hdrDowngradeReason = "display_not_hdr",
+                    hdrDowngradeMessage = "Polaris is streaming 10-bit SDR, not HDR.",
+                    safeHdr = false,
+                    relaunchRecommended = true
+                )
+            )
+        )
+
+        assertEquals("HDR requested, but Polaris is streaming 10-bit SDR.", state.healthSummary)
+        assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
+    }
+
+    @Test
     fun controllerToggleCopyClarifiesTouchOverlayInsteadOfPhysicalGamepad() {
         val state = quickState(status = status(), currentGameName = "Portal")
         val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }

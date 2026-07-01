@@ -248,6 +248,9 @@ data class PolarisSessionStatus(
         val safeDisplayMode: String = "",
         val safeTargetFps: Double = 0.0,
         val safeHdr: Boolean? = null,
+        val hdrEffectiveMode: String = "",
+        val hdrDowngradeReason: String = "",
+        val hdrDowngradeMessage: String = "",
         val decoderRisk: String = "",
         val hdrRisk: String = "",
         val networkRisk: String = "",
@@ -264,6 +267,11 @@ data class PolarisSessionStatus(
     val isShuttingDown get() = shutdownRequested || normalizedState == "tearing_down"
     val isResumable get() = !isShuttingDown && gameId > 0 && (isSessionAlive || isPausedForResume)
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
+    val isHdrDowngraded get() =
+        health.primaryIssue.equals("hdr_downgraded", ignoreCase = true) ||
+            health.issues.any { it.equals("hdr_downgraded", ignoreCase = true) } ||
+            health.hdrEffectiveMode.equals("sdr_10bit", ignoreCase = true) ||
+            health.hdrDowngradeReason.isNotBlank()
     val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true) ||
         (encoder.targetResidency.isBlank() && encoder.targetDevice.isCudaGpuTarget)
     val isHeadlessMode get() = displayMode.effectiveHeadless
