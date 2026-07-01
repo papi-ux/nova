@@ -44,7 +44,11 @@ import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaHudSessionSummaryLog
+import com.papi.nova.ui.NovaSnackbar
+import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.StreamContainer
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.ExternalDisplayControlActivity
@@ -54,10 +58,7 @@ import com.papi.nova.utils.PerformanceDataTracker
 import com.papi.nova.utils.ServerHelper
 import com.papi.nova.utils.ShortcutHelper
 import com.papi.nova.utils.SpinnerDialog
-import com.papi.nova.ui.NovaSheetChrome
-import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.UiHelper
-import com.google.android.material.bottomsheet.BottomSheetDialog
 
 import org.json.JSONObject
 
@@ -77,10 +78,10 @@ import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Point
 import android.graphics.Rect
-import android.graphics.Typeface
 import android.hardware.display.DisplayManager
 import android.hardware.input.InputManager
 import android.media.AudioManager
@@ -110,8 +111,10 @@ import android.view.ViewOutlineProvider
 import android.view.ViewParent
 import android.view.Window
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
@@ -225,6 +228,8 @@ private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfileSource.LOCAL_DEFAULT)
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
+private var mirrorDesktop:Boolean = false
+private var forcePrivateAfterSteamClose:Boolean = false
 private var clientPresentationReportInFlight:AtomicBoolean = AtomicBoolean(false)
 private var cursorVisibilitySyncLock:Any = Any()
 private var pendingHostCursorVisible:Boolean = false
@@ -262,6 +267,7 @@ private var lastAbsTouchDownY:Float = 0.toFloat()
 
 private var quitOnStop:Boolean = false
 private var localSessionEndMarked:Boolean = false
+@Volatile private var hostSessionEnded:Boolean = false
 private var isHidingOverlays:Boolean = false
 private var floatingButtonShown:Boolean = false
 private var overlayToggleZoomButtonShown:Boolean = false
@@ -486,31 +492,10 @@ getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
 
 clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
- // Show Nova verbose session progress overlay immediately. The legacy spinner overlaps it.
+ // Show the verbose Nova session progress overlay immediately; keep spinner nullable for legacy cleanup paths.
         novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)
         novaProgressOverlay?.show()
-
-appName = this@Game.getIntent().getStringExtra(EXTRA_APP_NAME)
-pcName = this@Game.getIntent().getStringExtra(EXTRA_PC_NAME)
-
-host = this@Game.getIntent().getStringExtra(EXTRA_HOST)
-port = this@Game.getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT)
-httpsPort = this@Game.getIntent().getIntExtra(EXTRA_HTTPS_PORT, 0) // 0 is treated as unknown
-appUUID = this@Game.getIntent().getStringExtra(EXTRA_APP_UUID)
-appId = this@Game.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID)
-uniqueId = this@Game.getIntent().getStringExtra(EXTRA_UNIQUEID)
-vDisplay = this@Game.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false)
-var displayModeExplicit:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false)
-watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
-watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
-watchStreamHeight = this@Game.getIntent().getIntExtra(EXTRA_STREAM_HEIGHT, 0)
-watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)
-launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
-launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
-serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
-var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
-var derCertData:ByteArray? = this@Game.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT)
-
+        novaProgressOverlay?.updateState("conn_establishing", getResources().getString(R.string.conn_establishing_msg))
 
 
 var currentDisplay:Display? = null
@@ -566,16 +551,9 @@ displayHeight = if (shouldInvertDecoderResolution) prefConfig!!.width else prefC
 	            setPreferredOrientationForActivity()
 	}
 
-if (watchStreamWidth > 0 && watchStreamHeight > 0)
-{
-if (watchOnlyRequested)
+if (watchOnlyRequested && watchStreamWidth > 0 && watchStreamHeight > 0)
 {
 LimeLog.info("Nova: Watch mode using active stream resolution " + watchStreamWidth + "x" + watchStreamHeight)
-}
-else
-{
-LimeLog.info("Nova: Launch using explicit stream resolution " + watchStreamWidth + "x" + watchStreamHeight)
-}
 displayWidth = watchStreamWidth
 displayHeight = watchStreamHeight
 }
@@ -718,6 +696,28 @@ catch (e:SecurityException) {
             e!!.printStackTrace()
 }
 
+appName = this@Game.getIntent().getStringExtra(EXTRA_APP_NAME)
+pcName = this@Game.getIntent().getStringExtra(EXTRA_PC_NAME)
+
+host = this@Game.getIntent().getStringExtra(EXTRA_HOST)
+port = this@Game.getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT)
+httpsPort = this@Game.getIntent().getIntExtra(EXTRA_HTTPS_PORT, 0) // 0 is treated as unknown
+appUUID = this@Game.getIntent().getStringExtra(EXTRA_APP_UUID)
+appId = this@Game.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID)
+uniqueId = this@Game.getIntent().getStringExtra(EXTRA_UNIQUEID)
+vDisplay = this@Game.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false)
+var displayModeExplicit:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false)
+mirrorDesktop = this@Game.getIntent().getBooleanExtra(EXTRA_MIRROR_DESKTOP, false)
+forcePrivateAfterSteamClose = this@Game.getIntent().getBooleanExtra(EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, false)
+watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
+watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
+watchStreamHeight = this@Game.getIntent().getIntExtra(EXTRA_STREAM_HEIGHT, 0)
+watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)
+launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
+launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
+serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
+var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
+var derCertData:ByteArray? = this@Game.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT)
 
 app = NvApp(if (appName != null) appName else "app", appUUID, appId, appSupportsHdr)
 
@@ -738,14 +738,13 @@ e!!.printStackTrace()
  // Nova: set up Polaris integration without blocking stream startup on REST probes.
         com.papi.nova.manager.FeatureFlagManager.reset()
 novaApiClient = com.papi.nova.api.PolarisApiClient(this, host ?: "", httpsPort, serverCert)
-if (novaProgressOverlay == null)
-{
 novaProgressOverlay = com.papi.nova.ui.SessionProgressOverlay(this)
-}
 novaLockScreenOverlay = com.papi.nova.ui.LockScreenOverlay(this, novaApiClient!!)
 novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this)
 novaResilienceManager = com.papi.nova.manager.ConnectionResilienceManager(
-novaApiClient!!, { LimeLog.info("Nova: Attempting reconnect...") }
+novaApiClient!!,
+{ LimeLog.info("Nova: Attempting reconnect...") },
+{ handlePolarisHostSessionEnded() }
 )
 com.papi.nova.jni.PolarisNativeHook.register(novaResilienceManager!!)
 syncDisconnectResumeTimeoutPolicy()
@@ -951,25 +950,18 @@ if (prefConfig!!.onscreenController)
             gamepadMask = gamepadMask or 1
 }
 
-var explicitStreamFpsOverride:Boolean = watchStreamFps > 0f
-var launchRefreshRate:Float = if (explicitStreamFpsOverride) watchStreamFps else prefConfig!!.fps
+var watchStreamFpsOverride:Boolean = watchOnlyRequested && watchStreamFps > 0f
+var launchRefreshRate:Float = if (watchStreamFpsOverride) watchStreamFps else prefConfig!!.fps
 var maxSupportedLaunchRefreshRate:Float = getMaxSupportedRefreshRate(currentDisplay)
-if (!explicitStreamFpsOverride && (maxSupportedLaunchRefreshRate > 0 && launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f))
+if (!watchStreamFpsOverride && (maxSupportedLaunchRefreshRate > 0 && launchRefreshRate > maxSupportedLaunchRefreshRate + 0.5f))
 {
 LimeLog.info(("Clamping launch refresh rate from " + launchRefreshRate +
 " to display max " + maxSupportedLaunchRefreshRate))
 launchRefreshRate = maxSupportedLaunchRefreshRate
 }
-if (explicitStreamFpsOverride)
-{
-if (watchOnlyRequested)
+if (watchStreamFpsOverride)
 {
 LimeLog.info("Nova: Watch mode using active stream FPS " + watchStreamFps)
-}
-else
-{
-LimeLog.info("Nova: Launch using explicit stream FPS " + watchStreamFps)
-}
 }
 var autoSafeTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeTargetFps(
 launchRefreshRate,
@@ -1106,6 +1098,8 @@ displayHeight
 .setRefreshRate(chosenFrameRate)
 .setVirtualDisplay(vDisplay)
 .setDisplayModeExplicit(displayModeExplicit)
+.setMirrorDesktop(mirrorDesktop)
+.setForcePrivateAfterSteamClose(forcePrivateAfterSteamClose)
 .setResolutionScaleFactor(prefConfig!!.resolutionScaleFactor)
 .setApp(app)
 .setEnableUltraLowLatency(prefConfig!!.enableUltraLowLatency)
@@ -1190,6 +1184,7 @@ initKeyboardController()
 
 if (!decoderRenderer!!.isAvcSupported)
 {
+novaProgressOverlay?.dismiss()
 if (spinner != null)
 {
 spinner!!.dismiss()
@@ -1197,7 +1192,6 @@ spinner = null
 }
 
  // If we can't find an AVC decoder, we can't proceed
-novaProgressOverlay?.dismiss()
             Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
 "This device or ROM doesn't support hardware accelerated H.264 playback.", true)
 return
@@ -2392,6 +2386,7 @@ novaLockScreenOverlay!!.dismiss()
 novaLockScreenOverlay!!.destroy()
 }
 if (novaReconnectOverlay != null) novaReconnectOverlay!!.dismiss()
+novaResilienceManager?.shutdown()
 com.papi.nova.jni.PolarisNativeHook.unregister()
 com.papi.nova.manager.FeatureFlagManager.reset()
 
@@ -2510,7 +2505,10 @@ if (conn != null)
 var videoFormat:Int = decoderRenderer!!.activeVideoFormat
 
 displayedFailureDialog = true
+if (!hostSessionEnded)
+{
 prepareBackgroundResumeWindow()
+}
 stopConnection()
 var message:String? = null
 var selectedVideoFormat:String = ""
@@ -4436,9 +4434,7 @@ override fun stageFailed(stage:String, portFlags:Int, errorCode:Int):Boolean {
 
 if (errorCode == 0 && portFlags != 0 && (portTestResult == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE || portTestResult == 0))
 {
-runOnUiThread {
 novaProgressOverlay?.updateState("unlocking_or_starting", getResources().getString(R.string.unlocking_or_starting))
-}
 return true
 }
 
@@ -4449,7 +4445,6 @@ if (spinner != null)
 spinner!!.dismiss()
 spinner = null
 }
-novaProgressOverlay?.dismiss()
 
 if (!displayedFailureDialog)
 {
@@ -4488,13 +4483,71 @@ if (portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult !
 dialogText += "\n\n" + getResources().getString(R.string.nettest_text_blocked)
 }
 
-Dialog.displayDialog(this@Game, getResources().getString(R.string.conn_error_title), dialogText, true)
+showNovaLaunchIssueSheet(dialogText)
 finishSecondScreen()
 }
 }
 })
 
 return false
+}
+
+private fun showNovaLaunchIssueSheet(message: String) {
+runOnUiThread {
+if (isFinishing || isDestroyed) return@runOnUiThread
+if (spinner != null) {
+spinner!!.dismiss()
+spinner = null
+}
+val sheet = BottomSheetDialog(this@Game)
+val density = resources.displayMetrics.density
+fun dp(value: Int): Int = (value * density).toInt()
+val container = LinearLayout(this@Game).apply {
+orientation = LinearLayout.VERTICAL
+setPadding(dp(18), dp(14), dp(18), dp(18))
+background = NovaSheetChrome.createSheetBackground(this@Game)
+}
+val handle = View(this@Game).apply {
+background = NovaSheetChrome.createHandleBackground(this@Game)
+}
+NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)
+container.addView(handle, LinearLayout.LayoutParams(dp(42), dp(4)).apply {
+gravity = Gravity.CENTER_HORIZONTAL
+bottomMargin = dp(14)
+})
+val title = TextView(this@Game).apply {
+text = getString(R.string.nova_launch_issue_title)
+setTextColor(NovaThemeManager.getTextPrimaryColor(this@Game))
+textSize = 20f
+}
+container.addView(title)
+val body = TextView(this@Game).apply {
+text = message
+setTextColor(NovaThemeManager.getTextSecondaryColor(this@Game))
+textSize = 14f
+setPadding(0, dp(10), 0, dp(12))
+}
+val scroll = ScrollView(this@Game).apply {
+addView(body)
+}
+container.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+val dismiss = Button(this@Game).apply {
+text = getString(R.string.nova_launch_issue_dismiss)
+isAllCaps = false
+setTextColor(NovaThemeManager.getTextPrimaryColor(this@Game))
+background = NovaSheetChrome.createActionBackground(this@Game)
+setOnClickListener {
+sheet.dismiss()
+finish()
+}
+}
+container.addView(dismiss, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
+sheet.setContentView(container)
+sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
+sheet.setOnDismissListener { finish() }
+sheet.show()
+NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+}
 }
 
 private fun finishSecondScreen() {
@@ -4737,12 +4790,19 @@ Toast.makeText(this@Game, message, Toast.LENGTH_LONG).show()
 override fun displayTransientMessage(message:String) {
 if (!prefConfig!!.disableWarnings)
 {
+showQuietStreamTransientMessage(message)
+}
+}
+private fun showQuietStreamTransientMessage(message: String) {
 runOnUiThread(object : Runnable {
 override fun run() {
-Toast.makeText(this@Game, message, Toast.LENGTH_LONG).show()
+if (connecting || !connected || spinner != null) {
+LimeLog.info("Nova: quiet stream transient during setup: ")
+return
+}
+NovaSnackbar.showQuiet(this@Game, message)
 }
 })
-}
 }
 override fun rumble(controllerNumber:Short, lowFreqMotor:Short, highFreqMotor:Short) {
 if (prefConfig!!.enableRumble)
@@ -5261,16 +5321,20 @@ object : com.papi.nova.api.PolarisEventSource.EventListener {
 override fun onSessionEvent(event:String, state:String, message:String) {
 LimeLog.info("Nova SSE: " + event + " [" + state + "] " + message)
 novaProgressOverlay!!.updateState(state, message)
-                if (com.papi.nova.api.PolarisSessionEvents.shouldFinishGameActivity(event, state)) {
-                    LimeLog.info("Nova SSE: terminal session event received; ending local stream activity")
-                    runOnUiThread { finishAfterRemotePolarisSessionEnd() }
-                }
+if (event == "stream_ended" || (state == "idle" && (connected || isStreamActive)))
+{
+handlePolarisHostSessionEnded()
+}
 }
 override fun onStateUpdate(sessionState:String, cageRunning:Boolean, screenLocked:Boolean) {
 novaProgressOverlay!!.updateState(sessionState, "")
 if ("streaming".equals(sessionState))
 {
 schedulePolarisLiveSessionStatusRefresh(true)
+}
+else if (sessionState == "idle" && (connected || isStreamActive))
+{
+handlePolarisHostSessionEnded()
 }
 if (com.papi.nova.manager.FeatureFlagManager.hasLockScreenControl)
 {
@@ -5853,24 +5917,31 @@ host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST)
 )
 }
 
-private fun finishAfterRemotePolarisSessionEnd() {
-        if (isFinishing || isDestroyed) {
-            return
-        }
-        markLocalSessionEnd()
-        stopBackgroundResumeWindow()
-        stopPolarisLiveSessionStatusRefresh()
-        if (novaReconnectOverlay != null) {
-            novaReconnectOverlay!!.dismiss()
-        }
-        if (novaProgressOverlay != null) {
-            novaProgressOverlay!!.dismiss()
-        }
-        finish()
-    }
+private fun handlePolarisHostSessionEnded() {
+if (hostSessionEnded)
+{
+return
+}
+hostSessionEnded = true
+markLocalSessionEnd()
+LimeLog.info("Nova: Polaris host session ended; returning to library")
+runOnUiThread {
+if (!isFinishing && !isDestroyed)
+{
+stopPolarisLiveSessionStatusRefresh()
+novaReconnectOverlay?.dismiss()
+novaProgressOverlay?.dismiss()
+stopBackgroundResumeWindow()
+finish()
+}
+}
+}
 
  fun disconnect() {
+if (!hostSessionEnded)
+{
 prepareBackgroundResumeWindow()
+}
 if (prefConfig!!.smartClipboardSync)
 {
 getClipboard(-1)
@@ -5890,76 +5961,60 @@ Handler(Looper.getMainLooper()).postDelayed({ getApplicationContext().startActiv
 overridePendingTransition(0, 0) }, 900)
 }
  fun quit() {
-val dialogContext:Context = if (isOnExternalDisplay && ExternalDisplayControlActivity.instance != null)
+val context:Context = if (isOnExternalDisplay && ExternalDisplayControlActivity.instance != null)
 {
-ExternalDisplayControlActivity.instance!!
+ExternalDisplayControlActivity.instance ?: this
 }
 else
 {
 this
 }
-fun dp(value:Float):Int = UiHelper.dpToPx(dialogContext, value).toInt()
 
-val sheet = BottomSheetDialog(dialogContext, R.style.NovaBottomSheet)
-val content = NovaSheetChrome.createSheetContainer(dialogContext, horizontalPaddingDp = 24, topPaddingDp = 22, bottomPaddingDp = 24)
+val sheet = BottomSheetDialog(context)
+val container = NovaSheetChrome.createSheetContainer(context)
 
-content.addView(TextView(dialogContext).apply {
-text = getString(R.string.game_dialog_title_quit_confirm)
-setTextColor(NovaThemeManager.getTextPrimaryColor(dialogContext))
-textSize = 22f
-typeface = Typeface.DEFAULT_BOLD
-includeFontPadding = false
-setPadding(0, 0, 0, dp(10f))
+val title = TextView(context).apply {
+setText(R.string.game_dialog_title_quit_confirm)
+textSize = 20f
 NovaSheetChrome.styleSheetTitle(this)
-})
-
-content.addView(TextView(dialogContext).apply {
-text = getString(R.string.game_dialog_message_quit_confirm)
-setTextColor(NovaThemeManager.getTextSecondaryColor(dialogContext))
-textSize = 14f
-setLineSpacing(0f, 1.08f)
-setPadding(0, 0, 0, dp(20f))
-})
-
-val actions = LinearLayout(dialogContext).apply {
-orientation = LinearLayout.HORIZONTAL
-gravity = Gravity.CENTER_VERTICAL
 }
-val stayAction = TextView(dialogContext).apply {
+container.addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+val message = TextView(context).apply {
+setText(R.string.game_dialog_message_quit_confirm)
+textSize = 15f
+setPadding(0, UiHelper.dpToPx(context, 10f).toInt(), 0, UiHelper.dpToPx(context, 18f).toInt())
+setTextColor(com.papi.nova.ui.NovaThemeManager.getTextSecondaryColor(context))
+}
+container.addView(message, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+val stay = TextView(context).apply {
 text = getString(R.string.game_dialog_action_stay_in_game)
 gravity = Gravity.CENTER
-textSize = 15f
-setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
 NovaSheetChrome.styleSheetAction(this)
 setOnClickListener { sheet.dismiss() }
-layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-marginEnd = dp(12f)
 }
-}
-val endAction = TextView(dialogContext).apply {
+container.addView(stay, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()))
+
+val endSession = TextView(context).apply {
 text = getString(R.string.game_dialog_action_end_session)
 gravity = Gravity.CENTER
-textSize = 15f
-setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
 NovaSheetChrome.styleSheetAction(this, destructive = true)
 setOnClickListener {
-sheet.dismiss()
 quitOnStop = true
 markLocalSessionEnd()
+sheet.dismiss()
 finish()
 }
-layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
 }
-actions.addView(stayAction)
-actions.addView(endAction)
-content.addView(actions)
+container.addView(endSession, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()).apply {
+topMargin = UiHelper.dpToPx(context, 10f).toInt()
+})
 
-sheet.setContentView(content)
-sheet.setOnShowListener {
-NovaSheetChrome.applyBottomSheetChrome(sheet, content, widthFraction = 0.52f, minLandscapeWidthDp = 520, maxLandscapeWidthDp = 760, maxHeightLandscape = 0.82f, maxHeightPortrait = 0.70f)
-content.post { stayAction.requestFocus() }
-}
+sheet.setContentView(container)
+sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
 sheet.show()
+NovaSheetChrome.applyBottomSheetChrome(sheet, container)
 }
 override fun showGameMenu(device:GameInputDevice?) {
 if (isOnExternalDisplay)
@@ -6105,6 +6160,8 @@ companion object {
  const val EXTRA_SERVER_CERT:String = "ServerCert"
  const val EXTRA_VDISPLAY:String = "VirtualDisplay"
  const val EXTRA_DISPLAY_MODE_EXPLICIT:String = "DisplayModeExplicit"
+ const val EXTRA_MIRROR_DESKTOP:String = "MirrorDesktop"
+const val EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE:String = "ForcePrivateAfterSteamClose"
  const val EXTRA_WATCH_ONLY:String = "WatchOnly"
  const val EXTRA_STREAM_WIDTH:String = "StreamWidth"
  const val EXTRA_STREAM_HEIGHT:String = "StreamHeight"

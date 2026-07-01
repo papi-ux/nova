@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.app.Dialog
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.LayoutInflater
@@ -15,6 +16,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.papi.nova.LimeLog
@@ -324,13 +326,47 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
     }
 
     private fun expandBottomSheet(bottomSheetDialog: BottomSheetDialog?) {
-        bottomSheetDialog ?: return
+        val sheet = bottomSheetDialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
         val contentView = view ?: return
-        NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog,
-            contentView,
-            widthFraction = 0.62f,
-            minLandscapeWidthDp = 700,
-            maxLandscapeWidthDp = 980
-        )
+        NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)
+        contentView.post {
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val maxHeightRatio = if (isLandscape) 0.96f else 0.90f
+            val maxHeight = (resources.displayMetrics.heightPixels * maxHeightRatio).toInt()
+            val contentHeight = contentView.measuredHeight.takeIf { it > 0 } ?: return@post
+            val desiredHeight = contentHeight.coerceAtMost(maxHeight)
+            val displayWidth = resources.displayMetrics.widthPixels
+            val density = resources.displayMetrics.density
+            val desiredWidth = if (isLandscape) {
+                val minWidth = (700 * density).toInt()
+                val maxWidth = (980 * density).toInt()
+                (displayWidth * 0.62f).toInt().coerceIn(minWidth, maxWidth)
+            } else {
+                displayWidth
+            }
+            val horizontalMargin = if (isLandscape) {
+                ((displayWidth - desiredWidth) / 2).coerceAtLeast((18 * density).toInt())
+            } else {
+                0
+            }
+
+            sheet.layoutParams = sheet.layoutParams.apply {
+                width = if (isLandscape) desiredWidth else ViewGroup.LayoutParams.MATCH_PARENT
+                height = desiredHeight
+            }
+            (sheet.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
+                lp.marginStart = horizontalMargin
+                lp.marginEnd = horizontalMargin
+                sheet.layoutParams = lp
+            }
+            sheet.setPadding(0, 0, 0, 0)
+            sheet.requestLayout()
+            BottomSheetBehavior.from(sheet).apply {
+                peekHeight = desiredHeight
+                isDraggable = false
+                state = BottomSheetBehavior.STATE_EXPANDED
+                skipCollapsed = true
+            }
+        }
     }
 }

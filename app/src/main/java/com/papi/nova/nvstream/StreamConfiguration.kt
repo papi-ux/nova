@@ -28,6 +28,8 @@ class StreamConfiguration private constructor() {
     private var enableUltraLowLatency = false
     private var forceFreshLaunch = false
     private var profilePreference = "auto"
+    private var mirrorDesktop = false
+    private var forcePrivateAfterSteamClose = false
 
     class Builder {
         private val config = StreamConfiguration()
@@ -158,6 +160,16 @@ class StreamConfiguration private constructor() {
             return this
         }
 
+        fun setMirrorDesktop(enable: Boolean): Builder {
+            config.mirrorDesktop = enable
+            return this
+        }
+
+        fun setForcePrivateAfterSteamClose(enable: Boolean): Builder {
+            config.forcePrivateAfterSteamClose = enable
+            return this
+        }
+
         fun build(): StreamConfiguration = config
     }
 
@@ -220,6 +232,10 @@ class StreamConfiguration private constructor() {
     fun getForceFreshLaunch(): Boolean = forceFreshLaunch
 
     fun getProfilePreference(): String = profilePreference
+
+    fun getMirrorDesktop(): Boolean = mirrorDesktop
+
+    fun getForcePrivateAfterSteamClose(): Boolean = forcePrivateAfterSteamClose
 
     companion object {
         const val INVALID_APP_ID = 0

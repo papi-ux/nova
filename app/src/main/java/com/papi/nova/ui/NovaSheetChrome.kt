@@ -3,6 +3,8 @@ package com.papi.nova.ui
 import android.app.AlertDialog
 import android.content.Context
 import android.content.res.Configuration
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
@@ -116,6 +118,7 @@ object NovaSheetChrome {
             sheet.requestLayout()
 
             BottomSheetBehavior.from(sheet).apply {
+                isDraggable = false
                 isFitToContents = true
                 skipCollapsed = true
                 peekHeight = desiredHeight
@@ -212,7 +215,7 @@ object NovaSheetChrome {
         }
     }
 
-    private fun createActionBackground(context: Context): StateListDrawable {
+    fun createActionBackground(context: Context): StateListDrawable {
         return StateListDrawable().apply {
             addState(
                 intArrayOf(android.R.attr.state_pressed),
@@ -226,6 +229,55 @@ object NovaSheetChrome {
                 intArrayOf(),
                 createActionStateBackground(context, fillAccentBlend = 0f, strokeAccentBlend = 0.18f)
             )
+        }
+    }
+
+    fun createHandleBackground(context: Context): GradientDrawable {
+        val radius = dp(context, 4).toFloat()
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(ColorUtils.setAlphaComponent(NovaThemeManager.getAccentColor(context), 0xA8))
+            cornerRadius = radius
+        }
+    }
+
+    fun attachHandleDragToDismiss(handle: View, dialog: BottomSheetDialog) {
+        val touchSlop = ViewConfiguration.get(handle.context).scaledTouchSlop
+        val dismissThreshold = dp(handle.context, 42).toFloat()
+        var downY = 0f
+        var consumedDrag = false
+        handle.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downY = event.rawY
+                    consumedDrag = false
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dragDistance = event.rawY - downY
+                    if (dragDistance > touchSlop) {
+                        consumedDrag = true
+                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dragDistance = event.rawY - downY
+                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                    if (dragDistance >= dismissThreshold) {
+                        dialog.dismiss()
+                    } else if (!consumedDrag) {
+                        view.performClick()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                    true
+                }
+                else -> true
+            }
         }
     }
 

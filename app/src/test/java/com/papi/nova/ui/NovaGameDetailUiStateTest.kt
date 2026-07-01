@@ -2,11 +2,17 @@ package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.shared.polaris.model.PolarisGame
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@Config(sdk = [33])
+@RunWith(RobolectricTestRunner::class)
 class NovaGameDetailUiStateTest {
     @Test
     fun virtualRecommendedModeUsesVirtualPlayMode() {
@@ -192,6 +198,83 @@ class NovaGameDetailUiStateTest {
         assertFalse(nonSteam.showSteamLaunchMode)
         assertTrue(bigPicture.showSteamLaunchMode)
         assertTrue(bigPicture.steamLaunchWarning)
+    }
+
+    @Test
+    fun desktopSteamPolicyRequiresDecisionForPrivatePhysicalDisplayRisk() {
+        val state = NovaGameDetailUiState.from(
+            game = game(name = "Steam Big Picture"),
+            defaultToVirtualDisplay = false,
+            clientSettings = null,
+            profilePreference = "auto"
+        )
+        val optimization = JSONObject()
+            .put(
+                "launchPolicy",
+                JSONObject()
+                    .put("desktopSteamActive", true)
+                    .put("physicalDisplayRisk", true)
+                    .put("canLaunchPrivateStream", false)
+                    .put("canMirrorDesktop", true)
+                    .put("recommendedAction", "refuse_private_stream")
+            )
+
+        val decision = NovaDesktopSteamLaunchDecision.from(state, optimization)
+
+        assertTrue(decision.required)
+        assertFalse(decision.privateStreamEnabled)
+        assertTrue(decision.mirrorDesktopEnabled)
+        assertEquals("Private stream is unavailable while desktop Steam is active.", decision.privateStreamUnavailableReason)
+    }
+
+    @Test
+    fun desktopSteamPolicyOffersExplicitForcePrivateShutdown() {
+        val state = NovaGameDetailUiState.from(
+            game = game(name = "MOUSE:PI"),
+            defaultToVirtualDisplay = false,
+            clientSettings = null,
+            profilePreference = "auto"
+        )
+        val optimization = JSONObject()
+            .put(
+                "launchPolicy",
+                JSONObject()
+                    .put("desktopSteamActive", true)
+                    .put("physicalDisplayRisk", true)
+                    .put("canLaunchPrivateStream", false)
+                    .put("canMirrorDesktop", true)
+                    .put("canForceCloseDesktopSteamForPrivateStream", true)
+                    .put("forcePrivateStreamLabel", "Close desktop Steam and start private stream")
+            )
+
+        val decision = NovaDesktopSteamLaunchDecision.from(state, optimization)
+
+        assertTrue(decision.required)
+        assertTrue(decision.forcePrivateAfterSteamCloseEnabled)
+        assertEquals("Close desktop Steam and start private stream", decision.forcePrivateAfterSteamCloseLabel)
+    }
+
+    @Test
+    fun desktopSteamPolicyDoesNotInterruptVirtualDisplayLaunch() {
+        val state = NovaGameDetailUiState.from(
+            game = game(name = "Steam Big Picture"),
+            defaultToVirtualDisplay = true,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = "virtual_display")
+            ),
+            profilePreference = "auto"
+        )
+        val optimization = JSONObject()
+            .put(
+                "launchPolicy",
+                JSONObject()
+                    .put("desktopSteamActive", true)
+                    .put("physicalDisplayRisk", true)
+            )
+
+        val decision = NovaDesktopSteamLaunchDecision.from(state, optimization)
+
+        assertFalse(decision.required)
     }
 
     private fun game(

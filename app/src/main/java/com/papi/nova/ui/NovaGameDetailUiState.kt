@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.resolveLaunchModeChoice
 import com.papi.nova.shared.polaris.model.PolarisGame
+import org.json.JSONObject
 
 data class NovaGameDetailUiState(
     val game: PolarisGame,
@@ -78,6 +79,91 @@ data class NovaGameDetailUiState(
                 steamLaunchMode = steamLaunchMode,
                 steamLaunchWarning = steamLaunchWarning
             )
+        }
+    }
+}
+
+data class NovaDesktopSteamLaunchDecision(
+    val required: Boolean = false,
+    val privateStreamEnabled: Boolean = true,
+    val mirrorDesktopEnabled: Boolean = true,
+    val forcePrivateAfterSteamCloseEnabled: Boolean = false,
+    val forcePrivateAfterSteamCloseLabel: String = "Close desktop Steam and start private stream",
+    val reason: String = "",
+    val privateStreamUnavailableReason: String = ""
+) {
+    companion object {
+        fun from(
+            uiState: NovaGameDetailUiState,
+            optimization: JSONObject?,
+            usesVirtualDisplay: Boolean = uiState.playUsesVirtualDisplay
+        ): NovaDesktopSteamLaunchDecision {
+            val policy = optimization?.optJSONObject("launch_policy")
+                ?: optimization?.optJSONObject("launchPolicy")
+                ?: return NovaDesktopSteamLaunchDecision()
+            if (usesVirtualDisplay) return NovaDesktopSteamLaunchDecision()
+
+            val desktopSteamActive = policy.optPolicyBoolean("desktop_steam_active", "desktopSteamActive")
+            val physicalDisplayRisk = policy.optPolicyBoolean("physical_display_risk", "physicalDisplayRisk")
+            if (!desktopSteamActive && !physicalDisplayRisk) return NovaDesktopSteamLaunchDecision()
+
+            val privateSupported = policy.optPolicyBoolean(
+                "canLaunchPrivateStream",
+                "private_stream_supported",
+                "privateStreamSupported",
+                default = true
+            )
+            val mirrorSupported = policy.optPolicyBoolean(
+                "canMirrorDesktop",
+                "mirror_desktop_supported",
+                "mirrorDesktopSupported",
+                default = true
+            )
+            val forcePrivateSupported = policy.optPolicyBoolean(
+                "canForceCloseDesktopSteamForPrivateStream",
+                "force_private_after_steam_close_supported",
+                "forcePrivateAfterSteamCloseSupported",
+                default = false
+            )
+            val forcePrivateLabel = policy.optPolicyString(
+                "forcePrivateStreamLabel",
+                "force_private_stream_label"
+            ).ifBlank { "Close desktop Steam and start private stream" }
+            val reason = policy.optPolicyString("reason", "message")
+            val privateReason = policy.optPolicyString(
+                "private_stream_unavailable_reason",
+                "privateStreamUnavailableReason"
+            ).ifBlank {
+                if (privateSupported) "" else reason.ifBlank { "Private stream is unavailable while desktop Steam is active." }
+            }
+
+            return NovaDesktopSteamLaunchDecision(
+                required = true,
+                privateStreamEnabled = privateSupported,
+                mirrorDesktopEnabled = mirrorSupported,
+                forcePrivateAfterSteamCloseEnabled = forcePrivateSupported,
+                forcePrivateAfterSteamCloseLabel = forcePrivateLabel,
+                reason = reason,
+                privateStreamUnavailableReason = privateReason
+            )
+        }
+
+        private fun JSONObject.optPolicyBoolean(
+            vararg names: String,
+            default: Boolean = false
+        ): Boolean {
+            for (name in names) {
+                if (has(name)) return optBoolean(name, default)
+            }
+            return default
+        }
+
+        private fun JSONObject.optPolicyString(vararg names: String): String {
+            for (name in names) {
+                val value = optString(name, "")
+                if (value.isNotBlank()) return value
+            }
+            return ""
         }
     }
 }
