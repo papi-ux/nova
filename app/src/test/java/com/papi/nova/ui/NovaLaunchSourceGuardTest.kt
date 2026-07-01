@@ -425,6 +425,36 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun gameReturnsToLibraryWhenPolarisReportsHostSessionEnded() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val hostEnded = game.section(
+            "private fun handlePolarisHostSessionEnded(",
+            " fun disconnect() {"
+        )
+
+        assertTrue(
+            "resilience give-up should finish the Game activity when Polaris reports the host session is gone",
+            game.contains("ConnectionResilienceManager(") &&
+                game.contains("handlePolarisHostSessionEnded()") &&
+                hostEnded.contains("hostSessionEnded = true") &&
+                hostEnded.contains("markLocalSessionEnd()") &&
+                hostEnded.contains("finish()")
+        )
+        assertTrue(
+            "SSE idle/stream-ended events should use the same host-ended teardown path",
+            game.contains("event == " + 34.toChar() + "stream_ended" + 34.toChar()) &&
+                game.contains("state == " + 34.toChar() + "idle" + 34.toChar()) &&
+                game.contains("handlePolarisHostSessionEnded()")
+        )
+        assertTrue(
+            "host-ended teardown should stop background-resume state and shut down resilience executor",
+            hostEnded.contains("stopBackgroundResumeWindow()") &&
+                hostEnded.contains("novaResilienceManager?.shutdown()") &&
+                !hostEnded.contains("prepareBackgroundResumeWindow()")
+        )
+    }
+
+    @Test
     fun gameStreamSurfaceProvidesAccessibilityNodeForDeviceSmokeAutomation() {
         val container = readSource("src/main/java/com/papi/nova/ui/StreamContainer.kt")
         val strings = readSource("src/main/res/values/strings.xml")

@@ -5946,6 +5946,7 @@ stopPolarisLiveSessionStatusRefresh()
 novaReconnectOverlay?.dismiss()
 novaProgressOverlay?.dismiss()
 stopBackgroundResumeWindow()
+novaResilienceManager?.shutdown()
 finish()
 }
 }
