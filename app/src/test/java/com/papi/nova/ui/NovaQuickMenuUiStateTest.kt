@@ -101,6 +101,8 @@ class NovaQuickMenuUiStateTest {
         )
 
         assertEquals("HDR requested, but Private Headless Stream is 10-bit SDR.", state.healthSummary)
+        assertEquals("Private Headless Stream does not report HDR metadata. Polaris is sending 10-bit SDR; use an HDR-capable display path for true HDR.", state.healthDetail)
+        assertEquals("Polaris is sending 10-bit SDR, not HDR. Use an HDR-capable display path for true HDR.", state.stability.caption)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
     }
 

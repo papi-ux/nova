@@ -84,6 +84,7 @@ data class NovaQuickMenuUiState(
     val subtitle: String,
     val sessionMode: NovaQuickMenuChip,
     val healthSummary: String,
+    val healthDetail: String,
     val healthTone: NovaQuickMenuTone,
     val disconnectAction: NovaQuickMenuAction,
     val endAction: NovaQuickMenuAction,
@@ -150,6 +151,7 @@ data class NovaQuickMenuUiState(
             val mangoRisk = status?.game.equals("Steam Big Picture", ignoreCase = true)
 
             val hdrDowngradeSummary = status?.hdrDowngradeSummary(context)
+            val healthDetail = status?.hdrDowngradeDetail(context).orEmpty()
             val healthSummary = when {
                 hostStateUnavailable -> context.getString(R.string.nova_quick_menu_host_state_unavailable)
                 status == null -> context.getString(R.string.nova_quick_menu_health_checking)
@@ -371,6 +373,7 @@ data class NovaQuickMenuUiState(
                 subtitle = subtitle,
                 sessionMode = sessionMode,
                 healthSummary = healthSummary,
+                healthDetail = healthDetail,
                 healthTone = healthTone,
                 disconnectAction = NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.DISCONNECT,
@@ -683,6 +686,16 @@ data class NovaQuickMenuUiState(
             }
         }
 
+        private fun PolarisSessionStatus.hdrDowngradeDetail(context: Context): String? {
+            if (!isHdrDowngraded) {
+                return null
+            }
+            return if (isHeadlessHdrUnavailable) {
+                context.getString(R.string.nova_quick_menu_health_hdr_headless_detail)
+            } else {
+                context.getString(R.string.nova_quick_menu_health_hdr_downgrade_detail)
+            }
+        }
         private fun PolarisSessionStatus.hdrDowngradeSummary(context: Context): String? {
             if (!isHdrDowngraded) {
                 return null

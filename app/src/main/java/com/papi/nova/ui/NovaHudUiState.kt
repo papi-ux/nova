@@ -182,7 +182,7 @@ data class NovaHudUiState(
                 autopilotCompactLabel = autoQuality.compactLabel,
                 fpsTone = toneForFps(fps, targetFps),
                 latencyTone = toneForLatency(latencyMs),
-                statusTone = autoQuality.tone.toHudTone(),
+                statusTone = if (healthReason.second == NovaHudTone.WARNING || healthReason.second == NovaHudTone.DANGER) healthReason.second else autoQuality.tone.toHudTone(),
                 healthReasonLabel = healthReason.first,
                 healthReasonTone = healthReason.second,
                 streamTruthLabel = buildStreamTruth(status, targetFps, codec, height),
@@ -279,6 +279,7 @@ data class NovaHudUiState(
             val primaryIssue = status?.health?.primaryIssue.orEmpty().lowercase()
             val issues = status?.health?.issues.orEmpty().map { it.lowercase() }
             return when {
+                status?.isHdrDowngraded == true -> "HDR downgraded" to NovaHudTone.WARNING
                 status?.isHostRenderLimited == true || primaryIssue == "host_render_limited" || issues.contains("host_render_limited") ->
                     "Host capped" to NovaHudTone.WARNING
                 primaryIssue.contains("network") || status?.health?.networkRisk?.isNotBlank() == true ->
@@ -307,6 +308,7 @@ data class NovaHudUiState(
             }
             val safeTarget = status?.health?.safeTargetFps?.takeIf { it > 0.0 }?.roundToInt()
             return when {
+                status?.isHdrDowngraded == true -> streamLabel + " • 10-bit SDR"
                 status?.isHostRenderLimited == true && safeTarget != null -> "$streamLabel • Game capped $safeTarget"
                 status?.isHostRenderLimited == true -> "$streamLabel • Host capped"
                 status?.profileState?.preferenceLabel?.isNotBlank() == true ->

@@ -792,6 +792,8 @@
     <string name="nova_quick_menu_health_checking">Checking session health</string>
     <string name="nova_quick_menu_health_host_render">Host FPS is below target. Relaunch can restore full rate.</string>
     <string name="nova_quick_menu_health_hdr_downgrade">HDR requested, but Polaris is streaming 10-bit SDR.</string>
+    <string name="nova_quick_menu_health_hdr_headless_detail">Private Headless Stream does not report HDR metadata. Polaris is sending 10-bit SDR; use an HDR-capable display path for true HDR.</string>
+    <string name="nova_quick_menu_health_hdr_downgrade_detail">Polaris is sending 10-bit SDR, not HDR. Use an HDR-capable display path for true HDR.</string>
     <string name="nova_quick_menu_health_hdr_headless_downgrade">HDR requested, but Private Headless Stream is 10-bit SDR.</string>
     <string name="nova_quick_menu_health_attention">Session needs attention.</string>
     <string name="nova_quick_menu_health_steady">Session looks steady.</string>
