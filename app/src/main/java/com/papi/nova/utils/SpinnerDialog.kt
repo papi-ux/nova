@@ -4,8 +4,11 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.DialogInterface
 import android.view.LayoutInflater
+import android.widget.ProgressBar
 import android.widget.TextView
 import com.papi.nova.R
+import com.papi.nova.ui.NovaSheetChrome
+import com.papi.nova.ui.NovaThemeManager
 
 class SpinnerDialog private constructor(
     private val activity: Activity,
@@ -34,6 +37,9 @@ class SpinnerDialog private constructor(
         val activeDialog = dialog
         if (activeDialog == null) {
             val content = LayoutInflater.from(activity).inflate(R.layout.nova_spinner_dialog, null)
+            content.findViewById<ProgressBar>(R.id.spinner_progress)?.indeterminateDrawable?.setTint(
+                NovaThemeManager.getAccentColor(activity)
+            )
             messageView = content.findViewById<TextView>(R.id.spinner_message).apply {
                 text = message
             }
@@ -45,6 +51,7 @@ class SpinnerDialog private constructor(
             builder.setCancelable(finish)
 
             val createdDialog = builder.create()
+            NovaSheetChrome.applyAlertDialogChrome(createdDialog)
             dialog = createdDialog
 
             synchronized(rundownDialogs) {
