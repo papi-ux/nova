@@ -155,7 +155,13 @@ data class NovaQuickMenuUiState(
             val healthSummary = when {
                 hostStateUnavailable -> context.getString(R.string.nova_quick_menu_host_state_unavailable)
                 status == null -> context.getString(R.string.nova_quick_menu_health_checking)
-                status.isHostRenderLimited -> context.getString(R.string.nova_quick_menu_health_host_render)
+                status.isHostRenderLimited -> context.getString(
+                    if (status.health.relaunchRecommended || status.autoQuality.relaunchRequired) {
+                        R.string.nova_quick_menu_health_host_render_recovery
+                    } else {
+                        R.string.nova_quick_menu_health_host_render
+                    }
+                )
                 hdrDowngradeSummary != null -> hdrDowngradeSummary
                 status.health.summary.isNotBlank() -> status.health.summary
                 status.hasHealthConcerns -> context.getString(R.string.nova_quick_menu_health_attention)

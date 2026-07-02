@@ -794,7 +794,8 @@
     <string name="nova_quick_menu_virtual_subtitle">Quick keys and controls for virtual display streaming</string>
     <string name="nova_quick_menu_shutdown_subtitle">Host shutdown is in progress. Session actions are limited.</string>
     <string name="nova_quick_menu_health_checking">Checking session health</string>
-    <string name="nova_quick_menu_health_host_render">Host FPS is below target. Relaunch can restore full rate.</string>
+    <string name="nova_quick_menu_health_host_render">Host is rendering below the stream FPS target.</string>
+    <string name="nova_quick_menu_health_host_render_recovery">Host is rendering below target. Relaunch can apply the AI Recovery Profile.</string>
     <string name="nova_quick_menu_health_hdr_downgrade">HDR requested, but Polaris is streaming 10-bit SDR.</string>
     <string name="nova_quick_menu_health_hdr_headless_detail">Private Headless Stream does not report HDR metadata. Polaris is sending 10-bit SDR; use an HDR-capable display path for true HDR.</string>
     <string name="nova_quick_menu_health_hdr_downgrade_detail">Polaris is sending 10-bit SDR, not HDR. Use an HDR-capable display path for true HDR.</string>
