@@ -473,7 +473,7 @@ class NovaLaunchSourceGuardTest {
         assertTrue(
             "launch mode copy should explain private/headless and virtual display choices in player language",
             strings.contains("<string name=\"nova_library_launch_headless\">Private stream</string>") &&
-                strings.contains("<string name=\"nova_library_launch_virtual_display\">Virtual display</string>") &&
+                strings.contains("nova_library_launch_virtual_display" + 34.toChar() + ">Host Virtual Display</string>") &&
                 strings.contains("private stream for this launch")
         )
         assertTrue(
