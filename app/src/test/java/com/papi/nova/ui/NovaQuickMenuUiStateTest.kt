@@ -78,10 +78,34 @@ class NovaQuickMenuUiStateTest {
             aiEnabled = true
         )
 
-        assertEquals("Host FPS is below target. Relaunch can restore full rate.", state.healthSummary)
+        assertEquals("Host is rendering below target. Relaunch can apply the AI Recovery Profile.", state.healthSummary)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
         assertEquals("AI Recovery Profile", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.WARNING, state.stability.chip.tone)
+    }
+
+    @Test
+    fun hostRenderLimitedWithoutRecoveryUsesMonitoringCopyOnly() {
+        val state = quickState(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    summary = "Host render path is missing the target frame rate",
+                    primaryIssue = "host_render_limited",
+                    hostRenderLimited = true,
+                    relaunchRecommended = false
+                ),
+                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
+                    enabled = true,
+                    state = "blocked",
+                    blockedReason = "host_render_limited",
+                    relaunchRequired = false
+                )
+            )
+        )
+
+        assertEquals("Host is rendering below the stream FPS target.", state.healthSummary)
+        assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
     }
 
     @Test
