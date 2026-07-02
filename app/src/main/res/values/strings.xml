@@ -290,6 +290,7 @@
     <string name="nova_library_preflight_launch">Launch</string>
     <string name="nova_library_retry_high_fps">Retry High FPS</string>
     <string name="nova_library_launch_options">Launch Options</string>
+    <string name="nova_library_launch_options_secondary">More launch settings</string>
     <string name="nova_library_profile_preference_auto">AI Preference: Auto</string>
     <string name="nova_library_profile_preference_quality">AI Preference: Prefer Quality</string>
     <string name="nova_library_profile_preference_high_fps">AI Preference: Prefer High FPS</string>

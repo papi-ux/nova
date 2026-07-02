@@ -263,7 +263,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             ?.takeIf { it.isNotBlank() }
                             ?: primaryPlayLabel(uiState)
                     },
-                    launchOptionsLabel = getString(R.string.nova_library_launch_options),
+                    launchOptionsLabel = getString(R.string.nova_library_launch_options_secondary),
                     launchModeTitle = getString(R.string.nova_library_launch_mode_title),
                     headlessModeLabel = modeBadgeLabel("headless"),
                     virtualDisplayModeLabel = modeBadgeLabel("virtual_display"),
@@ -1642,6 +1642,27 @@ private fun LaunchControls(
             overflow = TextOverflow.Ellipsis
         )
 
+        if (uiState.showLaunchModeSummary) {
+            val launchModeSummary = when {
+                uiState.showVirtualUnavailableHint && uiState.virtualDisplayUnavailableReason.isNotBlank() ->
+                    virtualDisplayModeLabel + " unavailable: " + uiState.virtualDisplayUnavailableReason
+                uiState.showVirtualUnavailableHint ->
+                    virtualDisplayModeLabel + " unavailable"
+                uiState.playMode == "virtual_display" -> launchModeTitle + ": " + virtualDisplayModeLabel
+                uiState.playMode == "headless" -> launchModeTitle + ": " + headlessModeLabel
+                else -> launchModeTitle
+            }
+            Text(
+                text = launchModeSummary,
+                modifier = Modifier.padding(top = 6.dp),
+                color = if (uiState.showVirtualUnavailableHint) colors.warning else colors.textMuted,
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
         NovaActionButton(
             text = playLabel,
             onClick = onPrimaryLaunch,
@@ -1658,41 +1679,43 @@ private fun LaunchControls(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            LaunchModeChoicePill(
-                label = headlessModeLabel,
-                status = when {
-                    uiState.playMode == "headless" -> "Selected"
-                    uiState.recommendedMode == "headless" && uiState.headlessAllowed -> "Recommended"
-                    uiState.headlessAllowed -> "Available"
-                    else -> "Unavailable"
-                },
-                recommended = uiState.recommendedMode == "headless" && uiState.headlessAllowed,
-                selected = uiState.playMode == "headless",
-                unavailable = !uiState.headlessAllowed,
-                onClick = { onLaunchModeSelected("headless") },
-                modifier = Modifier.weight(1f)
-            )
-            LaunchModeChoicePill(
-                label = virtualDisplayModeLabel,
-                status = when {
-                    uiState.virtualDisplayUnavailable -> "Unavailable"
-                    uiState.playMode == "virtual_display" -> "Selected"
-                    uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed -> "Recommended"
-                    uiState.virtualDisplayAllowed -> "Available"
-                    else -> "Unavailable"
-                },
-                recommended = uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed,
-                selected = uiState.playMode == "virtual_display",
-                unavailable = uiState.virtualDisplayUnavailable || !uiState.virtualDisplayAllowed,
-                onClick = { onLaunchModeSelected("virtual_display") },
-                modifier = Modifier.weight(1f)
-            )
+        if (uiState.showLaunchOptionsButton || uiState.showVirtualUnavailableHint) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                LaunchModeChoicePill(
+                    label = headlessModeLabel,
+                    status = when {
+                        uiState.playMode == "headless" -> "Selected"
+                        uiState.recommendedMode == "headless" && uiState.headlessAllowed -> "Recommended"
+                        uiState.headlessAllowed -> "Available"
+                        else -> "Unavailable"
+                    },
+                    recommended = uiState.recommendedMode == "headless" && uiState.headlessAllowed,
+                    selected = uiState.playMode == "headless",
+                    unavailable = !uiState.headlessAllowed,
+                    onClick = { onLaunchModeSelected("headless") },
+                    modifier = Modifier.weight(1f)
+                )
+                LaunchModeChoicePill(
+                    label = virtualDisplayModeLabel,
+                    status = when {
+                        uiState.virtualDisplayUnavailable -> "Unavailable"
+                        uiState.playMode == "virtual_display" -> "Selected"
+                        uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed -> "Recommended"
+                        uiState.virtualDisplayAllowed -> "Available"
+                        else -> "Unavailable"
+                    },
+                    recommended = uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed,
+                    selected = uiState.playMode == "virtual_display",
+                    unavailable = uiState.virtualDisplayUnavailable || !uiState.virtualDisplayAllowed,
+                    onClick = { onLaunchModeSelected("virtual_display") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
 
         Row(
@@ -1701,20 +1724,22 @@ private fun LaunchControls(
                 .padding(top = 9.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            NovaActionButton(
-                text = launchOptionsLabel,
-                onClick = onLaunchOptions,
-                modifier = Modifier.weight(1f),
-                contentDescription = launchOptionsLabel,
-                minHeight = 42.dp,
-                cornerRadius = 10.dp,
-                fontSize = 12.sp,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-            )
+            if (uiState.showLaunchOptionsButton) {
+                NovaActionButton(
+                    text = launchOptionsLabel,
+                    onClick = onLaunchOptions,
+                    modifier = Modifier.weight(1f),
+                    contentDescription = launchOptionsLabel,
+                    minHeight = 42.dp,
+                    cornerRadius = 10.dp,
+                    fontSize = 12.sp,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                )
+            }
             NovaActionButton(
                 text = profilePreferenceLabel,
                 onClick = onProfilePreference,
-                modifier = Modifier.weight(1f),
+                modifier = if (uiState.showLaunchOptionsButton) Modifier.weight(1f) else Modifier.fillMaxWidth(),
                 contentDescription = profilePreferenceLabel,
                 minHeight = 42.dp,
                 cornerRadius = 10.dp,
