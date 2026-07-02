@@ -307,6 +307,9 @@
     <string name="nova_library_launch_intro_headless_default">Nova will use a private stream for this launch.</string>
     <string name="nova_library_launch_intro_virtual_default">Nova will use a virtual display for this launch.</string>
     <string name="nova_library_launch_intro_virtual_unavailable">Virtual display is not available on this host. Nova will use a private stream for this launch.</string>
+    <string name="nova_library_virtual_display_unavailable_title">Host Virtual Display is not ready</string>
+    <string name="nova_library_virtual_display_unavailable_body">Polaris says this host cannot start a virtual-display stream right now. Nova will use Private Stream instead.</string>
+    <string name="nova_library_virtual_display_unavailable_reason_format">Reason: %1$s</string>
     <string name="nova_library_launch_mode_note">Private stream uses Nova\'s headless path when available. Virtual display creates a separate display for the session.</string>
     <string name="nova_library_launch_default_mode_badge">Default: %1$s</string>
     <string name="nova_desktop_steam_title">Desktop Steam is active</string>

@@ -678,9 +678,20 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             parts += getString(R.string.nova_library_launch_preferred_mode_format, modeLabel(uiState.preferredMode))
         }
         parts += when {
-            uiState.virtualDisplayUnavailable -> uiState.virtualDisplayUnavailableReason
-                .takeIf { it.isNotBlank() }
-                ?: getString(R.string.nova_library_launch_intro_virtual_unavailable)
+            uiState.virtualDisplayUnavailable -> {
+                val unavailableParts = mutableListOf(
+                    getString(R.string.nova_library_virtual_display_unavailable_body)
+                )
+                uiState.virtualDisplayUnavailableReason
+                    .takeIf { it.isNotBlank() }
+                    ?.let {
+                        unavailableParts += getString(
+                            R.string.nova_library_virtual_display_unavailable_reason_format,
+                            it
+                        )
+                    }
+                unavailableParts.joinToString(" ")
+            }
             uiState.launchChoice.hostModeReason.isNotBlank() -> uiState.launchChoice.hostModeReason
             uiState.game.launchMode?.modeReason?.isNotBlank() == true -> uiState.game.launchMode?.modeReason.orEmpty()
             uiState.recommendedMode == "virtual_display" -> getString(R.string.nova_library_launch_intro_virtual_default)

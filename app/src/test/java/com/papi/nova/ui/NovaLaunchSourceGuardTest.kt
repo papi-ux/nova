@@ -441,6 +441,19 @@ class NovaLaunchSourceGuardTest {
 
 
     @Test
+    fun virtualDisplayUnavailableCopyUsesHostVirtualDisplayLanguageAndReason() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(strings.contains("nova_library_virtual_display_unavailable_title") && strings.contains("Host Virtual Display is not ready"))
+        assertTrue(strings.contains("nova_library_virtual_display_unavailable_body") && strings.contains("Polaris says this host cannot start a virtual-display stream right now. Nova will use Private Stream instead."))
+        assertTrue(strings.contains("nova_library_virtual_display_unavailable_reason_format") && strings.contains("Reason: %1"))
+        assertTrue(detail.contains("nova_library_virtual_display_unavailable_body"))
+        assertTrue(detail.contains("nova_library_virtual_display_unavailable_reason_format"))
+        assertTrue(detail.contains("virtualDisplayUnavailableReason"))
+    }
+
+    @Test
     fun novaLaunchAndSessionStringsUsePlayerLifecycleLanguage() {
         val strings = readSource("src/main/res/values/strings.xml")
 
