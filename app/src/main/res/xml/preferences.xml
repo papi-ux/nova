@@ -826,6 +826,16 @@
             android:title="@string/title_fullexdisplay_mode"
             app:iconSpaceReserved="false" />
 
+        <ListPreference
+            android:defaultValue="auto"
+            android:dependency="checkbox_enable_fullexdisplay"
+            android:entries="@array/android_stream_display_target_names"
+            android:entryValues="@array/android_stream_display_target_values"
+            android:key="android_stream_display_target"
+            android:summary="@string/summary_android_stream_display_target"
+            android:title="@string/title_android_stream_display_target"
+            app:iconSpaceReserved="false" />
+
         <!-- Device fixes -->
         <CheckBoxPreference
             android:defaultValue="false"

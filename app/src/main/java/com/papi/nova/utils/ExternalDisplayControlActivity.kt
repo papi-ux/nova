@@ -12,10 +12,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.Display
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -82,7 +84,11 @@ class ExternalDisplayControlActivity :
             if (gameIntent == null) {
                 finish()
             } else {
-                val secondaryDisplay = getSecondaryDisplay(this)
+                val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+                val targetDisplayId = gameIntent.getIntExtra(Game.EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY)
+                val secondaryDisplay = displayManager.getDisplay(targetDisplayId)
+                    ?.takeIf { it.displayId != Display.DEFAULT_DISPLAY }
+                    ?: getSecondaryDisplay(this)
                 if (secondaryDisplay != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     val options = ActivityOptions.makeBasic()
                     options.setLaunchDisplayId(secondaryDisplay.displayId)

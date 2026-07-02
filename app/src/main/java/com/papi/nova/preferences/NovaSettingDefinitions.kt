@@ -203,6 +203,7 @@ object NovaSettingDefinitions {
         return when {
             this == "list_languages" -> NovaSettingApplyTiming.RestartApp
             this == "nova_theme" -> NovaSettingApplyTiming.Instant
+            this == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING -> NovaSettingApplyTiming.NextStream
             categoryKey == "category_stream_quality" -> NovaSettingApplyTiming.NextStream
             categoryKey == "category_display_audio" -> NovaSettingApplyTiming.NextStream
             else -> NovaSettingApplyTiming.Instant
