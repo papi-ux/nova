@@ -6258,7 +6258,7 @@ sdkInt < Build.VERSION_CODES.N)
 }
 
  @JvmStatic fun shouldShowPolarisLockOverlay(screenLocked:Boolean, cageRunning:Boolean):Boolean {
-return screenLocked
+return screenLocked && !cageRunning
 }
 
 private fun isDisconnectIntent(intent:Intent?):Boolean {
