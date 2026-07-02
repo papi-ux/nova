@@ -6,6 +6,7 @@ import android.util.Xml
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
+import com.papi.nova.utils.AndroidStreamDisplayTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -216,6 +217,28 @@ class NovaSettingsDefinitionsTest {
         assertFalse(keys.contains("checkbox_usb_driver"))
         assertFalse(keys.contains("checkbox_vibrate_fallback"))
         assertFalse(keys.contains("seekbar_vibrate_fallback_strength"))
+    }
+
+    @Test
+    fun externalDisplayTargetPreferenceOffersAutoPrimaryExternalAndLargest() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val target = definitions.require(PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING)
+
+        assertEquals(NovaSettingType.Select, target.type)
+        assertEquals(NovaSettingValue.StringValue(AndroidStreamDisplayTarget.AUTO), target.defaultValue)
+        assertEquals(PreferenceConfiguration.ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING, target.dependencyKey)
+        assertEquals(NovaSettingApplyTiming.NextStream, target.applyTiming)
+        assertEquals(
+            listOf(
+                AndroidStreamDisplayTarget.AUTO,
+                AndroidStreamDisplayTarget.PRIMARY,
+                AndroidStreamDisplayTarget.EXTERNAL,
+                AndroidStreamDisplayTarget.LARGEST
+            ),
+            target.options.map { it.value }
+        )
+        assertEquals(context.getString(R.string.android_stream_display_target_auto), target.options[0].label)
+        assertEquals(context.getString(R.string.android_stream_display_target_largest), target.options[3].label)
     }
 
     @Test

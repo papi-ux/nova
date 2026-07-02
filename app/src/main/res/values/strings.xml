@@ -977,6 +977,12 @@
     <string name="title_fullexdisplay_mode">Use Android external display</string>
     <string name="summary_exdisplay_mode">Stream display on the monitor, virtual buttons and performance information and other controls on the phone screen.</string>
     <string name="summary_fullexdisplay_mode">Show the stream on an Android-connected display while keeping Nova controls on this device. This is separate from Polaris Host Virtual Display.</string>
+    <string name="title_android_stream_display_target">Android stream display</string>
+    <string name="summary_android_stream_display_target">Choose which Android display shows the stream when external display mode is enabled. Auto keeps the old first-external behavior.</string>
+    <string name="android_stream_display_target_auto">Auto first external</string>
+    <string name="android_stream_display_target_primary">This device screen</string>
+    <string name="android_stream_display_target_external">First external display</string>
+    <string name="android_stream_display_target_largest">Largest display</string>
     <string name="title_top_center_display">Display in Top Center</string>
     <string name="summary_top_center_display">Streaming picture will be aligned to the top of the screen instead of centered when resolution is not native.</string>
     <string name="title_touch_sensitivity">Touch Screen Sensitivity</string>

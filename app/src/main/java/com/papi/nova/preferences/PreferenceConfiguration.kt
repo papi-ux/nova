@@ -8,6 +8,7 @@ import android.view.Display
 import androidx.preference.PreferenceManager
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.profiles.ProfilesManager
+import com.papi.nova.utils.AndroidStreamDisplayTarget
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
@@ -100,6 +101,7 @@ class PreferenceConfiguration {
     @JvmField var enableJoyConFix = false
     @JvmField var enableNewAnalogStick = false
     @JvmField var enableFullExDisplay = false
+    @JvmField var androidStreamDisplayTarget = AndroidStreamDisplayTarget.AUTO
     @JvmField var alignDisplayTopCenter = false
     @JvmField var touchSensitivityX = 0
     @JvmField var touchSensitivityY = 0
@@ -169,6 +171,8 @@ class PreferenceConfiguration {
         private const val ENABLE_ULTRA_LOW_LATENCY_PREF_STRING = "checkbox_ultra_low_latency"
         private const val ENFORCE_DISPLAY_MODE_PREF_STRING = "checkbox_enforce_display_mode"
         private const val USE_VIRTUAL_DISPLAY_PREF_STRING = "checkbox_use_virtual_display"
+        const val ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING = "checkbox_enable_fullexdisplay"
+        const val ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING = "android_stream_display_target"
         private const val AUTO_INVERT_VIDEO_RESOLUTION_PREF_STRING = "checkbox_auto_invert_video_resolution"
         private const val RESOLUTION_SCALE_FACTOR_PREF_STRING = "seekbar_resolution_scale_factor"
         private const val RESUME_WITHOUT_CONFIRM_PREF_STRING = "checkbox_resume_without_confirm"
@@ -255,6 +259,7 @@ class PreferenceConfiguration {
         private const val DEFAULT_ENABLE_ULTRA_LOW_LATENCY = false
         private const val DEFAULT_ENFORCE_DISPLAY_MODE = false
         private const val DEFAULT_USE_VIRTUAL_DISPLAY = false
+        private const val DEFAULT_ANDROID_STREAM_DISPLAY_TARGET = AndroidStreamDisplayTarget.AUTO
         private const val DEFAULT_VIDEO_SCALE_MODE = "fit"
         private const val DEFAULT_AUTO_INVERT_VIDEO_RESOLUTION = true
         private const val DEFAULT_RESOLUTION_SCALE_FACTOR = 100
@@ -931,7 +936,11 @@ class PreferenceConfiguration {
             config.onscreenKeyboardAlignMode =
                 prefs.getString(LIST_ONSCREEN_KEYBOARD_ALIGN_MODE, DEFAULT_ONSCREEN_KEYBOARD_ALIGN_MODE)
             config.enableNewAnalogStick = prefs.getBoolean(CHECKBOX_CHECKBOX_ENABLE_ANALOG_STICK_NEW, false)
-            config.enableFullExDisplay = prefs.getBoolean("checkbox_enable_fullexdisplay", false)
+            config.enableFullExDisplay = prefs.getBoolean(ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING, false)
+            config.androidStreamDisplayTarget = prefs.getString(
+                ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING,
+                DEFAULT_ANDROID_STREAM_DISPLAY_TARGET,
+            ) ?: DEFAULT_ANDROID_STREAM_DISPLAY_TARGET
             config.alignDisplayTopCenter = prefs.getBoolean("checkbox_enable_view_top_center", false)
             config.touchSensitivityX = prefs.getInt(SEEKBAR_TOUCH_SENSITIVITY, 100)
             config.touchSensitivityY = prefs.getInt("seekbar_touch_sensitivity_opacity_y", 100)

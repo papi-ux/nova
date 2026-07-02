@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.os.Build
+import android.util.DisplayMetrics
 import android.view.Display
 import android.widget.Toast
 import com.papi.nova.AppView
@@ -62,37 +63,46 @@ object ServerHelper {
 
     @JvmStatic
     fun getActiveDisplay(context: Context, prefs: PreferenceConfiguration): Display {
-        val secondary = getSecondaryDisplay(context)
-        return if (secondary != null && prefs.enableFullExDisplay) {
-            secondary
+        val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY)
+            ?: throw IllegalStateException("Default display is unavailable")
+        return if (prefs.enableFullExDisplay) {
+            getAndroidStreamDisplay(context, prefs) ?: defaultDisplay
         } else {
-            val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-            displayManager.getDisplay(Display.DEFAULT_DISPLAY)
-                ?: throw IllegalStateException("Default display is unavailable")
+            defaultDisplay
         }
+    }
+
+    @JvmStatic
+    fun getAndroidStreamDisplay(context: Context, prefs: PreferenceConfiguration): Display? {
+        val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        return selectDisplay(displayManager.displays, prefs.androidStreamDisplayTarget)
     }
 
     @JvmStatic
     fun getSecondaryDisplay(context: Context): Display? {
         val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        var display: Display? = null
-        val displays = displayManager.displays
-        val mainDisplayId = Display.DEFAULT_DISPLAY
-        var secondaryDisplayId = -1
+        return selectDisplay(displayManager.displays, AndroidStreamDisplayTarget.EXTERNAL)
+    }
 
-        for (displayVariant in displays) {
-            LimeLog.info(displayVariant.toString())
-            if (displayVariant.displayId != mainDisplayId) {
-                secondaryDisplayId = displayVariant.displayId
-                break
-            }
+    private fun selectDisplay(displays: Array<Display>, target: String?): Display? {
+        val candidates = displays.map { display ->
+            LimeLog.info(display.toString())
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            display.getRealMetrics(metrics)
+            AndroidStreamDisplayTarget.Candidate(
+                displayId = display.displayId,
+                width = metrics.widthPixels,
+                height = metrics.heightPixels,
+            )
         }
-
-        if (secondaryDisplayId != -1) {
-            display = displayManager.getDisplay(secondaryDisplayId)
-        }
-
-        return display
+        val selected = AndroidStreamDisplayTarget.select(
+            candidates,
+            Display.DEFAULT_DISPLAY,
+            target,
+        ) ?: return null
+        return displays.firstOrNull { it.displayId == selected.displayId }
     }
 
     private fun createStartIntent(
@@ -118,14 +128,17 @@ object ServerHelper {
         forcePrivateAfterSteamClose: Boolean = false,
     ): Intent {
         val prefConfig = PreferenceConfiguration.readPreferences(parent)
-        val gameIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && prefConfig.enableFullExDisplay) {
-            val secondaryDisplay = getSecondaryDisplay(parent)
-            if (secondaryDisplay != null) {
-                Intent(parent.createDisplayContext(secondaryDisplay), Game::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            } else {
-                Intent(parent, Game::class.java)
+        val selectedAndroidDisplay = if (prefConfig.enableFullExDisplay) {
+            getAndroidStreamDisplay(parent, prefConfig)
+        } else {
+            null
+        }
+        val useAndroidExternalDisplay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            selectedAndroidDisplay != null &&
+            selectedAndroidDisplay.displayId != Display.DEFAULT_DISPLAY
+        val gameIntent = if (useAndroidExternalDisplay) {
+            Intent(parent.createDisplayContext(selectedAndroidDisplay), Game::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         } else {
             Intent(parent, Game::class.java)
@@ -165,13 +178,10 @@ object ServerHelper {
             gameIntent.putExtra(Game.EXTRA_SERVER_CERT, serverCert)
         }
 
-        if (prefConfig.enableFullExDisplay) {
-            val secondaryDisplay = getSecondaryDisplay(parent)
-            if (secondaryDisplay != null) {
-                gameIntent.putExtra(Game.EXTRA_DISPLAY_ID, secondaryDisplay.displayId)
-                return Intent(parent, ExternalDisplayControlActivity::class.java).apply {
-                    putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, gameIntent)
-                }
+        if (useAndroidExternalDisplay) {
+            gameIntent.putExtra(Game.EXTRA_DISPLAY_ID, selectedAndroidDisplay.displayId)
+            return Intent(parent, ExternalDisplayControlActivity::class.java).apply {
+                putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, gameIntent)
             }
         }
 

@@ -56,6 +56,19 @@
         <item>bottom_right</item>
     </string-array>
 
+    <string-array name="android_stream_display_target_names">
+        <item>@string/android_stream_display_target_auto</item>
+        <item>@string/android_stream_display_target_primary</item>
+        <item>@string/android_stream_display_target_external</item>
+        <item>@string/android_stream_display_target_largest</item>
+    </string-array>
+    <string-array name="android_stream_display_target_values" translatable="false">
+        <item>auto</item>
+        <item>primary</item>
+        <item>external</item>
+        <item>largest</item>
+    </string-array>
+
     <string-array name="nova_preset_names">
         <item>Performance (720p, 10 Mbps)</item>
         <item>Balanced (1080p, 20 Mbps)</item>
