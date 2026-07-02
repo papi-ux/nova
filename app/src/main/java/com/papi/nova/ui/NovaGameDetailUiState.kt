@@ -18,6 +18,10 @@ data class NovaGameDetailUiState(
     val playEnabled: Boolean,
     val playUsesVirtualDisplay: Boolean,
     val launchOptionsEnabled: Boolean,
+    val actionableLaunchModeCount: Int,
+    val showLaunchOptionsButton: Boolean,
+    val showLaunchModeSummary: Boolean,
+    val showVirtualUnavailableHint: Boolean,
     val showRecommendedModeBadge: Boolean,
     val profilePreference: String,
     val mangoHudRisk: MangoHudRisk,
@@ -46,7 +50,15 @@ data class NovaGameDetailUiState(
                 choice.virtualDisplayAllowed -> "virtual_display"
                 else -> ""
             }
-            val launchOptionsEnabled = choice.headlessAllowed || choice.virtualDisplayAllowed
+            val actionableLaunchModeCount = listOf(
+                choice.headlessAllowed,
+                choice.virtualDisplayAllowed
+            ).count { it }
+            val showVirtualUnavailableHint = choice.virtualDisplayUnavailable &&
+                choice.virtualDisplayUnavailableReason.isNotBlank()
+            val showLaunchOptionsButton = actionableLaunchModeCount > 1
+            val showLaunchModeSummary = actionableLaunchModeCount <= 1 || showVirtualUnavailableHint
+            val launchOptionsEnabled = showLaunchOptionsButton
             val mangoHudRisk = when {
                 game.isSteamBigPicture -> MangoHudRisk.BIG_PICTURE
                 game.hasMangoHudCompatibilityRisk -> MangoHudRisk.STEAM
@@ -72,6 +84,10 @@ data class NovaGameDetailUiState(
                 playEnabled = playMode.isNotBlank(),
                 playUsesVirtualDisplay = playMode == "virtual_display",
                 launchOptionsEnabled = launchOptionsEnabled,
+                actionableLaunchModeCount = actionableLaunchModeCount,
+                showLaunchOptionsButton = showLaunchOptionsButton,
+                showLaunchModeSummary = showLaunchModeSummary,
+                showVirtualUnavailableHint = showVirtualUnavailableHint,
                 showRecommendedModeBadge = launchOptionsEnabled,
                 profilePreference = AutoQualityProfilePreferences.normalize(profilePreference),
                 mangoHudRisk = mangoHudRisk,

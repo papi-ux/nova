@@ -175,6 +175,19 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun virtualLaunchPreflightUsesHostVirtualDisplayContractConstants() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
+
+        assertTrue(detail.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
+        assertTrue(detail.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
+        assertTrue(trampoline.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
+        assertTrue(trampoline.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
+        assertTrue(detail.contains("streamDisplayMode = if (usesVirtualDisplay)"))
+        assertTrue(trampoline.contains("streamDisplayMode = if (withVirtualDisplay)"))
+    }
+
+    @Test
     fun shortcutLaunchUsesPolarisPreflightBeforeStartingStream() {
         val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
@@ -441,13 +454,37 @@ class NovaLaunchSourceGuardTest {
 
 
     @Test
+    fun virtualDisplayUnavailableCopyUsesHostVirtualDisplayLanguageAndReason() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(strings.contains("nova_library_virtual_display_unavailable_title") && strings.contains("Host Virtual Display is not ready"))
+        assertTrue(strings.contains("nova_library_virtual_display_unavailable_body") && strings.contains("Polaris says this host cannot start a virtual-display stream right now. Nova will use Private Stream instead."))
+        assertTrue(strings.contains("nova_library_virtual_display_unavailable_reason_format") && strings.contains("Reason: %1"))
+        assertTrue(detail.contains("nova_library_virtual_display_unavailable_body"))
+        assertTrue(detail.contains("nova_library_virtual_display_unavailable_reason_format"))
+        assertTrue(detail.contains("virtualDisplayUnavailableReason"))
+    }
+
+    @Test
+    fun androidExternalDisplayCopyIsSeparateFromHostVirtualDisplay() {
+        val preferences = readSource("src/main/res/xml/preferences.xml")
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(preferences.contains("checkbox_enable_fullexdisplay"))
+        assertTrue(strings.contains("title_fullexdisplay_mode"))
+        assertTrue(strings.contains("Use Android external display"))
+        assertTrue(strings.contains("Show the stream on an Android-connected display while keeping Nova controls on this device. This is separate from Polaris Host Virtual Display."))
+    }
+
+    @Test
     fun novaLaunchAndSessionStringsUsePlayerLifecycleLanguage() {
         val strings = readSource("src/main/res/values/strings.xml")
 
         assertTrue(
             "launch mode copy should explain private/headless and virtual display choices in player language",
             strings.contains("<string name=\"nova_library_launch_headless\">Private stream</string>") &&
-                strings.contains("<string name=\"nova_library_launch_virtual_display\">Virtual display</string>") &&
+                strings.contains("nova_library_launch_virtual_display" + 34.toChar() + ">Host Virtual Display</string>") &&
                 strings.contains("private stream for this launch")
         )
         assertTrue(

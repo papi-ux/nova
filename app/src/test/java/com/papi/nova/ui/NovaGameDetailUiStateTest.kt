@@ -35,6 +35,8 @@ class NovaGameDetailUiStateTest {
         assertTrue(state.playUsesVirtualDisplay)
         assertTrue(state.playEnabled)
         assertTrue(state.launchOptionsEnabled)
+        assertTrue(state.showLaunchOptionsButton)
+        assertFalse(state.showLaunchModeSummary)
         assertEquals("quality", state.profilePreference)
     }
 
@@ -87,6 +89,9 @@ class NovaGameDetailUiStateTest {
         assertEquals("headless", state.playMode)
         assertFalse(state.playUsesVirtualDisplay)
         assertTrue(state.virtualDisplayUnavailable)
+        assertTrue(state.showVirtualUnavailableHint)
+        assertFalse(state.showLaunchOptionsButton)
+        assertTrue(state.showLaunchModeSummary)
         assertEquals("Host virtual display disabled", state.virtualDisplayUnavailableReason)
         assertEquals("auto", state.profilePreference)
     }
@@ -115,6 +120,8 @@ class NovaGameDetailUiStateTest {
 
         assertFalse(state.playEnabled)
         assertFalse(state.launchOptionsEnabled)
+        assertFalse(state.showLaunchOptionsButton)
+        assertTrue(state.showLaunchModeSummary)
         assertFalse(state.showRecommendedModeBadge)
     }
 

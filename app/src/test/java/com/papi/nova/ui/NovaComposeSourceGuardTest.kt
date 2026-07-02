@@ -2051,6 +2051,18 @@ class NovaComposeSourceGuardTest {
         readSource("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt")
 
     @Test
+    fun gameDetailLaunchOptionsUseActionableModeState() {
+        val launchControls = readNovaGameDetailSheet().section(
+            "private fun LaunchControls(",
+            "@Composable\nprivate fun LaunchModeChoicePill("
+        )
+
+        assertTrue(launchControls.contains("uiState.showLaunchOptionsButton"))
+        assertTrue(launchControls.contains("uiState.showLaunchModeSummary"))
+        assertFalse(launchControls.contains("uiState.launchOptionsEnabled"))
+    }
+
+    @Test
     fun gameDetailLaunchOptionsAvoidRawAppCompatAlertDialogButtons() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
         val launchOptions = detail.section(
