@@ -11,6 +11,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.computers.ComputerDatabaseManager
 import com.papi.nova.computers.ComputerManagerListener
@@ -733,7 +734,11 @@ class ShortcutTrampoline : AppCompatActivity() {
     ) {
         val preferences = PreferenceConfiguration.readPreferences(this)
         val syncedSettings = apiClient.updateClientSettings(
-            streamDisplayMode = if (withVirtualDisplay) "host_virtual_display" else "headless_stream",
+            streamDisplayMode = if (withVirtualDisplay) {
+                PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
+            } else {
+                PolarisClientSettings.MODE_HEADLESS_STREAM
+            },
             displayMode = PreferenceConfiguration.formatStreamingDisplayMode(
                 preferences.width,
                 preferences.height,

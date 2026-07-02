@@ -175,6 +175,19 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun virtualLaunchPreflightUsesHostVirtualDisplayContractConstants() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
+
+        assertTrue(detail.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
+        assertTrue(detail.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
+        assertTrue(trampoline.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
+        assertTrue(trampoline.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
+        assertTrue(detail.contains("streamDisplayMode = if (usesVirtualDisplay)"))
+        assertTrue(trampoline.contains("streamDisplayMode = if (withVirtualDisplay)"))
+    }
+
+    @Test
     fun shortcutLaunchUsesPolarisPreflightBeforeStartingStream() {
         val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")

@@ -559,7 +559,11 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     ): PolarisClientSettings? {
         val preferences = PreferenceConfiguration.readPreferences(context)
         return apiClient.updateClientSettings(
-            streamDisplayMode = if (usesVirtualDisplay) "host_virtual_display" else "headless_stream",
+            streamDisplayMode = if (usesVirtualDisplay) {
+                PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
+            } else {
+                PolarisClientSettings.MODE_HEADLESS_STREAM
+            },
             displayMode = PreferenceConfiguration.formatStreamingDisplayMode(
                 preferences.width,
                 preferences.height,
