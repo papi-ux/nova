@@ -70,7 +70,8 @@ class KotlinGameRuntimeMigrationTest {
         assertTrue(Game.shouldRequestHdrStream(true, false, Build.VERSION_CODES.TIRAMISU, false))
         assertTrue(Game.shouldShowSdr10BitOptInToast(true, false, Build.VERSION_CODES.TIRAMISU, false))
         assertTrue(Game.shouldShowHdrRequiresAndroidNToast(true, false, Build.VERSION_CODES.M))
-        assertTrue(Game.shouldShowPolarisLockOverlay(true, true))
+        assertTrue(Game.shouldShowPolarisLockOverlay(true, false))
+        assertFalse(Game.shouldShowPolarisLockOverlay(true, true))
         assertFalse(Game.shouldShowPolarisLockOverlay(false, true))
         assertEquals(SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date(0)), Game.formatCurrentTime(0))
     }

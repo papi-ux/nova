@@ -29,4 +29,11 @@ class GameHdrDecisionTest {
         assertFalse(Game.shouldRequestHdrStream(true, false, Build.VERSION_CODES.M, false))
         assertTrue(Game.shouldShowHdrRequiresAndroidNToast(true, false, Build.VERSION_CODES.M))
     }
+
+    @Test
+    fun privateCompositorStreamSuppressesDesktopLockOverlay() {
+        assertTrue(Game.shouldShowPolarisLockOverlay(screenLocked = true, cageRunning = false))
+        assertFalse(Game.shouldShowPolarisLockOverlay(screenLocked = true, cageRunning = true))
+        assertFalse(Game.shouldShowPolarisLockOverlay(screenLocked = false, cageRunning = true))
+    }
 }
