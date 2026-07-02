@@ -467,6 +467,17 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun androidExternalDisplayCopyIsSeparateFromHostVirtualDisplay() {
+        val preferences = readSource("src/main/res/xml/preferences.xml")
+        val strings = readSource("src/main/res/values/strings.xml")
+
+        assertTrue(preferences.contains("checkbox_enable_fullexdisplay"))
+        assertTrue(strings.contains("title_fullexdisplay_mode"))
+        assertTrue(strings.contains("Use Android external display"))
+        assertTrue(strings.contains("Show the stream on an Android-connected display while keeping Nova controls on this device. This is separate from Polaris Host Virtual Display."))
+    }
+
+    @Test
     fun novaLaunchAndSessionStringsUsePlayerLifecycleLanguage() {
         val strings = readSource("src/main/res/values/strings.xml")
 
