@@ -26,13 +26,14 @@ This contract makes the Nova side of the Nova/Polaris cockpit requirements expli
 
 ## PSP Chrome / Portable Chrome palette
 
-- PSP Chrome / Portable Chrome should read as steel-blue/graphite, smoked graphite, and dim Moonlight-grey/silver shell chrome.
-- Muted green/status accents are allowed for PSP Chrome / Portable Chrome and semantic online/status states.
-- Purple/violet accents must not appear in PSP Chrome / Portable Chrome chrome, and PSP green must not leak into non-PSP selection, focus, host, or button accents.
+- Portable Chrome should read as smoked graphite/dim moonlight grey/silver shell chrome, and subtle portable chrome playstation symbol accents.
+- Triangle green remains appropriate for semantic online/status states, but primary focus and selection accents should lean cross-blue with square magenta and circle coral as subtle secondary glints.
+- Purple/violet accents must not appear in PSP Chrome / Portable Chrome chrome, and Portable Chrome PlayStation-symbol accents must not leak into non-Portable selection, focus, host, or button accents.
 - Text must stay readable on all PSP panels; avoid washed-out light panels with weak dark text or bright green body text.
 
 ## Regression expectations
 
 - Source guards should cover theme registry order, PSP aliasing, per-theme accent tokens, shared transparent/glass sheet chrome, picker D-pad behavior, Material You visibility, and the no redundant Press A badges rule.
+- Miami Nebula must keep flamingo pink as the visible hero accent across focus, selected, host, and button states; cyan/aqua belongs as supporting neon-water contrast, not as a replacement for the pink personality.
 - Device evidence should include the picker, at least one host/context drawer, and a game-detail surface after applying the selected theme.
 - When validating smoke behavior, prefer the latest available debug Nova APK plus latest available debug Polaris build pairing unless Michael explicitly asks for another build lane.

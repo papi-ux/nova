@@ -35,9 +35,9 @@ class NovaThemeResourcesTest {
         listOf(
             "latest available debug nova apk",
             "latest available debug polaris build",
-            "psp chrome / portable chrome",
-            "steel-blue/graphite",
-            "muted green/status accents",
+            "portable chrome playstation symbol accents",
+            "smoked graphite/dim moonlight grey/silver",
+            "flamingo pink as the visible hero accent",
             "purple/violet accents must not",
             "transparent/glass",
             "novahud",
@@ -72,7 +72,7 @@ class NovaThemeResourcesTest {
         assertTrue(manager.contains("THEME_PORTABLE_CHROME"))
         assertTrue(manager.contains("portable_chrome"))
         assertTrue(manager.contains("psp"))
-        assertTrue(colors.contains("<color name=\"nova_portable_accent\">#FF7FA38D</color>"))
+        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF2F64B3"))
         assertTrue(colors.contains("<color name=\"nova_accent\">@color/nova_polaris_accent</color>"))
         assertTrue(!colors.lowercase().contains("7c73ff"))
     }
@@ -83,11 +83,41 @@ class NovaThemeResourcesTest {
         val colors = File("src/main/res/values/colors_nova.xml").readText()
         val styles = File("src/main/res/values/styles.xml").readText()
 
-        assertTrue(colors.contains("<color name=\"nova_portable_accent\">#FF7FA38D</color>"))
+        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF2F64B3"))
         assertTrue(colors.contains("<color name=\"nova_polaris_accent\">"))
         assertTrue(styles.contains("AppTheme.PortableChrome"))
         assertTrue(styles.contains("SettingsTheme.PortableChrome"))
         assertTrue(styles.contains("@color/nova_portable_accent"))
+    }
+
+    @Test
+    fun miamiKeepsFlamingoPinkHeroAccentWithCyanAquaSupport() {
+        val colors = File("src/main/res/values/colors_nova.xml").readText()
+        val strings = File("src/main/res/values/strings.xml").readText()
+
+        assertTrue(colors.contains("nova_miami_accent") && colors.contains("#FFFF5CAB"))
+        assertTrue(colors.contains("nova_miami_accent_surface") && colors.contains("#1AFF5CAB"))
+        assertTrue(colors.contains("nova_miami_accent_glow") && colors.contains("#73FF5CAB"))
+        assertTrue(colors.contains("nova_miami_water_accent") && colors.contains("#FF47F3FF"))
+        assertTrue(colors.contains("nova_miami_water_accent_surface") && colors.contains("#1A47F3FF"))
+        assertFalse("Miami must not replace flamingo pink with cyan as the primary accent", colors.lines().any { it.contains("nova_miami_accent") && it.contains("#FF47F3FF") })
+        assertTrue(strings.contains("flamingo pink"))
+        assertTrue(strings.contains("cyan/aqua"))
+    }
+
+    @Test
+    fun portableChromeUsesSubtlePlayStationSymbolAccentTokens() {
+        val colors = File("src/main/res/values/colors_nova.xml").readText()
+        val strings = File("src/main/res/values/strings.xml").readText()
+
+        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF2F64B3"))
+        assertTrue(colors.contains("nova_portable_cross_accent") && colors.contains("#FF2F64B3"))
+        assertTrue(colors.contains("nova_portable_square_accent") && colors.contains("#FF9D679D"))
+        assertTrue(colors.contains("nova_portable_circle_accent") && colors.contains("#FFB8575F"))
+        assertTrue(colors.contains("nova_portable_triangle_accent") && colors.contains("#FF4F9A67"))
+        val oldPortableAccent = "nova_portable_accent" + 34.toChar() + ">#FF7FA38D"
+        assertFalse("Portable Chrome primary accent must not stay generic muted green", colors.contains(oldPortableAccent))
+        assertTrue(strings.contains("PlayStation-symbol accents"))
     }
 
     @Test

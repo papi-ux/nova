@@ -82,9 +82,9 @@
     <string name="pcview_theme_picker_focus_format">Focused: %1$s · %2$s</string>
     <string name="pcview_theme_picker_current_badge">Current</string>
     <string name="pcview_theme_polaris_subtitle">Polaris blue cockpit · balanced dark streaming shell</string>
-    <string name="pcview_theme_portable_chrome_subtitle">Smoked graphite handheld chrome profile · dim silver shell · muted green accents</string>
+    <string name="pcview_theme_portable_chrome_subtitle">Smoked graphite handheld chrome profile · dim silver shell · PlayStation-symbol accents</string>
     <string name="pcview_theme_oled_subtitle">OLED black · high contrast console glow</string>
-    <string name="pcview_theme_miami_subtitle">Miami neon · warm rose and cyan night drive</string>
+    <string name="pcview_theme_miami_subtitle">Miami neon · flamingo pink glow · cyan/aqua night drive</string>
     <string name="pcview_theme_high_contrast_subtitle">Maximum contrast · accessibility-first focus states</string>
     <string name="pcview_theme_material_you_subtitle">System dynamic colors when Android supports them</string>
     <string name="pcview_filter_all">All</string>

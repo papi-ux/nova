@@ -32,11 +32,11 @@
     <color name="nova_oled_accent">#FF8b80ff</color>
     <color name="nova_oled_accent_surface">#148b80ff</color>
 
-    <!-- Miami Nebula — Polaris plum/rose theme with neon flamingo focus. -->
+    <!-- Miami Nebula — deep plum shell with flamingo-pink hero focus and cyan/aqua neon-water support. -->
     <color name="nova_miami_void">#FF130817</color>
     <color name="nova_miami_deep">#FF241429</color>
     <color name="nova_miami_twilight">#FF3F2447</color>
-    <color name="nova_miami_storm">#FFB785A1</color>
+    <color name="nova_miami_storm">#FF85C7D4</color>
     <color name="nova_miami_silver">#FFFFD3E2</color>
     <color name="nova_miami_ice">#FFFFF1F7</color>
     <color name="nova_miami_bg_primary">#FF241429</color>
@@ -49,11 +49,14 @@
     <color name="nova_miami_divider">#FF6C3C6F</color>
     <color name="nova_miami_text_primary">#FFFFF1F7</color>
     <color name="nova_miami_text_secondary">#FFFFD3E2</color>
-    <color name="nova_miami_text_muted">#FFB785A1</color>
+    <color name="nova_miami_text_muted">#FF85C7D4</color>
     <color name="nova_miami_accent">#FFFF5CAB</color>
     <color name="nova_miami_accent_surface">#1AFF5CAB</color>
     <color name="nova_miami_accent_glow">#73FF5CAB</color>
     <color name="nova_miami_ripple">#22FF5CAB</color>
+    <color name="nova_miami_water_accent">#FF47F3FF</color>
+    <color name="nova_miami_water_accent_surface">#1A47F3FF</color>
+    <color name="nova_miami_water_accent_glow">#7347F3FF</color>
 
     <!-- High Contrast — brighter copy, firm outlines, and blue focus for readability. -->
     <color name="nova_hc_bg_primary">#FF05070c</color>
@@ -88,10 +91,14 @@
     <color name="nova_portable_text_primary">#FF1F2A35</color>
     <color name="nova_portable_text_secondary">#FF3B4856</color>
     <color name="nova_portable_text_muted">#FF5E6B79</color>
-    <color name="nova_portable_accent">#FF7FA38D</color>
-    <color name="nova_portable_accent_glow">#337FA38D</color>
-    <color name="nova_portable_accent_surface">#1A7FA38D</color>
-    <color name="nova_portable_ripple">#227FA38D</color>
+    <color name="nova_portable_accent">#FF2F64B3</color>
+    <color name="nova_portable_cross_accent">#FF2F64B3</color>
+    <color name="nova_portable_square_accent">#FF9D679D</color>
+    <color name="nova_portable_circle_accent">#FFB8575F</color>
+    <color name="nova_portable_triangle_accent">#FF4F9A67</color>
+    <color name="nova_portable_accent_glow">#332F64B3</color>
+    <color name="nova_portable_accent_surface">#1A2F64B3</color>
+    <color name="nova_portable_ripple">#222F64B3</color>
 
     <color name="nova_accent">@color/nova_polaris_accent</color>
     <color name="nova_accent_glow">@color/nova_polaris_accent_glow</color>

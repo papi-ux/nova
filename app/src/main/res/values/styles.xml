@@ -30,7 +30,7 @@
         <item name="android:textColor">@color/nova_text_primary</item>
     </style>
 
-    <!-- Portable Chrome — smoked graphite/silver shell with restrained green status accent. -->
+    <!-- Portable Chrome — smoked graphite/silver shell with subtle PlayStation-symbol accents. -->
     <style name="AppTheme.PortableChrome" parent="AppBaseTheme">
         <item name="android:colorBackground">@color/nova_portable_bg_window</item>
         <item name="android:windowBackground">@color/nova_portable_bg_window</item>
@@ -62,7 +62,7 @@
         <item name="colorOnSurface">@color/nova_oled_text_primary</item>
     </style>
 
-    <!-- Miami Nebula — deep plum shell with neon flamingo accent. -->
+    <!-- Miami Nebula — deep plum shell with flamingo-pink hero accent and cyan/aqua support. -->
     <style name="AppTheme.Miami">
         <item name="android:colorBackground">@color/nova_miami_bg_window</item>
         <item name="android:windowBackground">@color/nova_miami_bg_window</item>
