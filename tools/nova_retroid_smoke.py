@@ -33,6 +33,11 @@ DEFAULT_REPO = Path(__file__).resolve().parents[1]
 DEFAULT_APK = Path(
     "app/build/outputs/apk/nonRoot_game/debug/app-nonRoot_game-arm64-v8a-debug.apk"
 )
+DEBUG_PAIRING_CONTRACT = (
+    "Default smoke contract: use the latest available debug Nova APK from the local "
+    "debug build output with the latest available debug Polaris build or live debug "
+    "Polaris host unless a release, pinned, or archival build is explicitly requested."
+)
 NOVA_PACKAGE_PREFIX = "com.papi.nova"
 DRAWER_FIRST_LIBRARY_REQUIRED_LABELS = (
     "Library Options",
@@ -191,6 +196,10 @@ class CheckResult:
             {**self.values, **other.values},
         )
         return merged
+
+
+class UiDumpError(RuntimeError):
+    """Raised when Android UIAutomator never returns an inspectable hierarchy."""
 
 
 def parse_bounds(raw: str) -> tuple[int, int, int, int]:
@@ -794,12 +803,70 @@ def ensure_library_focused(adb: Adb, args: argparse.Namespace, reason: str, time
     )
 
 
-def dump_xml(adb: Adb, output: Path) -> str:
+def _is_inspectable_ui_hierarchy(xml_text: str) -> bool:
+    return "<hierarchy" in xml_text and "</hierarchy>" in xml_text
+
+
+def _short_output(text: str, limit: int = 240) -> str:
+    return " ".join(text.split())[:limit]
+
+
+def _ui_dump_diagnostics(adb: Adb) -> dict[str, str]:
+    commands = {
+        "focus": "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true",
+        "top_activity": "dumpsys activity top | grep -E 'ACTIVITY|topResumedActivity|mResumedActivity' | head -20 || true",
+        "display": "wm size; wm density; settings get system user_rotation; settings get system accelerometer_rotation",
+    }
+    diagnostics: dict[str, str] = {}
+    for name, command in commands.items():
+        try:
+            diagnostics[name] = adb.shell(command, timeout=10, check=False).strip()
+        except Exception as exc:  # diagnostics should clarify failures, never replace them
+            diagnostics[name] = f"<diagnostic command failed: {exc}>"
+    return diagnostics
+
+
+def _write_ui_dump_diagnostics(output: Path, diagnostics: dict[str, str]) -> Path:
+    diagnostic_path = output.with_suffix(output.suffix + ".diagnostics.txt")
+    diagnostic_path.write_text(
+        "\n".join([f"[{name}]\n{value}" for name, value in diagnostics.items()]) + "\n",
+        encoding="utf-8",
+    )
+    return diagnostic_path
+
+
+def dump_xml(adb: Adb, output: Path, *, attempts: int = 4, interval_s: float = 0.75) -> str:
     remote = "/sdcard/window_dump.xml"
-    adb.shell(f"uiautomator dump {remote}", timeout=20)
-    xml = adb.run(["exec-out", "cat", remote], timeout=20).stdout
-    output.write_text(xml, encoding="utf-8")
-    return xml
+    failures: list[str] = []
+    for attempt in range(1, attempts + 1):
+        try:
+            dump_output = adb.shell(f"uiautomator dump {remote}", timeout=20)
+            xml_result = adb.run(["exec-out", "cat", remote], timeout=20, check=False)
+            xml = xml_result.stdout
+            if _is_inspectable_ui_hierarchy(xml):
+                output.write_text(xml, encoding="utf-8")
+                return xml
+            details = _short_output(" ".join(part for part in (dump_output, xml_result.stdout, xml_result.stderr) if part))
+            failures.append(f"attempt {attempt}: uiautomator returned non-hierarchy output: {details or '<empty>'}")
+        except Exception as exc:
+            failures.append(f"attempt {attempt}: {exc}")
+
+        if attempt < attempts:
+            print(
+                f"uiautomator dump did not return an inspectable UI root; retrying ({attempt}/{attempts})",
+                flush=True,
+            )
+            time.sleep(interval_s)
+
+    diagnostics = _ui_dump_diagnostics(adb)
+    diagnostic_path = _write_ui_dump_diagnostics(output, diagnostics)
+    joined_failures = "; ".join(_short_output(failure, 400) for failure in failures)
+    focus = _short_output(diagnostics.get("focus", "")) or "<unknown focus>"
+    raise UiDumpError(
+        "UIAutomator did not return an inspectable UI hierarchy "
+        f"after {attempts} attempts for {output}. "
+        f"diagnostics={diagnostic_path}; focus={focus}; failures={joined_failures}"
+    )
 
 
 def wait_for_library_rail(
@@ -1324,7 +1391,10 @@ def add_common_args(parser: argparse.ArgumentParser, *, use_defaults: bool = Tru
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Nova Retroid smoke automation")
+    parser = argparse.ArgumentParser(
+        description="Nova Retroid smoke automation",
+        epilog=DEBUG_PAIRING_CONTRACT,
+    )
     add_common_args(parser)
     subparser_common = argparse.ArgumentParser(add_help=False)
     add_common_args(subparser_common, use_defaults=False)
@@ -1364,7 +1434,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    result = args.func(args)
+    try:
+        result = args.func(args)
+    except UiDumpError as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        return 1
     return 0 if result.ok else 1
 
 

@@ -1,6 +1,9 @@
 import importlib.util
+import io
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -605,6 +608,79 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertEqual(nova_retroid_smoke.read_logcat(adb, since="05-22 20:19:00.000"), "log text")
         self.assertEqual(adb.commands, [["logcat", "-d", "-T", "05-22 20:19:00.000"]])
 
+    def test_dump_xml_retries_transient_null_root_and_returns_hierarchy(self):
+        class FakeAdb:
+            serial = "retroid"
+            dry_run = False
+
+            def __init__(self):
+                self.shell_calls = 0
+                self.run_calls = []
+
+            def shell(self, command, **kwargs):
+                self.shell_calls += 1
+                if self.shell_calls == 1:
+                    raise RuntimeError("ERROR: null root node returned by UiTestAutomationBridge")
+                return "UI hierchary dumped to: /sdcard/window_dump.xml"
+
+            def run(self, command, **kwargs):
+                self.run_calls.append((command, kwargs))
+                return type("Completed", (), {"stdout": "<hierarchy><node text=\"Library\" bounds=\"[0,0][1,1]\" /></hierarchy>", "stderr": ""})()
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(nova_retroid_smoke.time, "sleep") as sleep:
+            output = Path(tmp) / "window.xml"
+            xml = nova_retroid_smoke.dump_xml(FakeAdb(), output, attempts=2, interval_s=0.01)
+
+            self.assertIn("<hierarchy", xml)
+            self.assertIn("Library", output.read_text(encoding="utf-8"))
+        sleep.assert_called_once_with(0.01)
+
+    def test_dump_xml_fails_with_diagnostics_after_persistent_null_root(self):
+        class FakeAdb:
+            serial = "retroid"
+            dry_run = False
+
+            def shell(self, command, **kwargs):
+                if command.startswith("uiautomator dump"):
+                    raise RuntimeError("ERROR: null root node returned by UiTestAutomationBridge")
+                if "mCurrentFocus" in command:
+                    return "mCurrentFocus=Window{u0 com.papi.nova.debug/com.papi.nova.ui.NovaLibraryActivity}"
+                if "activity top" in command:
+                    return "ACTIVITY com.papi.nova.debug/com.papi.nova.ui.NovaLibraryActivity"
+                return "Physical size: 1920x1080\nPhysical density: 320\n1\n0"
+
+            def run(self, command, **kwargs):
+                raise AssertionError("persistent dump failures should not cat stale XML")
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(nova_retroid_smoke.time, "sleep"):
+            output = Path(tmp) / "window.xml"
+            with self.assertRaises(nova_retroid_smoke.UiDumpError) as raised:
+                nova_retroid_smoke.dump_xml(FakeAdb(), output, attempts=2, interval_s=0.01)
+            diagnostics = output.with_suffix(".xml.diagnostics.txt")
+
+            self.assertTrue(diagnostics.exists())
+            diagnostic_text = diagnostics.read_text(encoding="utf-8")
+
+        self.assertIn("inspectable UI hierarchy", str(raised.exception))
+        self.assertIn("diagnostics=", str(raised.exception))
+        self.assertIn("mCurrentFocus", diagnostic_text)
+        self.assertIn("Physical size", diagnostic_text)
+
+    def test_main_reports_ui_dump_error_without_traceback(self):
+        args = SimpleNamespace(
+            func=lambda _args: (_ for _ in ()).throw(nova_retroid_smoke.UiDumpError("null root diagnostics"))
+        )
+        parser = type("Parser", (), {"parse_args": lambda self, argv: args})()
+        stderr = io.StringIO()
+
+        with patch.object(nova_retroid_smoke, "build_parser", return_value=parser), \
+            patch.object(nova_retroid_smoke.sys, "stderr", stderr):
+            exit_code = nova_retroid_smoke.main(["library"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("FAIL: null root diagnostics", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_phone_surface_analysis_reports_missing_labels_by_surface(self):
         xml = """
         <hierarchy>
@@ -951,6 +1027,15 @@ class NovaRetroidSmokeHelpersTest(unittest.TestCase):
         self.assertIs(args.func, nova_retroid_smoke.run_phone)
         self.assertIn('android:name="com.papi.nova.ui.NovaLibraryActivity"', manifest_text)
         self.assertIn('android:exported="true"', manifest_text)
+
+    def test_smoke_help_documents_latest_debug_nova_polaris_pairing(self):
+        parser = nova_retroid_smoke.build_parser()
+        help_text = parser.format_help()
+
+        self.assertEqual(nova_retroid_smoke.DEFAULT_PACKAGE, "com.papi.nova.debug")
+        self.assertIn("app-nonRoot_game-arm64-v8a-debug.apk", str(nova_retroid_smoke.DEFAULT_APK))
+        self.assertIn("latest available debug Nova APK", help_text)
+        self.assertIn("latest available debug Polaris build", help_text)
 
     def test_default_repo_points_to_project_root(self):
         parser = nova_retroid_smoke.build_parser()
