@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.View
@@ -73,12 +74,14 @@ object NovaSheetChrome {
         dialog.window?.let { window ->
             window.setDimAmount(SCRIM_ALPHA)
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         }
 
         val sheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
-        sheet.background = createSheetBackground(context)
+        sheet.background = ColorDrawable(Color.TRANSPARENT)
         sheet.clipToOutline = true
         sheet.setPadding(0, 0, 0, 0)
+        contentView?.background = createSheetBackground(context)
         contentView?.clipToOutline = true
 
         val measuredView = contentView ?: sheet

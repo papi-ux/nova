@@ -45,7 +45,7 @@
                         android:fontFamily="sans-serif-light"
                         android:letterSpacing="0.04"
                         android:text="Nova"
-                        android:textColor="@color/nova_ice"
+                        android:textColor="?attr/colorOnSurface"
                         android:textSize="26sp" />
 
                     <TextView
@@ -56,7 +56,7 @@
                         android:fontFamily="sans-serif-medium"
                         android:letterSpacing="0.03"
                         android:text="@string/pcview_home_subtitle"
-                        android:textColor="@color/nova_text_muted"
+                        android:textColor="?android:textColorSecondary"
                         android:textSize="11sp" />
                 </LinearLayout>
 
@@ -71,13 +71,13 @@
                     android:insetBottom="0dp"
                     android:minWidth="0dp"
                     android:padding="0dp"
-                    app:backgroundTint="@color/nova_badge_bg"
+                    app:backgroundTint="?attr/colorControlHighlight"
                     app:cornerRadius="14dp"
                     app:elevation="0dp"
                     app:icon="@drawable/ic_profiles"
                     app:iconGravity="textStart"
                     app:iconPadding="0dp"
-                    app:iconTint="@color/nova_ice" />
+                    app:iconTint="?attr/colorOnSurface" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/actionPolarisSync"
@@ -90,13 +90,13 @@
                     android:insetBottom="0dp"
                     android:minWidth="0dp"
                     android:padding="0dp"
-                    app:backgroundTint="@color/nova_badge_bg"
+                    app:backgroundTint="?attr/colorControlHighlight"
                     app:cornerRadius="14dp"
                     app:elevation="0dp"
                     app:icon="@drawable/ic_play"
                     app:iconGravity="textStart"
                     app:iconPadding="0dp"
-                    app:iconTint="@color/nova_ice" />
+                    app:iconTint="?attr/colorOnSurface" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/actionSettings"
@@ -108,13 +108,13 @@
                     android:insetBottom="0dp"
                     android:minWidth="0dp"
                     android:padding="0dp"
-                    app:backgroundTint="@color/nova_badge_bg"
+                    app:backgroundTint="?attr/colorControlHighlight"
                     app:cornerRadius="14dp"
                     app:elevation="0dp"
                     app:icon="@drawable/ic_settings"
                     app:iconGravity="textStart"
                     app:iconPadding="0dp"
-                    app:iconTint="@color/nova_ice" />
+                    app:iconTint="?attr/colorOnSurface" />
             </LinearLayout>
 
             <TextView
@@ -124,7 +124,7 @@
                 android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif-medium"
                 android:gravity="end"
-                android:textColor="@color/nova_text_secondary"
+                android:textColor="?android:textColorSecondary"
                 android:textSize="10sp"
                 android:visibility="invisible"
                 tools:text="Settings" />
@@ -144,7 +144,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:foreground="?attr/selectableItemBackground"
-                    app:cardBackgroundColor="@color/nova_bg_elevated"
+                    app:cardBackgroundColor="?attr/colorSurface"
                     app:cardCornerRadius="18dp"
                     app:cardElevation="0dp"
                     app:strokeColor="?attr/colorAccent"
@@ -172,7 +172,7 @@
                             android:layout_marginTop="4dp"
                             android:fontFamily="sans-serif-medium"
                             android:text="@string/pcview_mode_servers"
-                            android:textColor="@color/nova_text_primary"
+                            android:textColor="?android:textColorPrimary"
                             android:textSize="18sp" />
 
                         <TextView
@@ -182,7 +182,7 @@
                             android:fontFamily="sans-serif"
                             android:lineSpacingExtra="2dp"
                             android:text="@string/pcview_destination_servers_summary"
-                            android:textColor="@color/nova_text_secondary"
+                            android:textColor="?android:textColorSecondary"
                             android:textSize="12sp" />
 
                         <TextView
@@ -192,7 +192,7 @@
                             android:layout_marginTop="6dp"
                             android:fontFamily="sans-serif-medium"
                             android:text="@string/pcview_destination_servers_meta_empty"
-                            android:textColor="@color/nova_text_muted"
+                            android:textColor="?android:textColorSecondary"
                             android:textSize="11sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -206,10 +206,10 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:foreground="?attr/selectableItemBackground"
-                    app:cardBackgroundColor="@color/nova_bg_elevated"
+                    app:cardBackgroundColor="?attr/colorSurface"
                     app:cardCornerRadius="18dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/nova_divider"
+                    app:strokeColor="?attr/colorControlHighlight"
                     app:strokeWidth="1dp">
 
                     <LinearLayout
@@ -225,7 +225,7 @@
                             android:letterSpacing="0.04"
                             android:text="@string/pcview_destination_open"
                             android:textAllCaps="true"
-                            android:textColor="@color/nova_text_muted"
+                            android:textColor="?android:textColorSecondary"
                             android:textSize="10sp" />
 
                         <TextView
@@ -234,7 +234,7 @@
                             android:layout_marginTop="4dp"
                             android:fontFamily="sans-serif-medium"
                             android:text="@string/nova_library_title"
-                            android:textColor="@color/nova_text_primary"
+                            android:textColor="?android:textColorPrimary"
                             android:textSize="18sp" />
 
                         <TextView
@@ -244,7 +244,7 @@
                             android:fontFamily="sans-serif"
                             android:lineSpacingExtra="2dp"
                             android:text="@string/pcview_destination_library_summary"
-                            android:textColor="@color/nova_text_secondary"
+                            android:textColor="?android:textColorSecondary"
                             android:textSize="12sp" />
 
                         <TextView
@@ -254,7 +254,7 @@
                             android:layout_marginTop="6dp"
                             android:fontFamily="sans-serif-medium"
                             android:text="@string/pcview_destination_library_meta_empty"
-                            android:textColor="@color/nova_text_muted"
+                            android:textColor="?android:textColorSecondary"
                             android:textSize="11sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -268,7 +268,7 @@
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.03"
                 android:text="@string/pcview_tools_label"
-                android:textColor="@color/nova_text_primary"
+                android:textColor="?android:textColorPrimary"
                 android:textSize="13sp"
                 android:visibility="gone" />
 
@@ -279,7 +279,7 @@
                 android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif"
                 android:text="@string/pcview_tools_hint"
-                android:textColor="@color/nova_text_muted"
+                android:textColor="?android:textColorSecondary"
                 android:textSize="11sp"
                 android:visibility="gone" />
 
@@ -303,7 +303,7 @@
                     app:elevation="0dp"
                     app:icon="@drawable/ic_add"
                     app:iconPadding="8dp"
-                    app:iconTint="@color/nova_ice" />
+                    app:iconTint="?attr/colorOnSurface" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/actionScanPair"
@@ -314,12 +314,12 @@
                     android:layout_weight="1"
                     android:text="@string/pcview_quick_scan_pair"
                     android:textAllCaps="false"
-                    app:backgroundTint="@color/nova_badge_bg"
+                    app:backgroundTint="?attr/colorControlHighlight"
                     app:cornerRadius="14dp"
                     app:elevation="0dp"
                     app:icon="@drawable/ic_qr_scan"
                     app:iconPadding="8dp"
-                    app:iconTint="@color/nova_ice" />
+                    app:iconTint="?attr/colorOnSurface" />
             </LinearLayout>
 
             <HorizontalScrollView
@@ -363,7 +363,7 @@
                     android:fontFamily="sans-serif-medium"
                     android:letterSpacing="0.03"
                     android:text="@string/pcview_hosts_label"
-                    android:textColor="@color/nova_text_primary"
+                    android:textColor="?android:textColorPrimary"
                     android:textSize="12sp" />
 
                 <TextView
@@ -371,7 +371,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
-                    android:textColor="@color/nova_text_muted"
+                    android:textColor="?android:textColorSecondary"
                     android:textSize="11sp"
                     tools:text="1 visible · 3 total" />
             </LinearLayout>
@@ -471,7 +471,7 @@
                         android:layout_marginTop="12dp"
                         android:fontFamily="sans-serif"
                         android:text="@string/pcview_empty_title_searching"
-                        android:textColor="@color/nova_text_muted"
+                        android:textColor="?android:textColorSecondary"
                         android:textSize="14sp" />
 
                     <TextView
@@ -483,7 +483,7 @@
                         android:fontFamily="sans-serif"
                         android:gravity="center"
                         android:text="@string/pcview_empty_hint_searching"
-                        android:textColor="@color/nova_text_muted"
+                        android:textColor="?android:textColorSecondary"
                         android:textSize="12sp" />
 
                     <HorizontalScrollView

@@ -30,7 +30,7 @@
         <item name="android:textColor">@color/nova_text_primary</item>
     </style>
 
-    <!-- PSP / Portable Chrome — smoked graphite/silver shell with restrained green status accent. -->
+    <!-- Portable Chrome — smoked graphite/silver shell with restrained green status accent. -->
     <style name="AppTheme.PortableChrome" parent="AppBaseTheme">
         <item name="android:colorBackground">@color/nova_portable_bg_window</item>
         <item name="android:windowBackground">@color/nova_portable_bg_window</item>
@@ -94,12 +94,23 @@
 
     <!-- Material You — uses system dynamic colors on Android 12+ -->
     <style name="AppTheme.MaterialYou">
-        <item name="android:colorBackground">@color/nova_bg_window</item>
-        <item name="android:windowBackground">@color/nova_bg_window</item>
+        <item name="android:colorBackground">?attr/colorSurface</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <item name="android:textColorSecondary">?attr/colorOnSurface</item>
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+        <item name="android:navigationBarColor">?attr/colorSurface</item>
         <!-- colorPrimary and colorAccent are overridden by DynamicColors.applyToActivityIfAvailable() -->
     </style>
 
     <style name="SettingsTheme.MaterialYou" parent="SettingsTheme">
+        <item name="android:colorBackground">?attr/colorSurface</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <item name="android:textColorSecondary">?attr/colorOnSurface</item>
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+        <item name="android:navigationBarColor">?attr/colorSurface</item>
         <!-- colorPrimary and colorAccent are overridden by DynamicColors.applyToActivityIfAvailable() -->
     </style>
 

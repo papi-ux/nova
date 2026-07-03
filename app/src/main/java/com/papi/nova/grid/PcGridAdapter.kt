@@ -73,12 +73,12 @@ class PcGridAdapter(
         overlayView: ImageView,
         obj: PcViewModel.ComputerObject
     ) {
-        applyCardTheme(parentView, imgView, prgView!!, txtView)
+        val pcHolder = getPcHolder(parentView)
+        applyCardTheme(parentView, imgView, prgView!!, txtView, pcHolder)
 
         imgView.setImageResource(R.drawable.ic_computer)
         imgView.setColorFilter(NovaThemeManager.getTextSecondaryColor(context))
 
-        val pcHolder = getPcHolder(parentView)
         val statusDot = pcHolder.statusDot
         val statusText = pcHolder.statusText
         val statusHint = pcHolder.statusHint
@@ -205,7 +205,7 @@ class PcGridAdapter(
         statusHint.visibility = View.VISIBLE
     }
 
-    private fun applyCardTheme(parentView: View, imgView: ImageView, prgView: ProgressBar, txtView: TextView) {
+    private fun applyCardTheme(parentView: View, imgView: ImageView, prgView: ProgressBar, txtView: TextView, pcHolder: PcViewHolder) {
         val card = if (parentView is ViewGroup && parentView.childCount > 0) {
             parentView.getChildAt(0)
         } else {
@@ -227,6 +227,8 @@ class PcGridAdapter(
         if (primaryAction != null) {
             primaryAction.setTextColor(NovaThemeManager.getAccentColor(context))
         }
+        pcHolder.statusText?.setTextColor(NovaThemeManager.getTextMutedColor(context))
+        pcHolder.statusHint?.setTextColor(NovaThemeManager.getTextMutedColor(context))
     }
 
     companion object {

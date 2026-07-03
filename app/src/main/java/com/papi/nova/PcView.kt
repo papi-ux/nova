@@ -91,7 +91,7 @@ import javax.microedition.khronos.opengles.GL10
 import org.xmlpull.v1.XmlPullParserException
 
 class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
-    private val THEME_PICKER_GRID_GAP_DP = 12
+    private val THEME_PICKER_GRID_GAP_DP = 8
     private var noPcFoundLayout: View? = null
     private lateinit var pcGridAdapter: PcGridAdapter
     private lateinit var shortcutHelper: ShortcutHelper
@@ -556,12 +556,14 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         lateinit var themePickerFocusLabel: TextView
 
         val content = NovaSheetChrome.createSheetContainer(this)
+        content.clipChildren = false
+        content.clipToPadding = false
 
         content.addView(
             TextView(this).apply {
                 text = getString(R.string.pcview_theme_picker_title)
                 setTextColor(textPrimary)
-                textSize = 22f
+                textSize = 20f
                 typeface = Typeface.DEFAULT_BOLD
                 includeFontPadding = false
             },
@@ -570,8 +572,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             TextView(this).apply {
                 text = getString(R.string.pcview_theme_picker_hint)
                 setTextColor(textMuted)
-                textSize = 12f
-                setPadding(0, dp(6), 0, dp(14))
+                textSize = 11f
+                setPadding(0, dp(4), 0, dp(8))
             },
         )
 
@@ -582,22 +584,26 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
                 getThemePickerSubtitle(currentTheme),
             )
             setTextColor(NovaThemeManager.getAccentColor(this@PcView))
-            textSize = 12f
+            textSize = 11f
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, dp(12))
+            setPadding(0, 0, 0, dp(6))
         }
         content.addView(themePickerFocusLabel)
 
         val themeGrid = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val gridGap = dp(THEME_PICKER_GRID_GAP_DP)
-            setPadding(gridGap, 0, gridGap, gridGap)
+            setPadding(gridGap, gridGap, gridGap, gridGap)
+            clipChildren = false
+            clipToPadding = false
         }
         content.addView(themeGrid)
         themes.chunked(2).forEach { themePair ->
             val gridRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+                clipChildren = false
+                clipToPadding = false
             }
             themePair.forEachIndexed { index, theme ->
                 val row = createThemePickerRow(theme, currentTheme, themePickerFocusLabel, surface, textPrimary, textSecondary, dialog)
@@ -663,6 +669,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val selected = theme == currentTheme
 
         val card = MaterialCardView(this).apply {
+            useCompatPadding = true
+            clipToOutline = false
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -691,7 +699,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setPadding(dp(14), dp(9), dp(14), dp(9))
         }
         row.addView(
             View(this).apply {
@@ -713,7 +721,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
                     TextView(this@PcView).apply {
                         text = label
                         setTextColor(textPrimary)
-                        textSize = 17f
+                        textSize = 15f
                         typeface = Typeface.DEFAULT_BOLD
                         includeFontPadding = false
                     },
@@ -722,8 +730,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
                     TextView(this@PcView).apply {
                         text = subtitle
                         setTextColor(textSecondary)
-                        textSize = 12f
-                        setPadding(0, dp(5), dp(8), 0)
+                        textSize = 10f
+                        setPadding(0, dp(3), dp(8), 0)
                     },
                 )
             },
@@ -733,7 +741,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
                 TextView(this).apply {
                     text = getString(R.string.pcview_theme_picker_current_badge)
                     setTextColor(textPrimary)
-                    textSize = 11f
+                    textSize = 10f
                     typeface = Typeface.DEFAULT_BOLD
                     gravity = Gravity.CENTER
                     includeFontPadding = false
@@ -742,7 +750,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
                         setStroke(dp(1), rowAccent)
                         cornerRadius = dp(999).toFloat()
                     }
-                    setPadding(dp(12), dp(7), dp(12), dp(7))
+                    setPadding(dp(10), dp(5), dp(10), dp(5))
                 },
             )
         }

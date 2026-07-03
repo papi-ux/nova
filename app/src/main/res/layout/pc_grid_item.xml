@@ -64,7 +64,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="@dimen/nova_text_body"
-                android:textColor="@color/nova_ice"
+                android:textColor="?android:textColorPrimary"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
                 android:ellipsize="end" />
@@ -90,7 +90,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/nova_spacing_sm"
                     android:textSize="@dimen/nova_text_label"
-                    android:textColor="@color/nova_text_muted"
+                    android:textColor="?android:textColorSecondary"
                     android:fontFamily="sans-serif"
                     android:text="Connecting..." />
             </LinearLayout>
@@ -103,7 +103,7 @@
                 android:ellipsize="end"
                 android:fontFamily="sans-serif"
                 android:maxLines="1"
-                android:textColor="@color/nova_text_muted"
+                android:textColor="?android:textColorSecondary"
                 android:textSize="11sp"
                 android:visibility="gone" />
         </LinearLayout>
@@ -120,7 +120,7 @@
             android:paddingEnd="12dp"
             android:paddingBottom="8dp"
             android:text="Open Apps"
-            android:textColor="@color/nova_text_primary"
+            android:textColor="?android:textColorPrimary"
             android:textSize="12sp" />
 
     </LinearLayout>
