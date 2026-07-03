@@ -15,14 +15,14 @@ while you play, and what is safe to do when you leave.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Why Nova](#why-nova) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v112) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Why Nova](#why-nova) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v120) · [Install](#install) · [Compatibility](#compatibility) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Docs](#docs) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
 <br/>
 
 <picture>
-  <img src="docs/screenshots/nova-showcase.gif" width="820" alt="Nova on Android: server browser, game grid, library detail sheet, Command Center, and live stream HUD" />
+  <img src="docs/screenshots/nova-showcase.gif" width="820" alt="Nova Portable Chrome dashboard, Polaris Library, launch detail sheet, and Command Center" />
 </picture>
 
 </div>
@@ -156,7 +156,7 @@ sha256sum -c Nova-Android-arm64-v8a.apk.sha256
 
 ## Use With Polaris
 
-[Polaris](https://github.com/papi-ux/polaris) is the Linux host built alongside Nova. Pair them and Nova stops guessing: the host can tell the client which launch modes are available, who owns the current session, what tuning is active, and what is safe to do next.
+[Polaris](https://github.com/papi-ux/polaris) is the Linux host built alongside Nova. Pair them and Nova stops guessing: the host can tell the client which launch modes are available, who owns the current session, what tuning is active, and what is safe to do next. For host setup, Polaris documents the distro tiers directly: Fedora and Arch are the recommended package paths, CachyOS starts with the Arch package, Bazzite and Ubuntu are tester paths, and openSUSE Tumbleweed has a source-build guide.
 
 | Polaris + Nova capability | What it means |
 |---|---|
