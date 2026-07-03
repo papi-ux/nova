@@ -1,0 +1,6 @@
+Nova 1.2.0
+
+- Adds PSP / Portable Chrome visual polish with smoked graphite, dim silver, and restrained steel highlights.
+- Clarifies Polaris private/headless launch choices and display targets.
+- Suppresses false host-lock overlays on owned headless streams.
+- Improves Command Center, HUD, session cleanup, and high-FPS recovery copy.

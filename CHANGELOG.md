@@ -2,9 +2,29 @@
 
 ## Unreleased
 
-- Removes hardcoded Polaris-purple accents from legacy Nova XML/views so PSP / Portable Chrome uses theme-aware steel highlights.
-- Deepens the PSP / Portable Chrome theme into a sleeker smoked-graphite handheld shell with less washed-out white.
-- Adds a PSP / Portable Chrome Nova theme matching the Polaris dim Moonlight-grey early-2000s silver palette, including settings/theme-picker entries and restrained Compose library surfaces.
+## 1.2.0 - 2026-07-03
+
+Nova 1.2.0 is the matched Polaris 1.2 handheld release. It focuses on the PSP / Portable Chrome visual pass, clearer Polaris-backed launch choices, display-target handling, live-session recovery, and stream UI polish for Retroid-class handhelds and Android TV devices.
+
+### Highlights
+
+- Adds the PSP / Portable Chrome theme and removes legacy Polaris-purple accent leaks from XML, views, focus rings, sheets, and Compose surfaces.
+- Deepens the handheld shell into a smoked-graphite / dim silver visual style with readable text, restrained steel highlights, and less washed-out panel chrome.
+- Clarifies Polaris launch modes so Private Headless Stream, Host Virtual Display, Mirror Desktop, Steam Launch, and Direct choices read as explicit user intent instead of mystery buttons from the swamp.
+- Adds Android display target selection plumbing for external-display workflows while preserving safe fallbacks on handheld-only devices.
+- Suppresses false host-lock overlays on owned headless streams and improves session/terminal-event cleanup so Nova exits stale Game surfaces more reliably.
+- Improves Polaris API parsing, session truth, preflight copy, HUD/Command Center state, and high-FPS recovery messaging.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.2.0 and versionCode 30.
+- Publishes fresh release APK assets for ARM64, ARMv7, and x86_64 through the GitHub release workflow.
+- Intended as the Nova companion release for Polaris v1.2.0.
+
+### Validation notes
+
+- CI on current master is green across APK build, CodeQL, public hygiene, and dependency submission before this release bump.
+- Final handheld confidence should include a matched Nova v1.2.0 APK against Polaris v1.2.0 with Library, preflight, live stream, Command Center, stop/cleanup, and real physical-controller proof.
 
 ## 1.1.3 - 2026-06-12
 
