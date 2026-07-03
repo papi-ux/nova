@@ -48,7 +48,7 @@
     <string name="nova_theme_cycle">Cycle theme</string>
     <string name="nova_theme_switched_to">Theme: %1$s</string>
     <string name="nova_theme_polaris_label">Polaris Aurora</string>
-    <string name="nova_theme_portable_chrome_label">PSP Chrome / Portable Chrome</string>
+    <string name="nova_theme_portable_chrome_label">Portable Chrome</string>
     <string name="nova_theme_oled_label">Console OLED</string>
     <string name="nova_theme_miami_label">Miami Nebula</string>
     <string name="nova_theme_high_contrast_label">High Contrast</string>
@@ -82,7 +82,7 @@
     <string name="pcview_theme_picker_focus_format">Focused: %1$s · %2$s</string>
     <string name="pcview_theme_picker_current_badge">Current</string>
     <string name="pcview_theme_polaris_subtitle">Polaris blue cockpit · balanced dark streaming shell</string>
-    <string name="pcview_theme_portable_chrome_subtitle">PSP / Portable Chrome profile · smoked graphite, dim silver, muted green accents</string>
+    <string name="pcview_theme_portable_chrome_subtitle">Smoked graphite handheld chrome profile · dim silver shell · muted green accents</string>
     <string name="pcview_theme_oled_subtitle">OLED black · high contrast console glow</string>
     <string name="pcview_theme_miami_subtitle">Miami neon · warm rose and cyan night drive</string>
     <string name="pcview_theme_high_contrast_subtitle">Maximum contrast · accessibility-first focus states</string>

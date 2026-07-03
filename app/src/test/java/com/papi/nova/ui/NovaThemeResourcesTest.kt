@@ -24,7 +24,7 @@ class NovaThemeResourcesTest {
             listOf("polaris", "portable_chrome", "oled", "miami", "high_contrast", "material_you"),
             values
         )
-        assertEquals("PSP Chrome / Portable Chrome", names[values.indexOf("portable_chrome")])
+        assertEquals("Portable Chrome", names[values.indexOf("portable_chrome")])
         assertEquals("Miami Nebula", names[values.indexOf("miami")])
     }
 
@@ -53,13 +53,13 @@ class NovaThemeResourcesTest {
 
 
     @Test
-    fun pspPortableChromeIsASelectableThemeValueAndLabel() {
+    fun portableChromeIsASelectableThemeValueAndLabel() {
         val context = ApplicationProvider.getApplicationContext<Context>()
 
         NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
 
         assertEquals(NovaThemeManager.THEME_PORTABLE_CHROME, NovaThemeManager.getTheme(context))
-        assertEquals("PSP Chrome / Portable Chrome", NovaThemeManager.getThemeLabel(context))
+        assertEquals("Portable Chrome", NovaThemeManager.getThemeLabel(context))
     }
 
     @Test
@@ -91,7 +91,7 @@ class NovaThemeResourcesTest {
     }
 
     @Test
-    fun pcViewThemePickerExposesPspPortableChrome() {
+    fun pcViewThemePickerExposesPortableChrome() {
         val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val picker = source.substringAfter("private fun showThemePicker(")
             .substringBefore("private fun applyThemeSelection")
@@ -119,11 +119,14 @@ class NovaThemeResourcesTest {
         assertTrue("theme picker rows must update visible state on D-pad focus", source.contains("setOnFocusChangeListener"))
         assertTrue("theme picker should use a compact two-column grid so Material You is not pushed below the Retroid landscape fold", picker.contains("themes.chunked(2)"))
         assertTrue("Material You should remain part of the dashboard picker when the device supports it", picker.contains("NovaThemeManager.THEME_MATERIAL_YOU"))
+        assertTrue("theme picker sheet should disable parent clipping so rounded selected/focused strokes are not cut off", picker.contains("clipChildren = false") && picker.contains("clipToPadding = false"))
+        assertTrue("theme picker grid should reserve top padding for thick focus strokes", picker.contains("setPadding(gridGap, gridGap, gridGap, gridGap)"))
+        assertTrue("theme picker cards should reserve compat padding around rounded strokes", picker.contains("useCompatPadding = true"))
         assertFalse("theme picker rows must not use the solid server-card foreground that obscures focused text", picker.contains("nova_card_focus_frame"))
         assertFalse("non-selected theme rows should not repeat an obvious Press A badge", picker.contains("pcview_theme_picker_apply_badge"))
         assertTrue("theme picker should request focus for the current/first row", source.contains("requestFocus()"))
-        assertTrue("Chrome needs to be eye-scan visible in the picker title", strings.contains("PSP Chrome / Portable Chrome"))
-        assertTrue("the exact old alias should remain visible as a subtitle", strings.contains("PSP / Portable Chrome profile"))
+        assertTrue("Portable Chrome should be eye-scan visible as the picker title", strings.contains("Portable Chrome"))
+        assertTrue("Portable Chrome subtitle should describe the chrome profile without PSP naming", strings.contains("Smoked graphite handheld chrome profile"))
         assertTrue("the picker should tell handheld users that D-pad focus is live", strings.contains("D-pad"))
         assertFalse("the picker copy should not repeat Press A after removing per-row action badges", strings.contains("Press A"))
     }
@@ -185,6 +188,17 @@ class NovaThemeResourcesTest {
         assertTrue("sheet chrome should include theme-specific light/dark stroke blending", sheetChrome.contains("getSheetStrokeColor"))
     }
 
+
+    @Test
+    fun bottomSheetChromeClearsMaterialHostSoChildPanelDoesNotDrawABottomBump() {
+        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+        val applyBody = sheetChrome.substringAfter("fun applyBottomSheetChrome(")
+            .substringBefore("fun applyAlertDialogChrome")
+
+        assertTrue("bottom-sheet chrome must clear the Material host/window to transparent so it cannot peek out as a bottom bump", applyBody.contains("ColorDrawable(Color.TRANSPARENT)"))
+        assertTrue("bottom-sheet chrome should draw the themed glass surface on the content panel, not the Material host", applyBody.contains("contentView?.background = createSheetBackground(context)"))
+        assertFalse("Material design_bottom_sheet host must not draw the same rounded sheet background behind the content panel", applyBody.contains("sheet.background = createSheetBackground(context)"))
+    }
 
     @Test
     fun legacyFocusableDrawablesUseThemeAttrsInsteadOfStaticPolarisAccent() {

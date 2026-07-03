@@ -2,7 +2,7 @@
 <resources>
     <string-array name="nova_theme_names">
         <item>Polaris Aurora</item>
-        <item>PSP Chrome / Portable Chrome</item>
+        <item>Portable Chrome</item>
         <item>Console OLED</item>
         <item>Miami Nebula</item>
         <item>High Contrast</item>

@@ -120,6 +120,9 @@ object NovaThemeManager {
         }
     }
 
+    private fun getMaterialYouSurfaceColor(context: Context): Int =
+        resolveThemeColor(context, com.google.android.material.R.attr.colorSurface, ContextCompat.getColor(context, R.color.nova_bg_window))
+
     private fun resolveThemeColor(context: Context, attr: Int, fallback: Int): Int {
         val typedValue = TypedValue()
         if (!context.theme.resolveAttribute(attr, typedValue, true)) {
@@ -141,7 +144,7 @@ object NovaThemeManager {
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_bg_window)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_bg_window)
             isMaterialYou(context) && isMaterialYouAvailable() ->
-                resolveThemeColor(context, android.R.attr.colorBackground, ContextCompat.getColor(context, R.color.nova_bg_window))
+                getMaterialYouSurfaceColor(context)
             else -> ContextCompat.getColor(context, R.color.nova_bg_window)
         }
     }
