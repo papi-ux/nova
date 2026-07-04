@@ -126,7 +126,7 @@ class NovaSettingsDefinitionsTest {
 
         assertEquals(NovaSettingType.Slider, hudOpacity.type)
         assertEquals(NovaSettingValue.IntValue(90), hudOpacity.defaultValue)
-        assertEquals(25, hudOpacity.min)
+        assertEquals(0, hudOpacity.min)
         assertEquals(100, hudOpacity.max)
         assertEquals(1, hudOpacity.step)
         assertEquals("%", hudOpacity.suffix)

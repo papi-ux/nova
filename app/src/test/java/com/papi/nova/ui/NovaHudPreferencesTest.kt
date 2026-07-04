@@ -23,11 +23,14 @@ class NovaHudPreferencesTest {
         val prefs = context.getSharedPreferences("nova-hud-preferences-shared", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
 
-        NovaHudPreferences.writeOpacityPercent(prefs, 10)
+        assertEquals(listOf(0, 25, 64, 90, 100), NovaHudPreferences.OPACITY_PRESETS)
 
-        assertEquals(25, prefs.getInt(NovaHudPreferences.KEY_OPACITY, 0))
-        assertEquals(25, NovaHudPreferences.readOpacityPercent(prefs))
-        assertEquals(0.25f, NovaHudPreferences.opacityScale(10), 0.001f)
+        NovaHudPreferences.writeOpacityPercent(prefs, -10)
+
+        assertEquals(0, prefs.getInt(NovaHudPreferences.KEY_OPACITY, 25))
+        assertEquals(0, NovaHudPreferences.readOpacityPercent(prefs))
+        assertEquals(0.0f, NovaHudPreferences.opacityScale(-10), 0.001f)
+        assertEquals(0.64f, NovaHudPreferences.opacityScale(64), 0.001f)
 
         NovaHudPreferences.writeOpacityPercent(prefs, 150)
 
@@ -49,19 +52,19 @@ class NovaHudPreferencesTest {
         val definitions = NovaSettingDefinitions.load(context)
         val definition = definitions.require(NovaHudPreferences.KEY_OPACITY)
 
-        NovaHudPreferences.writeOpacityPercent(repository, definition, 50)
+        NovaHudPreferences.writeOpacityPercent(repository, definition, 64)
 
-        assertEquals(50, mirrorPrefs.getInt(NovaHudPreferences.KEY_OPACITY, 0))
+        assertEquals(64, mirrorPrefs.getInt(NovaHudPreferences.KEY_OPACITY, 0))
         assertEquals(
-            NovaSettingValue.IntValue(50),
+            NovaSettingValue.IntValue(64),
             repository.snapshot(definitions)[NovaHudPreferences.KEY_OPACITY]
         )
 
-        NovaHudPreferences.writeOpacityPercent(repository, definition, 10)
+        NovaHudPreferences.writeOpacityPercent(repository, definition, -10)
 
-        assertEquals(25, mirrorPrefs.getInt(NovaHudPreferences.KEY_OPACITY, 0))
+        assertEquals(0, mirrorPrefs.getInt(NovaHudPreferences.KEY_OPACITY, 25))
         assertEquals(
-            NovaSettingValue.IntValue(25),
+            NovaSettingValue.IntValue(0),
             repository.snapshot(definitions)[NovaHudPreferences.KEY_OPACITY]
         )
     }

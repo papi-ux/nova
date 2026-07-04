@@ -425,7 +425,7 @@
             android:max="100"
             android:text="@string/suffix_osc_opacity"
             app:iconSpaceReserved="false"
-            seekbar:min="25"
+            seekbar:min="0"
             seekbar:step="1" />
 
         <!-- Legacy perf overlay (Moonlight-inherited) -->
