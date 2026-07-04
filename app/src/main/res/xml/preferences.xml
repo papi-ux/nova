@@ -427,6 +427,11 @@
             app:iconSpaceReserved="false"
             seekbar:min="0"
             seekbar:step="1" />
+        <Preference
+            android:key="nova_reset_stream_ui"
+            android:title="Reset Stream UI Defaults"
+            android:summary="Restore HUD, overlay, touch controls, and in-stream chrome defaults"
+            app:iconSpaceReserved="false" />
 
         <!-- Legacy perf overlay (Moonlight-inherited) -->
         <CheckBoxPreference
@@ -627,8 +632,8 @@
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:key="nova_compose_settings_beta"
-            android:title="New Settings"
-            android:summary="Use Nova's controller-first Compose settings dashboard"
+            android:title="Modern Settings"
+            android:summary="Controller-first settings dashboard"
             android:defaultValue="true"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference

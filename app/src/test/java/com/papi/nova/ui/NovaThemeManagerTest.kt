@@ -5,6 +5,7 @@ import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -91,4 +92,18 @@ class NovaThemeManagerTest {
         assertTrue("Polaris Aurora must not inherit PSP green", polarisAccent != portableAccent)
     }
 
+
+
+    @Test
+    @Config(sdk = [31])
+    fun materialYouHudTokensDoNotFallBackToPolarisInsideStreamTheme() {
+        context.setTheme(R.style.StreamTheme)
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_MATERIAL_YOU)
+
+        val accent = NovaThemeManager.getAccentColor(context)
+        val accentSurface = NovaThemeManager.getAccentSurfaceColor(context)
+
+        assertNotEquals(context.getColor(R.color.nova_polaris_accent), accent)
+        assertNotEquals(context.getColor(R.color.nova_polaris_accent_surface), accentSurface)
+    }
 }

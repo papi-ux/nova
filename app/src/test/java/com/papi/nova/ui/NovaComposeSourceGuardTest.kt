@@ -1094,6 +1094,11 @@ class NovaComposeSourceGuardTest {
             launchControls.indexOf("text = playLabel") < launchControls.indexOf("LaunchModeChoicePill(") &&
                 launchControls.indexOf("text = playLabel") < launchControls.indexOf("LaunchProfileSummaryInline(")
         )
+        assertTrue(
+            "game detail should surface host/render limits before the primary launch action",
+            launchControls.contains("LaunchProfilePrimaryNotice(") &&
+                launchControls.indexOf("LaunchProfilePrimaryNotice(") < launchControls.indexOf("text = playLabel")
+        )
     }
 
     @Test
@@ -1163,6 +1168,8 @@ class NovaComposeSourceGuardTest {
     fun libraryLoadErrorsUsePersistentRetryState() {
         val source = readNovaLibraryActivity()
         val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
+        assertTrue(source.contains("private var appliedTheme"))
+        assertTrue(source.contains("recreateForThemeChangeIfNeeded()"))
         val content = source.section(
             "private fun NovaLibraryContent(",
             "private fun NovaLibraryRecentRail("
@@ -1396,7 +1403,7 @@ class NovaComposeSourceGuardTest {
                 settings.contains("fun categoryRailWidthDp(): Int = 196") &&
                 settings.contains("fun wideColumnSpacingDp(): Int = 14") &&
                 settings.contains("fun quickStripHeightDp(): Int = 52") &&
-                settings.contains("fun quickPillWidthDp(): Int = 144") &&
+                settings.contains("fun quickPillWidthDp(): Int = 168") &&
                 settings.contains("fun headerToQuickStripSpacingDp(): Int = 6") &&
                 settings.contains("fun quickStripToContentSpacingDp(): Int = 6") &&
                 settings.contains("fun contentToHintSpacingDp(): Int = 4") &&
@@ -1863,6 +1870,24 @@ class NovaComposeSourceGuardTest {
                 content.contains("contentDescription = \"Close Command Center\"") &&
                 content.contains("onClick = callbacks.onDismiss")
         )
+    }
+
+    @Test
+    fun commandCenterPanelsUseSectionHeadersForHierarchy() {
+        val content = readNovaQuickMenuContent()
+        val panel = content.section(
+            "private fun NovaQuickMenuPanel(",
+            "@Composable\nprivate fun NovaQuickMenuRow("
+        )
+
+        assertTrue(panel.contains("NovaQuickMenuSectionHeader"))
+        assertTrue(panel.contains("title.uppercase()"))
+        assertTrue(panel.contains("colors.accent.copy(alpha = 0.14f)"))
+        assertTrue(panel.contains("surfaces.focusRing.copy(alpha = 0.52f)"))
+        assertTrue(content.contains("NovaQuickMenuPanel(title = overlaysTitle)"))
+        assertTrue(content.contains("NovaQuickMenuPanel(title = quickKeysTitle)"))
+        assertTrue(content.contains("NovaQuickMenuPanel(title = controlsTitle)"))
+        assertTrue(content.contains("NovaQuickMenuPanel(title = sessionTitle)"))
     }
 
     @Test

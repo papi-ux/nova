@@ -107,6 +107,7 @@ object NovaSettingsAvailability {
         "seekbar_osc_free_analog_stick_opacity",
         "checkbox_enable_analog_stick_new",
         "option_reset_osc_preference",
+        "nova_reset_stream_ui",
         "checkbox_show_onscreen_controls",
         "keyboard_axi_list",
         "import_keyboard_file",
@@ -116,6 +117,7 @@ object NovaSettingsAvailability {
 
     private val profileEditorHiddenKeys = setOf(
         "option_reset_osc_preference",
+        "nova_reset_stream_ui",
         "import_keyboard_file",
         "export_keyboard_file",
         "import_special_button_file",

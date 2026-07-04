@@ -7,6 +7,7 @@ import android.util.TypedValue
 import android.os.Build
 import android.view.Window
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import androidx.preference.PreferenceManager
 import com.papi.nova.R
@@ -121,7 +122,37 @@ object NovaThemeManager {
     }
 
     private fun getMaterialYouSurfaceColor(context: Context): Int =
-        resolveThemeColor(context, com.google.android.material.R.attr.colorSurface, ContextCompat.getColor(context, R.color.nova_bg_window))
+        resolveMaterialYouColor(
+            context,
+            android.R.color.system_neutral1_900,
+            com.google.android.material.R.attr.colorSurface,
+            ContextCompat.getColor(context, R.color.nova_bg_window)
+        )
+
+    private fun getMaterialYouCardColor(context: Context): Int =
+        resolveMaterialYouColor(
+            context,
+            android.R.color.system_neutral1_800,
+            com.google.android.material.R.attr.colorSurface,
+            ContextCompat.getColor(context, R.color.nova_bg_card)
+        )
+
+    private fun getMaterialYouTextPrimaryColor(context: Context): Int =
+        resolveMaterialYouColor(
+            context,
+            android.R.color.system_neutral1_50,
+            com.google.android.material.R.attr.colorOnSurface,
+            ContextCompat.getColor(context, R.color.nova_text_primary)
+        )
+
+    private fun getMaterialYouTextSecondaryColor(context: Context): Int =
+        resolveMaterialYouColor(
+            context,
+            android.R.color.system_neutral1_200,
+            com.google.android.material.R.attr.colorOnSurface,
+            ContextCompat.getColor(context, R.color.nova_text_secondary)
+        )
+
 
     private fun resolveThemeColor(context: Context, attr: Int, fallback: Int): Int {
         val typedValue = TypedValue()
@@ -134,6 +165,22 @@ object NovaThemeManager {
             typedValue.type in TypedValue.TYPE_FIRST_COLOR_INT..TypedValue.TYPE_LAST_COLOR_INT -> typedValue.data
             else -> fallback
         }
+    }
+
+    private fun resolveSystemColor(context: Context, colorRes: Int, fallback: Int): Int {
+        if (!isMaterialYouAvailable()) {
+            return fallback
+        }
+        return try {
+            ContextCompat.getColor(context, colorRes)
+        } catch (_: Exception) {
+            fallback
+        }
+    }
+
+    private fun resolveMaterialYouColor(context: Context, colorRes: Int, attr: Int, fallback: Int): Int {
+        val themedFallback = resolveThemeColor(context, attr, fallback)
+        return resolveSystemColor(context, colorRes, themedFallback)
     }
 
     /** Returns the correct window background color for the current theme */
@@ -175,7 +222,7 @@ object NovaThemeManager {
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_bg_card)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_bg_card)
             isMaterialYou(context) && isMaterialYouAvailable() ->
-                resolveThemeColor(context, com.google.android.material.R.attr.colorSurface, ContextCompat.getColor(context, R.color.nova_bg_card))
+                getMaterialYouCardColor(context)
             else -> ContextCompat.getColor(context, R.color.nova_bg_card)
         }
     }
@@ -188,7 +235,7 @@ object NovaThemeManager {
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_dialog_bg)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_dialog_bg)
             isMaterialYou(context) && isMaterialYouAvailable() ->
-                resolveThemeColor(context, com.google.android.material.R.attr.colorSurface, ContextCompat.getColor(context, R.color.nova_dialog_bg))
+                getMaterialYouCardColor(context)
             else -> ContextCompat.getColor(context, R.color.nova_dialog_bg)
         }
     }
@@ -197,15 +244,12 @@ object NovaThemeManager {
     fun getAccentColor(context: Context): Int {
         val theme = getTheme(context)
         if (theme == THEME_MATERIAL_YOU && isMaterialYouAvailable()) {
-            // Use system accent (Material You primary)
-            return try {
-                val ta = context.obtainStyledAttributes(intArrayOf(android.R.attr.colorPrimary))
-                val color = ta.getColor(0, ContextCompat.getColor(context, R.color.nova_accent))
-                ta.recycle()
-                color
-            } catch (_: Exception) {
+            return resolveMaterialYouColor(
+                context,
+                android.R.color.system_accent1_500,
+                android.R.attr.colorPrimary,
                 ContextCompat.getColor(context, R.color.nova_accent)
-            }
+            )
         }
         return when {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_accent)
@@ -223,6 +267,8 @@ object NovaThemeManager {
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_accent_surface)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_accent_surface)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_accent_surface)
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                ColorUtils.setAlphaComponent(getAccentColor(context), 0x1A)
             else -> ContextCompat.getColor(context, R.color.nova_polaris_accent_surface)
         }
     }
@@ -235,7 +281,12 @@ object NovaThemeManager {
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_divider)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_divider)
             isMaterialYou(context) && isMaterialYouAvailable() ->
-                resolveThemeColor(context, com.google.android.material.R.attr.colorOutline, ContextCompat.getColor(context, R.color.nova_divider))
+                resolveMaterialYouColor(
+                    context,
+                    android.R.color.system_neutral1_600,
+                    com.google.android.material.R.attr.colorOutline,
+                    ContextCompat.getColor(context, R.color.nova_divider)
+                )
             else -> ContextCompat.getColor(context, R.color.nova_divider)
         }
     }
@@ -248,7 +299,7 @@ object NovaThemeManager {
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_primary)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_primary)
             isMaterialYou(context) && isMaterialYouAvailable() ->
-                resolveThemeColor(context, android.R.attr.textColorPrimary, ContextCompat.getColor(context, R.color.nova_text_primary))
+                getMaterialYouTextPrimaryColor(context)
             else -> ContextCompat.getColor(context, R.color.nova_text_primary)
         }
     }
@@ -261,7 +312,7 @@ object NovaThemeManager {
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_secondary)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_secondary)
             isMaterialYou(context) && isMaterialYouAvailable() ->
-                resolveThemeColor(context, android.R.attr.textColorSecondary, ContextCompat.getColor(context, R.color.nova_text_secondary))
+                getMaterialYouTextSecondaryColor(context)
             else -> ContextCompat.getColor(context, R.color.nova_text_secondary)
         }
     }
@@ -274,7 +325,12 @@ object NovaThemeManager {
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_muted)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_muted)
             isMaterialYou(context) && isMaterialYouAvailable() ->
-                resolveThemeColor(context, android.R.attr.textColorSecondary, ContextCompat.getColor(context, R.color.nova_text_muted))
+                resolveMaterialYouColor(
+                    context,
+                    android.R.color.system_neutral1_400,
+                    com.google.android.material.R.attr.colorOnSurface,
+                    ContextCompat.getColor(context, R.color.nova_text_muted)
+                )
             else -> ContextCompat.getColor(context, R.color.nova_text_muted)
         }
     }

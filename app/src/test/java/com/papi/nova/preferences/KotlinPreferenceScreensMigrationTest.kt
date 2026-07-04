@@ -70,6 +70,47 @@ class KotlinPreferenceScreensMigrationTest {
     }
 
     @Test
+    fun composeSettingsQuickStripAdvertisesHorizontalOverflow() {
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+
+        assertTrue(settingsScreen.contains("NovaSettingsQuickStripEdgeHint"))
+        assertTrue(settingsScreen.contains("Brush.horizontalGradient"))
+        assertTrue(settingsScreen.contains("horizontalScroll(scrollState)"))
+        assertTrue(settingsScreen.contains("fun rowsBottomPaddingDp(): Int = 72"))
+        assertTrue(settingsScreen.contains("fun quickPillWidthDp(): Int = 168"))
+    }
+
+    @Test
+    fun composeSettingsSelectDialogShowsCurrentBadge() {
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+        val selectDialog = settingsScreen.substringAfter("private fun NovaSelectDialog(")
+            .substringBefore("@Composable\nprivate fun NovaSliderDialog(")
+
+        assertTrue(selectDialog.contains("selectedOption"))
+        assertTrue(selectDialog.contains("Current"))
+        assertTrue(selectDialog.contains("NovaSettingCurrentBadge"))
+        assertFalse(selectDialog.contains("AlertDialog("))
+        assertTrue(selectDialog.contains("Dialog("))
+        assertTrue(selectDialog.contains("NovaSettingsSelectOptionRow"))
+    }
+
+    @Test
+    fun composeSettingsHidesBetaToggleAndUsesShortReleaseSubtitle() {
+        val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
+        val strings = File("src/main/res/values/strings.xml").readText()
+        val preferences = File("src/main/res/xml/preferences.xml").readText()
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+
+        assertTrue(streamSettings.contains("NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY"))
+        assertTrue(streamSettings.contains("filterNot { it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY }"))
+        assertTrue(strings.contains("%1\$s · Stream · input · Polaris"))
+        assertTrue(preferences.contains("android:title=\"Modern Settings\""))
+        assertFalse(preferences.contains("android:title=\"New Settings\""))
+        assertTrue(settingsScreen.contains("applyThemeSelectionIfNeeded"))
+        assertTrue(settingsScreen.contains("NovaThemeManager.setTheme(context, value.value)") && settingsScreen.contains("window.decorView.post") && settingsScreen.contains("activity.recreate()"))
+    }
+
+    @Test
     fun composeSettingsRowsUseDenseScanningLayout() {
         val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
 
@@ -115,5 +156,35 @@ class KotlinPreferenceScreensMigrationTest {
         val restored = GlPreferences.readPreferences(context)
         assertEquals("ANGLE", restored.glRenderer)
         assertEquals("fingerprint-1", restored.savedFingerprint)
+    }
+
+
+    @Test
+    fun composeSettingsShowsHudPreviewAndThemePreviewCards() {
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+
+        assertTrue(settingsScreen.contains("NovaHudSettingsPreview"))
+        assertTrue(settingsScreen.contains("NovaStreamHudContent("))
+        assertTrue(settingsScreen.contains("NovaHudUiState.preview"))
+        assertTrue(settingsScreen.contains("category_overlays"))
+        assertTrue(settingsScreen.contains("NovaThemePreviewSwatch"))
+        assertTrue(settingsScreen.contains("definition.key == \"nova_theme\""))
+    }
+
+    @Test
+    fun composeSettingsExposesResetStreamUiDefaultsAction() {
+        val preferences = File("src/main/res/xml/preferences.xml").readText()
+        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+        val viewModel = File("src/main/java/com/papi/nova/preferences/NovaSettingsViewModel.kt").readText()
+
+        assertTrue(preferences.contains("nova_reset_stream_ui"))
+        assertTrue(settingsScreen.contains("resetStreamUiDefaults"))
+        assertTrue(settingsScreen.contains("definition.key == \"nova_theme\""))
+        assertTrue(viewModel.contains("fun resetStreamUiDefaults()"))
+        assertTrue(viewModel.contains("nova_polaris_hud"))
+        assertTrue(viewModel.contains("nova_polaris_hud_mode"))
+        assertTrue(viewModel.contains("nova_polaris_hud_opacity"))
+        assertTrue(viewModel.contains("checkbox_enable_perf_overlay"))
+        assertTrue(viewModel.contains("checkbox_show_onscreen_controls"))
     }
 }

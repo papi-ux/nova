@@ -1,5 +1,8 @@
 package com.papi.nova.preferences
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,14 +46,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.papi.nova.ui.NovaHudMode
+import com.papi.nova.ui.NovaHudPreferences
+import com.papi.nova.ui.NovaHudUiState
+import com.papi.nova.ui.NovaStreamHudContent
+import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
@@ -70,6 +82,7 @@ fun NovaSettingsScreen(
     headerActions: List<NovaSettingsHeaderAction> = emptyList()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     var activeDialog by remember { mutableStateOf<NovaSettingsDialog?>(null) }
 
     NovaSettingsContent(
@@ -92,7 +105,14 @@ fun NovaSettingsScreen(
                 NovaSettingType.Select -> activeDialog = NovaSettingsDialog.Select(definition)
                 NovaSettingType.Slider -> activeDialog = NovaSettingsDialog.Slider(definition)
                 NovaSettingType.Text -> activeDialog = NovaSettingsDialog.Text(definition)
-                NovaSettingType.Action -> onAction(definition)
+                NovaSettingType.Action -> {
+                    if (definition.key == RESET_STREAM_UI_DEFAULTS_KEY) {
+                        viewModel.resetStreamUiDefaults()
+                        onAction(definition)
+                    } else {
+                        onAction(definition)
+                    }
+                }
             }
         }
     )
@@ -102,9 +122,10 @@ fun NovaSettingsScreen(
             dialog = dialog,
             state = state,
             onDismiss = { activeDialog = null },
-            onSave = { definition, value ->
+            onSave = {definition, value ->
                 viewModel.setValue(definition, value)
                 activeDialog = null
+                applyThemeSelectionIfNeeded(context, definition, value)
             }
         )
     }
@@ -115,6 +136,26 @@ data class NovaSettingsHeaderAction(
     val onClick: () -> Unit
 )
 
+private const val RESET_STREAM_UI_DEFAULTS_KEY = "nova_reset_stream_ui"
+
+private fun applyThemeSelectionIfNeeded(
+    context: Context,
+    definition: NovaSettingDefinition,
+    value: NovaSettingValue
+) {
+    if (definition.key != "nova_theme" || value !is NovaSettingValue.StringValue)return
+
+    NovaThemeManager.setTheme(context, value.value)
+    val activity = context.findActivity() ?: return
+    activity.window.decorView.post {activity.recreate() }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 private val NovaSettingsCardShape = RoundedCornerShape(14.dp)
 private val NovaSettingsChipShape = RoundedCornerShape(12.dp)
 
@@ -122,7 +163,7 @@ private object NovaSettingsMetrics {
     fun categoryRailWidthDp(): Int = 196
     fun wideColumnSpacingDp(): Int = 14
     fun quickStripHeightDp(): Int = 52
-    fun quickPillWidthDp(): Int = 144
+    fun quickPillWidthDp(): Int = 168
     fun headerToQuickStripSpacingDp(): Int = 6
     fun quickStripToContentSpacingDp(): Int = 6
     fun contentToHintSpacingDp(): Int = 4
@@ -130,7 +171,7 @@ private object NovaSettingsMetrics {
     fun categoryRowVerticalPaddingDp(): Int = 6
     fun settingsRowSpacingDp(): Int = 6
     fun settingsRowVerticalPaddingDp(): Int = 6
-    fun rowsBottomPaddingDp(): Int = 12
+    fun rowsBottomPaddingDp(): Int = 72
     fun valueChipMinHeightDp(): Int = 28
 }
 
@@ -398,20 +439,58 @@ private fun NovaSettingsQuickStrip(
     state: NovaSettingsUiState,
     onSetting: (NovaSettingDefinition) -> Unit
 ) {
-    Row(
+    val scrollState = rememberScrollState()
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(NovaSettingsMetrics.quickStripHeightDp().dp)
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        for (definition in state.quickSettings) {
-            NovaSettingPill(
-                definition = definition,
-                value = state.valueLabel(definition),
-                onClick = { onSetting(definition) }
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .horizontalScroll(scrollState),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            for (definition in state.quickSettings) {
+                NovaSettingPill(
+                    definition = definition,
+                    value = state.valueLabel(definition),
+                    onClick = { onSetting(definition) }
+                )
+            }
+        }
+        if (state.quickSettings.size > 4) {
+            NovaSettingsQuickStripEdgeHint(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
             )
         }
+    }
+}
+
+@Composable
+private fun NovaSettingsQuickStripEdgeHint(modifier: Modifier = Modifier) {
+    val colors = LocalNovaComposeColors.current
+    Box(
+        modifier = modifier
+            .width(42.dp)
+            .background(
+                Brush.horizontalGradient(
+                    0f to Color.Transparent,
+                    0.65f to colors.window.copy(alpha = 0.78f),
+                    1f to colors.window
+                )
+            ),
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        Text(
+            text = "›",
+            color = colors.textSecondary,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(end = 4.dp)
+        )
     }
 }
 
@@ -561,6 +640,11 @@ private fun NovaSettingsRows(
         verticalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.settingsRowSpacingDp().dp),
         contentPadding = PaddingValues(bottom = NovaSettingsMetrics.rowsBottomPaddingDp().dp)
     ) {
+        if (state.selectedCategoryKey == "category_overlays" && !state.isSearchActive()) {
+            item(key = "nova_hud_preview", contentType = "hud_preview") {
+                NovaHudSettingsPreview(state)
+            }
+        }
         items(state.visibleSettings, key = { it.key }, contentType = { it.type }) { definition ->
             NovaSettingRow(
                 definition = definition,
@@ -574,6 +658,78 @@ private fun NovaSettingsRows(
             )
         }
     }
+}
+
+
+@Composable
+private fun NovaHudSettingsPreview(state: NovaSettingsUiState) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val enabled = state.booleanSetting("nova_polaris_hud", false)
+    val mode = NovaHudMode.fromPreference(
+        state.stringSetting("nova_polaris_hud_mode", NovaHudMode.MINIMAL.preferenceValue)
+    )
+    val opacityPercent = NovaHudPreferences.coerceOpacityPercent(
+        state.intSetting(NovaHudPreferences.KEY_OPACITY, NovaHudPreferences.DEFAULT_OPACITY_PERCENT)
+    )
+    val previewState = NovaHudUiState.preview(mode)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(NovaSettingsCardShape)
+            .background(surfaces.panel.copy(alpha = 0.86f))
+            .border(1.dp, surfaces.panelBorder, NovaSettingsCardShape)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Live HUD preview",
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = if (enabled) {
+                        "Enabled · " + mode.name.lowercase().replaceFirstChar { it.uppercase() } + " · " + opacityPercent.toString() + "% glass"
+                    } else {
+                        "Previewing saved HUD mode and glass opacity"
+                    },
+                    color = colors.textMuted,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            NovaSettingValueChip(opacityPercent.toString() + "%", alpha = 1f)
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            NovaStreamHudContent(
+                state = previewState,
+                opacityScale = NovaHudPreferences.opacityScale(opacityPercent),
+                modifier = Modifier.widthIn(max = 320.dp)
+            )
+        }
+    }
+}
+
+private fun NovaSettingsUiState.booleanSetting(key: String, defaultValue: Boolean): Boolean {
+    return (values[key] as? NovaSettingValue.BooleanValue)?.value ?: defaultValue
+}
+
+private fun NovaSettingsUiState.intSetting(key: String, defaultValue: Int): Int {
+    return (values[key] as? NovaSettingValue.IntValue)?.value ?: defaultValue
+}
+
+private fun NovaSettingsUiState.stringSetting(key: String, defaultValue: String): String {
+    return (values[key] as? NovaSettingValue.StringValue)?.value ?: defaultValue
 }
 
 @Composable
@@ -756,7 +912,8 @@ private fun NovaSelectDialog(
     onDismiss: () -> Unit,
     onSave: (NovaSettingDefinition, NovaSettingValue) -> Unit
 ) {
-    AlertDialog(
+    val showThemePreview = definition.key == "nova_theme"
+    NovaSelectDialogShell(
         onDismissRequest = onDismiss,
         confirmButton = {},
         dismissButton = {
@@ -766,23 +923,202 @@ private fun NovaSelectDialog(
         text = {
             LazyColumn {
                 items(definition.options, key = { it.value }) { option ->
-                    Text(
-                        text = option.label,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onSave(definition, NovaSettingValue.StringValue(option.value))
-                            }
-                            .padding(vertical = 12.dp),
-                        color = if (state.stringValue(definition) == option.value) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        }
+                    val selectedOption = state.stringValue(definition) == option.value
+                    NovaSettingsSelectOptionRow(
+                        option = option,
+                        selected = selectedOption,
+                        showPreview = showThemePreview,
+                        onClick = {onSave(definition, NovaSettingValue.StringValue(option.value))}
                     )
                 }
             }
         }
+    )
+}
+
+@Composable
+private fun NovaSelectDialogShell(
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit = {},
+    dismissButton: @Composable () -> Unit,
+    title: @Composable () -> Unit,
+    text: @Composable () -> Unit
+) {
+    val surfaces = LocalNovaLibrarySurfaces.current
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.72f)
+                .widthIn(max = 720.dp)
+                .clip(NovaSettingsCardShape)
+                .background(surfaces.panel.copy(alpha = 0.96f))
+                .border(1.dp, surfaces.panelBorder, NovaSettingsCardShape)
+                .padding(18.dp)
+        ) {
+            title()
+            Spacer(Modifier.height(12.dp))
+            text()
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                confirmButton()
+                dismissButton()
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaSettingsSelectOptionRow(
+    option: NovaSettingOption,
+    selected: Boolean,
+    showPreview: Boolean = false,
+    onClick: () -> Unit
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    var focused by remember {mutableStateOf(false)}
+    val shape = NovaSettingsCardShape
+    val background = when {
+        selected -> colors.accent.copy(alpha = 0.20f)
+        focused -> surfaces.selectedControl
+        else -> surfaces.control.copy(alpha = 0.74f)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .novaFocusMotion(focused = focused, pressed = false)
+            .background(background)
+            .border(if (focused || selected)3.dp else 1.dp, if (focused || selected)surfaces.focusRing else surfaces.tileBorder, shape)
+            .onFocusChanged {focused = it.isFocused || it.hasFocus }
+            .clickable(onClick = onClick)
+            .focusable()
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (showPreview) {
+            NovaThemePreviewSwatch(option.value)
+        }
+        Text(
+            text = option.label,
+            modifier = Modifier.weight(1f),
+            color = if (selected)colors.accent else colors.textPrimary,
+            fontSize = 15.sp,
+            fontWeight = if (selected)FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (selected) {
+            NovaSettingCurrentBadge()
+        }
+    }
+}
+
+
+private data class NovaThemePreviewPalette(
+    val window: Color,
+    val surface: Color,
+    val accent: Color,
+    val border: Color
+)
+
+@Composable
+private fun NovaThemePreviewSwatch(themeValue: String) {
+    val palette = novaThemePreviewPalette(themeValue)
+    Row(
+        modifier = Modifier.width(72.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 30.dp, height = 22.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(palette.window)
+                .border(1.dp, palette.border, RoundedCornerShape(7.dp))
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(width = 17.dp, height = 10.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(palette.surface)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(9.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(palette.accent)
+        )
+        Box(
+            modifier = Modifier
+                .size(width = 18.dp, height = 4.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(palette.accent.copy(alpha = 0.42f))
+        )
+    }
+}
+
+private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette {
+    return when (themeValue) {
+        NovaThemeManager.THEME_PORTABLE_CHROME -> NovaThemePreviewPalette(
+            window = Color(0xFFA2ADBA),
+            surface = Color(0xFFC4CDD8),
+            accent = Color(0xFF2F64B3),
+            border = Color(0xFF83909F)
+        )
+        NovaThemeManager.THEME_OLED -> NovaThemePreviewPalette(
+            window = Color.Black,
+            surface = Color(0xFF0A0A0E),
+            accent = Color(0xFF8B80FF),
+            border = Color(0xFF1A1A22)
+        )
+        NovaThemeManager.THEME_MIAMI -> NovaThemePreviewPalette(
+            window = Color(0xFF130817),
+            surface = Color(0xFF241429),
+            accent = Color(0xFFFF5CAB),
+            border = Color(0xFF6C3C6F)
+        )
+        NovaThemeManager.THEME_HIGH_CONTRAST -> NovaThemePreviewPalette(
+            window = Color(0xFF05070C),
+            surface = Color(0xFF0F172A),
+            accent = Color(0xFF60A5FA),
+            border = Color(0xFFDBEAFE)
+        )
+        NovaThemeManager.THEME_MATERIAL_YOU -> NovaThemePreviewPalette(
+            window = Color(0xFF111318),
+            surface = Color(0xFF1D2026),
+            accent = Color(0xFFADC6FF),
+            border = Color(0xFF8E9199)
+        )
+        else -> NovaThemePreviewPalette(
+            window = Color(0xFF1A1A2E),
+            surface = Color(0xCC232340),
+            accent = Color(0xFF78A6FF),
+            border = Color(0xFF393C51)
+        )
+    }
+}
+
+@Composable
+private fun NovaSettingCurrentBadge() {
+    val colors = LocalNovaComposeColors.current
+    Text(
+        text = "Current",
+        color = colors.onAccent,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(NovaSettingsChipShape)
+            .background(colors.accent)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     )
 }
 

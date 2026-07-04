@@ -50,6 +50,7 @@ import com.papi.nova.PcView
 import com.papi.nova.R
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardControllerConfigurationLoader
 import com.papi.nova.binding.video.MediaCodecHelper
+import com.papi.nova.ui.NovaHudPreferences
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.Dialog
@@ -113,7 +114,11 @@ class StreamSettings : AppCompatActivity() {
 
     private fun showComposeSettings() {
         legacyMode = false
-        val definitions = NovaSettingsAvailability.filter(this, NovaSettingDefinitions.load(this))
+        val definitions = NovaSettingsAvailability.filter(this, NovaSettingDefinitions.load(this)).let { filtered ->
+            filtered.copy(
+                settings = filtered.settings.filterNot { it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY }
+            )
+        }
         val store = NovaSettingsRepository.create(this)
         val viewModel = ViewModelProvider(
             this,
@@ -175,6 +180,7 @@ class StreamSettings : AppCompatActivity() {
     private fun handleComposeAction(definition: NovaSettingDefinition) {
         when (definition.key) {
             "nova_app_version" -> Unit
+            "nova_reset_stream_ui" -> resetStreamUiRuntimePreferences()
             "pref_debug_info" -> startActivity(Intent(this, DebugInfoActivity::class.java))
             "option_software_release" -> HelpLauncher.launchUrl(this, "https://github.com/papi-ux/nova/releases")
             "option_follow_update" -> HelpLauncher.launchUrl(this, getString(R.string.obtainium_app_url))
@@ -187,6 +193,21 @@ class StreamSettings : AppCompatActivity() {
                 showLegacySettings()
             }
         }
+    }
+
+    private fun resetStreamUiRuntimePreferences() {
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit()
+            .remove("nova_polaris_hud_x")
+            .remove("nova_polaris_hud_y")
+            .putBoolean("nova_polaris_hud", false)
+            .putString("nova_polaris_hud_mode", "minimal")
+            .putString("nova_polaris_hud_position", "top_left")
+            .putInt(NovaHudPreferences.KEY_OPACITY, NovaHudPreferences.DEFAULT_OPACITY_PERCENT)
+            .putBoolean("checkbox_enable_perf_overlay", false)
+            .putBoolean("checkbox_show_onscreen_controls", false)
+            .apply()
+        Toast.makeText(this, "Stream UI defaults restored", Toast.LENGTH_SHORT).show()
     }
 
     override fun onAttachedToWindow() {

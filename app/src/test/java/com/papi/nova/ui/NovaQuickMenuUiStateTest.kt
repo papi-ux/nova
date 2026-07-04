@@ -78,7 +78,7 @@ class NovaQuickMenuUiStateTest {
             aiEnabled = true
         )
 
-        assertEquals("Host is rendering below target. Relaunch can apply the AI Recovery Profile.", state.healthSummary)
+        assertEquals("AI Recovery Profile ready for next launch.", state.healthSummary)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
         assertEquals("AI Recovery Profile", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.WARNING, state.stability.chip.tone)

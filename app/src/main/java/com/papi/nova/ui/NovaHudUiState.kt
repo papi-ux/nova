@@ -455,7 +455,7 @@ class NovaHudEventTrail(private val capacity: Int = 4) {
         if (targetFps <= 0.0) {
             return
         }
-        record("Recovery profile ready: ${targetFps.roundToInt()} FPS")
+        record("Next launch recovery: ${targetFps.roundToInt()} FPS")
     }
 }
 

@@ -5714,12 +5714,21 @@ return novaHud?.isShowing == true
 fun toggleNovaHud() {
 if (isNovaHudShowing())
 {
+setNovaHudPreference(false)
 dismissNovaHud()
 }
 else
 {
+setNovaHudPreference(true)
 showNovaHud()
 }
+}
+
+private fun setNovaHudPreference(enabled:Boolean) {
+PreferenceManager.getDefaultSharedPreferences(this)
+.edit()
+.putBoolean("nova_polaris_hud", enabled)
+.apply()
 }
 
 fun dismissNovaHud() {
