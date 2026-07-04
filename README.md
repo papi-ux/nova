@@ -15,7 +15,7 @@ while you play, and what is safe to do when you leave.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v120) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v121) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -105,17 +105,17 @@ Use Nova with any compatible host for normal streaming. Pair it with Polaris whe
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## Latest release: v1.2.0
+## Latest release: v1.2.1
 
-Nova v1.2.0 is the matched handheld companion release for Polaris v1.2.0. It focuses on PSP / Portable Chrome polish, clearer Polaris-backed launch choices, display-target handling, host-lock/session cleanup, and stream UI refinement for Retroid-class handhelds and Android TV devices.
+Nova v1.2.1 is a small post-1.2 polish release for Polaris v1.2.x users. It keeps the streaming contract stable while tightening Portable Chrome language, Miami theme personality, Library option persistence, public showcase media, and Retroid smoke diagnostics.
 
-- **PSP / Portable Chrome**: smoked graphite, dim silver, readable text, restrained steel highlights, and no legacy Polaris-purple accent leaks.
-- **Clearer launch choices**: Private Headless Stream, Host Virtual Display, Mirror Desktop, Steam Launch, and Direct paths now explain what Nova will ask Polaris to do.
-- **Display target handling**: Android external-display selection plumbing is present while handheld-safe fallbacks remain intact.
-- **Cleaner stream recovery**: owned headless streams avoid false host-lock overlays, and terminal/session events clean up stale Game surfaces more reliably.
-- **Command Center and HUD polish**: Polaris truth, high-FPS recovery copy, session status, and in-stream controls are clearer during live play.
-- **Release packaging**: public GitHub Releases ship ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksums. VersionCode is bumped to 30 so Obtainium/GitHub installs update cleanly.
-- **Release validation**: current master passed APK build, CodeQL, public hygiene, and dependency submission before the 1.2.0 packaging bump.
+- **Portable Chrome copy cleanup**: the public picker/settings language now centers on Portable Chrome, smoked graphite, dim silver, and PlayStation-symbol accents.
+- **Miami Nebula guardrails**: flamingo pink stays the hero accent, with cyan and aqua acting as supporting neon-water contrast.
+- **Persistent Library Options**: sorting, layout, poster-title visibility, and source filters survive restarts and controller shortcut changes.
+- **Showcase refresh**: README media and positioning were refreshed with lighter WebP/GIF assets and clearer install/readiness copy.
+- **Retroid diagnostics**: UI dump tooling now reports whether failures came from device state, package launch, or the accessibility dump path.
+- **Release packaging**: public GitHub Releases ship ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksums. VersionCode is bumped to 31 so Obtainium/GitHub installs update cleanly.
+- **Release validation**: final publication should use the tagged ARM64 release APK for fresh Retroid Library, preflight, live stream, Command Center, and cleanup smoke evidence.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 
