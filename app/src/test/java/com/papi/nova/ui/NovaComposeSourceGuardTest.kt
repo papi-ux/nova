@@ -80,11 +80,15 @@ class NovaComposeSourceGuardTest {
                 optionsSheet.contains("onPosterTitlesVisible(false)")
         )
         assertTrue(
-            "poster-title visibility should be persisted from the Library drawer so users can keep plain artwork posters across launches",
-            activity.contains("POSTER_TITLES_PREF") &&
-                activity.contains("loadPosterTitlesPreference()") &&
-                activity.contains("persistPosterTitlesPreference(showPosterTitles)") &&
-                activity.contains("optionsState.copy(showPosterTitles = showPosterTitles)")
+            "library drawer options should be persisted so sort, layout, poster titles, and filters survive relaunches",
+            activity.contains("NovaLibraryPreferences.loadOptions(libraryPreferences)") &&
+                activity.contains("NovaLibraryPreferences.loadFilterState(libraryPreferences)") &&
+                activity.contains("NovaLibraryPreferences.persistOptions(libraryPreferences(), nextState)") &&
+                activity.contains("NovaLibraryPreferences.persistFilterState(libraryPreferences(), normalized)") &&
+                activity.contains("updateLibraryOptions { it.copy(sortMode = sortMode) }") &&
+                activity.contains("updateLibraryOptions { it.copy(layoutMode = layoutMode) }") &&
+                activity.contains("updateLibraryOptions { it.copy(showPosterTitles = showPosterTitles) }") &&
+                activity.contains("updateLibraryFilterState(NovaLibraryFilterState())")
         )
         assertTrue(
             "layout modes and poster-title visibility should be wired into actual library card rendering",

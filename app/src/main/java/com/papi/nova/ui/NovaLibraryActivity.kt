@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.view.KeyEvent
@@ -196,7 +197,10 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
 
         apiClient = PolarisApiClient(this, streamHost, streamHttpsPort, streamServerCert)
-        optionsState = optionsState.copy(showPosterTitles = loadPosterTitlesPreference())
+        val libraryPreferences = libraryPreferences()
+        optionsState = NovaLibraryPreferences.loadOptions(libraryPreferences)
+        filterState = NovaLibraryPreferences.loadFilterState(libraryPreferences)
+        lastFocusedPrimaryFilter = filterState.primary
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -250,11 +254,14 @@ class NovaLibraryActivity : AppCompatActivity() {
                         onOpenPolarisSync = ::openPolarisSync,
                         onOpenHelpDiagnostics = ::openHelpDiagnostics,
                         onOpenAbout = ::showAboutNova,
-                        onSortMode = { sortMode -> optionsState = optionsState.copy(sortMode = sortMode) },
-                        onLayoutMode = { layoutMode -> optionsState = optionsState.copy(layoutMode = layoutMode) },
+                        onSortMode = { sortMode ->
+                            updateLibraryOptions { it.copy(sortMode = sortMode) }
+                        },
+                        onLayoutMode = { layoutMode ->
+                            updateLibraryOptions { it.copy(layoutMode = layoutMode) }
+                        },
                         onPosterTitlesVisible = { showPosterTitles ->
-                            optionsState = optionsState.copy(showPosterTitles = showPosterTitles)
-                            persistPosterTitlesPreference(showPosterTitles)
+                            updateLibraryOptions { it.copy(showPosterTitles = showPosterTitles) }
                         },
                         onDismissFilterSheet = { activeFilterSheet = null },
                         onSourceFilter = ::applySourceFilter,
@@ -310,16 +317,22 @@ class NovaLibraryActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadPosterTitlesPreference(): Boolean {
-        return PreferenceManager.getDefaultSharedPreferences(this)
-            .getBoolean(POSTER_TITLES_PREF, true)
+    private fun libraryPreferences(): SharedPreferences =
+        PreferenceManager.getDefaultSharedPreferences(this)
+
+    private fun updateLibraryOptions(
+        transform: (NovaLibraryOptionsState) -> NovaLibraryOptionsState
+    ) {
+        val nextState = transform(optionsState)
+        optionsState = nextState
+        NovaLibraryPreferences.persistOptions(libraryPreferences(), nextState)
     }
 
-    private fun persistPosterTitlesPreference(showPosterTitles: Boolean) {
-        PreferenceManager.getDefaultSharedPreferences(this)
-            .edit()
-            .putBoolean(POSTER_TITLES_PREF, showPosterTitles)
-            .apply()
+    private fun updateLibraryFilterState(nextState: NovaLibraryFilterState) {
+        val normalized = NovaLibraryPreferences.normalizeFilterState(nextState)
+        filterState = normalized
+        lastFocusedPrimaryFilter = normalized.primary
+        NovaLibraryPreferences.persistFilterState(libraryPreferences(), normalized)
     }
 
     override fun onResume() {
@@ -365,7 +378,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             return false
         }
         val nextMode = optionsState.layoutMode.next()
-        optionsState = optionsState.copy(layoutMode = nextMode)
+        updateLibraryOptions { it.copy(layoutMode = nextMode) }
         Toast.makeText(
             this,
             getString(R.string.nova_library_layout_toast_format, getString(layoutModeLabelRes(nextMode))),
@@ -500,13 +513,17 @@ class NovaLibraryActivity : AppCompatActivity() {
 
     private fun handlePrimaryFilter(filter: NovaLibraryPrimaryFilter) {
         when (filter) {
-            NovaLibraryPrimaryFilter.ALL -> filterState = NovaLibraryFilterState()
-            NovaLibraryPrimaryFilter.RECENT -> filterState = NovaLibraryFilterState(primary = filter)
+            NovaLibraryPrimaryFilter.ALL -> updateLibraryFilterState(NovaLibraryFilterState())
+            NovaLibraryPrimaryFilter.RECENT -> updateLibraryFilterState(
+                NovaLibraryFilterState(primary = filter)
+            )
             NovaLibraryPrimaryFilter.SOURCES -> {
                 activeOptionsSheet = false
                 activeFilterSheet = LibraryFilterSheet.SOURCES
             }
-            NovaLibraryPrimaryFilter.HDR -> filterState = NovaLibraryFilterState(primary = filter)
+            NovaLibraryPrimaryFilter.HDR -> updateLibraryFilterState(
+                NovaLibraryFilterState(primary = filter)
+            )
             NovaLibraryPrimaryFilter.MORE -> {
                 activeOptionsSheet = false
                 activeFilterSheet = LibraryFilterSheet.MORE
@@ -515,26 +532,32 @@ class NovaLibraryActivity : AppCompatActivity() {
     }
 
     private fun applySourceFilter(source: String?) {
-        filterState = if (source == null) {
-            NovaLibraryFilterState()
-        } else {
-            NovaLibraryFilterState(primary = NovaLibraryPrimaryFilter.SOURCES, source = source)
-        }
+        updateLibraryFilterState(
+            if (source == null) {
+                NovaLibraryFilterState()
+            } else {
+                NovaLibraryFilterState(primary = NovaLibraryPrimaryFilter.SOURCES, source = source)
+            }
+        )
         activeFilterSheet = null
     }
 
     private fun applyCategoryFilter(category: String) {
-        filterState = NovaLibraryFilterState(primary = NovaLibraryPrimaryFilter.MORE, category = category)
+        updateLibraryFilterState(
+            NovaLibraryFilterState(primary = NovaLibraryPrimaryFilter.MORE, category = category)
+        )
         activeFilterSheet = null
     }
 
     private fun applyGenreFilter(genre: String) {
-        filterState = NovaLibraryFilterState(primary = NovaLibraryPrimaryFilter.MORE, genre = genre)
+        updateLibraryFilterState(
+            NovaLibraryFilterState(primary = NovaLibraryPrimaryFilter.MORE, genre = genre)
+        )
         activeFilterSheet = null
     }
 
     private fun clearFilters() {
-        filterState = NovaLibraryFilterState()
+        updateLibraryFilterState(NovaLibraryFilterState())
         searchQuery = ""
         activeFilterSheet = null
     }
@@ -3556,7 +3579,6 @@ class NovaLibraryActivity : AppCompatActivity() {
         const val EXTRA_PC_UUID = "pc_uuid"
         const val EXTRA_SERVER_COMMANDS = "server_commands"
         const val EXTRA_SERVER_CERT = "server_cert"
-        private const val POSTER_TITLES_PREF = "nova_library_poster_titles"
         private val ACTIVE_SESSION_RESUME_REFRESH_DELAYS_MS = longArrayOf(1500L, 2000L, 3000L, 5000L, 8000L)
     }
 }
