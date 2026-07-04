@@ -60,7 +60,7 @@ class NovaLibraryActivitySourceTest {
         assertTrue(source.contains("KeyEvent.KEYCODE_BUTTON_Y"))
         assertTrue(source.contains("cycleLibraryLayoutMode()"))
         assertTrue(source.contains("activeOptionsSheet || activeSystemMenu || activeFilterSheet != null"))
-        assertTrue(source.contains("optionsState.copy(layoutMode = nextMode)"))
+        assertTrue(source.contains("updateLibraryOptions { it.copy(layoutMode = nextMode) }"))
         assertTrue(hints.contains("R.string.nova_controller_hint_y"))
         assertTrue(hints.contains("R.string.nova_controller_hint_layout"))
     }

@@ -187,7 +187,7 @@ class NovaQuickMenuUiStateTest {
         )
 
         assertEquals(90, state.hudOpacity.percent)
-        assertEquals(NovaHudPreferences.OPACITY_PRESETS, state.hudOpacity.presets)
+        assertEquals(listOf(0, 25, 64, 90, 100), state.hudOpacity.presets)
         assertTrue(state.hudOpacity.enabled)
     }
 
