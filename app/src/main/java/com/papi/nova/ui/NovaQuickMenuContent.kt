@@ -642,17 +642,41 @@ private fun NovaQuickMenuPanel(
             .padding(contentPadding)
     ) {
         if (!title.isNullOrBlank()) {
-            Text(
-                text = title,
-                color = colors.textMuted,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
+            NovaQuickMenuSectionHeader(title)
+            Spacer(Modifier.height(7.dp))
         }
         content()
+    }
+}
+
+
+@Composable
+private fun NovaQuickMenuSectionHeader(title: String) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(99.dp))
+            .background(colors.accent.copy(alpha = 0.14f))
+            .border(1.dp, surfaces.focusRing.copy(alpha = 0.52f), RoundedCornerShape(99.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(colors.accent)
+        )
+        Text(
+            text = title.uppercase(),
+            color = colors.textSecondary,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

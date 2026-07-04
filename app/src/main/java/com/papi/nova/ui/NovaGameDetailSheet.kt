@@ -1678,6 +1678,8 @@ private fun LaunchControls(
             )
         }
 
+        profileSummary?.let { LaunchProfilePrimaryNotice(it) }
+
         NovaActionButton(
             text = playLabel,
             onClick = onPrimaryLaunch,
@@ -1782,6 +1784,45 @@ private fun LaunchControls(
             cornerRadius = 10.dp,
             fontSize = 11.sp,
             contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp)
+        )
+    }
+}
+
+@Composable
+private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val notice = listOf(summary.limitingLine, summary.reasonLine)
+        .firstOrNull { it.isNotBlank() }
+        ?: summary.freshnessLine.takeIf { it.isNotBlank() }
+        ?: return
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.warning.copy(alpha = 0.14f))
+            .border(1.dp, colors.warning.copy(alpha = 0.52f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        NovaBadge(
+            text = "Heads up",
+            color = colors.warning,
+            backgroundColor = surfaces.control.copy(alpha = 0.72f),
+            borderColor = colors.warning.copy(alpha = 0.35f),
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = notice,
+            color = colors.textSecondary,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
     }
 }

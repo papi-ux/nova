@@ -177,9 +177,11 @@ class NovaLibraryActivity : AppCompatActivity() {
     private var lastFocusedGameId by mutableStateOf<String?>(null)
     private var lastFocusedPrimaryFilter by mutableStateOf(NovaLibraryPrimaryFilter.ALL)
     private var activeSessionRefreshJob: Job? = null
+    private var appliedTheme: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
+        appliedTheme = NovaThemeManager.getTheme(this)
         super.onCreate(savedInstanceState)
 
         streamHost = intent.getStringExtra(EXTRA_HOST).orEmpty()
@@ -337,6 +339,7 @@ class NovaLibraryActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (recreateForThemeChangeIfNeeded()) return
         if (::apiClient.isInitialized && !isInitialLoading) {
             if (consumeLocalSessionEndSignal()) {
                 activeSession = null
@@ -345,6 +348,14 @@ class NovaLibraryActivity : AppCompatActivity() {
                 refreshActiveSession(scheduleFollowUps = true)
             }
         }
+    }
+
+    private fun recreateForThemeChangeIfNeeded(): Boolean {
+        val currentTheme = NovaThemeManager.getTheme(this)
+        if (appliedTheme == currentTheme) return false
+        appliedTheme = currentTheme
+        recreate()
+        return true
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 1.2.1 - 2026-07-04
+
+Nova 1.2.1 is a focused post-1.2 polish patch. It keeps the Polaris 1.2 streaming contract intact while tightening the public theme language, Library option persistence, README showcase assets, and Retroid smoke diagnostics for handheld dogfooding.
+
+### Highlights
+
+- Keeps the theme picker and settings copy centered on Portable Chrome, with smoked graphite, dim silver, and PlayStation-symbol accent language instead of transitional PSP slash labels.
+- Preserves Miami Nebula as flamingo-pink first, with cyan and aqua as supporting neon-water contrast.
+- Persists Library Options choices so sorting, layout, poster-title visibility, and source filtering survive app restarts and controller shortcut changes.
+- Refreshes the GitHub README showcase media with lighter WebP/GIF assets and clearer Nova positioning.
+- Improves Retroid UI dump diagnostics so automation failures report whether the device, package, or accessibility dump path is the actual problem.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.2.1 and versionCode 31.
+- Publishes fresh release APK assets for ARM64, ARMv7, and x86_64 through the GitHub release workflow.
+- Intended as the small Nova companion patch for Polaris v1.2.x users.
+
+### Validation notes
+
+- Current master CI is green across APK build, CodeQL, public hygiene, and dependency submission before this release-prep branch.
+- Final publication should use the tagged ARM64 release APK for a fresh Retroid Pocket 6 smoke: Library, saved Library Options, preflight, live stream, Command Center, and cleanup.
+
 ## 1.2.0 - 2026-07-03
 
 Nova 1.2.0 is the matched Polaris 1.2 handheld release. It focuses on the PSP / Portable Chrome visual pass, clearer Polaris-backed launch choices, display-target handling, live-session recovery, and stream UI polish for Retroid-class handhelds and Android TV devices.

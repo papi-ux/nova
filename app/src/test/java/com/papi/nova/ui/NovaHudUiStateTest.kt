@@ -374,8 +374,8 @@ class NovaHudUiStateTest {
             eventBreadcrumbLabel = trail.latestLabel
         )
 
-        assertEquals("Recovery profile ready: 60 FPS", trail.latestLabel)
-        assertEquals("Recovery profile ready: 60 FPS", state.eventBreadcrumbLabel)
+        assertEquals("Next launch recovery: 60 FPS", trail.latestLabel)
+        assertEquals("Next launch recovery: 60 FPS", state.eventBreadcrumbLabel)
     }
 
     @Test

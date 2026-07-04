@@ -1,0 +1,6 @@
+Nova 1.2.1
+
+- Keeps public theme copy centered on Portable Chrome and protects Miami Nebula pink/cyan personality.
+- Persists Library Options choices across restarts.
+- Refreshes README showcase media and Retroid UI dump diagnostics.
+- Ships as a safe post-1.2 polish patch for Polaris v1.2.x users.
