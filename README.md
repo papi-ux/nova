@@ -22,6 +22,7 @@ while you play, and what is safe to do when you leave.
 <br/>
 
 <picture>
+  <source srcset="docs/screenshots/nova-showcase.webp" type="image/webp" />
   <img src="docs/screenshots/nova-showcase.gif" width="820" alt="Nova Portable Chrome dashboard, Polaris Library, launch detail sheet, and Command Center" />
 </picture>
 
