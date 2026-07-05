@@ -11,7 +11,9 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Display
 import androidx.annotation.RequiresApi
+import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.utils.ExternalDisplayControlActivity
+import com.papi.nova.utils.ServerHelper.getAndroidCompanionDisplay
 
 class StartExternalDisplayControlReceiver : BroadcastReceiver() {
     @RequiresApi(api = Build.VERSION_CODES.O)
@@ -33,7 +35,19 @@ class StartExternalDisplayControlReceiver : BroadcastReceiver() {
 
         @JvmStatic
         fun requestFocusToExternalDisplayControl(context: Context) {
+            requestFocusToExternalDisplayControl(
+                context,
+                Game.instance?.streamingDisplayIdForCompanion() ?: Display.DEFAULT_DISPLAY,
+            )
+        }
+
+        @JvmStatic
+        fun requestFocusToExternalDisplayControl(context: Context, streamDisplayId: Int) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val prefConfig = PreferenceConfiguration.readPreferences(context)
+                val controlsDisplay = getAndroidCompanionDisplay(context, prefConfig, streamDisplayId)
+                    ?: return
+
                 val intentTouchpad = Intent(context, ExternalDisplayControlActivity::class.java)
                 intentTouchpad.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -41,7 +55,7 @@ class StartExternalDisplayControlReceiver : BroadcastReceiver() {
                         Intent.FLAG_ACTIVITY_CLEAR_TOP,
                 )
                 val optionsDefault: Bundle = ActivityOptions.makeBasic()
-                    .setLaunchDisplayId(Display.DEFAULT_DISPLAY)
+                    .setLaunchDisplayId(controlsDisplay.displayId)
                     .toBundle()
                 context.startActivity(intentTouchpad, optionsDefault)
             }
@@ -58,7 +72,7 @@ class StartExternalDisplayControlReceiver : BroadcastReceiver() {
             val game = Game.instance
             if (game != null) {
                 if (focusExternalDisplayControl) {
-                    requestFocusToExternalDisplayControl(game)
+                    requestFocusToExternalDisplayControl(game, game.streamingDisplayIdForCompanion())
                 }
                 val activityManager = game.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager?
                 activityManager?.moveTaskToFront(game.taskId, 0)

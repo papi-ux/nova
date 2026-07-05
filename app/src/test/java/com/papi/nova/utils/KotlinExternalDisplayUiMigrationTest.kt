@@ -65,6 +65,11 @@ class KotlinExternalDisplayUiMigrationTest {
         UiHelper::class.java.getMethod("applyStatusBarPadding", View::class.java)
         UiHelper::class.java.getMethod("notifyNewRootView", Activity::class.java)
         UiHelper::class.java.getMethod("showDecoderCrashDialog", Activity::class.java)
+        StartExternalDisplayControlReceiver::class.java.getMethod(
+            "requestFocusToExternalDisplayControl",
+            Context::class.java,
+            Int::class.javaPrimitiveType!!
+        )
         UiHelper::class.java.getMethod(
             "displayConfirmationDialog",
             Activity::class.java,

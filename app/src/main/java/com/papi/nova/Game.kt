@@ -2,6 +2,7 @@ package com.papi.nova
 
 
 import com.papi.nova.utils.ServerHelper.getActiveDisplay
+import com.papi.nova.utils.ServerHelper.getAndroidCompanionDisplay
 import com.papi.nova.utils.ServerHelper.getSecondaryDisplay
 
 import com.papi.nova.binding.PlatformBinding
@@ -385,6 +386,20 @@ display = displayManager!!.getDisplay(streamingDisplayId)
 }
 }
 return if (display != null) display else getWindowManager().getDefaultDisplay()
+}
+
+fun streamingDisplayIdForCompanion(): Int = streamingDisplayId
+
+private fun getCompanionControlDisplay(): Display? {
+if (!::prefConfig.isInitialized)
+{
+return null
+}
+return getAndroidCompanionDisplay(this, prefConfig, streamingDisplayId)
+}
+
+private fun shouldLaunchCompanionControls(): Boolean {
+return ::prefConfig.isInitialized && prefConfig.enableFullExDisplay && getCompanionControlDisplay() != null
 }
 
 @SuppressLint("InlinedApi")
@@ -1162,9 +1177,9 @@ applyMouseMode(2)
 }
 else
 {
-if (prefConfig!!.enableFullExDisplay && isOnExternalDisplay)
+if (shouldLaunchCompanionControls())
 {
-StartExternalDisplayControlReceiver.requestFocusToExternalDisplayControl(this)
+StartExternalDisplayControlReceiver.requestFocusToExternalDisplayControl(this, streamingDisplayId)
 listenForExternalDisplayRemoval()
 }
 
