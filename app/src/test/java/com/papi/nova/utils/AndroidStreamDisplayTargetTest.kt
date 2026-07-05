@@ -35,4 +35,80 @@ class AndroidStreamDisplayTargetTest {
     fun externalReturnsNullWhenOnlyPrimaryExists() {
         assertNull(AndroidStreamDisplayTarget.select(displays.take(1), 0, AndroidStreamDisplayTarget.EXTERNAL))
     }
+
+    @Test
+    fun companionForThorLargestStreamUsesSmallerNonStreamDisplay() {
+        val thorDisplays = listOf(
+            AndroidStreamDisplayTarget.Candidate(displayId = 0, width = 1920, height = 1080),
+            AndroidStreamDisplayTarget.Candidate(displayId = 4, width = 1240, height = 1080),
+        )
+
+        val stream = AndroidStreamDisplayTarget.select(
+            thorDisplays,
+            defaultDisplayId = 0,
+            target = AndroidStreamDisplayTarget.LARGEST,
+        )
+        val companion = AndroidStreamDisplayTarget.selectCompanion(
+            thorDisplays,
+            defaultDisplayId = 0,
+            streamDisplayId = stream?.displayId,
+        )
+
+        assertEquals(0, stream?.displayId)
+        assertEquals(4, companion?.displayId)
+    }
+
+    @Test
+    fun companionForExternalStreamUsesPrimaryDeviceDisplay() {
+        val displays = listOf(
+            AndroidStreamDisplayTarget.Candidate(displayId = 0, width = 1920, height = 1080),
+            AndroidStreamDisplayTarget.Candidate(displayId = 4, width = 1240, height = 1080),
+        )
+
+        val stream = AndroidStreamDisplayTarget.select(
+            displays,
+            defaultDisplayId = 0,
+            target = AndroidStreamDisplayTarget.EXTERNAL,
+        )
+        val companion = AndroidStreamDisplayTarget.selectCompanion(
+            displays,
+            defaultDisplayId = 0,
+            streamDisplayId = stream?.displayId,
+        )
+
+        assertEquals(4, stream?.displayId)
+        assertEquals(0, companion?.displayId)
+    }
+
+    @Test
+    fun companionIsNullWhenOnlyTheStreamDisplayExists() {
+        val displays = listOf(
+            AndroidStreamDisplayTarget.Candidate(displayId = 0, width = 1920, height = 1080),
+        )
+
+        assertNull(
+            AndroidStreamDisplayTarget.selectCompanion(
+                displays,
+                defaultDisplayId = 0,
+                streamDisplayId = 0,
+            )
+        )
+    }
+
+    @Test
+    fun companionPrefersSmallestNonStreamDisplayWhenSeveralRemain() {
+        val displays = listOf(
+            AndroidStreamDisplayTarget.Candidate(displayId = 0, width = 1920, height = 1080),
+            AndroidStreamDisplayTarget.Candidate(displayId = 4, width = 1240, height = 1080),
+            AndroidStreamDisplayTarget.Candidate(displayId = 7, width = 3840, height = 2160),
+        )
+
+        val companion = AndroidStreamDisplayTarget.selectCompanion(
+            displays,
+            defaultDisplayId = 0,
+            streamDisplayId = 0,
+        )
+
+        assertEquals(4, companion?.displayId)
+    }
 }

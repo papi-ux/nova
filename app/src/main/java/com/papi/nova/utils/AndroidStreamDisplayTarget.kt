@@ -28,4 +28,20 @@ object AndroidStreamDisplayTarget {
             else -> external ?: primary
         }
     }
+
+    fun selectCompanion(
+        displays: List<Candidate>,
+        defaultDisplayId: Int,
+        streamDisplayId: Int?,
+    ): Candidate? {
+        if (displays.size < 2 || streamDisplayId == null) return null
+
+        val candidates = displays.filter { it.displayId != streamDisplayId }
+        if (candidates.isEmpty()) return null
+
+        return candidates.minWithOrNull(
+            compareBy<Candidate> { it.pixelArea }
+                .thenBy { if (it.displayId == defaultDisplayId) 0 else 1 }
+        )
+    }
 }
