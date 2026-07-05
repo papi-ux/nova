@@ -40,4 +40,14 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         )
         assertTrue(source.contains("shouldLaunchCompanionControls"))
     }
+
+    @Test
+    fun gameDifferentiatesStreamAndCompanionDisplayRemoval() {
+        val source = File("src/main/java/com/papi/nova/Game.kt").readText()
+
+        assertTrue(source.contains("companionControlDisplayId"))
+        assertTrue(source.contains("removedDisplayId == streamingDisplayId"))
+        assertTrue(source.contains("removedDisplayId == companionControlDisplayId"))
+        assertTrue(source.contains("unregisterDisplayListener"))
+    }
 }
