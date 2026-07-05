@@ -85,9 +85,35 @@ object ServerHelper {
         return selectDisplay(displayManager.displays, AndroidStreamDisplayTarget.EXTERNAL)
     }
 
-    private fun selectDisplay(displays: Array<Display>, target: String?): Display? {
+    @JvmStatic
+    fun getAndroidCompanionDisplay(
+        context: Context,
+        prefs: PreferenceConfiguration,
+        streamDisplayId: Int,
+    ): Display? {
+        if (!prefs.enableFullExDisplay) return null
+
+        val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val candidateMap = buildDisplayCandidateMap(displayManager.displays)
+        val selected = AndroidStreamDisplayTarget.selectCompanion(
+            candidateMap.candidates,
+            Display.DEFAULT_DISPLAY,
+            streamDisplayId,
+        ) ?: return null
+
+        return candidateMap.displaysById[selected.displayId]
+    }
+
+    private data class AndroidDisplayCandidateMap(
+        val displaysById: Map<Int, Display>,
+        val candidates: List<AndroidStreamDisplayTarget.Candidate>,
+    )
+
+    private fun buildDisplayCandidateMap(displays: Array<Display>): AndroidDisplayCandidateMap {
+        val displaysById = LinkedHashMap<Int, Display>()
         val candidates = displays.map { display ->
             LimeLog.info(display.toString())
+            displaysById[display.displayId] = display
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
             display.getRealMetrics(metrics)
@@ -97,12 +123,17 @@ object ServerHelper {
                 height = metrics.heightPixels,
             )
         }
+        return AndroidDisplayCandidateMap(displaysById, candidates)
+    }
+
+    private fun selectDisplay(displays: Array<Display>, target: String?): Display? {
+        val candidateMap = buildDisplayCandidateMap(displays)
         val selected = AndroidStreamDisplayTarget.select(
-            candidates,
+            candidateMap.candidates,
             Display.DEFAULT_DISPLAY,
             target,
         ) ?: return null
-        return displays.firstOrNull { it.displayId == selected.displayId }
+        return candidateMap.displaysById[selected.displayId]
     }
 
     private fun createStartIntent(
