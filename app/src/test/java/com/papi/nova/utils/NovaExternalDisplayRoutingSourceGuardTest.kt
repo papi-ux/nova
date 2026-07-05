@@ -50,4 +50,12 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         assertTrue(source.contains("removedDisplayId == companionControlDisplayId"))
         assertTrue(source.contains("unregisterDisplayListener"))
     }
+
+    @Test
+    fun gameUsesMinSdkSafeInvalidDisplaySentinel() {
+        val source = File("src/main/java/com/papi/nova/Game.kt").readText()
+
+        assertTrue(source.contains("INVALID_DISPLAY_ID"))
+        assertFalse(source.contains("Display.INVALID_DISPLAY"))
+    }
 }

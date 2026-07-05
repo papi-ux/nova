@@ -218,7 +218,7 @@ private var grabbedInput:Boolean = true
 private var cursorVisible:Boolean = false
 private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
-private var companionControlDisplayId:Int = Display.INVALID_DISPLAY
+private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
 private var externalDisplayListener:DisplayManager.DisplayListener? = null
 @Volatile private var lastClientPresentationRefreshRate:Float = 0f
 @Volatile private var lastClientPresentationDisplayModeId:Int = 0
@@ -1473,7 +1473,7 @@ private fun closeCompanionControls() {
 NotificationManagerCompat.from(baseContext)
 .cancel(ExternalDisplayControlActivity.SECONDARY_SCREEN_NOTIFICATION_ID)
 ExternalDisplayControlActivity.closeExternalDisplayControl()
-companionControlDisplayId = Display.INVALID_DISPLAY
+companionControlDisplayId = INVALID_DISPLAY_ID
 }
 
 private fun handleDisplayRemoved(removedDisplayId:Int) {
@@ -1487,13 +1487,13 @@ finish()
 }
 removedDisplayId == companionControlDisplayId -> {
 ExternalDisplayControlActivity.closeExternalDisplayControl()
-companionControlDisplayId = Display.INVALID_DISPLAY
+companionControlDisplayId = INVALID_DISPLAY_ID
 }
 else -> {
 if (getCompanionControlDisplay() == null)
 {
 ExternalDisplayControlActivity.closeExternalDisplayControl()
-companionControlDisplayId = Display.INVALID_DISPLAY
+companionControlDisplayId = INVALID_DISPLAY_ID
 }
 }
 }
@@ -6227,6 +6227,7 @@ companion object {
  private const val FIVE_FINGER_TAP_THRESHOLD:Int = 300
  private const val POLARIS_SESSION_STATUS_REFRESH_MS:Long = 15000L
  private const val NOVA_PROGRESS_READY_DISMISS_DELAY_MS:Long = 350L
+ private const val INVALID_DISPLAY_ID:Int = -1
 
  const val EXTRA_HOST:String = "Host"
  const val EXTRA_PORT:String = "Port"
