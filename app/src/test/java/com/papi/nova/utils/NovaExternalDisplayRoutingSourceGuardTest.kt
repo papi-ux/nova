@@ -17,6 +17,14 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
+    fun serverHelperLogsStreamAndCompanionDisplayRoles() {
+        val source = File("src/main/java/com/papi/nova/utils/ServerHelper.kt").readText()
+
+        assertTrue(source.contains("Android display role stream"))
+        assertTrue(source.contains("Android display role companion"))
+    }
+
+    @Test
     fun externalControlReceiverDoesNotHardcodeDefaultDisplay() {
         val source = File("src/main/java/com/papi/nova/StartExternalDisplayControlReceiver.kt").readText()
 

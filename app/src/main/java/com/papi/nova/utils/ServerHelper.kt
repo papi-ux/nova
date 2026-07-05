@@ -76,7 +76,17 @@ object ServerHelper {
     @JvmStatic
     fun getAndroidStreamDisplay(context: Context, prefs: PreferenceConfiguration): Display? {
         val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        return selectDisplay(displayManager.displays, prefs.androidStreamDisplayTarget)
+        val candidateMap = buildDisplayCandidateMap(displayManager.displays)
+        val selected = AndroidStreamDisplayTarget.select(
+            candidateMap.candidates,
+            Display.DEFAULT_DISPLAY,
+            prefs.androidStreamDisplayTarget,
+        ) ?: return null
+        LimeLog.info(
+            "Nova: Android display role stream id=${selected.displayId} " +
+                "target=${prefs.androidStreamDisplayTarget}"
+        )
+        return candidateMap.displaysById[selected.displayId]
     }
 
     @JvmStatic
@@ -100,6 +110,10 @@ object ServerHelper {
             Display.DEFAULT_DISPLAY,
             streamDisplayId,
         ) ?: return null
+        LimeLog.info(
+            "Nova: Android display role companion id=${selected.displayId} " +
+                "stream_id=$streamDisplayId"
+        )
 
         return candidateMap.displaysById[selected.displayId]
     }
