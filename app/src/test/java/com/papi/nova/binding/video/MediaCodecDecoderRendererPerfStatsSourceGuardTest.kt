@@ -21,10 +21,21 @@ class MediaCodecDecoderRendererPerfStatsSourceGuardTest {
 
     @Test
     fun restartedFrameSequenceClearsStalePerfWindowsBeforeSampling() {
+        val restartBranchStart = source.indexOf("if (frameNumber < lastFrameNumber) {")
+        val restartReset = source.indexOf(
+            "resetRollingPerfStatsForNewStream(\"frame sequence restart\")",
+            restartBranchStart
+        )
+        val nextFpsSamplingBlock = source.indexOf(
+            "if (SystemClock.uptimeMillis() >= activeWindowVideoStats.measurementStartTimestamp + 1000)",
+            restartBranchStart
+        )
+
         assertTrue(
-            "If a resumed stream restarts frame numbering, renderer perf stats must reset before the next HUD sample.",
-            source.contains("frameNumber < lastFrameNumber") &&
-                source.contains("resetRollingPerfStatsForNewStream(")
+            "If a resumed stream restarts frame numbering, renderer perf stats must reset inside that branch before the next HUD FPS sample.",
+            restartBranchStart >= 0 &&
+                restartReset > restartBranchStart &&
+                nextFpsSamplingBlock > restartReset
         )
     }
 }
