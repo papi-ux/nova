@@ -44,4 +44,13 @@ object AndroidStreamDisplayTarget {
                 .thenBy { if (it.displayId == defaultDisplayId) 0 else 1 }
         )
     }
+
+    fun shouldUseDisplayLaunchTrampoline(
+        selectedDisplayId: Int?,
+        currentDisplayId: Int?,
+        companionDisplayId: Int?,
+    ): Boolean {
+        if (selectedDisplayId == null || companionDisplayId == null) return false
+        return selectedDisplayId != currentDisplayId
+    }
 }

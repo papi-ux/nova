@@ -46,7 +46,6 @@ import com.papi.nova.StartExternalDisplayControlReceiver
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardLayoutController
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.ExternalControllerView
-import com.papi.nova.utils.ServerHelper.getSecondaryDisplay
 
 /**
  * A standalone Activity providing a full-screen touchpad controller for the secondary display.
@@ -86,22 +85,22 @@ class ExternalDisplayControlActivity :
             } else {
                 val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
                 val targetDisplayId = gameIntent.getIntExtra(Game.EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY)
-                val secondaryDisplay = displayManager.getDisplay(targetDisplayId)
-                    ?.takeIf { it.displayId != Display.DEFAULT_DISPLAY }
-                    ?: getSecondaryDisplay(this)
-                if (secondaryDisplay != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val targetDisplay = displayManager.getDisplay(targetDisplayId)
+                if (targetDisplay != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     val options = ActivityOptions.makeBasic()
-                    options.setLaunchDisplayId(secondaryDisplay.displayId)
-                    Toast.makeText(
-                        this,
-                        getString(
-                            R.string.external_display_info,
-                            secondaryDisplay.mode.physicalWidth,
-                            secondaryDisplay.mode.physicalHeight,
-                            secondaryDisplay.mode.refreshRate,
-                        ),
-                        Toast.LENGTH_LONG,
-                    ).show()
+                    options.setLaunchDisplayId(targetDisplay.displayId)
+                    if (targetDisplay.displayId != Display.DEFAULT_DISPLAY) {
+                        Toast.makeText(
+                            this,
+                            getString(
+                                R.string.external_display_info,
+                                targetDisplay.mode.physicalWidth,
+                                targetDisplay.mode.physicalHeight,
+                                targetDisplay.mode.refreshRate,
+                            ),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
 
                     startActivity(gameIntent, options.toBundle())
                 } else {

@@ -1,7 +1,9 @@
 package com.papi.nova.utils
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AndroidStreamDisplayTargetTest {
@@ -110,5 +112,60 @@ class AndroidStreamDisplayTargetTest {
         )
 
         assertEquals(4, companion?.displayId)
+    }
+
+    @Test
+    fun displayLaunchTrampolineIsNeededForPrimaryStreamWhenCallerIsOnCompanionDisplay() {
+        assertTrue(
+            AndroidStreamDisplayTarget.shouldUseDisplayLaunchTrampoline(
+                selectedDisplayId = 0,
+                currentDisplayId = 4,
+                companionDisplayId = 4,
+            )
+        )
+    }
+
+    @Test
+    fun displayLaunchTrampolineIsNotNeededForPrimaryStreamWhenCallerIsAlreadyOnPrimaryDisplay() {
+        assertFalse(
+            AndroidStreamDisplayTarget.shouldUseDisplayLaunchTrampoline(
+                selectedDisplayId = 0,
+                currentDisplayId = 0,
+                companionDisplayId = 4,
+            )
+        )
+    }
+
+    @Test
+    fun displayLaunchTrampolineIsNotNeededForPrimaryStreamWithoutCompanionDisplay() {
+        assertFalse(
+            AndroidStreamDisplayTarget.shouldUseDisplayLaunchTrampoline(
+                selectedDisplayId = 0,
+                currentDisplayId = 4,
+                companionDisplayId = null,
+            )
+        )
+    }
+
+    @Test
+    fun displayLaunchTrampolineIsNeededForExternalStreamWhenCallerIsOnPrimaryDisplay() {
+        assertTrue(
+            AndroidStreamDisplayTarget.shouldUseDisplayLaunchTrampoline(
+                selectedDisplayId = 4,
+                currentDisplayId = 0,
+                companionDisplayId = 0,
+            )
+        )
+    }
+
+    @Test
+    fun displayLaunchTrampolineIsNotNeededForExternalStreamWhenCallerIsAlreadyOnExternalDisplay() {
+        assertFalse(
+            AndroidStreamDisplayTarget.shouldUseDisplayLaunchTrampoline(
+                selectedDisplayId = 4,
+                currentDisplayId = 4,
+                companionDisplayId = 0,
+            )
+        )
     }
 }

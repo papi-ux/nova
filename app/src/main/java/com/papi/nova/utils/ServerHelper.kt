@@ -150,6 +150,15 @@ object ServerHelper {
         return candidateMap.displaysById[selected.displayId]
     }
 
+    private fun getActivityDisplayId(parent: Activity): Int {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return parent.display?.displayId ?: Display.DEFAULT_DISPLAY
+        }
+
+        @Suppress("DEPRECATION")
+        return parent.windowManager.defaultDisplay.displayId
+    }
+
     private fun createStartIntent(
         parent: Activity,
         app: NvApp,
@@ -178,10 +187,19 @@ object ServerHelper {
         } else {
             null
         }
-        val useAndroidExternalDisplay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            selectedAndroidDisplay != null &&
-            selectedAndroidDisplay.displayId != Display.DEFAULT_DISPLAY
-        val gameIntent = if (useAndroidExternalDisplay) {
+        val companionAndroidDisplay = if (selectedAndroidDisplay != null) {
+            getAndroidCompanionDisplay(parent, prefConfig, selectedAndroidDisplay.displayId)
+        } else {
+            null
+        }
+        val currentDisplayId = getActivityDisplayId(parent)
+        val useAndroidDisplayLaunch = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            AndroidStreamDisplayTarget.shouldUseDisplayLaunchTrampoline(
+                selectedDisplayId = selectedAndroidDisplay?.displayId,
+                currentDisplayId = currentDisplayId,
+                companionDisplayId = companionAndroidDisplay?.displayId,
+            )
+        val gameIntent = if (useAndroidDisplayLaunch && selectedAndroidDisplay != null) {
             Intent(parent.createDisplayContext(selectedAndroidDisplay), Game::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -223,8 +241,11 @@ object ServerHelper {
             gameIntent.putExtra(Game.EXTRA_SERVER_CERT, serverCert)
         }
 
-        if (useAndroidExternalDisplay) {
+        if (selectedAndroidDisplay != null) {
             gameIntent.putExtra(Game.EXTRA_DISPLAY_ID, selectedAndroidDisplay.displayId)
+        }
+
+        if (useAndroidDisplayLaunch && selectedAndroidDisplay != null) {
             return Intent(parent, ExternalDisplayControlActivity::class.java).apply {
                 putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, gameIntent)
             }

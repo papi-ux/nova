@@ -50,6 +50,18 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
+    fun externalControlBootstrapLaunchesGameOnRequestedDisplayIncludingDefault() {
+        val source = File("src/main/java/com/papi/nova/utils/ExternalDisplayControlActivity.kt").readText()
+
+        assertFalse(
+            "The game bootstrap must not remap a requested primary/default stream display to the secondary display",
+            source.contains("?.takeIf { it.displayId != Display.DEFAULT_DISPLAY }")
+        )
+        assertTrue(source.contains("val targetDisplay = displayManager.getDisplay(targetDisplayId)"))
+        assertTrue(source.contains("options.setLaunchDisplayId(targetDisplay.displayId)"))
+    }
+
+    @Test
     fun gameDifferentiatesStreamAndCompanionDisplayRemoval() {
         val source = File("src/main/java/com/papi/nova/Game.kt").readText()
 
