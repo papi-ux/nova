@@ -210,6 +210,19 @@ class MediaCodecDecoderRenderer(
 
     private var targetFps = 0
 
+    private fun resetRollingPerfStatsForNewStream(reason: String) {
+        LimeLog.info("Nova: Resetting decoder perf stats for $reason")
+        activeWindowVideoStats.clear()
+        lastWindowVideoStats.clear()
+        globalVideoStats.clear()
+        lastFrameNumber = 0
+        lastTimestampUs = 0
+        lastNetDataNum = 0
+        minDecodeTime = Float.MAX_VALUE
+        minDecodeTimeFullLog = ""
+        enqueueNsByPtsUs.clear()
+    }
+
     init {
         avcDecoder = findAvcDecoder()
         if (avcDecoder != null) {
@@ -744,6 +757,7 @@ class MediaCodecDecoderRenderer(
     }
 
     override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {
+        resetRollingPerfStatsForNewStream("stream setup")
         targetFps = if (redrawRate > 0) redrawRate else 60
         initialWidth = if (invertResolution) height else width
         initialHeight = if (invertResolution) width else height
@@ -1426,6 +1440,9 @@ class MediaCodecDecoderRenderer(
             return MoonBridge.DR_OK
         }
         val decodeData = decodeUnitData!!
+        if (frameNumber < lastFrameNumber) {
+            resetRollingPerfStatsForNewStream("frame sequence restart")
+        }
 
         if (lastFrameNumber == 0) {
             activeWindowVideoStats.measurementStartTimestamp = SystemClock.uptimeMillis()
