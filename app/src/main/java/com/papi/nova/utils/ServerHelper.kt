@@ -246,8 +246,8 @@ object ServerHelper {
         }
 
         if (useAndroidDisplayLaunch && selectedAndroidDisplay != null) {
-            return Intent(parent, ExternalDisplayControlActivity::class.java).apply {
-                putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, gameIntent)
+            return Intent(parent, GameDisplayLaunchTrampolineActivity::class.java).apply {
+                putExtra(GameDisplayLaunchTrampolineActivity.EXTRA_LAUNCH_INTENT, gameIntent)
             }
         }
 

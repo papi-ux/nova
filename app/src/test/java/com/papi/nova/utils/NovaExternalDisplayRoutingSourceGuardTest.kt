@@ -50,8 +50,35 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
-    fun externalControlBootstrapLaunchesGameOnRequestedDisplayIncludingDefault() {
+    fun streamLaunchUsesDedicatedTrampolineInsteadOfControlActivity() {
+        val serverHelper = File("src/main/java/com/papi/nova/utils/ServerHelper.kt").readText()
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+
+        assertTrue(serverHelper.contains("GameDisplayLaunchTrampolineActivity"))
+        assertTrue(manifest.contains(".utils.GameDisplayLaunchTrampolineActivity"))
+        assertFalse(
+            "The singleton control activity must not double as the stream launch trampoline",
+            serverHelper.contains("ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT")
+        )
+    }
+
+    @Test
+    fun externalControlActivityDoesNotBootstrapGameLaunches() {
         val source = File("src/main/java/com/papi/nova/utils/ExternalDisplayControlActivity.kt").readText()
+
+        assertFalse(
+            "The companion control activity should only host controls; stream bootstrapping belongs to the dedicated trampoline",
+            source.contains("EXTRA_LAUNCH_INTENT")
+        )
+        assertFalse(
+            "The companion control activity must not launch Game itself from whichever display created it",
+            source.contains("startActivity(gameIntent")
+        )
+    }
+
+    @Test
+    fun displayLaunchTrampolineLaunchesGameOnRequestedDisplayIncludingDefault() {
+        val source = File("src/main/java/com/papi/nova/utils/GameDisplayLaunchTrampolineActivity.kt").readText()
 
         assertFalse(
             "The game bootstrap must not remap a requested primary/default stream display to the secondary display",
@@ -59,6 +86,17 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         )
         assertTrue(source.contains("val targetDisplay = displayManager.getDisplay(targetDisplayId)"))
         assertTrue(source.contains("options.setLaunchDisplayId(targetDisplay.displayId)"))
+    }
+
+    @Test
+    fun gameRelaunchUsesDisplayAwareLauncher() {
+        val source = File("src/main/java/com/papi/nova/Game.kt").readText()
+
+        assertTrue(source.contains("GameDisplayLaunchTrampolineActivity.launchGameOnRequestedDisplay"))
+        assertFalse(
+            "Reconnect/relaunch must not use plain application-context startActivity because it can inherit the wrong display",
+            source.contains("getApplicationContext().startActivity(relaunchIntent)")
+        )
     }
 
     @Test

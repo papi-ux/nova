@@ -2,7 +2,6 @@ package com.papi.nova.utils
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12,12 +11,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
-import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Display
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -76,40 +73,6 @@ class ExternalDisplayControlActivity :
 
         instance = this
         prefConfig = PreferenceConfiguration.readPreferences(this)
-
-        if (!isGameInstanceAvailable()) {
-            @Suppress("DEPRECATION")
-            val gameIntent = intent.getParcelableExtra<Intent>(EXTRA_LAUNCH_INTENT)
-            if (gameIntent == null) {
-                finish()
-            } else {
-                val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-                val targetDisplayId = gameIntent.getIntExtra(Game.EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY)
-                val targetDisplay = displayManager.getDisplay(targetDisplayId)
-                if (targetDisplay != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val options = ActivityOptions.makeBasic()
-                    options.setLaunchDisplayId(targetDisplay.displayId)
-                    if (targetDisplay.displayId != Display.DEFAULT_DISPLAY) {
-                        Toast.makeText(
-                            this,
-                            getString(
-                                R.string.external_display_info,
-                                targetDisplay.mode.physicalWidth,
-                                targetDisplay.mode.physicalHeight,
-                                targetDisplay.mode.refreshRate,
-                            ),
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
-
-                    startActivity(gameIntent, options.toBundle())
-                } else {
-                    LimeLog.warning(getString(R.string.no_external_display))
-                    startActivity(gameIntent)
-                    finish()
-                }
-            }
-        }
 
         initViews()
     }
@@ -500,9 +463,6 @@ class ExternalDisplayControlActivity :
     }
 
     companion object {
-        @JvmField
-        var EXTRA_LAUNCH_INTENT: String = "launchIntent"
-
         @SuppressLint("StaticFieldLeak")
         @JvmField
         var instance: ExternalDisplayControlActivity? = null

@@ -52,6 +52,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.ExternalDisplayControlActivity
+import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.MouseModeOption
 import com.papi.nova.utils.PanZoomHandler
 import com.papi.nova.utils.PerformanceDataTracker
@@ -6038,7 +6039,7 @@ if (prefConfig!!.smartClipboardSync)
 getClipboard(-1)
 }
 finish()
-Handler(Looper.getMainLooper()).postDelayed({ getApplicationContext().startActivity(relaunchIntent)
+Handler(Looper.getMainLooper()).postDelayed({ GameDisplayLaunchTrampolineActivity.launchGameOnRequestedDisplay(getApplicationContext(), relaunchIntent)
 overridePendingTransition(0, 0) }, 900)
 }
  fun quit() {
