@@ -169,7 +169,7 @@ data class NovaHudUiState(
             val healthReason = buildHealthReason(status, fps, targetFps, latencyMs)
             return NovaHudUiState(
                 mode = mode,
-                fpsLabel = fps.takeIf { it > 0.0 }?.toInt()?.toString() ?: "--",
+                fpsLabel = fps.takeIf { it > 0.0 }?.roundToInt()?.toString() ?: "--",
                 targetFpsLabel = formatTargetFps(mode, targetFps),
                 latencyLabel = latencyMs.takeIf { it > 0 }?.let { "${it}ms" } ?: "--ms",
                 bitrateLabel = formatBitrate(mode, bitrateKbps),
