@@ -352,6 +352,52 @@ class NovaHudUiStateTest {
         assertEquals("Stream 60 • 10-bit SDR", state.streamTruthLabel)
         assertEquals(NovaHudTone.WARNING, state.statusTone)
     }
+
+    @Test
+    fun diagnosticsExplainAmdVaapiHostCaptureTruthSeparatelyFromClientHealth() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 59.2,
+            targetFps = 120.0,
+            latencyMs = 18,
+            codec = "hevc",
+            bitrateKbps = 22000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc",
+                    bitrateKbps = 22000,
+                    fps = 60.0,
+                    requestedClientFps = 120.0,
+                    sessionTargetFps = 120.0,
+                    encodeTargetFps = 120.0,
+                    targetDevice = "vaapi",
+                    targetResidency = "gpu"
+                ),
+                capture = PolarisSessionStatus.CaptureStatus(
+                    transport = "shm",
+                    residency = "cpu"
+                ),
+                linuxGpuProfile = PolarisSessionStatus.LinuxGpuProfile(
+                    encoderApi = "vaapi",
+                    encoderAdapter = "/dev/dri/renderD128",
+                    captureDevice = "/dev/dri/renderD128",
+                    adapterMatchesCaptureDevice = true,
+                    gpuNativeRequested = true,
+                    gpuNativeAttempted = true,
+                    gpuNativeSucceeded = false,
+                    vaapiVendor = "Mesa Gallium"
+                )
+            ),
+            sparklineSamples = listOf(58f, 60f, 59f)
+        )
+
+        assertEquals("Stream 120 • VAAPI + SHM fallback", state.streamTruthLabel)
+        assertEquals(NovaHudLayerHealth("VAAPI + SHM fallback", NovaHudTone.WARNING), state.layerHealth.first())
+        assertTrue(state.layerHealth.any { it.label == "CLIENT" && it.tone == NovaHudTone.STABLE })
+    }
+
     @Test
     fun eventBreadcrumbTrailKeepsLatestActionableHudEvent() {
         val trail = NovaHudEventTrail(capacity = 3)
@@ -441,7 +487,8 @@ class NovaHudUiStateTest {
             adaptiveTargetBitrateKbps = 30000,
             adaptiveBaseBitrateKbps = 30000,
             aiOptimizerEnabled = true
-        )
+        ),
+        linuxGpuProfile: PolarisSessionStatus.LinuxGpuProfile? = null
     ) = PolarisSessionStatus(
         state = "streaming",
         streamingActive = true,
@@ -453,6 +500,7 @@ class NovaHudUiStateTest {
         health = health,
         autoQuality = autoQuality,
         displayMode = displayMode,
+        linuxGpuProfile = linuxGpuProfile,
         syncStatus = PolarisSessionStatus.SyncStatus(
             available = true,
             state = "synced"

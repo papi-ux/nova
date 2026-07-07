@@ -362,6 +362,32 @@ class PolarisApiClient @JvmOverloads constructor(
             )
         }
 
+        private fun parseLinuxGpuProfile(json: JSONObject?): PolarisSessionStatus.LinuxGpuProfile? {
+            if (json == null) return null
+            val hasAnyField = listOf(
+                "encoder_api",
+                "encoder_adapter",
+                "capture_device",
+                "adapter_matches_capture_device",
+                "gpu_native_requested",
+                "gpu_native_attempted",
+                "gpu_native_succeeded",
+                "vaapi_vendor"
+            ).any(json::has)
+            if (!hasAnyField) return null
+            return PolarisSessionStatus.LinuxGpuProfile(
+                encoderApi = json.optString("encoder_api", ""),
+                encoderAdapter = json.optString("encoder_adapter", ""),
+                captureDevice = json.optString("capture_device", ""),
+                adapterMatchesCaptureDevice = json.optBoolean("adapter_matches_capture_device", true),
+                crossGpuDmabufRisk = json.optBoolean("cross_gpu_dmabuf_risk", false),
+                gpuNativeRequested = json.optBoolean("gpu_native_requested", false),
+                gpuNativeAttempted = json.optBoolean("gpu_native_attempted", false),
+                gpuNativeSucceeded = json.optBoolean("gpu_native_succeeded", false),
+                vaapiVendor = json.optString("vaapi_vendor", "")
+            )
+        }
+
         @JvmStatic
         fun parseUnlockResponse(json: JSONObject): Boolean =
             json.optBoolean("success", false)
@@ -443,6 +469,8 @@ class PolarisApiClient @JvmOverloads constructor(
             val autoQuality = json.optJSONObject("auto_quality")
                 ?: health?.optJSONObject("recovery_policy")
             val profileState = json.optJSONObject("profile_state")
+            val linuxGpuProfile = json.optJSONObject("linux_gpu_profile")
+                ?: streamPolicy?.optJSONObject("linux_gpu_profile")
 
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
@@ -559,6 +587,10 @@ class PolarisApiClient @JvmOverloads constructor(
                 capture = PolarisSessionStatus.CaptureStatus(
                     backend = capture?.optString("backend", "") ?: "",
                     resolution = capture?.optString("resolution", "") ?: "",
+                    path = capture?.optString("path", json.optString("capture_path", ""))
+                        ?: json.optString("capture_path", ""),
+                    reason = capture?.optString("reason", json.optString("capture_path_reason", ""))
+                        ?: json.optString("capture_path_reason", ""),
                     transport = capture?.optString("transport", "") ?: "",
                     residency = capture?.optString("residency", "") ?: "",
                     format = capture?.optString("format", "") ?: ""
@@ -581,6 +613,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     targetResidency = encoder?.optString("target_residency", "") ?: "",
                     targetFormat = encoder?.optString("target_format", "") ?: ""
                 ),
+                linuxGpuProfile = parseLinuxGpuProfile(linuxGpuProfile),
                 autoQuality = parseAutoQualityPolicy(autoQuality),
                 profileState = parseProfileState(profileState),
                 health = PolarisSessionStatus.HealthStatus(

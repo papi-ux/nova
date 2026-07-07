@@ -11,7 +11,8 @@ data class StreamPolicyUiState(
     val adaptiveEnabled: Boolean,
     val aiEnabled: Boolean,
     val codecLabel: String,
-    val displayLabel: String
+    val displayLabel: String,
+    val hostCaptureLabel: String = ""
 ) {
     val autoQualityEnabled get() = adaptiveEnabled || aiEnabled
     val hasAdaptiveCap get() = adaptiveEnabled &&
@@ -30,7 +31,7 @@ data class StreamPolicyUiState(
         }
 
     val targetSummary: String
-        get() = listOf(displayLabel, codecLabel, bitrateSummary)
+        get() = listOf(displayLabel, codecLabel, hostCaptureLabel, bitrateSummary)
             .filter { it.isNotBlank() }
             .joinToString(" · ")
 
@@ -102,7 +103,8 @@ data class StreamPolicyUiState(
                 adaptiveEnabled = adaptiveEnabled,
                 aiEnabled = aiEnabled,
                 codecLabel = normalizeCodec(status?.encoder?.codec.orEmpty()),
-                displayLabel = display
+                displayLabel = display,
+                hostCaptureLabel = status?.hostCaptureTruthLabel.orEmpty()
             )
         }
 

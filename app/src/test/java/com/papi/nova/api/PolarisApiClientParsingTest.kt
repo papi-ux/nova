@@ -250,6 +250,31 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun parseSessionStatusResponse_includesLinuxGpuProfile() {
+        val json = JSONObject(
+            "{\"state\":\"streaming\",\"streaming_active\":true," +
+                "\"capture\":{\"path\":\"shm_cpu_capture\",\"reason\":\"gpu_native_requested_shm_fallback\"," +
+                "\"transport\":\"shm\",\"residency\":\"cpu\",\"format\":\"bgra8\"}," +
+                "\"encoder\":{\"codec\":\"hevc\",\"target_device\":\"vaapi\",\"target_residency\":\"gpu\"}," +
+                "\"linux_gpu_profile\":{\"encoder_api\":\"vaapi\",\"encoder_adapter\":\"/dev/dri/renderD128\"," +
+                "\"capture_device\":\"/dev/dri/renderD128\",\"adapter_matches_capture_device\":true," +
+                "\"gpu_native_requested\":true,\"gpu_native_attempted\":true,\"gpu_native_succeeded\":false," +
+                "\"vaapi_vendor\":\"Mesa Gallium\"}}"
+        )
+
+        val status = PolarisApiClient.parseSessionStatusResponse(json)
+
+        assertEquals("vaapi", status.linuxGpuProfile?.encoderApi)
+        assertEquals("/dev/dri/renderD128", status.linuxGpuProfile?.encoderAdapter)
+        assertEquals("/dev/dri/renderD128", status.linuxGpuProfile?.captureDevice)
+        assertTrue(status.linuxGpuProfile?.adapterMatchesCaptureDevice == true)
+        assertTrue(status.linuxGpuProfile?.gpuNativeRequested == true)
+        assertFalse(status.linuxGpuProfile?.gpuNativeSucceeded ?: true)
+        assertEquals("Mesa Gallium", status.linuxGpuProfile?.vaapiVendor)
+        assertEquals("VAAPI + SHM fallback", status.hostCaptureTruthLabel)
+    }
+
+    @Test
     fun buildClientSettingsUpdateBody_mapsAiAutoQualityToLegacyFields() {
         val body = PolarisApiClient.buildClientSettingsUpdateBody(
             streamDisplayMode = null,
