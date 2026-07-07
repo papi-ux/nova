@@ -2,7 +2,6 @@ package com.papi.nova.utils
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12,12 +11,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
-import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Display
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -46,7 +43,6 @@ import com.papi.nova.StartExternalDisplayControlReceiver
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardLayoutController
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.ExternalControllerView
-import com.papi.nova.utils.ServerHelper.getSecondaryDisplay
 
 /**
  * A standalone Activity providing a full-screen touchpad controller for the secondary display.
@@ -77,40 +73,6 @@ class ExternalDisplayControlActivity :
 
         instance = this
         prefConfig = PreferenceConfiguration.readPreferences(this)
-
-        if (!isGameInstanceAvailable()) {
-            @Suppress("DEPRECATION")
-            val gameIntent = intent.getParcelableExtra<Intent>(EXTRA_LAUNCH_INTENT)
-            if (gameIntent == null) {
-                finish()
-            } else {
-                val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-                val targetDisplayId = gameIntent.getIntExtra(Game.EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY)
-                val secondaryDisplay = displayManager.getDisplay(targetDisplayId)
-                    ?.takeIf { it.displayId != Display.DEFAULT_DISPLAY }
-                    ?: getSecondaryDisplay(this)
-                if (secondaryDisplay != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val options = ActivityOptions.makeBasic()
-                    options.setLaunchDisplayId(secondaryDisplay.displayId)
-                    Toast.makeText(
-                        this,
-                        getString(
-                            R.string.external_display_info,
-                            secondaryDisplay.mode.physicalWidth,
-                            secondaryDisplay.mode.physicalHeight,
-                            secondaryDisplay.mode.refreshRate,
-                        ),
-                        Toast.LENGTH_LONG,
-                    ).show()
-
-                    startActivity(gameIntent, options.toBundle())
-                } else {
-                    LimeLog.warning(getString(R.string.no_external_display))
-                    startActivity(gameIntent)
-                    finish()
-                }
-            }
-        }
 
         initViews()
     }
@@ -501,9 +463,6 @@ class ExternalDisplayControlActivity :
     }
 
     companion object {
-        @JvmField
-        var EXTRA_LAUNCH_INTENT: String = "launchIntent"
-
         @SuppressLint("StaticFieldLeak")
         @JvmField
         var instance: ExternalDisplayControlActivity? = null

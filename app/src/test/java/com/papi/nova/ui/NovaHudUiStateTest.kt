@@ -35,6 +35,23 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun performanceTextParserKeepsLocalizedCommaFpsWhole() {
+        val sample = NovaHudPerfSample.fromPerfText(
+            """
+            1920x1080 119,84 FPS
+            Avc.decoder.low_latency
+            Bildfrekvens från nätverket: 119,84 FPS
+            Renderingsfrekvens: 113,87 FPS
+            Frames dropped by your network connection: 0,00%
+            """.trimIndent()
+        )
+
+        assertEquals(119.84, sample.fps!!, 0.01)
+        assertEquals(1920, sample.width)
+        assertEquals(1080, sample.height)
+    }
+
+    @Test
     fun fullModeFormatsReadableLabelsAndTones() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.DEBUG,
@@ -49,7 +66,7 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(55f, 58f, 60f)
         )
 
-        assertEquals("118", state.fpsLabel)
+        assertEquals("119", state.fpsLabel)
         assertEquals("TGT 120", state.targetFpsLabel)
         assertEquals("18ms", state.latencyLabel)
         assertEquals("24 Mbps", state.bitrateLabel)
@@ -107,6 +124,24 @@ class NovaHudUiStateTest {
         assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.MINIMAL.next())
         assertEquals(NovaHudMode.DEBUG, NovaHudMode.PERFORMANCE.next())
         assertEquals(NovaHudMode.MINIMAL, NovaHudMode.DEBUG.next())
+    }
+
+    @Test
+    fun fpsLabelRoundsNearTargetInsteadOfFlooringReconnectJitter() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.MINIMAL,
+            fps = 119.8,
+            targetFps = 120.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 30000,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = listOf(119.8f)
+        )
+
+        assertEquals("120", state.fpsLabel)
     }
 
     @Test

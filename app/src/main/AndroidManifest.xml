@@ -167,6 +167,11 @@
             android:launchMode="singleInstance"
             android:taskAffinity=""
             android:theme="@style/ExternalDisplayControllerTheme"/>
+        <activity android:name=".utils.GameDisplayLaunchTrampolineActivity"
+            android:exported="false"
+            android:noHistory="true"
+            android:resizeableActivity="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
         <activity
             android:name=".preferences.StreamSettings"
             android:resizeableActivity="true"

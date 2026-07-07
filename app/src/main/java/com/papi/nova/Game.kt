@@ -2,7 +2,7 @@ package com.papi.nova
 
 
 import com.papi.nova.utils.ServerHelper.getActiveDisplay
-import com.papi.nova.utils.ServerHelper.getSecondaryDisplay
+import com.papi.nova.utils.ServerHelper.getAndroidCompanionDisplay
 
 import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.binding.audio.AndroidAudioRenderer
@@ -52,6 +52,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.ExternalDisplayControlActivity
+import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.MouseModeOption
 import com.papi.nova.utils.PanZoomHandler
 import com.papi.nova.utils.PerformanceDataTracker
@@ -218,6 +219,8 @@ private var grabbedInput:Boolean = true
 private var cursorVisible:Boolean = false
 private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
+private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
+private var externalDisplayListener:DisplayManager.DisplayListener? = null
 @Volatile private var lastClientPresentationRefreshRate:Float = 0f
 @Volatile private var lastClientPresentationDisplayModeId:Int = 0
 @Volatile private var lastClientPresentationDisplayMode:String = ""
@@ -385,6 +388,30 @@ display = displayManager!!.getDisplay(streamingDisplayId)
 }
 }
 return if (display != null) display else getWindowManager().getDefaultDisplay()
+}
+
+fun streamingDisplayIdForCompanion(): Int = streamingDisplayId
+
+private fun getCompanionControlDisplay(): Display? {
+if (!::prefConfig.isInitialized)
+{
+return null
+}
+return getAndroidCompanionDisplay(this, prefConfig, streamingDisplayId)
+}
+
+private fun shouldLaunchCompanionControls(): Boolean {
+return ::prefConfig.isInitialized && prefConfig.enableFullExDisplay && getCompanionControlDisplay() != null
+}
+
+private fun launchCompanionControlsIfAvailable() {
+val companionDisplay:Display? = getCompanionControlDisplay()
+if (::prefConfig.isInitialized && prefConfig.enableFullExDisplay && companionDisplay != null)
+{
+companionControlDisplayId = companionDisplay.getDisplayId()
+StartExternalDisplayControlReceiver.requestFocusToExternalDisplayControl(this, streamingDisplayId)
+listenForExternalDisplayRemoval()
+}
 }
 
 @SuppressLint("InlinedApi")
@@ -1162,11 +1189,7 @@ applyMouseMode(2)
 }
 else
 {
-if (prefConfig!!.enableFullExDisplay && isOnExternalDisplay)
-{
-StartExternalDisplayControlReceiver.requestFocusToExternalDisplayControl(this)
-listenForExternalDisplayRemoval()
-}
+launchCompanionControlsIfAvailable()
 
  // Initialize touch contexts based on preferences
             // The mouse mode preference is also read in PreferenceConfiguration to set the boolean flags
@@ -1426,23 +1449,55 @@ R.drawable.floating_menu_button)
 }
 
 private fun listenForExternalDisplayRemoval() {
-var displayManager:DisplayManager? = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-displayManager!!.registerDisplayListener(object : DisplayManager.DisplayListener {
-override fun onDisplayAdded(displayId:Int) {}
+if (externalDisplayListener != null) return
+
+val displayManager:DisplayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+val listener:DisplayManager.DisplayListener = object : DisplayManager.DisplayListener {
+override fun onDisplayAdded(displayId:Int) = Unit
+override fun onDisplayChanged(displayId:Int) = Unit
 override fun onDisplayRemoved(displayId:Int) {
-if (getSecondaryDisplay(getBaseContext()) == null)
-{
-handleDisplayRemoved()
-finish()
+handleDisplayRemoved(displayId)
 }
 }
-override fun onDisplayChanged(displayId:Int) {}
-}, null)
+externalDisplayListener = listener
+displayManager.registerDisplayListener(listener, null)
 }
 
-private fun handleDisplayRemoved() {
-NotificationManagerCompat.from(getBaseContext()).cancel(ExternalDisplayControlActivity.SECONDARY_SCREEN_NOTIFICATION_ID)
+private fun stopListeningForExternalDisplayRemoval() {
+val listener:DisplayManager.DisplayListener = externalDisplayListener ?: return
+val displayManager:DisplayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+displayManager.unregisterDisplayListener(listener)
+externalDisplayListener = null
+}
+
+private fun closeCompanionControls() {
+NotificationManagerCompat.from(baseContext)
+.cancel(ExternalDisplayControlActivity.SECONDARY_SCREEN_NOTIFICATION_ID)
 ExternalDisplayControlActivity.closeExternalDisplayControl()
+companionControlDisplayId = INVALID_DISPLAY_ID
+}
+
+private fun handleDisplayRemoved(removedDisplayId:Int) {
+NotificationManagerCompat.from(baseContext)
+.cancel(ExternalDisplayControlActivity.SECONDARY_SCREEN_NOTIFICATION_ID)
+
+when {
+removedDisplayId == streamingDisplayId -> {
+ExternalDisplayControlActivity.closeExternalDisplayControl()
+finish()
+}
+removedDisplayId == companionControlDisplayId -> {
+ExternalDisplayControlActivity.closeExternalDisplayControl()
+companionControlDisplayId = INVALID_DISPLAY_ID
+}
+else -> {
+if (getCompanionControlDisplay() == null)
+{
+ExternalDisplayControlActivity.closeExternalDisplayControl()
+companionControlDisplayId = INVALID_DISPLAY_ID
+}
+}
+}
 }
 
 @SuppressLint("ClickableViewAccessibility")
@@ -2387,6 +2442,7 @@ decoderRenderer!!.notifyVideoForeground()
 
 override fun onDestroy() {
 super.onDestroy()
+stopListeningForExternalDisplayRemoval()
 
  // Nova: clean up Polaris integration
         stopPolarisLiveSessionStatusRefresh()
@@ -2416,7 +2472,7 @@ isStreamActive = false
 instance = null
 timerHandler!!.removeCallbacksAndMessages(null)
 
-if (prefConfig!!.enableFullExDisplay) handleDisplayRemoved()
+if (prefConfig!!.enableFullExDisplay) closeCompanionControls()
 
 if (controllerHandler != null)
 {
@@ -5983,7 +6039,7 @@ if (prefConfig!!.smartClipboardSync)
 getClipboard(-1)
 }
 finish()
-Handler(Looper.getMainLooper()).postDelayed({ getApplicationContext().startActivity(relaunchIntent)
+Handler(Looper.getMainLooper()).postDelayed({ GameDisplayLaunchTrampolineActivity.launchGameOnRequestedDisplay(getApplicationContext(), relaunchIntent)
 overridePendingTransition(0, 0) }, 900)
 }
  fun quit() {
@@ -6172,6 +6228,7 @@ companion object {
  private const val FIVE_FINGER_TAP_THRESHOLD:Int = 300
  private const val POLARIS_SESSION_STATUS_REFRESH_MS:Long = 15000L
  private const val NOVA_PROGRESS_READY_DISMISS_DELAY_MS:Long = 350L
+ private const val INVALID_DISPLAY_ID:Int = -1
 
  const val EXTRA_HOST:String = "Host"
  const val EXTRA_PORT:String = "Port"

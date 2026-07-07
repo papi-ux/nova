@@ -76,7 +76,17 @@ object ServerHelper {
     @JvmStatic
     fun getAndroidStreamDisplay(context: Context, prefs: PreferenceConfiguration): Display? {
         val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        return selectDisplay(displayManager.displays, prefs.androidStreamDisplayTarget)
+        val candidateMap = buildDisplayCandidateMap(displayManager.displays)
+        val selected = AndroidStreamDisplayTarget.select(
+            candidateMap.candidates,
+            Display.DEFAULT_DISPLAY,
+            prefs.androidStreamDisplayTarget,
+        ) ?: return null
+        LimeLog.info(
+            "Nova: Android display role stream id=${selected.displayId} " +
+                "target=${prefs.androidStreamDisplayTarget}"
+        )
+        return candidateMap.displaysById[selected.displayId]
     }
 
     @JvmStatic
@@ -85,9 +95,39 @@ object ServerHelper {
         return selectDisplay(displayManager.displays, AndroidStreamDisplayTarget.EXTERNAL)
     }
 
-    private fun selectDisplay(displays: Array<Display>, target: String?): Display? {
+    @JvmStatic
+    fun getAndroidCompanionDisplay(
+        context: Context,
+        prefs: PreferenceConfiguration,
+        streamDisplayId: Int,
+    ): Display? {
+        if (!prefs.enableFullExDisplay) return null
+
+        val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val candidateMap = buildDisplayCandidateMap(displayManager.displays)
+        val selected = AndroidStreamDisplayTarget.selectCompanion(
+            candidateMap.candidates,
+            Display.DEFAULT_DISPLAY,
+            streamDisplayId,
+        ) ?: return null
+        LimeLog.info(
+            "Nova: Android display role companion id=${selected.displayId} " +
+                "stream_id=$streamDisplayId"
+        )
+
+        return candidateMap.displaysById[selected.displayId]
+    }
+
+    private data class AndroidDisplayCandidateMap(
+        val displaysById: Map<Int, Display>,
+        val candidates: List<AndroidStreamDisplayTarget.Candidate>,
+    )
+
+    private fun buildDisplayCandidateMap(displays: Array<Display>): AndroidDisplayCandidateMap {
+        val displaysById = LinkedHashMap<Int, Display>()
         val candidates = displays.map { display ->
             LimeLog.info(display.toString())
+            displaysById[display.displayId] = display
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
             display.getRealMetrics(metrics)
@@ -97,12 +137,26 @@ object ServerHelper {
                 height = metrics.heightPixels,
             )
         }
+        return AndroidDisplayCandidateMap(displaysById, candidates)
+    }
+
+    private fun selectDisplay(displays: Array<Display>, target: String?): Display? {
+        val candidateMap = buildDisplayCandidateMap(displays)
         val selected = AndroidStreamDisplayTarget.select(
-            candidates,
+            candidateMap.candidates,
             Display.DEFAULT_DISPLAY,
             target,
         ) ?: return null
-        return displays.firstOrNull { it.displayId == selected.displayId }
+        return candidateMap.displaysById[selected.displayId]
+    }
+
+    private fun getActivityDisplayId(parent: Activity): Int {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return parent.display?.displayId ?: Display.DEFAULT_DISPLAY
+        }
+
+        @Suppress("DEPRECATION")
+        return parent.windowManager.defaultDisplay.displayId
     }
 
     private fun createStartIntent(
@@ -133,10 +187,19 @@ object ServerHelper {
         } else {
             null
         }
-        val useAndroidExternalDisplay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            selectedAndroidDisplay != null &&
-            selectedAndroidDisplay.displayId != Display.DEFAULT_DISPLAY
-        val gameIntent = if (useAndroidExternalDisplay) {
+        val companionAndroidDisplay = if (selectedAndroidDisplay != null) {
+            getAndroidCompanionDisplay(parent, prefConfig, selectedAndroidDisplay.displayId)
+        } else {
+            null
+        }
+        val currentDisplayId = getActivityDisplayId(parent)
+        val useAndroidDisplayLaunch = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            AndroidStreamDisplayTarget.shouldUseDisplayLaunchTrampoline(
+                selectedDisplayId = selectedAndroidDisplay?.displayId,
+                currentDisplayId = currentDisplayId,
+                companionDisplayId = companionAndroidDisplay?.displayId,
+            )
+        val gameIntent = if (useAndroidDisplayLaunch && selectedAndroidDisplay != null) {
             Intent(parent.createDisplayContext(selectedAndroidDisplay), Game::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -178,10 +241,13 @@ object ServerHelper {
             gameIntent.putExtra(Game.EXTRA_SERVER_CERT, serverCert)
         }
 
-        if (useAndroidExternalDisplay) {
+        if (selectedAndroidDisplay != null) {
             gameIntent.putExtra(Game.EXTRA_DISPLAY_ID, selectedAndroidDisplay.displayId)
-            return Intent(parent, ExternalDisplayControlActivity::class.java).apply {
-                putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, gameIntent)
+        }
+
+        if (useAndroidDisplayLaunch && selectedAndroidDisplay != null) {
+            return Intent(parent, GameDisplayLaunchTrampolineActivity::class.java).apply {
+                putExtra(GameDisplayLaunchTrampolineActivity.EXTRA_LAUNCH_INTENT, gameIntent)
             }
         }
 

@@ -50,27 +50,31 @@ data class NovaHudPerfSample(
 ) {
     companion object {
         fun fromPerfText(text: String): NovaHudPerfSample {
-            val fpsMatch = Regex("""(\d+(?:\.\d+)?)\s*(?:fps|FPS)""", RegexOption.IGNORE_CASE).find(text)
-                ?: Regex("""FPS[:\s]+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE).find(text)
-                ?: Regex("""(\d+\.\d)\s*$""", RegexOption.MULTILINE).find(text.lines().firstOrNull() ?: "")
+            val localizedNumber = """\d+(?:[.,]\d+)?"""
+            val fpsMatch = Regex("""(?<![\d.,])($localizedNumber)\s*(?:fps|FPS)\b""", RegexOption.IGNORE_CASE).find(text)
+                ?: Regex("""FPS[:：\s]+($localizedNumber)""", RegexOption.IGNORE_CASE).find(text)
+                ?: Regex("""($localizedNumber)\s*$""", RegexOption.MULTILINE).find(text.lines().firstOrNull() ?: "")
             val resolutionMatch = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""").find(text)
             val latencyMatch = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE).find(text)
             val codecMatch = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE).find(text)
             val packetLossMatch = Regex(
-                """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*(\d+(?:\.\d+)?)\s*%""",
+                """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*($localizedNumber)\s*%""",
                 RegexOption.IGNORE_CASE
             ).find(text)
-                ?: Regex("""(\d+(?:\.\d+)?)\s*%\s*(?:packet loss|netdrops)""", RegexOption.IGNORE_CASE).find(text)
+                ?: Regex("""($localizedNumber)\s*%\s*(?:packet loss|netdrops)""", RegexOption.IGNORE_CASE).find(text)
 
             return NovaHudPerfSample(
-                fps = fpsMatch?.groupValues?.getOrNull(1)?.toDoubleOrNull(),
+                fps = fpsMatch?.localizedDouble(),
                 width = resolutionMatch?.groupValues?.getOrNull(1)?.toIntOrNull(),
                 height = resolutionMatch?.groupValues?.getOrNull(2)?.toIntOrNull(),
                 latencyMs = latencyMatch?.groupValues?.getOrNull(1)?.toIntOrNull(),
                 codec = codecMatch?.groupValues?.getOrNull(1)?.let(NovaHudUiState::normalizeCodecLabel),
-                packetLossPct = packetLossMatch?.groupValues?.getOrNull(1)?.toDoubleOrNull()
+                packetLossPct = packetLossMatch?.localizedDouble()
             )
         }
+
+        private fun MatchResult.localizedDouble(): Double? =
+            groupValues.getOrNull(1)?.replace(',', '.')?.toDoubleOrNull()
     }
 }
 
@@ -169,7 +173,7 @@ data class NovaHudUiState(
             val healthReason = buildHealthReason(status, fps, targetFps, latencyMs)
             return NovaHudUiState(
                 mode = mode,
-                fpsLabel = fps.takeIf { it > 0.0 }?.toInt()?.toString() ?: "--",
+                fpsLabel = fps.takeIf { it > 0.0 }?.roundToInt()?.toString() ?: "--",
                 targetFpsLabel = formatTargetFps(mode, targetFps),
                 latencyLabel = latencyMs.takeIf { it > 0 }?.let { "${it}ms" } ?: "--ms",
                 bitrateLabel = formatBitrate(mode, bitrateKbps),
