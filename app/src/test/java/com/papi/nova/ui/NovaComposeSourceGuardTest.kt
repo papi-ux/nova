@@ -10,6 +10,40 @@ import org.junit.Test
 
 class NovaComposeSourceGuardTest {
     @Test
+    fun commandCenterRequestsInitialFocusForDpadNavigationOnOpen() {
+        val quickMenuContent = readNovaQuickMenuContent()
+        val content = quickMenuContent.section(
+            "fun NovaQuickMenuContent(",
+            "@Composable\nprivate fun NovaQuickMenuHeader("
+        )
+        val header = quickMenuContent.section(
+            "private fun NovaQuickMenuHeader(",
+            "@Composable\nprivate fun NovaQuickMenuTitleBlock("
+        )
+        val closeButton = quickMenuContent.section(
+            "private fun NovaQuickMenuCloseButton(",
+            "@Composable\nprivate fun NovaQuickMenuSessionStrip("
+        )
+
+        assertTrue(
+            "Command Center should create a FocusRequester when opened so Android TV DPAD navigation has an initial target without requiring keyboard Tab",
+            quickMenuContent.contains("import androidx.compose.ui.focus.FocusRequester") &&
+                quickMenuContent.contains("import androidx.compose.ui.focus.focusRequester") &&
+                content.contains("val initialFocusRequester = remember { FocusRequester() }") &&
+                content.contains("LaunchedEffect(Unit)") &&
+                content.contains("initialFocusRequester.requestFocus()")
+        )
+        assertTrue(
+            "Command Center should attach that initial focus requester to the visible Close button in both compact and wide header layouts",
+            content.contains("NovaQuickMenuHeader(state, callbacks, initialFocusRequester)") &&
+                header.contains("initialFocusRequester: FocusRequester") &&
+                header.contains("NovaQuickMenuCloseButton(callbacks, initialFocusRequester)") &&
+                closeButton.contains("initialFocusRequester: FocusRequester") &&
+                closeButton.contains(".focusRequester(initialFocusRequester)")
+        )
+    }
+
+    @Test
     fun libraryFilterSheetContentIsScrollable() {
         val filterSheet = readNovaLibraryActivity().section(
             "private fun NovaLibraryFilterSheet(",

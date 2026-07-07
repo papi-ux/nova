@@ -40,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -233,6 +235,11 @@ fun NovaQuickMenuContent(
     val overlaysTitle = stringResource(R.string.nova_quick_menu_overlays)
     val controlsTitle = stringResource(R.string.nova_quick_menu_controls)
     val sessionTitle = stringResource(R.string.nova_quick_menu_session)
+    val initialFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        initialFocusRequester.requestFocus()
+    }
 
     Column(
         modifier = modifier
@@ -257,7 +264,7 @@ fun NovaQuickMenuContent(
                 .align(Alignment.Start)
         )
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuHeader(state, callbacks)
+        NovaQuickMenuHeader(state, callbacks, initialFocusRequester)
         Spacer(Modifier.height(8.dp))
         NovaQuickMenuSessionStrip(state)
         Spacer(Modifier.height(10.dp))
@@ -310,7 +317,11 @@ fun NovaQuickMenuContent(
 }
 
 @Composable
-private fun NovaQuickMenuHeader(state: NovaQuickMenuUiState, callbacks: NovaQuickMenuCallbacks) {
+private fun NovaQuickMenuHeader(
+    state: NovaQuickMenuUiState,
+    callbacks: NovaQuickMenuCallbacks,
+    initialFocusRequester: FocusRequester
+) {
     val configuration = LocalConfiguration.current
     val compact = configuration.screenWidthDp < 430
 
@@ -322,7 +333,7 @@ private fun NovaQuickMenuHeader(state: NovaQuickMenuUiState, callbacks: NovaQuic
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     NovaQuickMenuTitleBlock(state, Modifier.weight(1f))
-                    NovaQuickMenuCloseButton(callbacks)
+                    NovaQuickMenuCloseButton(callbacks, initialFocusRequester)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NovaQuickMenuHeaderButton(state.disconnectAction, callbacks, Modifier.weight(1f))
@@ -335,7 +346,7 @@ private fun NovaQuickMenuHeader(state: NovaQuickMenuUiState, callbacks: NovaQuic
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 NovaQuickMenuTitleBlock(state, Modifier.weight(1f))
-                NovaQuickMenuCloseButton(callbacks)
+                NovaQuickMenuCloseButton(callbacks, initialFocusRequester)
                 NovaQuickMenuHeaderButton(state.disconnectAction, callbacks)
                 NovaQuickMenuHeaderButton(state.endAction, callbacks)
             }
@@ -388,6 +399,7 @@ private fun NovaQuickMenuHeaderButton(
 @Composable
 private fun NovaQuickMenuCloseButton(
     callbacks: NovaQuickMenuCallbacks,
+    initialFocusRequester: FocusRequester,
     modifier: Modifier = Modifier
 ) {
     NovaActionButton(
@@ -395,6 +407,7 @@ private fun NovaQuickMenuCloseButton(
         onClick = callbacks.onDismiss,
         modifier = modifier
             .widthIn(min = 72.dp)
+            .focusRequester(initialFocusRequester)
             .semantics { contentDescription = "Close Command Center" },
         primary = false,
         cornerRadius = 12.dp,
