@@ -29,9 +29,11 @@ class NovaComposeSourceGuardTest {
             "Command Center should create a FocusRequester when opened so Android TV DPAD navigation has an initial target without requiring keyboard Tab",
             quickMenuContent.contains("import androidx.compose.ui.focus.FocusRequester") &&
                 quickMenuContent.contains("import androidx.compose.ui.focus.focusRequester") &&
+                quickMenuContent.contains("import androidx.compose.runtime.withFrameNanos") &&
                 content.contains("val initialFocusRequester = remember { FocusRequester() }") &&
                 content.contains("LaunchedEffect(Unit)") &&
-                content.contains("initialFocusRequester.requestFocus()")
+                content.contains("withFrameNanos { }") &&
+                content.contains("runCatching { initialFocusRequester.requestFocus() }")
         )
         assertTrue(
             "Command Center should attach that initial focus requester to the visible Close button in both compact and wide header layouts",
