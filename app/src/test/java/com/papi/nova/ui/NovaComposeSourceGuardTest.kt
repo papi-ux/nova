@@ -43,6 +43,12 @@ class NovaComposeSourceGuardTest {
                 closeButton.contains("initialFocusRequester: FocusRequester") &&
                 closeButton.contains(".focusRequester(initialFocusRequester)")
         )
+        val focusRequesterIndex = closeButton.indexOf(".focusRequester(initialFocusRequester)")
+        val semanticsIndex = closeButton.indexOf(".semantics")
+        assertTrue(
+            "Close button should attach focusRequester before later modifiers so it targets the NovaActionButton focusable node",
+            focusRequesterIndex >= 0 && semanticsIndex > focusRequesterIndex
+        )
     }
 
     @Test
