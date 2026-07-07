@@ -30,6 +30,7 @@ data class PolarisSessionStatus(
     val syncStatus: SyncStatus = SyncStatus(),
     val capture: CaptureStatus = CaptureStatus(),
     val encoder: EncoderStatus = EncoderStatus(),
+    val linuxGpuProfile: LinuxGpuProfile? = null,
     val autoQuality: AutoQualityPolicy = AutoQualityPolicy(),
     val profileState: ProfileState = ProfileState(),
     val health: HealthStatus = HealthStatus()
@@ -129,6 +130,8 @@ data class PolarisSessionStatus(
     data class CaptureStatus(
         val backend: String = "",
         val resolution: String = "",
+        val path: String = "",
+        val reason: String = "",
         val transport: String = "",
         val residency: String = "",
         val format: String = ""
@@ -151,6 +154,18 @@ data class PolarisSessionStatus(
         val targetDevice: String = "",
         val targetResidency: String = "",
         val targetFormat: String = ""
+    )
+
+    data class LinuxGpuProfile(
+        val encoderApi: String = "",
+        val encoderAdapter: String = "",
+        val captureDevice: String = "",
+        val adapterMatchesCaptureDevice: Boolean = true,
+        val crossGpuDmabufRisk: Boolean = false,
+        val gpuNativeRequested: Boolean = false,
+        val gpuNativeAttempted: Boolean = false,
+        val gpuNativeSucceeded: Boolean = false,
+        val vaapiVendor: String = ""
     )
 
     data class AutoQualityPolicy(
@@ -270,6 +285,29 @@ data class PolarisSessionStatus(
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
     val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true) ||
         (encoder.targetResidency.isBlank() && encoder.targetDevice.isCudaGpuTarget)
+    val hostCaptureTruthLabel: String
+        get() {
+            val profile = linuxGpuProfile ?: return ""
+            val encoderApi = profile.encoderApi.ifBlank { encoder.targetDevice }
+            if (!encoderApi.equals("vaapi", ignoreCase = true)) {
+                return ""
+            }
+            if (!profile.adapterMatchesCaptureDevice || profile.crossGpuDmabufRisk) {
+                return "VAAPI render-node mismatch"
+            }
+            val captureTransport = capture.transport.lowercase().ifBlank { capture.path.lowercase() }
+            val captureResidency = capture.residency.lowercase()
+            val captureReason = capture.reason.lowercase()
+            val shmFallback = captureTransport.contains("shm") ||
+                captureResidency == "cpu" ||
+                captureReason.contains("shm_fallback")
+            return when {
+                profile.gpuNativeSucceeded || (captureTransport.contains("dmabuf") && captureResidency == "gpu") ->
+                    "VAAPI + GPU-native"
+                shmFallback -> "VAAPI + SHM fallback"
+                else -> "VAAPI host"
+            }
+        }
     val isHeadlessMode get() = displayMode.effectiveHeadless
     val isVirtualDisplayMode get() = displayMode.virtualDisplay
     val sessionModeLabel get() = when {

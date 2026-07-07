@@ -166,6 +166,28 @@ class AutoQualityUiStateTest {
     }
 
     @Test
+    fun streamPolicyNamesAmdVaapiHostCaptureTruthForCommandCenter() {
+        val policy = StreamPolicyUiState.from(
+            status(
+                encoder = encoder(bitrateKbps = 22000).copy(codec = "hevc", targetDevice = "vaapi"),
+                capture = capture(transport = "shm", residency = "cpu"),
+                linuxGpuProfile = PolarisSessionStatus.LinuxGpuProfile(
+                    encoderApi = "vaapi",
+                    encoderAdapter = "/dev/dri/renderD128",
+                    captureDevice = "/dev/dri/renderD128",
+                    adapterMatchesCaptureDevice = true,
+                    gpuNativeRequested = true,
+                    gpuNativeAttempted = true,
+                    gpuNativeSucceeded = false
+                )
+            )
+        )
+
+        assertEquals("VAAPI + SHM fallback", policy.hostCaptureLabel)
+        assertTrue(policy.targetSummary.contains("VAAPI + SHM fallback"))
+    }
+
+    @Test
     fun autoQualityPolicyShowsBitrateRecovery() {
         val state = AutoQualityUiState.from(
             status = status(
@@ -244,6 +266,7 @@ class AutoQualityUiStateTest {
         capture: PolarisSessionStatus.CaptureStatus = capture(),
         health: PolarisSessionStatus.HealthStatus = PolarisSessionStatus.HealthStatus(grade = "good"),
         autoQuality: PolarisSessionStatus.AutoQualityPolicy = PolarisSessionStatus.AutoQualityPolicy(),
+        linuxGpuProfile: PolarisSessionStatus.LinuxGpuProfile? = null,
         sync: PolarisSessionStatus.SyncStatus = PolarisSessionStatus.SyncStatus(
             available = true,
             state = "synced"
@@ -259,6 +282,7 @@ class AutoQualityUiStateTest {
         capture = capture,
         autoQuality = autoQuality,
         health = health,
+        linuxGpuProfile = linuxGpuProfile,
         syncStatus = sync
     )
 

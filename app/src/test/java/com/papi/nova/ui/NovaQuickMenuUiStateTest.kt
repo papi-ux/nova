@@ -168,6 +168,41 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun commandCenterTargetSummaryIncludesAmdVaapiHostCaptureTruth() {
+        val state = quickState(
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc",
+                    bitrateKbps = 22000,
+                    requestedClientFps = 120.0,
+                    sessionTargetFps = 120.0,
+                    encodeTargetFps = 120.0,
+                    targetDevice = "vaapi",
+                    targetResidency = "gpu"
+                ),
+                capture = PolarisSessionStatus.CaptureStatus(
+                    resolution = "1920x1080",
+                    transport = "shm",
+                    residency = "cpu"
+                ),
+                linuxGpuProfile = PolarisSessionStatus.LinuxGpuProfile(
+                    encoderApi = "vaapi",
+                    encoderAdapter = "/dev/dri/renderD128",
+                    captureDevice = "/dev/dri/renderD128",
+                    adapterMatchesCaptureDevice = true,
+                    gpuNativeRequested = true,
+                    gpuNativeAttempted = true,
+                    gpuNativeSucceeded = false
+                )
+            ),
+            fallbackTargetFps = 120.0
+        )
+
+        assertTrue(state.stability.targetSummary.contains("HEVC"))
+        assertTrue(state.stability.targetSummary.contains("VAAPI + SHM fallback"))
+    }
+
+    @Test
     fun overlayRowsExposePrivacySafeHudDiagnosticCopy() {
         val state = quickState(status = status(), currentGameName = "Portal")
         val diagnostics = state.overlayRows.first { it.id == NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS }
@@ -230,7 +265,8 @@ class NovaQuickMenuUiStateTest {
         currentGameName: String? = "Portal",
         currentGameUuid: String? = "game-1",
         hudShowing: Boolean = false,
-        hudOpacityPercent: Int = 90
+        hudOpacityPercent: Int = 90,
+        fallbackTargetFps: Double = 60.0
     ) = NovaQuickMenuUiState.from(
         context = context,
         status = status,
@@ -255,7 +291,7 @@ class NovaQuickMenuUiStateTest {
         allowChangeMouseMode = true,
         isOnExternalDisplay = false,
         fallbackBitrateKbps = 50000,
-        fallbackTargetFps = 60.0
+        fallbackTargetFps = fallbackTargetFps
     )
 
     private fun status(
@@ -278,7 +314,10 @@ class NovaQuickMenuUiStateTest {
             state = "synced"
         ),
         autoQuality: PolarisSessionStatus.AutoQualityPolicy = PolarisSessionStatus.AutoQualityPolicy(),
-        health: PolarisSessionStatus.HealthStatus = PolarisSessionStatus.HealthStatus(grade = "good")
+        health: PolarisSessionStatus.HealthStatus = PolarisSessionStatus.HealthStatus(grade = "good"),
+        encoder: PolarisSessionStatus.EncoderStatus = PolarisSessionStatus.EncoderStatus(),
+        capture: PolarisSessionStatus.CaptureStatus = PolarisSessionStatus.CaptureStatus(),
+        linuxGpuProfile: PolarisSessionStatus.LinuxGpuProfile? = null
     ) = PolarisSessionStatus(
         state = state,
         streamingActive = true,
@@ -293,6 +332,9 @@ class NovaQuickMenuUiStateTest {
         syncStatus = syncStatus,
         autoQuality = autoQuality,
         health = health,
+        encoder = encoder,
+        capture = capture,
+        linuxGpuProfile = linuxGpuProfile,
         aiOptimizerEnabled = aiOptimizerEnabled
     )
 }

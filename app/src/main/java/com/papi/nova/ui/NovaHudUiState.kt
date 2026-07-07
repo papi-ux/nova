@@ -311,6 +311,8 @@ data class NovaHudUiState(
                 status?.isHdrDowngraded == true -> streamLabel + " • 10-bit SDR"
                 status?.isHostRenderLimited == true && safeTarget != null -> "$streamLabel • Game capped $safeTarget"
                 status?.isHostRenderLimited == true -> "$streamLabel • Host capped"
+                status?.hostCaptureTruthLabel?.isNotBlank() == true ->
+                    "$streamLabel • ${status.hostCaptureTruthLabel}"
                 status?.profileState?.preferenceLabel?.isNotBlank() == true ->
                     "$streamLabel • ${status.profileState.preferenceLabel} profile"
                 codec.isNotBlank() -> "$streamLabel • ${normalizeCodecLabel(codec)}"
@@ -341,8 +343,16 @@ data class NovaHudUiState(
                 status?.encoder?.targetResidency.equals("cpu", ignoreCase = true) -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
+            val hostCaptureLabel = status?.hostCaptureTruthLabel.orEmpty()
+            val hostLabel = hostCaptureLabel.ifBlank { "HOST" }
+            val resolvedHostTone = when {
+                hostCaptureLabel.contains("SHM", ignoreCase = true) ||
+                    hostCaptureLabel.contains("mismatch", ignoreCase = true) -> NovaHudTone.WARNING
+                hostCaptureLabel.contains("GPU-native", ignoreCase = true) -> NovaHudTone.STABLE
+                else -> hostTone
+            }
             return listOf(
-                NovaHudLayerHealth("HOST", hostTone),
+                NovaHudLayerHealth(hostLabel, resolvedHostTone),
                 NovaHudLayerHealth("NET", networkTone),
                 NovaHudLayerHealth("CLIENT", clientTone)
             )
