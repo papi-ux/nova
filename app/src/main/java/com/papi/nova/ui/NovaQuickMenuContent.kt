@@ -239,6 +239,7 @@ fun NovaQuickMenuContent(
     val initialFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
+        // Wait one Compose frame so the drawer content and Close button focus target are attached.
         withFrameNanos { }
         runCatching { initialFocusRequester.requestFocus() }
     }
