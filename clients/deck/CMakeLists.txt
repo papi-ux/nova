@@ -28,6 +28,7 @@ add_library(nova_deck_core
     src/backend/deck_backend_interfaces.cpp
     src/stream/deck_stream_core.cpp
     src/stream/deck_stream_media_adapters.cpp
+    src/stream/deck_moonlight_handoff_preflight.cpp
 )
 
 set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
@@ -82,6 +83,12 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_stream_media_adapters_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_stream_media_adapters_test COMMAND nova_deck_stream_media_adapters_test)
 
+    add_executable(nova_deck_moonlight_handoff_preflight_test
+        tests/deck_moonlight_handoff_preflight_test.cpp
+    )
+    target_link_libraries(nova_deck_moonlight_handoff_preflight_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_moonlight_handoff_preflight_test COMMAND nova_deck_moonlight_handoff_preflight_test)
+
     add_executable(nova_deck_backend_interfaces_test
         tests/deck_backend_interfaces_test.cpp
     )
@@ -103,6 +110,9 @@ if(BUILD_TESTING)
     )
     add_test(NAME nova_deck_media_assert_guard_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_media_assert_guard_test.py
+    )
+    add_test(NAME nova_deck_moonlight_handoff_source_guard_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_moonlight_handoff_source_guard_test.py
     )
     add_test(NAME nova_deck_t31_podman_validation_route_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_t31_podman_validation_test.py
