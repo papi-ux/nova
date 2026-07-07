@@ -35,6 +35,23 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun performanceTextParserKeepsLocalizedCommaFpsWhole() {
+        val sample = NovaHudPerfSample.fromPerfText(
+            """
+            1920x1080 119,84 FPS
+            Avc.decoder.low_latency
+            Bildfrekvens från nätverket: 119,84 FPS
+            Renderingsfrekvens: 113,87 FPS
+            Frames dropped by your network connection: 0,00%
+            """.trimIndent()
+        )
+
+        assertEquals(119.84, sample.fps!!, 0.01)
+        assertEquals(1920, sample.width)
+        assertEquals(1080, sample.height)
+    }
+
+    @Test
     fun fullModeFormatsReadableLabelsAndTones() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.DEBUG,
