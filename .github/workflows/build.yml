@@ -113,6 +113,13 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          # The release job only needs cmdline-tools so the following sdkmanager
+          # step can install the pinned NDK. Avoid the action's default
+          # `tools platform-tools` install, because the obsolete `tools`
+          # package currently pulls the Android Emulator and has produced
+          # transient corrupt-zip setup failures before Gradle runs.
+          packages: ''
 
       - name: Install NDK
         run: sdkmanager "ndk;27.0.12077973"
