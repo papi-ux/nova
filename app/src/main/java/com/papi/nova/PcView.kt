@@ -1304,6 +1304,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         appliedTheme = NovaThemeManager.getTheme(this)
         super.onCreate(savedInstanceState)
 
+        UiHelper.setLocale(this)
         inForeground = true
 
         val glPrefs = GlPreferences.readPreferences(this)
