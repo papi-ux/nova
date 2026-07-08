@@ -4,6 +4,7 @@ package com.papi.nova
 import com.papi.nova.utils.ServerHelper.getActiveDisplay
 import com.papi.nova.utils.ServerHelper.getAndroidCompanionDisplay
 
+import com.papi.nova.api.PolarisSessionEvents
 import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.binding.audio.AndroidAudioRenderer
 import com.papi.nova.binding.input.ControllerHandler
@@ -194,6 +195,7 @@ private var currentOrientation:Int = 0
 private var polarisSessionStatusRefreshInFlight:AtomicBoolean = AtomicBoolean(false)
 private var novaResilienceManager:com.papi.nova.manager.ConnectionResilienceManager? = null
 private var novaEventSource:com.papi.nova.api.PolarisEventSource? = null
+private var polarisSseSawCurrentSessionEvent = false
 private var novaProgressOverlay:com.papi.nova.ui.SessionProgressOverlay? = null
 private var novaLockScreenOverlay:com.papi.nova.ui.LockScreenOverlay? = null
 private var novaReconnectOverlay:com.papi.nova.ui.ReconnectOverlay? = null
@@ -5392,19 +5394,27 @@ novaEventSource = com.papi.nova.api.PolarisEventSource(host ?: "",
 object : com.papi.nova.api.PolarisEventSource.EventListener {
 override fun onSessionEvent(event:String, state:String, message:String) {
 LimeLog.info("Nova SSE: " + event + " [" + state + "] " + message)
+if (PolarisSessionEvents.isCurrentSessionEvent(event, state))
+{
+polarisSseSawCurrentSessionEvent = true
+}
 novaProgressOverlay!!.updateState(state, message)
-if (event == "stream_ended" || (state == "idle" && (connected || isStreamActive)))
+if (PolarisSessionEvents.shouldFinishGameActivity(event, state, polarisSseSawCurrentSessionEvent))
 {
 handlePolarisHostSessionEnded()
 }
 }
 override fun onStateUpdate(sessionState:String, cageRunning:Boolean, screenLocked:Boolean) {
+if (PolarisSessionEvents.isCurrentSessionEvent("", sessionState))
+{
+polarisSseSawCurrentSessionEvent = true
+}
 novaProgressOverlay!!.updateState(sessionState, "")
 if ("streaming".equals(sessionState))
 {
 schedulePolarisLiveSessionStatusRefresh(true)
 }
-else if (sessionState == "idle" && (connected || isStreamActive))
+else if (PolarisSessionEvents.shouldFinishGameActivity("", sessionState, polarisSseSawCurrentSessionEvent))
 {
 handlePolarisHostSessionEnded()
 }

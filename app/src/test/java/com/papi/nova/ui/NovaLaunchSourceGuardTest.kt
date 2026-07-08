@@ -515,9 +515,10 @@ class NovaLaunchSourceGuardTest {
                 hostEnded.contains("finish()")
         )
         assertTrue(
-            "SSE idle/stream-ended events should use the same host-ended teardown path",
-            game.contains("event == " + 34.toChar() + "stream_ended" + 34.toChar()) &&
-                game.contains("state == " + 34.toChar() + "idle" + 34.toChar()) &&
+            "SSE terminal events should use the same host-ended teardown path after Nova observes a current-session event",
+            game.contains("polarisSseSawCurrentSessionEvent") &&
+                game.contains("PolarisSessionEvents.isCurrentSessionEvent(event, state)") &&
+                game.contains("PolarisSessionEvents.shouldFinishGameActivity(event, state, polarisSseSawCurrentSessionEvent)") &&
                 game.contains("handlePolarisHostSessionEnded()")
         )
         assertTrue(
