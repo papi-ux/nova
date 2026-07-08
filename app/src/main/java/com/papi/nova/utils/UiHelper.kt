@@ -107,32 +107,31 @@ object UiHelper {
     }
 
     @JvmStatic
+    fun resolveLocaleForTests(language: String?, systemLocale: Locale): Locale {
+        val selectedLanguage = language ?: PreferenceConfiguration.DEFAULT_LANGUAGE
+        return if (selectedLanguage == PreferenceConfiguration.DEFAULT_LANGUAGE) {
+            systemLocale
+        } else {
+            Locale.forLanguageTag(selectedLanguage.replace('_', '-'))
+        }
+    }
+
+    @JvmStatic
     fun setLocale(activity: Activity) {
-        val locale = PreferenceConfiguration.readPreferences(activity).language
-            ?: PreferenceConfiguration.DEFAULT_LANGUAGE
-        val config = Configuration(activity.resources.configuration)
-        if (locale == PreferenceConfiguration.DEFAULT_LANGUAGE) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                // On Android 13, migrate this non-default language setting into the OS native API.
-                val localeManager = activity.getSystemService(LocaleManager::class.java)
-                val systemLocales = localeManager.systemLocales
-                if (!systemLocales.isEmpty) {
-                    config.setLocale(systemLocales[0])
-                }
+        val language = PreferenceConfiguration.readPreferences(activity).language
+        val systemLocale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val localeManager = activity.getSystemService(LocaleManager::class.java)
+            val systemLocales = localeManager?.systemLocales
+            if (systemLocales != null && !systemLocales.isEmpty) {
+                systemLocales[0]
+            } else {
+                Locale.getDefault()
             }
         } else {
-            // Some devices cannot set locale using system config correctly.
-            config.setLocale(
-                if (locale.contains("-")) {
-                    Locale(
-                        locale.substring(0, locale.indexOf('-')),
-                        locale.substring(locale.indexOf('-') + 1),
-                    )
-                } else {
-                    Locale(locale)
-                },
-            )
+            Locale.getDefault()
         }
+        val config = Configuration(activity.resources.configuration)
+        config.setLocale(resolveLocaleForTests(language, systemLocale))
 
         @Suppress("DEPRECATION")
         activity.resources.updateConfiguration(config, activity.resources.displayMetrics)
