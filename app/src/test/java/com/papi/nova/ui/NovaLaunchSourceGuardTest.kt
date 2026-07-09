@@ -178,13 +178,13 @@ class NovaLaunchSourceGuardTest {
     fun virtualLaunchPreflightUsesHostVirtualDisplayContractConstants() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
         val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
+        val displayMode = readSource("src/main/java/com/papi/nova/api/PolarisStreamDisplayMode.kt")
 
-        assertTrue(detail.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
-        assertTrue(detail.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
-        assertTrue(trampoline.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
-        assertTrue(trampoline.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
-        assertTrue(detail.contains("streamDisplayMode = if (usesVirtualDisplay)"))
-        assertTrue(trampoline.contains("streamDisplayMode = if (withVirtualDisplay)"))
+        assertTrue(displayMode.contains("fun preflightModeForLaunch("))
+        assertTrue(displayMode.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
+        assertTrue(displayMode.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
+        assertTrue(detail.contains("PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings)"))
+        assertTrue(trampoline.contains("PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings)"))
     }
 
     @Test
@@ -222,7 +222,8 @@ class NovaLaunchSourceGuardTest {
         assertTrue(
             "shortcut launch should sync the Polaris client settings/profile contract only when a launch is going ahead",
             applyPreflight.contains("apiClient.setMangoHud(polarisGame.id, polarisGame.mangohud)") &&
-                applyPreflight.contains("syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay)") &&
+                applyPreflight.contains("syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay, clientSettings)") &&
+                applyPreflight.contains("apiClient.getClientSettings()") &&
                 applyPreflight.contains("apiClient.getOptimization(") &&
                 trampoline.contains("applyPolarisShortcutLaunchPreflight(details, it, prefConfig.useVirtualDisplay)") &&
                 directLaunch.contains("startConfirmedShortcutLaunch(")
@@ -584,6 +585,62 @@ class NovaLaunchSourceGuardTest {
                 game.indexOf("watchStreamFps = this@Game.getIntent().getFloatExtra(EXTRA_STREAM_FPS, 0f)") <
                     game.indexOf("var explicitStreamFpsOverride:Boolean = watchStreamFps > 0f")
         )
+    }
+
+    @Test
+    fun gameDetailPreflightPreservesExplicitPolarisNonVirtualMode() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val preflight = detail.section(
+            "private fun syncLaunchPreflightSettings(",
+            "private fun showPreflightReview("
+        )
+
+        assertTrue(
+            "Game detail preflight must use the full Polaris stream display mode helper, not collapse every non-virtual launch to headless_stream",
+            preflight.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
+                !preflight.contains("if (usesVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
+        )
+    }
+
+    @Test
+    fun libraryAndShortcutLaunchPreflightPreservePolarisNonVirtualMode() {
+        val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        val shortcut = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
+
+        assertTrue(
+            "Library launch should preserve the selected full Polaris stream display mode",
+            library.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
+                !library.contains("if (withVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
+        )
+        assertTrue(
+            "Shortcut launch should preserve the selected full Polaris stream display mode",
+            shortcut.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
+                !shortcut.contains("if (withVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
+        )
+    }
+
+    @Test
+    fun steamLaunchSelectionDoesNotDismissGameDetailOrStartStream() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val selection = detail.section(
+            "onSteamLaunchModeSelected = { selected ->",
+            "},\n                    onDismissSteamLaunchModeOptions"
+        )
+
+        assertTrue(!selection.contains("dismiss()"))
+        assertTrue(!selection.contains("onLaunch?.invoke"))
+        assertTrue(selection.contains("apiClient.setSteamLaunchMode"))
+    }
+
+    @Test
+    fun steamLaunchModeUpdateConfirmsHostModeAndStaysInline() {
+        val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+
+        assertTrue(api.contains("fun setSteamLaunchMode(gameId: String, mode: String): String?"))
+        assertTrue(api.contains("json.optString(\"mode\", normalizedMode)"))
+        assertTrue(detail.contains("steamLaunchOptionsState = steamLaunchModeOptionsState(currentGame)"))
+        assertTrue(detail.contains("confirmedMode != null"))
     }
 
     private fun readSource(path: String): String =

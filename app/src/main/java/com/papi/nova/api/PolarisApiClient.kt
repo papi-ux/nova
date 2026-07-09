@@ -234,7 +234,10 @@ class PolarisApiClient @JvmOverloads constructor(
             disconnectResumeTimeoutSeconds: Int? = null
         ): JSONObject {
             return JSONObject().apply {
-                streamDisplayMode?.let { put("stream_display_mode", it) }
+                streamDisplayMode
+                    ?.let { PolarisStreamDisplayMode.normalize(it) }
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { put("stream_display_mode", it) }
                 displayMode?.let { put("display_mode", it) }
                 if (clearDisplayMode) put("clear_display_mode", true)
                 targetBitrateKbps?.let { put("target_bitrate_kbps", it) }
@@ -879,8 +882,12 @@ class PolarisApiClient @JvmOverloads constructor(
                 ))
                 .build()
             execute(request).use { response ->
-                if (response.code != 200) return null
-                parseClientSettingsResponse(JSONObject(response.body?.string() ?: return null))
+                val responseBody = response.body?.string().orEmpty()
+                if (response.code != 200) {
+                    LimeLog.warning("Nova: Client settings update rejected code=${response.code} body=${responseBody.take(240)}")
+                    return null
+                }
+                parseClientSettingsResponse(JSONObject(responseBody.ifBlank { return null }))
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Client settings update failed: ${errorMessage(e)}")
@@ -1023,9 +1030,10 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
-    fun setSteamLaunchMode(gameId: String, mode: String): Boolean {
+    fun setSteamLaunchMode(gameId: String, mode: String): String? {
         return try {
-            val body = buildSteamLaunchModeUpdateBody(gameId, mode)
+            val normalizedMode = PolarisGame.SteamLaunchContract.normalizeMode(mode)
+            val body = buildSteamLaunchModeUpdateBody(gameId, normalizedMode)
             val request = Request.Builder()
                 .url("$baseUrl/games/$gameId/steam-launch-mode")
                 .post(okhttp3.RequestBody.create(
@@ -1034,11 +1042,17 @@ class PolarisApiClient @JvmOverloads constructor(
                 ))
                 .build()
             execute(request).use { response ->
-                response.code == 200
+                val responseBody = response.body?.string().orEmpty()
+                if (response.code != 200) {
+                    LimeLog.warning("Nova: Steam launch mode update rejected code=${response.code} body=${responseBody.take(240)}")
+                    return null
+                }
+                val json = JSONObject(responseBody.ifBlank { "{}" })
+                PolarisGame.SteamLaunchContract.normalizeMode(json.optString("mode", normalizedMode))
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Steam launch mode update failed: ${errorMessage(e)}")
-            false
+            null
         }
     }
 

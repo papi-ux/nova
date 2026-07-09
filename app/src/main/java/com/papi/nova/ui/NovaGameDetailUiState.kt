@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.api.resolveLaunchModeChoice
 import com.papi.nova.shared.polaris.model.PolarisGame
 import org.json.JSONObject
@@ -27,7 +28,9 @@ data class NovaGameDetailUiState(
     val mangoHudRisk: MangoHudRisk,
     val showSteamLaunchMode: Boolean,
     val steamLaunchMode: String,
-    val steamLaunchWarning: Boolean
+    val steamLaunchWarning: Boolean,
+    val hostStreamDisplayMode: String,
+    val hostStreamDisplayModeLabel: String
 ) {
     enum class MangoHudRisk {
         NONE,
@@ -70,6 +73,11 @@ data class NovaGameDetailUiState(
                 steamLaunch?.allows("direct") == true &&
                 steamLaunch.allows("big-picture")
             val steamLaunchWarning = steamLaunchMode == "big-picture"
+            val hostStreamDisplayMode = PolarisStreamDisplayMode.normalize(
+                clientSettings?.desired?.streamDisplayMode?.takeIf { it.isNotBlank() }
+                    ?: clientSettings?.effective?.streamDisplayMode
+            )
+            val hostStreamDisplayModeLabel = PolarisStreamDisplayMode.labelForMode(hostStreamDisplayMode)
 
             return NovaGameDetailUiState(
                 game = game,
@@ -93,7 +101,9 @@ data class NovaGameDetailUiState(
                 mangoHudRisk = mangoHudRisk,
                 showSteamLaunchMode = showSteamLaunchMode,
                 steamLaunchMode = steamLaunchMode,
-                steamLaunchWarning = steamLaunchWarning
+                steamLaunchWarning = steamLaunchWarning,
+                hostStreamDisplayMode = hostStreamDisplayMode,
+                hostStreamDisplayModeLabel = hostStreamDisplayModeLabel
             )
         }
     }

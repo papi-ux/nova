@@ -33,7 +33,7 @@ data class PolarisGame(
         @SerialName("allowed_modes") val allowedModes: List<String> = emptyList(),
         @SerialName("mode_reason") val modeReason: String = ""
     ) {
-        fun allows(mode: String): Boolean = allowedModes.contains(normalizeLaunchMode(mode))
+        fun allows(mode: String): Boolean = normalizeLaunchModes(allowedModes).contains(normalizeLaunchMode(mode))
     }
 
     @Serializable

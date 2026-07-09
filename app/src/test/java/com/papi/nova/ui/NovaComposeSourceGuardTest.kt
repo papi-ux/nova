@@ -2154,7 +2154,7 @@ class NovaComposeSourceGuardTest {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
         val profileOptions = detail.section(
             "private fun showProfilePreferenceOptions(",
-            "private fun showSteamLaunchModeOptions("
+            "private fun steamLaunchModeOptionsState("
         )
 
         assertTrue(

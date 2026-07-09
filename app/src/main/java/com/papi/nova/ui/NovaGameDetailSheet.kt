@@ -66,6 +66,7 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -153,6 +154,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         var optimizationState by mutableStateOf(NovaGameDetailOptimizationState())
         var launchOptionsState by mutableStateOf<NovaLaunchOptionsState?>(null)
         var profileOptionsState by mutableStateOf<NovaProfilePreferenceOptionsState?>(null)
+        var steamLaunchOptionsState by mutableStateOf<NovaSteamLaunchModeOptionsState?>(null)
 
         fun refreshUiState(preference: String = profilePreference) {
             uiState = buildUiState(currentGame, preference)
@@ -170,7 +172,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             viewLifecycleOwner.lifecycleScope.launch {
                 optimizationState = try {
                     val opt = withContext(Dispatchers.IO) {
-                        syncLaunchPreflightSettings(requireContext(), apiClient, usesVirtualDisplay)?.let {
+                        syncLaunchPreflightSettings(requireContext(), apiClient, usesVirtualDisplay, clientSettings)?.let {
                             clientSettings = it
                         }
                         apiClient.getOptimization(deviceName, currentGame.name, preference)
@@ -191,7 +193,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             viewLifecycleOwner.lifecycleScope.launch {
                 optimizationState = try {
                     val opt = withContext(Dispatchers.IO) {
-                        syncLaunchPreflightSettings(requireContext(), apiClient, uiState.playUsesVirtualDisplay)?.let {
+                        syncLaunchPreflightSettings(requireContext(), apiClient, uiState.playUsesVirtualDisplay, clientSettings)?.let {
                             clientSettings = it
                         }
                         apiClient.getOptimization(deviceName, currentGame.name, profilePreference, "high_fps")
@@ -391,28 +393,44 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                             resetWorking = false
                         }
                     },
+                    steamLaunchOptionsState = steamLaunchOptionsState,
                     onSteamLaunchMode = {
-                        showSteamLaunchModeOptions(currentGame) { selected ->
-                            val previousGame = currentGame
-                            val updatedLaunch = previousGame.steamLaunch?.copy(
-                                mode = PolarisGame.SteamLaunchContract.normalizeMode(selected)
-                            )
-                            currentGame = previousGame.copy(steamLaunch = updatedLaunch)
-                            refreshUiState()
-                            viewLifecycleOwner.lifecycleScope.launch {
-                                val updated = withContext(Dispatchers.IO) {
-                                    apiClient.setSteamLaunchMode(previousGame.id, selected)
-                                }
-                                val message = if (updated) {
-                                    R.string.nova_steam_launch_mode_updated
-                                } else {
-                                    currentGame = previousGame
-                                    refreshUiState()
-                                    R.string.nova_steam_launch_mode_failed
-                                }
-                                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
-                            }
+                        steamLaunchOptionsState = steamLaunchModeOptionsState(currentGame)
+                    },
+                    onSteamLaunchModeSelected = { selected ->
+                        val previousGame = currentGame
+                        val requestedMode = PolarisGame.SteamLaunchContract.normalizeMode(selected.value)
+                        if (requestedMode == previousGame.steamLaunchMode) {
+                            steamLaunchOptionsState = null
+                            return@NovaGameDetailSheetContent
                         }
+
+                        currentGame = previousGame.copy(
+                            steamLaunch = previousGame.steamLaunch?.copy(mode = requestedMode)
+                        )
+                        refreshUiState()
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            val confirmedMode = withContext(Dispatchers.IO) {
+                                apiClient.setSteamLaunchMode(previousGame.id, requestedMode)
+                            }
+                            val message = if (confirmedMode != null) {
+                                currentGame = currentGame.copy(
+                                    steamLaunch = currentGame.steamLaunch?.copy(mode = confirmedMode)
+                                )
+                                refreshUiState()
+                                steamLaunchOptionsState = null
+                                R.string.nova_steam_launch_mode_updated
+                            } else {
+                                currentGame = previousGame
+                                refreshUiState()
+                                steamLaunchOptionsState = steamLaunchModeOptionsState(previousGame)
+                                R.string.nova_steam_launch_mode_failed
+                            }
+                            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onDismissSteamLaunchModeOptions = {
+                        steamLaunchOptionsState = null
                     },
                     coverLoader = { imageView ->
                         apiClient.loadCoverInto(imageView, currentGame)
@@ -497,20 +515,21 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         )
     }
 
-    private fun showSteamLaunchModeOptions(
-        game: PolarisGame,
-        onChanged: (String) -> Unit
-    ) {
+    private fun steamLaunchModeOptionsState(game: PolarisGame): NovaSteamLaunchModeOptionsState {
         val modes = listOf("direct", "big-picture")
-        val labels = modes.map { steamLaunchModeLabel(it) }.toTypedArray()
-        val checked = modes.indexOf(game.steamLaunchMode).coerceAtLeast(0)
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.nova_steam_launch_options_title)
-            .setSingleChoiceItems(labels, checked) { dialog, which ->
-                onChanged(modes[which])
-                dialog.dismiss()
+        return NovaSteamLaunchModeOptionsState(
+            title = getString(R.string.nova_steam_launch_options_title),
+            subtitle = getString(R.string.nova_steam_launch_detail_label),
+            closeLabel = getString(R.string.nova_controller_hint_close),
+            options = modes.map { mode ->
+                val normalizedMode = PolarisGame.SteamLaunchContract.normalizeMode(mode)
+                NovaSteamLaunchModeItem(
+                    label = steamLaunchModeLabel(normalizedMode),
+                    value = normalizedMode,
+                    selected = normalizedMode == game.steamLaunchMode
+                )
             }
-            .show()
+        )
     }
 
     private fun showLaunchOptions(
@@ -555,15 +574,12 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     private fun syncLaunchPreflightSettings(
         context: Context,
         apiClient: PolarisApiClient,
-        usesVirtualDisplay: Boolean
+        usesVirtualDisplay: Boolean,
+        clientSettings: PolarisClientSettings?
     ): PolarisClientSettings? {
         val preferences = PreferenceConfiguration.readPreferences(context)
         return apiClient.updateClientSettings(
-            streamDisplayMode = if (usesVirtualDisplay) {
-                PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
-            } else {
-                PolarisClientSettings.MODE_HEADLESS_STREAM
-            },
+            streamDisplayMode = PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings),
             displayMode = PreferenceConfiguration.formatStreamingDisplayMode(
                 preferences.width,
                 preferences.height,
@@ -680,6 +696,13 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         val parts = mutableListOf<String>()
         if (uiState.preferredMode != uiState.recommendedMode) {
             parts += getString(R.string.nova_library_launch_preferred_mode_format, modeLabel(uiState.preferredMode))
+        }
+        if (uiState.hostStreamDisplayMode in setOf(
+                PolarisClientSettings.MODE_DESKTOP_DISPLAY,
+                PolarisClientSettings.MODE_GPU_NATIVE_TEST
+            ) && uiState.hostStreamDisplayModeLabel.isNotBlank()
+        ) {
+            parts += getString(R.string.nova_polaris_sync_host_mode_detail, uiState.hostStreamDisplayModeLabel)
         }
         parts += when {
             uiState.virtualDisplayUnavailable -> {
@@ -1090,6 +1113,19 @@ data class NovaGameDetailInsightCard(
     val isWarning: Boolean
 )
 
+data class NovaSteamLaunchModeItem(
+    val label: String,
+    val value: String,
+    val selected: Boolean
+)
+
+data class NovaSteamLaunchModeOptionsState(
+    val title: String,
+    val subtitle: String,
+    val closeLabel: String,
+    val options: List<NovaSteamLaunchModeItem>
+)
+
 @Composable
 fun NovaGameDetailSheetContent(
     uiState: NovaGameDetailUiState,
@@ -1116,6 +1152,7 @@ fun NovaGameDetailSheetContent(
     virtualDisplayModeLabel: String,
     coverContentDescription: String,
     onSheetHandleDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
     onPrimaryLaunch: () -> Unit,
     onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
@@ -1126,9 +1163,11 @@ fun NovaGameDetailSheetContent(
     onDismissProfileOptions: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    steamLaunchOptionsState: NovaSteamLaunchModeOptionsState? = null,
     onSteamLaunchMode: () -> Unit,
-    coverLoader: (ImageView) -> Unit,
-    modifier: Modifier = Modifier
+    onSteamLaunchModeSelected: (NovaSteamLaunchModeItem) -> Unit = {},
+    onDismissSteamLaunchModeOptions: () -> Unit = {},
+    coverLoader: (ImageView) -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -1196,6 +1235,14 @@ fun NovaGameDetailSheetContent(
             warning = uiState.steamLaunchWarning,
             onClick = onSteamLaunchMode
         )
+
+        steamLaunchOptionsState?.let { state ->
+            NovaSteamLaunchModeSheet(
+                state = state,
+                onSelected = onSteamLaunchModeSelected,
+                onDismiss = onDismissSteamLaunchModeOptions
+            )
+        }
 
         if (mangoHudEnabled) {
             MangoHudPassiveStatus(
@@ -2071,6 +2118,77 @@ private fun NovaOptionPanel(
             )
         }
         content()
+    }
+}
+
+@Composable
+private fun NovaSteamLaunchModeSheet(
+    state: NovaSteamLaunchModeOptionsState,
+    onSelected: (NovaSteamLaunchModeItem) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalNovaComposeColors.current
+    NovaDetailPanel(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 14.dp, end = 14.dp, top = 10.dp),
+        contentDescription = state.title,
+        accent = true,
+        contentPadding = PaddingValues(12.dp)
+    ) {
+        Text(
+            text = state.title,
+            color = colors.textPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = state.subtitle,
+            color = colors.textMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+        Column(
+            modifier = Modifier.padding(top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            state.options.forEach { item ->
+                NovaFocusableCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onSelected(item) },
+                    contentDescription = item.label,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = item.label,
+                            color = colors.textPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (item.selected) {
+                            NovaBadge(
+                                text = stringResource(R.string.nova_library_filter_selected),
+                                color = colors.onAccent,
+                                backgroundColor = colors.accent,
+                                borderColor = colors.accent,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        NovaActionButton(
+            text = state.closeLabel,
+            onClick = onDismiss,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp),
+            minHeight = 36.dp,
+            fontSize = 12.sp
+        )
     }
 }
 
