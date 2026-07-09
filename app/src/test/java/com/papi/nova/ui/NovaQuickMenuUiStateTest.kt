@@ -124,8 +124,8 @@ class NovaQuickMenuUiStateTest {
             )
         )
 
-        assertEquals("HDR requested, but Private Headless Stream is 10-bit SDR.", state.healthSummary)
-        assertEquals("Private Headless Stream does not report HDR metadata. Polaris is sending 10-bit SDR; use an HDR-capable display path for true HDR.", state.healthDetail)
+        assertEquals("HDR requested, but Private Stream is 10-bit SDR.", state.healthSummary)
+        assertEquals("Private Stream does not report HDR metadata. Polaris is sending 10-bit SDR; use an HDR-capable display path for true HDR.", state.healthDetail)
         assertEquals("Polaris is sending 10-bit SDR, not HDR. Use an HDR-capable display path for true HDR.", state.stability.caption)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
     }
@@ -156,7 +156,7 @@ class NovaQuickMenuUiStateTest {
         val state = NovaQuickMenuUiState.preview(context).copy(advancedExpanded = true)
 
         assertEquals("Command Center", state.title)
-        assertEquals("Quick keys and controls for Headless Stream", state.subtitle)
+        assertEquals("Quick keys and controls for Private Stream", state.subtitle)
         assertEquals("Disconnect", state.disconnectAction.label)
         assertEquals("End session", state.endAction.label)
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_ESC && it.label == "ESC" })
@@ -165,6 +165,30 @@ class NovaQuickMenuUiStateTest {
         assertTrue(state.overlayRows.any { it.id == NovaQuickMenuActionId.PERF_STATS && it.label == "Stats Overlay" })
         assertTrue(state.advancedRows.any { it.id == NovaQuickMenuActionId.MANGOHUD && it.label == "MangoHud" })
         assertTrue(state.sessionRows.any { it.id == NovaQuickMenuActionId.MORE_KEYS && it.label == "More Keys" })
+    }
+
+    @Test
+    fun commandCenterLabelsPrivateGpuNativeCaptureInsteadOfRawHeadless() {
+        val state = quickState(
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    targetDevice = "cuda",
+                    targetResidency = "gpu"
+                ),
+                capture = PolarisSessionStatus.CaptureStatus(
+                    transport = "dmabuf",
+                    residency = "gpu"
+                ),
+                displayMode = PolarisSessionStatus.DisplayModeStatus(
+                    requested = "headless",
+                    effectiveHeadless = true
+                )
+            )
+        )
+
+        assertTrue(state.sessionMode.label.contains("Private Stream"))
+        assertTrue(state.sessionMode.label.contains("GPU-native DMA-BUF"))
+        assertFalse(state.sessionMode.label.contains("Headless"))
     }
 
     @Test

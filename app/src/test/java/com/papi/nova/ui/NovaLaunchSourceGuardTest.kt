@@ -483,10 +483,13 @@ class NovaLaunchSourceGuardTest {
         val strings = readSource("src/main/res/values/strings.xml")
 
         assertTrue(
-            "launch mode copy should explain private/headless and virtual display choices in player language",
+            "launch mode copy should make Private Stream the default, demote GPU-native to a capability/status, and treat desktop mirroring as advanced",
             strings.contains("<string name=\"nova_library_launch_headless\">Private stream</string>") &&
                 strings.contains("nova_library_launch_virtual_display" + 34.toChar() + ">Host Virtual Display</string>") &&
-                strings.contains("private stream for this launch")
+                strings.contains("nova_library_launch_desktop_display" + 34.toChar() + ">Mirror Desktop</string>") &&
+                strings.contains("nova_library_launch_gpu_native_test" + 34.toChar() + ">Private Stream (GPU-native)</string>") &&
+                strings.contains("private stream for this launch") &&
+                strings.contains("GPU-native appears in Command Center as a capture path")
         )
         assertTrue(
             "session lifecycle copy should distinguish disconnecting the client from ending the running host session",

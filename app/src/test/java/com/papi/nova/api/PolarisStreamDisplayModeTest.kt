@@ -20,18 +20,18 @@ class PolarisStreamDisplayModeTest {
     fun labelsUseNovaPlayerFacingNames() {
         assertEquals("Private Stream", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_HEADLESS_STREAM))
         assertEquals("Host Virtual Display", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY))
-        assertEquals("Desktop Display", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
-        assertEquals("GPU-Native Test", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
+        assertEquals("Mirror Desktop", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
+        assertEquals("Private Stream (GPU-native)", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
     }
 
     @Test
-    fun polarisClientSettingsLabelForModeKeepsLegacyPublicLabels() {
-        assertEquals("Headless Stream", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_HEADLESS_STREAM))
-        assertEquals("Headless Stream", PolarisClientSettings.labelForMode("headless"))
+    fun polarisClientSettingsLabelForModeUsesPlayerFacingLabels() {
+        assertEquals("Private Stream", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_HEADLESS_STREAM))
+        assertEquals("Private Stream", PolarisClientSettings.labelForMode("headless"))
         assertEquals("Host Virtual Display", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY))
         assertEquals("Host Virtual Display", PolarisClientSettings.labelForMode("virtual_display"))
-        assertEquals("Desktop Display", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
-        assertEquals("GPU-Native Test", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
+        assertEquals("Mirror Desktop", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
+        assertEquals("Private Stream (GPU-native)", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
     }
 
     @Test

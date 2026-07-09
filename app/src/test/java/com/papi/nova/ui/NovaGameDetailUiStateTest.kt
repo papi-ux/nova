@@ -306,7 +306,7 @@ class NovaGameDetailUiStateTest {
         assertEquals("headless", state.playMode)
         assertFalse(state.playUsesVirtualDisplay)
         assertEquals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, state.hostStreamDisplayMode)
-        assertEquals("GPU-Native Test", state.hostStreamDisplayModeLabel)
+        assertEquals("Private Stream (GPU-native)", state.hostStreamDisplayModeLabel)
     }
 
     private fun game(

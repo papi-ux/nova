@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -78,7 +79,9 @@ class NovaHudUiStateTest {
         assertEquals(NovaHudTone.STABLE, state.fpsTone)
         assertEquals(NovaHudTone.STABLE, state.latencyTone)
         assertEquals(NovaHudTone.STABLE, state.statusTone)
-        assertTrue(state.streamModeLabel.contains("Headless"))
+        assertTrue(state.streamModeLabel.contains("Private Stream"))
+        assertTrue(state.streamModeLabel.contains("GPU-native DMA-BUF"))
+        assertFalse(state.streamModeLabel.contains("Headless"))
         assertEquals(listOf(55f, 58f, 60f), state.sparklineSamples)
     }
 

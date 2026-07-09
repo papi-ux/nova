@@ -285,6 +285,21 @@ data class PolarisSessionStatus(
     val isTenBitActive get() = dynamicRange > 0 || encoder.targetFormat.equals("p010", ignoreCase = true)
     val isGpuPath get() = encoder.targetResidency.equals("gpu", ignoreCase = true) ||
         (encoder.targetResidency.isBlank() && encoder.targetDevice.isCudaGpuTarget)
+    val isGpuNativeCapture get() =
+        capture.transport.contains("dmabuf", ignoreCase = true) &&
+            (capture.residency.equals("gpu", ignoreCase = true) || isGpuPath) ||
+            capture.path.contains("dmabuf", ignoreCase = true) &&
+            (capture.residency.equals("gpu", ignoreCase = true) || isGpuPath) ||
+            linuxGpuProfile?.gpuNativeSucceeded == true
+    val capturePathLabel: String
+        get() = when {
+            isGpuNativeCapture -> "GPU-native DMA-BUF"
+            capture.transport.contains("shm", ignoreCase = true) ||
+                capture.residency.equals("cpu", ignoreCase = true) ||
+                capture.reason.contains("shm", ignoreCase = true) -> "SHM/CPU capture"
+            isGpuPath -> "GPU encoder path"
+            else -> ""
+        }
     val hostCaptureTruthLabel: String
         get() {
             val profile = linuxGpuProfile ?: return ""
@@ -311,15 +326,29 @@ data class PolarisSessionStatus(
     val isHeadlessMode get() = displayMode.effectiveHeadless
     val isVirtualDisplayMode get() = displayMode.virtualDisplay
     val sessionModeLabel get() = when {
-        displayMode.label.isNotBlank() -> displayMode.label
-        displayMode.effectiveHeadless -> "Headless"
-        displayMode.virtualDisplay -> "Virtual Display"
-        else -> "Host Display"
+        displayMode.selection.equals("windowed_stream", ignoreCase = true) ||
+            displayMode.requested.equals("windowed_stream", ignoreCase = true) -> "Private Stream (GPU-native)"
+        displayMode.selection.equals("desktop_display", ignoreCase = true) ||
+            displayMode.requested.equals("desktop_display", ignoreCase = true) -> "Mirror Desktop"
+        displayMode.label.isNotBlank() -> normalizeSessionModeLabel(displayMode.label)
+        displayMode.effectiveHeadless -> "Private Stream"
+        displayMode.virtualDisplay -> "Host Virtual Display"
+        else -> "Mirror Desktop"
     }
+    val sessionModeWithCaptureLabel: String
+        get() = listOf(sessionModeLabel, capturePathLabel).filter { it.isNotBlank() }.joinToString(" · ")
     val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
     val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice
     val canAdjustHostTuning get() = controls.hostTuningAllowed || (ownedByClient && !isViewer)
     val canQuit get() = controls.quitAllowed || (ownedByClient && !isViewer)
+
+    private fun normalizeSessionModeLabel(label: String): String = when (label.trim().lowercase()) {
+        "headless", "headless stream", "private headless stream", "private stream" -> "Private Stream"
+        "gpu-native stream", "gpu-native test", "windowed stream", "private stream (gpu-native)" -> "Private Stream (GPU-native)"
+        "desktop display", "host display", "desktop", "mirror desktop" -> "Mirror Desktop"
+        "virtual display", "host virtual display" -> "Host Virtual Display"
+        else -> label
+    }
 
     private val String.isCudaGpuTarget: Boolean
         get() = equals("cuda", ignoreCase = true) ||

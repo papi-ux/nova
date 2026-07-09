@@ -161,7 +161,7 @@ class NovaPolarisSyncUiStateTest {
         val gpuNative = state.modes.first { it.mode == PolarisClientSettings.MODE_GPU_NATIVE_TEST }
         assertTrue(gpuNative.selectedDesired)
         assertFalse(gpuNative.selectedEffective)
-        assertEquals("GPU-Native Test", gpuNative.label)
+        assertEquals("Private Stream (GPU-native)", gpuNative.label)
         assertEquals("Saved — applies after relaunch", gpuNative.statusLabel)
         assertTrue(state.relaunchRequired)
     }

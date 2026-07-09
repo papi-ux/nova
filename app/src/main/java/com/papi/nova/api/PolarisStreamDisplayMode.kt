@@ -19,8 +19,8 @@ object PolarisStreamDisplayMode {
     fun labelForMode(mode: String?): String = when (normalize(mode)) {
         PolarisClientSettings.MODE_HEADLESS_STREAM -> "Private Stream"
         PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> "Host Virtual Display"
-        PolarisClientSettings.MODE_DESKTOP_DISPLAY -> "Desktop Display"
-        PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU-Native Test"
+        PolarisClientSettings.MODE_DESKTOP_DISPLAY -> "Mirror Desktop"
+        PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "Private Stream (GPU-native)"
         else -> ""
     }
 
