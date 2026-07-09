@@ -350,6 +350,7 @@
     <string name="nova_polaris_sync_synced">Synced</string>
     <string name="nova_polaris_sync_syncing">Syncing</string>
     <string name="nova_polaris_sync_mode_title">Stream Display</string>
+    <string name="nova_polaris_sync_host_mode_detail">Polaris Sync host mode: %1$s</string>
     <string name="nova_polaris_sync_profile_title">Launch Profile</string>
     <string name="nova_polaris_sync_controls_title">Host Controls</string>
     <string name="nova_polaris_sync_match_nova">Match Nova</string>

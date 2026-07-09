@@ -284,6 +284,31 @@ class NovaGameDetailUiStateTest {
         assertFalse(decision.required)
     }
 
+    @Test
+    fun nonVirtualPolarisModesRemainPrivateLaunchFamilyButExposeHostMode() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                launchMode = PolarisGame.LaunchModeContract(
+                    preferredMode = "headless_stream",
+                    recommendedMode = "headless_stream",
+                    allowedModes = listOf("headless_stream", "host_virtual_display")
+                )
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(
+                    streamDisplayMode = PolarisClientSettings.MODE_GPU_NATIVE_TEST
+                )
+            ),
+            profilePreference = "auto"
+        )
+
+        assertEquals("headless", state.playMode)
+        assertFalse(state.playUsesVirtualDisplay)
+        assertEquals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, state.hostStreamDisplayMode)
+        assertEquals("GPU-Native Test", state.hostStreamDisplayModeLabel)
+    }
+
     private fun game(
         name: String = "Portal",
         runtime: String = "native",

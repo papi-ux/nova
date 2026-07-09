@@ -478,4 +478,12 @@ class PolarisApiClientParsingTest {
             path
         )
     }
+    @Test
+    fun buildSteamLaunchModeUpdateBodyNormalizesAliases() {
+        val body = PolarisApiClient.buildSteamLaunchModeUpdateBody("game-1", "gamepadui")
+
+        assertEquals("game-1", body.getString("game_id"))
+        assertEquals("big-picture", body.getString("mode"))
+    }
+
 }

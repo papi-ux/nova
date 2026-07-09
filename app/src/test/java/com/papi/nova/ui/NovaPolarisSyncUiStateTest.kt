@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.manager.PolarisProfileSync
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -42,7 +43,7 @@ class NovaPolarisSyncUiStateTest {
         )
 
         assertEquals(NovaPolarisSyncStatus.SYNCED, state.status)
-        assertEquals("Headless Stream", state.desiredModeLabel)
+        assertEquals("Private Stream", state.desiredModeLabel)
         assertEquals("Host Virtual Display", state.effectiveModeLabel)
         assertTrue(state.modes.first { it.mode == PolarisClientSettings.MODE_HEADLESS_STREAM }.selected)
         assertFalse(state.modes.first { it.mode == PolarisClientSettings.MODE_GPU_NATIVE_TEST }.enabled)
@@ -130,6 +131,72 @@ class NovaPolarisSyncUiStateTest {
         assertEquals(PolarisProfileSync.ProfileState.DIFFERENT, different.profileState)
         assertTrue(different.matchNovaVisible)
         assertTrue(different.matchNovaEnabled)
+    }
+
+    @Test
+    fun modeMapperNormalizesCapabilitiesAndMarksPendingRelaunch() {
+        val state = NovaPolarisSyncUiStateMapper.build(
+            settings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(
+                    streamDisplayMode = PolarisClientSettings.MODE_GPU_NATIVE_TEST
+                ),
+                effective = PolarisClientSettings.Effective(
+                    streamDisplayMode = PolarisClientSettings.MODE_HEADLESS_STREAM
+                ),
+                capabilities = PolarisClientSettings.Capabilities(
+                    modes = PolarisStreamDisplayMode.ORDER.map {
+                        PolarisClientSettings.ModeOption(value = it, available = true)
+                    }
+                ),
+                relaunchRequired = true
+            ),
+            busy = false,
+            settingsUnavailable = false,
+            autoSyncEnabled = false,
+            hasServerUuid = true,
+            novaDisplayMode = "1920x1080@60",
+            novaBitrateKbps = 30000
+        )
+
+        val gpuNative = state.modes.first { it.mode == PolarisClientSettings.MODE_GPU_NATIVE_TEST }
+        assertTrue(gpuNative.selectedDesired)
+        assertFalse(gpuNative.selectedEffective)
+        assertEquals("GPU-Native Test", gpuNative.label)
+        assertEquals("Saved — applies after relaunch", gpuNative.statusLabel)
+        assertTrue(state.relaunchRequired)
+    }
+
+    @Test
+    fun unavailableHostVirtualDisplayCarriesReason() {
+        val state = NovaPolarisSyncUiStateMapper.build(
+            settings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(
+                    streamDisplayMode = PolarisClientSettings.MODE_HEADLESS_STREAM
+                ),
+                effective = PolarisClientSettings.Effective(
+                    streamDisplayMode = PolarisClientSettings.MODE_HEADLESS_STREAM
+                ),
+                capabilities = PolarisClientSettings.Capabilities(
+                    modes = listOf(
+                        PolarisClientSettings.ModeOption(
+                            value = PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
+                            available = false,
+                            reason = "No virtual display backend"
+                        )
+                    )
+                )
+            ),
+            busy = false,
+            settingsUnavailable = false,
+            autoSyncEnabled = false,
+            hasServerUuid = true,
+            novaDisplayMode = "1920x1080@60",
+            novaBitrateKbps = 30000
+        )
+
+        val virtual = state.modes.first { it.mode == PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY }
+        assertFalse(virtual.enabled)
+        assertEquals("No virtual display backend", virtual.reason)
     }
 
     private fun settings(

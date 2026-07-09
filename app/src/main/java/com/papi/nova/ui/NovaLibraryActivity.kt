@@ -113,6 +113,7 @@ import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.binding.PlatformBinding
@@ -662,10 +663,10 @@ class NovaLibraryActivity : AppCompatActivity() {
                 )
                 val syncedSettings = withContext(Dispatchers.IO) {
                     apiClient.updateClientSettings(
-                        streamDisplayMode = when {
-                            withVirtualDisplay -> "host_virtual_display"
-                            mirrorDesktop -> "desktop_display"
-                            else -> "headless_stream"
+                        streamDisplayMode = if (mirrorDesktop) {
+                            PolarisClientSettings.MODE_DESKTOP_DISPLAY
+                        } else {
+                            PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings)
                         },
                         displayMode = com.papi.nova.preferences.PreferenceConfiguration.formatStreamingDisplayMode(
                             launchResolution.width,

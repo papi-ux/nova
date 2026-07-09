@@ -23,6 +23,7 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.manager.PolarisSettingsSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -266,6 +267,18 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
         showToast: Boolean = true
     ) {
         val client = apiClient ?: return
+        val previousSettings = currentSettings
+        val requestedMode = PolarisStreamDisplayMode.normalize(streamDisplayMode)
+        if (requestedMode.isNotBlank()) {
+            currentSettings = previousSettings?.copy(
+                desired = previousSettings.desired.copy(
+                    streamDisplayMode = requestedMode,
+                    streamDisplayModeLabel = PolarisStreamDisplayMode.labelForMode(requestedMode)
+                ),
+                relaunchRequired = previousSettings.effective.streamDisplayMode.isNotBlank() &&
+                    PolarisStreamDisplayMode.normalize(previousSettings.effective.streamDisplayMode) != requestedMode
+            )
+        }
         updateBusyState(true)
         lifecycleScope.launch {
             val confirmed = withContext(Dispatchers.IO) {
@@ -287,6 +300,7 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
             }
             updateBusyState(false)
             if (confirmed == null) {
+                currentSettings = previousSettings
                 Toast.makeText(requireContext(), R.string.nova_polaris_sync_failed, Toast.LENGTH_SHORT).show()
                 return@launch
             }

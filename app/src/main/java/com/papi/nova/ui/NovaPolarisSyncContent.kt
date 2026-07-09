@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,7 +37,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.papi.nova.R
-import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
@@ -267,11 +267,20 @@ private fun NovaModeButton(
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(10.dp)
-    val selected = mode.selected
-    val label = modeLabel(mode.mode)
+    val selected = mode.selectedDesired
+    val activeOnly = !mode.selectedDesired && mode.selectedEffective
+    val description = listOf(mode.label, mode.statusLabel, mode.reason)
+        .filter { it.isNotBlank() }
+        .joinToString(". ")
+    val statusColor = when {
+        selected -> colors.onAccent
+        activeOnly -> colors.accent
+        !mode.available -> colors.warning
+        else -> colors.textMuted
+    }
     Box(
         modifier = modifier
-            .height(42.dp)
+            .heightIn(min = 62.dp)
             .clip(shape)
             .background(if (selected) colors.accent else surfaces.control)
             .border(
@@ -281,7 +290,7 @@ private fun NovaModeButton(
             )
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .semantics {
-                contentDescription = label
+                contentDescription = description
                 role = Role.Button
             }
             .clickable(
@@ -290,17 +299,36 @@ private fun NovaModeButton(
                 onClick = onClick
             )
             .focusable(enabled = mode.enabled)
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            color = if (selected) colors.onAccent else colors.textPrimary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = mode.label,
+                color = if (selected) colors.onAccent else colors.textPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = mode.statusLabel,
+                color = statusColor,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!mode.available && mode.reason.isNotBlank()) {
+                Text(
+                    text = mode.reason,
+                    color = colors.warning,
+                    fontSize = 8.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
@@ -353,15 +381,4 @@ private fun profileStateColor(state: PolarisProfileSync.ProfileState) = when (st
     PolarisProfileSync.ProfileState.DIFFERENT,
     PolarisProfileSync.ProfileState.POLARIS_UNSET -> LocalNovaComposeColors.current.warning
     PolarisProfileSync.ProfileState.UNAVAILABLE -> LocalNovaComposeColors.current.textMuted
-}
-
-@Composable
-private fun modeLabel(mode: String): String {
-    return when (mode) {
-        PolarisClientSettings.MODE_HEADLESS_STREAM -> stringResource(R.string.nova_library_launch_headless)
-        PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY -> stringResource(R.string.nova_library_launch_virtual_display)
-        PolarisClientSettings.MODE_DESKTOP_DISPLAY -> stringResource(R.string.nova_library_launch_desktop_display)
-        PolarisClientSettings.MODE_GPU_NATIVE_TEST -> stringResource(R.string.nova_library_launch_gpu_native_test)
-        else -> PolarisClientSettings.labelForMode(mode).ifBlank { mode }
-    }
 }

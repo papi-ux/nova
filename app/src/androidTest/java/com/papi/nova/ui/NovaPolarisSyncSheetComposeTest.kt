@@ -3,15 +3,14 @@ package com.papi.nova.ui
 import android.content.Context
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.ui.compose.NovaComposeTheme
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -51,8 +50,6 @@ class NovaPolarisSyncSheetComposeTest {
             }
         }
 
-        val privateStreamLabel = context.getString(R.string.nova_library_launch_headless)
-        val virtualDisplayLabel = context.getString(R.string.nova_library_launch_virtual_display)
         val title = context.getString(R.string.nova_polaris_sync_title)
         val streamDisplayTitle = context.getString(R.string.nova_polaris_sync_mode_title)
         val launchProfileTitle = context.getString(R.string.nova_polaris_sync_profile_title)
@@ -66,14 +63,10 @@ class NovaPolarisSyncSheetComposeTest {
         composeRule.onNodeWithText(title).assertIsDisplayed()
         composeRule.onNodeWithText("Test Server").assertIsDisplayed()
         composeRule.onNodeWithText(streamDisplayTitle).assertIsDisplayed()
-        assertAnyModeButtonDisplayed(
-            composeRule,
-            listOf(privateStreamLabel, "Headless")
-        )
-        assertAnyModeButtonDisplayed(
-            composeRule,
-            listOf(virtualDisplayLabel, "Virtual display", "Virtual")
-        )
+        composeRule.onNodeWithText("Private Stream").assertIsDisplayed()
+        composeRule.onNodeWithText("Host Virtual Display").assertIsDisplayed()
+        composeRule.onNodeWithText("Desktop Display").assertIsDisplayed()
+        composeRule.onNodeWithText("GPU-Native Test").assertIsDisplayed()
         composeRule.onNodeWithText(launchProfileTitle).assertIsDisplayed()
         composeRule.onNodeWithText(matchNovaAction).assertIsDisplayed().assertHasClickAction()
         composeRule.onNodeWithText(pushNovaAction).assertIsDisplayed().assertHasClickAction()
@@ -83,41 +76,23 @@ class NovaPolarisSyncSheetComposeTest {
         composeRule.onNodeWithText(aiAutoQualityLabel).performScrollTo().assertIsDisplayed()
     }
 
-    private fun assertAnyModeButtonDisplayed(composeRule: androidx.compose.ui.test.junit4.ComposeContentTestRule, labels: List<String>) {
-        val found = labels.any { label ->
-            try {
-                composeRule.onNode(hasContentDescription(label)).assertIsDisplayed().assertHasClickAction()
-                true
-            } catch (_: AssertionError) {
-                false
-            }
-        }
-        assertTrue("Expected one of mode labels to be displayed: $labels", found)
-    }
-
     private fun settings() = PolarisClientSettings(
         desired = PolarisClientSettings.Desired(
-            streamDisplayMode = PolarisClientSettings.MODE_HEADLESS_STREAM,
+            streamDisplayMode = PolarisClientSettings.MODE_GPU_NATIVE_TEST,
             displayMode = "2560x1440@60",
             targetBitrateKbps = 45000,
             aiAutoQualityEnabled = true
         ),
         effective = PolarisClientSettings.Effective(
-            streamDisplayMode = PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
+            streamDisplayMode = PolarisClientSettings.MODE_HEADLESS_STREAM,
             adaptiveBitrateEnabled = true
         ),
         capabilities = PolarisClientSettings.Capabilities(
-            modes = listOf(
-                PolarisClientSettings.ModeOption(
-                    value = PolarisClientSettings.MODE_HEADLESS_STREAM,
-                    available = true
-                ),
-                PolarisClientSettings.ModeOption(
-                    value = PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
-                    available = true
-                )
-            ),
+            modes = PolarisStreamDisplayMode.ORDER.map {
+                PolarisClientSettings.ModeOption(value = it, available = true)
+            },
             aiAutoQualityControl = true
-        )
+        ),
+        relaunchRequired = true
     )
 }

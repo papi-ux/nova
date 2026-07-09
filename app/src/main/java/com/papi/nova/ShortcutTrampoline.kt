@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.computers.ComputerDatabaseManager
 import com.papi.nova.computers.ComputerManagerListener
@@ -675,7 +676,8 @@ class ShortcutTrampoline : AppCompatActivity() {
                 LimeLog.warning("Nova: Shortcut launch MangoHUD state sync failed; continuing launch")
             }
 
-            syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay)
+            val clientSettings = apiClient.getClientSettings()
+            syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay, clientSettings)
             val optimization = apiClient.getOptimization(
                 DeviceUtils.getModel(),
                 polarisGame.name,
@@ -731,14 +733,11 @@ class ShortcutTrampoline : AppCompatActivity() {
     private fun syncShortcutLaunchPreflightSettings(
         apiClient: PolarisApiClient,
         withVirtualDisplay: Boolean,
+        clientSettings: PolarisClientSettings?,
     ) {
         val preferences = PreferenceConfiguration.readPreferences(this)
         val syncedSettings = apiClient.updateClientSettings(
-            streamDisplayMode = if (withVirtualDisplay) {
-                PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
-            } else {
-                PolarisClientSettings.MODE_HEADLESS_STREAM
-            },
+            streamDisplayMode = PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings),
             displayMode = PreferenceConfiguration.formatStreamingDisplayMode(
                 preferences.width,
                 preferences.height,

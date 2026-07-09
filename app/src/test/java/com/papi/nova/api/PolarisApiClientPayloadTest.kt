@@ -52,4 +52,13 @@ class PolarisApiClientPayloadTest {
         assertEquals(24000, body.getJSONObject("applied_stream_settings").getInt("target_bitrate_kbps"))
         assertEquals("synced", body.getJSONObject("client_presentation").getString("status"))
     }
+    @Test
+    fun buildClientSettingsUpdateBodyNormalizesStreamDisplayMode() {
+        val body = PolarisApiClient.buildClientSettingsUpdateBody(
+            streamDisplayMode = "gpu_native"
+        )
+
+        assertEquals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, body.getString("stream_display_mode"))
+    }
+
 }
