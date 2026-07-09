@@ -363,16 +363,17 @@ data class NovaHudUiState(
         }
 
         private fun buildSessionModeLabel(status: PolarisSessionStatus): String {
-            val mode = status.sessionModeLabel
+            val mode = status.sessionModeWithCaptureLabel.ifBlank { status.sessionModeLabel }
             val bitDepth = if (status.isTenBitActive) "10b" else "8b"
             val path = when {
+                status.capturePathLabel.isNotBlank() -> ""
                 status.isGpuPath -> "GPU"
                 status.encoder.targetResidency.equals("cpu", ignoreCase = true) -> "CPU"
                 else -> ""
             }
             val modeSource = when (status.displayMode.requested) {
                 "auto" -> "AUTO"
-                "headless", "virtual_display" -> "EXP"
+                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display" -> "EXP"
                 else -> ""
             }
             val lifecycle = when {

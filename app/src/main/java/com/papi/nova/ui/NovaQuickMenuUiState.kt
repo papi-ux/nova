@@ -672,16 +672,14 @@ data class NovaQuickMenuUiState(
         private fun resolveSessionModeLabel(context: Context, status: PolarisSessionStatus?): String {
             val mode = when {
                 status == null -> context.getString(R.string.nova_quick_menu_mode_unknown)
-                status.isHeadlessMode -> context.getString(R.string.nova_session_mode_headless)
-                status.isVirtualDisplayMode -> context.getString(R.string.nova_session_mode_virtual_display)
-                else -> context.getString(R.string.nova_session_mode_host_display)
+                else -> status.sessionModeWithCaptureLabel.ifBlank { status.sessionModeLabel }
             }
             if (status == null) {
                 return mode
             }
             val source = when (status.displayMode.requested) {
                 "auto" -> "Auto"
-                "headless", "virtual_display" -> "Explicit"
+                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display" -> "Explicit"
                 else -> ""
             }
             val base = listOf(mode, source).filter { it.isNotBlank() }.joinToString(" · ")

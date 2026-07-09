@@ -67,12 +67,14 @@ data class PolarisClientSettings(
 
         @JvmStatic
         fun labelForMode(mode: String): String = when (mode) {
-            MODE_HEADLESS_STREAM -> "Headless Stream"
+            MODE_HEADLESS_STREAM -> "Private Stream"
             MODE_HOST_VIRTUAL_DISPLAY -> "Host Virtual Display"
-            MODE_GPU_NATIVE_TEST -> "GPU-Native Test"
-            MODE_DESKTOP_DISPLAY -> "Desktop Display"
-            "headless" -> "Headless Stream"
+            MODE_GPU_NATIVE_TEST -> "Private Stream (GPU-native)"
+            MODE_DESKTOP_DISPLAY -> "Mirror Desktop"
+            "headless" -> "Private Stream"
             "virtual_display" -> "Host Virtual Display"
+            "desktop_display", "host_display" -> "Mirror Desktop"
+            "windowed_stream", "gpu_native", "gpu-native" -> "Private Stream (GPU-native)"
             else -> ""
         }
     }
