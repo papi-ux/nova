@@ -292,7 +292,7 @@
                         android:id="@+id/dashboardModeSelector"
                         android:layout_width="match_parent"
                         android:layout_height="34dp"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="6dp"
                         android:contentDescription="@string/pcview_dashboard_mode_selector"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
@@ -401,7 +401,7 @@
                         android:id="@+id/setupActionRow"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="8dp"
                         android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton

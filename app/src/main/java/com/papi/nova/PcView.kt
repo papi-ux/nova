@@ -1,5 +1,6 @@
 package com.papi.nova
 
+import android.animation.ValueAnimator
 import android.app.AlertDialog
 import android.app.Service
 import android.content.ComponentName
@@ -24,6 +25,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -372,6 +374,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val settingsAction = findViewById<View>(R.id.actionSettings)
         val githubAction = findViewById<View>(R.id.actionGithub)
         val dashboardRailToggle = findViewById<MaterialButton>(R.id.dashboardRailToggle)
+        dashboardRailCollapsed = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+            loadDashboardRailCollapsedPreference()
         val topActionFocusLabel = findViewById<TextView>(R.id.topActionFocusLabel)
         val emptyRefresh = findViewById<TextView>(R.id.emptyRefresh)
         val emptyAddServer = findViewById<TextView>(R.id.emptyAddServer)
@@ -503,7 +507,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
 
         styleActionButton(findViewById(R.id.profilesButton), surface, textPrimary)
         if (dashboardRailCollapsed) {
-            setDashboardRailCollapsed(true)
+            setDashboardRailCollapsed(true, persist = false, animate = false)
         }
     }
 
@@ -657,14 +661,16 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     }
 
 
-    private fun setDashboardRailCollapsed(collapsed: Boolean) {
+    private fun setDashboardRailCollapsed(collapsed: Boolean, persist: Boolean = true, animate: Boolean = true) {
         dashboardRailCollapsed = collapsed
         val rail = findViewById<ViewGroup>(R.id.dashboardCockpitRail) ?: return
+        if (persist) {
+            saveDashboardRailCollapsedPreference(collapsed)
+        }
         val targetWidth = resources.getDimensionPixelSize(
             if (collapsed) R.dimen.nova_dashboard_rail_collapsed_width else R.dimen.nova_dashboard_rail_width,
         )
-        rail.layoutParams = rail.layoutParams.apply { width = targetWidth }
-        rail.requestLayout()
+        animateDashboardRailWidth(rail, targetWidth, animate)
 
         setDashboardRailTaggedLabelsVisible(rail, !collapsed)
         val labelVisibility = if (collapsed) View.GONE else View.VISIBLE
@@ -689,6 +695,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             button.iconPadding = if (collapsed) 0 else UiHelper.dpToPx(this, 6f).toInt()
             button.gravity = if (collapsed) Gravity.CENTER else Gravity.CENTER_VERTICAL
         }
+        setDashboardRailSetupActionsCollapsed(collapsed)
 
         findViewById<MaterialButton>(R.id.dashboardRailToggle)?.let { toggle ->
             toggle.contentDescription = getString(if (collapsed) R.string.pcview_rail_expand else R.string.pcview_rail_collapse)
@@ -697,6 +704,63 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             toggle.iconPadding = 0
             toggle.setPadding(0, 0, 0, 0)
         }
+    }
+
+    private fun animateDashboardRailWidth(rail: ViewGroup, targetWidth: Int, animate: Boolean) {
+        val startWidth = rail.width.takeIf { it > 0 } ?: rail.layoutParams.width
+        if (!animate || startWidth <= 0 || startWidth == targetWidth) {
+            rail.layoutParams = rail.layoutParams.apply { width = targetWidth }
+            rail.requestLayout()
+            return
+        }
+        ValueAnimator.ofInt(startWidth, targetWidth).apply {
+            duration = DASHBOARD_RAIL_ANIMATION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                rail.layoutParams = rail.layoutParams.apply { width = animator.animatedValue as Int }
+                rail.requestLayout()
+            }
+            start()
+        }
+    }
+
+    private fun setDashboardRailSetupActionsCollapsed(collapsed: Boolean) {
+        val setupRow = findViewById<LinearLayout>(R.id.setupActionRow) ?: return
+        val addServer = findViewById<MaterialButton>(R.id.actionAddServer)
+        val scanPair = findViewById<MaterialButton>(R.id.actionScanPair)
+        setupRow.orientation = if (collapsed) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        val collapsedSpacing = UiHelper.dpToPx(this, 6f).toInt()
+        val compactHeight = UiHelper.dpToPx(this, 34f).toInt()
+
+        addServer?.let { button ->
+            val addParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
+            addParams.width = if (collapsed) LinearLayout.LayoutParams.MATCH_PARENT else 0
+            addParams.height = compactHeight
+            addParams.weight = if (collapsed) 0f else 1f
+            addParams.marginStart = 0
+            addParams.topMargin = 0
+            button.layoutParams = addParams
+        }
+        scanPair?.let { button ->
+            val scanParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
+            scanParams.width = if (collapsed) LinearLayout.LayoutParams.MATCH_PARENT else 0
+            scanParams.height = compactHeight
+            scanParams.weight = if (collapsed) 0f else 1f
+            scanParams.marginStart = if (collapsed) 0 else collapsedSpacing
+            scanParams.topMargin = if (collapsed) collapsedSpacing else 0
+            button.layoutParams = scanParams
+        }
+    }
+
+    private fun loadDashboardRailCollapsedPreference(): Boolean =
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(PREF_DASHBOARD_RAIL_COLLAPSED, false)
+
+    private fun saveDashboardRailCollapsedPreference(collapsed: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit()
+            .putBoolean(PREF_DASHBOARD_RAIL_COLLAPSED, collapsed)
+            .apply()
     }
 
     private fun setDashboardRailTaggedLabelsVisible(root: ViewGroup, visible: Boolean) {
@@ -2651,5 +2715,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         private const val FILTER_STREAMING = 2
         private const val FILTER_NEEDS_PAIRING = 3
         private const val PREF_LAST_LIBRARY_PC_UUID = "nova_last_library_pc_uuid"
+        private const val PREF_DASHBOARD_RAIL_COLLAPSED = "nova_dashboard_rail_collapsed"
+        private const val DASHBOARD_RAIL_ANIMATION_MS = 160L
     }
 }

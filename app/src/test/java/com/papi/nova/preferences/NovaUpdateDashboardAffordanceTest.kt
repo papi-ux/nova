@@ -29,7 +29,7 @@ class NovaUpdateDashboardAffordanceTest {
             val approvedOrder = if (layout.path.contains("layout-land")) {
                 listOf("@+id/actionStartPolaris", "@+id/profilesButton", "@+id/actionTheme", "@+id/actionGithub", "@+id/actionSettings", "@+id/actionNovaUpdate")
             } else {
-                listOf("@+id/profilesButton", "@+id/actionNovaUpdate", "@+id/actionStartPolaris")
+                listOf("@+id/actionStartPolaris", "@+id/profilesButton", "@+id/actionTheme", "@+id/actionGithub", "@+id/actionSettings", "@+id/actionNovaUpdate")
             }
             approvedOrder.zipWithNext().forEach { (first, second) ->
                 assertTrue("${layout.path} should keep the approved dashboard action order", headerXml.indexOf(first) in 1 until headerXml.indexOf(second))

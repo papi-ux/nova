@@ -195,12 +195,12 @@ class NovaDashboardRevampContractTest {
             assertTrue("${layout.path} should keep Scan Pair in setupActionRow", setupXml.contains("@+id/actionScanPair"))
             if (layout.path.contains("layout-land")) {
                 assertTrue("${layout.path} setup row should fill the compact left rail", setupXml.contains("""android:layout_width="match_parent"""))
-                assertTrue("${layout.path} setup actions may split into compact paired rail pills", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
+                assertTrue("${layout.path} expanded setup actions should split into compact paired rail pills", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
                 assertTrue("${layout.path} setup actions should use compact rail pill sizing", setupXml.contains("""android:layout_height="34dp""") && setupXml.contains("""app:cornerRadius="17dp"""))
             } else {
-                assertTrue("${layout.path} setup row should be content-sized, not another hero bar", setupXml.contains("""android:layout_width="wrap_content""""))
+                assertTrue("${layout.path} setup row should fill portrait width for large touch targets", setupXml.contains("""android:layout_width="match_parent"""))
                 assertTrue("${layout.path} setup actions should use shared pill tokens", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_dashboard_pill_radius"))
-                assertFalse("${layout.path} setup actions should not split into equal-width hero bars", setupXml.contains("""android:layout_width="0dp""") || setupXml.contains("android:layout_weight"))
+                assertTrue("${layout.path} setup actions should split into equal-width portrait targets", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
             }
         }
     }
@@ -303,6 +303,56 @@ class NovaDashboardRevampContractTest {
             collapseIcon.contains("M4,6h16v2H4V6zM4,11h10v2H4v-2zM4,16h16v2H4v-2zM17,10l-4,2l4,2v-4z"),
         )
         assertTrue("runtime collapse icon swaps should preserve centered icon-only gravity", source.contains("toggle.gravity = Gravity.CENTER") && source.contains("toggle.iconPadding = 0"))
+    }
+
+
+    @Test
+    fun laneThreePointThreeLandscapeRefinementsStayPolished() {
+        val landscape = File("src/main/res/layout-land/activity_pc_view.xml").readText()
+        val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val railXml = landscape.substring(
+            landscape.indexOf("@+id/dashboardCockpitRail"),
+            landscape.indexOf("@+id/dashboardContent"),
+        )
+        val setupXml = railXml.substring(railXml.indexOf("@+id/setupActionRow"), railXml.indexOf("@+id/topActionFocusLabel"))
+        val modeSelectorXml = railXml.substring(railXml.indexOf("@+id/dashboardHomeControls"), railXml.indexOf("@+id/setupActionRow"))
+
+        assertTrue("Browse controls need slightly more breathing room under the BROWSE label", modeSelectorXml.contains("""android:layout_marginTop="6dp"""))
+        assertTrue("setup controls should sit off the live status with a little more air", setupXml.contains("""android:layout_marginTop="8dp"""))
+        assertTrue("collapsed setup actions should stack vertically instead of becoming tiny side-by-side batteries", source.contains("private fun setDashboardRailSetupActionsCollapsed") && source.contains("setupRow.orientation = if (collapsed) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL"))
+        assertTrue("collapsed setup stack should remove the Scan Pair start margin and add vertical rhythm", source.contains("scanParams.marginStart = if (collapsed) 0 else") && source.contains("scanParams.topMargin = if (collapsed)"))
+        assertTrue("rail collapse should animate width instead of hard-jumping", source.contains("private fun animateDashboardRailWidth") && source.contains("ValueAnimator.ofInt") && source.contains("DASHBOARD_RAIL_ANIMATION_MS"))
+        assertTrue("landscape rail collapsed state should persist across dashboard recreates", source.contains("PREF_DASHBOARD_RAIL_COLLAPSED") && source.contains("loadDashboardRailCollapsedPreference()") && source.contains("saveDashboardRailCollapsedPreference(collapsed)"))
+    }
+
+
+    @Test
+    fun laneThreePointFourPortraitCockpitPrioritizesPrimaryActionsAndFullWidthControls() {
+        val portrait = File("src/main/res/layout/activity_pc_view.xml").readText()
+        val headerStart = portrait.indexOf("@+id/pcViewHeader")
+        val hostsStart = portrait.indexOf("@+id/pcViewHostsLabel")
+        val headerXml = portrait.substring(headerStart, hostsStart)
+        val railXml = headerXml.substring(headerXml.indexOf("@+id/dashboardPillRail"), headerXml.indexOf("@+id/topActionFocusLabel"))
+        val controlsXml = headerXml.substring(headerXml.indexOf("@+id/dashboardHomeControls"))
+        val selectorXml = controlsXml.substring(controlsXml.indexOf("@+id/dashboardModeSelector"), controlsXml.indexOf("@+id/dashboardModeStatus"))
+        val setupXml = controlsXml.substring(controlsXml.indexOf("@+id/setupActionRow"))
+
+        val expectedOrder = listOf(
+            "@+id/actionStartPolaris",
+            "@+id/profilesButton",
+            "@+id/actionTheme",
+            "@+id/actionGithub",
+            "@+id/actionSettings",
+            "@+id/actionNovaUpdate",
+        )
+        expectedOrder.zipWithNext().forEach { (first, second) ->
+            assertTrue("$first should appear before $second in the portrait quick rail", railXml.indexOf(first) in 1 until railXml.indexOf(second))
+        }
+        val focusLabelXml = headerXml.substring(headerXml.indexOf("@+id/topActionFocusLabel"), headerXml.indexOf("@+id/dashboardHomeControls"))
+        assertTrue("portrait GitHub pill should use the same icon treatment as landscape", railXml.contains("@drawable/ic_github"))
+        assertTrue("portrait focus label should stay visually attached to the quick rail instead of drifting to the right edge", focusLabelXml.contains("""android:gravity="center"""))
+        assertTrue("portrait mode selector should use full-width equal targets", selectorXml.contains("""android:layout_width="match_parent"""") && selectorXml.contains("""android:layout_width="0dp""") && selectorXml.contains("android:layout_weight"))
+        assertTrue("portrait setup actions should use full-width equal touch targets", setupXml.contains("""android:layout_width="match_parent"""") && setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
     }
 
 }

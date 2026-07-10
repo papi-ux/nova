@@ -261,25 +261,33 @@ class NovaFocusDrawableTest {
     }
 
     @Test
-    fun serverRowsExposeStateHintsAndFocusedPrimaryAction() {
+    fun serverRowsExposeStateHintsAndSingleFocusPrimaryAction() {
         val row = parseXml("src/main/res/layout/pc_grid_item.xml")
         val adapter = readSource("src/main/java/com/papi/nova/grid/PcGridAdapter.kt")
         val genericAdapter = readSource("src/main/java/com/papi/nova/grid/GenericGridAdapter.kt")
+        val chip = readSource("src/main/res/drawable/nova_chip_default.xml")
 
         assertTrue(
             "server rows should reserve a persistent hint line for offline/pairing/Polaris states",
             hasViewAttribute(row, "status_hint_text", "android:visibility", "gone")
         )
         assertTrue(
-            "server row primary action should use a focus-aware chip background",
+            "server row primary action should use the shared chip background",
             hasViewAttribute(row, "primary_action_text", "android:background", "@drawable/nova_chip_default")
         )
         assertTrue(
-            "server rows should update the action chip selected state from row focus",
+            "Open Library should read as actionable without needing a second focus ring",
+            chip.contains("state_activated") &&
+                adapter.contains("private fun setPrimaryActionReady") &&
+                adapter.contains("setPrimaryActionReady(primaryAction, true)")
+        )
+        assertTrue(
+            "server rows should keep the row/card as the single focus owner",
             genericAdapter.contains("open fun onItemFocusChanged(") &&
                 genericAdapter.contains("onItemFocusChanged(holder.itemView, hasFocus)") &&
                 adapter.contains("override fun onItemFocusChanged(") &&
-                adapter.contains("primaryAction?.isSelected = hasFocus")
+                adapter.contains("primaryAction?.isSelected = false") &&
+                !adapter.contains("primaryAction?.isSelected = hasFocus")
         )
         assertTrue(
             "server rows should explain the state-specific action, not only name the state",
