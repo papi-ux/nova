@@ -285,4 +285,24 @@ class NovaDashboardRevampContractTest {
         assertTrue("collapsed rail should keep focus labels discoverable", source.contains("topActionFocusLabel"))
     }
 
+
+    @Test
+    fun laneThreePointTwoRailToggleIconStaysCentered() {
+        val landscape = File("src/main/res/layout-land/activity_pc_view.xml").readText()
+        val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val collapseIcon = File("src/main/res/drawable/ic_menu_collapse.xml").readText()
+        val toggleStart = landscape.indexOf("@+id/dashboardRailToggle")
+        val titleStart = landscape.indexOf("@+id/pcViewTitle")
+        val toggleXml = landscape.substring(toggleStart, titleStart)
+
+        assertTrue("collapse toggle icon-only button should center its icon", toggleXml.contains("""android:gravity="center"""))
+        assertTrue("collapse toggle should not offset the icon with padding", toggleXml.contains("""app:iconPadding="0dp"""))
+        assertTrue("collapse toggle should pin a consistent centered icon size", toggleXml.contains("""app:iconSize="20dp"""))
+        assertFalse(
+            "old collapse icon path rendered visibly left-of-center inside the round toggle",
+            collapseIcon.contains("M4,6h16v2H4V6zM4,11h10v2H4v-2zM4,16h16v2H4v-2zM17,10l-4,2l4,2v-4z"),
+        )
+        assertTrue("runtime collapse icon swaps should preserve centered icon-only gravity", source.contains("toggle.gravity = Gravity.CENTER") && source.contains("toggle.iconPadding = 0"))
+    }
+
 }

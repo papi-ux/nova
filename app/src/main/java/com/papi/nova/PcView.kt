@@ -693,6 +693,9 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         findViewById<MaterialButton>(R.id.dashboardRailToggle)?.let { toggle ->
             toggle.contentDescription = getString(if (collapsed) R.string.pcview_rail_expand else R.string.pcview_rail_collapse)
             toggle.setIconResource(if (collapsed) R.drawable.ic_menu else R.drawable.ic_menu_collapse)
+            toggle.gravity = Gravity.CENTER
+            toggle.iconPadding = 0
+            toggle.setPadding(0, 0, 0, 0)
         }
     }
 

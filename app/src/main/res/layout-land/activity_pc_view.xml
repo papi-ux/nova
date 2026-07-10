@@ -47,6 +47,7 @@
                         android:layout_width="34dp"
                         android:layout_height="34dp"
                         android:contentDescription="@string/pcview_rail_collapse"
+                        android:gravity="center"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
                         android:minWidth="34dp"
@@ -59,6 +60,8 @@
                         app:elevation="0dp"
                         app:icon="@drawable/ic_menu_collapse"
                         app:iconGravity="textStart"
+                        app:iconPadding="0dp"
+                        app:iconSize="20dp"
                         app:iconTint="?attr/colorOnSurface" />
 
                     <TextView
