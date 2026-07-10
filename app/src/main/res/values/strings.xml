@@ -57,6 +57,9 @@
     <string name="pcview_home_subtitle">Open your game library or set up a server</string>
     <string name="pcview_mode_servers">Servers</string>
     <string name="pcview_mode_library">Library</string>
+    <string name="pcview_dashboard_mode_selector">Dashboard mode selector</string>
+    <string name="pcview_dashboard_mode_status_empty">No hosts yet · add or scan to begin</string>
+    <string name="pcview_dashboard_mode_status_format">%1$d online · %2$d total · %3$s</string>
     <string name="pcview_destination_current">Current</string>
     <string name="pcview_destination_open">Open</string>
     <string name="pcview_destination_servers_summary">Pair, wake, and manage streaming hosts</string>

@@ -459,16 +459,15 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
 
         findViewById<TextView>(R.id.pcViewTitle)?.setTextColor(textPrimary)
         findViewById<TextView>(R.id.pcViewSectionLabel)?.setTextColor(textMuted)
-        findViewById<TextView>(R.id.pcViewToolsLabel)?.setTextColor(textPrimary)
-        findViewById<TextView>(R.id.pcViewToolsHint)?.setTextColor(textMuted)
         findViewById<TextView>(R.id.pcViewHostsLabel)?.setTextColor(textPrimary)
         findViewById<TextView>(R.id.pcViewHostsSummary)?.setTextColor(textMuted)
+        findViewById<TextView>(R.id.dashboardModeStatus)?.setTextColor(textSecondary)
         findViewById<TextView>(R.id.topActionFocusLabel)?.setTextColor(textSecondary)
         findViewById<TextView>(R.id.pcViewEmptyTitle)?.setTextColor(textMuted)
         findViewById<TextView>(R.id.pcViewEmptyHint)?.setTextColor(textMuted)
 
-        styleDestinationCard(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textSecondary, textMuted)
-        styleDestinationCard(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textSecondary, textMuted)
+        styleModeSegment(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textMuted)
+        styleModeSegment(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textMuted)
 
         styleActionButton(findViewById(R.id.actionAddServer), ColorUtils.blendARGB(surface, accent, 0.26f), textPrimary)
         styleActionButton(findViewById(R.id.actionScanPair), surface, textPrimary)
@@ -591,43 +590,44 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         }
     }
 
-    private fun styleDestinationCard(
+    private fun styleModeSegment(
         card: MaterialCardView?,
         active: Boolean,
         accent: Int,
         surface: Int,
         divider: Int,
         textPrimary: Int,
-        textSecondary: Int,
         textMuted: Int,
     ) {
         if (card == null) {
             return
         }
 
-        card.setCardBackgroundColor(if (active) ColorUtils.blendARGB(surface, accent, 0.12f) else surface)
-        updateDestinationCardStroke(card, active || card.hasFocus(), accent, divider)
+        val focused = card.hasFocus()
+        card.setCardBackgroundColor(
+            if (active) ColorUtils.blendARGB(surface, accent, 0.16f) else ColorUtils.blendARGB(surface, textMuted, 0.05f),
+        )
+        updateModeSegmentStroke(card, active || focused, accent, divider)
         card.setOnFocusChangeListener { _, hasFocus ->
-            updateDestinationCardStroke(card, active || hasFocus, accent, divider)
+            updateModeSegmentStroke(card, active || hasFocus, accent, divider)
         }
 
         val layout = card.getChildAt(0) as? LinearLayout ?: return
-        if (layout.childCount < 4) {
-            return
+        for (index in 0 until layout.childCount) {
+            val child = layout.getChildAt(index)
+            if (child is TextView) {
+                child.setTextColor(
+                    if (index == 0) {
+                        if (active) accent else textMuted
+                    } else {
+                        if (active) textPrimary else textMuted
+                    },
+                )
+            }
         }
-
-        val badge = layout.getChildAt(0) as TextView
-        val title = layout.getChildAt(1) as TextView
-        val summary = layout.getChildAt(2) as TextView
-        val meta = layout.getChildAt(3) as TextView
-
-        badge.setTextColor(if (active) accent else textMuted)
-        title.setTextColor(textPrimary)
-        summary.setTextColor(textSecondary)
-        meta.setTextColor(if (active) textPrimary else textMuted)
     }
 
-    private fun updateDestinationCardStroke(card: MaterialCardView, highlighted: Boolean, accent: Int, divider: Int) {
+    private fun updateModeSegmentStroke(card: MaterialCardView, highlighted: Boolean, accent: Int, divider: Int) {
         card.strokeColor = if (highlighted) accent else divider
         card.strokeWidth = UiHelper.dpToPx(this, if (highlighted) 2f else 1f).toInt()
     }
@@ -953,8 +953,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val textPrimary = NovaThemeManager.getTextPrimaryColor(this)
         val textSecondary = NovaThemeManager.getTextSecondaryColor(this)
         val textMuted = NovaThemeManager.getTextMutedColor(this)
-        styleDestinationCard(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textSecondary, textMuted)
-        styleDestinationCard(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textSecondary, textMuted)
+        styleModeSegment(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textMuted)
+        styleModeSegment(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textMuted)
     }
 
     private fun updateServerFilterTabs() {
@@ -1231,26 +1231,17 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         findViewById<TextView>(R.id.pcViewHostsSummary)
             ?.text = getString(R.string.pcview_hosts_summary_format, visibleCount, totalCount)
 
-        val serversMeta = findViewById<TextView>(R.id.pcViewServersMeta)
-        if (serversMeta != null) {
+        val libraryStatus = when {
+            libraryReadyCount <= 0 -> getString(R.string.pcview_destination_library_meta_empty)
+            libraryReadyCount == 1 -> getString(R.string.pcview_destination_library_meta_one)
+            else -> getString(R.string.pcview_destination_library_meta_many, libraryReadyCount)
+        }
+        findViewById<TextView>(R.id.dashboardModeStatus)?.text =
             if (totalCount <= 0) {
-                serversMeta.setText(R.string.pcview_destination_servers_meta_empty)
+                getString(R.string.pcview_dashboard_mode_status_empty)
             } else {
-                serversMeta.text = getString(R.string.pcview_destination_servers_meta_format, onlineCount, totalCount)
-            }
-        }
-
-        val libraryMeta = findViewById<TextView>(R.id.pcViewLibraryMeta)
-        if (libraryMeta != null) {
-            if (libraryReadyCount <= 0) {
-                libraryMeta.setText(R.string.pcview_destination_library_meta_empty)
-            } else if (libraryReadyCount == 1) {
-                libraryMeta.setText(R.string.pcview_destination_library_meta_one)
-            } else {
-                libraryMeta.text = getString(R.string.pcview_destination_library_meta_many, libraryReadyCount)
-            }
-        }
-    }
+                getString(R.string.pcview_dashboard_mode_status_format, onlineCount, totalCount, libraryStatus)
+            }    }
 
     private fun updateEmptyState() {
         if (noPcFoundLayout == null || !::viewModel.isInitialized || !::pcGridAdapter.isInitialized) {

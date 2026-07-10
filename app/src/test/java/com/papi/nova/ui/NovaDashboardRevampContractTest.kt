@@ -144,4 +144,61 @@ class NovaDashboardRevampContractTest {
         assertTrue("mode cards should stay in dashboard content for Lane 2", landscape.indexOf("@+id/modeServers") > contentIndex && landscape.indexOf("@+id/modeLibrary") > contentIndex)
     }
 
+
+    @Test
+    fun laneThreeServerLibraryModesRenderAsCompactSelector() {
+        val layouts = listOf(
+            File("src/main/res/layout/activity_pc_view.xml"),
+            File("src/main/res/layout-land/activity_pc_view.xml")
+        )
+
+        layouts.forEach { layout ->
+            val xml = layout.readText()
+            val selectorIndex = xml.indexOf("@+id/dashboardModeSelector")
+            val hostsIndex = xml.indexOf("@+id/pcViewHostsLabel")
+            assertTrue("${layout.path} should define compact dashboardModeSelector before host content", selectorIndex > 0 && hostsIndex > selectorIndex)
+            assertTrue("${layout.path} should expose a compact mode status line", xml.contains("@+id/dashboardModeStatus"))
+
+            val selectorXml = xml.substring(selectorIndex, hostsIndex)
+            assertTrue("${layout.path} compact selector should keep Servers mode target", selectorXml.contains("@+id/modeServers"))
+            assertTrue("${layout.path} compact selector should keep Library mode target", selectorXml.contains("@+id/modeLibrary"))
+            assertTrue("${layout.path} compact selector should use shared pill radius", selectorXml.contains("@dimen/nova_dashboard_pill_radius"))
+            assertFalse("${layout.path} should remove hero-mode CURRENT badge copy from dashboard XML", selectorXml.contains("pcview_destination_current"))
+            assertFalse("${layout.path} should remove hero-mode OPEN badge copy from dashboard XML", selectorXml.contains("pcview_destination_open"))
+            assertFalse("${layout.path} should remove hero-mode summary paragraphs from compact selector", selectorXml.contains("pcview_destination_servers_summary") || selectorXml.contains("pcview_destination_library_summary"))
+            assertFalse("${layout.path} mode selector should not be the old 18dp hero card pair", selectorXml.contains("""app:cardCornerRadius="18dp""""))
+        }
+    }
+
+    @Test
+    fun laneThreeSetupActionsAreSecondaryPills() {
+        val layouts = listOf(
+            File("src/main/res/layout/activity_pc_view.xml"),
+            File("src/main/res/layout-land/activity_pc_view.xml")
+        )
+
+        layouts.forEach { layout ->
+            val xml = layout.readText()
+            val setupIndex = xml.indexOf("@+id/setupActionRow")
+            val hostsIndex = xml.indexOf("@+id/pcViewHostsLabel")
+            assertTrue("${layout.path} should put setup actions in a named secondary row before hosts", setupIndex > 0 && hostsIndex > setupIndex)
+            val setupXml = xml.substring(setupIndex, hostsIndex)
+
+            assertTrue("${layout.path} should keep Add Server in setupActionRow", setupXml.contains("@+id/actionAddServer"))
+            assertTrue("${layout.path} should keep Scan Pair in setupActionRow", setupXml.contains("@+id/actionScanPair"))
+            assertTrue("${layout.path} setup row should be content-sized, not another hero bar", setupXml.contains("""android:layout_width="wrap_content""""))
+            assertTrue("${layout.path} setup actions should use shared pill tokens", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_dashboard_pill_radius"))
+            assertFalse("${layout.path} setup actions should not split into equal-width hero bars", setupXml.contains("""android:layout_width="0dp"""") || setupXml.contains("android:layout_weight"))
+        }
+    }
+
+    @Test
+    fun laneThreePcViewStylesCompactModesAndLiveStatus() {
+        val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        assertTrue("PcView should style compact mode segments directly", source.contains("private fun styleModeSegment"))
+        assertTrue("PcView should update the live dashboard mode status", source.contains("R.id.dashboardModeStatus"))
+        assertTrue("PcView should use the compact mode status format string", source.contains("pcview_dashboard_mode_status_format"))
+        assertFalse("The old destination hero-card styler should be gone after Lane 3", source.contains("styleDestinationCard"))
+    }
+
 }

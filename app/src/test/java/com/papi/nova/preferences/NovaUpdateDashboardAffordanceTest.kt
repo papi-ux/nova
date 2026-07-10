@@ -24,7 +24,7 @@ class NovaUpdateDashboardAffordanceTest {
             val selectorStart = xml.indexOf("@+id/modeServers")
             assertTrue("${layout.path} should contain a top header before the Server/Library selector", headerStart > 0 && selectorStart > headerStart)
             val headerXml = xml.substring(headerStart, selectorStart)
-            val selectorXml = xml.substring(selectorStart, xml.indexOf("@+id/pcViewToolsLabel"))
+            val selectorXml = xml.substring(selectorStart, xml.indexOf("@+id/pcViewHostsLabel"))
 
             assertTrue(
                 "${layout.path} should put the update pill immediately in the top action group beside Profiles",
