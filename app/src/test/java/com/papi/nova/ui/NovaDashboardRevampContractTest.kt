@@ -117,18 +117,31 @@ class NovaDashboardRevampContractTest {
     }
 
     @Test
-    fun laneTwoPortraitUsesHorizontalPillRailNotSidebar() {
+    fun laneTwoPortraitUsesVisibleActionGridNotHorizontalScroller() {
         val portrait = File("src/main/res/layout/activity_pc_view.xml").readText()
         val headerStart = portrait.indexOf("@+id/pcViewHeader")
         val selectorStart = portrait.indexOf("@+id/modeServers")
         assertTrue("portrait should keep header before mode cards", headerStart > 0 && selectorStart > headerStart)
         val headerXml = portrait.substring(headerStart, selectorStart)
+        val railXml = headerXml.substring(headerXml.indexOf("@+id/dashboardPillRail"), headerXml.indexOf("@+id/topActionFocusLabel"))
 
-        assertTrue("portrait should expose a horizontal scroll container for action pills", headerXml.contains("@+id/dashboardPillRailScroll"))
+        assertFalse("portrait top actions should not hide behind a horizontal scroller", headerXml.contains("@+id/dashboardPillRailScroll"))
         assertTrue("portrait should expose dashboardPillRail", headerXml.contains("@+id/dashboardPillRail"))
         assertFalse("portrait should not reserve a landscape cockpit rail", portrait.contains("@+id/dashboardCockpitRail"))
-        assertTrue("portrait pill rail should still contain Profiles through Settings", headerXml.indexOf("@+id/profilesButton") < headerXml.indexOf("@+id/actionSettings"))
-        assertTrue("portrait update label should be constrained so the rail can scroll cleanly", headerXml.contains("""android:maxWidth="128dp"""") && headerXml.contains("""android:ellipsize="end""""))
+        assertTrue("portrait action rail should stack rows so every top action is visible on the first screen", railXml.contains("@+id/dashboardPillRailPrimaryRow") && railXml.contains("@+id/dashboardPillRailUtilityRow") && railXml.contains("@+id/dashboardPillRailSystemRow"))
+        assertTrue("portrait action rail rows should use full-width equal targets", railXml.contains("""android:layout_width="match_parent"""") && railXml.contains("""android:layout_width="0dp"""") && railXml.contains("android:layout_weight"))
+        listOf(
+            "@+id/actionStartPolaris",
+            "@+id/profilesButton",
+            "@+id/actionTheme",
+            "@+id/actionGithub",
+            "@+id/actionSettings",
+            "@+id/actionNovaUpdate",
+        ).forEach { id ->
+            assertTrue("portrait one-screen action grid should keep $id visible before mode controls", railXml.contains(id))
+        }
+        assertTrue("portrait update label should remain bounded inside its grid cell", headerXml.contains("""android:maxWidth="128dp"""") && headerXml.contains("""android:ellipsize="end""""))
+        assertTrue("portrait controls should start close under the visible action grid to keep hosts on-screen", headerXml.contains("""android:id="@+id/dashboardHomeControls"""") && headerXml.contains("""android:layout_marginTop="10dp"""))
     }
 
     @Test
