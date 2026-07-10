@@ -83,6 +83,7 @@ class PcGridAdapter(
         val statusText = pcHolder.statusText
         val statusHint = pcHolder.statusHint
         val primaryAction = pcHolder.primaryAction
+        setPrimaryActionReady(primaryAction, false)
 
         if (obj.details.state == ComputerDetails.State.ONLINE) {
             imgView.alpha = 1.0f
@@ -92,6 +93,7 @@ class PcGridAdapter(
                     statusText.setText(R.string.pcview_card_status_repair_pair)
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_warning))
                     primaryAction?.setText(R.string.pcview_card_action_pair)
+                    setPrimaryActionReady(primaryAction, true)
                     setStatusHint(statusHint, R.string.pcview_card_hint_pair_repair)
                 } else if (obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
                     statusText.setText(
@@ -103,6 +105,7 @@ class PcGridAdapter(
                     )
                     statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_warning))
                     primaryAction?.setText(R.string.pcview_card_action_pair)
+                    setPrimaryActionReady(primaryAction, true)
                     setStatusHint(statusHint, R.string.pcview_card_hint_pair)
                 } else if (obj.details.runningGameId != 0) {
                     statusText.setText(R.string.pcview_card_status_streaming)
@@ -114,6 +117,7 @@ class PcGridAdapter(
                             R.string.pcview_card_action_resume
                         }
                     )
+                    setPrimaryActionReady(primaryAction, true)
                     setStatusHint(statusHint, R.string.pcview_card_hint_streaming)
                 } else if (obj.details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
                     statusText.text = context.getString(
@@ -122,6 +126,7 @@ class PcGridAdapter(
                     )
                     statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
                     primaryAction?.setText(R.string.pcview_card_action_open_library)
+                    setPrimaryActionReady(primaryAction, true)
                     setStatusHint(statusHint, R.string.pcview_card_hint_open_library)
                 } else if (obj.details.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
                     statusText.setText(R.string.pcview_card_status_checking_library)
@@ -135,6 +140,7 @@ class PcGridAdapter(
                     )
                     statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
                     primaryAction?.setText(R.string.pcview_card_action_open_apps)
+                    setPrimaryActionReady(primaryAction, true)
                     setStatusHint(statusHint, R.string.pcview_card_hint_open_apps)
                 }
             }
@@ -147,6 +153,7 @@ class PcGridAdapter(
             }
             if (obj.details.macAddress != null) {
                 primaryAction?.setText(R.string.pcview_card_action_wake)
+                setPrimaryActionReady(primaryAction, true)
                 setStatusHint(statusHint, R.string.pcview_card_hint_wake)
             } else {
                 primaryAction?.setText(R.string.pcview_card_action_refreshing)
@@ -164,7 +171,7 @@ class PcGridAdapter(
         }
         primaryAction?.let {
             it.contentDescription = it.text
-            it.isSelected = parentView.hasFocus()
+            it.isSelected = false
         }
 
         prgView.visibility = if (obj.details.state == ComputerDetails.State.UNKNOWN) View.VISIBLE else View.INVISIBLE
@@ -193,7 +200,16 @@ class PcGridAdapter(
 
     override fun onItemFocusChanged(parentView: View, hasFocus: Boolean) {
         val primaryAction = getPcHolder(parentView).primaryAction
-        primaryAction?.isSelected = hasFocus
+        primaryAction?.isSelected = false
+    }
+
+    private fun setPrimaryActionReady(primaryAction: TextView?, ready: Boolean) {
+        primaryAction ?: return
+        primaryAction.isActivated = ready
+        primaryAction.isSelected = false
+        primaryAction.setTextColor(
+            if (ready) NovaThemeManager.getTextPrimaryColor(context) else NovaThemeManager.getTextMutedColor(context),
+        )
     }
 
     private fun formatAddressSuffix(address: String?): String =

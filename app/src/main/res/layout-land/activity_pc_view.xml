@@ -24,10 +24,10 @@
             android:layout_width="@dimen/nova_dashboard_rail_width"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:paddingStart="20dp"
-            android:paddingTop="12dp"
-            android:paddingEnd="20dp"
-            android:paddingBottom="20dp">
+            android:paddingStart="14dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="14dp">
 
             <LinearLayout
                 android:id="@+id/pcViewHeader"
@@ -35,60 +35,186 @@
                 android:layout_height="match_parent"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/pcViewTitle"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-light"
-                    android:letterSpacing="0.04"
-                    android:text="Nova"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textSize="26sp" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/dashboardRailToggle"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:contentDescription="@string/pcview_rail_collapse"
+                        android:gravity="center"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="34dp"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp"
+                        android:text=""
+                        android:textAllCaps="false"
+                        app:backgroundTint="?attr/colorControlHighlight"
+                        app:cornerRadius="17dp"
+                        app:elevation="0dp"
+                        app:icon="@drawable/ic_menu_collapse"
+                        app:iconGravity="textStart"
+                        app:iconPadding="0dp"
+                        app:iconSize="20dp"
+                        app:iconTint="?attr/colorOnSurface" />
+
+                    <TextView
+                        android:id="@+id/pcViewTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="sans-serif-light"
+                        android:letterSpacing="0.04"
+                        android:tag="dashboardRailLabel"
+                        android:text="Nova"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="24sp" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/pcViewSectionLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="2dp"
                     android:fontFamily="sans-serif-medium"
                     android:letterSpacing="0.03"
+                    android:tag="dashboardRailLabel"
                     android:text="@string/pcview_home_subtitle"
                     android:textColor="?android:textColorSecondary"
-                    android:textSize="11sp" />
+                    android:textSize="10sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/actionStartPolaris"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="34dp"
+                    android:layout_marginTop="8dp"
+                    android:contentDescription="@string/pcview_quick_start_polaris"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minWidth="34dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:text="@string/pcview_quick_start_polaris"
+                    android:textAllCaps="false"
+                    android:textSize="12sp"
+                    app:backgroundTint="?attr/colorControlHighlight"
+                    app:cornerRadius="17dp"
+                    app:elevation="0dp"
+                    app:icon="@drawable/ic_play"
+                    app:iconGravity="textStart"
+                    app:iconPadding="6dp"
+                    app:iconTint="?attr/colorOnSurface" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/profilesButton"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:layout_marginTop="20dp"
+                    android:layout_height="34dp"
+                    android:layout_marginTop="5dp"
                     android:contentDescription="@string/pcview_quick_profiles"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
-                    android:minWidth="44dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="16dp"
+                    android:minWidth="34dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
                     android:text="@string/pcview_quick_profiles"
                     android:textAllCaps="false"
+                    android:textSize="12sp"
                     app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="22dp"
+                    app:cornerRadius="17dp"
                     app:elevation="0dp"
                     app:icon="@drawable/ic_profiles"
                     app:iconGravity="textStart"
-                    app:iconPadding="8dp"
+                    app:iconPadding="6dp"
+                    app:iconTint="?attr/colorOnSurface" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/actionTheme"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="34dp"
+                    android:layout_marginTop="5dp"
+                    android:contentDescription="@string/pcview_quick_theme"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minWidth="34dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:text="@string/pcview_quick_theme"
+                    android:textAllCaps="false"
+                    android:textSize="12sp"
+                    app:backgroundTint="?attr/colorControlHighlight"
+                    app:cornerRadius="17dp"
+                    app:elevation="0dp"
+                    app:icon="@drawable/ic_theme_cycle"
+                    app:iconGravity="textStart"
+                    app:iconPadding="6dp"
+                    app:iconTint="?attr/colorOnSurface" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/actionGithub"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="34dp"
+                    android:layout_marginTop="5dp"
+                    android:contentDescription="@string/pcview_quick_github"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minWidth="34dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:text="@string/pcview_quick_github"
+                    android:textAllCaps="false"
+                    android:textSize="12sp"
+                    app:backgroundTint="?attr/colorControlHighlight"
+                    app:cornerRadius="17dp"
+                    app:elevation="0dp"
+                    app:icon="@drawable/ic_github"
+                    app:iconGravity="textStart"
+                    app:iconPadding="6dp"
+                    app:iconTint="?attr/colorOnSurface" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/actionSettings"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="34dp"
+                    android:layout_marginTop="5dp"
+                    android:contentDescription="@string/pcview_quick_settings"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minWidth="34dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:text="@string/pcview_quick_settings"
+                    android:textAllCaps="false"
+                    android:textSize="12sp"
+                    app:backgroundTint="?attr/colorControlHighlight"
+                    app:cornerRadius="17dp"
+                    app:elevation="0dp"
+                    app:icon="@drawable/ic_settings"
+                    app:iconGravity="textStart"
+                    app:iconPadding="6dp"
                     app:iconTint="?attr/colorOnSurface" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/actionNovaUpdate"
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:layout_marginTop="10dp"
+                    android:layout_height="38dp"
+                    android:layout_marginTop="5dp"
                     android:clickable="true"
                     android:contentDescription="@string/pcview_update_pill_content_current"
                     android:focusable="true"
                     android:foreground="?attr/selectableItemBackground"
                     app:cardBackgroundColor="?attr/colorControlHighlight"
-                    app:cardCornerRadius="22dp"
+                    app:cardCornerRadius="19dp"
                     app:cardElevation="0dp"
                     app:strokeColor="?attr/colorControlHighlight"
                     app:strokeWidth="1dp">
@@ -98,8 +224,8 @@
                         android:layout_height="match_parent"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="14dp">
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp">
 
                         <View
                             android:id="@+id/updateStatusLight"
@@ -124,7 +250,7 @@
                                 android:text="@string/pcview_update_status_current"
                                 android:textAllCaps="true"
                                 android:textColor="?android:textColorSecondary"
-                                android:textSize="8sp" />
+                                android:textSize="7sp" />
 
                             <TextView
                                 android:id="@+id/updateVersionLabel"
@@ -134,108 +260,208 @@
                                 android:ellipsize="end"
                                 android:fontFamily="sans-serif-medium"
                                 android:includeFontPadding="false"
-                                android:maxWidth="128dp"
+                                android:maxWidth="92dp"
                                 android:singleLine="true"
                                 android:text="@string/pcview_update_version_preview"
                                 android:textColor="?android:textColorPrimary"
-                                android:textSize="12sp" />
+                                android:textSize="10sp" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/actionStartPolaris"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:layout_marginTop="10dp"
-                    android:contentDescription="@string/pcview_quick_start_polaris"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minWidth="44dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="16dp"
-                    android:text="@string/pcview_quick_start_polaris"
-                    android:textAllCaps="false"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="22dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_play"
-                    app:iconGravity="textStart"
-                    app:iconPadding="8dp"
-                    app:iconTint="?attr/colorOnSurface" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/actionTheme"
-                    style="@style/Widget.MaterialComponents.Button"
+                <LinearLayout
+                    android:id="@+id/dashboardHomeControls"
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:layout_marginTop="10dp"
-                    android:contentDescription="@string/pcview_quick_theme"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minWidth="44dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="16dp"
-                    android:text="@string/pcview_quick_theme"
-                    android:textAllCaps="false"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="22dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_theme_cycle"
-                    app:iconGravity="textStart"
-                    app:iconPadding="8dp"
-                    app:iconTint="?attr/colorOnSurface" />
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/actionGithub"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:layout_marginTop="10dp"
-                    android:contentDescription="@string/pcview_quick_github"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minWidth="44dp"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:text="@string/pcview_quick_github"
-                    android:textAllCaps="false"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="22dp"
-                    app:elevation="0dp" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:letterSpacing="0.08"
+                        android:tag="dashboardRailLabel"
+                        android:text="@string/pcview_browse_label"
+                        android:textAllCaps="true"
+                        android:textColor="?android:textColorSecondary"
+                        android:textSize="8sp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/actionSettings"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:layout_marginTop="10dp"
-                    android:contentDescription="@string/pcview_quick_settings"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minWidth="44dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="16dp"
-                    android:text="@string/pcview_quick_settings"
-                    android:textAllCaps="false"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="22dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_settings"
-                    app:iconGravity="textStart"
-                    app:iconPadding="8dp"
-                    app:iconTint="?attr/colorOnSurface" />
+                    <LinearLayout
+                        android:id="@+id/dashboardModeSelector"
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:layout_marginTop="6dp"
+                        android:contentDescription="@string/pcview_dashboard_mode_selector"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/modeServers"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="34dp"
+                        android:clickable="true"
+                        android:contentDescription="@string/pcview_mode_servers"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="@dimen/nova_dashboard_pill_radius"
+                        app:cardElevation="0dp"
+                        app:strokeColor="?attr/colorAccent"
+                        app:strokeWidth="1dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="5dp"
+                                android:includeFontPadding="false"
+                                android:text="●"
+                                android:textColor="?attr/colorAccent"
+                                android:textSize="9sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="sans-serif-medium"
+                                android:includeFontPadding="false"
+                                android:text="@string/pcview_mode_servers"
+                                android:textColor="?android:textColorPrimary"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/modeLibrary"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="6dp"
+                        android:clickable="true"
+                        android:contentDescription="@string/pcview_mode_library"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="@dimen/nova_dashboard_pill_radius"
+                        app:cardElevation="0dp"
+                        app:strokeColor="?attr/colorControlHighlight"
+                        app:strokeWidth="1dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="5dp"
+                                android:includeFontPadding="false"
+                                android:text="●"
+                                android:textSize="9sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="sans-serif-medium"
+                                android:includeFontPadding="false"
+                                android:text="@string/pcview_mode_library"
+                                android:textColor="?android:textColorPrimary"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/dashboardModeStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="2"
+                        android:text="@string/pcview_dashboard_mode_status_empty"
+                        android:textColor="?android:textColorSecondary"
+                        android:textSize="9sp"
+                        tools:text="1 online · 1 total · 1 server ready" />
+
+                    <LinearLayout
+                        android:id="@+id/setupActionRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/actionAddServer"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="34dp"
+                        android:contentDescription="@string/pcview_quick_add_server"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:text="@string/pcview_quick_add_server"
+                        android:textAllCaps="false"
+                        android:textSize="10sp"
+                        app:backgroundTint="?attr/colorControlHighlight"
+                        app:cornerRadius="17dp"
+                        app:elevation="0dp"
+                        app:icon="@drawable/ic_add"
+                        app:iconGravity="textStart"
+                        app:iconPadding="5dp"
+                        app:iconTint="?attr/colorOnSurface" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/actionScanPair"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="6dp"
+                        android:contentDescription="@string/pcview_quick_scan_pair"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:text="@string/pcview_quick_scan_pair"
+                        android:textAllCaps="false"
+                        android:textSize="10sp"
+                        app:backgroundTint="?attr/colorControlHighlight"
+                        app:cornerRadius="17dp"
+                        app:elevation="0dp"
+                        app:icon="@drawable/ic_qr_scan"
+                        app:iconGravity="textStart"
+                        app:iconPadding="5dp"
+                        app:iconTint="?attr/colorOnSurface" />
+                    </LinearLayout>
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/topActionFocusLabel"
                     android:layout_width="match_parent"
-                    android:layout_height="20dp"
-                    android:layout_marginTop="10dp"
+                    android:layout_height="14dp"
+                    android:layout_marginTop="3dp"
                     android:fontFamily="sans-serif-medium"
                     android:gravity="center"
                     android:textColor="?android:textColorSecondary"
-                    android:textSize="11sp"
+                    android:textSize="9sp"
                     android:visibility="invisible"
                     tools:text="Settings" />
             </LinearLayout>
@@ -248,225 +474,16 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:paddingStart="@dimen/nova_dashboard_rail_gap">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/modeServers"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    app:cardBackgroundColor="?attr/colorSurface"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="?attr/colorAccent"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="sans-serif-medium"
-                            android:letterSpacing="0.04"
-                            android:text="@string/pcview_destination_current"
-                            android:textAllCaps="true"
-                            android:textColor="?attr/colorAccent"
-                            android:textSize="10sp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:fontFamily="sans-serif-medium"
-                            android:text="@string/pcview_mode_servers"
-                            android:textColor="?android:textColorPrimary"
-                            android:textSize="18sp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone"
-                            android:fontFamily="sans-serif"
-                            android:lineSpacingExtra="2dp"
-                            android:text="@string/pcview_destination_servers_summary"
-                            android:textColor="?android:textColorSecondary"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/pcViewServersMeta"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:fontFamily="sans-serif-medium"
-                            android:text="@string/pcview_destination_servers_meta_empty"
-                            android:textColor="?android:textColorSecondary"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/modeLibrary"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    app:cardBackgroundColor="?attr/colorSurface"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="?attr/colorControlHighlight"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="sans-serif-medium"
-                            android:letterSpacing="0.04"
-                            android:text="@string/pcview_destination_open"
-                            android:textAllCaps="true"
-                            android:textColor="?android:textColorSecondary"
-                            android:textSize="10sp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:fontFamily="sans-serif-medium"
-                            android:text="@string/nova_library_title"
-                            android:textColor="?android:textColorPrimary"
-                            android:textSize="18sp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone"
-                            android:fontFamily="sans-serif"
-                            android:lineSpacingExtra="2dp"
-                            android:text="@string/pcview_destination_library_summary"
-                            android:textColor="?android:textColorSecondary"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/pcViewLibraryMeta"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:fontFamily="sans-serif-medium"
-                            android:text="@string/pcview_destination_library_meta_empty"
-                            android:textColor="?android:textColorSecondary"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>            </LinearLayout>
-
             <TextView
-                android:id="@+id/pcViewToolsLabel"
-                android:layout_width="wrap_content"
+                android:id="@+id/pcViewHostsLabel"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.03"
-                android:text="@string/pcview_tools_label"
+                android:text="@string/pcview_hosts_label"
                 android:textColor="?android:textColorPrimary"
-                android:textSize="13sp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/pcViewToolsHint"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:fontFamily="sans-serif"
-                android:text="@string/pcview_tools_hint"
-                android:textColor="?android:textColorSecondary"
-                android:textSize="11sp"
-                android:visibility="gone" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/actionAddServer"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_weight="1"
-                    android:text="@string/pcview_quick_add_server"
-                    android:textAllCaps="false"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="22dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_add"
-                    app:iconPadding="8dp"
-                    app:iconTint="?attr/colorOnSurface" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/actionScanPair"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:text="@string/pcview_quick_scan_pair"
-                    android:textAllCaps="false"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="22dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_qr_scan"
-                    app:iconPadding="8dp"
-                    app:iconTint="?attr/colorOnSurface" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/pcViewHostsLabel"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.03"
-                    android:text="@string/pcview_hosts_label"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="12sp" />
-
-                <TextView
-                    android:id="@+id/pcViewHostsSummary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-medium"
-                    android:textColor="?android:textColorSecondary"
-                    android:textSize="11sp"
-                    tools:text="1 visible · 3 total" />
-            </LinearLayout>
+                android:textSize="12sp" />
 
             <HorizontalScrollView
                 android:layout_width="match_parent"

@@ -35,8 +35,9 @@
     <!-- Nova dashboard adaptive shell -->
     <dimen name="nova_dashboard_pill_height">44dp</dimen>
     <dimen name="nova_dashboard_pill_radius">22dp</dimen>
-    <dimen name="nova_dashboard_rail_width">288dp</dimen>
-    <dimen name="nova_dashboard_rail_gap">16dp</dimen>
+    <dimen name="nova_dashboard_rail_width">224dp</dimen>
+    <dimen name="nova_dashboard_rail_collapsed_width">72dp</dimen>
+    <dimen name="nova_dashboard_rail_gap">12dp</dimen>
 
     <!-- Nova icon sizes -->
     <dimen name="nova_icon_server">40dp</dimen>

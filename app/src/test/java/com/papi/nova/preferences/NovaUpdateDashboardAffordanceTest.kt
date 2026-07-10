@@ -20,26 +20,32 @@ class NovaUpdateDashboardAffordanceTest {
                 xml.contains("@+id/dashboardUpdateRail")
             )
 
-            val headerStart = xml.indexOf("@+id/profilesButton")
+            val headerStart = xml.indexOf("@+id/pcViewHeader")
             val selectorStart = xml.indexOf("@+id/modeServers")
             assertTrue("${layout.path} should contain a top header before the Server/Library selector", headerStart > 0 && selectorStart > headerStart)
             val headerXml = xml.substring(headerStart, selectorStart)
-            val selectorXml = xml.substring(selectorStart, xml.indexOf("@+id/pcViewToolsLabel"))
+            val selectorXml = xml.substring(selectorStart, xml.indexOf("@+id/pcViewHostsLabel"))
 
-            assertTrue(
-                "${layout.path} should put the update pill immediately in the top action group beside Profiles",
-                headerXml.indexOf("@+id/profilesButton") < headerXml.indexOf("@+id/actionNovaUpdate") &&
-                    headerXml.indexOf("@+id/actionNovaUpdate") < headerXml.indexOf("@+id/actionStartPolaris")
-            )
+            val approvedOrder = if (layout.path.contains("layout-land")) {
+                listOf("@+id/actionStartPolaris", "@+id/profilesButton", "@+id/actionTheme", "@+id/actionGithub", "@+id/actionSettings", "@+id/actionNovaUpdate")
+            } else {
+                listOf("@+id/actionStartPolaris", "@+id/profilesButton", "@+id/actionTheme", "@+id/actionGithub", "@+id/actionSettings", "@+id/actionNovaUpdate")
+            }
+            approvedOrder.zipWithNext().forEach { (first, second) ->
+                assertTrue("${layout.path} should keep the approved dashboard action order", headerXml.indexOf(first) in 1 until headerXml.indexOf(second))
+            }
             assertFalse(
                 "${layout.path} should not leave the update control in the Server/Library selector cluster",
                 selectorXml.contains("@+id/actionNovaUpdate")
             )
+            val expectedActionHeight = if (layout.path.contains("layout-land")) "34dp" else "44dp"
+            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "22dp"
+            val expectedUpdateRadius = if (layout.path.contains("layout-land")) "19dp" else "22dp"
             assertTrue(
                 "${layout.path} should make top actions pilled instead of squat rounded-square buttons",
                 headerXml.contains("@+id/profilesButton") &&
-                    headerXml.contains("""android:layout_height="44dp"""") &&
-                    headerXml.contains("""app:cornerRadius="22dp"""")
+                    headerXml.contains("""android:layout_height="$expectedActionHeight"""") &&
+                    headerXml.contains("""app:cornerRadius="$expectedActionRadius"""")
             )
             assertTrue(
                 "${layout.path} should expose an Update Pill with a status light and version label",
@@ -47,7 +53,7 @@ class NovaUpdateDashboardAffordanceTest {
                     headerXml.contains("""android:id="@+id/updateStatusLight"""") &&
                     headerXml.contains("""android:id="@+id/updateStatusLabel"""") &&
                     headerXml.contains("""android:id="@+id/updateVersionLabel"""") &&
-                    headerXml.contains("""app:cardCornerRadius="22dp"""")
+                    headerXml.contains("""app:cardCornerRadius="$expectedUpdateRadius"""")
             )
         }
     }

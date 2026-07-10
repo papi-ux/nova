@@ -1,5 +1,6 @@
 package com.papi.nova
 
+import android.animation.ValueAnimator
 import android.app.AlertDialog
 import android.app.Service
 import android.content.ComponentName
@@ -24,6 +25,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -125,6 +127,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     private enum class DashboardUpdatePillStatus { CURRENT, AVAILABLE, CHECKING, ERROR }
     private var dashboardUpdatePillStatus = DashboardUpdatePillStatus.CURRENT
     private var dashboardUpdatePillRelease: NovaUpdateRelease? = null
+    private var dashboardRailCollapsed = false
+    private val dashboardRailButtonText = mutableMapOf<Int, CharSequence>()
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN &&
@@ -186,7 +190,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         if (focus == null) {
             return false
         }
-        return focus.id == R.id.profilesButton ||
+        return focus.id == R.id.dashboardRailToggle ||
+            focus.id == R.id.profilesButton ||
             focus.id == R.id.actionNovaUpdate ||
             focus.id == R.id.actionStartPolaris ||
             focus.id == R.id.actionTheme ||
@@ -320,9 +325,15 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
                     } else {
                         0
                     }
+                val headerTopPadding =
+                    if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+                        UiHelper.dpToPx(this, 4f).toInt()
+                    } else {
+                        topInset + UiHelper.dpToPx(this, 16f).toInt()
+                    }
                 v.setPadding(
                     v.paddingLeft,
-                    topInset + UiHelper.dpToPx(this, 16f).toInt(),
+                    headerTopPadding,
                     v.paddingRight,
                     v.paddingBottom,
                 )
@@ -362,6 +373,9 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val themeAction = findViewById<View>(R.id.actionTheme)
         val settingsAction = findViewById<View>(R.id.actionSettings)
         val githubAction = findViewById<View>(R.id.actionGithub)
+        val dashboardRailToggle = findViewById<MaterialButton>(R.id.dashboardRailToggle)
+        dashboardRailCollapsed = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+            loadDashboardRailCollapsedPreference()
         val topActionFocusLabel = findViewById<TextView>(R.id.topActionFocusLabel)
         val emptyRefresh = findViewById<TextView>(R.id.emptyRefresh)
         val emptyAddServer = findViewById<TextView>(R.id.emptyAddServer)
@@ -392,6 +406,9 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             NovaThemeManager.applyFadeTransition(this@PcView)
         }
         githubAction?.setOnClickListener { HelpLauncher.launchGithub(this@PcView) }
+        dashboardRailToggle?.setOnClickListener {
+            setDashboardRailCollapsed(!dashboardRailCollapsed)
+        }
         emptyRefresh?.setOnClickListener {
             resetLibraryReadiness()
             stopComputerUpdates(false)
@@ -406,6 +423,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         }
         bindTopActionFocusLabel(
             topActionFocusLabel,
+            dashboardRailToggle to R.string.pcview_rail_collapse,
             profilesButton to R.string.pcview_quick_profiles,
             updateAction to R.string.pcview_quick_update_check,
             startPolarisAction to R.string.pcview_quick_start_polaris,
@@ -459,16 +477,15 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
 
         findViewById<TextView>(R.id.pcViewTitle)?.setTextColor(textPrimary)
         findViewById<TextView>(R.id.pcViewSectionLabel)?.setTextColor(textMuted)
-        findViewById<TextView>(R.id.pcViewToolsLabel)?.setTextColor(textPrimary)
-        findViewById<TextView>(R.id.pcViewToolsHint)?.setTextColor(textMuted)
         findViewById<TextView>(R.id.pcViewHostsLabel)?.setTextColor(textPrimary)
         findViewById<TextView>(R.id.pcViewHostsSummary)?.setTextColor(textMuted)
+        findViewById<TextView>(R.id.dashboardModeStatus)?.setTextColor(textSecondary)
         findViewById<TextView>(R.id.topActionFocusLabel)?.setTextColor(textSecondary)
         findViewById<TextView>(R.id.pcViewEmptyTitle)?.setTextColor(textMuted)
         findViewById<TextView>(R.id.pcViewEmptyHint)?.setTextColor(textMuted)
 
-        styleDestinationCard(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textSecondary, textMuted)
-        styleDestinationCard(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textSecondary, textMuted)
+        styleModeSegment(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textMuted)
+        styleModeSegment(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textMuted)
 
         styleActionButton(findViewById(R.id.actionAddServer), ColorUtils.blendARGB(surface, accent, 0.26f), textPrimary)
         styleActionButton(findViewById(R.id.actionScanPair), surface, textPrimary)
@@ -477,6 +494,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         styleActionButton(findViewById(R.id.actionTheme), surface, textPrimary)
         styleActionButton(findViewById(R.id.actionGithub), surface, textPrimary)
         styleActionButton(findViewById(R.id.actionSettings), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary)
+        styleActionButton(findViewById(R.id.dashboardRailToggle), surface, textPrimary)
 
         tintChipRow(
             intArrayOf(
@@ -488,6 +506,9 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         )
 
         styleActionButton(findViewById(R.id.profilesButton), surface, textPrimary)
+        if (dashboardRailCollapsed) {
+            setDashboardRailCollapsed(true, persist = false, animate = false)
+        }
     }
 
     private fun styleActionButton(button: MaterialButton?, backgroundColor: Int, foregroundColor: Int) {
@@ -591,43 +612,44 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         }
     }
 
-    private fun styleDestinationCard(
+    private fun styleModeSegment(
         card: MaterialCardView?,
         active: Boolean,
         accent: Int,
         surface: Int,
         divider: Int,
         textPrimary: Int,
-        textSecondary: Int,
         textMuted: Int,
     ) {
         if (card == null) {
             return
         }
 
-        card.setCardBackgroundColor(if (active) ColorUtils.blendARGB(surface, accent, 0.12f) else surface)
-        updateDestinationCardStroke(card, active || card.hasFocus(), accent, divider)
+        val focused = card.hasFocus()
+        card.setCardBackgroundColor(
+            if (active) ColorUtils.blendARGB(surface, accent, 0.16f) else ColorUtils.blendARGB(surface, textMuted, 0.05f),
+        )
+        updateModeSegmentStroke(card, active || focused, accent, divider)
         card.setOnFocusChangeListener { _, hasFocus ->
-            updateDestinationCardStroke(card, active || hasFocus, accent, divider)
+            updateModeSegmentStroke(card, active || hasFocus, accent, divider)
         }
 
         val layout = card.getChildAt(0) as? LinearLayout ?: return
-        if (layout.childCount < 4) {
-            return
+        for (index in 0 until layout.childCount) {
+            val child = layout.getChildAt(index)
+            if (child is TextView) {
+                child.setTextColor(
+                    if (index == 0) {
+                        if (active) accent else textMuted
+                    } else {
+                        if (active) textPrimary else textMuted
+                    },
+                )
+            }
         }
-
-        val badge = layout.getChildAt(0) as TextView
-        val title = layout.getChildAt(1) as TextView
-        val summary = layout.getChildAt(2) as TextView
-        val meta = layout.getChildAt(3) as TextView
-
-        badge.setTextColor(if (active) accent else textMuted)
-        title.setTextColor(textPrimary)
-        summary.setTextColor(textSecondary)
-        meta.setTextColor(if (active) textPrimary else textMuted)
     }
 
-    private fun updateDestinationCardStroke(card: MaterialCardView, highlighted: Boolean, accent: Int, divider: Int) {
+    private fun updateModeSegmentStroke(card: MaterialCardView, highlighted: Boolean, accent: Int, divider: Int) {
         card.strokeColor = if (highlighted) accent else divider
         card.strokeWidth = UiHelper.dpToPx(this, if (highlighted) 2f else 1f).toInt()
     }
@@ -635,6 +657,122 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     private fun tintChipRow(ids: IntArray, color: Int) {
         for (id in ids) {
             findViewById<TextView>(id)?.setTextColor(color)
+        }
+    }
+
+
+    private fun setDashboardRailCollapsed(collapsed: Boolean, persist: Boolean = true, animate: Boolean = true) {
+        dashboardRailCollapsed = collapsed
+        val rail = findViewById<ViewGroup>(R.id.dashboardCockpitRail) ?: return
+        if (persist) {
+            saveDashboardRailCollapsedPreference(collapsed)
+        }
+        val targetWidth = resources.getDimensionPixelSize(
+            if (collapsed) R.dimen.nova_dashboard_rail_collapsed_width else R.dimen.nova_dashboard_rail_width,
+        )
+        animateDashboardRailWidth(rail, targetWidth, animate)
+
+        setDashboardRailTaggedLabelsVisible(rail, !collapsed)
+        val labelVisibility = if (collapsed) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.dashboardModeStatus)?.visibility = labelVisibility
+        findViewById<View>(R.id.dashboardModeSelector)?.visibility = labelVisibility
+        findViewById<View>(R.id.actionNovaUpdate)?.visibility = labelVisibility
+
+        listOf(
+            R.id.actionStartPolaris,
+            R.id.profilesButton,
+            R.id.actionTheme,
+            R.id.actionGithub,
+            R.id.actionSettings,
+            R.id.actionAddServer,
+            R.id.actionScanPair,
+        ).forEach { id ->
+            val button = findViewById<MaterialButton>(id) ?: return@forEach
+            if (!dashboardRailButtonText.containsKey(id)) {
+                dashboardRailButtonText[id] = button.text
+            }
+            button.text = if (collapsed) "" else dashboardRailButtonText[id]
+            button.iconPadding = if (collapsed) 0 else UiHelper.dpToPx(this, 6f).toInt()
+            button.gravity = if (collapsed) Gravity.CENTER else Gravity.CENTER_VERTICAL
+        }
+        setDashboardRailSetupActionsCollapsed(collapsed)
+
+        findViewById<MaterialButton>(R.id.dashboardRailToggle)?.let { toggle ->
+            toggle.contentDescription = getString(if (collapsed) R.string.pcview_rail_expand else R.string.pcview_rail_collapse)
+            toggle.setIconResource(if (collapsed) R.drawable.ic_menu else R.drawable.ic_menu_collapse)
+            toggle.gravity = Gravity.CENTER
+            toggle.iconPadding = 0
+            toggle.setPadding(0, 0, 0, 0)
+        }
+    }
+
+    private fun animateDashboardRailWidth(rail: ViewGroup, targetWidth: Int, animate: Boolean) {
+        val startWidth = rail.width.takeIf { it > 0 } ?: rail.layoutParams.width
+        if (!animate || startWidth <= 0 || startWidth == targetWidth) {
+            rail.layoutParams = rail.layoutParams.apply { width = targetWidth }
+            rail.requestLayout()
+            return
+        }
+        ValueAnimator.ofInt(startWidth, targetWidth).apply {
+            duration = DASHBOARD_RAIL_ANIMATION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                rail.layoutParams = rail.layoutParams.apply { width = animator.animatedValue as Int }
+                rail.requestLayout()
+            }
+            start()
+        }
+    }
+
+    private fun setDashboardRailSetupActionsCollapsed(collapsed: Boolean) {
+        val setupRow = findViewById<LinearLayout>(R.id.setupActionRow) ?: return
+        val addServer = findViewById<MaterialButton>(R.id.actionAddServer)
+        val scanPair = findViewById<MaterialButton>(R.id.actionScanPair)
+        setupRow.orientation = if (collapsed) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        val collapsedSpacing = UiHelper.dpToPx(this, 6f).toInt()
+        val compactHeight = UiHelper.dpToPx(this, 34f).toInt()
+
+        addServer?.let { button ->
+            val addParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
+            addParams.width = if (collapsed) LinearLayout.LayoutParams.MATCH_PARENT else 0
+            addParams.height = compactHeight
+            addParams.weight = if (collapsed) 0f else 1f
+            addParams.marginStart = 0
+            addParams.topMargin = 0
+            button.layoutParams = addParams
+        }
+        scanPair?.let { button ->
+            val scanParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
+            scanParams.width = if (collapsed) LinearLayout.LayoutParams.MATCH_PARENT else 0
+            scanParams.height = compactHeight
+            scanParams.weight = if (collapsed) 0f else 1f
+            scanParams.marginStart = if (collapsed) 0 else collapsedSpacing
+            scanParams.topMargin = if (collapsed) collapsedSpacing else 0
+            button.layoutParams = scanParams
+        }
+    }
+
+    private fun loadDashboardRailCollapsedPreference(): Boolean =
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(PREF_DASHBOARD_RAIL_COLLAPSED, false)
+
+    private fun saveDashboardRailCollapsedPreference(collapsed: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit()
+            .putBoolean(PREF_DASHBOARD_RAIL_COLLAPSED, collapsed)
+            .apply()
+    }
+
+    private fun setDashboardRailTaggedLabelsVisible(root: ViewGroup, visible: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        for (index in 0 until root.childCount) {
+            val child = root.getChildAt(index)
+            if (child.tag == "dashboardRailLabel") {
+                child.visibility = visibility
+            }
+            if (child is ViewGroup) {
+                setDashboardRailTaggedLabelsVisible(child, visible)
+            }
         }
     }
 
@@ -953,8 +1091,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val textPrimary = NovaThemeManager.getTextPrimaryColor(this)
         val textSecondary = NovaThemeManager.getTextSecondaryColor(this)
         val textMuted = NovaThemeManager.getTextMutedColor(this)
-        styleDestinationCard(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textSecondary, textMuted)
-        styleDestinationCard(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textSecondary, textMuted)
+        styleModeSegment(findViewById(R.id.modeServers), true, accent, surface, divider, textPrimary, textMuted)
+        styleModeSegment(findViewById(R.id.modeLibrary), false, accent, surface, divider, textPrimary, textMuted)
     }
 
     private fun updateServerFilterTabs() {
@@ -1018,6 +1156,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     }
 
     private fun setHeaderQuickActionsFocusable(focusable: Boolean) {
+        setFocusable(R.id.dashboardRailToggle, focusable)
         setFocusable(R.id.profilesButton, focusable)
         setFocusable(R.id.actionNovaUpdate, focusable)
         setFocusable(R.id.actionStartPolaris, focusable)
@@ -1231,26 +1370,17 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         findViewById<TextView>(R.id.pcViewHostsSummary)
             ?.text = getString(R.string.pcview_hosts_summary_format, visibleCount, totalCount)
 
-        val serversMeta = findViewById<TextView>(R.id.pcViewServersMeta)
-        if (serversMeta != null) {
+        val libraryStatus = when {
+            libraryReadyCount <= 0 -> getString(R.string.pcview_destination_library_meta_empty)
+            libraryReadyCount == 1 -> getString(R.string.pcview_destination_library_meta_one)
+            else -> getString(R.string.pcview_destination_library_meta_many, libraryReadyCount)
+        }
+        findViewById<TextView>(R.id.dashboardModeStatus)?.text =
             if (totalCount <= 0) {
-                serversMeta.setText(R.string.pcview_destination_servers_meta_empty)
+                getString(R.string.pcview_dashboard_mode_status_empty)
             } else {
-                serversMeta.text = getString(R.string.pcview_destination_servers_meta_format, onlineCount, totalCount)
-            }
-        }
-
-        val libraryMeta = findViewById<TextView>(R.id.pcViewLibraryMeta)
-        if (libraryMeta != null) {
-            if (libraryReadyCount <= 0) {
-                libraryMeta.setText(R.string.pcview_destination_library_meta_empty)
-            } else if (libraryReadyCount == 1) {
-                libraryMeta.setText(R.string.pcview_destination_library_meta_one)
-            } else {
-                libraryMeta.text = getString(R.string.pcview_destination_library_meta_many, libraryReadyCount)
-            }
-        }
-    }
+                getString(R.string.pcview_dashboard_mode_status_format, onlineCount, totalCount, libraryStatus)
+            }    }
 
     private fun updateEmptyState() {
         if (noPcFoundLayout == null || !::viewModel.isInitialized || !::pcGridAdapter.isInitialized) {
@@ -2585,5 +2715,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         private const val FILTER_STREAMING = 2
         private const val FILTER_NEEDS_PAIRING = 3
         private const val PREF_LAST_LIBRARY_PC_UUID = "nova_last_library_pc_uuid"
+        private const val PREF_DASHBOARD_RAIL_COLLAPSED = "nova_dashboard_rail_collapsed"
+        private const val DASHBOARD_RAIL_ANIMATION_MS = 160L
     }
 }
