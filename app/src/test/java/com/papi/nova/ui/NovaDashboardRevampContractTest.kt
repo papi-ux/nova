@@ -40,8 +40,8 @@ class NovaDashboardRevampContractTest {
             assertTrue("${layout.path} should make Start Polaris a labeled pill", headerXml.contains("@string/pcview_quick_start_polaris"))
             assertTrue("${layout.path} should make Theme a labeled pill", headerXml.contains("@string/pcview_quick_theme"))
             assertTrue("${layout.path} should make GitHub a labeled pill", headerXml.contains("@string/pcview_quick_github"))
-            val expectedActionHeight = if (layout.path.contains("layout-land")) "34dp" else "44dp"
-            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "22dp"
+            val expectedActionHeight = if (layout.path.contains("layout-land")) "34dp" else "@dimen/nova_dashboard_top_action_height"
+            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "@dimen/nova_dashboard_top_action_radius"
             assertTrue("${layout.path} should use compact pilled top actions", headerXml.contains("""android:layout_height="$expectedActionHeight"""") && headerXml.contains("""app:cornerRadius="$expectedActionRadius""""))
         }
     }
@@ -140,7 +140,7 @@ class NovaDashboardRevampContractTest {
         ).forEach { id ->
             assertTrue("portrait one-screen action grid should keep $id visible before mode controls", railXml.contains(id))
         }
-        assertTrue("portrait update label should remain bounded inside its grid cell", headerXml.contains("""android:maxWidth="128dp"""") && headerXml.contains("""android:ellipsize="end""""))
+        assertTrue("portrait update labels should remain bounded inside the grid cell", railXml.contains("""android:id="@+id/updateStatusLabel"""") && railXml.contains("""android:id="@+id/updateVersionLabel"""") && railXml.contains("""android:layout_width="0dp"""") && railXml.contains("""android:layout_weight="1"""") && railXml.contains("""android:maxLines="1"""") && railXml.contains("""android:ellipsize="end""""))
         assertTrue("portrait controls should start close under the visible action grid to keep hosts on-screen", headerXml.contains("""android:id="@+id/dashboardHomeControls"""") && headerXml.contains("""android:layout_marginTop="10dp"""))
     }
 
@@ -366,6 +366,95 @@ class NovaDashboardRevampContractTest {
         assertTrue("portrait focus label should stay visually attached to the quick rail instead of drifting to the right edge", focusLabelXml.contains("""android:gravity="center"""))
         assertTrue("portrait mode selector should use full-width equal targets", selectorXml.contains("""android:layout_width="match_parent"""") && selectorXml.contains("""android:layout_width="0dp""") && selectorXml.contains("android:layout_weight"))
         assertTrue("portrait setup actions should use full-width equal touch targets", setupXml.contains("""android:layout_width="match_parent"""") && setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
+    }
+
+    @Test
+    fun laneThreePointFivePortraitTopActionsUseSharedLargeTextSafeTokens() {
+        val portrait = File("src/main/res/layout/activity_pc_view.xml").readText()
+        val dimens = File("src/main/res/values/dimens.xml").readText()
+        val railXml = portrait.substring(
+            portrait.indexOf("@+id/dashboardPillRail"),
+            portrait.indexOf("@+id/topActionFocusLabel"),
+        )
+
+        listOf(
+            "nova_dashboard_top_action_height",
+            "nova_dashboard_top_action_radius",
+            "nova_dashboard_top_action_gap",
+            "nova_dashboard_top_action_padding_horizontal",
+            "nova_dashboard_top_action_icon_gap",
+        ).forEach { token ->
+            assertTrue("portrait top action token $token should be defined", dimens.contains(token))
+            assertTrue("portrait action grid should use $token instead of hard-coded per-button values", railXml.contains("@dimen/$token"))
+        }
+
+        assertFalse(
+            "portrait action grid should avoid sub-11sp eyebrow text that becomes unreadable on handheld portrait screens",
+            listOf("8sp", "9sp", "10sp").any { railXml.contains("""android:textSize="$it"""") },
+        )
+
+        listOf(
+            "@+id/actionStartPolaris",
+            "@+id/profilesButton",
+            "@+id/actionTheme",
+            "@+id/actionGithub",
+            "@+id/actionSettings",
+        ).forEach { id ->
+            val actionXml = railXml.substring(railXml.indexOf(id)).substringBefore("/>")
+            assertTrue("$id should clamp large-text labels to one ellipsized line", actionXml.contains("""android:maxLines="1"""") && actionXml.contains("""android:ellipsize="end""""))
+            assertTrue("$id should use shared portrait action sizing", actionXml.contains("@dimen/nova_dashboard_top_action_height") && actionXml.contains("@dimen/nova_dashboard_top_action_padding_horizontal") && actionXml.contains("@dimen/nova_dashboard_top_action_icon_gap"))
+        }
+    }
+
+    @Test
+    fun laneThreePointFivePortraitPinsDpadNavigationThroughActionGrid() {
+        val portrait = File("src/main/res/layout/activity_pc_view.xml").readText()
+        val headerXml = portrait.substring(
+            portrait.indexOf("@+id/dashboardPillRail"),
+            portrait.indexOf("@+id/dashboardModeStatus"),
+        )
+
+        mapOf(
+            "@+id/actionStartPolaris" to listOf(
+                """android:nextFocusRight="@id/profilesButton"""",
+                """android:nextFocusDown="@id/actionTheme"""",
+            ),
+            "@+id/profilesButton" to listOf(
+                """android:nextFocusLeft="@id/actionStartPolaris"""",
+                """android:nextFocusDown="@id/actionGithub"""",
+            ),
+            "@+id/actionTheme" to listOf(
+                """android:nextFocusUp="@id/actionStartPolaris"""",
+                """android:nextFocusRight="@id/actionGithub"""",
+                """android:nextFocusDown="@id/actionSettings"""",
+            ),
+            "@+id/actionGithub" to listOf(
+                """android:nextFocusLeft="@id/actionTheme"""",
+                """android:nextFocusUp="@id/profilesButton"""",
+                """android:nextFocusDown="@id/actionNovaUpdate"""",
+            ),
+            "@+id/actionSettings" to listOf(
+                """android:nextFocusUp="@id/actionTheme"""",
+                """android:nextFocusRight="@id/actionNovaUpdate"""",
+                """android:nextFocusDown="@id/modeServers"""",
+            ),
+            "@+id/actionNovaUpdate" to listOf(
+                """android:nextFocusLeft="@id/actionSettings"""",
+                """android:nextFocusUp="@id/actionGithub"""",
+                """android:nextFocusDown="@id/modeLibrary"""",
+            ),
+            "@+id/modeServers" to listOf(
+                """android:nextFocusUp="@id/actionSettings"""",
+            ),
+            "@+id/modeLibrary" to listOf(
+                """android:nextFocusUp="@id/actionNovaUpdate"""",
+            ),
+        ).forEach { (id, requiredAttrs) ->
+            val nodeXml = headerXml.substring(headerXml.indexOf(id)).substringBefore(">")
+            requiredAttrs.forEach { attr ->
+                assertTrue("$id should pin DPAD navigation with $attr", nodeXml.contains(attr))
+            }
+        }
     }
 
 }

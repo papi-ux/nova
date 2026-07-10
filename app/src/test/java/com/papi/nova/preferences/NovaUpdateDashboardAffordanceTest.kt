@@ -38,9 +38,9 @@ class NovaUpdateDashboardAffordanceTest {
                 "${layout.path} should not leave the update control in the Server/Library selector cluster",
                 selectorXml.contains("@+id/actionNovaUpdate")
             )
-            val expectedActionHeight = if (layout.path.contains("layout-land")) "34dp" else "44dp"
-            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "22dp"
-            val expectedUpdateRadius = if (layout.path.contains("layout-land")) "19dp" else "22dp"
+            val expectedActionHeight = if (layout.path.contains("layout-land")) "34dp" else "@dimen/nova_dashboard_top_action_height"
+            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "@dimen/nova_dashboard_top_action_radius"
+            val expectedUpdateRadius = if (layout.path.contains("layout-land")) "19dp" else "@dimen/nova_dashboard_top_action_radius"
             assertTrue(
                 "${layout.path} should make top actions pilled instead of squat rounded-square buttons",
                 headerXml.contains("@+id/profilesButton") &&
