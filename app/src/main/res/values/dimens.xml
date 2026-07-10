@@ -32,6 +32,12 @@
     <dimen name="nova_card_corner_radius_lg">16dp</dimen>
     <dimen name="nova_search_height">48dp</dimen>
 
+    <!-- Nova dashboard adaptive shell -->
+    <dimen name="nova_dashboard_pill_height">44dp</dimen>
+    <dimen name="nova_dashboard_pill_radius">22dp</dimen>
+    <dimen name="nova_dashboard_rail_width">288dp</dimen>
+    <dimen name="nova_dashboard_rail_gap">16dp</dimen>
+
     <!-- Nova icon sizes -->
     <dimen name="nova_icon_server">40dp</dimen>
     <dimen name="nova_icon_server_container">48dp</dimen>

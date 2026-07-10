@@ -37,6 +37,11 @@ object HelpLauncher {
 
     @JvmStatic
     fun launchSetupGuide(context: Context) {
+        launchGithub(context)
+    }
+
+    @JvmStatic
+    fun launchGithub(context: Context) {
         launchUrl(context, "https://github.com/papi-ux/nova")
     }
 

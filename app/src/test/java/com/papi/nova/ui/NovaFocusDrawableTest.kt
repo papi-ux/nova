@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.xml.parsers.DocumentBuilderFactory
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.w3c.dom.Document
@@ -166,10 +167,10 @@ class NovaFocusDrawableTest {
 
             assertTrue(
                 "$layout top support action should say GitHub because it opens Nova GitHub",
-                hasViewAttribute(doc, "actionHelp", "android:text", "@string/pcview_quick_github")
+                hasViewAttribute(doc, "actionGithub", "android:text", "@string/pcview_quick_github")
             )
-            assertTrue(
-                "$layout empty-state support action should say GitHub because it opens Nova GitHub",
+            assertFalse(
+                "$layout should not keep a duplicate empty-state GitHub chip after GitHub moved to the top cockpit",
                 hasViewAttribute(doc, "emptyHelp", "android:text", "@string/pcview_quick_github")
             )
         }
@@ -196,7 +197,7 @@ class NovaFocusDrawableTest {
             source.contains("bindTopActionFocusLabel(") &&
                 source.contains("R.id.topActionFocusLabel") &&
                 source.contains("R.string.pcview_quick_profiles") &&
-                source.contains("R.string.pcview_quick_polaris_sync") &&
+                source.contains("R.string.pcview_quick_start_polaris") &&
                 source.contains("R.string.pcview_quick_settings")
         )
     }
@@ -214,16 +215,16 @@ class NovaFocusDrawableTest {
 
             assertTrue(
                 "$layout Polaris startup action should look like launch/start, not bidirectional sync",
-                hasViewAttribute(doc, "actionPolarisSync", "app:icon", "@drawable/ic_play")
+                hasViewAttribute(doc, "actionStartPolaris", "app:icon", "@drawable/ic_play")
             )
             assertTrue(
                 "$layout Polaris startup action should keep the Start Polaris label",
-                hasViewAttribute(doc, "actionPolarisSync", "android:contentDescription", "@string/pcview_quick_polaris_sync")
+                hasViewAttribute(doc, "actionStartPolaris", "android:contentDescription", "@string/pcview_quick_start_polaris")
             )
         }
         assertTrue(
             "Top action should still launch the Polaris startup flow",
-            source.contains("polarisSyncAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }")
+            source.contains("startPolarisAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }")
         )
     }
 
