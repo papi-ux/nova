@@ -15,7 +15,7 @@ class NovaDashboardRevampContractTest {
 
         layouts.forEach { layout ->
             val xml = layout.readText()
-            val headerStart = xml.indexOf("@+id/profilesButton")
+            val headerStart = xml.indexOf("@+id/pcViewHeader")
             val selectorStart = xml.indexOf("@+id/modeServers")
             assertTrue("${layout.path} should have a header before mode cards", headerStart > 0 && selectorStart > headerStart)
             val headerXml = xml.substring(headerStart, selectorStart)
@@ -40,7 +40,9 @@ class NovaDashboardRevampContractTest {
             assertTrue("${layout.path} should make Start Polaris a labeled pill", headerXml.contains("@string/pcview_quick_start_polaris"))
             assertTrue("${layout.path} should make Theme a labeled pill", headerXml.contains("@string/pcview_quick_theme"))
             assertTrue("${layout.path} should make GitHub a labeled pill", headerXml.contains("@string/pcview_quick_github"))
-            assertTrue("${layout.path} should use pilled 44dp/22dp top actions", headerXml.contains("""android:layout_height="44dp"""") && headerXml.contains("""app:cornerRadius="22dp""""))
+            val expectedActionHeight = if (layout.path.contains("layout-land")) "34dp" else "44dp"
+            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "22dp"
+            assertTrue("${layout.path} should use compact pilled top actions", headerXml.contains("""android:layout_height="$expectedActionHeight"""") && headerXml.contains("""app:cornerRadius="$expectedActionRadius""""))
         }
     }
 
@@ -140,8 +142,8 @@ class NovaDashboardRevampContractTest {
         assertTrue("landscape cockpit rail should use shared rail width token", landscape.contains("@dimen/nova_dashboard_rail_width"))
         assertTrue("landscape shell should be horizontal", landscape.substring(landscape.indexOf("@+id/dashboardCockpit"), contentIndex).contains("""android:orientation="horizontal""""))
         assertFalse("landscape should not use the portrait horizontal pill rail", landscape.contains("@+id/dashboardPillRail"))
-        assertTrue("landscape rail should contain top actions before content", landscape.indexOf("@+id/profilesButton") > railIndex && landscape.indexOf("@+id/actionSettings") < contentIndex)
-        assertTrue("mode cards should stay in dashboard content for Lane 2", landscape.indexOf("@+id/modeServers") > contentIndex && landscape.indexOf("@+id/modeLibrary") > contentIndex)
+        assertTrue("landscape rail should contain top actions before content", landscape.indexOf("@+id/actionStartPolaris") > railIndex && landscape.indexOf("@+id/actionNovaUpdate") < contentIndex)
+        assertTrue("mode controls should live in the cockpit rail after Lane 3 polish", landscape.indexOf("@+id/modeServers") in railIndex until contentIndex && landscape.indexOf("@+id/modeLibrary") in railIndex until contentIndex)
     }
 
 
@@ -182,13 +184,24 @@ class NovaDashboardRevampContractTest {
             val setupIndex = xml.indexOf("@+id/setupActionRow")
             val hostsIndex = xml.indexOf("@+id/pcViewHostsLabel")
             assertTrue("${layout.path} should put setup actions in a named secondary row before hosts", setupIndex > 0 && hostsIndex > setupIndex)
-            val setupXml = xml.substring(setupIndex, hostsIndex)
+            val setupEnd = if (layout.path.contains("layout-land")) {
+                xml.indexOf("@+id/topActionFocusLabel")
+            } else {
+                hostsIndex
+            }
+            val setupXml = xml.substring(setupIndex, setupEnd)
 
             assertTrue("${layout.path} should keep Add Server in setupActionRow", setupXml.contains("@+id/actionAddServer"))
             assertTrue("${layout.path} should keep Scan Pair in setupActionRow", setupXml.contains("@+id/actionScanPair"))
-            assertTrue("${layout.path} setup row should be content-sized, not another hero bar", setupXml.contains("""android:layout_width="wrap_content""""))
-            assertTrue("${layout.path} setup actions should use shared pill tokens", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_dashboard_pill_radius"))
-            assertFalse("${layout.path} setup actions should not split into equal-width hero bars", setupXml.contains("""android:layout_width="0dp"""") || setupXml.contains("android:layout_weight"))
+            if (layout.path.contains("layout-land")) {
+                assertTrue("${layout.path} setup row should fill the compact left rail", setupXml.contains("""android:layout_width="match_parent"""))
+                assertTrue("${layout.path} setup actions may split into compact paired rail pills", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
+                assertTrue("${layout.path} setup actions should use compact rail pill sizing", setupXml.contains("""android:layout_height="34dp""") && setupXml.contains("""app:cornerRadius="17dp"""))
+            } else {
+                assertTrue("${layout.path} setup row should be content-sized, not another hero bar", setupXml.contains("""android:layout_width="wrap_content""""))
+                assertTrue("${layout.path} setup actions should use shared pill tokens", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_dashboard_pill_radius"))
+                assertFalse("${layout.path} setup actions should not split into equal-width hero bars", setupXml.contains("""android:layout_width="0dp""") || setupXml.contains("android:layout_weight"))
+            }
         }
     }
 
@@ -199,6 +212,77 @@ class NovaDashboardRevampContractTest {
         assertTrue("PcView should update the live dashboard mode status", source.contains("R.id.dashboardModeStatus"))
         assertTrue("PcView should use the compact mode status format string", source.contains("pcview_dashboard_mode_status_format"))
         assertFalse("The old destination hero-card styler should be gone after Lane 3", source.contains("styleDestinationCard"))
+    }
+
+
+    @Test
+    fun laneThreePointOneLandscapeGlobalRailIsRaisedNarrowAndOrdered() {
+        val landscape = File("src/main/res/layout-land/activity_pc_view.xml").readText()
+        val dimens = File("src/main/res/values/dimens.xml").readText()
+        val railStart = landscape.indexOf("@+id/dashboardCockpitRail")
+        val contentStart = landscape.indexOf("@+id/dashboardContent")
+        assertTrue("landscape rail should exist before content", railStart > 0 && contentStart > railStart)
+        val railXml = landscape.substring(railStart, contentStart)
+
+        assertTrue("landscape rail should use the compact rail width token", dimens.contains("""<dimen name="nova_dashboard_rail_width">224dp</dimen>"""))
+        assertTrue("landscape rail should reserve a collapsed icon width token", dimens.contains("nova_dashboard_rail_collapsed_width"))
+        assertTrue("landscape rail top padding should be visually tighter than the current gappy 12dp", railXml.contains("""android:paddingTop="6dp"""))
+        val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        assertTrue("landscape header padding should not add the full status-bar inset", source.contains("headerTopPadding") && source.contains("ORIENTATION_LANDSCAPE") && source.contains("UiHelper.dpToPx(this, 4f).toInt()") && source.contains("topInset + UiHelper.dpToPx(this, 16f).toInt()"))
+
+        val expectedOrder = listOf(
+            "@+id/actionStartPolaris",
+            "@+id/profilesButton",
+            "@+id/actionTheme",
+            "@+id/actionGithub",
+            "@+id/actionSettings",
+            "@+id/actionNovaUpdate",
+        )
+        expectedOrder.zipWithNext().forEach { (first, second) ->
+            assertTrue("$first should appear before $second in the landscape rail", railXml.indexOf(first) in 1 until railXml.indexOf(second))
+        }
+    }
+
+    @Test
+    fun laneThreePointOneLandscapeMovesModeAndSetupControlsIntoLeftRail() {
+        val landscape = File("src/main/res/layout-land/activity_pc_view.xml").readText()
+        val railStart = landscape.indexOf("@+id/dashboardCockpitRail")
+        val contentStart = landscape.indexOf("@+id/dashboardContent")
+        val railXml = landscape.substring(railStart, contentStart)
+        val contentXml = landscape.substring(contentStart)
+
+        listOf(
+            "@+id/dashboardModeSelector",
+            "@+id/dashboardModeStatus",
+            "@+id/setupActionRow",
+            "@+id/modeServers",
+            "@+id/modeLibrary",
+            "@+id/actionAddServer",
+            "@+id/actionScanPair",
+        ).forEach { id ->
+            assertTrue("$id should move into the landscape left rail", railXml.contains(id))
+            assertFalse("$id should not float in landscape dashboardContent", contentXml.contains(id))
+        }
+
+        assertFalse("landscape should not show the clipped/redundant host summary", landscape.contains("@+id/pcViewHostsSummary"))
+        assertTrue("landscape should keep only the Hosts label over the content list", contentXml.contains("@+id/pcViewHostsLabel"))
+    }
+
+
+    @Test
+    fun laneThreePointTwoLandscapeRailHasCollapsibleIconDrawerAnatomy() {
+        val landscape = File("src/main/res/layout-land/activity_pc_view.xml").readText()
+        val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val railStart = landscape.indexOf("@+id/dashboardCockpitRail")
+        val contentStart = landscape.indexOf("@+id/dashboardContent")
+        val railXml = landscape.substring(railStart, contentStart)
+
+        assertTrue("landscape rail should expose a drawer toggle", railXml.contains("@+id/dashboardRailToggle"))
+        assertTrue("landscape rail should tag label-bearing actions for collapse", railXml.contains("dashboardRailLabel"))
+        assertTrue("collapsed rail needs a dedicated GitHub icon", railXml.contains("@drawable/ic_github"))
+        assertTrue("PcView should wire dashboard rail collapse", source.contains("private fun setDashboardRailCollapsed"))
+        assertTrue("PcView should use the collapsed rail width token", source.contains("R.dimen.nova_dashboard_rail_collapsed_width"))
+        assertTrue("collapsed rail should keep focus labels discoverable", source.contains("topActionFocusLabel"))
     }
 
 }

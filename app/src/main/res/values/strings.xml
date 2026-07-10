@@ -55,6 +55,9 @@
     <string name="nova_theme_material_you_label">Material You</string>
     <string name="pcview_quick_library">Open Nova Library</string>
     <string name="pcview_home_subtitle">Open your game library or set up a server</string>
+    <string name="pcview_browse_label">Browse</string>
+    <string name="pcview_rail_collapse">Collapse rail</string>
+    <string name="pcview_rail_expand">Expand rail</string>
     <string name="pcview_mode_servers">Servers</string>
     <string name="pcview_mode_library">Library</string>
     <string name="pcview_dashboard_mode_selector">Dashboard mode selector</string>
