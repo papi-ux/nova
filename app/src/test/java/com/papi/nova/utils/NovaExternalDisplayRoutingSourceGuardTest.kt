@@ -116,4 +116,78 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         assertTrue(source.contains("INVALID_DISPLAY_ID"))
         assertFalse(source.contains("Display.INVALID_DISPLAY"))
     }
+
+    @Test
+    fun gameCreatesAudioRendererWithStreamDisplayContext() {
+        val source = File("src/main/java/com/papi/nova/Game.kt").readText()
+
+        assertTrue(
+            "Game should derive a display-scoped audio context from the selected stream display",
+            source.contains("private fun getStreamAudioContext(): Context")
+        )
+        assertTrue(
+            "Audio context should be created from the selected stream display, not whichever activity last focused controls",
+            source.contains("createDisplayContext(streamingDisplay)")
+        )
+        assertTrue(
+            "Audio renderer must be constructed with the stream display context",
+            source.contains("AndroidAudioRenderer(getStreamAudioContext(), prefConfig!!.playHostAudio)")
+        )
+        assertFalse(
+            "Passing the Game activity context lets Android bind audio to the bottom/control display",
+            source.contains("AndroidAudioRenderer(this@Game, prefConfig!!.playHostAudio)")
+        )
+    }
+
+    @Test
+    fun gameStartsCompanionControlsAfterStreamConnectionStart() {
+        val source = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val inputSetupStart = source.indexOf("if (Objects.equals(appUUID, NvApp.REMOTE_INPUT_UUID))")
+        val inputSetupEnd = source.indexOf("if (prefConfig!!.onscreenController)", inputSetupStart)
+        val surfaceStartIndex = source.indexOf("streamContainer!!.setOnSurfaceAvailable")
+        val surfaceEndIndex = source.indexOf("gameMenuCallbacks", surfaceStartIndex)
+        val connectionStartedIndex = source.indexOf("override fun connectionStarted()")
+        val connectionStartedEnd = source.indexOf("fun handleStreamStartedState()", connectionStartedIndex)
+        assertTrue("Game should contain remote-input setup branch", inputSetupStart >= 0)
+        assertTrue("Game should contain onscreen-controller setup after remote-input setup", inputSetupEnd > inputSetupStart)
+        assertTrue("Game should contain surface-available startup callback", surfaceStartIndex >= 0)
+        assertTrue("Game should initialize game menu after surface callback", surfaceEndIndex > surfaceStartIndex)
+        assertTrue("Game should contain connectionStarted callback", connectionStartedIndex >= 0)
+        assertTrue("Game should define handleStreamStartedState after connectionStarted", connectionStartedEnd > connectionStartedIndex)
+
+        val inputSetup = source.substring(inputSetupStart, inputSetupEnd)
+        val surfaceStart = source.substring(surfaceStartIndex, surfaceEndIndex)
+        val connectionStarted = source.substring(connectionStartedIndex, connectionStartedEnd)
+
+        assertFalse(
+            "Companion controls should not take display focus before audio/stream startup",
+            inputSetup.contains("launchCompanionControlsIfAvailable()")
+        )
+        assertFalse(
+            "Surface callback starts NvConnection on a worker thread; companion controls should wait for connectionStarted",
+            surfaceStart.contains("launchCompanionControlsIfAvailable()")
+        )
+        val handleStarted = connectionStarted.indexOf("handleStreamStartedState()")
+        val controlsStart = connectionStarted.indexOf("launchCompanionControlsIfAvailable()")
+        assertTrue("connectionStarted should mark the stream active", handleStarted >= 0)
+        assertTrue("connectionStarted should start companion controls after stream/audio setup", controlsStart >= 0)
+        assertTrue(
+            "Companion controls should launch after connectionStarted marks the stream active so audio binds to the stream display first",
+            controlsStart > handleStarted
+        )
+    }
+
+    @Test
+    fun androidAudioRendererSetsBuilderContextOnAndroid14AndNewer() {
+        val source = File("src/main/java/com/papi/nova/binding/audio/AndroidAudioRenderer.kt").readText()
+
+        assertTrue(source.contains("Build.VERSION_CODES.UPSIDE_DOWN_CAKE"))
+        assertTrue(
+            "AudioTrack.Builder should receive the stream-display Context on API 34+ for display-roleful audio routing",
+            source.contains("trackBuilder.setContext(context)")
+        )
+        assertTrue(source.contains("Android display audio context"))
+        assertTrue(source.contains("Android display audio route"))
+        assertTrue(source.contains("display_id="))
+    }
 }
