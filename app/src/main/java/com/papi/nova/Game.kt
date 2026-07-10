@@ -392,6 +392,20 @@ display = displayManager!!.getDisplay(streamingDisplayId)
 return if (display != null) display else getWindowManager().getDefaultDisplay()
 }
 
+private fun getStreamAudioContext(): Context {
+val streamingDisplay:Display? = this.streamingDisplay
+return if (streamingDisplay != null)
+{
+LimeLog.info("Nova: Android display audio context stream_id=$streamingDisplayId display_id=${streamingDisplay.displayId}")
+createDisplayContext(streamingDisplay)
+}
+else
+{
+LimeLog.info("Nova: Android display audio context stream_id=$streamingDisplayId fallback=activity")
+this
+}
+}
+
 fun streamingDisplayIdForCompanion(): Int = streamingDisplayId
 
 private fun getCompanionControlDisplay(): Display? {
@@ -1191,8 +1205,6 @@ applyMouseMode(2)
 }
 else
 {
-launchCompanionControlsIfAvailable()
-
  // Initialize touch contexts based on preferences
             // The mouse mode preference is also read in PreferenceConfiguration to set the boolean flags
             initMouseMode()
@@ -1247,7 +1259,7 @@ attemptedConnection = true
                 decoderRenderer!!.setRenderTarget(streamContainer!!.getSurface())
 
  // Starten Sie die NvConnection
-                conn!!.start(AndroidAudioRenderer(this@Game, prefConfig!!.playHostAudio),
+                conn!!.start(AndroidAudioRenderer(getStreamAudioContext(), prefConfig!!.playHostAudio),
 decoderRenderer!!, this@Game)
 } })
 
@@ -4763,6 +4775,11 @@ novaProgressOverlay?.dismiss()
 }, NOVA_PROGRESS_READY_DISMISS_DELAY_MS)
 
 handleStreamStartedState()
+
+if (!Objects.equals(appUUID, NvApp.REMOTE_INPUT_UUID))
+{
+launchCompanionControlsIfAvailable()
+}
 
  // Show Nova Stream HUD if enabled
                 if (com.papi.nova.ui.NovaStreamHud.Companion.isEnabled(this@Game))

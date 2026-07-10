@@ -21,6 +21,8 @@ class AndroidAudioRenderer(
     private var track: AudioTrack? = null
     @Volatile
     private var trackStarted = false
+    @Volatile
+    private var reportedAudioRoute = false
 
     private fun createAudioTrack(
         channelConfig: Int,
@@ -48,6 +50,10 @@ class AndroidAudioRenderer(
                 .setBufferSizeInBytes(bufferSize)
             if (lowLatency) {
                 trackBuilder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                LimeLog.info("Nova: Android display audio context display_id=${audioContextDisplayId()} api=${Build.VERSION.SDK_INT}")
+                trackBuilder.setContext(context)
             }
             trackBuilder.build()
         } else {
@@ -133,6 +139,7 @@ class AndroidAudioRenderer(
         if (!trackStarted) {
             audioTrack.play()
             trackStarted = true
+            logRoutedAudioDevice(audioTrack)
         }
 
         hapticEngine?.feedAudioShort(audioData, audioTrack.sampleRate, audioTrack.channelCount)
@@ -141,6 +148,30 @@ class AndroidAudioRenderer(
             audioTrack.write(audioData, 0, audioData.size)
         } else {
             LimeLog.info("Too much pending audio data: " + MoonBridge.getPendingAudioDuration() + " ms")
+        }
+    }
+
+    private fun audioContextDisplayId(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            context.display.displayId
+        } else {
+            INVALID_DISPLAY_ID
+        }
+    }
+
+    private fun logRoutedAudioDevice(audioTrack: AudioTrack) {
+        if (reportedAudioRoute) return
+        reportedAudioRoute = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val routedDevice = audioTrack.routedDevice
+            if (routedDevice != null) {
+                LimeLog.info(
+                    "Nova: Android display audio route display_id=${audioContextDisplayId()} " +
+                        "device_id=${routedDevice.id} type=${routedDevice.type}"
+                )
+            } else {
+                LimeLog.info("Nova: Android display audio route display_id=${audioContextDisplayId()} device_id=none type=none")
+            }
         }
     }
 
@@ -176,6 +207,8 @@ class AndroidAudioRenderer(
     }
 
     companion object {
+        private const val INVALID_DISPLAY_ID = -1
+
         @Volatile
         @JvmField
         var hapticEngine: AudioHapticEngine? = null
