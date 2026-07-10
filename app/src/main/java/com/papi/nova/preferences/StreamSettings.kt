@@ -3,6 +3,7 @@
 package com.papi.nova.preferences
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.FileProvider
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.CheckBoxPreference
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
@@ -51,6 +53,7 @@ import com.papi.nova.R
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardControllerConfigurationLoader
 import com.papi.nova.binding.video.MediaCodecHelper
 import com.papi.nova.ui.NovaHudPreferences
+import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.Dialog
@@ -58,12 +61,16 @@ import com.papi.nova.utils.FileUriUtils
 import com.papi.nova.utils.HelpLauncher
 import com.papi.nova.utils.PerformanceDataTracker
 import com.papi.nova.utils.ServerHelper.getActiveDisplay
+import com.papi.nova.utils.SpinnerDialog
 import com.papi.nova.utils.UiHelper
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.Arrays
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 class StreamSettings : AppCompatActivity() {
@@ -182,7 +189,7 @@ class StreamSettings : AppCompatActivity() {
             "nova_app_version" -> Unit
             "nova_reset_stream_ui" -> resetStreamUiRuntimePreferences()
             "pref_debug_info" -> startActivity(Intent(this, DebugInfoActivity::class.java))
-            "option_software_release" -> HelpLauncher.launchUrl(this, "https://github.com/papi-ux/nova/releases")
+            "option_software_release" -> checkForNovaUpdate()
             "option_follow_update" -> HelpLauncher.launchUrl(this, getString(R.string.obtainium_app_url))
             else -> {
                 Toast.makeText(
@@ -193,6 +200,145 @@ class StreamSettings : AppCompatActivity() {
                 showLegacySettings()
             }
         }
+    }
+
+    private fun checkForNovaUpdate() {
+        Toast.makeText(this, R.string.nova_update_checking, Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    NovaUpdateChecker.checkLatest()
+                }
+            }
+
+            result.onSuccess { updateResult ->
+                showNovaUpdateResult(updateResult)
+            }.onFailure { error ->
+                showNovaUpdateError(error)
+            }
+        }
+    }
+
+    private fun showNovaUpdateResult(result: NovaUpdateCheckResult) {
+        when (result) {
+            is NovaUpdateCheckResult.UpdateAvailable -> showNovaUpdateAvailable(result.release)
+            is NovaUpdateCheckResult.UpToDate -> showNovaUpdateCurrent(result.release)
+        }
+    }
+
+    private fun showNovaUpdateAvailable(release: NovaUpdateRelease) {
+        val message = if (release.apkAssetName != null) {
+            getString(
+                R.string.nova_update_available_message_with_apk,
+                release.versionName,
+                NovaAppVersion.current(),
+                release.apkAssetName
+            )
+        } else {
+            getString(
+                R.string.nova_update_available_message,
+                release.versionName,
+                NovaAppVersion.current()
+            )
+        }
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.nova_update_available_title)
+            .setMessage(message)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.nova_update_release_notes) { _, _ ->
+                HelpLauncher.launchUrl(this, release.releaseUrl)
+            }
+
+        if (release.apkDownloadUrl != null) {
+            builder.setPositiveButton(R.string.nova_update_download_apk) { _, _ ->
+                startNovaUpdateInstall(release)
+            }
+        } else {
+            builder.setPositiveButton(R.string.nova_update_open_release) { _, _ ->
+                HelpLauncher.launchUrl(this, release.releaseUrl)
+            }
+        }
+
+        val dialog = builder.show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
+    }
+
+    private fun startNovaUpdateInstall(release: NovaUpdateRelease) {
+        val spinner = SpinnerDialog.displayDialog(
+            this,
+            getString(R.string.nova_update_downloading_title),
+            getString(R.string.nova_update_downloading_message, release.versionName, 0),
+            false
+        )
+        lifecycleScope.launch {
+            val result = NovaUpdateInstaller.downloadValidateAndInstall(this@StreamSettings, release) { progress ->
+                spinner.setMessage(
+                    getString(R.string.nova_update_downloading_message, release.versionName, progress)
+                )
+            }
+            spinner.setMessage(getString(R.string.nova_update_verifying_message))
+            spinner.dismiss()
+            showNovaUpdateInstallResult(result)
+        }
+    }
+
+    private fun showNovaUpdateInstallResult(result: NovaUpdateInstallResult) {
+        when (result) {
+            NovaUpdateInstallResult.StartedInstaller -> Toast.makeText(
+                this,
+                R.string.nova_update_installer_started,
+                Toast.LENGTH_LONG
+            ).show()
+            NovaUpdateInstallResult.PermissionRequired -> Unit
+            is NovaUpdateInstallResult.Blocked -> showNovaUpdateInstallProblem(
+                R.string.nova_update_install_blocked_title,
+                result.reason
+            )
+            is NovaUpdateInstallResult.Failed -> showNovaUpdateInstallProblem(
+                R.string.nova_update_install_failed_title,
+                result.reason
+            )
+        }
+    }
+
+    private fun showNovaUpdateInstallProblem(titleRes: Int, message: String) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(titleRes)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
+    }
+
+    private fun showNovaUpdateCurrent(release: NovaUpdateRelease) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.nova_update_current_title)
+            .setMessage(
+                getString(
+                    R.string.nova_update_current_message,
+                    NovaAppVersion.current(),
+                    release.tagName
+                )
+            )
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.nova_update_view_releases) { _, _ ->
+                HelpLauncher.launchUrl(this, release.releaseUrl)
+            }
+            .show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
+    }
+
+    private fun showNovaUpdateError(error: Throwable) {
+        val detail = error.localizedMessage ?: error.javaClass.simpleName ?: "Unknown error"
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.nova_update_failed_title)
+            .setMessage(getString(R.string.nova_update_failed_message, detail))
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.nova_update_view_releases) { _, _ ->
+                HelpLauncher.launchUrl(this, "https://github.com/papi-ux/nova/releases")
+            }
+            .show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
     }
 
     private fun resetStreamUiRuntimePreferences() {
@@ -496,6 +642,11 @@ class StreamSettings : AppCompatActivity() {
                 val advanced = findPreference<PreferenceCategory>("category_advanced")
                 removeIfExists(advanced, "option_software_release")
                 removeIfExists(advanced, "option_follow_update")
+            } else {
+                findPreference<Preference>("option_software_release")?.setOnPreferenceClickListener {
+                    (requireActivity() as? StreamSettings)?.checkForNovaUpdate()
+                    true
+                }
             }
 
             if (!pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {

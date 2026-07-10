@@ -29,93 +29,218 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/pcViewTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-light"
+                    android:letterSpacing="0.04"
+                    android:text="Nova"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="30sp" />
+
+                <TextView
+                    android:id="@+id/pcViewSectionLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.03"
+                    android:text="@string/pcview_home_subtitle"
+                    android:textColor="?android:textColorSecondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <HorizontalScrollView
+                android:id="@+id/dashboardPillRailScroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:clipToPadding="false"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:overScrollMode="never"
+                android:scrollbars="none">
 
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:id="@+id/dashboardPillRail"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/pcViewTitle"
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/profilesButton"
+                        style="@style/Widget.MaterialComponents.Button"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="sans-serif-light"
-                        android:letterSpacing="0.04"
-                        android:text="Nova"
-                        android:textColor="?attr/colorOnSurface"
-                        android:textSize="30sp" />
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="10dp"
+                        android:contentDescription="@string/pcview_quick_profiles"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="44dp"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="16dp"
+                        android:text="@string/pcview_quick_profiles"
+                        android:textAllCaps="false"
+                        app:backgroundTint="?attr/colorControlHighlight"
+                        app:cornerRadius="22dp"
+                        app:elevation="0dp"
+                        app:icon="@drawable/ic_profiles"
+                        app:iconGravity="textStart"
+                        app:iconPadding="8dp"
+                        app:iconTint="?attr/colorOnSurface" />
 
-                    <TextView
-                        android:id="@+id/pcViewSectionLabel"
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/actionNovaUpdate"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:fontFamily="sans-serif-medium"
-                        android:letterSpacing="0.03"
-                        android:text="@string/pcview_home_subtitle"
-                        android:textColor="?android:textColorSecondary"
-                        android:textSize="11sp" />
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="10dp"
+                        android:clickable="true"
+                        android:contentDescription="@string/pcview_update_pill_content_current"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        app:cardBackgroundColor="?attr/colorControlHighlight"
+                        app:cardCornerRadius="22dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="?attr/colorControlHighlight"
+                        app:strokeWidth="1dp">
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="14dp">
+
+                            <View
+                                android:id="@+id/updateStatusLight"
+                                android:layout_width="8dp"
+                                android:layout_height="8dp"
+                                android:layout_marginEnd="8dp"
+                                android:background="@drawable/nova_status_online" />
+
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:id="@+id/updateStatusLabel"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:fontFamily="sans-serif-medium"
+                                    android:includeFontPadding="false"
+                                    android:letterSpacing="0.08"
+                                    android:text="@string/pcview_update_status_current"
+                                    android:textAllCaps="true"
+                                    android:textColor="?android:textColorSecondary"
+                                    android:textSize="8sp" />
+
+                                <TextView
+                                    android:id="@+id/updateVersionLabel"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:ellipsize="end"
+                                    android:fontFamily="sans-serif-medium"
+                                    android:includeFontPadding="false"
+                                    android:maxWidth="128dp"
+                                    android:singleLine="true"
+                                    android:text="@string/pcview_update_version_preview"
+                                    android:textColor="?android:textColorPrimary"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/actionStartPolaris"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="10dp"
+                        android:contentDescription="@string/pcview_quick_start_polaris"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="44dp"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="16dp"
+                        android:text="@string/pcview_quick_start_polaris"
+                        android:textAllCaps="false"
+                        app:backgroundTint="?attr/colorControlHighlight"
+                        app:cornerRadius="22dp"
+                        app:elevation="0dp"
+                        app:icon="@drawable/ic_play"
+                        app:iconGravity="textStart"
+                        app:iconPadding="8dp"
+                        app:iconTint="?attr/colorOnSurface" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/actionTheme"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="10dp"
+                        android:contentDescription="@string/pcview_quick_theme"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="44dp"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="16dp"
+                        android:text="@string/pcview_quick_theme"
+                        android:textAllCaps="false"
+                        app:backgroundTint="?attr/colorControlHighlight"
+                        app:cornerRadius="22dp"
+                        app:elevation="0dp"
+                        app:icon="@drawable/ic_theme_cycle"
+                        app:iconGravity="textStart"
+                        app:iconPadding="8dp"
+                        app:iconTint="?attr/colorOnSurface" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/actionGithub"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="10dp"
+                        android:contentDescription="@string/pcview_quick_github"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="44dp"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:text="@string/pcview_quick_github"
+                        android:textAllCaps="false"
+                        app:backgroundTint="?attr/colorControlHighlight"
+                        app:cornerRadius="22dp"
+                        app:elevation="0dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/actionSettings"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:contentDescription="@string/pcview_quick_settings"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="44dp"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="16dp"
+                        android:text="@string/pcview_quick_settings"
+                        android:textAllCaps="false"
+                        app:backgroundTint="?attr/colorControlHighlight"
+                        app:cornerRadius="22dp"
+                        app:elevation="0dp"
+                        app:icon="@drawable/ic_settings"
+                        app:iconGravity="textStart"
+                        app:iconPadding="8dp"
+                        app:iconTint="?attr/colorOnSurface" />
                 </LinearLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/profilesButton"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_marginEnd="10dp"
-                    android:contentDescription="@string/profile_manager_choose_profile"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minWidth="0dp"
-                    android:padding="0dp"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="14dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_profiles"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconTint="?attr/colorOnSurface" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/actionPolarisSync"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_marginEnd="10dp"
-                    android:contentDescription="@string/pcview_quick_polaris_sync"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minWidth="0dp"
-                    android:padding="0dp"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="14dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_play"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconTint="?attr/colorOnSurface" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/actionSettings"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:contentDescription="@string/pcview_quick_settings"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minWidth="0dp"
-                    android:padding="0dp"
-                    app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="14dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_settings"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconTint="?attr/colorOnSurface" />
-            </LinearLayout>
+            </HorizontalScrollView>
 
             <TextView
                 android:id="@+id/topActionFocusLabel"
@@ -257,8 +382,7 @@
                             android:textColor="?android:textColorSecondary"
                             android:textSize="11sp" />
                     </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>            </LinearLayout>
 
             <TextView
                 android:id="@+id/pcViewToolsLabel"
@@ -297,7 +421,7 @@
                     android:text="@string/pcview_quick_add_server"
                     android:textAllCaps="false"
                     app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="14dp"
+                    app:cornerRadius="22dp"
                     app:elevation="0dp"
                     app:icon="@drawable/ic_add"
                     app:iconPadding="8dp"
@@ -313,38 +437,12 @@
                     android:text="@string/pcview_quick_scan_pair"
                     android:textAllCaps="false"
                     app:backgroundTint="?attr/colorControlHighlight"
-                    app:cornerRadius="14dp"
+                    app:cornerRadius="22dp"
                     app:elevation="0dp"
                     app:icon="@drawable/ic_qr_scan"
                     app:iconPadding="8dp"
                     app:iconTint="?attr/colorOnSurface" />
             </LinearLayout>
-
-            <HorizontalScrollView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:focusable="false"
-                android:focusableInTouchMode="false"
-                android:paddingBottom="4dp"
-                android:scrollbars="none">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/actionTheme"
-                        style="@style/NovaFilterChip"
-                        android:text="@string/pcview_quick_theme" />
-
-                    <TextView
-                        android:id="@+id/actionHelp"
-                        style="@style/NovaFilterChip"
-                        android:text="@string/pcview_quick_github" />
-                </LinearLayout>
-            </HorizontalScrollView>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -509,11 +607,6 @@
                                 android:id="@+id/emptyScanPair"
                                 style="@style/NovaFilterChip"
                                 android:text="@string/pcview_quick_scan_pair" />
-
-                            <TextView
-                                android:id="@+id/emptyHelp"
-                                style="@style/NovaFilterChip"
-                                android:text="@string/pcview_quick_github" />
                         </LinearLayout>
                     </HorizontalScrollView>
                 </LinearLayout>

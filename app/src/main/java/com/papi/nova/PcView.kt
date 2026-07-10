@@ -63,6 +63,12 @@ import com.papi.nova.nvstream.wol.WakeOnLanSender
 import com.papi.nova.preferences.AddComputerManually
 import com.papi.nova.preferences.GlPreferences
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.preferences.NovaUpdateCheckResult
+import com.papi.nova.preferences.NovaUpdateChecker
+import com.papi.nova.preferences.NovaUpdateInstaller
+import com.papi.nova.preferences.NovaUpdateInstallResult
+import com.papi.nova.preferences.NovaUpdatePromptPreferences
+import com.papi.nova.preferences.NovaUpdateRelease
 import com.papi.nova.preferences.StreamSettings
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.runtime.NovaRuntimeTasks
@@ -79,6 +85,7 @@ import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.HelpLauncher
 import com.papi.nova.utils.ServerHelper
 import com.papi.nova.utils.ShortcutHelper
+import com.papi.nova.utils.SpinnerDialog
 import com.papi.nova.utils.UiHelper
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -102,6 +109,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     private var inForeground = false
     private var completeOnCreateCalled = false
     private var autoNavigated = false
+    private var automaticUpdatePromptShown = false
     private var pendingPairingAddress: ComputerDetails.AddressTuple? = null
     private var pendingPairingPin: String? = null
     private var pendingPairingPassphrase: String? = null
@@ -114,6 +122,9 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private var appliedTheme: String? = null
     private var spaceParticleView: SpaceParticleView? = null
+    private enum class DashboardUpdatePillStatus { CURRENT, AVAILABLE, CHECKING, ERROR }
+    private var dashboardUpdatePillStatus = DashboardUpdatePillStatus.CURRENT
+    private var dashboardUpdatePillRelease: NovaUpdateRelease? = null
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN &&
@@ -175,7 +186,12 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         if (focus == null) {
             return false
         }
-        return focus.id == R.id.profilesButton || focus.id == R.id.actionSettings
+        return focus.id == R.id.profilesButton ||
+            focus.id == R.id.actionNovaUpdate ||
+            focus.id == R.id.actionStartPolaris ||
+            focus.id == R.id.actionTheme ||
+            focus.id == R.id.actionGithub ||
+            focus.id == R.id.actionSettings
     }
 
     private fun scheduleServerRowFocus(anchor: View?) {
@@ -341,15 +357,15 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         val modeLibrary = findViewById<View>(R.id.modeLibrary)
         val addServerAction = findViewById<View>(R.id.actionAddServer)
         val scanPairAction = findViewById<View>(R.id.actionScanPair)
-        val polarisSyncAction = findViewById<View>(R.id.actionPolarisSync)
+        val startPolarisAction = findViewById<View>(R.id.actionStartPolaris)
+        val updateAction = findViewById<View>(R.id.actionNovaUpdate)
         val themeAction = findViewById<View>(R.id.actionTheme)
         val settingsAction = findViewById<View>(R.id.actionSettings)
-        val helpAction = findViewById<View>(R.id.actionHelp)
+        val githubAction = findViewById<View>(R.id.actionGithub)
         val topActionFocusLabel = findViewById<TextView>(R.id.topActionFocusLabel)
         val emptyRefresh = findViewById<TextView>(R.id.emptyRefresh)
         val emptyAddServer = findViewById<TextView>(R.id.emptyAddServer)
         val emptyScanPair = findViewById<TextView>(R.id.emptyScanPair)
-        val emptyHelp = findViewById<TextView>(R.id.emptyHelp)
         val filterAllServers = findViewById<TextView>(R.id.filterAllServers)
         val filterOnlineServers = findViewById<TextView>(R.id.filterOnlineServers)
         val filterStreamingServers = findViewById<TextView>(R.id.filterStreamingServers)
@@ -366,7 +382,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             startActivity(Intent(this@PcView, AddComputerManually::class.java))
         }
         scanPairAction?.setOnClickListener { launchQrScanner() }
-        polarisSyncAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }
+        startPolarisAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }
+        updateAction?.setOnClickListener { checkNovaUpdateFromDashboard() }
         themeAction?.setOnClickListener { v ->
             showThemePicker(v)
         }
@@ -374,7 +391,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             startActivity(Intent(this@PcView, StreamSettings::class.java))
             NovaThemeManager.applyFadeTransition(this@PcView)
         }
-        helpAction?.setOnClickListener { HelpLauncher.launchSetupGuide(this@PcView) }
+        githubAction?.setOnClickListener { HelpLauncher.launchGithub(this@PcView) }
         emptyRefresh?.setOnClickListener {
             resetLibraryReadiness()
             stopComputerUpdates(false)
@@ -384,14 +401,16 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             startActivity(Intent(this@PcView, AddComputerManually::class.java))
         }
         emptyScanPair?.setOnClickListener { launchQrScanner() }
-        emptyHelp?.setOnClickListener { HelpLauncher.launchSetupGuide(this@PcView) }
         profilesButton?.setOnClickListener {
             startActivity(Intent(this@PcView, ProfilesActivity::class.java))
         }
         bindTopActionFocusLabel(
             topActionFocusLabel,
             profilesButton to R.string.pcview_quick_profiles,
-            polarisSyncAction to R.string.pcview_quick_polaris_sync,
+            updateAction to R.string.pcview_quick_update_check,
+            startPolarisAction to R.string.pcview_quick_start_polaris,
+            themeAction to R.string.pcview_quick_theme,
+            githubAction to R.string.pcview_quick_github,
             settingsAction to R.string.pcview_quick_settings,
         )
 
@@ -408,11 +427,10 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         }
 
         if (packageManager.hasSystemFeature("amazon.hardware.fire_tv")) {
-            helpAction?.visibility = View.GONE
-            emptyHelp?.visibility = View.GONE
         }
 
         applyThemeToServerBrowser()
+        updateDashboardUpdatePill()
         updateModeTabs()
         updateServerFilterTabs()
         syncComputerList()
@@ -454,16 +472,17 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
 
         styleActionButton(findViewById(R.id.actionAddServer), ColorUtils.blendARGB(surface, accent, 0.26f), textPrimary)
         styleActionButton(findViewById(R.id.actionScanPair), surface, textPrimary)
+        styleDashboardUpdatePill(findViewById(R.id.actionNovaUpdate), surface, accent, divider, textPrimary, textMuted)
+        styleActionButton(findViewById(R.id.actionStartPolaris), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary)
+        styleActionButton(findViewById(R.id.actionTheme), surface, textPrimary)
+        styleActionButton(findViewById(R.id.actionGithub), surface, textPrimary)
         styleActionButton(findViewById(R.id.actionSettings), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary)
 
         tintChipRow(
             intArrayOf(
-                R.id.actionTheme,
-                R.id.actionHelp,
                 R.id.emptyRefresh,
                 R.id.emptyAddServer,
                 R.id.emptyScanPair,
-                R.id.emptyHelp,
             ),
             textPrimary,
         )
@@ -480,6 +499,96 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         button.iconTint = ColorStateList.valueOf(foregroundColor)
         button.strokeColor = ContextCompat.getColorStateList(this, R.color.nova_focus_stroke_selector)
         button.strokeWidth = UiHelper.dpToPx(this, 2f).toInt()
+    }
+
+    private fun styleDashboardUpdatePill(
+        pill: MaterialCardView?,
+        surface: Int,
+        accent: Int,
+        divider: Int,
+        textPrimary: Int,
+        textMuted: Int,
+    ) {
+        if (pill == null) {
+            return
+        }
+        val available = dashboardUpdatePillStatus == DashboardUpdatePillStatus.AVAILABLE
+        val checking = dashboardUpdatePillStatus == DashboardUpdatePillStatus.CHECKING
+        pill.setCardBackgroundColor(
+            if (available || checking) ColorUtils.blendARGB(surface, accent, 0.18f) else ColorUtils.blendARGB(surface, accent, 0.08f)
+        )
+        pill.strokeColor = if (available || checking || pill.hasFocus()) accent else divider
+        pill.strokeWidth = UiHelper.dpToPx(this, if (available || checking || pill.hasFocus()) 2f else 1f).toInt()
+        findViewById<TextView>(R.id.updateStatusLabel)?.setTextColor(if (available || checking) accent else textMuted)
+        findViewById<TextView>(R.id.updateVersionLabel)?.setTextColor(textPrimary)
+        updateDashboardUpdatePill()
+    }
+
+    private fun updateDashboardUpdatePill(
+        status: DashboardUpdatePillStatus = dashboardUpdatePillStatus,
+        release: NovaUpdateRelease? = dashboardUpdatePillRelease,
+    ) {
+        dashboardUpdatePillStatus = status
+        dashboardUpdatePillRelease = release
+        val pill = findViewById<MaterialCardView>(R.id.actionNovaUpdate) ?: return
+        val statusLabel = findViewById<TextView>(R.id.updateStatusLabel)
+        val versionLabel = findViewById<TextView>(R.id.updateVersionLabel)
+        val current = BuildConfig.VERSION_NAME
+        val latest = release?.versionName
+        val accent = NovaThemeManager.getAccentColor(this)
+        val surface = NovaThemeManager.getCardBackgroundColor(this)
+        val divider = NovaThemeManager.getDividerColor(this)
+        val textPrimary = NovaThemeManager.getTextPrimaryColor(this)
+        val textMuted = NovaThemeManager.getTextMutedColor(this)
+        val statusColor = when (status) {
+            DashboardUpdatePillStatus.AVAILABLE -> accent
+            DashboardUpdatePillStatus.CHECKING -> accent
+            DashboardUpdatePillStatus.ERROR -> ContextCompat.getColor(this, R.color.nova_warning)
+            DashboardUpdatePillStatus.CURRENT -> ContextCompat.getColor(this, R.color.nova_success)
+        }
+        statusLabel?.text = when (status) {
+            DashboardUpdatePillStatus.AVAILABLE -> getString(R.string.pcview_update_status_available)
+            DashboardUpdatePillStatus.CHECKING -> getString(R.string.pcview_update_status_checking)
+            DashboardUpdatePillStatus.ERROR -> getString(R.string.pcview_update_status_retry)
+            DashboardUpdatePillStatus.CURRENT -> getString(R.string.pcview_update_status_current)
+        }
+        versionLabel?.text = when {
+            status == DashboardUpdatePillStatus.AVAILABLE && latest != null ->
+                getString(R.string.pcview_update_pill_available_version, current, latest)
+            status == DashboardUpdatePillStatus.CHECKING ->
+                getString(R.string.pcview_update_pill_checking_version)
+            else -> getString(R.string.pcview_update_pill_current_version, current)
+        }
+        pill.contentDescription = when {
+            status == DashboardUpdatePillStatus.AVAILABLE && latest != null ->
+                getString(R.string.pcview_update_pill_content_available, current, latest)
+            status == DashboardUpdatePillStatus.CHECKING -> getString(R.string.pcview_update_pill_content_checking)
+            status == DashboardUpdatePillStatus.ERROR -> getString(R.string.pcview_update_pill_content_retry)
+            else -> getString(R.string.pcview_update_pill_content_current, current)
+        }
+        pill.setCardBackgroundColor(
+            if (status == DashboardUpdatePillStatus.AVAILABLE || status == DashboardUpdatePillStatus.CHECKING) {
+                ColorUtils.blendARGB(surface, accent, 0.18f)
+            } else {
+                ColorUtils.blendARGB(surface, accent, 0.08f)
+            }
+        )
+        pill.strokeColor = if (status == DashboardUpdatePillStatus.AVAILABLE || status == DashboardUpdatePillStatus.CHECKING || pill.hasFocus()) accent else divider
+        pill.strokeWidth = UiHelper.dpToPx(this, if (status == DashboardUpdatePillStatus.AVAILABLE || status == DashboardUpdatePillStatus.CHECKING || pill.hasFocus()) 2f else 1f).toInt()
+        statusLabel?.setTextColor(if (status == DashboardUpdatePillStatus.AVAILABLE || status == DashboardUpdatePillStatus.CHECKING) accent else textMuted)
+        versionLabel?.setTextColor(textPrimary)
+        setUpdateStatusLight(findViewById(R.id.updateStatusLight), statusColor)
+    }
+
+    private fun setUpdateStatusLight(light: View?, color: Int) {
+        if (light == null) {
+            return
+        }
+        light.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+            setStroke(UiHelper.dpToPx(this@PcView, 1f).toInt(), ColorUtils.setAlphaComponent(color, 150))
+        }
     }
 
     private fun styleDestinationCard(
@@ -532,12 +641,15 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     private fun bindTopActionFocusLabel(label: TextView?, vararg actions: Pair<View?, Int>) {
         label ?: return
         for ((action, labelRes) in actions) {
-            action?.setOnFocusChangeListener { _, hasFocus ->
+            action?.setOnFocusChangeListener { view, hasFocus ->
                 if (hasFocus) {
                     label.text = getString(labelRes)
                     label.visibility = View.VISIBLE
                 } else if (actions.none { it.first?.hasFocus() == true }) {
                     label.visibility = View.INVISIBLE
+                }
+                if (view.id == R.id.actionNovaUpdate) {
+                    updateDashboardUpdatePill()
                 }
             }
         }
@@ -907,6 +1019,10 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
 
     private fun setHeaderQuickActionsFocusable(focusable: Boolean) {
         setFocusable(R.id.profilesButton, focusable)
+        setFocusable(R.id.actionNovaUpdate, focusable)
+        setFocusable(R.id.actionStartPolaris, focusable)
+        setFocusable(R.id.actionTheme, focusable)
+        setFocusable(R.id.actionGithub, focusable)
         setFocusable(R.id.actionSettings, focusable)
     }
 
@@ -1330,7 +1446,8 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
     private fun completeOnCreate() {
         completeOnCreateCalled = true
 
-        if (NovaWelcomeActivity.shouldShow(this)) {
+        val showingWelcome = NovaWelcomeActivity.shouldShow(this)
+        if (showingWelcome) {
             startActivity(Intent(this, NovaWelcomeActivity::class.java))
         }
 
@@ -1360,6 +1477,206 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
 
         initializeViews(prefs)
         handleWelcomeAction(intent.getStringExtra(NovaWelcomeActivity.EXTRA_WELCOME_ACTION))
+        if (!showingWelcome) {
+            window.decorView.post { maybeRunAutomaticNovaUpdateCheck() }
+        }
+    }
+
+
+    private fun checkNovaUpdateFromDashboard() {
+        val updateButton = findViewById<View>(R.id.actionNovaUpdate)
+        updateButton?.isEnabled = false
+        updateDashboardUpdatePill(DashboardUpdatePillStatus.CHECKING)
+
+        runtimeTasks.launchIo("NovaDashboardUpdateCheck") {
+            val result = runCatching { NovaUpdateChecker.checkLatest() }
+            runtimeTasks.runOnMainIfActive {
+                updateButton?.isEnabled = true
+                result.onSuccess { updateResult ->
+                    when (updateResult) {
+                        is NovaUpdateCheckResult.UpdateAvailable -> updateDashboardUpdatePill(DashboardUpdatePillStatus.AVAILABLE, updateResult.release)
+                        is NovaUpdateCheckResult.UpToDate -> updateDashboardUpdatePill(DashboardUpdatePillStatus.CURRENT, updateResult.release)
+                    }
+                    showNovaUpdateDashboardResult(updateResult)
+                }.onFailure { error ->
+                    updateDashboardUpdatePill(DashboardUpdatePillStatus.ERROR)
+                    showNovaUpdateDashboardError(error)
+                }
+            }
+        }
+    }
+
+    private fun showNovaUpdateDashboardResult(result: NovaUpdateCheckResult) {
+        when (result) {
+            is NovaUpdateCheckResult.UpdateAvailable -> showNovaUpdateDashboardAvailable(result.release)
+            is NovaUpdateCheckResult.UpToDate -> showNovaUpdateDashboardCurrent(result.release)
+        }
+    }
+
+    private fun showNovaUpdateDashboardAvailable(release: NovaUpdateRelease) {
+        val message = if (release.apkAssetName != null) {
+            getString(
+                R.string.nova_update_available_message_with_apk,
+                release.versionName,
+                NovaUpdateChecker.currentVersionLabel(),
+                release.apkAssetName
+            )
+        } else {
+            getString(
+                R.string.nova_update_available_message,
+                release.versionName,
+                NovaUpdateChecker.currentVersionLabel()
+            )
+        }
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.nova_update_available_title)
+            .setMessage(message)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.nova_update_release_notes) { _, _ ->
+                HelpLauncher.launchUrl(this, release.releaseUrl)
+            }
+
+        if (release.apkDownloadUrl != null) {
+            builder.setPositiveButton(R.string.nova_update_download_apk) { _, _ ->
+                startNovaUpdateInstall(release)
+            }
+        } else {
+            builder.setPositiveButton(R.string.nova_update_open_release) { _, _ ->
+                HelpLauncher.launchUrl(this, release.releaseUrl)
+            }
+        }
+
+        val dialog = builder.show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
+    }
+
+    private fun showNovaUpdateDashboardCurrent(release: NovaUpdateRelease) {
+        // The dashboard pill already shows CURRENT plus the installed version.
+        // Keep the happy path inline instead of spawning a modal/snackbar surface.
+    }
+
+    private fun showNovaUpdateDashboardError(error: Throwable) {
+        LimeLog.warning("Nova dashboard: manual update check failed: ${error.message}")
+        NovaSnackbar.showError(this, getString(R.string.pcview_update_pill_retry_snackbar))
+    }
+
+    private fun maybeRunAutomaticNovaUpdateCheck() {
+        if (BuildConfig.FDROID_BUILD || automaticUpdatePromptShown) {
+            return
+        }
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val nowMs = System.currentTimeMillis()
+        if (!NovaUpdatePromptPreferences.shouldRunAutomaticCheck(prefs, nowMs)) {
+            return
+        }
+        NovaUpdatePromptPreferences.recordAutomaticCheck(prefs, nowMs)
+
+        runtimeTasks.launchIo("NovaAutomaticUpdateCheck") {
+            val result = runCatching { NovaUpdateChecker.checkLatest() }
+            result.onSuccess { updateResult ->
+                if (updateResult !is NovaUpdateCheckResult.UpdateAvailable) {
+                    return@onSuccess
+                }
+                val release = updateResult.release
+                if (!NovaUpdatePromptPreferences.shouldShowAutomaticPrompt(prefs, release)) {
+                    return@onSuccess
+                }
+                runtimeTasks.runOnMainIfActive {
+                    if (!inForeground || isFinishing || automaticUpdatePromptShown) {
+                        return@runOnMainIfActive
+                    }
+                    updateDashboardUpdatePill(DashboardUpdatePillStatus.AVAILABLE, release)
+                    automaticUpdatePromptShown = true
+                    showNovaAutomaticUpdatePrompt(release)
+                }
+            }.onFailure { error ->
+                LimeLog.warning("Nova dashboard: automatic update check failed: ${error.message}")
+            }
+        }
+    }
+
+    private fun showNovaAutomaticUpdatePrompt(release: NovaUpdateRelease) {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val message = release.releaseNotes?.takeIf { it.isNotBlank() }?.let { notes ->
+            getString(
+                R.string.nova_update_popup_message_with_notes,
+                release.versionName,
+                NovaUpdateChecker.currentVersionLabel(),
+                notes.trim()
+            )
+        } ?: getString(
+            R.string.nova_update_popup_message,
+            release.versionName,
+            NovaUpdateChecker.currentVersionLabel()
+        )
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.nova_update_available_title)
+            .setMessage(message)
+            .setNegativeButton(R.string.nova_update_later, null)
+            .setNeutralButton(R.string.nova_update_skip_version) { _, _ ->
+                NovaUpdatePromptPreferences.skipRelease(prefs, release)
+                Toast.makeText(this, R.string.nova_update_skipped_toast, Toast.LENGTH_SHORT).show()
+            }
+
+        if (release.apkDownloadUrl != null) {
+            builder.setPositiveButton(R.string.nova_update_download_apk) { _, _ ->
+                startNovaUpdateInstall(release)
+            }
+        } else {
+            builder.setPositiveButton(R.string.nova_update_open_release) { _, _ ->
+                HelpLauncher.launchUrl(this, release.releaseUrl)
+            }
+        }
+
+        val dialog = builder.show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
+    }
+
+    private fun startNovaUpdateInstall(release: NovaUpdateRelease) {
+        val spinner = SpinnerDialog.displayDialog(
+            this,
+            getString(R.string.nova_update_downloading_title),
+            getString(R.string.nova_update_downloading_message, release.versionName, 0),
+            false
+        )
+        runtimeTasks.launchMain("NovaUpdateInstall") {
+            val result = NovaUpdateInstaller.downloadValidateAndInstall(this@PcView, release) { progress ->
+                spinner.setMessage(
+                    getString(R.string.nova_update_downloading_message, release.versionName, progress)
+                )
+            }
+            spinner.setMessage(getString(R.string.nova_update_verifying_message))
+            spinner.dismiss()
+            showNovaUpdateInstallResult(result)
+        }
+    }
+
+    private fun showNovaUpdateInstallResult(result: NovaUpdateInstallResult) {
+        when (result) {
+            NovaUpdateInstallResult.StartedInstaller -> Toast.makeText(
+                this,
+                R.string.nova_update_installer_started,
+                Toast.LENGTH_LONG
+            ).show()
+            NovaUpdateInstallResult.PermissionRequired -> Unit
+            is NovaUpdateInstallResult.Blocked -> showNovaUpdateInstallProblem(
+                R.string.nova_update_install_blocked_title,
+                result.reason
+            )
+            is NovaUpdateInstallResult.Failed -> showNovaUpdateInstallProblem(
+                R.string.nova_update_install_failed_title,
+                result.reason
+            )
+        }
+    }
+
+    private fun showNovaUpdateInstallProblem(titleRes: Int, message: String) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(titleRes)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
     }
 
     private fun handleWelcomeAction(action: String?) {
