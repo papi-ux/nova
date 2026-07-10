@@ -33,7 +33,8 @@ data class PolarisSessionStatus(
     val linuxGpuProfile: LinuxGpuProfile? = null,
     val autoQuality: AutoQualityPolicy = AutoQualityPolicy(),
     val profileState: ProfileState = ProfileState(),
-    val health: HealthStatus = HealthStatus()
+    val health: HealthStatus = HealthStatus(),
+    val doctor: DoctorStatus = DoctorStatus()
 ) {
     data class ControlsStatus(
         val hostTuningAllowed: Boolean = false,
@@ -247,6 +248,20 @@ data class PolarisSessionStatus(
         val isUpgradeAvailable get() = state.equals("upgrade_available", ignoreCase = true)
         val isLearning get() = state.equals("learning", ignoreCase = true)
         val isManualOverride get() = state.equals("manual_override", ignoreCase = true)
+    }
+
+    data class DoctorStatus(
+        val available: Boolean = false,
+        val classification: String = "UNKNOWN",
+        val likelyCause: String = "",
+        val evidence: List<String> = emptyList(),
+        val tryFirst: List<String> = emptyList(),
+        val confidence: String = "",
+        val advancedDetail: String = "",
+        val primaryIssue: String = "",
+        val destructiveActionAllowed: Boolean = false
+    ) {
+        val firstTry get() = tryFirst.firstOrNull().orEmpty()
     }
 
     data class HealthStatus(

@@ -161,4 +161,27 @@ class NovaHudSessionStatsTest {
         assertFalse(text.contains("example-stream-host"))
         assertFalse(text.contains("abc123"))
     }
+
+    @Test
+    fun diagnosticReportIncludesDoctorClassificationWithoutRawHostIdentifiers() {
+        val summary = mapOf(
+            "avg_fps" to 58.0,
+            "target_fps" to 60.0,
+            "avg_latency_ms" to 32.0,
+            "avg_bitrate_kbps" to 18000,
+            "packet_loss_pct" to 3.4,
+            "codec" to "HEVC",
+            "diagnosis_classification" to "NET",
+            "diagnosis_likely_cause" to "Wi-Fi jitter is the likely bottleneck.",
+            "diagnosis_try_first" to "Lower bitrate",
+            "diagnosis_confidence" to "high",
+            "host" to "private-host.lan"
+        )
+
+        val text = NovaHudDiagnosticReport.format(summary)
+
+        assertTrue(text.contains("Diagnosis: NET / Wi-Fi jitter is the likely bottleneck. (high)"))
+        assertTrue(text.contains("Try first: Lower bitrate"))
+        assertFalse(text.contains("private-host"))
+    }
 }

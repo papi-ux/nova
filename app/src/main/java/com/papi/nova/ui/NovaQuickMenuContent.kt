@@ -102,6 +102,7 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.QUICK_CTRL_V -> onQuickKey(action.id)
             NovaQuickMenuActionId.NOVA_HUD,
             NovaQuickMenuActionId.PERF_STATS,
+            NovaQuickMenuActionId.DIAGNOSE_STREAM,
             NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> onOverlayAction(action.id)
             NovaQuickMenuActionId.MOUSE_MODE,
             NovaQuickMenuActionId.CONTROLLER,
@@ -271,6 +272,8 @@ fun NovaQuickMenuContent(
         Spacer(Modifier.height(8.dp))
         NovaQuickMenuSessionStrip(state)
         Spacer(Modifier.height(10.dp))
+        NovaQuickMenuDiagnosisCard(state.diagnosis)
+        Spacer(Modifier.height(10.dp))
         NovaQuickMenuStabilityCard(state.stability, callbacks)
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuInfoCard(
@@ -417,6 +420,28 @@ private fun NovaQuickMenuCloseButton(
         minHeight = 34.dp,
         fontSize = 12.sp,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
+    )
+}
+
+@Composable
+private fun NovaQuickMenuDiagnosisCard(diagnosis: NovaQuickMenuDiagnosisState) {
+    val detail = buildList {
+        diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
+        diagnosis.evidence.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("Evidence: $it") }
+        diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
+    }.joinToString(" · ")
+    NovaQuickMenuInfoCard(
+        action = NovaQuickMenuAction(
+            id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
+            label = "${diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") } ?: "DIAG"}: ${diagnosis.likelyCause}",
+            caption = detail.ifBlank { "HOST / NET / CLIENT self-service diagnostics" },
+            chip = NovaQuickMenuChip(
+                label = if (diagnosis.available) "Doctor" else "Fallback",
+                tone = if (diagnosis.available) NovaQuickMenuTone.INFO else NovaQuickMenuTone.MUTED
+            ),
+            enabled = diagnosis.available
+        ),
+        callbacks = NovaQuickMenuCallbacks()
     )
 }
 

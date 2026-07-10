@@ -30,7 +30,11 @@ internal object NovaHudSessionSummaryLog {
         "safe_codec",
         "safe_display_mode",
         "safe_hdr",
-        "relaunch_recommended"
+        "relaunch_recommended",
+        "diagnosis_classification",
+        "diagnosis_likely_cause",
+        "diagnosis_try_first",
+        "diagnosis_confidence"
     )
 
     fun format(summary: Map<String, Any?>): String {
@@ -57,8 +61,26 @@ internal object NovaHudDiagnosticReport {
         lines += "Video: ${formatBitrate(summary["avg_bitrate_kbps"])} / ${safeString(summary["codec"], "unknown codec")}"
         lines += "Network: ${formatMs(summary["avg_latency_ms"])} RTT / ${formatPercent(summary["packet_loss_pct"])} loss"
         lines += "Health: ${safeString(summary["health_grade"], "unknown")} / ${safeString(summary["primary_issue"], "none")}"
+        diagnosisLine(summary)?.let { lines += it }
+        tryFirstLine(summary)?.let { lines += it }
         issuesLine(summary)?.let { lines += it }
         return lines.joinToString("\n")
+    }
+
+    private fun diagnosisLine(summary: Map<String, Any?>): String? {
+        val classification = safeString(summary["diagnosis_classification"], "").takeIf { it.isNotBlank() }
+            ?: return null
+        val cause = safeString(summary["diagnosis_likely_cause"], "stream evidence available")
+        val confidence = safeString(summary["diagnosis_confidence"], "").takeIf { it.isNotBlank() }
+            ?.let { " ($it)" }
+            ?: ""
+        return "Diagnosis: $classification / $cause$confidence"
+    }
+
+    private fun tryFirstLine(summary: Map<String, Any?>): String? {
+        val tryFirst = safeString(summary["diagnosis_try_first"], "").takeIf { it.isNotBlank() }
+            ?: return null
+        return "Try first: $tryFirst"
     }
 
     private fun suggestedLine(summary: Map<String, Any?>): String? {

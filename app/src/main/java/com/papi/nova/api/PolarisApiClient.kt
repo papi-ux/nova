@@ -445,6 +445,73 @@ class PolarisApiClient @JvmOverloads constructor(
             )
         }
 
+        private fun parseDoctorStatus(
+            doctor: JSONObject?,
+            health: JSONObject?,
+            aiDoctor: JSONObject?
+        ): PolarisSessionStatus.DoctorStatus {
+            val explanation = aiDoctor?.optJSONObject("explanation")?.takeIf { aiDoctor.optBoolean("status", true) }
+            val primaryIssue = doctor?.optString("primary_issue", "")
+                ?.takeIf { it.isNotBlank() }
+                ?: health?.optString("primary_issue", "")
+                ?: ""
+            val likelyCause = explanation?.optString("likely_cause", "")?.takeIf { it.isNotBlank() }
+                ?: doctor?.optString("simple_state", "")?.takeIf { it.isNotBlank() }
+                ?: doctor?.optString("summary", "")?.takeIf { it.isNotBlank() }
+                ?: doctor?.optString("diagnosis", "")?.takeIf { it.isNotBlank() }
+                ?: health?.optString("summary", "")
+                ?: ""
+            val evidence = parseStringArray(explanation?.optJSONArray("evidence")).takeIf { it.isNotEmpty() }
+                ?: parseDoctorEvidence(doctor)
+            val recommendation = doctor?.optJSONObject("recommendation")
+            val safeAction = doctor?.optJSONObject("safe_recovery_action")
+            val tryFirst = parseStringArray(explanation?.optJSONArray("try_first")).takeIf { it.isNotEmpty() }
+                ?: listOfNotNull(
+                    recommendation?.optString("body", "")?.takeIf { it.isNotBlank() },
+                    recommendation?.optString("next_step_label", "")?.takeIf { it.isNotBlank() },
+                    safeAction?.optString("label", "")?.takeIf { it.isNotBlank() }
+                ).takeIf { it.isNotEmpty() }
+                ?: parseStringArray(health?.optJSONArray("recommendations"))
+            val confidence = explanation?.optString("confidence", "")?.takeIf { it.isNotBlank() }
+                ?: doctor?.optString("confidence", "")?.takeIf { it.isNotBlank() }
+                ?: if (doctor != null) "deterministic" else if (primaryIssue.isNotBlank() || likelyCause.isNotBlank()) "fallback" else ""
+            return PolarisSessionStatus.DoctorStatus(
+                available = doctor != null,
+                classification = classifyDoctorIssue(primaryIssue),
+                likelyCause = likelyCause,
+                evidence = evidence,
+                tryFirst = tryFirst,
+                confidence = confidence,
+                advancedDetail = explanation?.optString("advanced_detail", "")
+                    ?: doctor?.optJSONObject("advanced_evidence")?.optString("summary", "")
+                    ?: "",
+                primaryIssue = primaryIssue,
+                destructiveActionAllowed = false
+            )
+        }
+
+        private fun parseDoctorEvidence(doctor: JSONObject?): List<String> {
+            val array = doctor?.optJSONArray("evidence") ?: return emptyList()
+            return (0 until array.length()).mapNotNull { index ->
+                val value = array.opt(index)
+                when (value) {
+                    is JSONObject -> value.optString("detail", value.optString("value", "")).takeIf { it.isNotBlank() }
+                    is String -> value.takeIf { it.isNotBlank() }
+                    else -> null
+                }
+            }
+        }
+
+        private fun classifyDoctorIssue(issue: String): String {
+            val normalized = issue.lowercase()
+            return when {
+                normalized.isBlank() || normalized == "none" -> "UNKNOWN"
+                normalized.contains("network") || normalized.contains("packet") || normalized.contains("jitter") || normalized.contains("latency") -> "NET"
+                normalized.contains("client") || normalized.contains("decoder") || normalized.contains("presentation") || normalized.contains("refresh") -> "CLIENT"
+                else -> "HOST"
+            }
+        }
+
         @JvmStatic
         fun parseSessionStatusResponse(json: JSONObject): PolarisSessionStatus {
             val controls = json.optJSONObject("controls")
@@ -469,6 +536,10 @@ class PolarisApiClient @JvmOverloads constructor(
             val capture = json.optJSONObject("capture")
             val encoder = json.optJSONObject("encoder")
             val health = json.optJSONObject("health")
+            val doctor = json.optJSONObject("doctor") ?: health?.optJSONObject("doctor")
+            val aiDoctor = json.optJSONObject("ai_doctor_explanation")
+                ?: json.optJSONObject("doctor_ai_explanation")
+                ?: json.optJSONObject("ai_explanation")
             val autoQuality = json.optJSONObject("auto_quality")
                 ?: health?.optJSONObject("recovery_policy")
             val profileState = json.optJSONObject("profile_state")
@@ -644,7 +715,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     renderFpsGap = health?.optDouble("render_fps_gap", 0.0) ?: 0.0,
                     recoveryProfile = health?.optString("recovery_profile", "") ?: "",
                     relaunchRecommended = health?.optBoolean("relaunch_recommended", false) ?: false
-                )
+                ),
+                doctor = parseDoctorStatus(doctor, health, aiDoctor)
             )
         }
     }

@@ -857,6 +857,7 @@
     <string name="nova_quick_menu_hud_opacity_selected">Selected</string>
     <string name="nova_quick_menu_hud_opacity_not_selected">Not selected</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
+    <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
     <string name="nova_quick_menu_copy_hud_diagnostics">Copy HUD Diagnostics</string>
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>
