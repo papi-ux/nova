@@ -53,20 +53,16 @@
                     android:textSize="11sp" />
             </LinearLayout>
 
-            <HorizontalScrollView
-                android:id="@+id/dashboardPillRailScroll"
+            <LinearLayout
+                android:id="@+id/dashboardPillRail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:clipToPadding="false"
-                android:focusable="false"
-                android:focusableInTouchMode="false"
-                android:overScrollMode="never"
-                android:scrollbars="none">
+                android:layout_marginTop="12dp"
+                android:orientation="vertical">
 
                 <LinearLayout
-                    android:id="@+id/dashboardPillRail"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/dashboardPillRailPrimaryRow"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
@@ -74,15 +70,16 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/actionStartPolaris"
                         style="@style/Widget.MaterialComponents.Button"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="44dp"
-                        android:layout_marginEnd="10dp"
+                        android:layout_marginEnd="8dp"
                         android:contentDescription="@string/pcview_quick_start_polaris"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
-                        android:minWidth="44dp"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="16dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
                         android:text="@string/pcview_quick_start_polaris"
                         android:textAllCaps="false"
                         app:backgroundTint="?attr/colorControlHighlight"
@@ -96,15 +93,15 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/profilesButton"
                         style="@style/Widget.MaterialComponents.Button"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="44dp"
-                        android:layout_marginEnd="10dp"
                         android:contentDescription="@string/pcview_quick_profiles"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
-                        android:minWidth="44dp"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="16dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
                         android:text="@string/pcview_quick_profiles"
                         android:textAllCaps="false"
                         app:backgroundTint="?attr/colorControlHighlight"
@@ -114,19 +111,29 @@
                         app:iconGravity="textStart"
                         app:iconPadding="8dp"
                         app:iconTint="?attr/colorOnSurface" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/dashboardPillRailUtilityRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/actionTheme"
                         style="@style/Widget.MaterialComponents.Button"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="44dp"
-                        android:layout_marginEnd="10dp"
+                        android:layout_marginEnd="8dp"
                         android:contentDescription="@string/pcview_quick_theme"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
-                        android:minWidth="44dp"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="16dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
                         android:text="@string/pcview_quick_theme"
                         android:textAllCaps="false"
                         app:backgroundTint="?attr/colorControlHighlight"
@@ -140,15 +147,15 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/actionGithub"
                         style="@style/Widget.MaterialComponents.Button"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="44dp"
-                        android:layout_marginEnd="10dp"
                         android:contentDescription="@string/pcview_quick_github"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
-                        android:minWidth="44dp"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="16dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
                         android:text="@string/pcview_quick_github"
                         android:textAllCaps="false"
                         app:backgroundTint="?attr/colorControlHighlight"
@@ -158,19 +165,29 @@
                         app:iconGravity="textStart"
                         app:iconPadding="8dp"
                         app:iconTint="?attr/colorOnSurface" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/dashboardPillRailSystemRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/actionSettings"
                         style="@style/Widget.MaterialComponents.Button"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="44dp"
-                        android:layout_marginEnd="10dp"
+                        android:layout_marginEnd="8dp"
                         android:contentDescription="@string/pcview_quick_settings"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
-                        android:minWidth="44dp"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="16dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
                         android:text="@string/pcview_quick_settings"
                         android:textAllCaps="false"
                         app:backgroundTint="?attr/colorControlHighlight"
@@ -183,9 +200,9 @@
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/actionNovaUpdate"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="44dp"
-                        android:layout_marginEnd="10dp"
                         android:clickable="true"
                         android:contentDescription="@string/pcview_update_pill_content_current"
                         android:focusable="true"
@@ -245,13 +262,13 @@
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
                 </LinearLayout>
-            </HorizontalScrollView>
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/topActionFocusLabel"
                 android:layout_width="match_parent"
-                android:layout_height="20dp"
-                android:layout_marginTop="4dp"
+                android:layout_height="18dp"
+                android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif-medium"
                 android:gravity="center"
                 android:textColor="?android:textColorSecondary"
@@ -263,7 +280,7 @@
                 android:id="@+id/dashboardHomeControls"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="10dp"
                 android:gravity="center_vertical"
                 android:orientation="vertical">
 
@@ -377,7 +394,7 @@
                     android:id="@+id/setupActionRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="8dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
