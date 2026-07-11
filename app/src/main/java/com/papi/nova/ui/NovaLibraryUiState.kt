@@ -144,20 +144,32 @@ data class NovaLibraryActiveSessionUiState(
 
     companion object {
         private val STREAM_MODE_PATTERN = Regex("""^\s*(\d+)x(\d+)x(\d+(?:\.\d+)?)\s*$""")
+        private val STREAM_RESOLUTION_PATTERN = Regex("""^\s*(\d+)x(\d+)\s*$""")
 
         fun from(status: PolarisSessionStatus?): NovaLibraryActiveSessionUiState? {
             if (status == null || status.isShuttingDown || status.gameId <= 0) {
                 return null
             }
-            if (!status.isResumable) {
+            if (!status.isResumable || (!status.ownedByClient && !status.streamingActive)) {
                 return null
             }
 
-            val streamProfile = parseStreamProfile(
+            val fallbackStreamProfile = parseStreamProfile(
                 status.syncStatus.applied.displayMode
                     .ifBlank { status.syncStatus.effective.displayMode }
                     .ifBlank { status.profileState.currentProfile.displayMode }
             )
+            val streamProfile = if (!status.ownedByClient && status.streamingActive) {
+                val liveResolution = parseStreamResolution(status.capture.resolution)
+                StreamProfile(
+                    width = liveResolution.width.takeIf { it > 0 } ?: fallbackStreamProfile.width,
+                    height = liveResolution.height.takeIf { it > 0 } ?: fallbackStreamProfile.height,
+                    fps = status.encoder.sessionTargetFps.toFloat().takeIf { it > 0f }
+                        ?: fallbackStreamProfile.fps
+                )
+            } else {
+                fallbackStreamProfile
+            }
             return NovaLibraryActiveSessionUiState(
                 gameId = status.gameId,
                 gameUuid = status.gameUuid,
@@ -181,6 +193,14 @@ data class NovaLibraryActiveSessionUiState(
                 width = match.groupValues[1].toIntOrNull() ?: 0,
                 height = match.groupValues[2].toIntOrNull() ?: 0,
                 fps = match.groupValues[3].toFloatOrNull() ?: 0f
+            )
+        }
+
+        private fun parseStreamResolution(resolution: String): StreamProfile {
+            val match = STREAM_RESOLUTION_PATTERN.matchEntire(resolution) ?: return StreamProfile()
+            return StreamProfile(
+                width = match.groupValues[1].toIntOrNull() ?: 0,
+                height = match.groupValues[2].toIntOrNull() ?: 0
             )
         }
 
