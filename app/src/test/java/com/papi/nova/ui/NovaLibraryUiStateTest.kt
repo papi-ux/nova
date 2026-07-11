@@ -787,10 +787,28 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
+    fun activeSessionHidesPausedSessionOwnedByOtherClient() {
+        val session = NovaLibraryActiveSessionUiState.from(
+            PolarisSessionStatus(
+                state = "paused",
+                streamingActive = false,
+                game = "MOUSE: P.I. For Hire",
+                gameId = 2416450,
+                gameUuid = "mouse-uuid",
+                ownerDeviceName = "RetroidPocket6 (3)",
+                ownedByClient = false
+            )
+        )
+
+        assertNull(session)
+    }
+
+    @Test
     fun activeSessionUsesWatchPolicyForOtherClientOwner() {
         val session = NovaLibraryActiveSessionUiState.from(
             PolarisSessionStatus(
                 state = "streaming",
+                streamingActive = true,
                 game = "Desktop",
                 gameId = 42,
                 gameUuid = "desktop-uuid",
@@ -820,6 +838,38 @@ class NovaLibraryUiStateTest {
         assertEquals(1920, session.streamWidth)
         assertEquals(1080, session.streamHeight)
         assertEquals(30.0f, session.streamFps, 0.001f)
+    }
+
+    @Test
+    fun activeSessionUsesLiveOwnerProfileInsteadOfViewerSyncProfileForWatch() {
+        val session = NovaLibraryActiveSessionUiState.from(
+            PolarisSessionStatus(
+                state = "streaming",
+                streamingActive = true,
+                game = "MOUSE: P.I. For Hire",
+                gameId = 2416450,
+                gameUuid = "mouse-uuid",
+                ownerDeviceName = "RetroidPocket6 (4)",
+                ownedByClient = false,
+                syncStatus = PolarisSessionStatus.SyncStatus(
+                    applied = PolarisSessionStatus.SyncValues(
+                        displayMode = "2560x1600x60"
+                    )
+                ),
+                capture = PolarisSessionStatus.CaptureStatus(
+                    resolution = "1920x1080"
+                ),
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    sessionTargetFps = 120.0
+                )
+            )
+        )
+
+        requireNotNull(session)
+        assertTrue(session.watchOnly)
+        assertEquals(1920, session.streamWidth)
+        assertEquals(1080, session.streamHeight)
+        assertEquals(120.0f, session.streamFps, 0.001f)
     }
 
     @Test
