@@ -38,6 +38,11 @@
     <dimen name="nova_dashboard_rail_width">224dp</dimen>
     <dimen name="nova_dashboard_rail_collapsed_width">72dp</dimen>
     <dimen name="nova_dashboard_rail_gap">12dp</dimen>
+    <dimen name="nova_dashboard_top_action_height">44dp</dimen>
+    <dimen name="nova_dashboard_top_action_radius">22dp</dimen>
+    <dimen name="nova_dashboard_top_action_gap">8dp</dimen>
+    <dimen name="nova_dashboard_top_action_padding_horizontal">10dp</dimen>
+    <dimen name="nova_dashboard_top_action_icon_gap">8dp</dimen>
 
     <!-- Nova icon sizes -->
     <dimen name="nova_icon_server">40dp</dimen>
