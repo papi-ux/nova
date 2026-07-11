@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-07-11
+
+Nova 1.3.0 is the matched Polaris 1.3 client release. It adds a self-service stream doctor, display planning, a signature-validating in-app updater, and a denser controller-friendly dashboard across portrait, landscape, Android TV, and external-display use.
+
+### Highlights
+
+- Adds **Diagnose This Stream** with HOST / NET / CLIENT findings and actionable recovery guidance backed by Polaris session diagnostics.
+- Adds display-resolution planning and launch presets so requested modes, host capabilities, and stream-display choices are visible before launch.
+- Adds an in-app Update Center that checks GitHub release metadata, validates package identity, signing certificate, and version before handing installation to Android's package installer.
+- Refines Private Headless Stream, Host Virtual Display, Mirror Desktop, Steam Launch, and Direct launch wording while preserving Polaris display-mode intent.
+- Reworks the server dashboard for denser one-screen portrait use, stronger landscape hierarchy, and predictable DPAD focus across cockpit actions.
+- Hardens Command Center initial and follow-up focus so controllers and Android TV remotes land on useful actions consistently.
+- Improves post-session recovery and terminal-event handling so stale events do not hijack a resumed or newly launched session.
+- Preserves the selected app language across reconnects and refreshed host sessions.
+- Surfaces AMD host and capture-path truth alongside the existing Polaris diagnostics.
+- Routes Thor companion controls and stream audio to the selected external display while retaining safe handheld fallbacks.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.0 and versionCode 32.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksum files through the GitHub release workflow.
+- Targets Polaris v1.3.0 while retaining standard Moonlight-compatible host support.
+
+### Validation notes
+
+- Current master CI is green across APK build, CodeQL, public hygiene, and dependency submission before this release-prep branch.
+- Final publication validation uses the tagged ARM64 release APK for Library, preflight, live stream, Command Center, Update Center, and cleanup smoke evidence.
+
 ## 1.2.1 - 2026-07-04
 
 Nova 1.2.1 is a focused post-1.2 polish patch. It keeps the Polaris 1.2 streaming contract intact while tightening the public theme language, Library option persistence, README showcase assets, and Retroid smoke diagnostics for handheld dogfooding.

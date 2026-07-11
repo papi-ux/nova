@@ -105,17 +105,19 @@ Use Nova with any compatible host for normal streaming. Pair it with Polaris whe
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## Latest release: v1.2.1
+## Latest release: v1.3.0
 
-Nova v1.2.1 is a small post-1.2 polish release for Polaris v1.2.x users. It keeps the streaming contract stable while tightening Portable Chrome language, Miami theme personality, Library option persistence, public showcase media, and Retroid smoke diagnostics.
+Nova v1.3.0 is the matched Polaris 1.3 handheld and Android TV release: stronger self-service diagnostics, display planning, safe in-app updates, and a denser controller-friendly cockpit from portrait handhelds to external displays.
 
-- **Portable Chrome copy cleanup**: the public picker/settings language now centers on Portable Chrome, smoked graphite, dim silver, and PlayStation-symbol accents.
-- **Miami Nebula guardrails**: flamingo pink stays the hero accent, with cyan and aqua acting as supporting neon-water contrast.
-- **Persistent Library Options**: sorting, layout, poster-title visibility, and source filters survive restarts and controller shortcut changes.
-- **Showcase refresh**: README media and positioning were refreshed with lighter WebP/GIF assets and clearer install/readiness copy.
-- **Retroid diagnostics**: UI dump tooling now reports whether failures came from device state, package launch, or the accessibility dump path.
-- **Release packaging**: public GitHub Releases ship ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksums. VersionCode is bumped to 31 so Obtainium/GitHub installs update cleanly.
-- **Release validation**: final publication should use the tagged ARM64 release APK for fresh Retroid Library, preflight, live stream, Command Center, and cleanup smoke evidence.
+- **Diagnose This Stream**: HOST / NET / CLIENT findings turn Polaris session evidence into actionable recovery guidance inside Nova.
+- **Display planner and launch presets**: requested modes, host capability, and stream-display choices are visible before launch instead of becoming post-launch folklore.
+- **In-app Update Center**: Nova can check GitHub release metadata, validate APK package identity, signing certificate, and version before handing installation to Android's package installer.
+- **Launch-mode clarity**: Private Headless Stream, Host Virtual Display, Mirror Desktop, Steam Launch, and Direct retain their Polaris intent with clearer copy.
+- **Portrait and landscape cockpit polish**: the dashboard fits more useful state on one screen while hardening Command Center DPAD focus across handheld and Android TV layouts.
+- **External-display and recovery hardening**: Thor companion controls and audio follow the selected stream display, and stale terminal events no longer hijack resumed sessions.
+- **Host truth and persistence**: AMD capture-path details stay visible, and the selected app language survives reconnects and refreshed host sessions.
+- **Release packaging**: public GitHub Releases ship signed ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksums. VersionCode 32 keeps Obtainium and manual installs on a clean upgrade path.
+- **Release validation**: publication uses the tagged ARM64 release APK for fresh Library, preflight, live stream, Command Center, Update Center, and cleanup smoke evidence.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 

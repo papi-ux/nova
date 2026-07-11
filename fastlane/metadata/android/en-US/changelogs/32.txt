@@ -1,0 +1,7 @@
+Nova 1.3.0
+
+- Adds Diagnose This Stream with HOST / NET / CLIENT recovery guidance.
+- Adds display planning, launch presets, and clearer Polaris launch-mode choices.
+- Adds a signature-validating in-app Update Center.
+- Refines portrait, Android TV, DPAD focus, Thor external-display, language, and AMD host behavior.
+- Ships signed ARM64, ARMv7, and x86_64 APKs with SHA-256 checksums.
