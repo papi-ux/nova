@@ -518,6 +518,10 @@ class NovaHudSessionStats {
     private var safeTargetFps = 0.0
     private var safeHdr: Boolean? = null
     private var relaunchRecommended = false
+    private var diagnosisClassification = ""
+    private var diagnosisLikelyCause = ""
+    private var diagnosisTryFirst = ""
+    private var diagnosisConfidence = ""
 
     fun reset() {
         sessionFpsSum = 0.0
@@ -619,6 +623,10 @@ class NovaHudSessionStats {
         safeTargetFps = status.health.safeTargetFps
         safeHdr = status.health.safeHdr
         relaunchRecommended = status.health.relaunchRecommended
+        diagnosisClassification = status.doctor.classification
+        diagnosisLikelyCause = status.doctor.likelyCause
+        diagnosisTryFirst = status.doctor.firstTry
+        diagnosisConfidence = status.doctor.confidence
     }
 
     fun summary(nowMs: Long = System.currentTimeMillis()): Map<String, Any> {
@@ -719,6 +727,10 @@ class NovaHudSessionStats {
         if (safeDisplayMode.isNotBlank()) summary["safe_display_mode"] = safeDisplayMode
         safeHdr?.let { summary["safe_hdr"] = it }
         if (derivedRelaunchRecommended) summary["relaunch_recommended"] = true
+        if (diagnosisClassification.isNotBlank()) summary["diagnosis_classification"] = diagnosisClassification
+        if (diagnosisLikelyCause.isNotBlank()) summary["diagnosis_likely_cause"] = diagnosisLikelyCause
+        if (diagnosisTryFirst.isNotBlank()) summary["diagnosis_try_first"] = diagnosisTryFirst
+        if (diagnosisConfidence.isNotBlank()) summary["diagnosis_confidence"] = diagnosisConfidence
         return summary
     }
 

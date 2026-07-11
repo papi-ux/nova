@@ -31,6 +31,7 @@ enum class NovaQuickMenuActionId {
     QUICK_CTRL_V,
     NOVA_HUD,
     PERF_STATS,
+    DIAGNOSE_STREAM,
     COPY_HUD_DIAGNOSTICS,
     MOUSE_MODE,
     CONTROLLER,
@@ -79,6 +80,15 @@ data class NovaQuickMenuHudOpacityState(
     val enabled: Boolean
 )
 
+data class NovaQuickMenuDiagnosisState(
+    val classification: String,
+    val likelyCause: String,
+    val evidence: List<String>,
+    val tryFirst: String,
+    val confidence: String,
+    val available: Boolean
+)
+
 data class NovaQuickMenuUiState(
     val title: String,
     val subtitle: String,
@@ -94,6 +104,7 @@ data class NovaQuickMenuUiState(
     val advancedExpanded: Boolean,
     val advancedRows: List<NovaQuickMenuAction>,
     val quickKeys: List<NovaQuickMenuAction>,
+    val diagnosis: NovaQuickMenuDiagnosisState,
     val hudOpacity: NovaQuickMenuHudOpacityState,
     val overlayRows: List<NovaQuickMenuAction>,
     val controlRows: List<NovaQuickMenuAction>,
@@ -308,8 +319,10 @@ data class NovaQuickMenuUiState(
                 presets = NovaHudPreferences.OPACITY_PRESETS,
                 enabled = hudShowing
             )
+            val diagnosis = diagnosisState(status)
 
             val overlays = listOf(
+                diagnoseAction(context, status, diagnosis),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.NOVA_HUD,
                     label = context.getString(R.string.nova_quick_menu_nova_hud),
@@ -401,6 +414,7 @@ data class NovaQuickMenuUiState(
                 advancedExpanded = advancedExpanded,
                 advancedRows = listOf(aiRow, clearRow, mangoRow),
                 quickKeys = quickKeyActions(context),
+                diagnosis = diagnosis,
                 hudOpacity = hudOpacity,
                 overlayRows = overlays,
                 controlRows = controls,
@@ -459,6 +473,37 @@ data class NovaQuickMenuUiState(
                 isOnExternalDisplay = false,
                 fallbackBitrateKbps = 50000,
                 fallbackTargetFps = 60.0
+            )
+        }
+
+        private fun diagnosisState(status: PolarisSessionStatus?): NovaQuickMenuDiagnosisState {
+            val doctor = status?.doctor
+            return NovaQuickMenuDiagnosisState(
+                classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",
+                likelyCause = doctor?.likelyCause?.takeIf { it.isNotBlank() } ?: "Connect to Polaris for HOST / NET / CLIENT diagnostics.",
+                evidence = doctor?.evidence ?: emptyList(),
+                tryFirst = doctor?.firstTry.orEmpty(),
+                confidence = doctor?.confidence.orEmpty(),
+                available = status != null && (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true)
+            )
+        }
+
+        private fun diagnoseAction(
+            context: Context,
+            status: PolarisSessionStatus?,
+            diagnosis: NovaQuickMenuDiagnosisState
+        ): NovaQuickMenuAction {
+            val classification = diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") } ?: "N/A"
+            val tone = when (classification) {
+                "HOST", "NET", "CLIENT" -> NovaQuickMenuTone.WARNING
+                else -> NovaQuickMenuTone.MUTED
+            }
+            return NovaQuickMenuAction(
+                id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
+                label = context.getString(R.string.nova_quick_menu_diagnose_stream),
+                caption = diagnosis.likelyCause,
+                chip = chip(classification, tone),
+                enabled = status != null
             )
         }
 

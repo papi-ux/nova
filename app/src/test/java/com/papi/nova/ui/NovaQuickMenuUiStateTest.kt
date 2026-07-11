@@ -227,6 +227,42 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun commandCenterExposesDiagnoseThisStreamAsPrimaryOverlayAction() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    classification = "NET",
+                    likelyCause = "Wi-Fi jitter is the likely bottleneck.",
+                    evidence = listOf("3.4% packet loss"),
+                    tryFirst = listOf("Lower bitrate"),
+                    confidence = "high"
+                )
+            )
+        )
+
+        val diagnose = state.overlayRows.first()
+        assertEquals(NovaQuickMenuActionId.DIAGNOSE_STREAM, diagnose.id)
+        assertEquals("Diagnose This Stream", diagnose.label)
+        assertEquals("Wi-Fi jitter is the likely bottleneck.", diagnose.caption)
+        assertEquals("NET", diagnose.chip!!.label)
+        assertEquals(NovaQuickMenuTone.WARNING, diagnose.chip.tone)
+        assertEquals("Lower bitrate", state.diagnosis.tryFirst)
+        assertEquals("3.4% packet loss", state.diagnosis.evidence.first())
+        assertEquals("high", state.diagnosis.confidence)
+    }
+
+    @Test
+    fun commandCenterDisablesDiagnoseThisStreamForMoonlightFallbackSession() {
+        val state = quickState(status = null, apiAvailable = false)
+        val diagnose = state.overlayRows.first { it.id == NovaQuickMenuActionId.DIAGNOSE_STREAM }
+
+        assertFalse(diagnose.enabled)
+        assertEquals("N/A", diagnose.chip!!.label)
+        assertEquals("Connect to Polaris for HOST / NET / CLIENT diagnostics.", diagnose.caption)
+    }
+
+    @Test
     fun overlayRowsExposePrivacySafeHudDiagnosticCopy() {
         val state = quickState(status = status(), currentGameName = "Portal")
         val diagnostics = state.overlayRows.first { it.id == NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS }
@@ -339,6 +375,7 @@ class NovaQuickMenuUiStateTest {
         ),
         autoQuality: PolarisSessionStatus.AutoQualityPolicy = PolarisSessionStatus.AutoQualityPolicy(),
         health: PolarisSessionStatus.HealthStatus = PolarisSessionStatus.HealthStatus(grade = "good"),
+        doctor: PolarisSessionStatus.DoctorStatus = PolarisSessionStatus.DoctorStatus(),
         encoder: PolarisSessionStatus.EncoderStatus = PolarisSessionStatus.EncoderStatus(),
         capture: PolarisSessionStatus.CaptureStatus = PolarisSessionStatus.CaptureStatus(),
         linuxGpuProfile: PolarisSessionStatus.LinuxGpuProfile? = null
@@ -356,6 +393,7 @@ class NovaQuickMenuUiStateTest {
         syncStatus = syncStatus,
         autoQuality = autoQuality,
         health = health,
+        doctor = doctor,
         encoder = encoder,
         capture = capture,
         linuxGpuProfile = linuxGpuProfile,

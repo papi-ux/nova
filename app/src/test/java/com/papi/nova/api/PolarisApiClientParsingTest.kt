@@ -213,6 +213,46 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun parseSessionStatusResponse_includesPolarisDoctorDiagnosis() {
+        val json = JSONObject(
+            "{\"state\":\"streaming\",\"streaming_active\":true," +
+                "\"doctor\":{\"simple_state\":\"Network issue detected\",\"primary_issue\":\"network_jitter\"," +
+                "\"evidence\":[{\"detail\":\"Packet loss is 3.4% over the last sample window.\"}]," +
+                "\"recommendation\":{\"body\":\"Lower bitrate one step or keep Adaptive Bitrate enabled.\",\"next_step_label\":\"Lower bitrate\"}}," +
+                "\"ai_doctor_explanation\":{\"status\":true,\"explanation\":{\"likely_cause\":\"Wi-Fi jitter is the likely bottleneck.\"," +
+                "\"evidence\":[\"3.4% packet loss\"],\"try_first\":[\"Lower bitrate\"]," +
+                "\"advanced_detail\":\"Network evidence beats encoder speculation.\",\"confidence\":\"high\",\"destructive_action_allowed\":true}}}"
+        )
+
+        val status = PolarisApiClient.parseSessionStatusResponse(json)
+
+        assertTrue(status.doctor.available)
+        assertEquals("NET", status.doctor.classification)
+        assertEquals("Wi-Fi jitter is the likely bottleneck.", status.doctor.likelyCause)
+        assertEquals("3.4% packet loss", status.doctor.evidence.first())
+        assertEquals("Lower bitrate", status.doctor.tryFirst.first())
+        assertEquals("high", status.doctor.confidence)
+        assertFalse(status.doctor.destructiveActionAllowed)
+    }
+
+    @Test
+    fun parseSessionStatusResponse_fallsBackForOlderHostsWithoutDoctorPayload() {
+        val json = JSONObject(
+            "{\"state\":\"streaming\",\"streaming_active\":true," +
+                "\"health\":{\"grade\":\"watch\",\"summary\":\"Host render is missing the stream FPS target.\"," +
+                "\"primary_issue\":\"host_render_limited\",\"recommendations\":[\"Lower game FPS before tuning bitrate.\"]}}"
+        )
+
+        val status = PolarisApiClient.parseSessionStatusResponse(json)
+
+        assertFalse(status.doctor.available)
+        assertEquals("HOST", status.doctor.classification)
+        assertEquals("Host render is missing the stream FPS target.", status.doctor.likelyCause)
+        assertEquals("Lower game FPS before tuning bitrate.", status.doctor.tryFirst.first())
+        assertEquals("fallback", status.doctor.confidence)
+    }
+
+    @Test
     fun parseSessionStatusResponse_includesHostRenderLimitedHealth() {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true," +
