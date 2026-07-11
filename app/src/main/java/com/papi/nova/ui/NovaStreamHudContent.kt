@@ -106,7 +106,10 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                     }
                 }
             }
-            Column(horizontalAlignment = Alignment.End) {
+            Column(
+                modifier = Modifier.widthIn(max = 96.dp),
+                horizontalAlignment = Alignment.End
+            ) {
                 Text(
                     text = state.autopilotHudLabel,
                     color = state.statusTone.hudColor(),
