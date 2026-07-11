@@ -275,6 +275,10 @@ fun NovaQuickMenuContent(
         NovaQuickMenuDiagnosisCard(state.diagnosis)
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuStabilityCard(state.stability, callbacks)
+        if (state.postSessionReport.visible) {
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuPostSessionReportCard(state.postSessionReport)
+        }
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuInfoCard(
             action = state.sync,
@@ -483,6 +487,44 @@ private fun NovaQuickMenuSessionStrip(state: NovaQuickMenuUiState) {
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickMenuPostSessionReportCard(report: NovaPostSessionReportUiState) {
+    val colors = LocalNovaComposeColors.current
+    NovaQuickMenuClickableSurface(
+        enabled = false,
+        onClick = {},
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(14.dp),
+        contentDescription = listOf(
+            "Post-session recovery report",
+            report.qualityLine,
+            report.issueLine,
+            report.nextLaunchLine,
+            report.recoveryLine
+        ).joinToString(". ")
+    ) {
+        Column {
+            Text(
+                text = "Post-session recovery report",
+                color = colors.textPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            listOf(report.qualityLine, report.issueLine, report.nextLaunchLine, report.recoveryLine).forEach { line ->
+                Text(
+                    text = line,
+                    modifier = Modifier.padding(top = 4.dp),
+                    color = colors.textSecondary,
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

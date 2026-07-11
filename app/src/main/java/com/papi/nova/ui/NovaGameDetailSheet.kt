@@ -328,13 +328,14 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                     onLaunchModeSelected = ::selectLaunchMode,
                     onLaunchOptionSelected = { option ->
                         fun launchSelected(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
+                            val selectedLaunchOptimization = option.launchOptimization ?: optimizationState.rawOptimization
                             onLaunch?.invoke(
                                 currentGame.copy(mangohud = mangoHudEnabled),
                                 option.usesVirtualDisplay,
                                 mirrorDesktop,
                                 forcePrivateAfterSteamClose,
                                 profilePreference,
-                                optimizationState.rawOptimization
+                                selectedLaunchOptimization
                             )
                             launchOptionsState = null
                             dismiss()
@@ -537,19 +538,44 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         uiState: NovaGameDetailUiState
     ): NovaLaunchOptionsState? {
         val options = mutableListOf<NovaLaunchOptionItem>()
-        if (uiState.headlessAllowed) {
-            options += NovaLaunchOptionItem(
-                label = optionLabel("headless", uiState.recommendedMode),
-                usesVirtualDisplay = false,
-                recommended = uiState.recommendedMode == "headless"
-            )
-        }
-        if (uiState.virtualDisplayAllowed) {
-            options += NovaLaunchOptionItem(
-                label = optionLabel("virtual_display", uiState.recommendedMode),
-                usesVirtualDisplay = true,
-                recommended = uiState.recommendedMode == "virtual_display"
-            )
+        val fallbackMode = clientSettings?.desired?.displayMode
+            ?.takeIf { it.isNotBlank() }
+            ?: clientSettings?.effective?.displayMode
+            ?: ""
+        val planner = NovaDisplayResolutionPlanner.from(
+            contract = game.displayPlanner,
+            fallbackMode = fallbackMode,
+            includeAdvanced = true
+        )
+        if (planner.available) {
+            planner.visibleChoices.forEach { choice ->
+                options += NovaLaunchOptionItem(
+                    label = choice.title,
+                    usesVirtualDisplay = uiState.playUsesVirtualDisplay,
+                    recommended = choice.recommended,
+                    caption = listOf(choice.targetMode, choice.reason).filter { it.isNotBlank() }.joinToString(" · "),
+                    badge = choice.badge,
+                    launchOptimization = NovaDisplayResolutionPlanner.buildLaunchOptimizationOverride(
+                        choice,
+                        source = "nova_display_planner"
+                    )
+                )
+            }
+        } else {
+            if (uiState.headlessAllowed) {
+                options += NovaLaunchOptionItem(
+                    label = optionLabel("headless", uiState.recommendedMode),
+                    usesVirtualDisplay = false,
+                    recommended = uiState.recommendedMode == "headless"
+                )
+            }
+            if (uiState.virtualDisplayAllowed) {
+                options += NovaLaunchOptionItem(
+                    label = optionLabel("virtual_display", uiState.recommendedMode),
+                    usesVirtualDisplay = true,
+                    recommended = uiState.recommendedMode == "virtual_display"
+                )
+            }
         }
 
         if (options.isEmpty()) return null
@@ -1090,7 +1116,10 @@ data class NovaLaunchOptionsState(
 data class NovaLaunchOptionItem(
     val label: String,
     val usesVirtualDisplay: Boolean,
-    val recommended: Boolean
+    val recommended: Boolean,
+    val caption: String = "",
+    val badge: String = "",
+    val launchOptimization: JSONObject? = null
 )
 
 data class NovaProfilePreferenceOptionsState(
@@ -2018,19 +2047,47 @@ private fun NovaLaunchOptionsSheet(
         onDismiss = onDismiss
     ) {
         state.options.forEach { option ->
-            NovaActionButton(
-                text = option.label,
-                onClick = { onLaunch(option) },
+            NovaFocusableCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
-                primary = option.recommended,
-                contentDescription = option.label,
-                minHeight = 44.dp,
-                cornerRadius = 10.dp,
-                fontSize = 13.sp,
+                onClick = { onLaunch(option) },
+                contentDescription = listOf(option.label, option.badge, option.caption).filter { it.isNotBlank() }.joinToString(". "),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
-            )
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = option.label,
+                            color = LocalNovaComposeColors.current.textPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (option.caption.isNotBlank()) {
+                            Text(
+                                text = option.caption,
+                                modifier = Modifier.padding(top = 3.dp),
+                                color = LocalNovaComposeColors.current.textMuted,
+                                fontSize = 10.sp,
+                                lineHeight = 13.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    if (option.recommended || option.badge.isNotBlank()) {
+                        NovaBadge(
+                            text = option.badge.ifBlank { stringResource(R.string.nova_library_filter_selected) },
+                            color = if (option.recommended) LocalNovaComposeColors.current.onAccent else LocalNovaComposeColors.current.textSecondary,
+                            backgroundColor = if (option.recommended) LocalNovaComposeColors.current.accent else LocalNovaLibrarySurfaces.current.control,
+                            borderColor = if (option.recommended) LocalNovaComposeColors.current.accent else LocalNovaLibrarySurfaces.current.tileBorder,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }

@@ -105,6 +105,7 @@ data class NovaQuickMenuUiState(
     val advancedRows: List<NovaQuickMenuAction>,
     val quickKeys: List<NovaQuickMenuAction>,
     val diagnosis: NovaQuickMenuDiagnosisState,
+    val postSessionReport: NovaPostSessionReportUiState,
     val hudOpacity: NovaQuickMenuHudOpacityState,
     val overlayRows: List<NovaQuickMenuAction>,
     val controlRows: List<NovaQuickMenuAction>,
@@ -158,6 +159,7 @@ data class NovaQuickMenuUiState(
                 effectiveAdaptiveEnabled
             val currentGame = currentGameName?.takeIf { it.isNotBlank() }
             val currentUuid = currentGameUuid?.takeIf { it.isNotBlank() }
+            val postSessionReport = NovaPostSessionReportUiState.from(status?.health ?: PolarisSessionStatus.HealthStatus())
             val mangoToggleAllowed = canAdjustHostTuning && currentUuid != null
             val mangoRisk = status?.game.equals("Steam Big Picture", ignoreCase = true)
 
@@ -415,6 +417,7 @@ data class NovaQuickMenuUiState(
                 advancedRows = listOf(aiRow, clearRow, mangoRow),
                 quickKeys = quickKeyActions(context),
                 diagnosis = diagnosis,
+                postSessionReport = postSessionReport,
                 hudOpacity = hudOpacity,
                 overlayRows = overlays,
                 controlRows = controls,

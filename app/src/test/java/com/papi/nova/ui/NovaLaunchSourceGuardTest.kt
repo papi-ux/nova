@@ -343,6 +343,39 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun displayPlannerAndPostSessionReportStayControllerFirstAndLowNoise() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val quickContent = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
+        val planner = readSource("src/main/java/com/papi/nova/ui/NovaDisplayResolutionPlanner.kt")
+        val optionSheet = detail.section(
+            "private fun NovaLaunchOptionsSheet(",
+            "@Composable\nprivate fun NovaProfilePreferenceSheet"
+        )
+
+        assertTrue(
+            "Launch Options should switch to Polaris display planner rows when display_planner is advertised",
+            detail.contains("game.displayPlanner") &&
+                detail.contains("NovaDisplayResolutionPlanner.from(") &&
+                detail.contains("NovaDisplayResolutionPlanner.buildLaunchOptimizationOverride(")
+        )
+        assertTrue(
+            "Planner choices should keep DPAD focus on meaningful cards rather than redundant Press A badges",
+            optionSheet.contains("NovaFocusableCard(") &&
+                optionSheet.contains("option.caption") &&
+                !optionSheet.contains("Press A") &&
+                planner.contains("takeUnless { it.equals(\"Press A\", ignoreCase = true) }")
+        )
+        assertTrue(
+            "Post-session recovery report should surface quality, issue, next launch, and recovery copy in Command Center",
+            quickContent.contains("NovaQuickMenuPostSessionReportCard") &&
+                quickContent.contains("report.qualityLine") &&
+                quickContent.contains("report.issueLine") &&
+                quickContent.contains("report.nextLaunchLine") &&
+                quickContent.contains("report.recoveryLine")
+        )
+    }
+
+    @Test
     fun streamStartupOverlayWaitsForNativeConnectionStartedBeforeDismissal() {
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val overlay = readSource("src/main/java/com/papi/nova/ui/SessionProgressOverlay.kt")
