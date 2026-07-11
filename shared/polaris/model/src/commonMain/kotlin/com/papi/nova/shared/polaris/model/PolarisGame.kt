@@ -24,8 +24,45 @@ data class PolarisGame(
     @SerialName("mangohud") val mangohud: Boolean = false,
     @SerialName("hdr_supported") val hdrSupported: Boolean = false,
     @SerialName("launch_mode") val launchMode: LaunchModeContract? = null,
-    @SerialName("steam_launch") val steamLaunch: SteamLaunchContract? = null
+    @SerialName("steam_launch") val steamLaunch: SteamLaunchContract? = null,
+    @SerialName("display_planner") val displayPlanner: DisplayPlannerContract? = null
 ) {
+    @Serializable
+    data class DisplayPlannerContract(
+        @SerialName("available") val available: Boolean = false,
+        @SerialName("source_mode") val sourceMode: String = "",
+        @SerialName("source_aspect_ratio") val sourceAspectRatio: String = "",
+        @SerialName("source_fps") val sourceFps: Double = 0.0,
+        @SerialName("recommended_id") val recommendedId: String = "",
+        @SerialName("recommended_title") val recommendedTitle: String = "",
+        @SerialName("recommended_mode") val recommendedMode: String = "",
+        @SerialName("choices") val choices: List<DisplayPlannerChoice> = emptyList(),
+        @SerialName("advanced_scale_factors") val advancedScaleFactors: List<DisplayPlannerScaleChoice> = emptyList()
+    )
+
+    @Serializable
+    data class DisplayPlannerChoice(
+        @SerialName("id") val id: String = "",
+        @SerialName("title") val title: String = "",
+        @SerialName("intent") val intent: String = "",
+        @SerialName("target_mode") val targetMode: String = "",
+        @SerialName("badge") val badge: String = "",
+        @SerialName("reason") val reason: String = "",
+        @SerialName("advanced") val advanced: Boolean = false,
+        @SerialName("custom") val custom: Boolean = false,
+        @SerialName("safe") val safe: Boolean = true,
+        @SerialName("hidden") val hidden: Boolean = false,
+        @SerialName("scale_factor") val scaleFactor: Double = 1.0,
+        @SerialName("aspect_ratio") val aspectRatio: String = ""
+    )
+
+    @Serializable
+    data class DisplayPlannerScaleChoice(
+        @SerialName("scale_factor") val scaleFactor: Double = 1.0,
+        @SerialName("label") val label: String = "",
+        @SerialName("target_mode") val targetMode: String = "",
+        @SerialName("safe") val safe: Boolean = true
+    )
     @Serializable
     data class LaunchModeContract(
         @SerialName("preferred_mode") val preferredMode: String = "",

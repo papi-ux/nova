@@ -89,8 +89,44 @@ class PolarisGameContractTest {
         assertFalse(game.mangohud)
         assertEquals(null, game.launchMode)
         assertEquals(null, game.steamLaunch)
+        assertEquals(null, game.displayPlanner)
         assertEquals("direct", game.steamLaunchMode)
     }
+
+    @Test
+    fun decodesDisplayResolutionPlannerContractWhenAdvertised() {
+        val game = json.decodeFromString<PolarisGame>(
+            """
+            {
+              "id":"game-planner",
+              "app_id":42,
+              "name":"Planner Game",
+              "display_planner":{
+                "available":true,
+                "source_mode":"2560x1600x90",
+                "source_aspect_ratio":"8:5",
+                "recommended_id":"balanced",
+                "recommended_title":"Best for this device",
+                "recommended_mode":"1920x1200x90",
+                "choices":[
+                  {"id":"balanced","title":"Best for this device","target_mode":"1920x1200x90","badge":"Best for this device","reason":"Preserve aspect ratio."},
+                  {"id":"sharp","title":"Sharp / Supersampled","target_mode":"3840x2400x90","badge":"1.5x supersample","advanced":true,"safe":true}
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val planner = game.displayPlanner!!
+        assertTrue(planner.available)
+        assertEquals("2560x1600x90", planner.sourceMode)
+        assertEquals("balanced", planner.recommendedId)
+        assertEquals("Best for this device", planner.recommendedTitle)
+        assertEquals("1920x1200x90", planner.recommendedMode)
+        assertEquals(listOf("balanced", "sharp"), planner.choices.map { it.id })
+        assertTrue(planner.choices.last().advanced)
+    }
+
 
     @Test
     fun serializesLaunchModeAndSteamLaunchUsingServerSnakeCaseKeys() {
