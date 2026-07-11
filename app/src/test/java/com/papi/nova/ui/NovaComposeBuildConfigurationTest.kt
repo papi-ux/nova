@@ -151,6 +151,31 @@ class NovaComposeBuildConfigurationTest {
     }
 
     @Test
+    fun releaseWorkflowWritesPortableChecksumBasenames() {
+        val workflow = String(
+            Files.readAllBytes(Paths.get("../.github/workflows/build.yml")),
+            StandardCharsets.UTF_8
+        )
+
+        assertTrue(
+            "release checksum generation should derive the public APK basename",
+            workflow.contains("apk_name=\"\$(basename \"\$apk\")\"")
+        )
+        assertTrue(
+            "release checksum generation should run inside the asset directory",
+            workflow.contains("cd \"\$apk_dir\"")
+        )
+        assertTrue(
+            "release checksum files should contain portable APK basenames instead of runner-absolute paths",
+            workflow.contains("sha256sum \"\$apk_name\" > \"\$apk_name.sha256\"")
+        )
+        assertFalse(
+            "release checksum files should not embed the GitHub runner path",
+            workflow.contains("sha256sum \"\$apk\" > \"\$apk.sha256\"")
+        )
+    }
+
+    @Test
     fun baselineProfileGenerationTargetsNovaReleaseJourneys() {
         val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
         val appBuild = String(Files.readAllBytes(Paths.get("build.gradle")), StandardCharsets.UTF_8)
