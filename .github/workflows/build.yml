@@ -215,7 +215,12 @@ jobs:
           shopt -s nullglob
 
           for apk in "${APK_ASSET_DIR}"/*.apk; do
-            sha256sum "$apk" > "$apk.sha256"
+            apk_dir="$(dirname "$apk")"
+            apk_name="$(basename "$apk")"
+            (
+              cd "$apk_dir"
+              sha256sum "$apk_name" > "$apk_name.sha256"
+            )
           done
 
       - name: Upload APK artifact
