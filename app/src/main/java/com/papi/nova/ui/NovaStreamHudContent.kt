@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -59,6 +60,9 @@ fun NovaStreamHudContent(
 }
 
 private val LocalNovaHudOpacityScale = compositionLocalOf { 1f }
+
+internal const val NOVA_HUD_PERFORMANCE_PRIMARY_TAG = "nova_hud_performance_primary"
+internal const val NOVA_HUD_PERFORMANCE_DETAILS_TAG = "nova_hud_performance_details"
 
 @Composable
 private fun rememberHudOpacityScale(opacityScale: Float): Float {
@@ -168,24 +172,39 @@ private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) 
         cornerRadius = 16.dp,
         padding = 8.dp
     ) {
+        HudPerformancePrimaryRow(state)
+        HudPerformanceDetailRow(state)
+        HudCompactDiagnosticStrip(state)
+        HudEventBreadcrumb(state.eventBreadcrumbLabel)
+    }
+}
+
+@Composable
+private fun HudPerformancePrimaryRow(state: NovaHudUiState) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(NOVA_HUD_PERFORMANCE_PRIMARY_TAG),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HudStatusDot(state.statusTone, height = 20.dp)
+        Text(
+            text = state.autopilotCompactLabel,
+            color = state.statusTone.hudColor(),
+            fontSize = 9.sp,
+            lineHeight = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .padding(start = 5.dp)
+                .widthIn(min = 28.dp, max = 42.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        HudDivider(horizontalPadding = 5.dp)
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.Bottom
         ) {
-            HudStatusDot(state.statusTone, height = 20.dp)
-            Text(
-                text = state.autopilotCompactLabel,
-                color = state.statusTone.hudColor(),
-                fontSize = 9.sp,
-                lineHeight = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .padding(start = 5.dp)
-                    .widthIn(min = 28.dp, max = 42.dp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            HudDivider(horizontalPadding = 5.dp)
             HudValueText(state.fpsLabel, state.fpsTone, size = 15)
             if (state.targetFpsLabel.isNotBlank()) {
                 Text(
@@ -199,21 +218,52 @@ private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) 
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            HudCompactText(state.latencyLabel, state.latencyTone, minWidth = 34.dp, startPadding = 5.dp)
-            HudCompactText(state.bitrateLabel, NovaHudTone.INFO, minWidth = 34.dp, startPadding = 5.dp)
-            HudCompactText(state.resolutionLabel, NovaHudTone.MUTED, minWidth = 34.dp, startPadding = 5.dp)
-            HudCompactText(state.codecLabel, NovaHudTone.MUTED, minWidth = 28.dp, startPadding = 5.dp)
-            NovaHudSparkline(
-                samples = state.sparklineSamples,
-                tone = state.fpsTone,
-                modifier = Modifier
-                    .padding(start = 5.dp)
-                    .width(40.dp)
-                    .height(15.dp)
-            )
         }
-        HudCompactDiagnosticStrip(state)
-        HudEventBreadcrumb(state.eventBreadcrumbLabel)
+        NovaHudSparkline(
+            samples = state.sparklineSamples,
+            tone = state.fpsTone,
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .width(48.dp)
+                .height(15.dp)
+        )
+    }
+}
+
+@Composable
+private fun HudPerformanceDetailRow(state: NovaHudUiState) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 5.dp)
+            .testTag(NOVA_HUD_PERFORMANCE_DETAILS_TAG),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HudCompactText(
+            state.latencyLabel,
+            state.latencyTone,
+            modifier = Modifier.weight(1f),
+            startPadding = 0.dp
+        )
+        HudCompactText(
+            state.bitrateLabel,
+            NovaHudTone.INFO,
+            modifier = Modifier.weight(1f),
+            startPadding = 0.dp
+        )
+        HudCompactText(
+            state.resolutionLabel,
+            NovaHudTone.MUTED,
+            modifier = Modifier.weight(1f),
+            startPadding = 0.dp
+        )
+        HudCompactText(
+            state.codecLabel,
+            NovaHudTone.MUTED,
+            modifier = Modifier.weight(1f),
+            startPadding = 0.dp
+        )
     }
 }
 
@@ -280,7 +330,7 @@ private fun HudPanel(
     val panelShape = RoundedCornerShape(cornerRadius)
     Column(
         modifier = modifier
-            .shadow(16.dp, panelShape, clip = false)
+            .shadow(16.dp * hudOpacityScale, panelShape, clip = false)
             .clip(panelShape)
             .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel * hudOpacityScale))
             .border(
@@ -457,6 +507,7 @@ private fun HudValueText(text: String, tone: NovaHudTone, size: Int) {
 private fun HudCompactText(
     text: String,
     tone: NovaHudTone,
+    modifier: Modifier = Modifier,
     minWidth: Dp = 0.dp,
     startPadding: Dp = 9.dp
 ) {
@@ -468,7 +519,7 @@ private fun HudCompactText(
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
+        modifier = modifier
             .padding(start = startPadding)
             .widthIn(min = minWidth)
     )

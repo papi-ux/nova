@@ -2100,6 +2100,62 @@ class NovaComposeSourceGuardTest {
         )
     }
 
+    @Test
+    fun streamHudPerformanceSeparatesFpsFromDetailMetrics() {
+        val source = readNovaStreamHudContent()
+        val performanceHud = source.section(
+            "private fun NovaStreamHudPerformance(",
+            "@Composable\nprivate fun NovaStreamHudMinimal("
+        )
+
+        assertTrue(
+            "FPS display should place the FPS/target/sparkline and added detail metrics in separate bounded rows",
+            performanceHud.contains("HudPerformancePrimaryRow(state)") &&
+                performanceHud.contains("HudPerformanceDetailRow(state)")
+        )
+
+        val primaryRow = source.section(
+            "private fun HudPerformancePrimaryRow(",
+            "@Composable\nprivate fun HudPerformanceDetailRow("
+        )
+        val detailRow = source.section(
+            "private fun HudPerformanceDetailRow(",
+            "@Composable\nprivate fun NovaStreamHudMinimal("
+        )
+
+        assertTrue(primaryRow.contains("state.fpsLabel"))
+        assertTrue(primaryRow.contains("state.targetFpsLabel"))
+        assertTrue(primaryRow.contains("NovaHudSparkline("))
+        assertFalse(primaryRow.contains("state.latencyLabel"))
+        assertFalse(primaryRow.contains("state.bitrateLabel"))
+        assertFalse(primaryRow.contains("state.resolutionLabel"))
+        assertFalse(primaryRow.contains("state.codecLabel"))
+
+        assertTrue(detailRow.contains("state.latencyLabel"))
+        assertTrue(detailRow.contains("state.bitrateLabel"))
+        assertTrue(detailRow.contains("state.resolutionLabel"))
+        assertTrue(detailRow.contains("state.codecLabel"))
+        assertFalse(detailRow.contains("state.fpsLabel"))
+    }
+
+    @Test
+    fun streamHudZeroOpacityRemovesPanelShadowChrome() {
+        val source = readNovaStreamHudContent()
+        val panel = source.section(
+            "private fun HudPanel(",
+            "@Composable\nprivate fun HudDiagnosticStrip("
+        )
+
+        assertTrue(
+            "0% NovaHUD opacity should remove the panel shadow instead of leaving faint ghost boxes",
+            panel.contains(".shadow(16.dp * hudOpacityScale, panelShape, clip = false)")
+        )
+        assertFalse(
+            "NovaHUD panel shadow must not remain fully opaque when glass opacity is 0%",
+            panel.contains(".shadow(16.dp, panelShape, clip = false)")
+        )
+    }
+
     private fun readNovaLibraryActivity(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
 
