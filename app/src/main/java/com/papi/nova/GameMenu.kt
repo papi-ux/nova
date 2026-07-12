@@ -2,9 +2,11 @@ package com.papi.nova
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.Dialog
 import android.content.Context
 import android.graphics.Typeface
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.view.ContextThemeWrapper
 import android.view.Gravity
@@ -22,9 +24,11 @@ import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.utils.KeyMapper
 import java.util.concurrent.atomic.AtomicInteger
 
-class GameMenu(
+class GameMenu @JvmOverloads constructor(
     private val game: Game,
     private val dialogScreenContext: Context,
+    private val dialogWindowType: Int? = null,
+    private val dialogWindowTokenProvider: (() -> IBinder?)? = null,
 ) : Game.GameMenuCallbacks {
     constructor(game: Game) : this(game, game)
 
@@ -37,6 +41,16 @@ class GameMenu(
     }
 
     private var currentSheet: BottomSheetDialog? = null
+
+    private fun applyDialogWindowType(dialog: Dialog) {
+        val window = dialog.window ?: return
+        dialogWindowType?.let { windowType ->
+            window.setType(windowType)
+        }
+        dialogWindowTokenProvider?.invoke()?.let { token ->
+            window.attributes.token = token
+        }
+    }
 
     private fun getString(id: Int): String = game.resources.getString(id)
 
@@ -147,6 +161,7 @@ class GameMenu(
                 currentSheet = null
             }
         }
+        applyDialogWindowType(sheet)
         sheet.show()
         NovaSheetChrome.applyBottomSheetChrome(
             sheet,
@@ -280,7 +295,7 @@ class GameMenu(
         val options = ArrayList<MenuOption>()
         if (game.allowChangeMouseMode) {
             options.add(MenuOption(getString(R.string.game_menu_select_mouse_mode), true, Runnable {
-                game.selectMouseMode(dialogScreenContext)
+                game.selectMouseMode(dialogScreenContext, dialogWindowType, dialogWindowTokenProvider?.invoke())
             }))
         }
 
@@ -358,6 +373,7 @@ class GameMenu(
                     .setTitle(R.string.game_dialog_title_server_cmd_empty)
                     .setMessage(R.string.game_dialog_message_server_cmd_empty)
                     .create()
+                applyDialogWindowType(serverCommandDialog)
                 NovaSheetChrome.applyAlertDialogChrome(serverCommandDialog)
                 serverCommandDialog.show()
             } else {

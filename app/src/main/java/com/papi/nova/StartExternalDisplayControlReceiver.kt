@@ -1,22 +1,13 @@
 package com.papi.nova
 
 import android.app.ActivityManager
-import android.app.ActivityOptions
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Display
-import androidx.annotation.RequiresApi
-import com.papi.nova.preferences.PreferenceConfiguration
-import com.papi.nova.utils.ExternalDisplayControlActivity
-import com.papi.nova.utils.ServerHelper.getAndroidCompanionDisplay
 
 class StartExternalDisplayControlReceiver : BroadcastReceiver() {
-    @RequiresApi(api = Build.VERSION_CODES.O)
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_START_EXTERNAL_DISPLAY_CONTROL) {
             return
@@ -34,51 +25,46 @@ class StartExternalDisplayControlReceiver : BroadcastReceiver() {
         private var isTimeoutActive = false
 
         @JvmStatic
+        @Deprecated("Companion controls are now Game-owned; use requestFocusToGameActivity(true)")
+        @Suppress("UNUSED_PARAMETER")
         fun requestFocusToExternalDisplayControl(context: Context) {
-            requestFocusToExternalDisplayControl(
-                context,
-                Game.instance?.streamingDisplayIdForCompanion() ?: Display.DEFAULT_DISPLAY,
-            )
+            requestFocusToGameActivity(true)
         }
 
         @JvmStatic
+        @Deprecated("Companion controls are now Game-owned; use requestFocusToGameActivity(true)")
+        @Suppress("UNUSED_PARAMETER")
         fun requestFocusToExternalDisplayControl(context: Context, streamDisplayId: Int) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val prefConfig = PreferenceConfiguration.readPreferences(context)
-                val controlsDisplay = getAndroidCompanionDisplay(context, prefConfig, streamDisplayId)
-                    ?: return
-
-                val intentTouchpad = Intent(context, ExternalDisplayControlActivity::class.java)
-                intentTouchpad.addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP,
-                )
-                val optionsDefault: Bundle = ActivityOptions.makeBasic()
-                    .setLaunchDisplayId(controlsDisplay.displayId)
-                    .toBundle()
-                context.startActivity(intentTouchpad, optionsDefault)
-            }
+            requestFocusToGameActivity(true)
         }
 
         @JvmStatic
-        fun requestFocusToGameActivity(focusExternalDisplayControl: Boolean) {
+        fun requestFocusToGameActivity(showCompanionControls: Boolean) {
             if (isTimeoutActive) {
                 return
             }
 
             isTimeoutActive = true
-
             val game = Game.instance
             if (game != null) {
-                if (focusExternalDisplayControl) {
-                    requestFocusToExternalDisplayControl(game, game.streamingDisplayIdForCompanion())
-                }
                 val activityManager = game.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager?
                 activityManager?.moveTaskToFront(game.taskId, 0)
             }
 
-            handler.postDelayed({ isTimeoutActive = false }, TIMEOUT_MS)
+            handler.postDelayed(
+                {
+                    if (
+                        showCompanionControls &&
+                        game != null &&
+                        Game.instance === game &&
+                        !game.isFinishing
+                    ) {
+                        game.showCompanionControls()
+                    }
+                    isTimeoutActive = false
+                },
+                TIMEOUT_MS,
+            )
         }
     }
 }

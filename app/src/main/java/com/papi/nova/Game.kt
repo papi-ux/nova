@@ -52,7 +52,7 @@ import com.papi.nova.ui.StreamContainer
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
-import com.papi.nova.utils.ExternalDisplayControlActivity
+import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.MouseModeOption
 import com.papi.nova.utils.PanZoomHandler
@@ -222,6 +222,7 @@ private var cursorVisible:Boolean = false
 private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
+private var externalDisplayControlPresentation:ExternalDisplayControlPresentation? = null
 private var externalDisplayListener:DisplayManager.DisplayListener? = null
 @Volatile private var lastClientPresentationRefreshRate:Float = 0f
 @Volatile private var lastClientPresentationDisplayModeId:Int = 0
@@ -424,10 +425,40 @@ private fun launchCompanionControlsIfAvailable() {
 val companionDisplay:Display? = getCompanionControlDisplay()
 if (::prefConfig.isInitialized && prefConfig.enableFullExDisplay && companionDisplay != null)
 {
-companionControlDisplayId = companionDisplay.getDisplayId()
-StartExternalDisplayControlReceiver.requestFocusToExternalDisplayControl(this, streamingDisplayId)
+val companionDisplayId:Int = companionDisplay.getDisplayId()
+val currentPresentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
+if (currentPresentation == null || !currentPresentation.isShowing || companionControlDisplayId != companionDisplayId)
+{
+currentPresentation?.dismiss()
+val presentation = ExternalDisplayControlPresentation(this, companionDisplay)
+presentation.setOnDismissListener {
+if (externalDisplayControlPresentation === presentation)
+{
+externalDisplayControlPresentation = null
+companionControlDisplayId = INVALID_DISPLAY_ID
+}
+}
+externalDisplayControlPresentation = presentation
+companionControlDisplayId = companionDisplayId
+try
+{
+presentation.show()
+ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+}
+catch (e:WindowManager.InvalidDisplayException)
+{
+presentation.disposeAfterFailedShow()
+externalDisplayControlPresentation = null
+companionControlDisplayId = INVALID_DISPLAY_ID
+LimeLog.warning("Nova: Android companion presentation unavailable display_id=$companionDisplayId")
+}
+}
 listenForExternalDisplayRemoval()
 }
+}
+
+fun showCompanionControls() {
+runOnUiThread { launchCompanionControlsIfAvailable() }
 }
 
 @SuppressLint("InlinedApi")
@@ -1467,7 +1498,12 @@ if (externalDisplayListener != null) return
 
 val displayManager:DisplayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
 val listener:DisplayManager.DisplayListener = object : DisplayManager.DisplayListener {
-override fun onDisplayAdded(displayId:Int) = Unit
+override fun onDisplayAdded(displayId:Int) {
+if (isStreamActive && !isFinishing()) {
+LimeLog.info("Nova: Android companion display added id=$displayId stream_id=$streamingDisplayId")
+showCompanionControls()
+}
+}
 override fun onDisplayChanged(displayId:Int) = Unit
 override fun onDisplayRemoved(displayId:Int) {
 handleDisplayRemoved(displayId)
@@ -1486,29 +1522,24 @@ externalDisplayListener = null
 
 private fun closeCompanionControls() {
 NotificationManagerCompat.from(baseContext)
-.cancel(ExternalDisplayControlActivity.SECONDARY_SCREEN_NOTIFICATION_ID)
-ExternalDisplayControlActivity.closeExternalDisplayControl()
+.cancel(ExternalDisplayControlPresentation.SECONDARY_SCREEN_NOTIFICATION_ID)
+val presentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
+externalDisplayControlPresentation = null
 companionControlDisplayId = INVALID_DISPLAY_ID
+presentation?.dismiss()
 }
 
 private fun handleDisplayRemoved(removedDisplayId:Int) {
-NotificationManagerCompat.from(baseContext)
-.cancel(ExternalDisplayControlActivity.SECONDARY_SCREEN_NOTIFICATION_ID)
-
 when {
 removedDisplayId == streamingDisplayId -> {
-ExternalDisplayControlActivity.closeExternalDisplayControl()
+closeCompanionControls()
 finish()
 }
-removedDisplayId == companionControlDisplayId -> {
-ExternalDisplayControlActivity.closeExternalDisplayControl()
-companionControlDisplayId = INVALID_DISPLAY_ID
-}
+removedDisplayId == companionControlDisplayId -> closeCompanionControls()
 else -> {
 if (getCompanionControlDisplay() == null)
 {
-ExternalDisplayControlActivity.closeExternalDisplayControl()
-companionControlDisplayId = INVALID_DISPLAY_ID
+closeCompanionControls()
 }
 }
 }
@@ -1600,9 +1631,9 @@ return
 keyBoardController!!.toggleVisibility()
 }
  fun toggleFullKeyboard() {
-if (isOnExternalDisplay)
+if (externalDisplayControlPresentation?.isShowing == true)
 {
-ExternalDisplayControlActivity.toggleFullKeyboard()
+externalDisplayControlPresentation?.toggleFullKeyboard()
 return
 }
 if (keyBoardLayoutController == null)
@@ -2535,6 +2566,19 @@ streamContainer!!.onDestroy()
 }
 }
 
+override fun onRequestPermissionsResult(requestCode:Int, permissions:Array<String>, grantResults:IntArray) {
+super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+if (requestCode == ExternalDisplayControlPresentation.NOTIFICATION_PERMISSION_REQUEST_CODE)
+{
+val granted:Boolean = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+ExternalDisplayControlPresentation.onCompanionNotificationPermissionResult(
+this,
+granted,
+!isFinishing() && isStreamActive && shouldLaunchCompanionControls()
+)
+}
+}
+
 override fun onNewIntent(intent:Intent?) {
 super.onNewIntent(intent)
 
@@ -3294,9 +3338,9 @@ return null
 }
 }
 override fun toggleKeyboard() {
-if (isOnExternalDisplay)
+if (externalDisplayControlPresentation?.isShowing == true)
 {
-ExternalDisplayControlActivity.toggleKeyboard()
+externalDisplayControlPresentation?.toggleKeyboard()
 }
 else
 {
@@ -5141,7 +5185,7 @@ Toast.makeText(this, getString(R.string.pan_zoom_mode_disabled), Toast.LENGTH_SH
 }
 updateZoomButtonAppearance()
 
-ExternalDisplayControlActivity.instance?.toggleZoomMode(false)
+externalDisplayControlPresentation?.toggleZoomMode(false)
 }
  fun rotateScreen() {
 if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE)
@@ -5210,7 +5254,8 @@ applyMouseMode(savedMouseModeIndex)
 }
 }
 // Converted JavaDoc marker retained as a line comment.
-     fun selectMouseMode(context:Context?) {
+     @JvmOverloads
+     fun selectMouseMode(context:Context?, dialogWindowType:Int? = null, dialogWindowToken:IBinder? = null) {
 var allModes:Array<String?>? = getResources().getStringArray(R.array.mouse_mode_names)
 
 var allowedLabels:Set<String> = HashSet(Arrays.asList(
@@ -5240,7 +5285,7 @@ labels[i] = options[i].label
 }
 var optionArray:Array<MouseModeOption> = options.toTypedArray()
 
-AlertDialog.Builder(context)
+val mouseModeDialog = AlertDialog.Builder(context)
 .setTitle(getString(R.string.game_menu_select_mouse_mode))
 .setItems(labels, { dialog, which->
 dialog!!.dismiss()
@@ -5261,7 +5306,11 @@ ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
 }
 } })
 .create()
-.show()
+dialogWindowType?.let { windowType ->
+mouseModeDialog.window?.setType(windowType)
+}
+mouseModeDialog.window?.attributes?.token = dialogWindowToken
+mouseModeDialog.show()
 }
 
  //本地鼠标光标切换
@@ -6070,16 +6119,16 @@ Handler(Looper.getMainLooper()).postDelayed({ GameDisplayLaunchTrampolineActivit
 overridePendingTransition(0, 0) }, 900)
 }
  fun quit() {
-val context:Context = if (isOnExternalDisplay && ExternalDisplayControlActivity.instance != null)
-{
-ExternalDisplayControlActivity.instance ?: this
-}
-else
-{
-this
-}
+val companionPresentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
+?.takeIf { it.isShowing }
+val context:Context = companionPresentation?.companionDialogContext ?: this
 
 val sheet = BottomSheetDialog(context)
+if (companionPresentation != null)
+{
+sheet.window?.setType(companionPresentation.companionDialogWindowType)
+sheet.window?.attributes?.token = companionPresentation.companionDialogWindowToken()
+}
 val container = NovaSheetChrome.createSheetContainer(context)
 
 val title = TextView(context).apply {
@@ -6126,9 +6175,9 @@ sheet.show()
 NovaSheetChrome.applyBottomSheetChrome(sheet, container)
 }
 override fun showGameMenu(device:GameInputDevice?) {
-if (isOnExternalDisplay)
+if (externalDisplayControlPresentation?.isShowing == true)
 {
-ExternalDisplayControlActivity.toggleGameMenu()
+externalDisplayControlPresentation?.toggleGameMenu()
 }
 else
 {

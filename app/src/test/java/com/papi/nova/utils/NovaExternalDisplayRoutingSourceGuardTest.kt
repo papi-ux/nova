@@ -25,17 +25,14 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
-    fun externalControlReceiverDoesNotHardcodeDefaultDisplay() {
+    fun notificationReceiverReopensGameOwnedPresentationWithoutStartingActivity() {
         val source = File("src/main/java/com/papi/nova/StartExternalDisplayControlReceiver.kt").readText()
 
-        assertFalse(
-            "External controls must launch on the derived companion display, not always Display.DEFAULT_DISPLAY",
-            source.contains("setLaunchDisplayId(Display.DEFAULT_DISPLAY)")
-        )
-        assertTrue(
-            "External controls should resolve through ServerHelper.getAndroidCompanionDisplay",
-            source.contains("getAndroidCompanionDisplay")
-        )
+        assertFalse(source.contains("ActivityOptions"))
+        assertFalse(Regex("""\bstartActivit(?:y|ies)\s*\(""").containsMatchIn(source))
+        assertFalse(source.contains("ExternalDisplayControlActivity"))
+        assertTrue(source.contains("Game.instance"))
+        assertTrue(source.contains("game.showCompanionControls()"))
     }
 
     @Test
@@ -57,21 +54,21 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         assertTrue(serverHelper.contains("GameDisplayLaunchTrampolineActivity"))
         assertTrue(manifest.contains(".utils.GameDisplayLaunchTrampolineActivity"))
         assertFalse(
-            "The singleton control activity must not double as the stream launch trampoline",
-            serverHelper.contains("ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT")
+            "The companion Presentation must not double as the stream launch trampoline",
+            serverHelper.contains("ExternalDisplayControlPresentation.EXTRA_LAUNCH_INTENT")
         )
     }
 
     @Test
-    fun externalControlActivityDoesNotBootstrapGameLaunches() {
-        val source = File("src/main/java/com/papi/nova/utils/ExternalDisplayControlActivity.kt").readText()
+    fun externalControlPresentationDoesNotBootstrapGameLaunches() {
+        val source = File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
 
         assertFalse(
-            "The companion control activity should only host controls; stream bootstrapping belongs to the dedicated trampoline",
+            "The companion Presentation should only host controls; stream bootstrapping belongs to the dedicated trampoline",
             source.contains("EXTRA_LAUNCH_INTENT")
         )
         assertFalse(
-            "The companion control activity must not launch Game itself from whichever display created it",
+            "The companion Presentation must not launch Game itself from its target display",
             source.contains("startActivity(gameIntent")
         )
     }
@@ -189,5 +186,171 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         assertTrue(source.contains("Android display audio context"))
         assertTrue(source.contains("Android display audio route"))
         assertTrue(source.contains("display_id="))
+    }
+
+    @Test
+    fun companionDialogsAttachToTheLivePresentationWindowToken() {
+        val presentation =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val gameMenu = File("src/main/java/com/papi/nova/GameMenu.kt").readText()
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+
+        assertTrue(presentation.contains("TYPE_APPLICATION_ATTACHED_DIALOG"))
+        assertTrue(presentation.contains("createWindowContext("))
+        assertTrue(presentation.contains("presentationWindow.decorView.windowToken"))
+        assertFalse(
+            "A second TYPE_PRESENTATION window reuses the wrong WindowContext token and crashes",
+            presentation.contains("presentationWindow.attributes.type")
+        )
+        assertTrue(
+            presentation.contains(
+                "GameMenu(game, companionDialogContext, companionDialogWindowType, ::companionDialogWindowToken)"
+            )
+        )
+        assertTrue(gameMenu.contains("private val dialogWindowTokenProvider: (() -> IBinder?)? = null"))
+        assertTrue(gameMenu.contains("window.setType(windowType)"))
+        assertTrue(gameMenu.contains("window.attributes.token = token"))
+
+        val showMenuDialog =
+            gameMenu.substringAfter("private fun showMenuDialog(").substringBefore("private fun showSpecialKeysMenu(")
+        val menuWindowBinding = showMenuDialog.indexOf("applyDialogWindowType(sheet)")
+        val menuShow = showMenuDialog.indexOf("sheet.show()")
+        assertTrue("Menu BottomSheetDialog must be bound before show()", menuWindowBinding in 0 until menuShow)
+
+        val serverCommandDialog =
+            gameMenu.substringAfter("val serverCommandDialog =").substringBefore("} else {")
+        val serverWindowBinding = serverCommandDialog.indexOf("applyDialogWindowType(serverCommandDialog)")
+        val serverShow = serverCommandDialog.indexOf("serverCommandDialog.show()")
+        assertTrue("Server-command AlertDialog must be bound before show()", serverWindowBinding in 0 until serverShow)
+
+        assertTrue(
+            gameMenu.contains(
+                "selectMouseMode(dialogScreenContext, dialogWindowType, dialogWindowTokenProvider?.invoke())"
+            )
+        )
+        val mouseMode =
+            game.substringAfter("fun selectMouseMode(").substringBefore("private fun toggleMouseLocalCursor(")
+        val mouseType = mouseMode.indexOf("mouseModeDialog.window?.setType(windowType)")
+        val mouseToken = mouseMode.indexOf("mouseModeDialog.window?.attributes?.token = dialogWindowToken")
+        val mouseShow = mouseMode.indexOf("mouseModeDialog.show()")
+        assertTrue("Mouse-mode dialog type must be assigned before show()", mouseType in 0 until mouseShow)
+        assertTrue("Mouse-mode dialog token must be assigned before show()", mouseToken in 0 until mouseShow)
+
+        val quit = game.substringAfter("fun quit()").substringBefore("override fun showGameMenu(")
+        val quitType = quit.indexOf("sheet.window?.setType(companionPresentation.companionDialogWindowType)")
+        val quitToken = quit.indexOf("sheet.window?.attributes?.token = companionPresentation.companionDialogWindowToken()")
+        val quitShow = quit.indexOf("sheet.show()")
+        assertTrue("Quit sheet type must be assigned before show()", quitType in 0 until quitShow)
+        assertTrue("Quit sheet token must be assigned before show()", quitToken in 0 until quitShow)
+    }
+
+    @Test
+    fun companionControlsAreGameOwnedPresentationInsteadOfManifestActivity() {
+        val presentationFile =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt")
+        val activityFile =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlActivity.kt")
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+
+        assertTrue("Companion controls should have a Presentation source", presentationFile.exists())
+        val presentation = presentationFile.readText()
+        assertTrue(presentation.contains("class ExternalDisplayControlPresentation"))
+        assertTrue(presentation.contains("Presentation(game, display"))
+        assertTrue(game.contains("private var externalDisplayControlPresentation"))
+        assertTrue(game.contains("ExternalDisplayControlPresentation(this, companionDisplay"))
+        assertFalse("The obsolete companion Activity source should be removed", activityFile.exists())
+        assertFalse(
+            "A Game-owned Presentation must not be registered as an Activity",
+            manifest.contains("ExternalDisplayControlPresentation")
+        )
+    }
+
+    @Test
+    fun failedPresentationShowDisposesPartialStateBeforeClearingGameReferences() {
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val presentation =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val showBlock =
+            game.substringAfter("val presentation = ExternalDisplayControlPresentation")
+                .substringBefore("listenForExternalDisplayRemoval()")
+        val dispose = showBlock.indexOf("presentation.disposeAfterFailedShow()")
+        val clearReference = showBlock.indexOf("externalDisplayControlPresentation = null", dispose)
+
+        assertTrue("Failed show must explicitly dispose partial Presentation state", dispose >= 0)
+        assertTrue("Disposal must happen before Game clears its owner reference", clearReference > dispose)
+        val transientDisposal =
+            presentation.substringAfter("private fun disposeTransientState()")
+                .substringBefore("fun disposeAfterFailedShow()")
+        val failedShowDisposal =
+            presentation.substringAfter("fun disposeAfterFailedShow()")
+                .substringBefore("override fun onStop()")
+        assertTrue(transientDisposal.contains("handler.removeCallbacksAndMessages(null)"))
+        assertTrue(
+            "Failed-show disposal must invoke the real transient-state cleanup",
+            failedShowDisposal.contains("disposeTransientState()")
+        )
+    }
+
+    @Test
+    fun companionNotificationPermissionContinuationIsOwnedByGame() {
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val presentation =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val launchBlock =
+            game.substringAfter("presentation.show()").substringBefore("catch (e:WindowManager.InvalidDisplayException)")
+        val permissionBlock =
+            game.substringAfter("override fun onRequestPermissionsResult(")
+                .substringBefore("override fun onNewIntent(")
+        val compactPermissionBlock = permissionBlock.replace(Regex("""\s+"""), " ")
+        val initViews = presentation.substringAfter("private fun initViews()").substringBefore("private fun initTouchEventHandling()")
+
+        assertTrue(
+            launchBlock.contains(
+                "ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)"
+            )
+        )
+        assertFalse("Presentation onCreate must not request notification permission", initViews.contains("checkNotificationPermission()"))
+        assertFalse(
+            "Permission result must not depend on a still-showing Presentation instance",
+            permissionBlock.contains("externalDisplayControlPresentation")
+        )
+        assertTrue(
+            permissionBlock.contains(
+                "ExternalDisplayControlPresentation.onCompanionNotificationPermissionResult("
+            )
+        )
+        assertTrue(
+            compactPermissionBlock.contains(
+                "if (requestCode == ExternalDisplayControlPresentation.NOTIFICATION_PERMISSION_REQUEST_CODE)"
+            )
+        )
+        assertTrue(
+            compactPermissionBlock.contains(
+                "val granted:Boolean = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED"
+            )
+        )
+        assertTrue(
+            "The actual permission result and live companion lifecycle predicate must be passed to the continuation",
+            compactPermissionBlock.contains(
+                "onCompanionNotificationPermissionResult( this, granted, !isFinishing() && isStreamActive && shouldLaunchCompanionControls() )"
+            )
+        )
+    }
+
+    @Test
+    fun newlyAddedDisplayReopensCompanionControlsUsingTheNewLogicalDisplayId() {
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val listener =
+            game.substringAfter("val listener:DisplayManager.DisplayListener")
+                .substringBefore("externalDisplayListener = listener")
+        val displayAdded =
+            listener.substringAfter("override fun onDisplayAdded")
+                .substringBefore("override fun onDisplayChanged")
+
+        assertTrue(
+            "A hot-added replacement display must re-derive and reopen companion controls",
+            displayAdded.contains("showCompanionControls()")
+        )
     }
 }
