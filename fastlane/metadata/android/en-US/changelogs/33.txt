@@ -1,0 +1,6 @@
+Nova 1.3.1
+
+- Fixes Watch Stream eligibility and uses the active owner's live resolution and FPS profile.
+- Improves NovaHUD Performance and Debug readability, including true text-only 0% opacity.
+- Keeps complete three-digit FPS values visible in the compact Debug HUD.
+- Ships portable SHA-256 checksum files for every published APK.

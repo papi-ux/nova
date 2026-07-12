@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-07-11
+
+Nova 1.3.1 is a focused follow-up to the matched Polaris 1.3 client release. It tightens Watch-stream ownership, keeps NovaHUD readable at Retroid-class widths, and makes the published checksum files portable for normal download-and-verify workflows.
+
+### Highlights
+
+- Shows **Watch active stream** only when a foreign-owned session has a live owner stream, and derives Watch launch resolution and FPS from the owner's active capture/encoder profile instead of the viewer's local display preference.
+- Refines NovaHUD Performance and Debug layouts so the headline FPS remains prominent, detail metrics stay visually separate, and the 0% opacity preset removes panel chrome without hiding the text.
+- Preserves complete three-digit headline FPS values in the compact Debug HUD by constraining lower-priority stream metadata before the FPS lane is allowed to ellipsize.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.1 and versionCode 33.
+- Writes portable SHA-256 sidecars for the signed ARM64, ARMv7, and x86_64 APK assets so `sha256sum -c` works from a clean download directory.
+
+### Validation notes
+
+- The Watch-stream fix was exercised with an independently paired owner emulator and Retroid Pocket 6 viewer using the owner's live `1920x1080 60fps` profile.
+- NovaHUD Minimal, Performance, and Debug modes were verified during a physical RP6 live stream, including a complete `114 TGT 120` Debug headline without FPS clipping.
+- Final publication validation must use the tagged ARM64 release APK for package identity, Library, preflight, live stream, physical controller, Command Center, NovaHUD, and cleanup proof.
+
 ## 1.3.0 - 2026-07-11
 
 Nova 1.3.0 is the matched Polaris 1.3 client release. It adds a self-service stream doctor, display planning, a signature-validating in-app updater, and a denser controller-friendly dashboard across portrait, landscape, Android TV, and external-display use.
