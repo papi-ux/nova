@@ -15,7 +15,7 @@ while you play, and what is safe to do when you leave.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v121) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v131) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -114,7 +114,7 @@ Nova v1.3.1 is a focused follow-up to the Polaris 1.3 client release: safer Watc
 - **Three-digit FPS readability**: compact Debug HUD layouts keep values such as `114 TGT 120` visible by constraining stream metadata before the FPS lane ellipsizes.
 - **Portable checksums**: every public APK sidecar is generated with a relative filename so the documented `sha256sum -c` workflow works from a clean download directory.
 - **Release packaging**: public GitHub Releases ship signed ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksums. VersionCode 33 keeps Obtainium and manual installs on a clean upgrade path.
-- **Release validation**: publication uses the tagged ARM64 release APK for package identity, Library, preflight, live stream, physical controls, Command Center, NovaHUD, and cleanup smoke evidence.
+- **Release validation**: final publication validation must use the tagged ARM64 release APK for package identity, Library, preflight, live stream, physical controls, Command Center, NovaHUD, and cleanup smoke evidence.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 
