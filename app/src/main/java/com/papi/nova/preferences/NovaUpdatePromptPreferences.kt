@@ -1,6 +1,7 @@
 package com.papi.nova.preferences
 
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 internal object NovaUpdatePromptPreferences {
     const val AUTO_CHECK_INTERVAL_MS: Long = 24L * 60L * 60L * 1000L
@@ -15,7 +16,15 @@ internal object NovaUpdatePromptPreferences {
     }
 
     fun recordAutomaticCheck(prefs: SharedPreferences, nowMs: Long) {
-        prefs.edit().putLong(KEY_LAST_AUTO_CHECK_MS, nowMs).apply()
+        prefs.edit { putLong(KEY_LAST_AUTO_CHECK_MS, nowMs) }
+    }
+
+    fun recordAutomaticCheckResult(
+        prefs: SharedPreferences,
+        nowMs: Long,
+        result: Result<NovaUpdateCheckResult>,
+    ) {
+        if (result.isSuccess) recordAutomaticCheck(prefs, nowMs)
     }
 
     fun shouldShowAutomaticPrompt(prefs: SharedPreferences, release: NovaUpdateRelease): Boolean {
