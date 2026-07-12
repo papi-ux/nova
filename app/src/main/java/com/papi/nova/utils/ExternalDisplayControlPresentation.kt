@@ -6,28 +6,29 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.Presentation
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
+import android.view.Display
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.annotation.NonNull
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -45,11 +46,13 @@ import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.ExternalControllerView
 
 /**
- * A standalone Activity providing a full-screen touchpad controller for the secondary display.
- * It creates its own UI programmatically and hosts the GameMenu for in-game options.
+ * Game-owned controller surface rendered on the derived companion display without creating
+ * another Activity/task that can become Android's top-resumed audio owner.
  */
-class ExternalDisplayControlActivity :
-    AppCompatActivity(),
+class ExternalDisplayControlPresentation(
+    private val game: Game,
+    display: Display,
+) : Presentation(game, display, R.style.ExternalDisplayControllerTheme),
     View.OnKeyListener,
     KeyBoardLayoutController.ViewCallbacks {
 
@@ -62,33 +65,37 @@ class ExternalDisplayControlActivity :
     private var isKeyboardVisible = false
 
     private val handler = Handler(Looper.getMainLooper())
-    private var failCount = 0
     private var dimScreenRunnable = Runnable {}
     private var originalBrightness = -1f // -1 = use system default
 
     private var gameMenu: GameMenu? = null
+    private val presentationWindow: Window
+        get() = requireNotNull(window)
+
+    val companionDialogContext: Context by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            game.createDisplayContext(display).createWindowContext(
+                WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG,
+                null,
+            )
+        } else {
+            context
+        }
+    }
+
+    val companionDialogWindowType: Int
+        get() = WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG
+
+    fun companionDialogWindowToken(): IBinder? = presentationWindow.decorView.windowToken
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        instance = this
-        prefConfig = PreferenceConfiguration.readPreferences(this)
-
+        prefConfig = PreferenceConfiguration.readPreferences(context)
         initViews()
     }
 
     private fun initViews() {
-        if (Game.instance == null) {
-            if (failCount > 10) {
-                Toast.makeText(this, getString(R.string.no_game_instance), Toast.LENGTH_LONG).show()
-                finish()
-            }
-            handler.postDelayed({ initViews() }, 500)
-            failCount++
-            return
-        }
-
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        val windowInsetsController = WindowCompat.getInsetsController(presentationWindow, presentationWindow.decorView)
 
         windowInsetsController.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -97,8 +104,8 @@ class ExternalDisplayControlActivity :
         windowInsetsController.hide(WindowInsetsCompat.Type.navigationBars())
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-            ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
+            WindowCompat.setDecorFitsSystemWindows(presentationWindow, false)
+            ViewCompat.setOnApplyWindowInsetsListener(presentationWindow.decorView) { view, insets ->
                 val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
                 updateKeyboardVisibility(
                     imeVisible ||
@@ -110,7 +117,6 @@ class ExternalDisplayControlActivity :
 
         initializeComponents()
         createProgrammaticUI()
-        checkNotificationPermission()
         initTouchEventHandling()
         setupInactivityTimeoutForBrightness()
         StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
@@ -120,28 +126,31 @@ class ExternalDisplayControlActivity :
     private fun initTouchEventHandling() {
         rootLayout.setOnTouchListener { view, event ->
             handleUserActivity()
-            Game.instance?.handleMotionEvent(view, event)
+            game.handleMotionEvent(view, event)
             true
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (!isGameInstanceAvailable() && gameMenu != null) {
-            finish()
+    override fun onStart() {
+        super.onStart()
+        if (game.isFinishing) {
+            dismiss()
         }
     }
 
-    override fun onPause() {
-        super.onPause()
-        if (!isGameInstanceAvailable()) {
-            finish()
-        }
+    private fun disposeTransientState() {
+        handler.removeCallbacksAndMessages(null)
+        gameMenu?.hideMenu()
+        restoreBrightnessIfNeeded()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        instance = null
+    fun disposeAfterFailedShow() {
+        disposeTransientState()
+    }
+
+    override fun onStop() {
+        disposeTransientState()
+        super.onStop()
     }
 
     override fun onKeyboardControllerVisibilityChange(visible: Boolean) {
@@ -150,12 +159,12 @@ class ExternalDisplayControlActivity :
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupInactivityTimeoutForBrightness() {
-        originalBrightness = window.attributes.screenBrightness
+        originalBrightness = presentationWindow.attributes.screenBrightness
 
         dimScreenRunnable = Runnable {
-            val layout = window.attributes
+            val layout = presentationWindow.attributes
             layout.screenBrightness = 0.0f
-            window.attributes = layout
+            presentationWindow.attributes = layout
         }
 
         resetInactivityTimer()
@@ -174,10 +183,10 @@ class ExternalDisplayControlActivity :
     }
 
     private fun restoreBrightnessIfNeeded() {
-        val layout = window.attributes
+        val layout = presentationWindow.attributes
         if (layout.screenBrightness == 0.0f) {
             layout.screenBrightness = originalBrightness
-            window.attributes = layout
+            presentationWindow.attributes = layout
         }
     }
 
@@ -195,20 +204,19 @@ class ExternalDisplayControlActivity :
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        val game = Game.instance
-        if (game != null) {
-            game.handleFocusChange(hasFocus)
-        } else {
-            finish()
+        LimeLog.info(
+            "Nova: Android display focus role=presentation display_id=${display.displayId} window=$hasFocus",
+        )
+        if (game.isFinishing) {
+            dismiss()
         }
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        val game = Game.instance
-        if (game != null && game.isKeyboardLayoutVisible) {
+        if (game.isKeyboardLayoutVisible) {
             toggleFullKeyboard()
-        } else if (gameMenu != null && gameMenu?.isMenuOpen() == false && game != null) {
+        } else if (gameMenu != null && gameMenu?.isMenuOpen() == false) {
             game.onBackPressed()
         } else {
             @Suppress("DEPRECATION")
@@ -216,81 +224,52 @@ class ExternalDisplayControlActivity :
         }
     }
 
-    private fun isGameInstanceAvailable(): Boolean {
-        return Game.instance != null
-    }
-
     private fun initializeComponents() {
-        gameMenu = GameMenu(Game.instance ?: return, this)
-    }
-
-    override fun onConfigurationChanged(@NonNull newConfig: Configuration) {
-        Game.instance?.onConfigurationChanged(newConfig)
-        super.onConfigurationChanged(newConfig)
+        gameMenu = GameMenu(game, companionDialogContext, companionDialogWindowType, ::companionDialogWindowToken)
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
-        val game = Game.instance
-        if (game != null) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-            return game.onGenericMotionEvent(event)
-        }
-        return false
+        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+        return game.onGenericMotionEvent(event)
     }
 
+    @Suppress("DEPRECATION")
     override fun onKey(view: View, keyCode: Int, keyEvent: KeyEvent): Boolean {
-        val game = Game.instance
-        if (game != null) {
-            if (keyEvent.deviceId >= 0) {
-                StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-            }
-            return when (keyEvent.action) {
-                KeyEvent.ACTION_DOWN -> game.handleKeyDown(keyEvent)
-                KeyEvent.ACTION_UP -> game.handleKeyUp(keyEvent)
-                KeyEvent.ACTION_MULTIPLE -> game.handleKeyMultiple(keyEvent)
-                else -> false
-            }
+        if (keyEvent.deviceId >= 0) {
+            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         }
-
-        return false
+        return when (keyEvent.action) {
+            KeyEvent.ACTION_DOWN -> game.handleKeyDown(keyEvent)
+            KeyEvent.ACTION_UP -> game.handleKeyUp(keyEvent)
+            KeyEvent.ACTION_MULTIPLE -> game.handleKeyMultiple(keyEvent)
+            else -> false
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        val game = Game.instance
-        if (game != null) {
-            if (event.deviceId >= 0) {
-                StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-            }
-            return game.onKeyDown(keyCode, event)
+        if (event.deviceId >= 0) {
+            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         }
-        return false
+        return game.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        val game = Game.instance
-        if (game != null) {
-            if (event.deviceId >= 0) {
-                StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-            }
-            return game.onKeyUp(keyCode, event)
+        if (event.deviceId >= 0) {
+            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         }
-        return false
+        return game.onKeyUp(keyCode, event)
     }
 
     override fun onKeyMultiple(keyCode: Int, repeatCount: Int, event: KeyEvent): Boolean {
-        val game = Game.instance
-        if (game != null) {
-            if (event.deviceId >= 0) {
-                StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-            }
-            return game.onKeyMultiple(keyCode, repeatCount, event)
+        if (event.deviceId >= 0) {
+            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         }
-        return false
+        return game.onKeyMultiple(keyCode, repeatCount, event)
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun createProgrammaticUI() {
-        rootLayout = ExternalControllerView(this)
+        rootLayout = ExternalControllerView(context)
         rootLayout.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -300,7 +279,7 @@ class ExternalDisplayControlActivity :
             rootLayout.isFocusedByDefault = true
         }
 
-        rootLayout.setInputCallbacks(Game.instance)
+        rootLayout.setInputCallbacks(game)
         rootLayout.setCommitTextEnabled(prefConfig.enableCommitText)
 
         setContentView(rootLayout)
@@ -308,7 +287,7 @@ class ExternalDisplayControlActivity :
         val topLeftButtons = createButtonContainer(Gravity.TOP or Gravity.START)
         topLeftButtons.isFocusable = false
         zoomButton = createImageButton(R.drawable.ic_zoom_toggle) { toggleZoomMode(true) }
-        if (Game.instance?.isZoomModeEnabled == true) {
+        if (game.isZoomModeEnabled) {
             zoomButton.alpha = 1.0f
         } else {
             zoomButton.alpha = 0.5f
@@ -319,7 +298,7 @@ class ExternalDisplayControlActivity :
         val topRightButtons = createButtonContainer(Gravity.TOP or Gravity.END)
         topRightButtons.isFocusable = false
         topRightButtons.addView(createImageButton(R.drawable.ic_menu_external) { showGameMenu() })
-        topRightButtons.addView(createImageButton(R.drawable.ic_close_external) { finish() })
+        topRightButtons.addView(createImageButton(R.drawable.ic_close_external) { dismiss() })
         rootLayout.addView(topRightButtons)
 
         val bottomLeftButton = createButtonContainer(Gravity.BOTTOM or Gravity.START)
@@ -333,14 +312,15 @@ class ExternalDisplayControlActivity :
         rootLayout.addView(bottomRightButton)
     }
 
+    @Suppress("DEPRECATION")
     private fun _toggleKeyboard() {
-        LimeLog.info("Toggling keyboard overlay on ExternalDisplayControlActivity")
-        val inputManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        LimeLog.info("Toggling keyboard overlay on ExternalDisplayControlPresentation")
+        val inputManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         inputManager.toggleSoftInput(0, 0)
     }
 
     private fun initFullKeyboard(prefConfig: PreferenceConfiguration) {
-        keyBoardLayoutController = KeyBoardLayoutController(rootLayout, this, prefConfig).also {
+        keyBoardLayoutController = KeyBoardLayoutController(rootLayout, context, prefConfig).also {
             it.setViewCallbacks(this)
             it.refreshLayout()
             it.show()
@@ -357,13 +337,10 @@ class ExternalDisplayControlActivity :
     }
 
     fun toggleZoomMode(callGame: Boolean) {
-        val game = Game.instance
-        if (game != null) {
-            if (callGame) {
-                game.toggleZoomMode()
-            } else {
-                zoomButton.alpha = if (game.isZoomModeEnabled) 1.0f else 0.5f
-            }
+        if (callGame) {
+            game.toggleZoomMode()
+        } else {
+            zoomButton.alpha = if (game.isZoomModeEnabled) 1.0f else 0.5f
         }
     }
 
@@ -372,7 +349,7 @@ class ExternalDisplayControlActivity :
     }
 
     private fun createButtonContainer(gravity: Int): LinearLayout {
-        return LinearLayout(this).apply {
+        return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             setGravity(gravity)
             layoutParams = FrameLayout.LayoutParams(
@@ -384,7 +361,7 @@ class ExternalDisplayControlActivity :
     }
 
     private fun createImageButton(imageResourceId: Int, listener: View.OnClickListener): ImageButton {
-        return ImageButton(this).apply {
+        return ImageButton(context).apply {
             setImageResource(imageResourceId)
             setBackgroundColor(Color.TRANSPARENT)
             setOnClickListener(listener)
@@ -392,105 +369,92 @@ class ExternalDisplayControlActivity :
         }
     }
 
-    private fun checkNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    PERMISSION_REQUEST_CODE,
-                )
-                return
-            }
-        }
-        showStickyNotification()
-    }
-
-    private fun showStickyNotification() {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            )
-            channel.setShowBadge(false)
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        val broadcastIntent = Intent(this, StartExternalDisplayControlReceiver::class.java)
-            .setAction(StartExternalDisplayControlReceiver.ACTION_START_EXTERNAL_DISPLAY_CONTROL)
-            .setPackage(packageName)
-        val pendingIntent = PendingIntent.getBroadcast(
-            this,
-            0,
-            broadcastIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
-        val notificationBuilder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text))
-            .setSmallIcon(R.drawable.app_icon)
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setOngoing(true)
-
-        val notification: Notification = notificationBuilder.build()
-
-        notificationManager.notify(SECONDARY_SCREEN_NOTIFICATION_ID, notification)
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray,
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                showStickyNotification()
-            } else {
-                Toast.makeText(this, getString(R.string.permission_denied), Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
     private fun dpToPx(dp: Int): Int {
-        return (dp * resources.displayMetrics.density).toInt()
+        return (dp * context.resources.displayMetrics.density).toInt()
+    }
+
+    fun toggleKeyboard() {
+        _toggleKeyboard()
+    }
+
+    fun toggleFullKeyboard() {
+        _toggleFullKeyboard()
+    }
+
+    fun toggleGameMenu() {
+        showGameMenu()
     }
 
     companion object {
-        @SuppressLint("StaticFieldLeak")
-        @JvmField
-        var instance: ExternalDisplayControlActivity? = null
-
         private const val INACTIVITY_TIMEOUT_MS = 10_000
         private const val NOTIFICATION_CHANNEL_ID = "secondary_screen_active_channel_id"
 
         const val SECONDARY_SCREEN_NOTIFICATION_ID = 1
-        private const val PERMISSION_REQUEST_CODE = 1001
+        const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
 
         @JvmStatic
-        fun closeExternalDisplayControl() {
-            instance?.finish()
+        fun ensureCompanionControlsNotification(game: Game) {
+            if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(game, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    game,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_REQUEST_CODE,
+                )
+                return
+            }
+            postCompanionControlsNotification(game)
         }
 
         @JvmStatic
-        fun toggleKeyboard() {
-            instance?._toggleKeyboard()
+        fun onCompanionNotificationPermissionResult(
+            game: Game,
+            granted: Boolean,
+            shouldPost: Boolean,
+        ) {
+            if (granted && shouldPost) {
+                postCompanionControlsNotification(game)
+            } else if (!granted) {
+                Toast.makeText(game, game.getString(R.string.permission_denied), Toast.LENGTH_SHORT).show()
+            }
         }
 
-        @JvmStatic
-        fun toggleFullKeyboard() {
-            instance?._toggleFullKeyboard()
-        }
+        private fun postCompanionControlsNotification(context: Context) {
+            val notificationManager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    context.getString(R.string.notification_channel_name),
+                    NotificationManager.IMPORTANCE_LOW,
+                )
+                channel.setShowBadge(false)
+                notificationManager.createNotificationChannel(channel)
+            }
 
-        @JvmStatic
-        fun toggleGameMenu() {
-            instance?.showGameMenu()
+            val broadcastIntent = Intent(context, StartExternalDisplayControlReceiver::class.java)
+                .setAction(StartExternalDisplayControlReceiver.ACTION_START_EXTERNAL_DISPLAY_CONTROL)
+                .setPackage(context.packageName)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                0,
+                broadcastIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+            val notificationBuilder = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
+                .setContentTitle(context.getString(R.string.notification_title))
+                .setContentText(context.getString(R.string.notification_text))
+                .setSmallIcon(R.drawable.app_icon)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setOngoing(true)
+
+            val notification: Notification = notificationBuilder.build()
+            notificationManager.notify(SECONDARY_SCREEN_NOTIFICATION_ID, notification)
         }
     }
 }

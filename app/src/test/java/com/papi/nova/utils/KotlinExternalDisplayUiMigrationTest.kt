@@ -1,7 +1,9 @@
 package com.papi.nova.utils
 
 import android.app.Activity
+import android.app.Presentation
 import android.content.Context
+import android.view.Display
 import android.view.View
 import com.papi.nova.StartExternalDisplayControlReceiver
 import com.papi.nova.nvstream.http.ComputerDetails
@@ -16,7 +18,7 @@ class KotlinExternalDisplayUiMigrationTest {
     @Test
     fun externalDisplayUiHelpersAreKotlinSources() {
         val names = arrayOf(
-            "utils/ExternalDisplayControlActivity",
+            "utils/ExternalDisplayControlPresentation",
             "utils/GameDisplayLaunchTrampolineActivity",
             "utils/UiHelper"
         )
@@ -32,7 +34,7 @@ class KotlinExternalDisplayUiMigrationTest {
     @Test
     fun externalDisplayUiHelpersKeepJavaCompatibleApis() {
         assertEquals("launchIntent", GameDisplayLaunchTrampolineActivity.EXTRA_LAUNCH_INTENT)
-        assertEquals(1, ExternalDisplayControlActivity.SECONDARY_SCREEN_NOTIFICATION_ID)
+        assertEquals(1, ExternalDisplayControlPresentation.SECONDARY_SCREEN_NOTIFICATION_ID)
         assertEquals(
             "com.papi.nova.action.START_EXTERNAL_DISPLAY_CONTROL",
             StartExternalDisplayControlReceiver.ACTION_START_EXTERNAL_DISPLAY_CONTROL
@@ -44,7 +46,7 @@ class KotlinExternalDisplayUiMigrationTest {
                     .modifiers
             )
         )
-        assertTrue(Modifier.isStatic(ExternalDisplayControlActivity::class.java.getField("instance").modifiers))
+        assertTrue(Presentation::class.java.isAssignableFrom(ExternalDisplayControlPresentation::class.java))
         assertTrue(
             Modifier.isStatic(
                 StartExternalDisplayControlReceiver::class.java
@@ -52,13 +54,31 @@ class KotlinExternalDisplayUiMigrationTest {
                     .modifiers
             )
         )
-        ExternalDisplayControlActivity::class.java.getConstructor()
-        ExternalDisplayControlActivity::class.java.getMethod("closeExternalDisplayControl")
-        ExternalDisplayControlActivity::class.java.getMethod("toggleKeyboard")
-        ExternalDisplayControlActivity::class.java.getMethod("toggleFullKeyboard")
-        ExternalDisplayControlActivity::class.java.getMethod("toggleGameMenu")
-        ExternalDisplayControlActivity::class.java.getMethod("toggleZoomMode", Boolean::class.javaPrimitiveType!!)
-        ExternalDisplayControlActivity::class.java.getMethod("showGameMenu")
+        ExternalDisplayControlPresentation::class.java.getConstructor(
+            com.papi.nova.Game::class.java,
+            Display::class.java
+        )
+        ExternalDisplayControlPresentation::class.java.getMethod("toggleKeyboard")
+        ExternalDisplayControlPresentation::class.java.getMethod("toggleFullKeyboard")
+        ExternalDisplayControlPresentation::class.java.getMethod("toggleGameMenu")
+        ExternalDisplayControlPresentation::class.java.getMethod("toggleZoomMode", Boolean::class.javaPrimitiveType!!)
+        ExternalDisplayControlPresentation::class.java.getMethod("showGameMenu")
+        com.papi.nova.GameMenu::class.java.getConstructor(com.papi.nova.Game::class.java)
+        com.papi.nova.GameMenu::class.java.getConstructor(
+            com.papi.nova.Game::class.java,
+            Context::class.java
+        )
+        com.papi.nova.GameMenu::class.java.getConstructor(
+            com.papi.nova.Game::class.java,
+            Context::class.java,
+            Int::class.javaObjectType
+        )
+        com.papi.nova.Game::class.java.getMethod("selectMouseMode", Context::class.java)
+        com.papi.nova.Game::class.java.getMethod(
+            "selectMouseMode",
+            Context::class.java,
+            Int::class.javaObjectType
+        )
         GameDisplayLaunchTrampolineActivity::class.java.getMethod(
             "launchGameOnRequestedDisplay",
             Context::class.java,
@@ -77,6 +97,10 @@ class KotlinExternalDisplayUiMigrationTest {
         UiHelper::class.java.getMethod("applyStatusBarPadding", View::class.java)
         UiHelper::class.java.getMethod("notifyNewRootView", Activity::class.java)
         UiHelper::class.java.getMethod("showDecoderCrashDialog", Activity::class.java)
+        StartExternalDisplayControlReceiver::class.java.getMethod(
+            "requestFocusToExternalDisplayControl",
+            Context::class.java
+        )
         StartExternalDisplayControlReceiver::class.java.getMethod(
             "requestFocusToExternalDisplayControl",
             Context::class.java,

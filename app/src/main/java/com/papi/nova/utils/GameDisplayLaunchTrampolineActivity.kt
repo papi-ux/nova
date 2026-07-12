@@ -17,9 +17,9 @@ import com.papi.nova.R
 /**
  * One-shot activity used only to force the stream Game activity onto the selected Android display.
  *
- * Do not use ExternalDisplayControlActivity for this: that activity is a singleton companion/control
- * surface. Reusing it as a bootstrap can strand Thor-style bottom-screen launches as a black
- * control placeholder before Game owns the top display.
+ * Do not use the companion Presentation for this: it is a Game-owned control surface, not a stream
+ * bootstrap. The trampoline must place Game first so Thor-style bottom-screen launches still stream
+ * on the explicitly selected display before companion controls appear.
  */
 class GameDisplayLaunchTrampolineActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
