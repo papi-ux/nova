@@ -997,11 +997,14 @@
     <string name="nova_update_installer_started">Android installer opened. Review the install prompt to finish updating Nova.</string>
     <string name="nova_update_no_apk_message">This release does not include a direct APK for this device.</string>
     <string name="nova_update_untrusted_url_message">Nova blocked this download because it was not a trusted Nova GitHub release APK.</string>
+    <string name="nova_update_validation_failed_message">Nova could not safely validate the downloaded APK: %1$s</string>
     <string name="nova_update_permission_title">Allow Nova to install updates</string>
     <string name="nova_update_permission_message">Android requires permission before Nova can hand an update APK to the system installer. Enable “Allow from this source”, then return to Nova and tap Download APK again.</string>
     <string name="nova_update_open_android_settings">Open Android settings</string>
+    <string name="nova_update_retry">Retry</string>
     <string name="nova_update_install_blocked_title">Update blocked for safety</string>
     <string name="nova_update_install_failed_title">Update install failed</string>
+    <string name="nova_update_install_in_progress">An update install is already in progress.</string>
     <string name="title_follow_update">Follow Update</string>
     <string name="summary_follow_update">Get Nova updates via Obtainium</string>
     <string name="title_special_key_layout">Special Key Layout</string>

@@ -2,11 +2,11 @@ package com.papi.nova.preferences
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.widget.Toast
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
-import java.net.URI
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
@@ -15,10 +15,12 @@ import com.papi.nova.R
 import com.papi.nova.ui.NovaSheetChrome
 import java.io.File
 import java.security.MessageDigest
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal sealed class NovaUpdateInstallValidation {
     data object Valid : NovaUpdateInstallValidation()
@@ -33,17 +35,31 @@ internal sealed class NovaUpdateInstallResult {
 }
 
 internal object NovaUpdateInstaller {
-    private const val MAX_APK_BYTES = 300L * 1024L * 1024L
     private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
+    private val encodedPathMetaOctet = Regex("%(?:2e|2f|5c)", RegexOption.IGNORE_CASE)
+    private val installInProgress = AtomicBoolean(false)
 
     fun isTrustedDownloadUrl(url: String): Boolean {
-        val parsed = runCatching { URI(url) }.getOrNull() ?: return false
-        if (parsed.scheme != "https") return false
-        if (parsed.host != "github.com") return false
-        val path = parsed.rawPath ?: return false
-        if (!path.startsWith("/papi-ux/nova/releases/download/")) return false
-        if (path.contains("..")) return false
-        return path.endsWith(".apk", ignoreCase = true)
+        if (encodedPathMetaOctet.containsMatchIn(url)) return false
+        val parsed = url.toHttpUrlOrNull() ?: return false
+        if (parsed.scheme != "https" || parsed.host != "github.com" || parsed.port != 443) return false
+        if (parsed.username.isNotEmpty() || parsed.password.isNotEmpty()) return false
+        if (parsed.query != null || parsed.fragment != null) return false
+
+        val encodedSegments = parsed.encodedPathSegments
+        if (encodedSegments.any { segment ->
+                val lower = segment.lowercase()
+                lower.contains("%2e") || lower.contains("%2f") || lower.contains("%5c")
+            }
+        ) {
+            return false
+        }
+
+        val segments = parsed.pathSegments
+        if (segments.size != 6) return false
+        if (segments.take(4) != listOf("papi-ux", "nova", "releases", "download")) return false
+        if (segments[4].isBlank()) return false
+        return segments[5].isNotBlank() && segments[5].endsWith(".apk", ignoreCase = true)
     }
 
     fun validateDownloadedApkMetadata(
@@ -77,11 +93,106 @@ internal object NovaUpdateInstaller {
         return NovaUpdateInstallValidation.Valid
     }
 
+    fun showInstallResult(
+        activity: Activity,
+        release: NovaUpdateRelease,
+        result: NovaUpdateInstallResult,
+        onRetry: (NovaUpdateRelease) -> Unit,
+        onViewReleases: () -> Unit,
+    ) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        when (result) {
+            NovaUpdateInstallResult.StartedInstaller -> Toast.makeText(
+                activity,
+                R.string.nova_update_installer_started,
+                Toast.LENGTH_LONG,
+            ).show()
+            NovaUpdateInstallResult.PermissionRequired -> Unit
+            is NovaUpdateInstallResult.Blocked -> showInstallProblem(
+                activity,
+                R.string.nova_update_install_blocked_title,
+                result.reason,
+                onRetry = null,
+                onViewReleases = onViewReleases,
+            )
+            is NovaUpdateInstallResult.Failed -> showInstallProblem(
+                activity,
+                R.string.nova_update_install_failed_title,
+                result.reason,
+                onRetry = { onRetry(release) },
+                onViewReleases = onViewReleases,
+            )
+        }
+    }
+
+    fun dismissIfAlive(activity: Activity, dismiss: () -> Unit) {
+        if (!activity.isDestroyed) dismiss()
+    }
+
+    fun showCheckError(
+        activity: Activity,
+        error: Throwable,
+        onRetry: () -> Unit,
+        onViewReleases: () -> Unit,
+    ) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        val detail = error.localizedMessage ?: error.javaClass.simpleName ?: "Unknown error"
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(R.string.nova_update_failed_title)
+            .setMessage(activity.getString(R.string.nova_update_failed_message, detail))
+            .setPositiveButton(R.string.nova_update_retry) { _, _ -> onRetry() }
+            .setNeutralButton(R.string.nova_update_view_releases) { _, _ -> onViewReleases() }
+            .show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
+    }
+
+    private fun showInstallProblem(
+        activity: Activity,
+        titleRes: Int,
+        message: String,
+        onRetry: (() -> Unit)?,
+        onViewReleases: () -> Unit,
+    ) {
+        val builder = AlertDialog.Builder(activity)
+            .setTitle(titleRes)
+            .setMessage(message)
+            .setNeutralButton(R.string.nova_update_view_releases) { _, _ -> onViewReleases() }
+        if (onRetry == null) {
+            builder.setPositiveButton(android.R.string.ok, null)
+        } else {
+            builder.setPositiveButton(R.string.nova_update_retry) { _, _ -> onRetry() }
+        }
+        val dialog = builder.show()
+        NovaSheetChrome.applyAlertDialogChrome(dialog)
+    }
+
     suspend fun downloadValidateAndInstall(
         activity: Activity,
         release: NovaUpdateRelease,
         client: OkHttpClient = OkHttpClient(),
-        onProgress: (Int) -> Unit = {}
+        onProgress: (Int) -> Unit = {},
+    ): NovaUpdateInstallResult = downloadValidateAndInstall(
+        activity = activity,
+        release = release,
+        downloader = {
+            NovaUpdateDownloadStore.download(activity.cacheDir, release, client, onProgress)
+        },
+        validator = { apkFile ->
+            withContext(Dispatchers.IO) {
+                validateDownloadedApk(activity, apkFile, release)
+            }
+        },
+        installerLauncher = { apkFile ->
+            launchPackageInstaller(activity, apkFile)
+        },
+    )
+
+    internal suspend fun downloadValidateAndInstall(
+        activity: Activity,
+        release: NovaUpdateRelease,
+        downloader: suspend () -> File,
+        validator: suspend (File) -> NovaUpdateInstallValidation,
+        installerLauncher: (File) -> Unit,
     ): NovaUpdateInstallResult {
         val downloadUrl = release.apkDownloadUrl
             ?: return NovaUpdateInstallResult.Blocked(activity.getString(R.string.nova_update_no_apk_message))
@@ -94,24 +205,60 @@ internal object NovaUpdateInstaller {
             }
             return NovaUpdateInstallResult.PermissionRequired
         }
+        if (!installInProgress.compareAndSet(false, true)) {
+            return NovaUpdateInstallResult.Failed(activity.getString(R.string.nova_update_install_in_progress))
+        }
 
-        return withContext(Dispatchers.IO) {
-            try {
-                val apkFile = downloadApk(activity, release, downloadUrl, client, onProgress)
-                when (val validation = validateDownloadedApk(activity, apkFile, release)) {
-                    NovaUpdateInstallValidation.Valid -> {
-                        withContext(Dispatchers.Main.immediate) {
-                            launchPackageInstaller(activity, apkFile)
-                        }
-                        NovaUpdateInstallResult.StartedInstaller
-                    }
-                    is NovaUpdateInstallValidation.Invalid -> NovaUpdateInstallResult.Blocked(validation.reason)
-                }
+        var downloadedApk: File? = null
+        return try {
+            val apkFile = downloader()
+            downloadedApk = apkFile
+            val validation = try {
+                validator(apkFile)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                NovaUpdateInstallResult.Failed(e.localizedMessage ?: e.javaClass.simpleName)
+                val cleanupProblem = deleteDownloadedApk(apkFile)
+                return NovaUpdateInstallResult.Blocked(
+                    activity.getString(
+                        R.string.nova_update_validation_failed_message,
+                        e.localizedMessage ?: e.javaClass.simpleName,
+                    ) + cleanupProblem.asDialogSuffix()
+                )
             }
+            when (validation) {
+                NovaUpdateInstallValidation.Valid -> {
+                    withContext(Dispatchers.Main.immediate) {
+                        installerLauncher(apkFile)
+                    }
+                    NovaUpdateInstallResult.StartedInstaller
+                }
+                is NovaUpdateInstallValidation.Invalid -> {
+                    val cleanupProblem = deleteDownloadedApk(apkFile)
+                    NovaUpdateInstallResult.Blocked(validation.reason + cleanupProblem.asDialogSuffix())
+                }
+            }
+        } catch (e: CancellationException) {
+            deleteDownloadedApk(downloadedApk)?.let { cleanupProblem ->
+                e.addSuppressed(IllegalStateException(cleanupProblem))
+            }
+            throw e
+        } catch (e: Exception) {
+            val cleanupProblem = deleteDownloadedApk(downloadedApk)
+            NovaUpdateInstallResult.Failed(
+                (e.localizedMessage ?: e.javaClass.simpleName) + cleanupProblem.asDialogSuffix()
+            )
+        } finally {
+            installInProgress.set(false)
         }
     }
+
+    private fun deleteDownloadedApk(apkFile: File?): String? {
+        if (apkFile == null || !apkFile.exists() || apkFile.delete()) return null
+        return "Nova could not remove the downloaded APK from its private cache."
+    }
+
+    private fun String?.asDialogSuffix(): String = if (this == null) "" else "\n\n$this"
 
     private fun canRequestPackageInstalls(activity: Activity): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
@@ -140,65 +287,6 @@ internal object NovaUpdateInstaller {
         }
         runCatching { activity.startActivity(intent) }
             .onFailure { activity.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }
-    }
-
-    private fun downloadApk(
-        activity: Activity,
-        release: NovaUpdateRelease,
-        downloadUrl: String,
-        client: OkHttpClient,
-        onProgress: (Int) -> Unit
-    ): File {
-        val safeName = release.apkAssetName
-            ?.substringAfterLast('/')
-            ?.replace(Regex("[^A-Za-z0-9._-]"), "_")
-            ?.takeIf { it.endsWith(".apk", ignoreCase = true) }
-            ?: "Nova-${release.versionName}.apk"
-        val updateDir = File(activity.cacheDir, "nova-updates").apply { mkdirs() }
-        val apkFile = File(updateDir, safeName)
-
-        val request = Request.Builder()
-            .url(downloadUrl)
-            .header("Accept", "application/octet-stream")
-            .header("User-Agent", "Nova/${BuildConfig.VERSION_NAME}")
-            .build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IllegalStateException("Download failed: HTTP ${response.code}")
-            }
-            val body = response.body
-            val totalBytes = body.contentLength()
-            if (totalBytes > MAX_APK_BYTES) {
-                throw IllegalStateException("APK is unexpectedly large (${totalBytes / (1024 * 1024)} MB).")
-            }
-            body.byteStream().use { input ->
-                apkFile.outputStream().use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    var copied = 0L
-                    var lastProgress = -1
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read == -1) break
-                        copied += read
-                        if (copied > MAX_APK_BYTES) {
-                            throw IllegalStateException("APK exceeded the maximum safe download size.")
-                        }
-                        output.write(buffer, 0, read)
-                        if (totalBytes > 0L) {
-                            val progress = ((copied * 100L) / totalBytes).toInt().coerceIn(0, 100)
-                            if (progress != lastProgress) {
-                                lastProgress = progress
-                                onProgress(progress)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (!apkFile.isFile || apkFile.length() <= 0L) {
-            throw IllegalStateException("Downloaded APK is empty.")
-        }
-        return apkFile
     }
 
     private fun validateDownloadedApk(

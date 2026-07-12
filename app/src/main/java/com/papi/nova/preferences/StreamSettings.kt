@@ -271,43 +271,29 @@ class StreamSettings : AppCompatActivity() {
             false
         )
         lifecycleScope.launch {
-            val result = NovaUpdateInstaller.downloadValidateAndInstall(this@StreamSettings, release) { progress ->
-                spinner.setMessage(
-                    getString(R.string.nova_update_downloading_message, release.versionName, progress)
+            try {
+                val result = NovaUpdateInstaller.downloadValidateAndInstall(this@StreamSettings, release) { progress ->
+                    spinner.setMessage(
+                        if (progress >= 100) {
+                            getString(R.string.nova_update_verifying_message)
+                        } else {
+                            getString(R.string.nova_update_downloading_message, release.versionName, progress)
+                        }
+                    )
+                }
+                NovaUpdateInstaller.showInstallResult(
+                    this@StreamSettings,
+                    release,
+                    result,
+                    onRetry = { startNovaUpdateInstall(it) },
+                    onViewReleases = {
+                        HelpLauncher.launchUrl(this@StreamSettings, "https://github.com/papi-ux/nova/releases")
+                    },
                 )
+            } finally {
+                NovaUpdateInstaller.dismissIfAlive(this@StreamSettings) { spinner.dismiss() }
             }
-            spinner.setMessage(getString(R.string.nova_update_verifying_message))
-            spinner.dismiss()
-            showNovaUpdateInstallResult(result)
         }
-    }
-
-    private fun showNovaUpdateInstallResult(result: NovaUpdateInstallResult) {
-        when (result) {
-            NovaUpdateInstallResult.StartedInstaller -> Toast.makeText(
-                this,
-                R.string.nova_update_installer_started,
-                Toast.LENGTH_LONG
-            ).show()
-            NovaUpdateInstallResult.PermissionRequired -> Unit
-            is NovaUpdateInstallResult.Blocked -> showNovaUpdateInstallProblem(
-                R.string.nova_update_install_blocked_title,
-                result.reason
-            )
-            is NovaUpdateInstallResult.Failed -> showNovaUpdateInstallProblem(
-                R.string.nova_update_install_failed_title,
-                result.reason
-            )
-        }
-    }
-
-    private fun showNovaUpdateInstallProblem(titleRes: Int, message: String) {
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(titleRes)
-            .setMessage(message)
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
     }
 
     private fun showNovaUpdateCurrent(release: NovaUpdateRelease) {
@@ -329,16 +315,14 @@ class StreamSettings : AppCompatActivity() {
     }
 
     private fun showNovaUpdateError(error: Throwable) {
-        val detail = error.localizedMessage ?: error.javaClass.simpleName ?: "Unknown error"
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.nova_update_failed_title)
-            .setMessage(getString(R.string.nova_update_failed_message, detail))
-            .setPositiveButton(android.R.string.ok, null)
-            .setNeutralButton(R.string.nova_update_view_releases) { _, _ ->
+        NovaUpdateInstaller.showCheckError(
+            this,
+            error,
+            onRetry = { checkForNovaUpdate() },
+            onViewReleases = {
                 HelpLauncher.launchUrl(this, "https://github.com/papi-ux/nova/releases")
-            }
-            .show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
+            },
+        )
     }
 
     private fun resetStreamUiRuntimePreferences() {

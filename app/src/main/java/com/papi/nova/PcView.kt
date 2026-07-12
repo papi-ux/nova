@@ -1699,10 +1699,10 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         if (!NovaUpdatePromptPreferences.shouldRunAutomaticCheck(prefs, nowMs)) {
             return
         }
-        NovaUpdatePromptPreferences.recordAutomaticCheck(prefs, nowMs)
 
         runtimeTasks.launchIo("NovaAutomaticUpdateCheck") {
             val result = runCatching { NovaUpdateChecker.checkLatest() }
+            NovaUpdatePromptPreferences.recordAutomaticCheckResult(prefs, nowMs, result)
             result.onSuccess { updateResult ->
                 if (updateResult !is NovaUpdateCheckResult.UpdateAvailable) {
                     return@onSuccess
@@ -1770,43 +1770,29 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
             false
         )
         runtimeTasks.launchMain("NovaUpdateInstall") {
-            val result = NovaUpdateInstaller.downloadValidateAndInstall(this@PcView, release) { progress ->
-                spinner.setMessage(
-                    getString(R.string.nova_update_downloading_message, release.versionName, progress)
+            try {
+                val result = NovaUpdateInstaller.downloadValidateAndInstall(this@PcView, release) { progress ->
+                    spinner.setMessage(
+                        if (progress >= 100) {
+                            getString(R.string.nova_update_verifying_message)
+                        } else {
+                            getString(R.string.nova_update_downloading_message, release.versionName, progress)
+                        }
+                    )
+                }
+                NovaUpdateInstaller.showInstallResult(
+                    this@PcView,
+                    release,
+                    result,
+                    onRetry = { startNovaUpdateInstall(it) },
+                    onViewReleases = {
+                        HelpLauncher.launchUrl(this@PcView, "https://github.com/papi-ux/nova/releases")
+                    },
                 )
+            } finally {
+                NovaUpdateInstaller.dismissIfAlive(this@PcView) { spinner.dismiss() }
             }
-            spinner.setMessage(getString(R.string.nova_update_verifying_message))
-            spinner.dismiss()
-            showNovaUpdateInstallResult(result)
         }
-    }
-
-    private fun showNovaUpdateInstallResult(result: NovaUpdateInstallResult) {
-        when (result) {
-            NovaUpdateInstallResult.StartedInstaller -> Toast.makeText(
-                this,
-                R.string.nova_update_installer_started,
-                Toast.LENGTH_LONG
-            ).show()
-            NovaUpdateInstallResult.PermissionRequired -> Unit
-            is NovaUpdateInstallResult.Blocked -> showNovaUpdateInstallProblem(
-                R.string.nova_update_install_blocked_title,
-                result.reason
-            )
-            is NovaUpdateInstallResult.Failed -> showNovaUpdateInstallProblem(
-                R.string.nova_update_install_failed_title,
-                result.reason
-            )
-        }
-    }
-
-    private fun showNovaUpdateInstallProblem(titleRes: Int, message: String) {
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(titleRes)
-            .setMessage(message)
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
     }
 
     private fun handleWelcomeAction(action: String?) {
