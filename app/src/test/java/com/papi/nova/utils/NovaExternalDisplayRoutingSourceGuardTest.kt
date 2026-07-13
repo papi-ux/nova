@@ -339,6 +339,47 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
+    fun stoppedStreamDismissesCompanionControlsBeforeBackgroundCleanup() {
+        val source = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val stopConnection =
+            source.substringAfter("private fun stopConnection()")
+                .substringBefore("override fun stageFailed(")
+        val streamInactive = stopConnection.indexOf("isStreamActive = false")
+        val controlsClosed = stopConnection.indexOf("closeCompanionControls()", streamInactive)
+        val backgroundCleanup = stopConnection.indexOf("launchRuntimeIo(\"NovaSessionReport\")")
+
+        assertTrue("stopConnection must mark the stream inactive", streamInactive >= 0)
+        assertTrue("stopConnection must dismiss companion controls after marking the stream inactive", controlsClosed > streamInactive)
+        assertTrue("companion controls must close before asynchronous teardown work", controlsClosed in 0 until backgroundCleanup)
+    }
+
+    @Test
+    fun companionReopenChecksLiveGameLifecycleAtExecutionTime() {
+        val source = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val showControls =
+            source.substringAfter("fun showCompanionControls() {")
+                .substringBefore("@SuppressLint(\"InlinedApi\")")
+        val uiDispatch = showControls.indexOf("runOnUiThread {")
+        val lifecycleDecision = showControls.indexOf("CompanionControlLifecyclePolicy.canShow(")
+        val deniedClose = showControls.indexOf("closeCompanionControls()")
+        val deniedReturn = showControls.indexOf("return@runOnUiThread")
+        val presentationLaunch = showControls.indexOf("launchCompanionControlsIfAvailable()")
+
+        assertTrue("showCompanionControls must dispatch before reading lifecycle state", uiDispatch >= 0)
+        assertTrue("lifecycle state must be checked inside the UI-thread callback", lifecycleDecision > uiDispatch)
+        assertTrue("denied reopen must close stale controls", deniedClose > lifecycleDecision)
+        assertTrue("denied reopen must return before presentation launch", deniedReturn > deniedClose)
+        assertTrue("presentation launch must follow the lifecycle gate", presentationLaunch > deniedReturn)
+        val compactShowControls = showControls.replace(Regex("\\s+"), " ")
+        assertTrue(
+            "The execution-time lifecycle decision must receive the live Game state, not constants",
+            compactShowControls.contains(
+                "CompanionControlLifecyclePolicy.canShow(isStreamActive, isFinishing(), isDestroyed)"
+            )
+        )
+    }
+
+    @Test
     fun newlyAddedDisplayReopensCompanionControlsUsingTheNewLogicalDisplayId() {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val listener =
