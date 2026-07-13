@@ -1155,6 +1155,12 @@ class NovaComposeSourceGuardTest {
                 launchControls.contains("text = notice.ifBlank { \"Launch profile adjusted\" }")
         )
         assertTrue(
+            "near-target performance should use an explicit healthy status tone instead of warning styling",
+            launchControls.contains("summary.noticeTone == NovaLaunchProfileNoticeTone.HEALTHY") &&
+                launchControls.contains("val badgeLabel = if (isHealthy) summary.noticeLabel else \"Heads up\"") &&
+                launchControls.contains("Color(0xFF4ADE80)")
+        )
+        assertTrue(
             "Heads up should stay compact until the player opens the DPAD-friendly detail control",
             launchControls.contains("var noticeExpanded by remember(") &&
                 launchControls.contains("text = if (noticeExpanded) \"Hide details\" else \"More details\"") &&

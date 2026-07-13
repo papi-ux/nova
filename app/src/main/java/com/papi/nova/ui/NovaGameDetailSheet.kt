@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1872,6 +1873,9 @@ private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
         ?: summary.reasonLine.takeIf { it.isNotBlank() }
         ?: summary.freshnessLine.takeIf { it.isNotBlank() }
         ?: ""
+    val isHealthy = summary.noticeTone == NovaLaunchProfileNoticeTone.HEALTHY
+    val toneColor = if (isHealthy) Color(0xFF4ADE80) else colors.warning
+    val badgeLabel = if (isHealthy) summary.noticeLabel else "Heads up"
     val hasNoticeContent = listOf(
         notice,
         summary.noticeDetail,
@@ -1886,8 +1890,8 @@ private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
             .fillMaxWidth()
             .padding(top = 8.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(colors.warning.copy(alpha = 0.14f))
-            .border(1.dp, colors.warning.copy(alpha = 0.52f), RoundedCornerShape(12.dp))
+            .background(toneColor.copy(alpha = 0.14f))
+            .border(1.dp, toneColor.copy(alpha = 0.52f), RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 9.dp),
     ) {
         Row(
@@ -1895,10 +1899,10 @@ private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             NovaBadge(
-                text = "Heads up",
-                color = colors.warning,
+                text = badgeLabel,
+                color = toneColor,
                 backgroundColor = surfaces.control.copy(alpha = 0.72f),
-                borderColor = colors.warning.copy(alpha = 0.35f),
+                borderColor = toneColor.copy(alpha = 0.35f),
                 fontWeight = FontWeight.SemiBold
             )
             Text(
@@ -1940,7 +1944,7 @@ private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
         if (noticeExpanded && summary.noticeRecommendation.isNotBlank()) {
             Text(
                 text = summary.noticeRecommendation,
-                color = colors.warning,
+                color = toneColor,
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
                 fontWeight = FontWeight.Medium,

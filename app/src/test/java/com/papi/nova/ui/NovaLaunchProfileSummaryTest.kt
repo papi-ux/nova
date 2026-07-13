@@ -91,6 +91,7 @@ class NovaLaunchProfileSummaryTest {
         )
 
         requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
         assertEquals("Limited by: Host render", summary.limitingLine)
         assertEquals(
             "Last stream: 54/60 FPS. The host missed the stream target, which can cause repeated frames or uneven motion.",
@@ -265,6 +266,279 @@ class NovaLaunchProfileSummaryTest {
         assertEquals("Launch High FPS stream 120 FPS", summary.primaryLaunchLabel)
         assertEquals("Selected: High FPS stream / 120 FPS", summary.selectedLine)
         assertFalse(summary.showRetryHighFps)
+    }
+
+    @Test
+    fun healthyNearTargetResultOverridesStaleHostLimitWithPositiveEvidence() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"display_mode\":\"1920x1080x120\"," +
+                    "\"effective_target_fps\":120," +
+                    "\"preference\":\"high_fps\"," +
+                    "\"preference_applied\":true," +
+                    "\"limiting_factor\":\"host_render_limited\"," +
+                    "\"preference_requested_profile\":{\"display_mode\":\"1920x1080x120\",\"target_fps\":120}," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"blocked\",\"label\":\"High FPS held\"," +
+                    "\"reason\":\"Holding quality until the host render path reaches the stream FPS target.\"," +
+                    "\"current_profile\":{\"display_mode\":\"1920x1080x120\",\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.78,\"min_fps\":110.78,\"frame_pacing_bad_pct\":0.0," +
+                    "\"network_risk\":\"normal\",\"decoder_risk\":\"normal\",\"hdr_risk\":\"normal\"," +
+                    "\"primary_issue\":\"host_render_limited\",\"updated_at\":1780000000}" +
+                    "}" +
+                    "}"
+            ),
+            nowSeconds = 1780000060L
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.HEALTHY, summary.noticeTone)
+        assertEquals("", summary.limitingLine)
+        assertEquals("Performance: Near target", summary.reasonLine)
+        assertEquals(
+            "Last stream: 115.6/120 FPS. 1% low: 110.8 FPS. Bad pacing: 0%. Normal gameplay variation.",
+            summary.noticeDetail
+        )
+        assertEquals("No recovery adjustment is needed.", summary.noticeRecommendation)
+        assertTrue(summary.historyLines.contains("Last: grade A · Near target at 115.6/120 FPS"))
+        assertFalse(summary.historyLines.any { it.contains("Issue:") })
+    }
+
+    @Test
+    fun missingDetailedPacingEvidenceDoesNotOverrideHostWarning() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"display_mode\":\"1920x1080x120\"," +
+                    "\"limiting_factor\":\"host_render\"," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"blocked\"," +
+                    "\"last_result\":{" +
+                    "\"grade\":\"A\"," +
+                    "\"delivered_fps\":115.6," +
+                    "\"target_fps\":120.0," +
+                    "\"primary_issue\":\"host_render_limited\"}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertEquals("Limited by: Host render", summary.limitingLine)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun nearTargetAverageWithBadPacingKeepsWarning() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120," +
+                    "\"limiting_factor\":\"host_render_limited\"," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"frame_pacing_bad_pct\":10.0," +
+                    "\"primary_issue\":\"host_render_limited\"}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertEquals("Limited by: Host render", summary.limitingLine)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun malformedPacingEvidenceDoesNotOverrideHostWarning() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120," +
+                    "\"limiting_factor\":\"host_render_limited\"," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"min_fps\":110.8,\"frame_pacing_bad_pct\":\"unknown\"," +
+                    "\"primary_issue\":\"host_render_limited\"}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun conflictingNetworkIssueOverridesStaleHostFactor() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120," +
+                    "\"limiting_factor\":\"host_render_limited\"," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"min_fps\":110.8,\"frame_pacing_bad_pct\":0.0," +
+                    "\"primary_issue\":\"network\"}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertEquals("Limited by: Network", summary.limitingLine)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun absentIssueDoesNotManufactureHealthyStatus() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"min_fps\":110.8,\"frame_pacing_bad_pct\":0.0}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun limitingFactorWithoutPrimaryIssueDoesNotRenderHealthy() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120,\"limiting_factor\":\"host_render_limited\"," +
+                    "\"profile_state\":{\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"min_fps\":110.8,\"frame_pacing_bad_pct\":0.0," +
+                    "\"network_risk\":\"normal\",\"decoder_risk\":\"normal\",\"hdr_risk\":\"normal\"}}}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertEquals("Limited by: Host render", summary.limitingLine)
+    }
+
+    @Test
+    fun primaryIssueWithoutLimitingFactorDoesNotRenderHealthy() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120," +
+                    "\"profile_state\":{\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"min_fps\":110.8,\"frame_pacing_bad_pct\":0.0," +
+                    "\"network_risk\":\"normal\",\"decoder_risk\":\"normal\",\"hdr_risk\":\"normal\"," +
+                    "\"primary_issue\":\"host_render_limited\"}}}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertEquals("Limited by: Host render", summary.limitingLine)
+    }
+
+    @Test
+    fun missingRiskEvidenceDoesNotRenderHealthy() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120,\"limiting_factor\":\"host_render_limited\"," +
+                    "\"profile_state\":{\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"min_fps\":110.8,\"frame_pacing_bad_pct\":0.0," +
+                    "\"primary_issue\":\"host_render_limited\"}}}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+    }
+
+    @Test
+    fun unknownRiskEvidenceDoesNotRenderHealthy() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120,\"limiting_factor\":\"host_render_limited\"," +
+                    "\"profile_state\":{\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"min_fps\":110.8,\"frame_pacing_bad_pct\":0.0," +
+                    "\"network_risk\":\"unknown\",\"decoder_risk\":\"normal\",\"hdr_risk\":\"normal\"," +
+                    "\"primary_issue\":\"host_render_limited\"}}}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+    }
+
+    @Test
+    fun activeRecoveryNeverRendersAsHealthyNearTarget() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":60," +
+                    "\"limiting_factor\":\"host_render_limited\"," +
+                    "\"preference_requested_profile\":{\"target_fps\":120}," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"recovering\",\"current_profile\":{\"target_fps\":60}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":110.8,\"min_fps\":110.8,\"frame_pacing_bad_pct\":0.0," +
+                    "\"primary_issue\":\"host_render_limited\"}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertEquals("Launch Recovery profile 60 FPS", summary.primaryLaunchLabel)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun targetMetResultOverridesStaleHostWarning() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":120," +
+                    "\"limiting_factor\":\"host_render_limited\"," +
+                    "\"preference_requested_profile\":{\"target_fps\":120}," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"blocked\",\"current_profile\":{\"target_fps\":120}," +
+                    "\"last_result\":{\"grade\":\"A\",\"delivered_fps\":120.1,\"target_fps\":120," +
+                    "\"low_1_percent_fps\":115.0,\"min_fps\":110.0,\"frame_pacing_bad_pct\":0.0," +
+                    "\"network_risk\":\"normal\",\"decoder_risk\":\"normal\",\"hdr_risk\":\"normal\"," +
+                    "\"primary_issue\":\"host_render_limited\"}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.HEALTHY, summary.noticeTone)
+        assertEquals("Performance: Target met", summary.reasonLine)
+        assertEquals("No recovery adjustment is needed.", summary.noticeRecommendation)
+        assertTrue(summary.historyLines.contains("Last: grade A · Target met at 120.1/120 FPS"))
     }
 
     @Test
