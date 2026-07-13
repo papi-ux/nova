@@ -10,6 +10,8 @@ enum class NovaLaunchProfileNoticeTone {
     HEALTHY
 }
 
+private const val HEALTHY_PROFILE_TARGET_TOLERANCE_FPS = 0.5
+
 data class NovaLaunchProfileSummary(
     val primaryLaunchLabel: String,
     val requestedLine: String,
@@ -115,6 +117,7 @@ internal fun buildNovaLaunchProfileSummary(
         requestedFps = requestedFps,
         effectiveFps = effectiveFps,
         selectedLabel = selectedLabel,
+        rawSelectedLabel = rawSelectedLabel,
         trialProfile = trialProfile,
         hasAuthoritativeProfileFps = requestedProfileFps != null && selectedProfileFps != null
     )
@@ -314,14 +317,17 @@ private fun healthyPerformanceStatus(
     requestedFps: Double,
     effectiveFps: Double,
     selectedLabel: String,
+    rawSelectedLabel: String,
     trialProfile: Boolean,
     hasAuthoritativeProfileFps: Boolean
 ): String? {
     if (lastResult == null || !completeIssueEvidence || reportedIssues.isEmpty()) return null
     val issueClasses = reportedIssues.map(::healthyIssueClass)
     if (issueClasses.any { it == null } || issueClasses.distinct().size != 1) return null
-    if (trialProfile || state == "trial" || state == "recovering") return null
-    if (selectedLabel.startsWith("Recovery", ignoreCase = true) ||
+    if (trialProfile || state !in setOf("stable", "blocked")) return null
+    if (rawSelectedLabel.contains("recovery", ignoreCase = true) ||
+        rawSelectedLabel.contains("trial", ignoreCase = true) ||
+        selectedLabel.startsWith("Recovery", ignoreCase = true) ||
         selectedLabel.contains("trial", ignoreCase = true)
     ) {
         return null
@@ -340,6 +346,11 @@ private fun healthyPerformanceStatus(
     val lowOnePercentFps = strictFiniteNumber(lastResult, "low_1_percent_fps") ?: return null
     val minFps = strictFiniteNumber(lastResult, "min_fps") ?: return null
     val badPacingPct = strictFiniteNumber(lastResult, "frame_pacing_bad_pct") ?: return null
+    if (abs(targetFps - requestedFps) > HEALTHY_PROFILE_TARGET_TOLERANCE_FPS ||
+        abs(targetFps - effectiveFps) > HEALTHY_PROFILE_TARGET_TOLERANCE_FPS
+    ) {
+        return null
+    }
     if (deliveredFps <= 0.0 || targetFps < 24.0) return null
     if (deliveredFps / targetFps < 0.95) return null
     if (lowOnePercentFps <= 0.0 || lowOnePercentFps / targetFps < 0.85) return null

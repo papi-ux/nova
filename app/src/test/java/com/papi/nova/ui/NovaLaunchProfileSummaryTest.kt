@@ -715,6 +715,69 @@ class NovaLaunchProfileSummaryTest {
         assertFalse(summary.historyLines.any { it.contains("Infinity") })
     }
 
+    @Test
+    fun healthyTelemetryTargetMustMatchRequestedAndSelectedProfile() {
+        val input = healthyNearTargetOptimization()
+        input.getJSONObject("profile_state").getJSONObject("last_result")
+            .put("target_fps", 60)
+            .put("delivered_fps", 60)
+            .put("low_1_percent_fps", 58)
+            .put("min_fps", 55)
+
+        val summary = buildNovaLaunchProfileSummary(input)
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun healthyTelemetryTargetWithinHalfFpsMatchesProfile() {
+        val input = healthyNearTargetOptimization()
+        input.getJSONObject("profile_state").getJSONObject("last_result")
+            .put("target_fps", 119.5)
+
+        val summary = buildNovaLaunchProfileSummary(input)
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.HEALTHY, summary.noticeTone)
+        assertEquals("Near target", summary.noticeLabel)
+    }
+
+    @Test
+    fun rawRecoveryOrTrialLabelCannotBeHiddenByHighFpsDisplayLabel() {
+        listOf("Recovery profile", "High FPS Trial").forEach { label ->
+            val input = healthyNearTargetOptimization()
+            input.put("preference", "high_fps")
+            input.getJSONObject("profile_state").put("label", label)
+
+            val summary = buildNovaLaunchProfileSummary(input)
+
+            requireNotNull(summary)
+            assertEquals(label, NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+            assertFalse(label, summary.noticeRecommendation.contains("No recovery adjustment"))
+        }
+    }
+
+    @Test
+    fun missingUnknownOrDownshiftedLifecycleStateCannotRenderHealthy() {
+        val cases = listOf<String?>(null, "unknown", "downshifted")
+        cases.forEach { state ->
+            val input = healthyNearTargetOptimization()
+            val profileState = input.getJSONObject("profile_state")
+            if (state == null) {
+                profileState.remove("state")
+            } else {
+                profileState.put("state", state)
+            }
+
+            val summary = buildNovaLaunchProfileSummary(input)
+
+            requireNotNull(summary)
+            assertEquals(state ?: "missing", NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        }
+    }
+
     private fun healthyNearTargetOptimization(): JSONObject {
         return JSONObject(
             "{" +
