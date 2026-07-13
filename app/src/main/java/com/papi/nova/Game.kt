@@ -52,6 +52,7 @@ import com.papi.nova.ui.StreamContainer
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
+import com.papi.nova.utils.CompanionControlLifecyclePolicy
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.MouseModeOption
@@ -458,7 +459,14 @@ listenForExternalDisplayRemoval()
 }
 
 fun showCompanionControls() {
-runOnUiThread { launchCompanionControlsIfAvailable() }
+runOnUiThread {
+if (!CompanionControlLifecyclePolicy.canShow(isStreamActive, isFinishing(), isDestroyed)) {
+LimeLog.info("Nova: Skipping companion controls for inactive Game lifecycle active=$isStreamActive finishing=${isFinishing()} destroyed=$isDestroyed")
+closeCompanionControls()
+return@runOnUiThread
+}
+launchCompanionControlsIfAvailable()
+}
 }
 
 @SuppressLint("InlinedApi")
@@ -4442,6 +4450,7 @@ if (connecting || connected)
 connected = false
 connecting = connected
 isStreamActive = false
+closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
 runtimeTasks.cancel("NovaBitrateAdjust")
  // Send AI session report before dismissing HUD
