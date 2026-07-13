@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
@@ -1689,6 +1690,7 @@ private fun LaunchControls(
 ) {
     val colors = LocalNovaComposeColors.current
     val playFocusRequester = remember { FocusRequester() }
+    val detailsFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(uiState.playEnabled) {
         if (uiState.playEnabled) {
@@ -1755,7 +1757,13 @@ private fun LaunchControls(
             )
         }
 
-        profileSummary?.let { LaunchProfilePrimaryNotice(it) }
+        profileSummary?.let {
+            LaunchProfilePrimaryNotice(
+                summary = it,
+                detailsFocusRequester = detailsFocusRequester,
+                playFocusRequester = playFocusRequester
+            )
+        }
 
         NovaActionButton(
             text = playLabel,
@@ -1763,6 +1771,7 @@ private fun LaunchControls(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(playFocusRequester)
+                .focusProperties { up = detailsFocusRequester }
                 .padding(top = 10.dp),
             enabled = uiState.playEnabled,
             primary = true,
@@ -1866,7 +1875,11 @@ private fun LaunchControls(
 }
 
 @Composable
-internal fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
+internal fun LaunchProfilePrimaryNotice(
+    summary: NovaLaunchProfileSummary,
+    detailsFocusRequester: FocusRequester,
+    playFocusRequester: FocusRequester
+) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val notice = summary.limitingLine.takeIf { it.isNotBlank() }
@@ -1918,7 +1931,10 @@ internal fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
                 NovaActionButton(
                     text = if (noticeExpanded) "Hide details" else "More details",
                     onClick = { noticeExpanded = !noticeExpanded },
-                    modifier = Modifier.width(104.dp),
+                    modifier = Modifier
+                        .width(104.dp)
+                        .focusRequester(detailsFocusRequester)
+                        .focusProperties { down = playFocusRequester },
                     contentDescription = if (noticeExpanded) {
                         "Hide launch profile details"
                     } else {

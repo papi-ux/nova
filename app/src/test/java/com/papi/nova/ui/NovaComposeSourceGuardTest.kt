@@ -1126,6 +1126,14 @@ class NovaComposeSourceGuardTest {
                 launchControls.contains(".focusRequester(playFocusRequester)")
         )
         assertTrue(
+            "game detail should wire an explicit controller focus route between Play and More details",
+            launchControls.contains("val detailsFocusRequester = remember { FocusRequester() }") &&
+                launchControls.contains("detailsFocusRequester = detailsFocusRequester") &&
+                launchControls.contains("playFocusRequester = playFocusRequester") &&
+                launchControls.contains(".focusProperties { up = detailsFocusRequester }") &&
+                launchControls.contains(".focusProperties { down = playFocusRequester }")
+        )
+        assertTrue(
             "game detail should make Play the full-width primary action before secondary tuning actions",
             launchControls.section("text = playLabel", "enabled = uiState.playEnabled")
                 .contains(".fillMaxWidth()\n                .focusRequester(playFocusRequester)") &&

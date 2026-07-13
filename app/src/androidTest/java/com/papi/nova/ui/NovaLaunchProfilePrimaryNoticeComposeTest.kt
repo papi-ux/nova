@@ -1,21 +1,22 @@
 package com.papi.nova.ui
 
+import android.view.KeyEvent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performKeyInput
-import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
+import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaComposeTheme
 import org.junit.Assert.assertTrue
@@ -49,6 +50,7 @@ class NovaLaunchProfilePrimaryNoticeComposeTest {
         )
 
         val playFocusRequester = FocusRequester()
+        val detailsFocusRequester = FocusRequester()
         composeRule.setContent {
             NovaComposeTheme {
                 Column(
@@ -56,27 +58,41 @@ class NovaLaunchProfilePrimaryNoticeComposeTest {
                         .width(320.dp)
                         .testTag("compact-launch-root")
                 ) {
-                    LaunchProfilePrimaryNotice(summary)
+                    LaunchProfilePrimaryNotice(
+                        summary = summary,
+                        detailsFocusRequester = detailsFocusRequester,
+                        playFocusRequester = playFocusRequester
+                    )
                     NovaActionButton(
                         text = "Play",
                         onClick = {},
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(playFocusRequester)
+                            .focusProperties { up = detailsFocusRequester }
                     )
                 }
             }
         }
 
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
+        instrumentation.waitForIdleSync()
+        composeRule.onNodeWithText("Play").assertIsDisplayed()
         composeRule.runOnIdle {
-            playFocusRequester.requestFocus()
+            assertTrue("Play focus request must be accepted", playFocusRequester.requestFocus())
         }
-        composeRule.onNodeWithText("Play").performKeyInput {
-            pressKey(Key.DirectionUp)
-        }
-        composeRule.onNodeWithText("More details").assertIsDisplayed().performKeyInput {
-            pressKey(Key.DirectionCenter)
-        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Play").assertIsFocused()
+
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP)
+        instrumentation.waitForIdleSync()
+        composeRule.onNodeWithText("More details")
+            .assertIsDisplayed()
+            .assertIsFocused()
+
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+        instrumentation.waitForIdleSync()
 
         composeRule.onNodeWithText("Hide details").assertIsDisplayed()
         composeRule.onNodeWithText(detail).assertIsDisplayed()
