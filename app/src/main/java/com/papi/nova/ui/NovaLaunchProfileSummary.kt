@@ -11,6 +11,8 @@ data class NovaLaunchProfileSummary(
     val selectedLine: String,
     val reasonLine: String,
     val limitingLine: String,
+    val noticeDetail: String,
+    val noticeRecommendation: String,
     val freshnessLine: String,
     val historyLines: List<String>,
     val showRetryHighFps: Boolean,
@@ -129,6 +131,13 @@ internal fun buildNovaLaunchProfileSummary(
     } else {
         "Try High FPS once"
     }
+    val noticeDetail = buildNoticeDetail(lastResult, issue)
+    val noticeRecommendation = buildNoticeRecommendation(
+        state = state,
+        requestedFps = requestedFps,
+        effectiveFps = effectiveFps,
+        showRetryHighFps = showRetryHighFps
+    )
 
     return NovaLaunchProfileSummary(
         primaryLaunchLabel = primaryLabel,
@@ -136,11 +145,63 @@ internal fun buildNovaLaunchProfileSummary(
         selectedLine = selectedLine,
         reasonLine = reasonLine,
         limitingLine = limitingLine,
+        noticeDetail = noticeDetail,
+        noticeRecommendation = noticeRecommendation,
         freshnessLine = freshnessLine,
         historyLines = historyLines,
         showRetryHighFps = showRetryHighFps,
         retryHighFpsLabel = retryLabel
     )
+}
+
+private fun buildNoticeDetail(lastResult: JSONObject?, issue: String): String {
+    val deliveredFps = lastResult?.optDouble("delivered_fps", 0.0) ?: 0.0
+    val targetFps = lastResult?.optDouble("target_fps", 0.0) ?: 0.0
+    val evidence = if (deliveredFps > 0.0 && targetFps > 0.0) {
+        "Last stream: ${formatFps(deliveredFps)}/${formatFps(targetFps)} FPS."
+    } else {
+        ""
+    }
+    val impact = when (normalized(issue)) {
+        "host_render", "host_render_limited" ->
+            "The host missed the stream target, which can cause repeated frames or uneven motion."
+        "decoder", "decoder_path" ->
+            "The client decoder missed frames, which can cause stutter or uneven motion."
+        "network" ->
+            "The network path was unstable, which can cause hitching or dropped frames."
+        "encoder" ->
+            "The host encoder missed frames, which can cause uneven frame delivery."
+        "pacing", "frame_pacing" ->
+            "Frames arrived unevenly, which can look like judder even when average FPS is high."
+        "" -> ""
+        else -> "Polaris reported ${issueLabel(issue)} for the last session."
+    }
+    return listOf(evidence, impact).filter { it.isNotBlank() }.joinToString(" ")
+}
+
+private fun buildNoticeRecommendation(
+    state: String,
+    requestedFps: Double,
+    effectiveFps: Double,
+    showRetryHighFps: Boolean
+): String {
+    val recoveryActive = state == "recovering"
+    val retry = if (showRetryHighFps && requestedFps > 0.0) {
+        " Try ${formatFps(requestedFps)} FPS once remains available below."
+    } else {
+        ""
+    }
+    if (requestedFps > effectiveFps + 0.5 && effectiveFps > 0.0) {
+        return if (recoveryActive) {
+            "Next launch: ${formatFps(effectiveFps)} FPS Recovery instead of your requested ${formatFps(requestedFps)} FPS because the learned recovery profile is active.$retry"
+        } else {
+            "Next launch: Nova selected ${formatFps(effectiveFps)} FPS instead of your requested ${formatFps(requestedFps)} FPS.$retry"
+        }
+    }
+    if (recoveryActive && effectiveFps > 0.0) {
+        return "Next launch: ${formatFps(effectiveFps)} FPS Recovery remains active. One clean launch can release it, or reset this game profile below."
+    }
+    return ""
 }
 
 private fun buildHistoryLines(

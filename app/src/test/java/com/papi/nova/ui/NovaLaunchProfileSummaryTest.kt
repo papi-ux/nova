@@ -50,12 +50,150 @@ class NovaLaunchProfileSummaryTest {
         assertEquals("Requested: High FPS stream / 120 FPS", summary.requestedLine)
         assertEquals("Selected: Recovery profile / 40 FPS", summary.selectedLine)
         assertEquals("Limited by: Decoder path", summary.limitingLine)
+        assertEquals(
+            "Last stream: 58.5/60 FPS. The client decoder missed frames, which can cause stutter or uneven motion.",
+            summary.noticeDetail
+        )
+        assertEquals(
+            "Next launch: 40 FPS Recovery instead of your requested 120 FPS because the learned recovery profile is active. Try 120 FPS once remains available below.",
+            summary.noticeRecommendation
+        )
         assertEquals("Recovery active from last session · 1 min ago", summary.freshnessLine)
         assertEquals("Try 120 FPS once", summary.retryHighFpsLabel)
         assertTrue(summary.showRetryHighFps)
         assertTrue(summary.historyLines.contains("Last: grade B at 58.5/60 FPS"))
         assertTrue(summary.historyLines.contains("Issue: Decoder path"))
         assertTrue(summary.historyLines.contains("Next: one clean launch can release recovery, or reset this game profile."))
+    }
+
+    @Test
+    fun hostRenderLimitNoticeExplainsEvidenceImpactAndRecoveryTarget() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"display_mode\":\"1920x1080x30\"," +
+                    "\"effective_target_fps\":30," +
+                    "\"preference\":\"high_fps\"," +
+                    "\"preference_applied\":false," +
+                    "\"limiting_factor\":\"host_render_limited\"," +
+                    "\"preference_requested_profile\":{\"display_mode\":\"1920x1080x60\",\"target_fps\":60}," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"recovering\"," +
+                    "\"label\":\"Recovery\"," +
+                    "\"current_profile\":{\"display_mode\":\"1920x1080x30\",\"target_fps\":30}," +
+                    "\"last_result\":{\"grade\":\"C\",\"delivered_fps\":54,\"target_fps\":60," +
+                    "\"primary_issue\":\"host_render_limited\",\"updated_at\":1780000000}," +
+                    "\"actions\":{\"can_retry_high_fps\":true}" +
+                    "}" +
+                    "}"
+            ),
+            nowSeconds = 1780000060L
+        )
+
+        requireNotNull(summary)
+        assertEquals("Limited by: Host render", summary.limitingLine)
+        assertEquals(
+            "Last stream: 54/60 FPS. The host missed the stream target, which can cause repeated frames or uneven motion.",
+            summary.noticeDetail
+        )
+        assertEquals(
+            "Next launch: 30 FPS Recovery instead of your requested 60 FPS because the learned recovery profile is active. Try 60 FPS once remains available below.",
+            summary.noticeRecommendation
+        )
+    }
+
+    @Test
+    fun unknownIssueReportsSourceTruthWithoutInventingAnFpsMiss() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":60," +
+                    "\"limiting_factor\":\"thermal_throttle\"," +
+                    "\"preference_requested_profile\":{\"target_fps\":60}," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"stable\",\"label\":\"Quality\"," +
+                    "\"current_profile\":{\"target_fps\":60}," +
+                    "\"last_result\":{\"delivered_fps\":60,\"target_fps\":60," +
+                    "\"primary_issue\":\"thermal_throttle\"}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(
+            "Last stream: 60/60 FPS. Polaris reported Thermal throttle for the last session.",
+            summary.noticeDetail
+        )
+        assertFalse(summary.noticeDetail.contains("did not meet"))
+        assertEquals("", summary.noticeRecommendation)
+    }
+
+    @Test
+    fun lowerNonRecoveryProfileUsesNeutralSelectionCopy() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":60," +
+                    "\"preference\":\"high_fps\",\"preference_applied\":false," +
+                    "\"limiting_factor\":\"network\"," +
+                    "\"preference_requested_profile\":{\"target_fps\":120}," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"stable\",\"label\":\"Quality\"," +
+                    "\"current_profile\":{\"target_fps\":60}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(
+            "Next launch: Nova selected 60 FPS instead of your requested 120 FPS. Try 120 FPS once remains available below.",
+            summary.noticeRecommendation
+        )
+        assertFalse(summary.noticeRecommendation.contains("Recovery"))
+        assertFalse(summary.noticeRecommendation.contains("steadier"))
+    }
+
+    @Test
+    fun equalTargetRecoveryExplainsReleaseWithoutPromisingPacing() {
+        val summary = buildNovaLaunchProfileSummary(
+            JSONObject(
+                "{" +
+                    "\"effective_target_fps\":60," +
+                    "\"preference_requested_profile\":{\"target_fps\":60}," +
+                    "\"profile_state\":{" +
+                    "\"state\":\"recovering\",\"label\":\"Recovery\"," +
+                    "\"current_profile\":{\"target_fps\":60}" +
+                    "}" +
+                    "}"
+            )
+        )
+
+        requireNotNull(summary)
+        assertEquals(
+            "Next launch: 60 FPS Recovery remains active. One clean launch can release it, or reset this game profile below.",
+            summary.noticeRecommendation
+        )
+        assertFalse(summary.noticeRecommendation.contains("steadier"))
+    }
+
+    @Test
+    fun knownLimitTypesExplainPlayerVisibleImpactWithoutFpsEvidence() {
+        val expected = mapOf(
+            "network" to "The network path was unstable, which can cause hitching or dropped frames.",
+            "encoder" to "The host encoder missed frames, which can cause uneven frame delivery.",
+            "frame_pacing" to "Frames arrived unevenly, which can look like judder even when average FPS is high."
+        )
+
+        expected.forEach { (issue, detail) ->
+            val summary = buildNovaLaunchProfileSummary(
+                JSONObject("{\"limiting_factor\":\"$issue\",\"profile_state\":{\"state\":\"stable\"}}")
+            )
+
+            requireNotNull(summary)
+            assertEquals(issue, detail, summary.noticeDetail)
+        }
     }
 
     @Test

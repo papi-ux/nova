@@ -1868,12 +1868,20 @@ private fun LaunchControls(
 private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val notice = listOf(summary.limitingLine, summary.reasonLine)
-        .firstOrNull { it.isNotBlank() }
+    val notice = summary.limitingLine.takeIf { it.isNotBlank() }
+        ?: summary.reasonLine.takeIf { it.isNotBlank() }
         ?: summary.freshnessLine.takeIf { it.isNotBlank() }
-        ?: return
+        ?: ""
+    val hasNoticeContent = listOf(
+        notice,
+        summary.noticeDetail,
+        summary.noticeRecommendation
+    ).any { it.isNotBlank() }
+    val hasExpandableDetails = summary.noticeDetail.isNotBlank() || summary.noticeRecommendation.isNotBlank()
+    var noticeExpanded by remember(summary.noticeDetail, summary.noticeRecommendation) { mutableStateOf(false) }
+    if (!hasNoticeContent) return
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp)
@@ -1881,25 +1889,64 @@ private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
             .background(colors.warning.copy(alpha = 0.14f))
             .border(1.dp, colors.warning.copy(alpha = 0.52f), RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        NovaBadge(
-            text = "Heads up",
-            color = colors.warning,
-            backgroundColor = surfaces.control.copy(alpha = 0.72f),
-            borderColor = colors.warning.copy(alpha = 0.35f),
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = notice,
-            color = colors.textSecondary,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NovaBadge(
+                text = "Heads up",
+                color = colors.warning,
+                backgroundColor = surfaces.control.copy(alpha = 0.72f),
+                borderColor = colors.warning.copy(alpha = 0.35f),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = notice.ifBlank { "Launch profile adjusted" },
+                color = colors.textSecondary,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (hasExpandableDetails) {
+                NovaActionButton(
+                    text = if (noticeExpanded) "Hide details" else "More details",
+                    onClick = { noticeExpanded = !noticeExpanded },
+                    modifier = Modifier.width(104.dp),
+                    contentDescription = if (noticeExpanded) {
+                        "Hide launch profile details"
+                    } else {
+                        "Show launch profile details"
+                    },
+                    stateDescription = if (noticeExpanded) "Expanded" else "Collapsed",
+                    minHeight = 32.dp,
+                    cornerRadius = 9.dp,
+                    fontSize = 10.sp,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
+        }
+        if (noticeExpanded && summary.noticeDetail.isNotBlank()) {
+            Text(
+                text = summary.noticeDetail,
+                color = colors.textPrimary,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                modifier = Modifier.padding(top = 7.dp)
+            )
+        }
+        if (noticeExpanded && summary.noticeRecommendation.isNotBlank()) {
+            Text(
+                text = summary.noticeRecommendation,
+                color = colors.warning,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 5.dp)
+            )
+        }
     }
 }
 

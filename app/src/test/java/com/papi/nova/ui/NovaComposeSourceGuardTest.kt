@@ -1141,6 +1141,27 @@ class NovaComposeSourceGuardTest {
             launchControls.contains("LaunchProfilePrimaryNotice(") &&
                 launchControls.indexOf("LaunchProfilePrimaryNotice(") < launchControls.indexOf("text = playLabel")
         )
+        assertTrue(
+            "Heads up should explain evidence and the recommended next launch instead of showing one vague limited-by line",
+            launchControls.contains("text = summary.noticeDetail") &&
+                launchControls.contains("text = summary.noticeRecommendation")
+        )
+        assertTrue(
+            "Heads up should remain visible when only the new evidence or recommendation fields are available",
+            launchControls.contains("val hasNoticeContent = listOf(") &&
+                launchControls.contains("summary.noticeDetail") &&
+                launchControls.contains("summary.noticeRecommendation") &&
+                launchControls.contains("if (!hasNoticeContent) return") &&
+                launchControls.contains("text = notice.ifBlank { \"Launch profile adjusted\" }")
+        )
+        assertTrue(
+            "Heads up should stay compact until the player opens the DPAD-friendly detail control",
+            launchControls.contains("var noticeExpanded by remember(") &&
+                launchControls.contains("text = if (noticeExpanded) \"Hide details\" else \"More details\"") &&
+                launchControls.contains("stateDescription = if (noticeExpanded) \"Expanded\" else \"Collapsed\"") &&
+                launchControls.contains("if (noticeExpanded && summary.noticeDetail.isNotBlank())") &&
+                launchControls.contains("if (noticeExpanded && summary.noticeRecommendation.isNotBlank())")
+        )
     }
 
     @Test
