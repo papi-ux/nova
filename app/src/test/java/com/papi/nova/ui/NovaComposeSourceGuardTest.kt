@@ -1126,6 +1126,14 @@ class NovaComposeSourceGuardTest {
                 launchControls.contains(".focusRequester(playFocusRequester)")
         )
         assertTrue(
+            "game detail should wire an explicit controller focus route between Play and More details",
+            launchControls.contains("val detailsFocusRequester = remember { FocusRequester() }") &&
+                launchControls.contains("detailsFocusRequester = detailsFocusRequester") &&
+                launchControls.contains("playFocusRequester = playFocusRequester") &&
+                launchControls.contains(".focusProperties { up = detailsFocusRequester }") &&
+                launchControls.contains(".focusProperties { down = playFocusRequester }")
+        )
+        assertTrue(
             "game detail should make Play the full-width primary action before secondary tuning actions",
             launchControls.section("text = playLabel", "enabled = uiState.playEnabled")
                 .contains(".fillMaxWidth()\n                .focusRequester(playFocusRequester)") &&
@@ -1140,6 +1148,33 @@ class NovaComposeSourceGuardTest {
             "game detail should surface host/render limits before the primary launch action",
             launchControls.contains("LaunchProfilePrimaryNotice(") &&
                 launchControls.indexOf("LaunchProfilePrimaryNotice(") < launchControls.indexOf("text = playLabel")
+        )
+        assertTrue(
+            "Heads up should explain evidence and the recommended next launch instead of showing one vague limited-by line",
+            launchControls.contains("text = summary.noticeDetail") &&
+                launchControls.contains("text = summary.noticeRecommendation")
+        )
+        assertTrue(
+            "Heads up should remain visible when only the new evidence or recommendation fields are available",
+            launchControls.contains("val hasNoticeContent = listOf(") &&
+                launchControls.contains("summary.noticeDetail") &&
+                launchControls.contains("summary.noticeRecommendation") &&
+                launchControls.contains("if (!hasNoticeContent) return") &&
+                launchControls.contains("text = notice.ifBlank { \"Launch profile adjusted\" }")
+        )
+        assertTrue(
+            "near-target performance should use an explicit healthy status tone instead of warning styling",
+            launchControls.contains("summary.noticeTone == NovaLaunchProfileNoticeTone.HEALTHY") &&
+                launchControls.contains("val badgeLabel = if (isHealthy) summary.noticeLabel else \"Heads up\"") &&
+                launchControls.contains("colorResource(R.color.nova_success)")
+        )
+        assertTrue(
+            "Heads up should stay compact until the player opens the DPAD-friendly detail control",
+            launchControls.contains("var noticeExpanded by remember(") &&
+                launchControls.contains("text = if (noticeExpanded) \"Hide details\" else \"More details\"") &&
+                launchControls.contains("stateDescription = if (noticeExpanded) \"Expanded\" else \"Collapsed\"") &&
+                launchControls.contains("if (noticeExpanded && summary.noticeDetail.isNotBlank())") &&
+                launchControls.contains("if (noticeExpanded && summary.noticeRecommendation.isNotBlank())")
         )
     }
 

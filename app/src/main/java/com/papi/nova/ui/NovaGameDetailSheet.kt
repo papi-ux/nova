@@ -43,7 +43,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
@@ -1688,6 +1690,7 @@ private fun LaunchControls(
 ) {
     val colors = LocalNovaComposeColors.current
     val playFocusRequester = remember { FocusRequester() }
+    val detailsFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(uiState.playEnabled) {
         if (uiState.playEnabled) {
@@ -1754,7 +1757,13 @@ private fun LaunchControls(
             )
         }
 
-        profileSummary?.let { LaunchProfilePrimaryNotice(it) }
+        profileSummary?.let {
+            LaunchProfilePrimaryNotice(
+                summary = it,
+                detailsFocusRequester = detailsFocusRequester,
+                playFocusRequester = playFocusRequester
+            )
+        }
 
         NovaActionButton(
             text = playLabel,
@@ -1762,6 +1771,7 @@ private fun LaunchControls(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(playFocusRequester)
+                .focusProperties { up = detailsFocusRequester }
                 .padding(top = 10.dp),
             enabled = uiState.playEnabled,
             primary = true,
@@ -1865,41 +1875,98 @@ private fun LaunchControls(
 }
 
 @Composable
-private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
+internal fun LaunchProfilePrimaryNotice(
+    summary: NovaLaunchProfileSummary,
+    detailsFocusRequester: FocusRequester,
+    playFocusRequester: FocusRequester
+) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val notice = listOf(summary.limitingLine, summary.reasonLine)
-        .firstOrNull { it.isNotBlank() }
+    val notice = summary.limitingLine.takeIf { it.isNotBlank() }
+        ?: summary.reasonLine.takeIf { it.isNotBlank() }
         ?: summary.freshnessLine.takeIf { it.isNotBlank() }
-        ?: return
+        ?: ""
+    val isHealthy = summary.noticeTone == NovaLaunchProfileNoticeTone.HEALTHY
+    val toneColor = if (isHealthy) colorResource(R.color.nova_success) else colors.warning
+    val badgeLabel = if (isHealthy) summary.noticeLabel else "Heads up"
+    val hasNoticeContent = listOf(
+        notice,
+        summary.noticeDetail,
+        summary.noticeRecommendation
+    ).any { it.isNotBlank() }
+    val hasExpandableDetails = summary.noticeDetail.isNotBlank() || summary.noticeRecommendation.isNotBlank()
+    var noticeExpanded by remember(summary.noticeDetail, summary.noticeRecommendation) { mutableStateOf(false) }
+    if (!hasNoticeContent) return
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(colors.warning.copy(alpha = 0.14f))
-            .border(1.dp, colors.warning.copy(alpha = 0.52f), RoundedCornerShape(12.dp))
+            .background(toneColor.copy(alpha = 0.14f))
+            .border(1.dp, toneColor.copy(alpha = 0.52f), RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        NovaBadge(
-            text = "Heads up",
-            color = colors.warning,
-            backgroundColor = surfaces.control.copy(alpha = 0.72f),
-            borderColor = colors.warning.copy(alpha = 0.35f),
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = notice,
-            color = colors.textSecondary,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NovaBadge(
+                text = badgeLabel,
+                color = toneColor,
+                backgroundColor = surfaces.control.copy(alpha = 0.72f),
+                borderColor = toneColor.copy(alpha = 0.35f),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = notice.ifBlank { "Launch profile adjusted" },
+                color = colors.textSecondary,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (hasExpandableDetails) {
+                NovaActionButton(
+                    text = if (noticeExpanded) "Hide details" else "More details",
+                    onClick = { noticeExpanded = !noticeExpanded },
+                    modifier = Modifier
+                        .width(104.dp)
+                        .focusRequester(detailsFocusRequester)
+                        .focusProperties { down = playFocusRequester },
+                    contentDescription = if (noticeExpanded) {
+                        "Hide launch profile details"
+                    } else {
+                        "Show launch profile details"
+                    },
+                    stateDescription = if (noticeExpanded) "Expanded" else "Collapsed",
+                    minHeight = 32.dp,
+                    cornerRadius = 9.dp,
+                    fontSize = 10.sp,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
+        }
+        if (noticeExpanded && summary.noticeDetail.isNotBlank()) {
+            Text(
+                text = summary.noticeDetail,
+                color = colors.textPrimary,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                modifier = Modifier.padding(top = 7.dp)
+            )
+        }
+        if (noticeExpanded && summary.noticeRecommendation.isNotBlank()) {
+            Text(
+                text = summary.noticeRecommendation,
+                color = toneColor,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 5.dp)
+            )
+        }
     }
 }
 
