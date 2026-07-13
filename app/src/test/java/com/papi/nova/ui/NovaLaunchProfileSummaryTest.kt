@@ -597,4 +597,142 @@ class NovaLaunchProfileSummaryTest {
         assertEquals("Reason: Nova recommends High FPS for this game.", summary.reasonLine)
     }
 
+
+    @Test
+    fun healthyStatusRequiresFiniteRequestedAndSelectedProfileFps() {
+        val cases = mapOf<String, (JSONObject) -> Unit>(
+            "missing requested FPS with finite fallbacks" to { root ->
+                root.put("preference_requested_target_fps", 120)
+                root.getJSONObject("preference_requested_profile")
+                    .remove("target_fps")
+                root.getJSONObject("preference_requested_profile")
+                    .put("display_mode", "1920x1080x120")
+            },
+            "missing selected FPS with finite fallbacks" to { root ->
+                root.getJSONObject("profile_state").getJSONObject("current_profile")
+                    .remove("target_fps")
+                root.getJSONObject("profile_state").getJSONObject("current_profile")
+                    .put("display_mode", "1920x1080x120")
+            },
+            "non-finite requested FPS with finite fallbacks" to { root ->
+                root.put("preference_requested_target_fps", 120)
+                root.getJSONObject("preference_requested_profile")
+                    .put("target_fps", "Infinity")
+                    .put("display_mode", "1920x1080x120")
+            },
+            "non-finite selected FPS with finite fallbacks" to { root ->
+                root.getJSONObject("profile_state").getJSONObject("current_profile")
+                    .put("target_fps", "Infinity")
+                    .put("display_mode", "1920x1080x120")
+            }
+        )
+
+        cases.forEach { (label, mutate) ->
+            val input = healthyNearTargetOptimization()
+            mutate(input)
+            val summary = buildNovaLaunchProfileSummary(input)
+
+            requireNotNull(summary)
+            assertEquals(label, NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+            assertFalse(label, summary.noticeRecommendation.contains("No recovery adjustment"))
+        }
+    }
+
+    @Test
+    fun trialProfileNeverRendersHealthyEvenWithOtherwiseHealthyEvidence() {
+        val input = healthyNearTargetOptimization()
+        input.put("trial_profile", true)
+        input.getJSONObject("profile_state").put("state", "trial")
+
+        val summary = buildNovaLaunchProfileSummary(input)
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertTrue(summary.freshnessLine.contains("learned recovery remains active"))
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun conflictingAllowlistedDiagnosesNeverRenderHealthy() {
+        val input = healthyNearTargetOptimization()
+        input.getJSONObject("profile_state").getJSONObject("last_result")
+            .put("primary_issue", "frame_pacing")
+
+        val summary = buildNovaLaunchProfileSummary(input)
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun isolatedBadOrMalformedPacingEvidenceNeverRendersHealthy() {
+        val cases = mapOf<String, Any>(
+            "bad pacing threshold" to 5.0,
+            "non-finite pacing" to "Infinity",
+            "malformed pacing" to "unknown"
+        )
+
+        cases.forEach { (label, pacing) ->
+            val input = healthyNearTargetOptimization()
+            input.getJSONObject("profile_state").getJSONObject("last_result")
+                .put("frame_pacing_bad_pct", pacing)
+            val summary = buildNovaLaunchProfileSummary(input)
+
+            requireNotNull(summary)
+            assertEquals(label, NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        }
+    }
+
+    @Test
+    fun isolatedRecoveryStateNeverRendersHealthy() {
+        val input = healthyNearTargetOptimization()
+        input.getJSONObject("profile_state")
+            .put("state", "recovering")
+            .put("label", "Recovery")
+
+        val summary = buildNovaLaunchProfileSummary(input)
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
+    }
+
+    @Test
+    fun warningDetailsAndHistoryNeverRenderNonFiniteFps() {
+        val input = healthyNearTargetOptimization()
+        input.put("limiting_factor", "network")
+        input.getJSONObject("profile_state").getJSONObject("last_result")
+            .put("grade", "B")
+            .put("primary_issue", "network")
+            .put("delivered_fps", "Infinity")
+
+        val summary = buildNovaLaunchProfileSummary(input)
+
+        requireNotNull(summary)
+        assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
+        assertFalse(summary.noticeDetail.contains("Infinity"))
+        assertFalse(summary.historyLines.any { it.contains("Infinity") })
+    }
+
+    private fun healthyNearTargetOptimization(): JSONObject {
+        return JSONObject(
+            "{" +
+                "\"effective_target_fps\":120," +
+                "\"limiting_factor\":\"host_render_limited\"," +
+                "\"preference_requested_profile\":{\"target_fps\":120}," +
+                "\"profile_state\":{" +
+                "\"state\":\"blocked\",\"label\":\"High FPS held\"," +
+                "\"current_profile\":{\"target_fps\":120}," +
+                "\"last_result\":{" +
+                "\"grade\":\"A\",\"delivered_fps\":115.6,\"target_fps\":120," +
+                "\"low_1_percent_fps\":110.8,\"min_fps\":110.8," +
+                "\"frame_pacing_bad_pct\":0.0," +
+                "\"network_risk\":\"normal\",\"decoder_risk\":\"normal\",\"hdr_risk\":\"normal\"," +
+                "\"primary_issue\":\"host_render_limited\"}" +
+                "}" +
+                "}"
+        )
+    }
+
 }

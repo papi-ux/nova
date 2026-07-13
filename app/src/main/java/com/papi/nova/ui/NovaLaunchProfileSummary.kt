@@ -55,15 +55,17 @@ internal fun buildNovaLaunchProfileSummary(
     val trialProfile = optimization.optBoolean("trial_profile", false) ||
         profileState?.optBoolean("trial_profile", false) == true
 
+    val requestedProfileFps = strictPositiveFiniteNumber(requestedProfile, "target_fps")
+    val selectedProfileFps = strictPositiveFiniteNumber(currentProfile, "target_fps")
     val requestedFps = firstPositive(
-        requestedProfile?.optDouble("target_fps", 0.0) ?: 0.0,
-        optimization.optDouble("preference_requested_target_fps", 0.0),
-        optimization.optDouble("requested_target_fps", 0.0),
+        requestedProfileFps ?: 0.0,
+        strictFiniteNumber(optimization, "preference_requested_target_fps") ?: 0.0,
+        strictFiniteNumber(optimization, "requested_target_fps") ?: 0.0,
         parseDisplayModeFps(requestedProfile?.optString("display_mode", ""))
     )
     val effectiveFps = firstPositive(
-        currentProfile?.optDouble("target_fps", 0.0) ?: 0.0,
-        optimization.optDouble("effective_target_fps", 0.0),
+        selectedProfileFps ?: 0.0,
+        strictFiniteNumber(optimization, "effective_target_fps") ?: 0.0,
         parseDisplayModeFps(currentProfile?.optString("display_mode", "")),
         parseDisplayModeFps(optimization.optString("display_mode", ""))
     )
@@ -112,7 +114,9 @@ internal fun buildNovaLaunchProfileSummary(
         state = state,
         requestedFps = requestedFps,
         effectiveFps = effectiveFps,
-        selectedLabel = selectedLabel
+        selectedLabel = selectedLabel,
+        trialProfile = trialProfile,
+        hasAuthoritativeProfileFps = requestedProfileFps != null && selectedProfileFps != null
     )
     val healthyPerformance = healthyPerformanceStatus != null
     val reasonLine = if (healthyPerformance) {
@@ -194,19 +198,20 @@ internal fun buildNovaLaunchProfileSummary(
 
 private fun buildHealthyPerformanceNoticeDetail(lastResult: JSONObject?, performanceStatus: String): String {
     if (lastResult == null) return ""
-    val deliveredFps = lastResult.optDouble("delivered_fps", 0.0)
-    val targetFps = lastResult.optDouble("target_fps", 0.0)
+    val deliveredFps = strictFiniteNumber(lastResult, "delivered_fps") ?: return ""
+    val targetFps = strictFiniteNumber(lastResult, "target_fps") ?: return ""
     if (deliveredFps <= 0.0 || targetFps <= 0.0) return ""
 
     val evidence = mutableListOf(
         "Last stream: ${formatFps(deliveredFps)}/${formatFps(targetFps)} FPS."
     )
-    val lowOnePercentFps = lastResult.optDouble("low_1_percent_fps", 0.0)
-    if (lowOnePercentFps > 0.0) {
+    val lowOnePercentFps = strictFiniteNumber(lastResult, "low_1_percent_fps")
+    if (lowOnePercentFps != null && lowOnePercentFps > 0.0) {
         evidence += "1% low: ${formatFps(lowOnePercentFps)} FPS."
     }
-    if (lastResult.has("frame_pacing_bad_pct")) {
-        evidence += "Bad pacing: ${formatFps(lastResult.optDouble("frame_pacing_bad_pct", 0.0))}%."
+    val badPacingPct = strictFiniteNumber(lastResult, "frame_pacing_bad_pct")
+    if (badPacingPct != null) {
+        evidence += "Bad pacing: ${formatFps(badPacingPct)}%."
     }
     evidence += if (performanceStatus == "Target met") {
         "Stream target met."
@@ -217,8 +222,8 @@ private fun buildHealthyPerformanceNoticeDetail(lastResult: JSONObject?, perform
 }
 
 private fun buildNoticeDetail(lastResult: JSONObject?, issue: String): String {
-    val deliveredFps = lastResult?.optDouble("delivered_fps", 0.0) ?: 0.0
-    val targetFps = lastResult?.optDouble("target_fps", 0.0) ?: 0.0
+    val deliveredFps = strictFiniteNumber(lastResult, "delivered_fps") ?: 0.0
+    val targetFps = strictFiniteNumber(lastResult, "target_fps") ?: 0.0
     val evidence = if (deliveredFps > 0.0 && targetFps > 0.0) {
         "Last stream: ${formatFps(deliveredFps)}/${formatFps(targetFps)} FPS."
     } else {
@@ -276,8 +281,8 @@ private fun buildHistoryLines(
 
     val lines = mutableListOf<String>()
     val grade = lastResult.optString("grade", "").takeIf { it.isNotBlank() }
-    val deliveredFps = lastResult.optDouble("delivered_fps", 0.0)
-    val targetFps = lastResult.optDouble("target_fps", 0.0)
+    val deliveredFps = strictFiniteNumber(lastResult, "delivered_fps") ?: 0.0
+    val targetFps = strictFiniteNumber(lastResult, "target_fps") ?: 0.0
     if (healthyPerformanceStatus != null && grade != null && deliveredFps > 0.0 && targetFps > 0.0) {
         lines += "Last: grade $grade · $healthyPerformanceStatus at ${formatFps(deliveredFps)}/${formatFps(targetFps)} FPS"
     } else if (grade != null && deliveredFps > 0.0 && targetFps > 0.0) {
@@ -308,12 +313,25 @@ private fun healthyPerformanceStatus(
     state: String,
     requestedFps: Double,
     effectiveFps: Double,
-    selectedLabel: String
+    selectedLabel: String,
+    trialProfile: Boolean,
+    hasAuthoritativeProfileFps: Boolean
 ): String? {
     if (lastResult == null || !completeIssueEvidence || reportedIssues.isEmpty()) return null
-    if (reportedIssues.any { normalized(it) !in healthyContradictionIssues }) return null
-    if (state == "recovering" || selectedLabel.startsWith("Recovery", ignoreCase = true)) return null
-    if (requestedFps > effectiveFps + 0.5 && effectiveFps > 0.0) return null
+    val issueClasses = reportedIssues.map(::healthyIssueClass)
+    if (issueClasses.any { it == null } || issueClasses.distinct().size != 1) return null
+    if (trialProfile || state == "trial" || state == "recovering") return null
+    if (selectedLabel.startsWith("Recovery", ignoreCase = true) ||
+        selectedLabel.contains("trial", ignoreCase = true)
+    ) {
+        return null
+    }
+    if (!hasAuthoritativeProfileFps || !requestedFps.isFinite() || requestedFps <= 0.0 ||
+        !effectiveFps.isFinite() || effectiveFps <= 0.0
+    ) {
+        return null
+    }
+    if (requestedFps > effectiveFps + 0.5) return null
     if (lastResult.optBoolean("relaunch_recommended", false)) return null
     if (normalized(lastResult.optString("grade", "")) != "a") return null
 
@@ -338,9 +356,21 @@ private fun healthyPerformanceStatus(
     return if (deliveredFps >= targetFps) "Target met" else "Near target"
 }
 
-private fun strictFiniteNumber(source: JSONObject, key: String): Double? {
-    val value = source.opt(key) as? Number ?: return null
+private fun strictFiniteNumber(source: JSONObject?, key: String): Double? {
+    val value = source?.opt(key) as? Number ?: return null
     return value.toDouble().takeIf { it.isFinite() }
+}
+
+private fun strictPositiveFiniteNumber(source: JSONObject?, key: String): Double? {
+    return strictFiniteNumber(source, key)?.takeIf { it > 0.0 }
+}
+
+private fun healthyIssueClass(issue: String): String? {
+    return when (normalized(issue)) {
+        "host_render", "host_render_limited" -> "host_render"
+        "pacing", "frame_pacing" -> "frame_pacing"
+        else -> null
+    }
 }
 
 private fun hasCompleteDiagnosticIssueEvidence(
@@ -445,11 +475,11 @@ private fun parseDisplayModeFps(displayMode: String?): Double {
     if (displayMode.isNullOrBlank()) return 0.0
     val parts = displayMode.split("x")
     if (parts.size < 3) return 0.0
-    return parts[2].toDoubleOrNull() ?: 0.0
+    return parts[2].toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
 }
 
 private fun firstPositive(vararg values: Double): Double {
-    return values.firstOrNull { it > 0.0 } ?: 0.0
+    return values.firstOrNull { it.isFinite() && it > 0.0 } ?: 0.0
 }
 
 private fun normalized(value: String): String {

@@ -1158,7 +1158,7 @@ class NovaComposeSourceGuardTest {
             "near-target performance should use an explicit healthy status tone instead of warning styling",
             launchControls.contains("summary.noticeTone == NovaLaunchProfileNoticeTone.HEALTHY") &&
                 launchControls.contains("val badgeLabel = if (isHealthy) summary.noticeLabel else \"Heads up\"") &&
-                launchControls.contains("Color(0xFF4ADE80)")
+                launchControls.contains("colorResource(R.color.nova_success)")
         )
         assertTrue(
             "Heads up should stay compact until the player opens the DPAD-friendly detail control",

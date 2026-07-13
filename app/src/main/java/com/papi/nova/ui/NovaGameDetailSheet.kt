@@ -43,7 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1866,7 +1866,7 @@ private fun LaunchControls(
 }
 
 @Composable
-private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
+internal fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val notice = summary.limitingLine.takeIf { it.isNotBlank() }
@@ -1874,7 +1874,7 @@ private fun LaunchProfilePrimaryNotice(summary: NovaLaunchProfileSummary) {
         ?: summary.freshnessLine.takeIf { it.isNotBlank() }
         ?: ""
     val isHealthy = summary.noticeTone == NovaLaunchProfileNoticeTone.HEALTHY
-    val toneColor = if (isHealthy) Color(0xFF4ADE80) else colors.warning
+    val toneColor = if (isHealthy) colorResource(R.color.nova_success) else colors.warning
     val badgeLabel = if (isHealthy) summary.noticeLabel else "Heads up"
     val hasNoticeContent = listOf(
         notice,
