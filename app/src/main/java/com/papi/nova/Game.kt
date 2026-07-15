@@ -52,6 +52,7 @@ import com.papi.nova.ui.StreamContainer
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
+import com.papi.nova.utils.DisplayFocusTelemetry
 import com.papi.nova.utils.CompanionControlLifecyclePolicy
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
@@ -123,6 +124,7 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.ImageButton
 import androidx.annotation.NonNull
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
 import androidx.preference.PreferenceManager
@@ -223,6 +225,7 @@ private var cursorVisible:Boolean = false
 private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
+private var isTopResumedActivity:Boolean = false
 private var externalDisplayControlPresentation:ExternalDisplayControlPresentation? = null
 private var externalDisplayListener:DisplayManager.DisplayListener? = null
 @Volatile private var lastClientPresentationRefreshRate:Float = 0f
@@ -409,6 +412,14 @@ this
 }
 
 fun streamingDisplayIdForCompanion(): Int = streamingDisplayId
+
+private fun logGameDisplayFocus(hasWindowFocus:Boolean) {
+LimeLog.info(DisplayFocusTelemetry.game(streamingDisplayId, hasWindowFocus, isTopResumedActivity))
+}
+
+fun logCompanionDisplayFocus(displayId:Int, hasWindowFocus:Boolean) {
+LimeLog.info(DisplayFocusTelemetry.companion(displayId, hasWindowFocus, isTopResumedActivity))
+}
 
 private fun getCompanionControlDisplay(): Display? {
 if (!::prefConfig.isInitialized)
@@ -1975,6 +1986,7 @@ return true
 }
 override fun onWindowFocusChanged(hasFocus:Boolean) {
 super.onWindowFocusChanged(hasFocus)
+logGameDisplayFocus(hasFocus)
 
  // We can't guarantee the state of modifiers keys which may have
         // lifted while focus was not on us. Clear the modifier state.
@@ -1987,6 +1999,13 @@ fallbackNovaShortcutState.reset()
  // With Android native pointer capture, capture is lost when focus is lost,
         // so it must be requested again when focus is regained.
         inputCaptureProvider!!.onWindowFocusChanged(hasFocus)
+}
+
+@RequiresApi(Build.VERSION_CODES.Q)
+override fun onTopResumedActivityChanged(isTopResumedActivity:Boolean) {
+super.onTopResumedActivityChanged(isTopResumedActivity)
+this.isTopResumedActivity = isTopResumedActivity
+logGameDisplayFocus(hasWindowFocus())
 }
 
 private fun isRefreshRateEqualMatch(refreshRate:Float):Boolean {

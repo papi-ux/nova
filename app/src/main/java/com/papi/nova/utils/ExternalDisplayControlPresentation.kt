@@ -204,9 +204,7 @@ class ExternalDisplayControlPresentation(
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        LimeLog.info(
-            "Nova: Android display focus role=presentation display_id=${display.displayId} window=$hasFocus",
-        )
+        game.logCompanionDisplayFocus(display.displayId, hasFocus)
         if (game.isFinishing) {
             dismiss()
         }

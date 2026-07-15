@@ -394,4 +394,53 @@ class NovaExternalDisplayRoutingSourceGuardTest {
             displayAdded.contains("showCompanionControls()")
         )
     }
+
+    @Test
+    fun gameAndCompanionReportWindowAndOwningGameTopResumedState() {
+        val telemetryFile = File("src/main/java/com/papi/nova/utils/DisplayFocusTelemetry.kt")
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val presentation =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+
+        assertTrue("Shared focus telemetry formatter must exist", telemetryFile.exists())
+        val telemetry = telemetryFile.readText()
+        assertTrue(telemetry.contains("""format("game", displayId, hasWindowFocus, isGameTopResumed)"""))
+        assertTrue(telemetry.contains("""format("companion", displayId, hasWindowFocus, isGameTopResumed)"""))
+        assertFalse(telemetry.contains("address="))
+        assertFalse(telemetry.contains("name="))
+
+        val gameWindowFocus =
+            game.substringAfter("override fun onWindowFocusChanged(hasFocus:Boolean)")
+                .substringBefore("private fun isRefreshRateEqualMatch")
+        assertTrue(gameWindowFocus.contains("logGameDisplayFocus(hasFocus)"))
+
+        val topResumed =
+            game.substringAfter("override fun onTopResumedActivityChanged(isTopResumedActivity:Boolean)")
+                .substringBefore("private fun isRefreshRateEqualMatch")
+        val stateUpdate = topResumed.indexOf("this.isTopResumedActivity = isTopResumedActivity")
+        val stateLog = topResumed.indexOf("logGameDisplayFocus(hasWindowFocus())")
+        assertTrue("Game must store top-resumed ownership before logging it", stateUpdate >= 0)
+        assertTrue("Top-resumed transitions must emit current window ownership", stateLog > stateUpdate)
+        assertTrue(game.contains("@RequiresApi(Build.VERSION_CODES.Q)"))
+        assertTrue(
+            game.contains(
+                "DisplayFocusTelemetry.game(streamingDisplayId, hasWindowFocus, isTopResumedActivity)",
+            ),
+        )
+        assertTrue(
+            game.contains(
+                "DisplayFocusTelemetry.companion(displayId, hasWindowFocus, isTopResumedActivity)",
+            ),
+        )
+
+        val presentationFocus =
+            presentation.substringAfter("override fun onWindowFocusChanged(hasFocus: Boolean)")
+                .substringBefore("@Deprecated")
+        assertTrue(
+            presentationFocus.contains(
+                "game.logCompanionDisplayFocus(display.displayId, hasFocus)",
+            ),
+        )
+        assertFalse(presentationFocus.contains("role=presentation"))
+    }
 }

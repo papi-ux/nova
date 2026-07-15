@@ -148,4 +148,37 @@ class KotlinExternalDisplayUiMigrationTest {
             ).containsMatchIn(manifest)
         )
     }
+
+    @Test
+    fun displayFocusTelemetryKeepsStablePrivacySafeJvmContract() {
+        val telemetryClass = runCatching {
+            Class.forName("com.papi.nova.utils.DisplayFocusTelemetry")
+        }.getOrElse {
+            assertTrue("DisplayFocusTelemetry must exist for Thor field evidence", false)
+            return
+        }
+        val game = telemetryClass.getMethod(
+            "game",
+            Int::class.javaPrimitiveType!!,
+            Boolean::class.javaPrimitiveType!!,
+            Boolean::class.javaPrimitiveType!!,
+        )
+        val companion = telemetryClass.getMethod(
+            "companion",
+            Int::class.javaPrimitiveType!!,
+            Boolean::class.javaPrimitiveType!!,
+            Boolean::class.javaPrimitiveType!!,
+        )
+
+        assertTrue(Modifier.isStatic(game.modifiers))
+        assertTrue(Modifier.isStatic(companion.modifiers))
+        assertEquals(
+            "Nova: Android display focus role=game display_id=7 window=true game_top_resumed=false",
+            game.invoke(null, 7, true, false),
+        )
+        assertEquals(
+            "Nova: Android display focus role=companion display_id=3 window=false game_top_resumed=true",
+            companion.invoke(null, 3, false, true),
+        )
+    }
 }
