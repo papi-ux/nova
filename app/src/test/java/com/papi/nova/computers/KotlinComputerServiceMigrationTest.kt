@@ -5,9 +5,14 @@ import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
 import com.papi.nova.nvstream.http.ComputerDetails
+import com.papi.nova.nvstream.http.HostHttpResponseException
 import com.papi.nova.nvstream.http.NvHTTP
+import javax.net.ssl.SSLHandshakeException
 import java.io.File
+import java.security.cert.CertificateException
+import java.security.cert.X509Certificate
 import java.util.concurrent.ScheduledFuture
+import javax.net.ssl.X509TrustManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -123,6 +128,40 @@ class KotlinComputerServiceMigrationTest {
         assertEquals(true, matcher.invoke(service, "server-uuid", "server-uuid"))
         assertEquals(false, matcher.invoke(service, "other-uuid", "server-uuid"))
         assertEquals(false, matcher.invoke(service, "", null))
+        assertEquals(false, matcher.invoke(service, "", ""))
+        assertEquals(false, matcher.invoke(service, "", "   "))
+    }
+
+    @Test
+    fun pollCandidateWiringPassesStoredCertificateAndInvokesUuidGuard() {
+        // This is a narrow wiring guard. Strict pin and UUID behavior are exercised independently below.
+        val source = File("src/main/java/com/papi/nova/computers/ComputerManagerService.kt").readText()
+        val functionStart = source.indexOf("private fun tryPollIp")
+        val functionEnd = source.indexOf("\n    private fun ", functionStart + 1)
+        assertTrue("tryPollIp should remain present", functionStart >= 0 && functionEnd > functionStart)
+        val body = source.substring(functionStart, functionEnd)
+
+        val pinnedCertificate = body.indexOf("details.serverCert")
+        val fetchDetails = body.indexOf("http.getComputerDetails")
+        val uuidCheck = body.indexOf("else if (!isExpectedComputerUuid(expectedUuid, returnedUuid))")
+        val acceptedDetails = body.indexOf("\n                newDetails", uuidCheck)
+
+        assertTrue("polling must pass the stored server certificate before connecting", pinnedCertificate >= 0)
+        assertTrue("certificate pinning must be configured before host details are fetched", pinnedCertificate < fetchDetails)
+        assertTrue("poll results must be checked against the expected UUID", uuidCheck > fetchDetails)
+        assertTrue("host details must only be accepted after the UUID check", acceptedDetails > uuidCheck)
+    }
+
+    @Test
+    fun pollComputerWiringUsesTheVerifiedRouteUpdateBoundary() {
+        val source = File("src/main/java/com/papi/nova/computers/ComputerManagerService.kt").readText()
+        val functionStart = source.indexOf("private fun pollComputer")
+        val functionEnd = source.indexOf("\n    override fun ", functionStart + 1)
+        assertTrue("pollComputer should remain present", functionStart >= 0 && functionEnd > functionStart)
+        val body = source.substring(functionStart, functionEnd)
+
+        assertTrue(body.contains("details.updateFromVerifiedPoll(polledDetails)"))
+        assertFalse(body.contains("details.update(polledDetails)"))
     }
 
     @Test
@@ -151,6 +190,188 @@ class KotlinComputerServiceMigrationTest {
             ComputerDetails.AddressTuple("10.0.0.232", NvHTTP.DEFAULT_HTTP_PORT),
             addresses[0]
         )
+    }
+
+    @Test
+    fun parallelPollingIncludesRememberedRoutesWithoutDuplicates() {
+        val details = ComputerDetails()
+        details.localAddress = ComputerDetails.AddressTuple("100.100.20.30", NvHTTP.DEFAULT_HTTP_PORT)
+        details.manualAddress = ComputerDetails.AddressTuple("pc-papi.tailnet.ts.net", NvHTTP.DEFAULT_HTTP_PORT)
+        details.rememberAddress(details.localAddress)
+        details.rememberAddress(details.manualAddress)
+        details.rememberAddress(ComputerDetails.AddressTuple("192.168.1.25", NvHTTP.DEFAULT_HTTP_PORT))
+
+        val addresses = ComputerManagerService.buildParallelPollAddresses(details)
+
+        assertEquals(
+            listOf(
+                ComputerDetails.AddressTuple("100.100.20.30", NvHTTP.DEFAULT_HTTP_PORT),
+                ComputerDetails.AddressTuple("pc-papi.tailnet.ts.net", NvHTTP.DEFAULT_HTTP_PORT),
+                ComputerDetails.AddressTuple("192.168.1.25", NvHTTP.DEFAULT_HTTP_PORT)
+            ),
+            addresses
+        )
+    }
+
+    @Test
+    fun parallelPollingPrefersRecentRememberedRoutesAndRetriesTheirDefaultPort() {
+        val details = ComputerDetails()
+        details.manualAddress = ComputerDetails.AddressTuple("current.example.test", 48000)
+        details.rememberAddress(ComputerDetails.AddressTuple("old.example.test", 49000))
+        details.rememberAddress(ComputerDetails.AddressTuple("recent.example.test", 49100))
+
+        val addresses = ComputerManagerService.buildParallelPollAddresses(details)
+
+        assertEquals(
+            listOf(
+                ComputerDetails.AddressTuple("current.example.test", 48000),
+                ComputerDetails.AddressTuple("recent.example.test", 49100),
+                ComputerDetails.AddressTuple("recent.example.test", NvHTTP.DEFAULT_HTTP_PORT),
+                ComputerDetails.AddressTuple("old.example.test", 49000),
+                ComputerDetails.AddressTuple("old.example.test", NvHTTP.DEFAULT_HTTP_PORT)
+            ),
+            addresses
+        )
+    }
+
+    @Test
+    fun serverInfoPlaintextFallbackAllowsOnlyRealHttpUnauthorizedResponses() {
+        assertTrue(NvHTTP.isServerInfoHttpFallbackAllowed(HostHttpResponseException(401, "Unauthorized")))
+        assertFalse(NvHTTP.isServerInfoHttpFallbackAllowed(HostHttpResponseException(403, "Forbidden")))
+        assertFalse(NvHTTP.isServerInfoHttpFallbackAllowed(SSLHandshakeException("Certificate mismatch")))
+    }
+
+    @Test
+    fun storedCertificateRejectsDifferentPlatformTrustedCertificate() {
+        val pinnedCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        val differentPlatformTrustedCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        var platformTrustChecks = 0
+        val permissivePlatformTrust = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                platformTrustChecks++
+            }
+        }
+
+        val trustManager = NvHTTP.createServerTrustManager(permissivePlatformTrust) { pinnedCertificate }
+
+        org.junit.Assert.assertThrows(CertificateException::class.java) {
+            trustManager.checkServerTrusted(emptyArray(), "RSA")
+        }
+        org.junit.Assert.assertThrows(CertificateException::class.java) {
+            trustManager.checkServerTrusted(arrayOf(differentPlatformTrustedCertificate), "RSA")
+        }
+        assertEquals(0, platformTrustChecks)
+
+        trustManager.checkServerTrusted(
+            arrayOf(pinnedCertificate, differentPlatformTrustedCertificate),
+            "RSA"
+        )
+        assertEquals(0, platformTrustChecks)
+    }
+
+    @Test
+    fun pinnedLeafBypassesHostnameVerificationForMultiCertificateChains() {
+        val clientCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        val clientPrivateKey = org.mockito.Mockito.mock(java.security.PrivateKey::class.java)
+        val pinnedServerCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        val intermediateCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        val cryptoProvider = org.mockito.Mockito.mock(com.papi.nova.nvstream.http.LimelightCryptoProvider::class.java)
+        org.mockito.Mockito.`when`(cryptoProvider.clientCertificate).thenReturn(clientCertificate)
+        org.mockito.Mockito.`when`(cryptoProvider.clientPrivateKey).thenReturn(clientPrivateKey)
+        org.mockito.Mockito.`when`(cryptoProvider.pemEncodedClientCertificate).thenReturn(byteArrayOf(1))
+
+        val http = NvHTTP(
+            ComputerDetails.AddressTuple("127.0.0.1", NvHTTP.DEFAULT_HTTP_PORT),
+            0,
+            "test-client",
+            pinnedServerCertificate,
+            cryptoProvider
+        )
+        val clientField = NvHTTP::class.java.getDeclaredField("httpClientLongConnectTimeout")
+        clientField.isAccessible = true
+        val client = clientField.get(http) as okhttp3.OkHttpClient
+        val session = org.mockito.Mockito.mock(javax.net.ssl.SSLSession::class.java)
+        org.mockito.Mockito.`when`(session.peerCertificates).thenReturn(
+            arrayOf(pinnedServerCertificate, intermediateCertificate)
+        )
+
+        assertTrue(client.hostnameVerifier.verify("127.0.0.1", session))
+    }
+
+    @Test
+    fun nvHttpTrustManagerTracksStoredCertificateChanges() {
+        val clientCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        val clientPrivateKey = org.mockito.Mockito.mock(java.security.PrivateKey::class.java)
+        val firstServerCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        val secondServerCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        val cryptoProvider = org.mockito.Mockito.mock(com.papi.nova.nvstream.http.LimelightCryptoProvider::class.java)
+        org.mockito.Mockito.`when`(cryptoProvider.clientCertificate).thenReturn(clientCertificate)
+        org.mockito.Mockito.`when`(cryptoProvider.clientPrivateKey).thenReturn(clientPrivateKey)
+        org.mockito.Mockito.`when`(cryptoProvider.pemEncodedClientCertificate).thenReturn(byteArrayOf(1))
+
+        val http = NvHTTP(
+            ComputerDetails.AddressTuple("127.0.0.1", NvHTTP.DEFAULT_HTTP_PORT),
+            0,
+            "test-client",
+            firstServerCertificate,
+            cryptoProvider
+        )
+        val field = NvHTTP::class.java.getDeclaredField("trustManager")
+        field.isAccessible = true
+        val trustManager = field.get(http) as X509TrustManager
+
+        trustManager.checkServerTrusted(arrayOf(firstServerCertificate), "RSA")
+        http.setServerCert(secondServerCertificate)
+        org.junit.Assert.assertThrows(CertificateException::class.java) {
+            trustManager.checkServerTrusted(arrayOf(firstServerCertificate), "RSA")
+        }
+        trustManager.checkServerTrusted(arrayOf(secondServerCertificate), "RSA")
+    }
+
+    @Test
+    fun storedCertificateProviderIsReevaluatedAfterPairing() {
+        val firstCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        val pairedCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        var storedCertificate: X509Certificate? = null
+        var platformTrustChecks = 0
+        val platformTrust = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                platformTrustChecks++
+            }
+        }
+        val trustManager = NvHTTP.createServerTrustManager(platformTrust) { storedCertificate }
+
+        trustManager.checkServerTrusted(arrayOf(firstCertificate), "RSA")
+        assertEquals(1, platformTrustChecks)
+
+        storedCertificate = pairedCertificate
+        org.junit.Assert.assertThrows(CertificateException::class.java) {
+            trustManager.checkServerTrusted(arrayOf(firstCertificate), "RSA")
+        }
+        trustManager.checkServerTrusted(arrayOf(pairedCertificate), "RSA")
+        assertEquals(1, platformTrustChecks)
+    }
+
+    @Test
+    fun unpinnedConnectionDelegatesToPlatformTrustManager() {
+        val platformTrustedCertificate = org.mockito.Mockito.mock(X509Certificate::class.java)
+        var platformTrustChecks = 0
+        val platformTrust = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                platformTrustChecks++
+            }
+        }
+
+        val trustManager = NvHTTP.createServerTrustManager(platformTrust) { null }
+        trustManager.checkServerTrusted(arrayOf(platformTrustedCertificate), "RSA")
+
+        assertEquals(1, platformTrustChecks)
     }
 
     @Test
