@@ -45,7 +45,6 @@ import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLPeerUnverifiedException
 import javax.net.ssl.SSLSession
 import javax.net.ssl.TrustManager
@@ -148,36 +147,13 @@ class NvHTTP @Throws(IOException::class) constructor(
         }
 
         defaultTrustManager = getDefaultTrustManager()
-        trustManager = object : X509TrustManager {
-            override fun getAcceptedIssuers(): Array<X509Certificate> {
-                return emptyArray()
-            }
-
-            override fun checkClientTrusted(certs: Array<X509Certificate>, authType: String) {
-                throw IllegalStateException("Should never be called")
-            }
-
-            @Throws(CertificateException::class)
-            override fun checkServerTrusted(certs: Array<X509Certificate>, authType: String) {
-                try {
-                    defaultTrustManager.checkServerTrusted(certs, authType)
-                } catch (e: CertificateException) {
-                    val pinnedCert = serverCert
-                    if (certs.size == 1 && pinnedCert != null) {
-                        if (certs[0] != pinnedCert) {
-                            throw CertificateException("Certificate mismatch")
-                        }
-                    } else {
-                        throw e
-                    }
-                }
-            }
-        }
+        trustManager = createServerTrustManager(defaultTrustManager) { serverCert }
 
         val hv = HostnameVerifier { hostname: String, session: SSLSession ->
             try {
                 val certificates: Array<Certificate> = session.peerCertificates
-                if (certificates.size == 1 && certificates[0] == serverCert) {
+                val pinnedCert = serverCert
+                if (pinnedCert != null && certificates.firstOrNull() == pinnedCert) {
                     return@HostnameVerifier true
                 }
             } catch (e: SSLPeerUnverifiedException) {
@@ -225,20 +201,11 @@ class NvHTTP @Throws(IOException::class) constructor(
 
         if (serverCert != null) {
             try {
-                val resp = try {
-                    openHttpConnectionToString(client, getHttpsUrl(likelyOnline), "serverinfo")
-                } catch (e: SSLHandshakeException) {
-                    if (e.cause is CertificateException) {
-                        throw HostHttpResponseException(401, "Server certificate mismatch")
-                    } else {
-                        throw e
-                    }
-                }
-
+                val resp = openHttpConnectionToString(client, getHttpsUrl(likelyOnline), "serverinfo")
                 getServerVersion(resp)
                 return resp
-            } catch (e: HostHttpResponseException) {
-                if (e.getErrorCode() == 401) {
+            } catch (e: IOException) {
+                if (isServerInfoHttpFallbackAllowed(e)) {
                     return openHttpConnectionToString(client, baseUrlHttp, "serverinfo")
                 }
                 throw e
@@ -779,6 +746,35 @@ class NvHTTP @Throws(IOException::class) constructor(
     }
 
     companion object {
+        @JvmStatic
+        internal fun isServerInfoHttpFallbackAllowed(error: IOException): Boolean =
+            error is HostHttpResponseException && error.getErrorCode() == 401
+
+        @JvmStatic
+        internal fun createServerTrustManager(
+            defaultTrustManager: X509TrustManager,
+            serverCertProvider: () -> X509Certificate?,
+        ): X509TrustManager = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+
+            override fun checkClientTrusted(certs: Array<X509Certificate>, authType: String) {
+                throw IllegalStateException("Should never be called")
+            }
+
+            @Throws(CertificateException::class)
+            override fun checkServerTrusted(certs: Array<X509Certificate>, authType: String) {
+                val pinnedCert = serverCertProvider()
+                if (pinnedCert != null) {
+                    if (certs.firstOrNull() != pinnedCert) {
+                        throw CertificateException("Certificate mismatch")
+                    }
+                    return
+                }
+
+                defaultTrustManager.checkServerTrusted(certs, authType)
+            }
+        }
+
         private const val DEFAULT_HTTPS_PORT = 47984
         const val DEFAULT_HTTP_PORT = 47989
         const val SHORT_CONNECTION_TIMEOUT = 3000

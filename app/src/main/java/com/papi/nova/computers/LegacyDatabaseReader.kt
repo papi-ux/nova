@@ -13,58 +13,64 @@ import java.util.LinkedList
 
 class LegacyDatabaseReader private constructor() {
     companion object {
-        private const val COMPUTER_DB_NAME = "computers.db"
+        internal const val COMPUTER_DB_NAME = "computers.db"
         private const val COMPUTER_TABLE_NAME = "Computers"
         private const val ADDRESS_PREFIX = "ADDRESS_PREFIX__"
 
         private fun getComputerFromCursor(c: Cursor): ComputerDetails? {
-            val uuid = c.getString(1) ?: return null
-            val details = ComputerDetails()
+            val uuid = c.getString(1)?.takeIf { it.isNotBlank() } ?: return null
+            return try {
+                val details = ComputerDetails()
 
-            details.name = c.getString(0) ?: ""
-            details.uuid = uuid
+                details.name = c.getString(0) ?: ""
+                details.uuid = uuid
 
-            try {
-                details.localAddress = ComputerDetails.AddressTuple(
-                    InetAddress.getByAddress(c.getBlob(2)).hostAddress,
-                    NvHTTP.DEFAULT_HTTP_PORT
-                )
-                LimeLog.warning("DB: Legacy local address for " + details.name)
-            } catch (_: UnknownHostException) {
-                val stringData = c.getString(2)
-                if (stringData != null && stringData.startsWith(ADDRESS_PREFIX)) {
+                try {
                     details.localAddress = ComputerDetails.AddressTuple(
-                        stringData.substring(ADDRESS_PREFIX.length),
+                        InetAddress.getByAddress(c.getBlob(2)).hostAddress,
                         NvHTTP.DEFAULT_HTTP_PORT
                     )
-                } else {
-                    LimeLog.severe("DB: Corrupted local address for " + details.name)
+                    LimeLog.warning("DB: Legacy local address for " + details.name)
+                } catch (_: UnknownHostException) {
+                    val stringData = c.getString(2)
+                    if (stringData != null && stringData.startsWith(ADDRESS_PREFIX)) {
+                        details.localAddress = ComputerDetails.AddressTuple(
+                            stringData.substring(ADDRESS_PREFIX.length),
+                            NvHTTP.DEFAULT_HTTP_PORT
+                        )
+                    } else {
+                        LimeLog.severe("DB: Corrupted local address for " + details.name)
+                    }
                 }
-            }
 
-            try {
-                details.remoteAddress = ComputerDetails.AddressTuple(
-                    InetAddress.getByAddress(c.getBlob(3)).hostAddress,
-                    NvHTTP.DEFAULT_HTTP_PORT
-                )
-                LimeLog.warning("DB: Legacy remote address for " + details.name)
-            } catch (_: UnknownHostException) {
-                val stringData = c.getString(3)
-                if (stringData != null && stringData.startsWith(ADDRESS_PREFIX)) {
+                try {
                     details.remoteAddress = ComputerDetails.AddressTuple(
-                        stringData.substring(ADDRESS_PREFIX.length),
+                        InetAddress.getByAddress(c.getBlob(3)).hostAddress,
                         NvHTTP.DEFAULT_HTTP_PORT
                     )
-                } else {
-                    LimeLog.severe("DB: Corrupted remote address for " + details.name)
+                    LimeLog.warning("DB: Legacy remote address for " + details.name)
+                } catch (_: UnknownHostException) {
+                    val stringData = c.getString(3)
+                    if (stringData != null && stringData.startsWith(ADDRESS_PREFIX)) {
+                        details.remoteAddress = ComputerDetails.AddressTuple(
+                            stringData.substring(ADDRESS_PREFIX.length),
+                            NvHTTP.DEFAULT_HTTP_PORT
+                        )
+                    } else {
+                        LimeLog.severe("DB: Corrupted remote address for " + details.name)
+                    }
                 }
+
+                details.manualAddress = details.remoteAddress
+                details.macAddress = c.getString(4)
+                details.state = ComputerDetails.State.UNKNOWN
+
+                details
+            } catch (_: IllegalArgumentException) {
+                null
+            } catch (_: SQLiteException) {
+                null
             }
-
-            details.manualAddress = details.remoteAddress
-            details.macAddress = c.getString(4)
-            details.state = ComputerDetails.State.UNKNOWN
-
-            return details
         }
 
         private fun getAllComputers(db: SQLiteDatabase): List<ComputerDetails> {
@@ -78,8 +84,7 @@ class LegacyDatabaseReader private constructor() {
             }
         }
 
-        @JvmStatic
-        fun migrateAllComputers(c: Context): List<ComputerDetails> {
+        internal fun readAllComputers(c: Context): List<ComputerDetails>? {
             return try {
                 SQLiteDatabase.openDatabase(
                     c.getDatabasePath(COMPUTER_DB_NAME).path,
@@ -88,11 +93,13 @@ class LegacyDatabaseReader private constructor() {
                 ).use { computerDb ->
                     getAllComputers(computerDb)
                 }
-            } catch (_: SQLiteException) {
-                LinkedList()
-            } finally {
-                c.deleteDatabase(COMPUTER_DB_NAME)
+            } catch (_: RuntimeException) {
+                null
             }
         }
+
+        @JvmStatic
+        fun migrateAllComputers(c: Context): List<ComputerDetails> =
+            readAllComputers(c) ?: LinkedList()
     }
 }

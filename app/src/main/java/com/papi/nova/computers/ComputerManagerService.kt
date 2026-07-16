@@ -637,7 +637,7 @@ class ComputerManagerService : Service() {
     }
 
     private fun isExpectedComputerUuid(expectedUuid: String?, returnedUuid: String?): Boolean {
-        return returnedUuid != null && (expectedUuid.isNullOrEmpty() || expectedUuid == returnedUuid)
+        return !returnedUuid.isNullOrBlank() && (expectedUuid.isNullOrEmpty() || expectedUuid == returnedUuid)
     }
 
     private class ParallelPollTuple(
@@ -731,7 +731,7 @@ class ComputerManagerService : Service() {
         LimeLog.info("Parallel poll for " + details.name + " returned address: " + details.activeAddress)
 
         return if (polledDetails != null) {
-            details.update(polledDetails)
+            details.updateFromVerifiedPoll(polledDetails)
             true
         } else {
             false
@@ -1003,6 +1003,12 @@ class ComputerManagerService : Service() {
             addUnique(details.manualAddress)
             addUnique(details.remoteAddress)
             addUnique(details.ipv6Address)
+            for (knownAddress in details.knownAddresses.asReversed()) {
+                addUnique(knownAddress)
+                if (knownAddress.port != NvHTTP.DEFAULT_HTTP_PORT) {
+                    addUnique(ComputerDetails.AddressTuple(knownAddress.address, NvHTTP.DEFAULT_HTTP_PORT))
+                }
+            }
 
             return addresses
         }

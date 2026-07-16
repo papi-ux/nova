@@ -14,35 +14,38 @@ import java.util.LinkedList
 
 class LegacyDatabaseReader2 private constructor() {
     companion object {
-        private const val COMPUTER_DB_NAME = "computers2.db"
+        internal const val COMPUTER_DB_NAME = "computers2.db"
         private const val COMPUTER_TABLE_NAME = "Computers"
 
         private fun getComputerFromCursor(c: Cursor): ComputerDetails? {
             val uuid = c.getString(0) ?: return null
-            val details = ComputerDetails()
+            if (uuid.isBlank()) {
+                return null
+            }
+            return try {
+                val details = ComputerDetails()
+                details.uuid = uuid
+                details.name = c.getString(1) ?: ""
+                details.localAddress = ComputerDetails.AddressTuple(c.getString(2), NvHTTP.DEFAULT_HTTP_PORT)
+                details.remoteAddress = ComputerDetails.AddressTuple(c.getString(3), NvHTTP.DEFAULT_HTTP_PORT)
+                details.manualAddress = ComputerDetails.AddressTuple(c.getString(4), NvHTTP.DEFAULT_HTTP_PORT)
+                details.macAddress = c.getString(5)
 
-            details.uuid = uuid
-            details.name = c.getString(1) ?: ""
-            details.localAddress = ComputerDetails.AddressTuple(c.getString(2), NvHTTP.DEFAULT_HTTP_PORT)
-            details.remoteAddress = ComputerDetails.AddressTuple(c.getString(3), NvHTTP.DEFAULT_HTTP_PORT)
-            details.manualAddress = ComputerDetails.AddressTuple(c.getString(4), NvHTTP.DEFAULT_HTTP_PORT)
-            details.macAddress = c.getString(5)
-
-            if (c.columnCount >= 7) {
-                try {
+                if (c.columnCount >= 7) {
                     val derCertData = c.getBlob(6)
                     if (derCertData != null) {
                         details.serverCert = CertificateFactory.getInstance("X.509")
                             .generateCertificate(ByteArrayInputStream(derCertData)) as X509Certificate
                     }
-                } catch (e: CertificateException) {
-                    e.printStackTrace()
                 }
+
+                details.state = ComputerDetails.State.UNKNOWN
+                details
+            } catch (_: CertificateException) {
+                null
+            } catch (_: RuntimeException) {
+                null
             }
-
-            details.state = ComputerDetails.State.UNKNOWN
-
-            return details
         }
 
         @JvmStatic
@@ -57,8 +60,7 @@ class LegacyDatabaseReader2 private constructor() {
             }
         }
 
-        @JvmStatic
-        fun migrateAllComputers(c: Context): List<ComputerDetails> {
+        internal fun readAllComputers(c: Context): List<ComputerDetails>? {
             return try {
                 SQLiteDatabase.openDatabase(
                     c.getDatabasePath(COMPUTER_DB_NAME).path,
@@ -68,10 +70,12 @@ class LegacyDatabaseReader2 private constructor() {
                     getAllComputers(computerDb)
                 }
             } catch (_: SQLiteException) {
-                LinkedList()
-            } finally {
-                c.deleteDatabase(COMPUTER_DB_NAME)
+                null
             }
         }
+
+        @JvmStatic
+        fun migrateAllComputers(c: Context): List<ComputerDetails> =
+            readAllComputers(c) ?: LinkedList()
     }
 }

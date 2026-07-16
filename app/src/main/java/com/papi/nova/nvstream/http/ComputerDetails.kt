@@ -1,6 +1,7 @@
 package com.papi.nova.nvstream.http
 
 import java.security.cert.X509Certificate
+import java.util.Locale
 import java.util.Objects
 
 class ComputerDetails {
@@ -27,16 +28,33 @@ class ComputerDetails {
             if (address == null) {
                 throw IllegalArgumentException("Address cannot be null")
             }
-            if (port <= 0) {
+            if (port !in 1..65535) {
                 throw IllegalArgumentException("Invalid port")
             }
 
-            // If this was an escaped IPv6 address, remove the brackets
-            this.address = if (address.startsWith("[") && address.endsWith("]")) {
-                address.substring(1, address.length - 1)
-            } else {
-                address
+            var normalizedAddress = address.trim()
+            // If this was an escaped IPv6 address, remove the brackets.
+            if (normalizedAddress.startsWith("[") && normalizedAddress.endsWith("]")) {
+                normalizedAddress = normalizedAddress.substring(1, normalizedAddress.length - 1)
             }
+            // DNS names are case-insensitive and a trailing root label is optional. IPv6
+            // hexadecimal digits are case-insensitive too, but preserve a case-sensitive
+            // scope identifier if one is present.
+            val canonicalAddress = if (normalizedAddress.contains(":")) {
+                val scopeIndex = normalizedAddress.indexOf("%")
+                if (scopeIndex >= 0) {
+                    normalizedAddress.substring(0, scopeIndex).lowercase(Locale.ROOT) +
+                        normalizedAddress.substring(scopeIndex)
+                } else {
+                    normalizedAddress.lowercase(Locale.ROOT)
+                }
+            } else {
+                normalizedAddress.removeSuffix(".").lowercase(Locale.ROOT)
+            }
+            if (canonicalAddress.isBlank()) {
+                throw IllegalArgumentException("Address cannot be blank")
+            }
+            this.address = canonicalAddress
             this.port = port
         }
 
@@ -68,6 +86,12 @@ class ComputerDetails {
     @JvmField var remoteAddress: AddressTuple? = null
     @JvmField var manualAddress: AddressTuple? = null
     @JvmField var ipv6Address: AddressTuple? = null
+    private val knownAddressesLock = Any()
+    private val mutableKnownAddresses = ArrayList<AddressTuple>()
+    val knownAddresses: List<AddressTuple>
+        get() = synchronized(knownAddressesLock) {
+            mutableKnownAddresses.map { AddressTuple(it.address, it.port) }
+        }
     @JvmField var macAddress: String? = null
     @JvmField var serverCert: X509Certificate? = null
 
@@ -103,6 +127,35 @@ class ComputerDetails {
         update(details)
     }
 
+    fun rememberAddress(address: AddressTuple?) {
+        if (address == null) {
+            return
+        }
+
+        val rememberedAddress = AddressTuple(address.address, address.port)
+        synchronized(knownAddressesLock) {
+            mutableKnownAddresses.remove(rememberedAddress)
+            mutableKnownAddresses.add(rememberedAddress)
+            while (mutableKnownAddresses.size > MAX_KNOWN_ADDRESSES) {
+                mutableKnownAddresses.removeAt(0)
+            }
+        }
+    }
+
+    internal fun seedLegacyAddresses() {
+        rememberAddress(localAddress)
+        rememberAddress(remoteAddress)
+        rememberAddress(manualAddress)
+        rememberAddress(ipv6Address)
+        rememberAddress(activeAddress)
+    }
+
+    private fun rememberAddressesFrom(details: ComputerDetails) {
+        for (address in details.knownAddresses) {
+            rememberAddress(address)
+        }
+    }
+
     fun guessExternalPort(): Int {
         return if (externalPort != 0) {
             externalPort
@@ -120,6 +173,11 @@ class ComputerDetails {
     }
 
     fun update(details: ComputerDetails) {
+        if (uuid.isNotEmpty() && uuid != details.uuid) {
+            throw IllegalArgumentException("Cannot merge details for a different computer UUID")
+        }
+        rememberAddressesFrom(details)
+
         state = details.state
         name = details.name
         uuid = details.uuid
@@ -174,6 +232,20 @@ class ComputerDetails {
         vDisplaySupported = details.vDisplaySupported
 
         serverCommands = details.serverCommands
+    }
+
+    fun updateFromVerifiedPoll(details: ComputerDetails) {
+        if (details.uuid.isBlank()) {
+            throw IllegalArgumentException("A verified poll must include a computer UUID")
+        }
+        val verifiedAddress = details.activeAddress
+            ?: throw IllegalArgumentException("A verified poll must include its active address")
+        update(details)
+        rememberAddress(verifiedAddress)
+    }
+
+    companion object {
+        const val MAX_KNOWN_ADDRESSES = 16
     }
 
     override fun toString(): String {
