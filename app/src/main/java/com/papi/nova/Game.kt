@@ -441,7 +441,7 @@ val companionDisplayId:Int = companionDisplay.getDisplayId()
 val currentPresentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
 if (currentPresentation == null || !currentPresentation.isShowing || companionControlDisplayId != companionDisplayId)
 {
-currentPresentation?.dismiss()
+currentPresentation?.dismissAfterCurrentCallback()
 val presentation = ExternalDisplayControlPresentation(this, companionDisplay)
 presentation.setOnDismissListener {
 if (externalDisplayControlPresentation === presentation)
@@ -1545,7 +1545,7 @@ NotificationManagerCompat.from(baseContext)
 val presentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
 externalDisplayControlPresentation = null
 companionControlDisplayId = INVALID_DISPLAY_ID
-presentation?.dismiss()
+presentation?.dismissAfterCurrentCallback()
 }
 
 private fun handleDisplayRemoved(removedDisplayId:Int) {

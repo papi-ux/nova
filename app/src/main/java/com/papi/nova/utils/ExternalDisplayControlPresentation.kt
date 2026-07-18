@@ -134,7 +134,27 @@ class ExternalDisplayControlPresentation(
     override fun onStart() {
         super.onStart()
         if (game.isFinishing) {
-            dismiss()
+            dismissAfterCurrentCallback()
+        }
+    }
+
+    fun dismissAfterCurrentCallback() {
+        handler.post {
+            if (isShowing) {
+                dismiss()
+            }
+        }
+    }
+
+    override fun cancel() {
+        handler.post {
+            cancelNow()
+        }
+    }
+
+    private fun cancelNow() {
+        if (isShowing) {
+            super.cancel()
         }
     }
 
@@ -206,7 +226,7 @@ class ExternalDisplayControlPresentation(
         super.onWindowFocusChanged(hasFocus)
         game.logCompanionDisplayFocus(display.displayId, hasFocus)
         if (game.isFinishing) {
-            dismiss()
+            dismissAfterCurrentCallback()
         }
     }
 
@@ -217,8 +237,7 @@ class ExternalDisplayControlPresentation(
         } else if (gameMenu != null && gameMenu?.isMenuOpen() == false) {
             game.onBackPressed()
         } else {
-            @Suppress("DEPRECATION")
-            super.onBackPressed()
+            cancel()
         }
     }
 
@@ -296,7 +315,7 @@ class ExternalDisplayControlPresentation(
         val topRightButtons = createButtonContainer(Gravity.TOP or Gravity.END)
         topRightButtons.isFocusable = false
         topRightButtons.addView(createImageButton(R.drawable.ic_menu_external) { showGameMenu() })
-        topRightButtons.addView(createImageButton(R.drawable.ic_close_external) { dismiss() })
+        topRightButtons.addView(createImageButton(R.drawable.ic_close_external) { dismissAfterCurrentCallback() })
         rootLayout.addView(topRightButtons)
 
         val bottomLeftButton = createButtonContainer(Gravity.BOTTOM or Gravity.START)
