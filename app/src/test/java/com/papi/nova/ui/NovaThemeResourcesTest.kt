@@ -268,6 +268,23 @@ class NovaThemeResourcesTest {
 
 
     @Test
+    fun menuOpacityWiresSharedChromeWithoutCouplingNovaHud() {
+        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+        val composeTheme = File("src/main/java/com/papi/nova/ui/compose/NovaComposeTheme.kt").readText()
+        val streamHud = File("src/main/java/com/papi/nova/ui/NovaStreamHud.kt").readText()
+
+        assertTrue("native sheet glass should read the shared menu opacity preference", sheetChrome.contains("NovaMenuPreferences.readOpacityPercent"))
+        assertTrue("native sheet scrims should expose a preference-scaled alpha", sheetChrome.contains("getSheetScrimAlpha"))
+        assertTrue("Compose menus should publish one menu opacity composition local", composeTheme.contains("LocalNovaMenuOpacityScale"))
+        assertTrue("Compose menu surfaces should receive the current opacity scale", composeTheme.contains("librarySurfaces(theme, menuOpacityScale)"))
+        assertTrue("Compose roots should observe saved menu opacity changes without requiring Activity recreation", composeTheme.contains("registerOnSharedPreferenceChangeListener") && composeTheme.contains("NovaMenuPreferences.KEY_OPACITY"))
+        assertTrue(
+            "NovaHUD must opt out of menu opacity so its own slider remains authoritative",
+            streamHud.contains("NovaComposeTheme(menuOpacityPercent = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT)")
+        )
+    }
+
+    @Test
     fun sessionQuitConfirmationUsesNovaGlassBottomSheetInsteadOfRawAlertDialog() {
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
         val spinnerDialog = File("src/main/java/com/papi/nova/utils/SpinnerDialog.kt").readText()
@@ -316,6 +333,108 @@ class NovaThemeResourcesTest {
         assertFalse("Startup retry path must not assume a legacy spinner exists", game.contains("spinner!!.setMessage(getResources().getString(R.string.unlocking_or_starting))"))
         assertTrue("Startup retry path should report host readiness through the verbose progress overlay", game.contains("novaProgressOverlay?.updateState(\"unlocking_or_starting\""))
     }
+    @Test
+    fun commandCenterExposesLiveMenuOpacityWithoutDependingOnNovaHud() {
+        val quickMenu = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
+        val content = File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
+        val strings = File("src/main/res/values/strings.xml").readText()
+
+        assertTrue("Command Center state should read the saved menu opacity", quickMenu.contains("menuOpacityPercent = NovaMenuPreferences.readOpacityPercent(prefs)"))
+        assertTrue("Command Center should expose a menu-opacity callback", quickMenu.contains("onMenuOpacityChange = { percent ->"))
+        assertTrue("the open Command Center should recompose from its live opacity state", quickMenu.contains("NovaComposeTheme(menuOpacityPercent = uiState.menuOpacity.percent)"))
+        assertTrue("Command Center content should render the independent menu opacity control", content.contains("NovaQuickMenuMenuOpacityControl"))
+        val menuOpacityControl = content
+            .substringAfter("private fun NovaQuickMenuMenuOpacityControl(")
+            .substringBefore("\n@Composable")
+        assertTrue("the rendered control should expose every preset from state", menuOpacityControl.contains("state.menuOpacity.presets.forEach"))
+        assertTrue("each rendered preset should dispatch the menu-opacity callback", menuOpacityControl.contains("callbacks.onMenuOpacityChange(percent)"))
+        assertTrue("rendered presets should retain controller-sized focus targets", menuOpacityControl.contains("minHeight = 44.dp"))
+        assertTrue("Command Center explicit glass constants should consume the menu opacity composition local", content.contains("LocalNovaMenuOpacityScale.current"))
+        assertTrue("Command Center should label the new control as Menu Opacity", strings.contains("<string name=\"nova_quick_menu_menu_opacity\">Menu Opacity</string>"))
+    }
+
+    @Test
+    fun settingsMenuOpacitySliderPreviewsLiveAndRestoresOnCancel() {
+        val settings = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+        val sliderDialog = settings
+            .substringAfter("private fun NovaSliderDialog(")
+            .substringBefore("private fun NovaTextDialog(")
+
+        assertTrue("Settings should preview Menu Opacity through the SharedPreferences mirror while dragging", settings.contains("onMenuOpacityPreview") && sliderDialog.contains("onValueChange = { nextValue ->"))
+        assertTrue("cancel should restore the original Menu Opacity preview", settings.contains("restoreMenuOpacityPreview"))
+        assertTrue("Save should still persist the final preview through the repository", sliderDialog.contains("onSave(definition, NovaSettingValue.IntValue(value.roundToInt()))"))
+        assertFalse("default Material slider dialogs should not be unconditionally restyled at 100%", sliderDialog.contains("containerColor = surfaces.panel") || sliderDialog.contains("tonalElevation = 0.dp"))
+    }
+
+    @Test
+    fun menuOpacityCoversLifecycleLibraryOptionsAndResetPaths() {
+        val lifecycle = File("src/main/java/com/papi/nova/ui/NovaStreamOverlayContent.kt").readText()
+        val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
+        val gameDetail = File("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt").readText()
+        val settings = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+        val focusComponents = File("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt").readText()
+        val settingsViewModel = File("src/main/java/com/papi/nova/preferences/NovaSettingsViewModel.kt").readText()
+        val settingsRepository = File("src/main/java/com/papi/nova/preferences/NovaSettingsRepository.kt").readText()
+
+        assertTrue("session start/reconnect scrims should retain a contrast floor while honoring menu opacity", lifecycle.contains("NovaMenuPreferences.readabilityScrimAlpha(") && lifecycle.contains("scrimAlpha,"))
+        assertTrue("Compose library modal scrims should retain a contrast floor", library.contains("NovaMenuPreferences.readabilityScrimAlpha"))
+        assertTrue(
+            "both Library Options and System drawer scrims should use the readability floor",
+            library.split("NovaMenuPreferences.readabilityScrimAlpha(").size - 1 >= 3
+        )
+        assertTrue("Library fixed glass overrides should consume the menu opacity local", library.contains("LocalNovaMenuOpacityScale.current"))
+        assertTrue("game detail fixed glass overrides should consume the menu opacity local", gameDetail.contains("LocalNovaMenuOpacityScale.current"))
+        assertTrue("options fixed glass overrides should consume the menu opacity local", settings.contains("LocalNovaMenuOpacityScale.current"))
+        assertTrue("shared focus components should scale panel glass while retaining focus rings", focusComponents.contains("LocalNovaMenuOpacityScale.current"))
+        assertTrue("Stream UI reset should restore menu opacity to its compatibility default", settingsViewModel.contains("NovaMenuPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaMenuPreferences.DEFAULT_OPACITY_PERCENT)"))
+        assertTrue("Stream UI reset should remove stale HUD coordinates in the same batch", settingsViewModel.contains("NOVA_STREAM_UI_RESET_REMOVALS") && settingsViewModel.contains("store.updateAtomically(updates, NOVA_STREAM_UI_RESET_REMOVALS)"))
+        assertTrue("repository batch should update DataStore in one edit", settingsRepository.contains("override suspend fun updateAtomically(") && settingsRepository.contains("dataStore.edit { preferences ->"))
+    }
+
+    @Test
+    fun adaptiveMenuBlurTargetsOnlyBackdropContentAndFailsSoftBelowAndroid12() {
+        val blur = File("src/main/java/com/papi/nova/ui/NovaMenuBlur.kt").readText()
+        val composeBlur = File("src/main/java/com/papi/nova/ui/compose/NovaMenuBackdropBlur.kt").readText()
+        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+        val quickMenu = File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
+        val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
+        val settings = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+        val progress = File("src/main/java/com/papi/nova/ui/SessionProgressOverlay.kt").readText()
+        val reconnect = File("src/main/java/com/papi/nova/ui/ReconnectOverlay.kt").readText()
+
+        assertTrue("adaptive blur should use API 31 RenderEffect rather than optional cross-window blur", blur.contains("Build.VERSION_CODES.S") && blur.contains("RenderEffect.createBlurEffect"))
+        assertTrue("blur cleanup must be owner-scoped for overlapping overlays", blur.contains("class BlurLease") && blur.contains("ownerRadiiDp") && blur.contains("applyStrongestOwnedEffect"))
+        assertTrue("all View and dialog mutations should be main-thread confined", blur.contains("Looper.myLooper() == Looper.getMainLooper()") && blur.contains("requireMainThread()"))
+        assertTrue("stale dialog listeners must not remove a newer binding", blur.contains("dialogBindings[view] !== binding") && blur.contains("dialogBindings[view] === binding"))
+        assertTrue("releasing an owner should recompute the strongest remaining radius", blur.contains("state.ownerRadiiDp.remove(owner)") && blur.contains("state.ownerRadiiDp.values.maxOrNull()"))
+        assertTrue("Compose drawers should lease the Activity backdrop and release only their own effect", composeBlur.contains("NovaMenuBlur.acquireActivityBackground") && composeBlur.contains("lease?.release()"))
+        assertTrue("Command Center should opt into adaptive backdrop blur", quickMenu.contains("NovaMenuBackdropBlur()"))
+        assertTrue("Library drawers should blur only while a separate-window drawer is active", library.contains("if (activeOptionsSheet || activeSystemMenu)") && library.contains("NovaMenuBackdropBlur()"))
+        assertFalse("same-window filter sheets must not blur their own controls through the Activity decor", library.contains("activeFilterSheet != null || activeOptionsSheet"))
+        assertTrue("Settings editors should blur the underlying Settings surface", settings.contains("NovaMenuBackdropBlur()"))
+        assertTrue("native dialog blur should start on window attach and clear on detach", blur.contains("onViewAttachedToWindow") && blur.contains("isAttachedToWindow") && blur.contains("onViewDetachedFromWindow"))
+        assertTrue("native sheets and alerts should share the same adaptive blur contract", sheetChrome.contains("NovaMenuBlur.attachBehindDialog"))
+        assertTrue("native 100% glass should preserve legacy truncation rather than rounding up", sheetChrome.contains("NovaMenuPreferences.alphaByte(themedAlpha"))
+        assertTrue("unfocused native action strokes should disappear with menu glass", sheetChrome.contains("strokeAccentBlend * menuOpacityScale"))
+        assertTrue("focused and pressed native action strokes should remain as readability cues", sheetChrome.contains("if (preservesFocusCue)"))
+        assertTrue("session startup should release leases on explicit dismissal and unexpected view detach", progress.contains("NovaMenuBlur.acquireChildren") && progress.contains("releaseBackgroundBlur") && progress.contains("releaseOnUnexpectedDetach"))
+        assertTrue("reconnect should release leases on explicit dismissal and unexpected view detach", reconnect.contains("NovaMenuBlur.acquireChildren") && reconnect.contains("releaseBackgroundBlur") && reconnect.contains("releaseOnUnexpectedDetach"))
+    }
+
+    @Test
+    fun requiredNativeAlertsUseSharedOpacityAndBlurChrome() {
+        val gameDetail = File("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt").readText()
+        val legacySlider = File("src/main/java/com/papi/nova/preferences/SeekBarPreference.kt").readText()
+        val sessionDialog = File("src/main/java/com/papi/nova/utils/Dialog.kt").readText()
+
+        val preflight = gameDetail
+            .substringAfter("private fun showPreflightReview(")
+            .substringBefore("private fun showDesktopSteamLaunchDecision(")
+        assertTrue("game-detail preflight should opt into opacity below 100 without restyling its compatibility default", preflight.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert"))
+        assertTrue("legacy sliders, including Menu & Drawer Opacity, should preserve default dialog chrome at 100%", legacySlider.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)"))
+        assertTrue("session termination/error alerts should preserve default dialog chrome at 100%", sessionDialog.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdAlert)"))
+    }
+
     @Test
     fun legacyGameMenuUsesNovaGlassBottomSheetInsteadOfRawAlertList() {
         val source = File("src/main/java/com/papi/nova/GameMenu.kt").readText()

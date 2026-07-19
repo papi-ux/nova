@@ -19,6 +19,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.setPadding
 import androidx.core.widget.NestedScrollView
+import androidx.preference.PreferenceManager
+import androidx.appcompat.app.AlertDialog as AppCompatAlertDialog
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.R
@@ -71,8 +73,9 @@ object NovaSheetChrome {
         maxHeightPortrait: Float = 0.90f
     ) {
         val context = dialog.context
+        NovaMenuBlur.attachBehindDialog(dialog, readMenuOpacityPercent(context))
         dialog.window?.let { window ->
-            window.setDimAmount(SCRIM_ALPHA)
+            window.setDimAmount(getSheetScrimAlpha(context))
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         }
@@ -136,11 +139,22 @@ object NovaSheetChrome {
     }
 
 
+    fun applyMenuOpacityToLegacyAlert(dialog: AlertDialog, destructivePositive: Boolean = false) {
+        if (readMenuOpacityPercent(dialog.context) == NovaMenuPreferences.DEFAULT_OPACITY_PERCENT) return
+        applyAlertDialogChrome(dialog, destructivePositive)
+    }
+
+    fun applyMenuOpacityToLegacyAlert(dialog: AppCompatAlertDialog, destructivePositive: Boolean = false) {
+        if (readMenuOpacityPercent(dialog.context) == NovaMenuPreferences.DEFAULT_OPACITY_PERCENT) return
+        applyAlertDialogChrome(dialog, destructivePositive)
+    }
+
     fun applyAlertDialogChrome(dialog: AlertDialog, destructivePositive: Boolean = false) {
-        dialog.setOnShowListener {
+        val applyChrome = {
             val context = dialog.context
+            NovaMenuBlur.attachBehindDialog(dialog, readMenuOpacityPercent(context))
             dialog.window?.let { window ->
-                window.setDimAmount(SCRIM_ALPHA)
+                window.setDimAmount(getSheetScrimAlpha(context))
                 window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 window.setBackgroundDrawable(createAlertDialogBackground(context))
             }
@@ -154,6 +168,29 @@ object NovaSheetChrome {
                 button.setTextColor(NovaThemeManager.getTextSecondaryColor(context))
             }
         }
+        if (dialog.isShowing) applyChrome() else dialog.setOnShowListener { applyChrome() }
+    }
+
+    fun applyAlertDialogChrome(dialog: AppCompatAlertDialog, destructivePositive: Boolean = false) {
+        val applyChrome = {
+            val context = dialog.context
+            NovaMenuBlur.attachBehindDialog(dialog, readMenuOpacityPercent(context))
+            dialog.window?.let { window ->
+                window.setDimAmount(getSheetScrimAlpha(context))
+                window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                window.setBackgroundDrawable(createAlertDialogBackground(context))
+            }
+            val alertTitleId = context.resources.getIdentifier("alertTitle", "id", "android")
+            dialog.findViewById<TextView>(alertTitleId)?.setTextColor(NovaThemeManager.getTextPrimaryColor(context))
+            dialog.findViewById<TextView>(android.R.id.message)?.setTextColor(NovaThemeManager.getTextPrimaryColor(context))
+            dialog.getButton(AppCompatAlertDialog.BUTTON_POSITIVE)?.let { button ->
+                button.setTextColor(if (destructivePositive) ContextCompat.getColor(context, R.color.nova_error) else NovaThemeManager.getAccentColor(context))
+            }
+            dialog.getButton(AppCompatAlertDialog.BUTTON_NEGATIVE)?.let { button ->
+                button.setTextColor(NovaThemeManager.getTextSecondaryColor(context))
+            }
+        }
+        if (dialog.isShowing) applyChrome() else dialog.setOnShowListener { applyChrome() }
     }
 
     fun createAlertDialogBackground(context: Context): GradientDrawable {
@@ -192,12 +229,7 @@ object NovaSheetChrome {
 
     fun createSheetSurfaceColor(context: Context): Int {
         val baseSurface = NovaThemeManager.getDialogBackgroundColor(context)
-        val alpha = (getSheetGlassAlpha(context) * 255).toInt().coerceIn(0, 255)
-        return ColorUtils.setAlphaComponent(baseSurface, alpha)
-    }
-
-    fun getSheetGlassAlpha(context: Context): Float {
-        return when {
+        val themedAlpha = when {
             NovaThemeManager.isHighContrast(context) -> HIGH_CONTRAST_SHEET_GLASS_ALPHA
             NovaThemeManager.isPortableChrome(context) -> PORTABLE_CHROME_SHEET_GLASS_ALPHA
             NovaThemeManager.isMiami(context) -> MIAMI_SHEET_GLASS_ALPHA
@@ -205,17 +237,52 @@ object NovaSheetChrome {
             NovaThemeManager.isMaterialYou(context) -> MATERIAL_YOU_SHEET_GLASS_ALPHA
             else -> SHEET_GLASS_ALPHA
         }
+        val alpha = NovaMenuPreferences.alphaByte(themedAlpha, readMenuOpacityPercent(context))
+        return ColorUtils.setAlphaComponent(baseSurface, alpha)
+    }
+
+    fun getSheetScrimAlpha(context: Context): Float {
+        return NovaMenuPreferences.readabilityScrimAlpha(
+            SCRIM_ALPHA,
+            readMenuOpacityPercent(context)
+        )
+    }
+
+    fun getSheetGlassAlpha(context: Context): Float {
+        val themedAlpha = when {
+            NovaThemeManager.isHighContrast(context) -> HIGH_CONTRAST_SHEET_GLASS_ALPHA
+            NovaThemeManager.isPortableChrome(context) -> PORTABLE_CHROME_SHEET_GLASS_ALPHA
+            NovaThemeManager.isMiami(context) -> MIAMI_SHEET_GLASS_ALPHA
+            NovaThemeManager.isOled(context) -> OLED_SHEET_GLASS_ALPHA
+            NovaThemeManager.isMaterialYou(context) -> MATERIAL_YOU_SHEET_GLASS_ALPHA
+            else -> SHEET_GLASS_ALPHA
+        }
+        return NovaMenuPreferences.scaleAlpha(themedAlpha, readMenuOpacityPercent(context))
     }
 
     fun getSheetStrokeColor(context: Context): Int {
         val surface = NovaThemeManager.getDialogBackgroundColor(context)
         val accent = NovaThemeManager.getAccentColor(context)
-        return when {
+        val themedStroke = when {
             NovaThemeManager.isHighContrast(context) -> NovaThemeManager.getDividerColor(context)
             NovaThemeManager.isPortableChrome(context) -> ColorUtils.blendARGB(surface, accent, 0.46f)
             NovaThemeManager.isOled(context) -> ColorUtils.blendARGB(surface, Color.WHITE, 0.12f)
             else -> ColorUtils.blendARGB(surface, accent, 0.32f)
         }
+        val opacityPercent = readMenuOpacityPercent(context)
+        if (opacityPercent == NovaMenuPreferences.MAX_OPACITY_PERCENT) {
+            return themedStroke
+        }
+        val scaledAlpha = NovaMenuPreferences.alphaByte(
+            Color.alpha(themedStroke) / 255f,
+            opacityPercent
+        )
+        return ColorUtils.setAlphaComponent(themedStroke, scaledAlpha)
+    }
+
+    private fun readMenuOpacityPercent(context: Context): Int {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        return NovaMenuPreferences.readOpacityPercent(prefs)
     }
 
     fun createActionBackground(context: Context): StateListDrawable {
@@ -292,11 +359,18 @@ object NovaSheetChrome {
         val radius = dp(context, 16).toFloat()
         val surface = createSheetSurfaceColor(context)
         val accent = NovaThemeManager.getAccentColor(context)
+        val preservesFocusCue = fillAccentBlend > 0f
+        val menuOpacityScale = NovaMenuPreferences.opacityScale(readMenuOpacityPercent(context))
+        val effectiveStrokeBlend = if (preservesFocusCue) {
+            strokeAccentBlend
+        } else {
+            strokeAccentBlend * menuOpacityScale
+        }
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             setColor(if (fillAccentBlend > 0f) ColorUtils.blendARGB(surface, accent, fillAccentBlend) else Color.TRANSPARENT)
             cornerRadius = radius
-            setStroke(dp(context, 1), ColorUtils.blendARGB(surface, accent, strokeAccentBlend))
+            setStroke(dp(context, 1), ColorUtils.blendARGB(surface, accent, effectiveStrokeBlend))
         }
     }
 

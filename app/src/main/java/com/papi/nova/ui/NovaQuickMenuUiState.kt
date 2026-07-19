@@ -80,6 +80,11 @@ data class NovaQuickMenuHudOpacityState(
     val enabled: Boolean
 )
 
+data class NovaQuickMenuMenuOpacityState(
+    val percent: Int,
+    val presets: List<Int>
+)
+
 data class NovaQuickMenuDiagnosisState(
     val classification: String,
     val likelyCause: String,
@@ -107,6 +112,7 @@ data class NovaQuickMenuUiState(
     val diagnosis: NovaQuickMenuDiagnosisState,
     val postSessionReport: NovaPostSessionReportUiState,
     val hudOpacity: NovaQuickMenuHudOpacityState,
+    val menuOpacity: NovaQuickMenuMenuOpacityState,
     val overlayRows: List<NovaQuickMenuAction>,
     val controlRows: List<NovaQuickMenuAction>,
     val sessionRows: List<NovaQuickMenuAction>
@@ -131,6 +137,7 @@ data class NovaQuickMenuUiState(
             profilePreference: String,
             hudShowing: Boolean,
             hudOpacityPercent: Int = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
+            menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
             perfOverlayEnabled: Boolean,
             onscreenControllerEnabled: Boolean,
             keyboardVisible: Boolean,
@@ -321,6 +328,10 @@ data class NovaQuickMenuUiState(
                 presets = NovaHudPreferences.OPACITY_PRESETS,
                 enabled = hudShowing
             )
+            val menuOpacity = NovaQuickMenuMenuOpacityState(
+                percent = NovaMenuPreferences.coerceOpacityPercent(menuOpacityPercent),
+                presets = NovaMenuPreferences.OPACITY_PRESETS
+            )
             val diagnosis = diagnosisState(status)
 
             val overlays = listOf(
@@ -419,6 +430,7 @@ data class NovaQuickMenuUiState(
                 diagnosis = diagnosis,
                 postSessionReport = postSessionReport,
                 hudOpacity = hudOpacity,
+                menuOpacity = menuOpacity,
                 overlayRows = overlays,
                 controlRows = controls,
                 sessionRows = sessionRows
@@ -468,6 +480,7 @@ data class NovaQuickMenuUiState(
                 profilePreference = "auto",
                 hudShowing = false,
                 hudOpacityPercent = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
+                menuOpacityPercent = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
                 perfOverlayEnabled = false,
                 onscreenControllerEnabled = false,
                 keyboardVisible = false,

@@ -7,6 +7,7 @@ import android.widget.FrameLayout
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.preference.PreferenceManager
 import com.papi.nova.LimeLog
 import com.papi.nova.ui.compose.NovaComposeTheme
 
@@ -15,6 +16,7 @@ import com.papi.nova.ui.compose.NovaComposeTheme
  */
 class ReconnectOverlay(private val activity: Activity) {
     private var overlayView: ComposeView? = null
+    private var backgroundBlurLeases: List<NovaMenuBlur.BlurLease> = emptyList()
     private val overlayState = mutableStateOf(NovaReconnectOverlayState(attempt = 1, maxAttempts = 1))
 
     fun show(attempt: Int, maxAttempts: Int) {
@@ -26,6 +28,12 @@ class ReconnectOverlay(private val activity: Activity) {
 
             val composeView = ComposeView(activity).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+                NovaMenuBlur.releaseOnUnexpectedDetach(this) {
+                    if (overlayView === this) {
+                        overlayView = null
+                        releaseBackgroundBlur()
+                    }
+                }
                 setContent {
                     NovaComposeTheme {
                         NovaReconnectOverlayContent(state = overlayState.value)
@@ -37,6 +45,11 @@ class ReconnectOverlay(private val activity: Activity) {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
             val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
+            val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
+            backgroundBlurLeases = NovaMenuBlur.acquireChildren(
+                rootView,
+                NovaMenuPreferences.readOpacityPercent(prefs)
+            )
             rootView.addView(composeView, params)
             overlayView = composeView
             LimeLog.info("Nova: Reconnect overlay shown (attempt $attempt)")
@@ -47,11 +60,17 @@ class ReconnectOverlay(private val activity: Activity) {
         activity.runOnUiThread {
             val view = overlayView
             overlayView = null
+            releaseBackgroundBlur()
             view?.let {
                 safeRemoveFromParent(it)
                 LimeLog.info("Nova: Reconnect overlay dismissed")
             }
         }
+    }
+
+    private fun releaseBackgroundBlur() {
+        NovaMenuBlur.releaseAll(backgroundBlurLeases)
+        backgroundBlurLeases = emptyList()
     }
 
     private fun safeRemoveFromParent(view: View) {

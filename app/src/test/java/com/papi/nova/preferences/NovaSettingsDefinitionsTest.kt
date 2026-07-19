@@ -134,6 +134,23 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun menuOpacityPreferenceIsIndependentAdjustableInstantSlider() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val menuOpacity = definitions.require("nova_menu_opacity")
+
+        assertEquals("Menu & Drawer Opacity", menuOpacity.title)
+        assertEquals("category_overlays", menuOpacity.categoryKey)
+        assertEquals(NovaSettingType.Slider, menuOpacity.type)
+        assertEquals(NovaSettingValue.IntValue(100), menuOpacity.defaultValue)
+        assertEquals(0, menuOpacity.min)
+        assertEquals(100, menuOpacity.max)
+        assertEquals(1, menuOpacity.step)
+        assertEquals("%", menuOpacity.suffix)
+        assertEquals(NovaSettingApplyTiming.Instant, menuOpacity.applyTiming)
+        assertEquals(null, menuOpacity.dependencyKey)
+    }
+
+    @Test
     fun upgradedBalancedInstallMigratesLegacy720Resolution() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         prefs.edit()

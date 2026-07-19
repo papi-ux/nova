@@ -311,6 +311,28 @@ class NovaQuickMenuUiStateTest {
         assertEquals(NovaHudPreferences.OPACITY_PRESETS, state.hudOpacity.presets)
     }
 
+    @Test
+    fun commandCenterStateExposesMenuOpacityIndependentlyFromHud() {
+        val state = quickState(
+            status = status(),
+            hudShowing = false,
+            hudOpacityPercent = 25,
+            menuOpacityPercent = 64
+        )
+
+        assertFalse(state.hudOpacity.enabled)
+        assertEquals(64, state.menuOpacity.percent)
+        assertEquals(listOf(0, 25, 64, 90, 100), state.menuOpacity.presets)
+    }
+
+    @Test
+    fun commandCenterStateClampsNonPresetMenuOpacityValues() {
+        val state = quickState(status = status(), menuOpacityPercent = 150)
+
+        assertEquals(100, state.menuOpacity.percent)
+        assertEquals(NovaMenuPreferences.OPACITY_PRESETS, state.menuOpacity.presets)
+    }
+
     private fun quickState(
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,
@@ -326,6 +348,7 @@ class NovaQuickMenuUiStateTest {
         currentGameUuid: String? = "game-1",
         hudShowing: Boolean = false,
         hudOpacityPercent: Int = 90,
+        menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
         fallbackTargetFps: Double = 60.0
     ) = NovaQuickMenuUiState.from(
         context = context,
@@ -344,6 +367,7 @@ class NovaQuickMenuUiStateTest {
         profilePreference = "quality",
         hudShowing = hudShowing,
         hudOpacityPercent = hudOpacityPercent,
+        menuOpacityPercent = menuOpacityPercent,
         perfOverlayEnabled = false,
         onscreenControllerEnabled = false,
         keyboardVisible = false,

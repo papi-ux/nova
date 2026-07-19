@@ -74,6 +74,7 @@ import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaComposeTheme
@@ -624,13 +625,15 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         onResetProfile: () -> Unit
     ) {
         val reason = optimizationState.reviewReason.ifBlank { "fps_override" }
-        AlertDialog.Builder(requireContext())
+        val dialog = AlertDialog.Builder(requireContext())
             .setTitle(R.string.nova_library_preflight_review_title)
             .setMessage(getString(R.string.nova_library_preflight_review_message, reason))
             .setPositiveButton(R.string.nova_library_preflight_launch) { _, _ -> onLaunchConfirmed() }
             .setNeutralButton(R.string.nova_library_retry_high_fps) { _, _ -> onRetryHighFps() }
             .setNegativeButton(R.string.nova_library_reset_game_profile) { _, _ -> onResetProfile() }
-            .show()
+            .create()
+        NovaSheetChrome.applyMenuOpacityToLegacyAlert(dialog)
+        dialog.show()
     }
 
     private fun showDesktopSteamLaunchDecision(
@@ -1567,7 +1570,7 @@ private fun GameDetailsPanel(
                         text = lastPlayedText,
                         modifier = Modifier.padding(top = 7.dp),
                         color = colors.textSecondary,
-                        backgroundColor = surfaces.control.copy(alpha = 0.78f),
+                        backgroundColor = surfaces.control.copy(alpha = 0.78f * LocalNovaMenuOpacityScale.current),
                         borderColor = surfaces.tileBorder,
                         fontSize = 11.sp,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
@@ -1914,7 +1917,7 @@ internal fun LaunchProfilePrimaryNotice(
             NovaBadge(
                 text = badgeLabel,
                 color = toneColor,
-                backgroundColor = surfaces.control.copy(alpha = 0.72f),
+                backgroundColor = surfaces.control.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current),
                 borderColor = toneColor.copy(alpha = 0.35f),
                 fontWeight = FontWeight.SemiBold
             )
@@ -2382,7 +2385,7 @@ private fun MangoHudPassiveStatus(
         NovaBadge(
             text = label,
             color = if (warning) colors.warning else colors.textSecondary,
-            backgroundColor = surfaces.control.copy(alpha = 0.56f),
+            backgroundColor = surfaces.control.copy(alpha = 0.56f * LocalNovaMenuOpacityScale.current),
             borderColor = if (warning) colors.warning.copy(alpha = 0.44f) else surfaces.tileBorder,
             fontSize = 10.sp,
             contentPadding = PaddingValues(horizontal = 9.dp, vertical = 4.dp)

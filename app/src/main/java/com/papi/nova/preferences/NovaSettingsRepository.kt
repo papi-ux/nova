@@ -14,9 +14,13 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.preference.PreferenceManager
 import java.io.File
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 
 private val Context.novaSettingsDataStore by preferencesDataStore(name = "nova_settings")
+private val novaSettingsWriteMutex = Mutex()
 
 class NovaSharedPreferencesSettingsStore(
     private val prefs: SharedPreferences,
@@ -39,6 +43,18 @@ class NovaSharedPreferencesSettingsStore(
 
     override suspend fun set(definition: NovaSettingDefinition, value: NovaSettingValue) {
         prefs.edit().putSettingValue(definition.key, value).apply()
+    }
+
+    override suspend fun updateAtomically(
+        updates: List<Pair<NovaSettingDefinition, NovaSettingValue>>,
+        removeKeys: Set<String>
+    ) {
+        val editor = prefs.edit()
+        removeKeys.forEach(editor::remove)
+        updates.forEach { (definition, value) ->
+            editor.putSettingValue(definition.key, value)
+        }
+        check(editor.commit()) { "Failed to persist Nova settings batch" }
     }
 
     override suspend fun reset(definition: NovaSettingDefinition) {
@@ -83,6 +99,10 @@ class NovaSharedPreferencesSettingsStore(
 interface NovaSettingsStore {
     suspend fun snapshot(definitions: NovaSettingsDefinitionSet): Map<String, NovaSettingValue>
     suspend fun set(definition: NovaSettingDefinition, value: NovaSettingValue)
+    suspend fun updateAtomically(
+        updates: List<Pair<NovaSettingDefinition, NovaSettingValue>>,
+        removeKeys: Set<String> = emptySet()
+    )
     suspend fun reset(definition: NovaSettingDefinition)
     suspend fun overrideKeys(definitions: NovaSettingsDefinitionSet): Set<String>
     suspend fun resettableKeys(definitions: NovaSettingsDefinitionSet): Set<String>
@@ -104,17 +124,41 @@ class NovaSettingsRepository private constructor(
     }
 
     override suspend fun set(definition: NovaSettingDefinition, value: NovaSettingValue) {
-        dataStore.edit { preferences ->
-            preferences.writeSettingValue(definition, value)
+        persistWithoutCancellation {
+            dataStore.edit { preferences ->
+                preferences.writeSettingValue(definition, value)
+            }
+            mirrorPrefs.edit().putSettingValue(definition.key, value).apply()
         }
-        mirrorPrefs.edit().putSettingValue(definition.key, value).apply()
+    }
+
+    override suspend fun updateAtomically(
+        updates: List<Pair<NovaSettingDefinition, NovaSettingValue>>,
+        removeKeys: Set<String>
+    ) {
+        persistWithoutCancellation {
+            dataStore.edit { preferences ->
+                removeKeys.forEach(preferences::removeRawSettingKey)
+                updates.forEach { (definition, value) ->
+                    preferences.writeSettingValue(definition, value)
+                }
+            }
+            val editor = mirrorPrefs.edit()
+            removeKeys.forEach(editor::remove)
+            updates.forEach { (definition, value) ->
+                editor.putSettingValue(definition.key, value)
+            }
+            check(editor.commit()) { "Failed to persist Nova settings mirror batch" }
+        }
     }
 
     override suspend fun reset(definition: NovaSettingDefinition) {
-        dataStore.edit { preferences ->
-            preferences.removeSettingValue(definition)
+        persistWithoutCancellation {
+            dataStore.edit { preferences ->
+                preferences.removeSettingValue(definition)
+            }
+            mirrorPrefs.edit().remove(definition.key).apply()
         }
-        mirrorPrefs.edit().remove(definition.key).apply()
     }
 
     override suspend fun overrideKeys(definitions: NovaSettingsDefinitionSet): Set<String> = emptySet()
@@ -122,15 +166,28 @@ class NovaSettingsRepository private constructor(
     override suspend fun resettableKeys(definitions: NovaSettingsDefinitionSet): Set<String> = emptySet()
 
     private suspend fun ensureMigrated(definitions: NovaSettingsDefinitionSet) {
-        val preferences = dataStore.data.first()
-        if (preferences[MIGRATED_KEY] == true) return
+        persistWithoutCancellation {
+            val preferences = dataStore.data.first()
+            if (preferences[MIGRATED_KEY] == true) return@persistWithoutCancellation
 
-        dataStore.edit { mutablePreferences ->
-            for (definition in definitions.settings) {
-                val value = mirrorPrefs.readSettingValue(definition) ?: continue
-                mutablePreferences.writeSettingValue(definition, value)
+            dataStore.edit { mutablePreferences ->
+                for (definition in definitions.settings) {
+                    val value = mirrorPrefs.readSettingValue(definition) ?: continue
+                    mutablePreferences.writeSettingValue(definition, value)
+                }
+                mutablePreferences[MIGRATED_KEY] = true
             }
-            mutablePreferences[MIGRATED_KEY] = true
+        }
+    }
+
+    private suspend fun persistWithoutCancellation(block: suspend () -> Unit) {
+        withContext(NonCancellable) {
+            novaSettingsWriteMutex.lock()
+            try {
+                block()
+            } finally {
+                novaSettingsWriteMutex.unlock()
+            }
         }
     }
 
@@ -209,6 +266,13 @@ private fun MutablePreferences.removeSettingValue(definition: NovaSettingDefinit
         NovaSettingType.Text -> remove(stringPreferencesKey(definition.key))
         NovaSettingType.Action -> Unit
     }
+}
+
+private fun MutablePreferences.removeRawSettingKey(key: String) {
+    remove(booleanPreferencesKey(key))
+    remove(intPreferencesKey(key))
+    remove(stringPreferencesKey(key))
+    remove(stringSetPreferencesKey(key))
 }
 
 private fun SharedPreferences.Editor.putSettingValue(
