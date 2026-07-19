@@ -54,7 +54,11 @@ class NovaLibrarySurfacesTest {
         val zero = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 0f)
 
         assertEquals(
-            NovaMenuPreferences.readabilityScrimAlpha(full.backgroundScrim.alpha, 50),
+            NovaMenuPreferences.readabilityScrimAlpha(
+                baseAlpha = full.backgroundScrim.alpha,
+                opacityScale = 0.5f,
+                usesDarkText = true
+            ),
             half.backgroundScrim.alpha,
             0.005f
         )
@@ -64,7 +68,7 @@ class NovaLibrarySurfacesTest {
         assertEquals(full.tileBorder.alpha * 0.5f, half.tileBorder.alpha, 0.005f)
         assertEquals(full.control.alpha * 0.5f, half.control.alpha, 0.005f)
         assertEquals(full.selectedControl.alpha * 0.5f, half.selectedControl.alpha, 0.005f)
-        assertEquals(NovaMenuPreferences.MIN_READABILITY_SCRIM_ALPHA, zero.backgroundScrim.alpha, 0.005f)
+        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA, zero.backgroundScrim.alpha, 0.005f)
         assertEquals(Color.White, zero.backgroundScrim.copy(alpha = 1f))
         assertEquals(0f, zero.panel.alpha, 0.001f)
         assertEquals(0f, zero.control.alpha, 0.001f)
