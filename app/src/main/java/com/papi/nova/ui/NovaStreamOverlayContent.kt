@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 
 data class NovaReconnectOverlayState(
     val attempt: Int,
@@ -303,7 +304,14 @@ private fun StreamOverlayScaffold(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = scrimAlpha))
+            .background(
+                Color.Black.copy(
+                    alpha = NovaMenuPreferences.readabilityScrimAlpha(
+                        scrimAlpha,
+                        LocalNovaMenuOpacityScale.current
+                    )
+                )
+            )
             .padding(horizontal = 48.dp, vertical = 32.dp),
         contentAlignment = Alignment.Center
     ) {

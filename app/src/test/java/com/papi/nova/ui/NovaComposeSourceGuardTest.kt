@@ -173,7 +173,7 @@ class NovaComposeSourceGuardTest {
 
         assertTrue(
             "landscape toolbar should be a slim nav overlay, not another padded card slab above the grid",
-            landscapeToolbar.contains("surfaces.panel.copy(alpha = 0.72f)") &&
+            landscapeToolbar.contains("surfaces.panel.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current)") &&
                 landscapeToolbar.contains(".padding(horizontal = 10.dp, vertical = 6.dp)") &&
                 landscapeToolbar.contains("fontSize = 16.sp")
         )
@@ -212,7 +212,7 @@ class NovaComposeSourceGuardTest {
                 optionsSheet.contains("usePlatformDefaultWidth = false") &&
                 optionsSheet.contains("align(Alignment.CenterStart)") &&
                 optionsSheet.contains("widthIn(max = 420.dp)") &&
-                optionsSheet.contains("surfaces.backgroundScrim.copy(alpha = 0.58f)")
+                optionsSheet.contains("NovaMenuPreferences.readabilityScrimAlpha(")
         )
         assertFalse(
             "library options should not use the giant Material bottom sheet now that it is the primary browse drawer",

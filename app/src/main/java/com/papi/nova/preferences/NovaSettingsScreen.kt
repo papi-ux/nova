@@ -3,6 +3,7 @@ package com.papi.nova.preferences
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,10 +37,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,8 +51,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -58,16 +63,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudPreferences
 import com.papi.nova.ui.NovaHudUiState
+import com.papi.nova.ui.NovaMenuOpacityPreview
+import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaStreamHudContent
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
+import com.papi.nova.ui.compose.NovaMenuBackdropBlur
 import com.papi.nova.ui.compose.novaFocusMotion
 import kotlin.math.roundToInt
 
@@ -84,6 +94,24 @@ fun NovaSettingsScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var activeDialog by remember { mutableStateOf<NovaSettingsDialog?>(null) }
+    var menuOpacityPreviewOwner by remember { mutableStateOf<Long?>(null) }
+    val latestPreviewOwner by rememberUpdatedState(menuOpacityPreviewOwner)
+
+    DisposableEffect(Unit) {
+        onDispose {
+            latestPreviewOwner?.let(NovaMenuOpacityPreview::clear)
+        }
+    }
+    val restoreMenuOpacityPreview = {
+        menuOpacityPreviewOwner?.let(NovaMenuOpacityPreview::clear)
+        menuOpacityPreviewOwner = null
+        activeDialog = null
+    }
+    val onMenuOpacityPreview: (Int) -> Unit = { percent ->
+        menuOpacityPreviewOwner?.let { owner ->
+            NovaMenuOpacityPreview.update(owner, percent)
+        }
+    }
 
     NovaSettingsContent(
         state = state,
@@ -103,12 +131,20 @@ fun NovaSettingsScreen(
                     NovaSettingValue.BooleanValue(!state.booleanValue(definition))
                 )
                 NovaSettingType.Select -> activeDialog = NovaSettingsDialog.Select(definition)
-                NovaSettingType.Slider -> activeDialog = NovaSettingsDialog.Slider(definition)
+                NovaSettingType.Slider -> {
+                    if (definition.key == NovaMenuPreferences.KEY_OPACITY) {
+                        menuOpacityPreviewOwner?.let(NovaMenuOpacityPreview::clear)
+                        menuOpacityPreviewOwner = NovaMenuOpacityPreview.newOwner()
+                    }
+                    activeDialog = NovaSettingsDialog.Slider(
+                        definition = definition,
+                        originalValue = state.intValue(definition)
+                    )
+                }
                 NovaSettingType.Text -> activeDialog = NovaSettingsDialog.Text(definition)
                 NovaSettingType.Action -> {
                     if (definition.key == RESET_STREAM_UI_DEFAULTS_KEY) {
                         viewModel.resetStreamUiDefaults()
-                        onAction(definition)
                     } else {
                         onAction(definition)
                     }
@@ -118,12 +154,26 @@ fun NovaSettingsScreen(
     )
 
     activeDialog?.let { dialog ->
+        NovaMenuBackdropBlur()
         NovaSettingDialog(
             dialog = dialog,
             state = state,
-            onDismiss = { activeDialog = null },
-            onSave = {definition, value ->
-                viewModel.setValue(definition, value)
+            onDismiss = restoreMenuOpacityPreview,
+            onMenuOpacityPreview = onMenuOpacityPreview,
+            onSave = { definition, value ->
+                val previewOwnerAtSave = menuOpacityPreviewOwner.takeIf {
+                    definition.key == NovaMenuPreferences.KEY_OPACITY
+                }
+                viewModel.setValue(
+                    definition = definition,
+                    value = value,
+                    onCompleted = {
+                        previewOwnerAtSave?.let(NovaMenuOpacityPreview::clear)
+                        if (previewOwnerAtSave != null && menuOpacityPreviewOwner == previewOwnerAtSave) {
+                            menuOpacityPreviewOwner = null
+                        }
+                    }
+                )
                 activeDialog = null
                 applyThemeSelectionIfNeeded(context, definition, value)
             }
@@ -677,7 +727,7 @@ private fun NovaHudSettingsPreview(state: NovaSettingsUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(NovaSettingsCardShape)
-            .background(surfaces.panel.copy(alpha = 0.86f))
+            .background(surfaces.panel.copy(alpha = 0.86f * LocalNovaMenuOpacityScale.current))
             .border(1.dp, surfaces.panelBorder, NovaSettingsCardShape)
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
@@ -829,7 +879,7 @@ private fun NovaSettingOverrideBadge(alpha: Float) {
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
             .clip(shape)
-            .background(surfaces.selectedControl.copy(alpha = alpha))
+            .background(surfaces.selectedControl.copy(alpha = alpha * LocalNovaMenuOpacityScale.current))
             .border(1.dp, surfaces.focusRing.copy(alpha = alpha), shape)
             .padding(horizontal = 7.dp, vertical = 3.dp),
         maxLines = 1,
@@ -853,8 +903,8 @@ private fun NovaSettingApplyBadge(
         fontWeight = FontWeight.Medium,
         modifier = Modifier
             .clip(shape)
-            .background(surfaces.control.copy(alpha = alpha))
-            .border(1.dp, surfaces.tileBorder.copy(alpha = alpha), shape)
+            .background(surfaces.control.copy(alpha = alpha * LocalNovaMenuOpacityScale.current))
+            .border(1.dp, surfaces.tileBorder.copy(alpha = alpha * LocalNovaMenuOpacityScale.current), shape)
             .padding(horizontal = 7.dp, vertical = 3.dp),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
@@ -874,8 +924,8 @@ private fun NovaSettingValueChip(
             .widthIn(min = 92.dp, max = 220.dp)
             .heightIn(min = NovaSettingsMetrics.valueChipMinHeightDp().dp)
             .clip(shape)
-            .background(surfaces.control.copy(alpha = alpha))
-            .border(1.dp, surfaces.tileBorder.copy(alpha = alpha), shape)
+            .background(surfaces.control.copy(alpha = alpha * LocalNovaMenuOpacityScale.current))
+            .border(1.dp, surfaces.tileBorder.copy(alpha = alpha * LocalNovaMenuOpacityScale.current), shape)
             .padding(horizontal = 12.dp, vertical = 7.dp),
         contentAlignment = Alignment.CenterEnd
     ) {
@@ -896,11 +946,18 @@ private fun NovaSettingDialog(
     dialog: NovaSettingsDialog,
     state: NovaSettingsUiState,
     onDismiss: () -> Unit,
+    onMenuOpacityPreview: (Int) -> Unit,
     onSave: (NovaSettingDefinition, NovaSettingValue) -> Unit
 ) {
     when (dialog) {
         is NovaSettingsDialog.Select -> NovaSelectDialog(dialog.definition, state, onDismiss, onSave)
-        is NovaSettingsDialog.Slider -> NovaSliderDialog(dialog.definition, state, onDismiss, onSave)
+        is NovaSettingsDialog.Slider -> NovaSliderDialog(
+            definition = dialog.definition,
+            state = state,
+            onDismiss = onDismiss,
+            onMenuOpacityPreview = onMenuOpacityPreview,
+            onSave = onSave
+        )
         is NovaSettingsDialog.Text -> NovaTextDialog(dialog.definition, state, onDismiss, onSave)
     }
 }
@@ -949,12 +1006,13 @@ private fun NovaSelectDialogShell(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        NovaDialogContrastBackdrop()
         Column(
             modifier = Modifier
                 .fillMaxWidth(0.72f)
                 .widthIn(max = 720.dp)
                 .clip(NovaSettingsCardShape)
-                .background(surfaces.panel.copy(alpha = 0.96f))
+                .background(surfaces.panel.copy(alpha = 0.96f * LocalNovaMenuOpacityScale.current))
                 .border(1.dp, surfaces.panelBorder, NovaSettingsCardShape)
                 .padding(18.dp)
         ) {
@@ -967,6 +1025,25 @@ private fun NovaSelectDialogShell(
             ) {
                 confirmButton()
                 dismissButton()
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaDialogContrastBackdrop() {
+    val view = LocalView.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val opacityScale = LocalNovaMenuOpacityScale.current
+    DisposableEffect(view, surfaces.backgroundScrim, opacityScale) {
+        val window = (view.parent as? DialogWindowProvider)?.window
+        val previousBackground = window?.decorView?.background
+        if (opacityScale < 1f) {
+            window?.setBackgroundDrawable(ColorDrawable(surfaces.backgroundScrim.toArgb()))
+        }
+        onDispose {
+            if (opacityScale < 1f) {
+                window?.setBackgroundDrawable(previousBackground)
             }
         }
     }
@@ -986,7 +1063,7 @@ private fun NovaSettingsSelectOptionRow(
     val background = when {
         selected -> colors.accent.copy(alpha = 0.20f)
         focused -> surfaces.selectedControl
-        else -> surfaces.control.copy(alpha = 0.74f)
+        else -> surfaces.control.copy(alpha = 0.74f * LocalNovaMenuOpacityScale.current)
     }
     Row(
         modifier = Modifier
@@ -1127,6 +1204,7 @@ private fun NovaSliderDialog(
     definition: NovaSettingDefinition,
     state: NovaSettingsUiState,
     onDismiss: () -> Unit,
+    onMenuOpacityPreview: (Int) -> Unit,
     onSave: (NovaSettingDefinition, NovaSettingValue) -> Unit
 ) {
     var value by remember(definition.key) {
@@ -1151,7 +1229,12 @@ private fun NovaSliderDialog(
                 Spacer(Modifier.height(16.dp))
                 Slider(
                     value = value.coerceIn(min, max),
-                    onValueChange = { value = it },
+                    onValueChange = { nextValue ->
+                        value = nextValue
+                        if (definition.key == NovaMenuPreferences.KEY_OPACITY) {
+                            onMenuOpacityPreview(nextValue.roundToInt())
+                        }
+                    },
                     valueRange = min..max
                 )
             }
@@ -1236,7 +1319,10 @@ private fun validationMessage(key: String): String {
 
 private sealed interface NovaSettingsDialog {
     data class Select(val definition: NovaSettingDefinition) : NovaSettingsDialog
-    data class Slider(val definition: NovaSettingDefinition) : NovaSettingsDialog
+    data class Slider(
+        val definition: NovaSettingDefinition,
+        val originalValue: Int
+    ) : NovaSettingsDialog
     data class Text(val definition: NovaSettingDefinition) : NovaSettingsDialog
 }
 

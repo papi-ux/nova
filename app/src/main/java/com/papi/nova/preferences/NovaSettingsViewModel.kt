@@ -3,14 +3,48 @@ package com.papi.nova.preferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.papi.nova.ui.NovaHudPreferences
+import com.papi.nova.ui.NovaMenuPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+internal val NOVA_STREAM_UI_DEFAULT_UPDATES = listOf(
+    "nova_polaris_hud" to NovaSettingValue.BooleanValue(false),
+    "nova_polaris_hud_mode" to NovaSettingValue.StringValue("minimal"),
+    "nova_polaris_hud_position" to NovaSettingValue.StringValue("top_left"),
+    NovaHudPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaHudPreferences.DEFAULT_OPACITY_PERCENT),
+    NovaMenuPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaMenuPreferences.DEFAULT_OPACITY_PERCENT),
+    "checkbox_enable_perf_overlay" to NovaSettingValue.BooleanValue(false),
+    "checkbox_enable_perf_logging" to NovaSettingValue.BooleanValue(false),
+    "checkbox_show_onscreen_controls" to NovaSettingValue.BooleanValue(false),
+    "seekbar_osc_opacity" to NovaSettingValue.IntValue(90),
+    "checkbox_enable_keyboard" to NovaSettingValue.BooleanValue(false),
+    "checkbox_enable_floating_button" to NovaSettingValue.BooleanValue(false),
+    "checkbox_show_overlay_zoom_toggle_button" to NovaSettingValue.BooleanValue(false),
+    "checkbox_disable_warnings" to NovaSettingValue.BooleanValue(false)
+)
+
+internal val NOVA_STREAM_UI_RESET_REMOVALS = setOf(
+    "nova_polaris_hud_x",
+    "nova_polaris_hud_y"
+)
+
+internal suspend fun persistNovaStreamUiDefaults(
+    store: NovaSettingsStore,
+    definitions: NovaSettingsDefinitionSet
+) {
+    val updates = NOVA_STREAM_UI_DEFAULT_UPDATES.map { (key, value) ->
+        definitions.require(key) to value
+    }
+    store.updateAtomically(updates, NOVA_STREAM_UI_RESET_REMOVALS)
+}
+
 class NovaSettingsViewModel(
     private val definitions: NovaSettingsDefinitionSet,
     private val store: NovaSettingsStore,
+    private val resetDefinitions: NovaSettingsDefinitionSet = definitions,
     initialCategoryKey: String = definitions.categories.firstOrNull()?.key.orEmpty()
 ) : ViewModel() {
     private var selectedCategoryKey = initialCategoryKey
@@ -43,13 +77,21 @@ class NovaSettingsViewModel(
         emit()
     }
 
-    fun setValue(definition: NovaSettingDefinition, value: NovaSettingValue) {
+    fun setValue(
+        definition: NovaSettingDefinition,
+        value: NovaSettingValue,
+        onCompleted: () -> Unit = {}
+    ) {
         viewModelScope.launch {
-            store.set(definition, value)
-            values = values + (definition.key to value)
-            applyPresetIfNeeded(definition, value)
-            loadStoreState()
-            emit()
+            try {
+                store.set(definition, value)
+                values = values + (definition.key to value)
+                applyPresetIfNeeded(definition, value)
+                loadStoreState()
+                emit()
+            } finally {
+                onCompleted()
+            }
         }
     }
 
@@ -63,24 +105,7 @@ class NovaSettingsViewModel(
 
     fun resetStreamUiDefaults() {
         viewModelScope.launch {
-            val updates = listOf(
-                "nova_polaris_hud" to NovaSettingValue.BooleanValue(false),
-                "nova_polaris_hud_mode" to NovaSettingValue.StringValue("minimal"),
-                "nova_polaris_hud_position" to NovaSettingValue.StringValue("top_left"),
-                "nova_polaris_hud_opacity" to NovaSettingValue.IntValue(90),
-                "checkbox_enable_perf_overlay" to NovaSettingValue.BooleanValue(false),
-                "checkbox_enable_perf_logging" to NovaSettingValue.BooleanValue(false),
-                "checkbox_show_onscreen_controls" to NovaSettingValue.BooleanValue(false),
-                "seekbar_osc_opacity" to NovaSettingValue.IntValue(90),
-                "checkbox_enable_keyboard" to NovaSettingValue.BooleanValue(false),
-                "checkbox_enable_floating_button" to NovaSettingValue.BooleanValue(false),
-                "checkbox_show_overlay_zoom_toggle_button" to NovaSettingValue.BooleanValue(false),
-                "checkbox_disable_warnings" to NovaSettingValue.BooleanValue(false)
-            )
-            for ((key, value) in updates) {
-                val definition = definitions.find(key) ?: continue
-                store.set(definition, value)
-            }
+            persistNovaStreamUiDefaults(store, resetDefinitions)
             loadStoreState()
             emit()
         }
@@ -133,11 +158,17 @@ class NovaSettingsViewModel(
     class Factory(
         private val definitions: NovaSettingsDefinitionSet,
         private val store: NovaSettingsStore,
+        private val resetDefinitions: NovaSettingsDefinitionSet = definitions,
         private val initialCategoryKey: String = definitions.categories.firstOrNull()?.key.orEmpty()
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return NovaSettingsViewModel(definitions, store, initialCategoryKey) as T
+            return NovaSettingsViewModel(
+                definitions = definitions,
+                store = store,
+                resetDefinitions = resetDefinitions,
+                initialCategoryKey = initialCategoryKey
+            ) as T
         }
     }
 }

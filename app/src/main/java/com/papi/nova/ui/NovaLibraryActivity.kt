@@ -129,11 +129,13 @@ import com.papi.nova.utils.UiHelper
 import com.papi.nova.ui.SpaceParticleView
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaFocusMotionSpec
+import com.papi.nova.ui.compose.NovaMenuBackdropBlur
 import com.papi.nova.ui.compose.novaFocusMotion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -931,6 +933,9 @@ class NovaLibraryActivity : AppCompatActivity() {
         onGenreFilter: (String) -> Unit,
         onClearFilters: () -> Unit,
     ) {
+        if (activeOptionsSheet || activeSystemMenu) {
+            NovaMenuBackdropBlur()
+        }
         val configuration = LocalConfiguration.current
         val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
         val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()
@@ -1318,8 +1323,8 @@ class NovaLibraryActivity : AppCompatActivity() {
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            surfaces.tile.copy(alpha = 0.98f),
-                            surfaces.tile.copy(alpha = 0.82f),
+                            surfaces.tile.copy(alpha = 0.98f * LocalNovaMenuOpacityScale.current),
+                            surfaces.tile.copy(alpha = 0.82f * LocalNovaMenuOpacityScale.current),
                             colors.accent.copy(alpha = if (focused) 0.22f else 0.12f)
                         )
                     )
@@ -1459,7 +1464,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                 .fillMaxHeight()
                 .clip(shape)
                 .background(surfaces.mediaPlaceholder)
-                .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f), shape)
+                .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f * LocalNovaMenuOpacityScale.current), shape)
         ) {
             key(targetGame.id, targetGame.coverUrl) {
                 AndroidView(
@@ -1508,11 +1513,11 @@ class NovaLibraryActivity : AppCompatActivity() {
                     Brush.linearGradient(
                         colors = listOf(
                             colors.accent.copy(alpha = 0.34f),
-                            surfaces.tile.copy(alpha = 0.92f)
+                            surfaces.tile.copy(alpha = 0.92f * LocalNovaMenuOpacityScale.current)
                         )
                     )
                 )
-                .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f), shape)
+                .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f * LocalNovaMenuOpacityScale.current), shape)
                 .padding(horizontal = if (compact) 6.dp else 10.dp, vertical = if (compact) 5.dp else 10.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.Start
@@ -1568,7 +1573,7 @@ class NovaLibraryActivity : AppCompatActivity() {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(surfaces.panel.copy(alpha = 0.72f))
+                .background(surfaces.panel.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current))
                 .border(1.dp, surfaces.tileBorder, shape)
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -2362,7 +2367,7 @@ class NovaLibraryActivity : AppCompatActivity() {
                     cornerRadius = 14.dp
                 )
                 .clip(RoundedCornerShape(14.dp))
-                .background(if (focused) surfaces.tile.copy(alpha = 1f) else surfaces.tile)
+                .background(if (focused) surfaces.tile.copy(alpha = LocalNovaMenuOpacityScale.current) else surfaces.tile)
                 .border(
                     width = if (focused) 3.dp else 1.dp,
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
@@ -2873,7 +2878,14 @@ class NovaLibraryActivity : AppCompatActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(surfaces.backgroundScrim.copy(alpha = 0.58f))
+                        .background(
+                            surfaces.backgroundScrim.copy(
+                                alpha = NovaMenuPreferences.readabilityScrimAlpha(
+                                    0.58f,
+                                    LocalNovaMenuOpacityScale.current
+                                )
+                            )
+                        )
                         .pointerInput(onDismiss) {
                             detectTapGestures { onDismiss() }
                         }
@@ -3107,7 +3119,14 @@ class NovaLibraryActivity : AppCompatActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(surfaces.backgroundScrim.copy(alpha = 0.58f))
+                        .background(
+                            surfaces.backgroundScrim.copy(
+                                alpha = NovaMenuPreferences.readabilityScrimAlpha(
+                                    0.58f,
+                                    LocalNovaMenuOpacityScale.current
+                                )
+                            )
+                        )
                         .pointerInput(onDismiss) {
                             detectTapGestures { onDismiss() }
                         }
@@ -3321,7 +3340,12 @@ class NovaLibraryActivity : AppCompatActivity() {
             ),
             containerColor = surfaces.panel,
             contentColor = colors.textPrimary,
-            scrimColor = surfaces.backgroundScrim.copy(alpha = NovaSheetChrome.SCRIM_ALPHA)
+            scrimColor = surfaces.backgroundScrim.copy(
+                alpha = NovaMenuPreferences.readabilityScrimAlpha(
+                    NovaSheetChrome.SCRIM_ALPHA,
+                    LocalNovaMenuOpacityScale.current
+                )
+            )
         ) {
             Column(
                 modifier = Modifier
@@ -3499,10 +3523,10 @@ class NovaLibraryActivity : AppCompatActivity() {
         Surface(
             modifier = modifier,
             shape = RoundedCornerShape(18.dp),
-            color = if (subtle) surfaces.panel.copy(alpha = 0.34f) else surfaces.panel,
+            color = if (subtle) surfaces.panel.copy(alpha = 0.34f * LocalNovaMenuOpacityScale.current) else surfaces.panel,
             border = BorderStroke(
                 1.dp,
-                if (subtle) surfaces.panelBorder.copy(alpha = 0.30f) else surfaces.panelBorder
+                if (subtle) surfaces.panelBorder.copy(alpha = 0.30f * LocalNovaMenuOpacityScale.current) else surfaces.panelBorder
             ),
             content = content
         )

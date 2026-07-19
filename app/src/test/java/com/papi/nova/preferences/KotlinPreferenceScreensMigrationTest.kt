@@ -176,6 +176,8 @@ class KotlinPreferenceScreensMigrationTest {
         val preferences = File("src/main/res/xml/preferences.xml").readText()
         val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
         val viewModel = File("src/main/java/com/papi/nova/preferences/NovaSettingsViewModel.kt").readText()
+        val repository = File("src/main/java/com/papi/nova/preferences/NovaSettingsRepository.kt").readText()
+        val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
 
         assertTrue(preferences.contains("nova_reset_stream_ui"))
         assertTrue(settingsScreen.contains("resetStreamUiDefaults"))
@@ -183,8 +185,23 @@ class KotlinPreferenceScreensMigrationTest {
         assertTrue(viewModel.contains("fun resetStreamUiDefaults()"))
         assertTrue(viewModel.contains("nova_polaris_hud"))
         assertTrue(viewModel.contains("nova_polaris_hud_mode"))
-        assertTrue(viewModel.contains("nova_polaris_hud_opacity"))
+        assertTrue(viewModel.contains("NovaHudPreferences.KEY_OPACITY"))
+        assertTrue(viewModel.contains("NovaMenuPreferences.KEY_OPACITY"))
         assertTrue(viewModel.contains("checkbox_enable_perf_overlay"))
         assertTrue(viewModel.contains("checkbox_show_onscreen_controls"))
+
+        val resetBranch = settingsScreen
+            .substringAfter("if (definition.key == RESET_STREAM_UI_DEFAULTS_KEY)")
+            .substringBefore("} else")
+        assertTrue("Compose reset should have one ViewModel owner", resetBranch.contains("viewModel.resetStreamUiDefaults()"))
+        assertFalse("Compose reset must not also dispatch the Activity action", resetBranch.contains("onAction(definition)"))
+
+        val persistHelper = viewModel
+            .substringAfter("internal suspend fun persistNovaStreamUiDefaults(")
+            .substringBefore("\n}\n\nclass NovaSettingsViewModel")
+        assertTrue("reset defaults should use one store batch", persistHelper.contains("store.updateAtomically("))
+        assertFalse("reset defaults must not loop over individual store writes", persistHelper.contains("store.set("))
+        assertTrue("repository must implement a dedicated atomic batch", repository.contains("override suspend fun updateAtomically("))
+        assertFalse("StreamSettings must not own a second reset coroutine", streamSettings.contains("resetStreamUiRuntimePreferences()"))
     }
 }

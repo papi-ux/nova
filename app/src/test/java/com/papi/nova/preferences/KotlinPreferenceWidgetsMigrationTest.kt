@@ -96,6 +96,17 @@ class KotlinPreferenceWidgetsMigrationTest {
     }
 
     @Test
+    fun legacySeekBarDialogIsRecreatedSoOpacityTransitionsNeverReuseStaleChrome() {
+        val source = File("src/main/java/com/papi/nova/preferences/SeekBarPreference.kt").readText()
+
+        assertTrue(source.contains("createdDialog.setOnDismissListener"))
+        assertTrue(source.contains("dialog = null"))
+        assertTrue(source.contains("seekBar = null"))
+        assertTrue(source.contains("valueText = null"))
+        assertTrue(source.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)"))
+    }
+
+    @Test
     fun webLauncherPreferenceStillRequiresUrlAttribute() {
         val context = ApplicationProvider.getApplicationContext<Context>()
 

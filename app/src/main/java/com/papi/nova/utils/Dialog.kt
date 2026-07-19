@@ -2,9 +2,8 @@ package com.papi.nova.utils
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.DialogInterface
-import android.widget.Button
 import com.papi.nova.R
+import com.papi.nova.ui.NovaSheetChrome
 
 class Dialog private constructor(
     private val activity: Activity,
@@ -49,18 +48,15 @@ class Dialog private constructor(
             runOnDismiss.run()
             HelpLauncher.launchTroubleshooting(activity)
         }
-        createdAlert.setOnShowListener(object : DialogInterface.OnShowListener {
-            override fun onShow(dialog: DialogInterface) {
-                val button: Button = createdAlert.getButton(AlertDialog.BUTTON_POSITIVE)
-                button.isFocusable = true
-                button.isFocusableInTouchMode = true
-                button.requestFocus()
-            }
-        })
-
         synchronized(rundownDialogs) {
             rundownDialogs.add(this)
             createdAlert.show()
+            NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdAlert)
+            createdAlert.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
+                isFocusable = true
+                isFocusableInTouchMode = true
+                requestFocus()
+            }
         }
     }
 

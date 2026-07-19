@@ -3,12 +3,23 @@ package com.papi.nova.ui.compose
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.preference.PreferenceManager
 import com.papi.nova.R
+import com.papi.nova.ui.NovaMenuOpacityPreview
+import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaSheetChrome
 
@@ -75,7 +86,13 @@ val LocalNovaLibrarySurfaces = staticCompositionLocalOf {
     defaultNovaComposeColors().librarySurfaces(NovaThemeManager.THEME_POLARIS)
 }
 
-fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
+val LocalNovaMenuOpacityScale = staticCompositionLocalOf { 1f }
+
+fun NovaComposeColors.librarySurfaces(
+    theme: String,
+    menuOpacityScale: Float = 1f
+): NovaLibrarySurfaces {
+    val opacityScale = menuOpacityScale.coerceIn(0f, 1f)
     val isOled = theme == NovaThemeManager.THEME_OLED
     val isMiami = theme == NovaThemeManager.THEME_MIAMI
     val isPortableChrome = theme == NovaThemeManager.THEME_PORTABLE_CHROME
@@ -182,13 +199,60 @@ fun NovaComposeColors.librarySurfaces(theme: String): NovaLibrarySurfaces {
             isMaterialYou -> 0.42f
             else -> 1f
         }
-    )
+    ).let { surfaces ->
+        val readabilityBackdrop = if (textPrimary.luminance() >= 0.5f) Color.Black else Color.White
+        val readableScrimColor = lerp(
+            surfaces.backgroundScrim,
+            readabilityBackdrop,
+            1f - opacityScale
+        )
+        surfaces.copy(
+            backgroundScrim = readableScrimColor.copy(
+                alpha = NovaMenuPreferences.readabilityScrimAlpha(
+                    baseAlpha = surfaces.backgroundScrim.alpha,
+                    opacityScale = opacityScale,
+                    usesDarkText = textPrimary.luminance() < 0.5f
+                )
+            ),
+            panel = surfaces.panel.copy(alpha = surfaces.panel.alpha * opacityScale),
+            panelBorder = surfaces.panelBorder.copy(alpha = surfaces.panelBorder.alpha * opacityScale),
+            tile = surfaces.tile.copy(alpha = surfaces.tile.alpha * opacityScale),
+            tileBorder = surfaces.tileBorder.copy(alpha = surfaces.tileBorder.alpha * opacityScale),
+            control = surfaces.control.copy(alpha = surfaces.control.alpha * opacityScale),
+            selectedControl = surfaces.selectedControl.copy(alpha = surfaces.selectedControl.alpha * opacityScale)
+        )
+    }
 }
 
 @Composable
-fun NovaComposeTheme(content: @Composable () -> Unit) {
+fun NovaComposeTheme(
+    menuOpacityPercent: Int? = null,
+    content: @Composable () -> Unit
+) {
     val context = LocalContext.current
     val theme = NovaThemeManager.getTheme(context)
+    val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
+    var observedMenuOpacityPercent by remember(prefs) {
+        mutableIntStateOf(NovaMenuPreferences.readOpacityPercent(prefs))
+    }
+    DisposableEffect(prefs, menuOpacityPercent) {
+        if (menuOpacityPercent != null) {
+            onDispose { }
+        } else {
+            val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                if (key == NovaMenuPreferences.KEY_OPACITY) {
+                    observedMenuOpacityPercent = NovaMenuPreferences.readOpacityPercent(prefs)
+                }
+            }
+            prefs.registerOnSharedPreferenceChangeListener(listener)
+            onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        }
+    }
+    val previewMenuOpacityPercent by NovaMenuOpacityPreview.opacityPercent.collectAsState()
+    val resolvedMenuOpacityPercent = menuOpacityPercent
+        ?: previewMenuOpacityPercent
+        ?: observedMenuOpacityPercent
+    val menuOpacityScale = NovaMenuPreferences.opacityScale(resolvedMenuOpacityPercent)
     val colors = NovaComposeColors(
         window = Color(NovaThemeManager.getWindowBackgroundColor(context)),
         card = Color(NovaThemeManager.getCardBackgroundColor(context)),
@@ -208,11 +272,12 @@ fun NovaComposeTheme(content: @Composable () -> Unit) {
             )
         )
     )
-    val librarySurfaces = colors.librarySurfaces(theme)
+    val librarySurfaces = colors.librarySurfaces(theme, menuOpacityScale)
 
     androidx.compose.runtime.CompositionLocalProvider(
         LocalNovaComposeColors provides colors,
-        LocalNovaLibrarySurfaces provides librarySurfaces
+        LocalNovaLibrarySurfaces provides librarySurfaces,
+        LocalNovaMenuOpacityScale provides menuOpacityScale
     ) {
         MaterialTheme(
             colorScheme = darkColorScheme(
