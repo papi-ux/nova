@@ -15,7 +15,7 @@ while you play, and what is safe to do when you leave.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v131) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v132) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -105,16 +105,18 @@ Use Nova with any compatible host for normal streaming. Pair it with Polaris whe
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## Latest release: v1.3.1
+## Latest release: v1.3.2
 
-Nova v1.3.1 is a focused follow-up to the Polaris 1.3 client release: safer Watch-stream admission, cleaner NovaHUD presentation on Retroid-class displays, and portable checksum files for public APK verification.
+Nova v1.3.2 adds adjustable menu and drawer glass, clearer controller focus, and focused reliability improvements across companion displays, updater recovery, launch diagnostics, and verified host routes.
 
-- **Watch the real owner stream**: Nova offers Watch only for a live foreign-owned stream and requests the owner's active resolution and FPS profile instead of a mismatched viewer-local mode.
-- **Clearer NovaHUD modes**: Performance and Debug preserve the headline FPS, separate lower-priority detail metrics, and make the 0% opacity preset truly text-only.
-- **Three-digit FPS readability**: compact Debug HUD layouts keep values such as `114 TGT 120` visible by constraining stream metadata before the FPS lane ellipsizes.
-- **Portable checksums**: every public APK sidecar is generated with a relative filename so the documented `sha256sum -c` workflow works from a clean download directory.
-- **Release packaging**: public GitHub Releases ship signed ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksums. VersionCode 33 keeps Obtainium and manual installs on a clean upgrade path.
-- **Release validation**: final publication validation must use the tagged ARM64 release APK for package identity, Library, preflight, live stream, physical controls, Command Center, NovaHUD, and cleanup smoke evidence.
+- **Adjustable menu glass**: Menu & Drawer Opacity runs independently from NovaHUD, previews live in Settings and Command Center, keeps 0% text and focus readable, and adds automatic backdrop blur on Android 12 and newer.
+- **Sharper D-pad rendering**: virtual-controller artwork keeps its intended asset transparency instead of being forced to full opacity.
+- **Safer companion controls**: external-display controls remain Game-owned, use Android `Presentation`, and are removed when their stream session ends instead of leaving stale controls behind.
+- **Recoverable updates**: interrupted APK downloads, stale staged files, validation failures, and retry flows recover without weakening package or signer checks.
+- **Clearer launch health**: richer launch diagnostics distinguish healthy near-target streams from real degraded states.
+- **Verified endpoint mobility**: paired hosts can retain validated routes as they move between LAN and private-overlay addresses without treating an address as host identity.
+- **Release packaging**: public GitHub Releases ship signed ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksums. VersionCode 34 keeps Obtainium and manual installs on a clean upgrade path.
+- **Release validation**: final publication validation must use the tagged ARM64 release APK for menu opacity, blur cleanup, package identity, Library, preflight, live stream, physical controls, Command Center, NovaHUD, and cleanup smoke evidence.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 
