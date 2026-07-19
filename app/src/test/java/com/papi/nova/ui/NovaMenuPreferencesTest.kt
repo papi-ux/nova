@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import android.content.Context
 import android.graphics.Color
+import androidx.core.graphics.ColorUtils
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.preferences.NOVA_STREAM_UI_DEFAULT_UPDATES
@@ -17,6 +18,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -58,26 +60,35 @@ class NovaMenuPreferencesTest {
     }
 
     @Test
-    fun livePreviewIsProcessLocalAndNeverMutatesTheDurablePreference() {
+    fun livePreviewIsProcessLocalOwnershipSafeAndNeverMutatesTheDurablePreference() {
         val prefs = context.getSharedPreferences("nova-menu-preview", Context.MODE_PRIVATE)
         prefs.edit().clear().putInt(NovaMenuPreferences.KEY_OPACITY, 100).commit()
-        NovaMenuOpacityPreview.clear()
+        val firstOwner = NovaMenuOpacityPreview.newOwner()
+        val secondOwner = NovaMenuOpacityPreview.newOwner()
 
-        NovaMenuOpacityPreview.update(25)
+        NovaMenuOpacityPreview.update(firstOwner, 25)
 
         assertEquals(25, NovaMenuOpacityPreview.opacityPercent.value)
         assertEquals(100, prefs.getInt(NovaMenuPreferences.KEY_OPACITY, 0))
 
-        NovaMenuOpacityPreview.clear()
+        NovaMenuOpacityPreview.update(secondOwner, 64)
+        NovaMenuOpacityPreview.clear(firstOwner)
+
+        assertEquals(64, NovaMenuOpacityPreview.opacityPercent.value)
+        assertEquals(100, prefs.getInt(NovaMenuPreferences.KEY_OPACITY, 0))
+
+        NovaMenuOpacityPreview.clear(secondOwner)
 
         assertNull(NovaMenuOpacityPreview.opacityPercent.value)
         assertEquals(100, prefs.getInt(NovaMenuPreferences.KEY_OPACITY, 0))
     }
 
     @Test
-    fun darkTextNativeSurfacesRetainAContrastFloorAtZeroOpacity() {
+    fun darkTextContrastFloorsMeetWcagAgainstABlackScene() {
+        assertEquals(0.71f, NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA, 0.001f)
+        assertEquals(0.57f, NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA, 0.001f)
         assertEquals(
-            NovaMenuPreferences.MIN_READABILITY_SURFACE_ALPHA,
+            NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA,
             NovaMenuPreferences.readabilitySurfaceAlpha(0.94f, 0, usesDarkText = true),
             0.001f
         )
@@ -87,6 +98,30 @@ class NovaMenuPreferencesTest {
             0.001f
         )
         assertEquals(0.94f, NovaMenuPreferences.readabilitySurfaceAlpha(0.94f, 100, true), 0.001f)
+
+        val text = Color.rgb(0x1F, 0x2A, 0x35)
+        val portableSurface = Color.rgb(0xC4, 0xCD, 0xD8)
+        val nativeComposite = ColorUtils.compositeColors(
+            ColorUtils.setAlphaComponent(
+                portableSurface,
+                (NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA * 255f).toInt()
+            ),
+            Color.BLACK
+        )
+        val dialogBackdrop = ColorUtils.compositeColors(
+            ColorUtils.setAlphaComponent(
+                Color.WHITE,
+                (NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA * 255f).toInt()
+            ),
+            Color.BLACK
+        )
+        assertTrue(ColorUtils.calculateContrast(text, nativeComposite) >= 4.5)
+        assertTrue(ColorUtils.calculateContrast(text, dialogBackdrop) >= 4.5)
+        assertEquals(
+            NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA,
+            NovaMenuPreferences.readabilityScrimAlpha(0.58f, 0f, usesDarkText = true),
+            0.001f
+        )
     }
 
     @Test

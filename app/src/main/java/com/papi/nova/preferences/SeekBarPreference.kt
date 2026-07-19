@@ -146,6 +146,13 @@ class SeekBarPreference(context: Context, attrs: AttributeSet) : Preference(cont
             }
             .setNegativeButton(context.getString(R.string.cancel)) { dialog, _ -> dialog.dismiss() }
             .create()
+        createdDialog.setOnDismissListener {
+            if (dialog === createdDialog) {
+                dialog = null
+                seekBar = null
+                valueText = null
+            }
+        }
         NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)
         dialog = createdDialog
         return createdDialog

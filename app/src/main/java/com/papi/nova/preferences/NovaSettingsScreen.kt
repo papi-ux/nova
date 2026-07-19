@@ -42,6 +42,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -93,17 +94,24 @@ fun NovaSettingsScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var activeDialog by remember { mutableStateOf<NovaSettingsDialog?>(null) }
+    var menuOpacityPreviewOwner by remember { mutableStateOf<Long?>(null) }
+    val latestPreviewOwner by rememberUpdatedState(menuOpacityPreviewOwner)
 
     DisposableEffect(Unit) {
-        onDispose { NovaMenuOpacityPreview.clear() }
+        onDispose {
+            latestPreviewOwner?.let(NovaMenuOpacityPreview::clear)
+        }
     }
     val restoreMenuOpacityPreview = {
-        if ((activeDialog as? NovaSettingsDialog.Slider)?.definition?.key == NovaMenuPreferences.KEY_OPACITY) {
-            NovaMenuOpacityPreview.clear()
-        }
+        menuOpacityPreviewOwner?.let(NovaMenuOpacityPreview::clear)
+        menuOpacityPreviewOwner = null
         activeDialog = null
     }
-    val onMenuOpacityPreview: (Int) -> Unit = NovaMenuOpacityPreview::update
+    val onMenuOpacityPreview: (Int) -> Unit = { percent ->
+        menuOpacityPreviewOwner?.let { owner ->
+            NovaMenuOpacityPreview.update(owner, percent)
+        }
+    }
 
     NovaSettingsContent(
         state = state,
@@ -123,10 +131,16 @@ fun NovaSettingsScreen(
                     NovaSettingValue.BooleanValue(!state.booleanValue(definition))
                 )
                 NovaSettingType.Select -> activeDialog = NovaSettingsDialog.Select(definition)
-                NovaSettingType.Slider -> activeDialog = NovaSettingsDialog.Slider(
-                    definition = definition,
-                    originalValue = state.intValue(definition)
-                )
+                NovaSettingType.Slider -> {
+                    if (definition.key == NovaMenuPreferences.KEY_OPACITY) {
+                        menuOpacityPreviewOwner?.let(NovaMenuOpacityPreview::clear)
+                        menuOpacityPreviewOwner = NovaMenuOpacityPreview.newOwner()
+                    }
+                    activeDialog = NovaSettingsDialog.Slider(
+                        definition = definition,
+                        originalValue = state.intValue(definition)
+                    )
+                }
                 NovaSettingType.Text -> activeDialog = NovaSettingsDialog.Text(definition)
                 NovaSettingType.Action -> {
                     if (definition.key == RESET_STREAM_UI_DEFAULTS_KEY) {
@@ -147,12 +161,16 @@ fun NovaSettingsScreen(
             onDismiss = restoreMenuOpacityPreview,
             onMenuOpacityPreview = onMenuOpacityPreview,
             onSave = { definition, value ->
+                val previewOwnerAtSave = menuOpacityPreviewOwner.takeIf {
+                    definition.key == NovaMenuPreferences.KEY_OPACITY
+                }
                 viewModel.setValue(
                     definition = definition,
                     value = value,
                     onCompleted = {
-                        if (definition.key == NovaMenuPreferences.KEY_OPACITY) {
-                            NovaMenuOpacityPreview.clear()
+                        previewOwnerAtSave?.let(NovaMenuOpacityPreview::clear)
+                        if (previewOwnerAtSave != null && menuOpacityPreviewOwner == previewOwnerAtSave) {
+                            menuOpacityPreviewOwner = null
                         }
                     }
                 )

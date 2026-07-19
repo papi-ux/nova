@@ -360,9 +360,9 @@ class NovaThemeResourcesTest {
             .substringAfter("private fun NovaSliderDialog(")
             .substringBefore("private fun NovaTextDialog(")
 
-        assertTrue("Settings should preview Menu Opacity through process-local state while dragging", settings.contains("NovaMenuOpacityPreview::update") && sliderDialog.contains("onValueChange = { nextValue ->"))
+        assertTrue("Settings should preview Menu Opacity through owner-scoped process-local state while dragging", settings.contains("NovaMenuOpacityPreview.update(owner, percent)") && settings.contains("NovaMenuOpacityPreview.newOwner()") && sliderDialog.contains("onValueChange = { nextValue ->"))
         assertFalse("live preview must not write the durable SharedPreferences key", settings.contains("NovaMenuPreferences.writeOpacityPercent(prefs"))
-        assertTrue("cancel should clear the temporary Menu Opacity preview", settings.contains("NovaMenuOpacityPreview.clear()"))
+        assertTrue("cancel and save should clear only the owning temporary preview", settings.contains("NovaMenuOpacityPreview::clear") && settings.contains("previewOwnerAtSave"))
         assertTrue("Save should persist through the repository before clearing preview", sliderDialog.contains("onSave(definition, NovaSettingValue.IntValue(value.roundToInt()))"))
         assertFalse("default Material slider dialogs should not be unconditionally restyled at 100%", sliderDialog.contains("containerColor = surfaces.panel") || sliderDialog.contains("tonalElevation = 0.dp"))
     }
@@ -400,6 +400,7 @@ class NovaThemeResourcesTest {
     fun adaptiveMenuBlurTargetsOnlyBackdropContentAndFailsSoftBelowAndroid12() {
         val blur = File("src/main/java/com/papi/nova/ui/NovaMenuBlur.kt").readText()
         val composeBlur = File("src/main/java/com/papi/nova/ui/compose/NovaMenuBackdropBlur.kt").readText()
+        val composeTheme = File("src/main/java/com/papi/nova/ui/compose/NovaComposeTheme.kt").readText()
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
         val quickMenuHost = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
         val quickMenu = File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
@@ -421,7 +422,8 @@ class NovaThemeResourcesTest {
         assertTrue("Settings editors should blur the underlying Settings surface", settings.contains("NovaMenuBackdropBlur()"))
         assertTrue("native dialog blur should start on window attach and clear on detach", blur.contains("onViewAttachedToWindow") && blur.contains("isAttachedToWindow") && blur.contains("onViewDetachedFromWindow"))
         assertTrue("native sheets and alerts should share the same adaptive blur contract", sheetChrome.contains("NovaMenuBlur.attachBehindDialog"))
-        assertTrue("dark-text native surfaces should retain a readability floor below 100%", sheetChrome.contains("NovaMenuPreferences.readabilitySurfaceAlpha") && sheetChrome.contains("ColorUtils.calculateLuminance"))
+        assertTrue("dark-text native surfaces should retain a WCAG readability floor below 100%", sheetChrome.contains("NovaMenuPreferences.readabilitySurfaceAlpha") && sheetChrome.contains("ColorUtils.calculateLuminance"))
+        assertTrue("Compose contrast scrims should use the stronger dark-text floor", composeTheme.contains("usesDarkText = textPrimary.luminance() < 0.5f"))
         assertTrue("custom select dialogs should draw the theme-aware window contrast scrim only below compatibility opacity", settings.contains("NovaDialogContrastBackdrop()") && settings.contains("if (opacityScale < 1f)") && settings.contains("surfaces.backgroundScrim.toArgb()"))
         assertTrue("unfocused native action strokes should disappear with menu glass", sheetChrome.contains("strokeAccentBlend * menuOpacityScale"))
         assertTrue("focused and pressed native action strokes should remain as readability cues", sheetChrome.contains("if (preservesFocusCue)"))

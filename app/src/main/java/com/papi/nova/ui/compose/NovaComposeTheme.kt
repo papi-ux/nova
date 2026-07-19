@@ -209,8 +209,9 @@ fun NovaComposeColors.librarySurfaces(
         surfaces.copy(
             backgroundScrim = readableScrimColor.copy(
                 alpha = NovaMenuPreferences.readabilityScrimAlpha(
-                    surfaces.backgroundScrim.alpha,
-                    opacityScale
+                    baseAlpha = surfaces.backgroundScrim.alpha,
+                    opacityScale = opacityScale,
+                    usesDarkText = textPrimary.luminance() < 0.5f
                 )
             ),
             panel = surfaces.panel.copy(alpha = surfaces.panel.alpha * opacityScale),
