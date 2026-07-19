@@ -35,8 +35,8 @@ internal suspend fun persistNovaStreamUiDefaults(
     store: NovaSettingsStore,
     definitions: NovaSettingsDefinitionSet
 ) {
-    val updates = NOVA_STREAM_UI_DEFAULT_UPDATES.mapNotNull { (key, value) ->
-        definitions.find(key)?.let { definition -> definition to value }
+    val updates = NOVA_STREAM_UI_DEFAULT_UPDATES.map { (key, value) ->
+        definitions.require(key) to value
     }
     store.updateAtomically(updates, NOVA_STREAM_UI_RESET_REMOVALS)
 }
@@ -44,6 +44,7 @@ internal suspend fun persistNovaStreamUiDefaults(
 class NovaSettingsViewModel(
     private val definitions: NovaSettingsDefinitionSet,
     private val store: NovaSettingsStore,
+    private val resetDefinitions: NovaSettingsDefinitionSet = definitions,
     initialCategoryKey: String = definitions.categories.firstOrNull()?.key.orEmpty()
 ) : ViewModel() {
     private var selectedCategoryKey = initialCategoryKey
@@ -76,13 +77,21 @@ class NovaSettingsViewModel(
         emit()
     }
 
-    fun setValue(definition: NovaSettingDefinition, value: NovaSettingValue) {
+    fun setValue(
+        definition: NovaSettingDefinition,
+        value: NovaSettingValue,
+        onCompleted: () -> Unit = {}
+    ) {
         viewModelScope.launch {
-            store.set(definition, value)
-            values = values + (definition.key to value)
-            applyPresetIfNeeded(definition, value)
-            loadStoreState()
-            emit()
+            try {
+                store.set(definition, value)
+                values = values + (definition.key to value)
+                applyPresetIfNeeded(definition, value)
+                loadStoreState()
+                emit()
+            } finally {
+                onCompleted()
+            }
         }
     }
 
@@ -96,7 +105,7 @@ class NovaSettingsViewModel(
 
     fun resetStreamUiDefaults() {
         viewModelScope.launch {
-            persistNovaStreamUiDefaults(store, definitions)
+            persistNovaStreamUiDefaults(store, resetDefinitions)
             loadStoreState()
             emit()
         }
@@ -149,11 +158,17 @@ class NovaSettingsViewModel(
     class Factory(
         private val definitions: NovaSettingsDefinitionSet,
         private val store: NovaSettingsStore,
+        private val resetDefinitions: NovaSettingsDefinitionSet = definitions,
         private val initialCategoryKey: String = definitions.categories.firstOrNull()?.key.orEmpty()
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return NovaSettingsViewModel(definitions, store, initialCategoryKey) as T
+            return NovaSettingsViewModel(
+                definitions = definitions,
+                store = store,
+                resetDefinitions = resetDefinitions,
+                initialCategoryKey = initialCategoryKey
+            ) as T
         }
     }
 }

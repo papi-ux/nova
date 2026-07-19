@@ -237,8 +237,16 @@ object NovaSheetChrome {
             NovaThemeManager.isMaterialYou(context) -> MATERIAL_YOU_SHEET_GLASS_ALPHA
             else -> SHEET_GLASS_ALPHA
         }
-        val alpha = NovaMenuPreferences.alphaByte(themedAlpha, readMenuOpacityPercent(context))
-        return ColorUtils.setAlphaComponent(baseSurface, alpha)
+        val opacityPercent = readMenuOpacityPercent(context)
+        val usesDarkText = ColorUtils.calculateLuminance(
+            NovaThemeManager.getTextPrimaryColor(context)
+        ) < 0.5
+        val alpha = NovaMenuPreferences.readabilitySurfaceAlpha(
+            baseAlpha = themedAlpha,
+            opacityPercent = opacityPercent,
+            usesDarkText = usesDarkText
+        )
+        return ColorUtils.setAlphaComponent(baseSurface, (alpha * 255f).toInt().coerceIn(0, 255))
     }
 
     fun getSheetScrimAlpha(context: Context): Float {

@@ -9,11 +9,14 @@ import com.papi.nova.preferences.NOVA_STREAM_UI_RESET_REMOVALS
 import com.papi.nova.preferences.NovaSettingDefinitions
 import com.papi.nova.preferences.NovaSettingValue
 import com.papi.nova.preferences.NovaSettingsRepository
+import com.papi.nova.preferences.NovaSharedPreferencesSettingsStore
 import com.papi.nova.preferences.persistNovaStreamUiDefaults
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -55,6 +58,38 @@ class NovaMenuPreferencesTest {
     }
 
     @Test
+    fun livePreviewIsProcessLocalAndNeverMutatesTheDurablePreference() {
+        val prefs = context.getSharedPreferences("nova-menu-preview", Context.MODE_PRIVATE)
+        prefs.edit().clear().putInt(NovaMenuPreferences.KEY_OPACITY, 100).commit()
+        NovaMenuOpacityPreview.clear()
+
+        NovaMenuOpacityPreview.update(25)
+
+        assertEquals(25, NovaMenuOpacityPreview.opacityPercent.value)
+        assertEquals(100, prefs.getInt(NovaMenuPreferences.KEY_OPACITY, 0))
+
+        NovaMenuOpacityPreview.clear()
+
+        assertNull(NovaMenuOpacityPreview.opacityPercent.value)
+        assertEquals(100, prefs.getInt(NovaMenuPreferences.KEY_OPACITY, 0))
+    }
+
+    @Test
+    fun darkTextNativeSurfacesRetainAContrastFloorAtZeroOpacity() {
+        assertEquals(
+            NovaMenuPreferences.MIN_READABILITY_SURFACE_ALPHA,
+            NovaMenuPreferences.readabilitySurfaceAlpha(0.94f, 0, usesDarkText = true),
+            0.001f
+        )
+        assertEquals(
+            0f,
+            NovaMenuPreferences.readabilitySurfaceAlpha(0.94f, 0, usesDarkText = false),
+            0.001f
+        )
+        assertEquals(0.94f, NovaMenuPreferences.readabilitySurfaceAlpha(0.94f, 100, true), 0.001f)
+    }
+
+    @Test
     fun adaptiveBlurPreservesTheDefaultAndStrengthensAsGlassClears() {
         assertEquals(0f, NovaMenuPreferences.blurRadiusDp(100), 0.001f)
         assertEquals(2.4f, NovaMenuPreferences.blurRadiusDp(90), 0.001f)
@@ -89,6 +124,23 @@ class NovaMenuPreferencesTest {
         assertEquals(0f, NovaSheetChrome.getSheetGlassAlpha(context), 0.001f)
         assertEquals(NovaMenuPreferences.MIN_READABILITY_SCRIM_ALPHA, NovaSheetChrome.getSheetScrimAlpha(context), 0.001f)
         assertEquals(0, Color.alpha(NovaSheetChrome.getSheetStrokeColor(context)))
+    }
+
+    @Test
+    fun streamUiResetFailsClosedWhenGivenAvailabilityFilteredDefinitions() {
+        val fullDefinitions = NovaSettingDefinitions.load(context)
+        val filteredDefinitions = fullDefinitions.copy(
+            settings = fullDefinitions.settings.filterNot { it.key == NovaMenuPreferences.KEY_OPACITY }
+        )
+        val prefs = context.getSharedPreferences("nova-menu-filtered-reset", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val store = NovaSharedPreferencesSettingsStore(prefs)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { persistNovaStreamUiDefaults(store, filteredDefinitions) }
+        }
+        assertFalse(prefs.contains(NovaHudPreferences.KEY_OPACITY))
+        assertFalse(prefs.contains(NovaMenuPreferences.KEY_OPACITY))
     }
 
     @Test

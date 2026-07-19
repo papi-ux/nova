@@ -3,6 +3,7 @@ package com.papi.nova.preferences
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +37,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,8 +50,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -58,10 +62,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.preference.PreferenceManager
+import androidx.compose.ui.window.DialogWindowProvider
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudPreferences
 import com.papi.nova.ui.NovaHudUiState
+import com.papi.nova.ui.NovaMenuOpacityPreview
 import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaStreamHudContent
 import com.papi.nova.ui.NovaThemeManager
@@ -87,19 +92,18 @@ fun NovaSettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
     var activeDialog by remember { mutableStateOf<NovaSettingsDialog?>(null) }
 
+    DisposableEffect(Unit) {
+        onDispose { NovaMenuOpacityPreview.clear() }
+    }
     val restoreMenuOpacityPreview = {
-        val slider = activeDialog as? NovaSettingsDialog.Slider
-        if (slider?.definition?.key == NovaMenuPreferences.KEY_OPACITY) {
-            NovaMenuPreferences.writeOpacityPercent(prefs, slider.originalValue)
+        if ((activeDialog as? NovaSettingsDialog.Slider)?.definition?.key == NovaMenuPreferences.KEY_OPACITY) {
+            NovaMenuOpacityPreview.clear()
         }
         activeDialog = null
     }
-    val onMenuOpacityPreview: (Int) -> Unit = { percent ->
-        NovaMenuPreferences.writeOpacityPercent(prefs, percent)
-    }
+    val onMenuOpacityPreview: (Int) -> Unit = NovaMenuOpacityPreview::update
 
     NovaSettingsContent(
         state = state,
@@ -143,7 +147,15 @@ fun NovaSettingsScreen(
             onDismiss = restoreMenuOpacityPreview,
             onMenuOpacityPreview = onMenuOpacityPreview,
             onSave = { definition, value ->
-                viewModel.setValue(definition, value)
+                viewModel.setValue(
+                    definition = definition,
+                    value = value,
+                    onCompleted = {
+                        if (definition.key == NovaMenuPreferences.KEY_OPACITY) {
+                            NovaMenuOpacityPreview.clear()
+                        }
+                    }
+                )
                 activeDialog = null
                 applyThemeSelectionIfNeeded(context, definition, value)
             }
@@ -976,6 +988,7 @@ private fun NovaSelectDialogShell(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        NovaDialogContrastBackdrop()
         Column(
             modifier = Modifier
                 .fillMaxWidth(0.72f)
@@ -994,6 +1007,25 @@ private fun NovaSelectDialogShell(
             ) {
                 confirmButton()
                 dismissButton()
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaDialogContrastBackdrop() {
+    val view = LocalView.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val opacityScale = LocalNovaMenuOpacityScale.current
+    DisposableEffect(view, surfaces.backgroundScrim, opacityScale) {
+        val window = (view.parent as? DialogWindowProvider)?.window
+        val previousBackground = window?.decorView?.background
+        if (opacityScale < 1f) {
+            window?.setBackgroundDrawable(ColorDrawable(surfaces.backgroundScrim.toArgb()))
+        }
+        onDispose {
+            if (opacityScale < 1f) {
+                window?.setBackgroundDrawable(previousBackground)
             }
         }
     }

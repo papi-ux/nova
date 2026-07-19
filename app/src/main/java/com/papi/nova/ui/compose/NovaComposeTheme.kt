@@ -5,6 +5,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -17,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import com.papi.nova.R
+import com.papi.nova.ui.NovaMenuOpacityPreview
 import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaSheetChrome
@@ -245,7 +247,10 @@ fun NovaComposeTheme(
             onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
         }
     }
-    val resolvedMenuOpacityPercent = menuOpacityPercent ?: observedMenuOpacityPercent
+    val previewMenuOpacityPercent by NovaMenuOpacityPreview.opacityPercent.collectAsState()
+    val resolvedMenuOpacityPercent = menuOpacityPercent
+        ?: previewMenuOpacityPercent
+        ?: observedMenuOpacityPercent
     val menuOpacityScale = NovaMenuPreferences.opacityScale(resolvedMenuOpacityPercent)
     val colors = NovaComposeColors(
         window = Color(NovaThemeManager.getWindowBackgroundColor(context)),

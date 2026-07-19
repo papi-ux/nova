@@ -14,9 +14,11 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.preference.PreferenceManager
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 private val Context.novaSettingsDataStore by preferencesDataStore(name = "nova_settings")
@@ -110,25 +112,31 @@ interface NovaSettingsStore {
 
 class NovaSettingsRepository private constructor(
     private val dataStore: DataStore<Preferences>,
-    private val mirrorPrefs: SharedPreferences
+    private val mirrorPrefs: SharedPreferences,
+    private val canonicalDefinitions: NovaSettingsDefinitionSet
 ) : NovaSettingsStore {
+    /**
+     * Default SharedPreferences is authoritative because legacy/runtime consumers read it
+     * synchronously. DataStore is a reconciled typed mirror, never a competing source of truth.
+     */
     override suspend fun snapshot(definitions: NovaSettingsDefinitionSet): Map<String, NovaSettingValue> {
-        ensureMigrated(definitions)
-        val preferences = dataStore.data.first()
-        return definitions.settings.mapNotNull { definition ->
-            val value = preferences.readSettingValue(definition)
-                ?: mirrorPrefs.readSettingValue(definition)
-                ?: definition.defaultValue
-            if (value == null) null else definition.key to value
-        }.toMap()
+        return persistSerialized {
+            reconcileDataStoreMirror()
+            definitions.settings.mapNotNull { definition ->
+                val value = mirrorPrefs.readSettingValue(definition) ?: definition.defaultValue
+                if (value == null) null else definition.key to value
+            }.toMap()
+        }
     }
 
     override suspend fun set(definition: NovaSettingDefinition, value: NovaSettingValue) {
-        persistWithoutCancellation {
-            dataStore.edit { preferences ->
-                preferences.writeSettingValue(definition, value)
+        persistSerialized {
+            check(mirrorPrefs.edit().putSettingValue(definition.key, value).commit()) {
+                "Failed to persist Nova setting ${definition.key}"
             }
-            mirrorPrefs.edit().putSettingValue(definition.key, value).apply()
+            mirrorDataStoreBestEffort {
+                it.writeSettingValue(definition, value)
+            }
         }
     }
 
@@ -136,28 +144,31 @@ class NovaSettingsRepository private constructor(
         updates: List<Pair<NovaSettingDefinition, NovaSettingValue>>,
         removeKeys: Set<String>
     ) {
-        persistWithoutCancellation {
-            dataStore.edit { preferences ->
-                removeKeys.forEach(preferences::removeRawSettingKey)
-                updates.forEach { (definition, value) ->
-                    preferences.writeSettingValue(definition, value)
-                }
-            }
+        persistSerialized {
             val editor = mirrorPrefs.edit()
             removeKeys.forEach(editor::remove)
             updates.forEach { (definition, value) ->
                 editor.putSettingValue(definition.key, value)
             }
-            check(editor.commit()) { "Failed to persist Nova settings mirror batch" }
+            check(editor.commit()) { "Failed to persist Nova settings batch" }
+
+            mirrorDataStoreBestEffort { preferences ->
+                removeKeys.forEach(preferences::removeRawSettingKey)
+                updates.forEach { (definition, value) ->
+                    preferences.writeSettingValue(definition, value)
+                }
+            }
         }
     }
 
     override suspend fun reset(definition: NovaSettingDefinition) {
-        persistWithoutCancellation {
-            dataStore.edit { preferences ->
-                preferences.removeSettingValue(definition)
+        persistSerialized {
+            check(mirrorPrefs.edit().remove(definition.key).commit()) {
+                "Failed to reset Nova setting ${definition.key}"
             }
-            mirrorPrefs.edit().remove(definition.key).apply()
+            mirrorDataStoreBestEffort {
+                it.removeSettingValue(definition)
+            }
         }
     }
 
@@ -165,37 +176,57 @@ class NovaSettingsRepository private constructor(
 
     override suspend fun resettableKeys(definitions: NovaSettingsDefinitionSet): Set<String> = emptySet()
 
-    private suspend fun ensureMigrated(definitions: NovaSettingsDefinitionSet) {
-        persistWithoutCancellation {
-            val preferences = dataStore.data.first()
-            if (preferences[MIGRATED_KEY] == true) return@persistWithoutCancellation
+    private suspend fun reconcileDataStoreMirror() {
+        val current = runCatching { dataStore.data.first() }.getOrElse {
+            android.util.Log.w(TAG, "Unable to read Nova DataStore mirror", it)
+            return
+        }
+        val needsRepair = current[MIGRATED_KEY] != true || canonicalDefinitions.settings.any { definition ->
+            current.readSettingValue(definition) != mirrorPrefs.readSettingValue(definition)
+        }
+        if (!needsRepair) return
 
-            dataStore.edit { mutablePreferences ->
-                for (definition in definitions.settings) {
-                    val value = mirrorPrefs.readSettingValue(definition) ?: continue
-                    mutablePreferences.writeSettingValue(definition, value)
+        mirrorDataStoreBestEffort { preferences ->
+            canonicalDefinitions.settings.forEach { definition ->
+                val authoritativeValue = mirrorPrefs.readSettingValue(definition)
+                if (authoritativeValue == null) {
+                    preferences.removeSettingValue(definition)
+                } else {
+                    preferences.writeSettingValue(definition, authoritativeValue)
                 }
-                mutablePreferences[MIGRATED_KEY] = true
             }
+            preferences[MIGRATED_KEY] = true
         }
     }
 
-    private suspend fun persistWithoutCancellation(block: suspend () -> Unit) {
-        withContext(NonCancellable) {
-            novaSettingsWriteMutex.lock()
-            try {
+    private suspend fun mirrorDataStoreBestEffort(
+        update: (MutablePreferences) -> Unit
+    ) {
+        runCatching {
+            dataStore.edit { preferences -> update(preferences) }
+        }.onFailure {
+            // SharedPreferences already committed and remains authoritative. The next
+            // snapshot reconciles this typed mirror, including after process death.
+            android.util.Log.w(TAG, "Unable to update Nova DataStore mirror", it)
+        }
+    }
+
+    private suspend fun <T> persistSerialized(block: suspend () -> T): T {
+        return novaSettingsWriteMutex.withLock {
+            withContext(NonCancellable + Dispatchers.IO) {
                 block()
-            } finally {
-                novaSettingsWriteMutex.unlock()
             }
         }
     }
 
     companion object {
+        private const val TAG = "NovaSettingsRepository"
+
         fun create(context: Context): NovaSettingsRepository {
             return NovaSettingsRepository(
                 dataStore = context.novaSettingsDataStore,
-                mirrorPrefs = PreferenceManager.getDefaultSharedPreferences(context)
+                mirrorPrefs = PreferenceManager.getDefaultSharedPreferences(context),
+                canonicalDefinitions = NovaSettingDefinitions.load(context)
             )
         }
 
@@ -212,7 +243,11 @@ class NovaSettingsRepository private constructor(
                 ),
                 produceFile = { storeFile }
             )
-            return NovaSettingsRepository(dataStore = dataStore, mirrorPrefs = mirrorPrefs)
+            return NovaSettingsRepository(
+                dataStore = dataStore,
+                mirrorPrefs = mirrorPrefs,
+                canonicalDefinitions = NovaSettingDefinitions.load(context)
+            )
         }
     }
 }

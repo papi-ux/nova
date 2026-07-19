@@ -120,7 +120,8 @@ class StreamSettings : AppCompatActivity() {
 
     private fun showComposeSettings() {
         legacyMode = false
-        val definitions = NovaSettingsAvailability.filter(this, NovaSettingDefinitions.load(this)).let { filtered ->
+        val canonicalDefinitions = NovaSettingDefinitions.load(this)
+        val definitions = NovaSettingsAvailability.filter(this, canonicalDefinitions).let { filtered ->
             filtered.copy(
                 settings = filtered.settings.filterNot { it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY }
             )
@@ -128,7 +129,11 @@ class StreamSettings : AppCompatActivity() {
         val store = NovaSettingsRepository.create(this)
         val viewModel = ViewModelProvider(
             this,
-            NovaSettingsViewModel.Factory(definitions, store)
+            NovaSettingsViewModel.Factory(
+                definitions = definitions,
+                store = store,
+                resetDefinitions = canonicalDefinitions
+            )
         )[NovaSettingsViewModel::class.java]
         val content = ComposeView(this).apply {
             setContent {

@@ -7,6 +7,22 @@ import com.papi.nova.preferences.NovaSettingDefinitions
 import com.papi.nova.preferences.NovaSettingValue
 import com.papi.nova.preferences.NovaSettingsRepository
 import com.papi.nova.preferences.NovaSettingsStore
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+object NovaMenuOpacityPreview {
+    private val mutableOpacityPercent = MutableStateFlow<Int?>(null)
+    val opacityPercent: StateFlow<Int?> = mutableOpacityPercent.asStateFlow()
+
+    fun update(percent: Int) {
+        mutableOpacityPercent.value = NovaMenuPreferences.coerceOpacityPercent(percent)
+    }
+
+    fun clear() {
+        mutableOpacityPercent.value = null
+    }
+}
 
 object NovaMenuPreferences {
     const val KEY_OPACITY = "nova_menu_opacity"
@@ -15,6 +31,7 @@ object NovaMenuPreferences {
     const val MAX_OPACITY_PERCENT = 100
     const val MAX_BLUR_RADIUS_DP = 24f
     const val MIN_READABILITY_SCRIM_ALPHA = 0.54f
+    const val MIN_READABILITY_SURFACE_ALPHA = 0.54f
 
     val OPACITY_PRESETS = listOf(0, 25, 64, 90, 100)
 
@@ -63,6 +80,16 @@ object NovaMenuPreferences {
             baseAlpha.coerceIn(0f, 1f) * scale +
                 MIN_READABILITY_SCRIM_ALPHA * (1f - scale)
             ).coerceIn(0f, 1f)
+    }
+
+    fun readabilitySurfaceAlpha(
+        baseAlpha: Float,
+        opacityPercent: Int,
+        usesDarkText: Boolean
+    ): Float {
+        val scaled = scaleAlpha(baseAlpha, opacityPercent)
+        if (!usesDarkText || opacityPercent >= MAX_OPACITY_PERCENT) return scaled
+        return maxOf(scaled, MIN_READABILITY_SURFACE_ALPHA)
     }
 
     fun alphaByte(baseAlpha: Float, percent: Int): Int {

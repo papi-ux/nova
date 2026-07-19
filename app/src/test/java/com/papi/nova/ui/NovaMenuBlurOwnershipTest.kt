@@ -60,6 +60,29 @@ class NovaMenuBlurOwnershipTest {
     }
 
     @Test
+    fun separateDialogWindowKeepsCommandCenterContentOutsideTheBlurredActivityTree() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val activityDecor = activity.window.decorView
+        val dialog = Dialog(activity)
+        val menuContent = View(activity)
+        dialog.setContentView(menuContent)
+
+        NovaMenuBlur.attachBehindDialog(dialog, 25)
+        dialog.show()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(18f, requireNotNull(NovaMenuBlur.currentRadiusDp(activityDecor)), 0.001f)
+        assertNull(NovaMenuBlur.currentRadiusDp(dialog.window!!.decorView))
+        assertNull(NovaMenuBlur.currentRadiusDp(menuContent))
+        assertTrue(menuContent.rootView === dialog.window!!.decorView)
+        assertTrue(menuContent.rootView !== activityDecor)
+
+        dialog.dismiss()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        assertNull(NovaMenuBlur.currentRadiusDp(activityDecor))
+    }
+
+    @Test
     fun reattachingShownDialogReplacesItsLeaseWithoutLeakingTheOldRadius() {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val target = activity.window.decorView

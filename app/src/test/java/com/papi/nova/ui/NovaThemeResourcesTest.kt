@@ -360,9 +360,10 @@ class NovaThemeResourcesTest {
             .substringAfter("private fun NovaSliderDialog(")
             .substringBefore("private fun NovaTextDialog(")
 
-        assertTrue("Settings should preview Menu Opacity through the SharedPreferences mirror while dragging", settings.contains("onMenuOpacityPreview") && sliderDialog.contains("onValueChange = { nextValue ->"))
-        assertTrue("cancel should restore the original Menu Opacity preview", settings.contains("restoreMenuOpacityPreview"))
-        assertTrue("Save should still persist the final preview through the repository", sliderDialog.contains("onSave(definition, NovaSettingValue.IntValue(value.roundToInt()))"))
+        assertTrue("Settings should preview Menu Opacity through process-local state while dragging", settings.contains("NovaMenuOpacityPreview::update") && sliderDialog.contains("onValueChange = { nextValue ->"))
+        assertFalse("live preview must not write the durable SharedPreferences key", settings.contains("NovaMenuPreferences.writeOpacityPercent(prefs"))
+        assertTrue("cancel should clear the temporary Menu Opacity preview", settings.contains("NovaMenuOpacityPreview.clear()"))
+        assertTrue("Save should persist through the repository before clearing preview", sliderDialog.contains("onSave(definition, NovaSettingValue.IntValue(value.roundToInt()))"))
         assertFalse("default Material slider dialogs should not be unconditionally restyled at 100%", sliderDialog.contains("containerColor = surfaces.panel") || sliderDialog.contains("tonalElevation = 0.dp"))
     }
 
@@ -374,6 +375,7 @@ class NovaThemeResourcesTest {
         val settings = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
         val focusComponents = File("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt").readText()
         val settingsViewModel = File("src/main/java/com/papi/nova/preferences/NovaSettingsViewModel.kt").readText()
+        val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
         val settingsRepository = File("src/main/java/com/papi/nova/preferences/NovaSettingsRepository.kt").readText()
 
         assertTrue("session start/reconnect scrims should retain a contrast floor while honoring menu opacity", lifecycle.contains("NovaMenuPreferences.readabilityScrimAlpha(") && lifecycle.contains("scrimAlpha,"))
@@ -387,8 +389,11 @@ class NovaThemeResourcesTest {
         assertTrue("options fixed glass overrides should consume the menu opacity local", settings.contains("LocalNovaMenuOpacityScale.current"))
         assertTrue("shared focus components should scale panel glass while retaining focus rings", focusComponents.contains("LocalNovaMenuOpacityScale.current"))
         assertTrue("Stream UI reset should restore menu opacity to its compatibility default", settingsViewModel.contains("NovaMenuPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaMenuPreferences.DEFAULT_OPACITY_PERCENT)"))
-        assertTrue("Stream UI reset should remove stale HUD coordinates in the same batch", settingsViewModel.contains("NOVA_STREAM_UI_RESET_REMOVALS") && settingsViewModel.contains("store.updateAtomically(updates, NOVA_STREAM_UI_RESET_REMOVALS)"))
-        assertTrue("repository batch should update DataStore in one edit", settingsRepository.contains("override suspend fun updateAtomically(") && settingsRepository.contains("dataStore.edit { preferences ->"))
+        assertTrue("Stream UI reset should remove stale HUD coordinates in the same authoritative batch", settingsViewModel.contains("NOVA_STREAM_UI_RESET_REMOVALS") && settingsViewModel.contains("store.updateAtomically(updates, NOVA_STREAM_UI_RESET_REMOVALS)"))
+        assertTrue("reset construction should fail closed instead of silently skipping filtered definitions", settingsViewModel.contains("definitions.require(key) to value"))
+        assertTrue("Compose Settings should use canonical unfiltered definitions for resets", streamSettings.contains("resetDefinitions = canonicalDefinitions"))
+        assertTrue("repository batch should commit SharedPreferences once as the runtime authority", settingsRepository.contains("check(editor.commit())") && settingsRepository.contains("SharedPreferences is authoritative"))
+        assertTrue("DataStore should be repaired from the authoritative runtime mirror", settingsRepository.contains("reconcileDataStoreMirror") && settingsRepository.contains("canonicalDefinitions.settings"))
     }
 
     @Test
@@ -396,6 +401,7 @@ class NovaThemeResourcesTest {
         val blur = File("src/main/java/com/papi/nova/ui/NovaMenuBlur.kt").readText()
         val composeBlur = File("src/main/java/com/papi/nova/ui/compose/NovaMenuBackdropBlur.kt").readText()
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+        val quickMenuHost = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
         val quickMenu = File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
         val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
         val settings = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
@@ -408,13 +414,15 @@ class NovaThemeResourcesTest {
         assertTrue("stale dialog listeners must not remove a newer binding", blur.contains("dialogBindings[view] !== binding") && blur.contains("dialogBindings[view] === binding"))
         assertTrue("releasing an owner should recompute the strongest remaining radius", blur.contains("state.ownerRadiiDp.remove(owner)") && blur.contains("state.ownerRadiiDp.values.maxOrNull()"))
         assertTrue("Compose drawers should lease the Activity backdrop and release only their own effect", composeBlur.contains("NovaMenuBlur.acquireActivityBackground") && composeBlur.contains("lease?.release()"))
+        assertTrue("Command Center must live in a separate Dialog window before leasing the Game backdrop", quickMenuHost.contains("val overlay = Dialog(game)") && quickMenuHost.contains("overlay.setContentView(composeView)"))
         assertTrue("Command Center should opt into adaptive backdrop blur", quickMenu.contains("NovaMenuBackdropBlur()"))
         assertTrue("Library drawers should blur only while a separate-window drawer is active", library.contains("if (activeOptionsSheet || activeSystemMenu)") && library.contains("NovaMenuBackdropBlur()"))
         assertFalse("same-window filter sheets must not blur their own controls through the Activity decor", library.contains("activeFilterSheet != null || activeOptionsSheet"))
         assertTrue("Settings editors should blur the underlying Settings surface", settings.contains("NovaMenuBackdropBlur()"))
         assertTrue("native dialog blur should start on window attach and clear on detach", blur.contains("onViewAttachedToWindow") && blur.contains("isAttachedToWindow") && blur.contains("onViewDetachedFromWindow"))
         assertTrue("native sheets and alerts should share the same adaptive blur contract", sheetChrome.contains("NovaMenuBlur.attachBehindDialog"))
-        assertTrue("native 100% glass should preserve legacy truncation rather than rounding up", sheetChrome.contains("NovaMenuPreferences.alphaByte(themedAlpha"))
+        assertTrue("dark-text native surfaces should retain a readability floor below 100%", sheetChrome.contains("NovaMenuPreferences.readabilitySurfaceAlpha") && sheetChrome.contains("ColorUtils.calculateLuminance"))
+        assertTrue("custom select dialogs should draw the theme-aware window contrast scrim only below compatibility opacity", settings.contains("NovaDialogContrastBackdrop()") && settings.contains("if (opacityScale < 1f)") && settings.contains("surfaces.backgroundScrim.toArgb()"))
         assertTrue("unfocused native action strokes should disappear with menu glass", sheetChrome.contains("strokeAccentBlend * menuOpacityScale"))
         assertTrue("focused and pressed native action strokes should remain as readability cues", sheetChrome.contains("if (preservesFocusCue)"))
         assertTrue("session startup should release leases on explicit dismissal and unexpected view detach", progress.contains("NovaMenuBlur.acquireChildren") && progress.contains("releaseBackgroundBlur") && progress.contains("releaseOnUnexpectedDetach"))
