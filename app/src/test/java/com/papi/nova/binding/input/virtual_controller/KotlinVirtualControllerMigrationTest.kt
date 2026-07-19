@@ -183,6 +183,15 @@ class KotlinVirtualControllerMigrationTest {
     }
 
     @Test
+    fun skinnedDpadAlphaMapsCurrentAssetOpacityToFullAndroidRange() {
+        assertEquals(0, DigitalPad.skinnedDpadAlpha(0))
+        assertEquals(128, DigitalPad.skinnedDpadAlpha(50))
+        assertEquals(255, DigitalPad.skinnedDpadAlpha(100))
+        assertEquals(0, DigitalPad.skinnedDpadAlpha(-20))
+        assertEquals(255, DigitalPad.skinnedDpadAlpha(140))
+    }
+
+    @Test
     fun layoutSnappingHelperKeepsSnapResizeAndSpacingBehavior() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val parent = FrameLayout(context)

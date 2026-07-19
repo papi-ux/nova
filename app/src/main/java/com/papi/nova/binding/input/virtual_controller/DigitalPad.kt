@@ -12,6 +12,7 @@ import android.graphics.drawable.Drawable
 import android.view.MotionEvent
 import com.papi.nova.R
 import com.papi.nova.preferences.PreferenceConfiguration
+import kotlin.math.roundToInt
 
 class DigitalPad(controller: VirtualController, context: Context) :
     VirtualControllerElement(controller, context, EID_DPAD) {
@@ -145,7 +146,7 @@ class DigitalPad(controller: VirtualController, context: Context) :
             val original = resources.getDrawable(resId)
             val drawable = if (angle != null) rotateDrawable(original, angle) else original
             drawable.setBounds(5, 5, width - 5, height - 5)
-            drawable.alpha = (oscOpacity * 2.55).toInt()
+            drawable.alpha = skinnedDpadAlpha(oscOpacity)
             drawable.draw(canvas)
         }
 
@@ -220,5 +221,8 @@ class DigitalPad(controller: VirtualController, context: Context) :
         const val DIGITAL_PAD_DIRECTION_RIGHT = 4
         const val DIGITAL_PAD_DIRECTION_DOWN = 8
         private const val DPAD_MARGIN = 5
+
+        internal fun skinnedDpadAlpha(oscOpacity: Int): Int =
+            (oscOpacity.coerceIn(0, 100) * 2.55f).roundToInt().coerceIn(0, 255)
     }
 }
