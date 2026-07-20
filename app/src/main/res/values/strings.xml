@@ -850,6 +850,9 @@
     <string name="nova_quick_menu_session">Session</string>
     <string name="nova_quick_menu_nova_hud">Nova HUD</string>
     <string name="nova_quick_menu_nova_hud_caption">Tap HUD to cycle modes; long-press to open Command Center.</string>
+    <string name="nova_quick_menu_menu_opacity">Menu Opacity</string>
+    <string name="nova_quick_menu_menu_opacity_caption">Adjust Nova menus, drawers, options, and session glass without dimming text or focus cues.</string>
+    <string name="nova_quick_menu_menu_opacity_preset_cd">Set menu opacity to %1$d percent</string>
     <string name="nova_quick_menu_hud_opacity">HUD Opacity</string>
     <string name="nova_quick_menu_hud_opacity_caption">Adjust NovaHUD glass without dimming telemetry text.</string>
     <string name="nova_quick_menu_hud_opacity_disabled_caption">Enable Nova HUD first to change glass opacity.</string>

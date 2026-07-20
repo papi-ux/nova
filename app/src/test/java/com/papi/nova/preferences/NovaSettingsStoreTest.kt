@@ -73,6 +73,29 @@ class NovaSettingsStoreTest {
     }
 
     @Test
+    fun runtimeSharedPreferencesAreAuthoritativeAndRepairStaleDataStoreState() = runBlocking {
+        val mirrorPrefs = context.getSharedPreferences("nova-settings-authority-test", Context.MODE_PRIVATE)
+        mirrorPrefs.edit().clear().commit()
+        val storeFile = File(context.filesDir, "nova-settings-authority-${System.nanoTime()}.preferences_pb")
+        val repository = NovaSettingsRepository.createForTest(
+            context = context,
+            mirrorPrefs = mirrorPrefs,
+            storeFile = storeFile
+        )
+        val definitions = NovaSettingDefinitions.load(context)
+        val menuOpacity = definitions.require("nova_menu_opacity")
+
+        repository.set(menuOpacity, NovaSettingValue.IntValue(100))
+        mirrorPrefs.edit().putInt(menuOpacity.key, 25).commit()
+
+        assertEquals(NovaSettingValue.IntValue(25), repository.snapshot(definitions)[menuOpacity.key])
+
+        mirrorPrefs.edit().remove(menuOpacity.key).commit()
+
+        assertEquals(menuOpacity.defaultValue, repository.snapshot(definitions)[menuOpacity.key])
+    }
+
+    @Test
     fun dataStoreRepositoryMigratesAndMirrorsLegacySharedPreferences() = runBlocking {
         val mirrorPrefs = context.getSharedPreferences("nova-settings-mirror-test", Context.MODE_PRIVATE)
         mirrorPrefs.edit()

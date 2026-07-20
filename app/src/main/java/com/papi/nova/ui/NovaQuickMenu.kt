@@ -148,6 +148,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 profilePreference = currentProfilePreference(gameName),
                 hudShowing = game.isNovaHudShowing(),
                 hudOpacityPercent = NovaHudPreferences.readOpacityPercent(prefs),
+                menuOpacityPercent = NovaMenuPreferences.readOpacityPercent(prefs),
                 perfOverlayEnabled = game.prefConfig.enablePerfOverlay,
                 onscreenControllerEnabled = game.prefConfig.onscreenController,
                 keyboardVisible = game.isKeyboardLayoutVisible,
@@ -418,6 +419,16 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     }
                 }
             },
+            onMenuOpacityChange = { percent ->
+                haptic {
+                    game.launchRuntimeIo("NovaQuickMenuMenuOpacity") {
+                        NovaMenuPreferences.writeOpacityPercent(game, percent)
+                        game.runOnMainIfRuntimeActive {
+                            refreshState()
+                        }
+                    }
+                }
+            },
             onControlAction = { actionId ->
                 haptic {
                     when (actionId) {
@@ -462,7 +473,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         )
 
         composeView.setContent {
-            NovaComposeTheme {
+            NovaComposeTheme(menuOpacityPercent = uiState.menuOpacity.percent) {
                 NovaQuickMenuDrawer(
                     state = uiState,
                     callbacks = callbacks

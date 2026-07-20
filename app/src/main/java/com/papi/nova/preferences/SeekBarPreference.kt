@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import com.papi.nova.R
+import com.papi.nova.ui.NovaSheetChrome
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -145,6 +146,14 @@ class SeekBarPreference(context: Context, attrs: AttributeSet) : Preference(cont
             }
             .setNegativeButton(context.getString(R.string.cancel)) { dialog, _ -> dialog.dismiss() }
             .create()
+        createdDialog.setOnDismissListener {
+            if (dialog === createdDialog) {
+                dialog = null
+                seekBar = null
+                valueText = null
+            }
+        }
+        NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)
         dialog = createdDialog
         return createdDialog
     }

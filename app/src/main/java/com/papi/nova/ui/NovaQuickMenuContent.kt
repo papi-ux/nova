@@ -60,7 +60,9 @@ import androidx.compose.ui.unit.sp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionButton
+import com.papi.nova.ui.compose.NovaMenuBackdropBlur
 import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.launch
@@ -80,6 +82,7 @@ data class NovaQuickMenuCallbacks(
     val onQuickKey: (NovaQuickMenuActionId) -> Unit = {},
     val onOverlayAction: (NovaQuickMenuActionId) -> Unit = {},
     val onHudOpacityChange: (Int) -> Unit = {},
+    val onMenuOpacityChange: (Int) -> Unit = {},
     val onControlAction: (NovaQuickMenuActionId) -> Unit = {},
     val onSessionAction: (NovaQuickMenuActionId) -> Unit = {}
 ) {
@@ -122,6 +125,7 @@ fun NovaQuickMenuDrawer(
     callbacks: NovaQuickMenuCallbacks,
     modifier: Modifier = Modifier
 ) {
+    NovaMenuBackdropBlur()
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -173,7 +177,10 @@ fun NovaQuickMenuDrawer(
                 .fillMaxSize()
                 .background(
                     surfaces.backgroundScrim.copy(
-                        alpha = NovaInGameOverlayAlpha.CommandCenterScrim * drawerProgress.value
+                        alpha = NovaMenuPreferences.readabilityScrimAlpha(
+                            NovaInGameOverlayAlpha.CommandCenterScrim,
+                            LocalNovaMenuOpacityScale.current
+                        ) * drawerProgress.value
                     )
                 )
                 .clickable(
@@ -250,10 +257,10 @@ fun NovaQuickMenuContent(
             .fillMaxWidth()
             .fillMaxHeight()
             .clip(drawerShape)
-            .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel))
+            .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel * LocalNovaMenuOpacityScale.current))
             .border(
                 width = 1.dp,
-                color = surfaces.panelBorder.copy(alpha = NovaInGameOverlayAlpha.Border),
+                color = surfaces.panelBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current),
                 shape = drawerShape
             )
             .verticalScroll(rememberScrollState())
@@ -289,6 +296,10 @@ fun NovaQuickMenuContent(
             state.overlayRows.forEach { row ->
                 NovaQuickMenuRow(action = row, callbacks = callbacks)
             }
+            NovaQuickMenuMenuOpacityControl(
+                state = state,
+                callbacks = callbacks
+            )
             NovaQuickMenuHudOpacityControl(
                 state = state,
                 callbacks = callbacks
@@ -458,10 +469,10 @@ private fun NovaQuickMenuSessionStrip(state: NovaQuickMenuUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl))
+            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * LocalNovaMenuOpacityScale.current))
             .border(
                 1.dp,
-                surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border),
+                surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current),
                 RoundedCornerShape(14.dp)
             )
             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -716,10 +727,10 @@ private fun NovaQuickMenuPanel(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile))
+            .background(surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile * LocalNovaMenuOpacityScale.current))
             .border(
                 1.dp,
-                surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border),
+                surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current),
                 RoundedCornerShape(14.dp)
             )
             .padding(contentPadding)
@@ -797,6 +808,76 @@ private fun NovaQuickMenuRow(action: NovaQuickMenuAction, callbacks: NovaQuickMe
             action.chip?.let {
                 Spacer(Modifier.width(8.dp))
                 NovaQuickMenuChipView(it)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaQuickMenuMenuOpacityControl(
+    state: NovaQuickMenuUiState,
+    callbacks: NovaQuickMenuCallbacks
+) {
+    val colors = LocalNovaComposeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.nova_quick_menu_menu_opacity),
+                color = colors.textPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            NovaQuickMenuChipView(
+                NovaQuickMenuChip(
+                    label = state.menuOpacity.percent.toString() + "%",
+                    tone = NovaQuickMenuTone.INFO
+                )
+            )
+        }
+        Text(
+            text = stringResource(R.string.nova_quick_menu_menu_opacity_caption),
+            color = colors.textMuted,
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 5.dp)
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            state.menuOpacity.presets.forEach { percent ->
+                val selected = percent == state.menuOpacity.percent
+                NovaActionButton(
+                    text = percent.toString() + "%",
+                    onClick = { callbacks.onMenuOpacityChange(percent) },
+                    modifier = Modifier.weight(1f),
+                    primary = selected,
+                    contentDescription = stringResource(
+                        R.string.nova_quick_menu_menu_opacity_preset_cd,
+                        percent
+                    ),
+                    selected = selected,
+                    stateDescription = stringResource(
+                        if (selected) {
+                            R.string.nova_quick_menu_hud_opacity_selected
+                        } else {
+                            R.string.nova_quick_menu_hud_opacity_not_selected
+                        }
+                    ),
+                    cornerRadius = 9.dp,
+                    minHeight = 44.dp,
+                    fontSize = 10.sp,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
+                )
             }
         }
     }
@@ -892,12 +973,12 @@ private fun NovaQuickMenuClickableSurface(
     var focused by remember { mutableStateOf(false) }
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(if (flat) 10.dp else 14.dp)
-    val base = if (flat) Color.Transparent else surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile)
+    val base = if (flat) Color.Transparent else surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile * LocalNovaMenuOpacityScale.current)
     val focusedBackground = if (focused) surfaces.selectedControl else base
     val borderColor = when {
         focused -> surfaces.focusRing
         flat -> Color.Transparent
-        else -> surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border)
+        else -> surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current)
     }
     val borderWidth = if (focused) 2.dp else if (flat) 0.dp else 1.dp
 

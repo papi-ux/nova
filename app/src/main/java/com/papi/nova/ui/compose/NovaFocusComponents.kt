@@ -164,7 +164,7 @@ fun NovaControllerHintBar(
             .fillMaxWidth()
             .heightIn(min = 30.dp)
             .clip(shape)
-            .background(surfaces.panel.copy(alpha = 0.86f))
+            .background(surfaces.panel.copy(alpha = 0.86f * LocalNovaMenuOpacityScale.current))
             .border(1.dp, surfaces.panelBorder, shape)
             .semantics { contentDescription = hintContentDescription }
             .horizontalScroll(rememberScrollState())

@@ -1,6 +1,7 @@
 package com.papi.nova.ui.compose
 
 import androidx.compose.ui.graphics.Color
+import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaThemeManager
 import org.junit.Assert.assertEquals
@@ -43,6 +44,38 @@ class NovaLibrarySurfacesTest {
         assertEquals(0f, oled.backgroundScrim.alpha, 0.001f)
         assertEquals(base.accent, polaris.focusRing)
         assertEquals(Color.White, oled.onMedia)
+    }
+
+    @Test
+    fun menuOpacityScalesGlassSurfacesButPreservesFocusAndMediaReadability() {
+        val colors = portableChromeColors()
+        val full = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 1f)
+        val half = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 0.5f)
+        val zero = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 0f)
+
+        assertEquals(
+            NovaMenuPreferences.readabilityScrimAlpha(
+                baseAlpha = full.backgroundScrim.alpha,
+                opacityScale = 0.5f,
+                usesDarkText = true
+            ),
+            half.backgroundScrim.alpha,
+            0.005f
+        )
+        assertEquals(full.panel.alpha * 0.5f, half.panel.alpha, 0.005f)
+        assertEquals(full.panelBorder.alpha * 0.5f, half.panelBorder.alpha, 0.005f)
+        assertEquals(full.tile.alpha * 0.5f, half.tile.alpha, 0.005f)
+        assertEquals(full.tileBorder.alpha * 0.5f, half.tileBorder.alpha, 0.005f)
+        assertEquals(full.control.alpha * 0.5f, half.control.alpha, 0.005f)
+        assertEquals(full.selectedControl.alpha * 0.5f, half.selectedControl.alpha, 0.005f)
+        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA, zero.backgroundScrim.alpha, 0.005f)
+        assertEquals(Color.White, zero.backgroundScrim.copy(alpha = 1f))
+        assertEquals(0f, zero.panel.alpha, 0.001f)
+        assertEquals(0f, zero.control.alpha, 0.001f)
+        assertEquals(full.focusRing, zero.focusRing)
+        assertEquals(full.focusHalo, zero.focusHalo)
+        assertEquals(full.onMedia, zero.onMedia)
+        assertEquals(full.onMediaSecondary, zero.onMediaSecondary)
     }
 
     @Test
