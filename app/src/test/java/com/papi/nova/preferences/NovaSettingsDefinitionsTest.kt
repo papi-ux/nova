@@ -7,6 +7,7 @@ import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import com.papi.nova.utils.AndroidStreamDisplayTarget
+import com.papi.nova.utils.DualScreenQuickMenuPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -47,6 +48,7 @@ class NovaSettingsDefinitionsTest {
             listOf(
                 "category_stream_quality",
                 "category_display_audio",
+                "category_dual_screen",
                 "category_input",
                 "category_overlays",
                 "category_nova",
@@ -256,6 +258,42 @@ class NovaSettingsDefinitionsTest {
         )
         assertEquals(context.getString(R.string.android_stream_display_target_auto), target.options[0].label)
         assertEquals(context.getString(R.string.android_stream_display_target_largest), target.options[3].label)
+    }
+
+    @Test
+    fun dualScreenCategoryGroupsRoutingAndCompanionPowerPreferences() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val enabled = definitions.require(PreferenceConfiguration.ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING)
+        val streamTarget = definitions.require(PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING)
+        val quickMenu = definitions.require(PreferenceConfiguration.QUICK_MENU_DISPLAY_POLICY_PREF_STRING)
+        val dimTimeout = definitions.require(PreferenceConfiguration.COMPANION_SCREEN_DIM_TIMEOUT_PREF_STRING)
+
+        assertEquals("category_dual_screen", enabled.categoryKey)
+        assertEquals("category_dual_screen", streamTarget.categoryKey)
+
+        assertEquals("category_dual_screen", quickMenu.categoryKey)
+        assertEquals(NovaSettingType.Select, quickMenu.type)
+        assertEquals(
+            NovaSettingValue.StringValue(DualScreenQuickMenuPolicy.FOLLOW_INTERACTION),
+            quickMenu.defaultValue,
+        )
+        assertEquals(PreferenceConfiguration.ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING, quickMenu.dependencyKey)
+        assertEquals(NovaSettingApplyTiming.NextStream, quickMenu.applyTiming)
+        assertEquals(
+            listOf(
+                DualScreenQuickMenuPolicy.FOLLOW_INTERACTION,
+                DualScreenQuickMenuPolicy.STREAM,
+                DualScreenQuickMenuPolicy.COMPANION,
+            ),
+            quickMenu.options.map { it.value },
+        )
+
+        assertEquals("category_dual_screen", dimTimeout.categoryKey)
+        assertEquals(NovaSettingType.Select, dimTimeout.type)
+        assertEquals(NovaSettingValue.StringValue("10"), dimTimeout.defaultValue)
+        assertEquals(PreferenceConfiguration.ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING, dimTimeout.dependencyKey)
+        assertEquals(NovaSettingApplyTiming.NextStream, dimTimeout.applyTiming)
+        assertEquals(listOf("10", "30", "60", "0"), dimTimeout.options.map { it.value })
     }
 
     @Test

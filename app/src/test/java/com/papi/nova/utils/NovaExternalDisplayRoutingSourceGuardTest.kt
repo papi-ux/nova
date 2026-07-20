@@ -354,6 +354,102 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
+    fun presentationTeardownUnwindsCurrentViewRootCallbackBeforeDismiss() {
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val presentation =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+
+        assertTrue(
+            "Presentation teardown needs one deferred dismissal entrypoint",
+            presentation.contains("fun dismissAfterCurrentCallback()"),
+        )
+        val deferredDismiss =
+            presentation.substringAfter("fun dismissAfterCurrentCallback()")
+                .substringBefore("override fun onStop()")
+        val post = deferredDismiss.indexOf("handler.post")
+        val showingGuard = deferredDismiss.indexOf("if (isShowing)", post)
+        val dismiss = deferredDismiss.indexOf("dismiss()", showingGuard)
+        assertTrue("dismissal must be posted beyond the active ViewRoot callback", post >= 0)
+        assertTrue("a stale posted callback must not dismiss an already-hidden Presentation", showingGuard > post)
+        assertTrue("dismissal must happen only after the showing-state guard", dismiss > showingGuard)
+
+        val onStart =
+            presentation.substringAfter("override fun onStart()")
+                .substringBefore("private fun disposeTransientState()")
+        val focusChanged =
+            presentation.substringAfter("override fun onWindowFocusChanged(hasFocus: Boolean)")
+                .substringBefore("@Deprecated")
+        assertTrue(onStart.contains("dismissAfterCurrentCallback()"))
+        assertTrue(focusChanged.contains("dismissAfterCurrentCallback()"))
+
+        val launchControls =
+            game.substringAfter("private fun launchCompanionControlsIfAvailable()")
+                .substringBefore("fun showCompanionControls()")
+        val closeControls =
+            game.substringAfter("private fun closeCompanionControls()")
+                .substringBefore("private fun handleDisplayRemoved(")
+        assertTrue(
+            "replacing a companion Presentation must unwind the current callback first",
+            launchControls.contains("currentPresentation?.dismissAfterCurrentCallback()"),
+        )
+        val oldPresentationDismissListener =
+            launchControls.substringAfter("presentation.setOnDismissListener")
+                .substringBefore("externalDisplayControlPresentation = presentation")
+        val currentOwnerGuard =
+            oldPresentationDismissListener.indexOf("externalDisplayControlPresentation === presentation")
+        val ownerClear =
+            oldPresentationDismissListener.indexOf("externalDisplayControlPresentation = null", currentOwnerGuard)
+        assertTrue(
+            "a deferred old-Presentation dismiss listener must verify current ownership",
+            currentOwnerGuard >= 0,
+        )
+        assertTrue(
+            "an old dismiss listener may clear ownership only after its identity guard",
+            ownerClear > currentOwnerGuard,
+        )
+        assertTrue(
+            "disconnect teardown must unwind the current callback first",
+            closeControls.contains("presentation?.dismissAfterCurrentCallback()"),
+        )
+
+        val directDismissCalls = Regex("""(?<![\w.])dismiss\(\)""").findAll(presentation).count()
+        assertTrue(
+            "all Presentation-owned teardown must flow through the deferred helper; found $directDismissCalls direct calls",
+            directDismissCalls == 1,
+        )
+    }
+
+    @Test
+    fun presentationCancellationDefersDisplayRemovalAndBackTeardown() {
+        val presentation =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+
+        assertTrue(
+            "Presentation must override inherited cancel() used by display removal and Back",
+            presentation.contains("override fun cancel()"),
+        )
+        val cancel =
+            presentation.substringAfter("override fun cancel()")
+                .substringBefore("private fun cancelNow()")
+        assertTrue("inherited cancellation must post beyond the active framework callback", cancel.contains("handler.post"))
+        assertTrue("the posted cancellation must delegate to one framework-cancel helper", cancel.contains("cancelNow()"))
+
+        val cancelNow =
+            presentation.substringAfter("private fun cancelNow()")
+                .substringBefore("private fun disposeTransientState()")
+        val showingGuard = cancelNow.indexOf("if (isShowing)")
+        val frameworkCancel = cancelNow.indexOf("super.cancel()", showingGuard)
+        assertTrue("stale cancellation must not act on an already-hidden Presentation", showingGuard >= 0)
+        assertTrue("framework cancellation must run only after the showing-state guard", frameworkCancel > showingGuard)
+
+        val backPressed =
+            presentation.substringAfter("override fun onBackPressed()")
+                .substringBefore("private fun initializeComponents()")
+        assertTrue("Back teardown must use the deferred cancellation override", backPressed.contains("cancel()"))
+        assertFalse("Back must not re-enter synchronous Dialog.onBackPressed teardown", backPressed.contains("super.onBackPressed()"))
+    }
+
+    @Test
     fun companionReopenChecksLiveGameLifecycleAtExecutionTime() {
         val source = File("src/main/java/com/papi/nova/Game.kt").readText()
         val showControls =
@@ -393,5 +489,54 @@ class NovaExternalDisplayRoutingSourceGuardTest {
             "A hot-added replacement display must re-derive and reopen companion controls",
             displayAdded.contains("showCompanionControls()")
         )
+    }
+
+    @Test
+    fun gameAndCompanionReportWindowAndOwningGameTopResumedState() {
+        val telemetryFile = File("src/main/java/com/papi/nova/utils/DisplayFocusTelemetry.kt")
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val presentation =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+
+        assertTrue("Shared focus telemetry formatter must exist", telemetryFile.exists())
+        val telemetry = telemetryFile.readText()
+        assertTrue(telemetry.contains("""format("game", displayId, hasWindowFocus, isGameTopResumed)"""))
+        assertTrue(telemetry.contains("""format("companion", displayId, hasWindowFocus, isGameTopResumed)"""))
+        assertFalse(telemetry.contains("address="))
+        assertFalse(telemetry.contains("name="))
+
+        val gameWindowFocus =
+            game.substringAfter("override fun onWindowFocusChanged(hasFocus:Boolean)")
+                .substringBefore("private fun isRefreshRateEqualMatch")
+        assertTrue(gameWindowFocus.contains("logGameDisplayFocus(hasFocus)"))
+
+        val topResumed =
+            game.substringAfter("override fun onTopResumedActivityChanged(isTopResumedActivity:Boolean)")
+                .substringBefore("private fun isRefreshRateEqualMatch")
+        val stateUpdate = topResumed.indexOf("this.isTopResumedActivity = isTopResumedActivity")
+        val stateLog = topResumed.indexOf("logGameDisplayFocus(hasWindowFocus())")
+        assertTrue("Game must store top-resumed ownership before logging it", stateUpdate >= 0)
+        assertTrue("Top-resumed transitions must emit current window ownership", stateLog > stateUpdate)
+        assertTrue(game.contains("@RequiresApi(Build.VERSION_CODES.Q)"))
+        assertTrue(
+            game.contains(
+                "DisplayFocusTelemetry.game(streamingDisplayId, hasWindowFocus, isTopResumedActivity)",
+            ),
+        )
+        assertTrue(
+            game.contains(
+                "DisplayFocusTelemetry.companion(displayId, hasWindowFocus, isTopResumedActivity)",
+            ),
+        )
+
+        val presentationFocus =
+            presentation.substringAfter("override fun onWindowFocusChanged(hasFocus: Boolean)")
+                .substringBefore("@Deprecated")
+        assertTrue(
+            presentationFocus.contains(
+                "game.logCompanionDisplayFocus(display.displayId, hasFocus)",
+            ),
+        )
+        assertFalse(presentationFocus.contains("role=presentation"))
     }
 }

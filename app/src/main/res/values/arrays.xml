@@ -69,6 +69,30 @@
         <item>largest</item>
     </string-array>
 
+    <string-array name="dual_screen_quick_menu_display_names">
+        <item>@string/dual_screen_quick_menu_follow_interaction</item>
+        <item>@string/dual_screen_quick_menu_stream</item>
+        <item>@string/dual_screen_quick_menu_companion</item>
+    </string-array>
+    <string-array name="dual_screen_quick_menu_display_values" translatable="false">
+        <item>follow_interaction</item>
+        <item>stream</item>
+        <item>companion</item>
+    </string-array>
+
+    <string-array name="companion_screen_dim_timeout_names">
+        <item>@string/companion_screen_dim_10_seconds</item>
+        <item>@string/companion_screen_dim_30_seconds</item>
+        <item>@string/companion_screen_dim_1_minute</item>
+        <item>@string/companion_screen_dim_never</item>
+    </string-array>
+    <string-array name="companion_screen_dim_timeout_values" translatable="false">
+        <item>10</item>
+        <item>30</item>
+        <item>60</item>
+        <item>0</item>
+    </string-array>
+
     <string-array name="nova_preset_names">
         <item>Performance (720p, 10 Mbps)</item>
         <item>Balanced (1080p, 20 Mbps)</item>
