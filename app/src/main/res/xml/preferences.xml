@@ -167,7 +167,56 @@
     </PreferenceCategory>
 
     <!-- ═══════════════════════════════════════════════════════════
-         3. INPUT & CONTROLLERS
+         3. DUAL-SCREEN
+         Stream/companion placement, menu routing, companion power
+         ═══════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="category_dual_screen"
+        android:title="@string/title_dual_screen_category"
+        android:summary="@string/summary_dual_screen_category"
+        app:initialExpandedChildrenCount="4"
+        app:iconSpaceReserved="false">
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_enable_fullexdisplay"
+            android:summary="@string/summary_fullexdisplay_mode"
+            android:title="@string/title_fullexdisplay_mode"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            android:defaultValue="auto"
+            android:dependency="checkbox_enable_fullexdisplay"
+            android:entries="@array/android_stream_display_target_names"
+            android:entryValues="@array/android_stream_display_target_values"
+            android:key="android_stream_display_target"
+            android:summary="@string/summary_android_stream_display_target"
+            android:title="@string/title_android_stream_display_target"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            android:defaultValue="follow_interaction"
+            android:dependency="checkbox_enable_fullexdisplay"
+            android:entries="@array/dual_screen_quick_menu_display_names"
+            android:entryValues="@array/dual_screen_quick_menu_display_values"
+            android:key="dual_screen_quick_menu_display_policy"
+            android:summary="@string/summary_dual_screen_quick_menu_display"
+            android:title="@string/title_dual_screen_quick_menu_display"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            android:defaultValue="10"
+            android:dependency="checkbox_enable_fullexdisplay"
+            android:entries="@array/companion_screen_dim_timeout_names"
+            android:entryValues="@array/companion_screen_dim_timeout_values"
+            android:key="dual_screen_companion_dim_timeout_seconds"
+            android:summary="@string/summary_companion_screen_dim_timeout"
+            android:title="@string/title_companion_screen_dim_timeout"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         4. INPUT & CONTROLLERS
          Gamepad, touch, mouse — merged from 4 old categories
          ═══════════════════════════════════════════════════════════ -->
     <PreferenceCategory
@@ -381,7 +430,7 @@
     </PreferenceCategory>
 
     <!-- ═══════════════════════════════════════════════════════════
-         4. OVERLAYS & CONTROLS
+         5. OVERLAYS & CONTROLS
          Nova HUD, MangoHud, OSC, virtual keyboard, perf stats
          ═══════════════════════════════════════════════════════════ -->
     <PreferenceCategory
@@ -609,7 +658,7 @@
     </PreferenceCategory>
 
     <!-- ═══════════════════════════════════════════════════════════
-         5. NOVA & ADVANCED
+         6. NOVA & ADVANCED
          Nova features, then collapsed advanced/device-specific
          ═══════════════════════════════════════════════════════════ -->
     <PreferenceCategory
@@ -824,23 +873,6 @@
             android:summary="@string/summary_checkbox_enforce_display_mode"
             android:title="@string/title_checkbox_enforce_display_mode"
             app:iconSpaceReserved="false" />
-        <CheckBoxPreference
-            android:defaultValue="false"
-            android:key="checkbox_enable_fullexdisplay"
-            android:summary="@string/summary_fullexdisplay_mode"
-            android:title="@string/title_fullexdisplay_mode"
-            app:iconSpaceReserved="false" />
-
-        <ListPreference
-            android:defaultValue="auto"
-            android:dependency="checkbox_enable_fullexdisplay"
-            android:entries="@array/android_stream_display_target_names"
-            android:entryValues="@array/android_stream_display_target_values"
-            android:key="android_stream_display_target"
-            android:summary="@string/summary_android_stream_display_target"
-            android:title="@string/title_android_stream_display_target"
-            app:iconSpaceReserved="false" />
-
         <!-- Device fixes -->
         <CheckBoxPreference
             android:defaultValue="false"

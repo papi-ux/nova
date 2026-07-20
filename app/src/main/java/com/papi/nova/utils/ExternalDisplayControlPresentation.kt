@@ -41,6 +41,7 @@ import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.StartExternalDisplayControlReceiver
+import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardLayoutController
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.ExternalControllerView
@@ -63,6 +64,9 @@ class ExternalDisplayControlPresentation(
     private var keyBoardLayoutController: KeyBoardLayoutController? = null
 
     private var isKeyboardVisible = false
+    private var transientStateDisposed = false
+    private var dismissalRequestedByNova = false
+    private var menuOpenAtDisposal = false
 
     private val handler = Handler(Looper.getMainLooper())
     private var dimScreenRunnable = Runnable {}
@@ -133,12 +137,18 @@ class ExternalDisplayControlPresentation(
 
     override fun onStart() {
         super.onStart()
+        transientStateDisposed = false
+        dismissalRequestedByNova = false
+        menuOpenAtDisposal = false
+        resetInactivityTimer()
         if (game.isFinishing) {
             dismissAfterCurrentCallback()
         }
     }
 
     fun dismissAfterCurrentCallback() {
+        dismissalRequestedByNova = true
+        transientStateDisposed = true
         handler.post {
             if (isShowing) {
                 dismiss()
@@ -147,6 +157,8 @@ class ExternalDisplayControlPresentation(
     }
 
     override fun cancel() {
+        dismissalRequestedByNova = true
+        transientStateDisposed = true
         handler.post {
             cancelNow()
         }
@@ -159,12 +171,15 @@ class ExternalDisplayControlPresentation(
     }
 
     private fun disposeTransientState() {
-        handler.removeCallbacksAndMessages(null)
+        menuOpenAtDisposal = menuOpenAtDisposal || gameMenu?.isMenuOpen() == true
+        transientStateDisposed = true
         gameMenu?.hideMenu()
+        handler.removeCallbacksAndMessages(null)
         restoreBrightnessIfNeeded()
     }
 
     fun disposeAfterFailedShow() {
+        dismissalRequestedByNova = true
         disposeTransientState()
     }
 
@@ -182,9 +197,18 @@ class ExternalDisplayControlPresentation(
         originalBrightness = presentationWindow.attributes.screenBrightness
 
         dimScreenRunnable = Runnable {
-            val layout = presentationWindow.attributes
-            layout.screenBrightness = 0.0f
-            presentationWindow.attributes = layout
+            if (
+                CompanionScreenDimmingPolicy.shouldDimNow(
+                    keyboardVisible = isKeyboardVisible,
+                    quickMenuOpen = gameMenu?.isMenuOpen() == true,
+                )
+            ) {
+                val layout = presentationWindow.attributes
+                layout.screenBrightness = 0.0f
+                presentationWindow.attributes = layout
+            } else {
+                resetInactivityTimer()
+            }
         }
 
         resetInactivityTimer()
@@ -211,6 +235,7 @@ class ExternalDisplayControlPresentation(
     }
 
     private fun handleUserActivity() {
+        if (transientStateDisposed) return
         restoreBrightnessIfNeeded()
         resetInactivityTimer()
     }
@@ -218,7 +243,9 @@ class ExternalDisplayControlPresentation(
     private fun resetInactivityTimer() {
         handler.removeCallbacks(dimScreenRunnable)
         if (!isKeyboardVisible) {
-            handler.postDelayed(dimScreenRunnable, INACTIVITY_TIMEOUT_MS.toLong())
+            CompanionScreenDimmingPolicy.delayMillis(prefConfig.companionScreenDimTimeoutSeconds)?.let { delay ->
+                handler.postDelayed(dimScreenRunnable, delay)
+            }
         }
     }
 
@@ -234,24 +261,26 @@ class ExternalDisplayControlPresentation(
     override fun onBackPressed() {
         if (game.isKeyboardLayoutVisible) {
             toggleFullKeyboard()
-        } else if (gameMenu != null && gameMenu?.isMenuOpen() == false) {
-            game.onBackPressed()
-        } else {
+        } else if (!game.handleQuickMenuBackFromDisplay(display.displayId)) {
             cancel()
         }
     }
 
     private fun initializeComponents() {
-        gameMenu = GameMenu(game, companionDialogContext, companionDialogWindowType, ::companionDialogWindowToken)
+        gameMenu = GameMenu(game, companionDialogContext, companionDialogWindowType, ::companionDialogWindowToken).also {
+            it.setOnMenuDismissedListener(::handleUserActivity)
+        }
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        game.recordQuickMenuInteraction(display.displayId)
         StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         return game.onGenericMotionEvent(event)
     }
 
     @Suppress("DEPRECATION")
     override fun onKey(view: View, keyCode: Int, keyEvent: KeyEvent): Boolean {
+        game.recordQuickMenuInteraction(display.displayId)
         if (keyEvent.deviceId >= 0) {
             StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         }
@@ -264,6 +293,7 @@ class ExternalDisplayControlPresentation(
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        game.recordQuickMenuInteraction(display.displayId)
         if (event.deviceId >= 0) {
             StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         }
@@ -271,6 +301,7 @@ class ExternalDisplayControlPresentation(
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        game.recordQuickMenuInteraction(display.displayId)
         if (event.deviceId >= 0) {
             StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         }
@@ -278,6 +309,7 @@ class ExternalDisplayControlPresentation(
     }
 
     override fun onKeyMultiple(keyCode: Int, repeatCount: Int, event: KeyEvent): Boolean {
+        game.recordQuickMenuInteraction(display.displayId)
         if (event.deviceId >= 0) {
             StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
         }
@@ -362,7 +394,50 @@ class ExternalDisplayControlPresentation(
     }
 
     fun showGameMenu() {
-        gameMenu?.showMenu(null)
+        game.showGameMenuFromDisplay(display.displayId, null)
+    }
+
+    fun isCompanionDisplayAvailable(): Boolean {
+        return isShowing && display.isValid && !transientStateDisposed
+    }
+
+    fun shouldMigrateOpenMenuToStream(streamAvailable: Boolean): Boolean {
+        return DualScreenQuickMenuPolicy.shouldMigrateCompanionMenu(
+            menuWasOpen = menuOpenAtDisposal || gameMenu?.isMenuOpen() == true,
+            dismissalRequestedByNova = dismissalRequestedByNova,
+            streamAvailable = streamAvailable,
+        )
+    }
+
+    fun showGameMenuOnCompanion(device: GameInputDevice?): Boolean {
+        if (!isCompanionDisplayAvailable()) return false
+
+        return try {
+            handleUserActivity()
+            gameMenu?.showMenu(device)
+            gameMenu?.isMenuOpen() == true
+        } catch (e: RuntimeException) {
+            LimeLog.warning(
+                "Nova: Android companion quick menu unavailable display_id=${display.displayId} " +
+                    "exception=${e.javaClass.simpleName}"
+            )
+            runCatching { gameMenu?.hideMenu() }
+            false
+        }
+    }
+
+    fun hideGameMenu() {
+        runCatching { gameMenu?.hideMenu() }
+            .onFailure { error ->
+                LimeLog.warning(
+                    "Nova: Android companion quick menu dismiss failed display_id=${display.displayId} " +
+                        "exception=${error.javaClass.simpleName}"
+                )
+            }
+    }
+
+    fun isGameMenuOpen(): Boolean {
+        return gameMenu?.isMenuOpen() == true
     }
 
     private fun createButtonContainer(gravity: Int): LinearLayout {
@@ -403,7 +478,6 @@ class ExternalDisplayControlPresentation(
     }
 
     companion object {
-        private const val INACTIVITY_TIMEOUT_MS = 10_000
         private const val NOTIFICATION_CHANNEL_ID = "secondary_screen_active_channel_id"
 
         const val SECONDARY_SCREEN_NOTIFICATION_ID = 1

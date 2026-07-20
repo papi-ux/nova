@@ -54,6 +54,7 @@ import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.DisplayFocusTelemetry
 import com.papi.nova.utils.CompanionControlLifecyclePolicy
+import com.papi.nova.utils.DualScreenQuickMenuPolicy
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.MouseModeOption
@@ -225,6 +226,7 @@ private var cursorVisible:Boolean = false
 private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
+private var lastQuickMenuInteractionDisplayId:Int = INVALID_DISPLAY_ID
 private var isTopResumedActivity:Boolean = false
 private var externalDisplayControlPresentation:ExternalDisplayControlPresentation? = null
 private var externalDisplayListener:DisplayManager.DisplayListener? = null
@@ -414,11 +416,20 @@ this
 fun streamingDisplayIdForCompanion(): Int = streamingDisplayId
 
 private fun logGameDisplayFocus(hasWindowFocus:Boolean) {
+// Focus restoration after menu dismissal is not user input; keep provenance unchanged.
 LimeLog.info(DisplayFocusTelemetry.game(streamingDisplayId, hasWindowFocus, isTopResumedActivity))
 }
 
 fun logCompanionDisplayFocus(displayId:Int, hasWindowFocus:Boolean) {
+// Presentation focus is lifecycle telemetry. Touch/key paths record real interaction origin.
 LimeLog.info(DisplayFocusTelemetry.companion(displayId, hasWindowFocus, isTopResumedActivity))
+}
+
+fun recordQuickMenuInteraction(displayId:Int) {
+if (displayId == streamingDisplayId || displayId == companionControlDisplayId)
+{
+lastQuickMenuInteractionDisplayId = displayId
+}
 }
 
 private fun getCompanionControlDisplay(): Display? {
@@ -446,8 +457,17 @@ val presentation = ExternalDisplayControlPresentation(this, companionDisplay)
 presentation.setOnDismissListener {
 if (externalDisplayControlPresentation === presentation)
 {
+val shouldMigrateOpenMenu = presentation.shouldMigrateOpenMenuToStream(canMigrateCompanionMenuToStream())
 externalDisplayControlPresentation = null
+if (lastQuickMenuInteractionDisplayId == companionDisplayId)
+{
+lastQuickMenuInteractionDisplayId = streamingDisplayId
+}
 companionControlDisplayId = INVALID_DISPLAY_ID
+if (shouldMigrateOpenMenu)
+{
+showQuickMenuOnStreamAfterCompanionClose()
+}
 }
 }
 externalDisplayControlPresentation = presentation
@@ -461,6 +481,10 @@ catch (e:WindowManager.InvalidDisplayException)
 {
 presentation.disposeAfterFailedShow()
 externalDisplayControlPresentation = null
+if (lastQuickMenuInteractionDisplayId == companionDisplayId)
+{
+lastQuickMenuInteractionDisplayId = streamingDisplayId
+}
 companionControlDisplayId = INVALID_DISPLAY_ID
 LimeLog.warning("Nova: Android companion presentation unavailable display_id=$companionDisplayId")
 }
@@ -1539,13 +1563,40 @@ displayManager.unregisterDisplayListener(listener)
 externalDisplayListener = null
 }
 
-private fun closeCompanionControls() {
+private fun canMigrateCompanionMenuToStream():Boolean {
+return isStreamActive && !isFinishing() && !isDestroyed && gameMenuCallbacks != null
+}
+
+private fun showQuickMenuOnStreamAfterCompanionClose() {
+gameMenuCallbacks?.showMenu(null)
+LimeLog.info("Nova: Android companion quick menu migrated to stream after companion close stream_display_id=$streamingDisplayId")
+}
+
+private fun closeCompanionControls(migrateOpenMenuToStream:Boolean = false) {
 NotificationManagerCompat.from(baseContext)
 .cancel(ExternalDisplayControlPresentation.SECONDARY_SCREEN_NOTIFICATION_ID)
 val presentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
+val shouldMigrateOpenMenu = migrateOpenMenuToStream &&
+DualScreenQuickMenuPolicy.shouldMigrateCompanionMenu(
+presentation?.isGameMenuOpen() == true,
+dismissalRequestedByNova = false,
+streamAvailable = canMigrateCompanionMenuToStream(),
+)
+if (shouldMigrateOpenMenu)
+{
+presentation?.hideGameMenu()
+}
 externalDisplayControlPresentation = null
+if (lastQuickMenuInteractionDisplayId == companionControlDisplayId)
+{
+lastQuickMenuInteractionDisplayId = streamingDisplayId
+}
 companionControlDisplayId = INVALID_DISPLAY_ID
 presentation?.dismissAfterCurrentCallback()
+if (shouldMigrateOpenMenu)
+{
+showQuickMenuOnStreamAfterCompanionClose()
+}
 }
 
 private fun handleDisplayRemoved(removedDisplayId:Int) {
@@ -1554,11 +1605,11 @@ removedDisplayId == streamingDisplayId -> {
 closeCompanionControls()
 finish()
 }
-removedDisplayId == companionControlDisplayId -> closeCompanionControls()
+removedDisplayId == companionControlDisplayId -> closeCompanionControls(migrateOpenMenuToStream = true)
 else -> {
 if (getCompanionControlDisplay() == null)
 {
-closeCompanionControls()
+closeCompanionControls(migrateOpenMenuToStream = true)
 }
 }
 }
@@ -3684,6 +3735,7 @@ else
  // Returns true if the event was consumed
     // NB: View is only present if called from a view callback
      fun handleMotionEvent(view:View?, event:MotionEvent?):Boolean {
+view?.display?.displayId?.let(::recordQuickMenuInteraction)
  // Pass through mouse/touch/joystick input if we're not grabbing
         if (!grabbedInput)
 {
@@ -5185,17 +5237,22 @@ else -> return false
 }
 }
 override fun onBackPressed() {
-if (prefConfig!!.enableBackMenu)
+if (handleQuickMenuBackFromDisplay(streamingDisplayId))
 {
-if (gameMenuCallbacks?.isMenuOpen() == true)
-{
-hideGameMenu()
-return
-}
-showGameMenu(null)
 return
 }
 super.onBackPressed()
+}
+
+fun handleQuickMenuBackFromDisplay(originDisplayId:Int):Boolean {
+recordQuickMenuInteraction(originDisplayId)
+when (DualScreenQuickMenuPolicy.backAction(prefConfig!!.enableBackMenu, isAnyGameMenuOpen()))
+{
+DualScreenQuickMenuPolicy.BackAction.PASS_THROUGH -> return false
+DualScreenQuickMenuPolicy.BackAction.DISMISS -> hideGameMenu()
+DualScreenQuickMenuPolicy.BackAction.SHOW -> showGameMenuFromDisplay(originDisplayId, null)
+}
+return true
 }
 
  fun sendExecServerCmd(cmdId:Int) {
@@ -6203,23 +6260,58 @@ sheet.show()
 NovaSheetChrome.applyBottomSheetChrome(sheet, container)
 }
 override fun showGameMenu(device:GameInputDevice?) {
-if (externalDisplayControlPresentation?.isShowing == true)
+showGameMenuFromDisplay(INVALID_DISPLAY_ID, device)
+}
+
+fun showGameMenuFromDisplay(originDisplayId:Int, device:GameInputDevice?) {
+val companionPresentation = externalDisplayControlPresentation
+val presentation = companionPresentation?.takeIf { it.isCompanionDisplayAvailable() }
+val companionDisplayId = if (presentation != null && companionControlDisplayId != INVALID_DISPLAY_ID)
 {
-externalDisplayControlPresentation?.toggleGameMenu()
+companionControlDisplayId
 }
 else
 {
-if (gameMenuCallbacks != null)
-{
-gameMenuCallbacks!!.showMenu(device)
+null
 }
+val origin = originDisplayId.takeIf { it != INVALID_DISPLAY_ID }
+origin?.let(::recordQuickMenuInteraction)
+val lastInteraction = lastQuickMenuInteractionDisplayId.takeIf { it != INVALID_DISPLAY_ID }
+val requestedDestination = DualScreenQuickMenuPolicy.resolve(
+prefConfig?.quickMenuDisplayPolicy,
+origin,
+lastInteraction,
+streamingDisplayId,
+companionDisplayId,
+)
+val actualDestination = DualScreenQuickMenuPolicy.openWithFallback(
+requestedDestination,
+showStream = {
+companionPresentation?.hideGameMenu()
+gameMenuCallbacks?.showMenu(device)
+},
+showCompanion = {
+gameMenuCallbacks?.hideMenu()
+presentation?.showGameMenuOnCompanion(device) == true
+},
+)
+LimeLog.info(
+"Nova: Android quick menu policy=${prefConfig?.quickMenuDisplayPolicy} " +
+"origin_display_id=${origin ?: "none"} last_interaction_display_id=${lastInteraction ?: "none"} " +
+"stream_display_id=$streamingDisplayId companion_display_id=${companionDisplayId ?: "none"} " +
+"requested_destination=${requestedDestination.name.lowercase()} " +
+"destination=${actualDestination.name.lowercase()}"
+)
 }
+
+private fun isAnyGameMenuOpen():Boolean {
+return gameMenuCallbacks?.isMenuOpen() == true ||
+externalDisplayControlPresentation?.isGameMenuOpen() == true
 }
+
  fun hideGameMenu() {
-if (gameMenuCallbacks != null)
-{
-gameMenuCallbacks!!.hideMenu()
-}
+gameMenuCallbacks?.hideMenu()
+externalDisplayControlPresentation?.hideGameMenu()
 }
 
 private fun updateFloatingButtonVisibility(show:Boolean) {

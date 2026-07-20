@@ -6,6 +6,7 @@ import android.content.Context
 import android.view.Display
 import android.view.View
 import com.papi.nova.StartExternalDisplayControlReceiver
+import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.nvstream.http.ComputerDetails
 import java.io.File
 import java.lang.reflect.Modifier
@@ -63,6 +64,30 @@ class KotlinExternalDisplayUiMigrationTest {
         ExternalDisplayControlPresentation::class.java.getMethod("toggleGameMenu")
         ExternalDisplayControlPresentation::class.java.getMethod("toggleZoomMode", Boolean::class.javaPrimitiveType!!)
         ExternalDisplayControlPresentation::class.java.getMethod("showGameMenu")
+        ExternalDisplayControlPresentation::class.java.getMethod(
+            "showGameMenuOnCompanion",
+            GameInputDevice::class.java,
+        ).also { assertEquals(Boolean::class.javaPrimitiveType, it.returnType) }
+        ExternalDisplayControlPresentation::class.java.getMethod("isCompanionDisplayAvailable")
+        ExternalDisplayControlPresentation::class.java.getMethod(
+            "shouldMigrateOpenMenuToStream",
+            Boolean::class.javaPrimitiveType,
+        )
+        ExternalDisplayControlPresentation::class.java.getMethod("hideGameMenu")
+        ExternalDisplayControlPresentation::class.java.getMethod("isGameMenuOpen")
+        com.papi.nova.GameMenu::class.java.getMethod(
+            "setOnMenuDismissedListener",
+            Function0::class.java,
+        )
+        com.papi.nova.Game::class.java.getMethod(
+            "showGameMenuFromDisplay",
+            Int::class.javaPrimitiveType!!,
+            GameInputDevice::class.java,
+        )
+        com.papi.nova.Game::class.java.getMethod(
+            "handleQuickMenuBackFromDisplay",
+            Int::class.javaPrimitiveType!!,
+        )
         com.papi.nova.GameMenu::class.java.getConstructor(com.papi.nova.Game::class.java)
         com.papi.nova.GameMenu::class.java.getConstructor(
             com.papi.nova.Game::class.java,
