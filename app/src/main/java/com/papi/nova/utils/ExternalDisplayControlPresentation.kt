@@ -252,6 +252,7 @@ class ExternalDisplayControlPresentation(
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         game.logCompanionDisplayFocus(display.displayId, hasFocus)
+        game.updateCompanionDisplayBackFocus(this, display.displayId, hasFocus)
         if (game.isFinishing) {
             dismissAfterCurrentCallback()
         }
@@ -259,11 +260,21 @@ class ExternalDisplayControlPresentation(
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        handleCompanionBack()
+    }
+
+    private fun handleCompanionBack() {
         if (game.isKeyboardLayoutVisible) {
             toggleFullKeyboard()
         } else if (!game.handleQuickMenuBackFromDisplay(display.displayId)) {
             cancel()
         }
+    }
+
+    fun handleBackFromOwningGame(): Boolean {
+        if (!isCompanionDisplayAvailable()) return false
+        handleCompanionBack()
+        return true
     }
 
     private fun initializeComponents() {

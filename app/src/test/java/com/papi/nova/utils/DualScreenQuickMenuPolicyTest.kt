@@ -1,6 +1,8 @@
 package com.papi.nova.utils
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DualScreenQuickMenuPolicyTest {
@@ -138,6 +140,121 @@ class DualScreenQuickMenuPolicyTest {
         assertEquals(
             DualScreenQuickMenuPolicy.BackAction.PASS_THROUGH,
             DualScreenQuickMenuPolicy.backAction(backMenuEnabled = false, quickMenuOpen = false),
+        )
+    }
+
+    @Test
+    fun syntheticLegacyBackKeepsCompanionDisplayOrigin() {
+        assertEquals(
+            companionDisplayId,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = false,
+            ),
+        )
+    }
+
+    @Test
+    fun physicalInputDeviceBackKeepsExistingControllerPath() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                companionHasWindowFocus = true,
+                inputDeviceId = 7,
+                isMouseInput = false,
+            ),
+        )
+    }
+
+    @Test
+    fun mouseGeneratedBackKeepsExistingRightClickPath() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = true,
+            ),
+        )
+    }
+
+    @Test
+    fun ignoredSyntheticBackKeepsExistingInputPreference() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = false,
+                ignoreSyntheticEvents = true,
+            ),
+        )
+    }
+
+    @Test
+    fun backAsMetaKeepsBalancedHostKeyPath() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = false,
+                sendMetaOnBack = true,
+            ),
+        )
+    }
+
+    @Test
+    fun unfocusedCompanionKeepsExistingActivityPath() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                companionHasWindowFocus = false,
+                inputDeviceId = -1,
+                isMouseInput = false,
+            ),
+        )
+    }
+
+    @Test
+    fun legacyBackHasNoCompanionOriginAfterPresentationTeardown() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = null,
+                companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = false,
+            ),
+        )
+    }
+
+    @Test
+    fun currentPresentationCanUpdateCompanionFocus() {
+        assertTrue(
+            DualScreenQuickMenuPolicy.acceptsCompanionFocus(
+                currentCompanionDisplayId = companionDisplayId,
+                focusDisplayId = companionDisplayId,
+                isCurrentPresentation = true,
+            ),
+        )
+    }
+
+    @Test
+    fun stalePresentationCannotOverrideReplacementFocus() {
+        assertFalse(
+            DualScreenQuickMenuPolicy.acceptsCompanionFocus(
+                currentCompanionDisplayId = companionDisplayId,
+                focusDisplayId = companionDisplayId,
+                isCurrentPresentation = false,
+            ),
         )
     }
 
