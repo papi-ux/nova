@@ -1765,8 +1765,8 @@ class NovaComposeSourceGuardTest {
                 !content.contains("RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)")
         )
         assertTrue(
-            "drawer surface should be opaque enough at x=0 that it reads as attached instead of floating over the stream",
-            content.contains("NovaInGameOverlayAlpha.GlassPanel")
+            "drawer surface should consume the literal shared outer panel at x=0 instead of a theme-glass multiplier",
+            content.contains(".background(surfaces.panel)")
         )
         assertTrue(
             "scrim should dismiss the Command Center while keeping the stream visible behind the drawer",
@@ -1811,10 +1811,10 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun inGameOverlayOpacityTokensAreSharedByCommandCenterAndHud() {
+    fun inGameOverlayNestedOpacityTokensAreSharedByCommandCenterAndHud() {
         val tokenPath = Path.of("src/main/java/com/papi/nova/ui/compose/NovaInGameOverlayTokens.kt")
         assertTrue(
-            "Command Center and NovaHUD should share named in-game glass opacity tokens instead of local magic alpha literals",
+            "Command Center and NovaHUD should share named nested opacity tokens instead of local magic alpha literals",
             Files.exists(tokenPath)
         )
         val tokens = readSource("src/main/java/com/papi/nova/ui/compose/NovaInGameOverlayTokens.kt")
@@ -1822,26 +1822,25 @@ class NovaComposeSourceGuardTest {
         val hud = readNovaStreamHudContent()
 
         assertTrue(
-            "token file should name the overlay alpha contract for panels, nested controls, scrim, and borders",
+            "token file should name the nested overlay alpha contract for controls, scrim, and borders",
             tokens.contains("object NovaInGameOverlayAlpha") &&
-                tokens.contains("const val GlassPanel") &&
                 tokens.contains("const val NestedTile") &&
                 tokens.contains("const val NestedControl") &&
                 tokens.contains("const val CommandCenterScrim") &&
                 tokens.contains("const val Border")
         )
         assertTrue(
-            "Command Center should consume the shared alpha contract across scrim, panel, nested tiles, controls, borders, and handle",
+            "Command Center should use literal outer opacity plus shared nested scrim, tile, control, border, and handle tokens",
             commandCenter.contains("NovaInGameOverlayAlpha.CommandCenterScrim") &&
-                commandCenter.contains("NovaInGameOverlayAlpha.GlassPanel") &&
+                commandCenter.contains(".background(surfaces.panel)") &&
                 commandCenter.contains("NovaInGameOverlayAlpha.NestedTile") &&
                 commandCenter.contains("NovaInGameOverlayAlpha.NestedControl") &&
                 commandCenter.contains("NovaInGameOverlayAlpha.Border") &&
                 commandCenter.contains("NovaInGameOverlayAlpha.AccentHandle")
         )
         assertTrue(
-            "NovaHUD should use the same glass/control/border token family so it reads as one overlay system with Command Center",
-            hud.contains("NovaInGameOverlayAlpha.GlassPanel") &&
+            "NovaHUD should use its own literal outer opacity plus the same nested control/border token family",
+            hud.contains(".background(surfaces.panel.copy(alpha = hudOpacityScale))") &&
                 hud.contains("NovaInGameOverlayAlpha.NestedControl") &&
                 hud.contains("NovaInGameOverlayAlpha.Border") &&
                 hud.contains("NovaInGameOverlayAlpha.AccentDivider")

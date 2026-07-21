@@ -127,7 +127,7 @@ class NovaSettingsDefinitionsTest {
         val hudOpacity = definitions.require("nova_polaris_hud_opacity")
 
         assertEquals(NovaSettingType.Slider, hudOpacity.type)
-        assertEquals(NovaSettingValue.IntValue(90), hudOpacity.defaultValue)
+        assertEquals(NovaSettingValue.IntValue(64), hudOpacity.defaultValue)
         assertEquals(0, hudOpacity.min)
         assertEquals(100, hudOpacity.max)
         assertEquals(1, hudOpacity.step)
@@ -143,7 +143,7 @@ class NovaSettingsDefinitionsTest {
         assertEquals("Menu & Drawer Opacity", menuOpacity.title)
         assertEquals("category_overlays", menuOpacity.categoryKey)
         assertEquals(NovaSettingType.Slider, menuOpacity.type)
-        assertEquals(NovaSettingValue.IntValue(100), menuOpacity.defaultValue)
+        assertEquals(NovaSettingValue.IntValue(64), menuOpacity.defaultValue)
         assertEquals(0, menuOpacity.min)
         assertEquals(100, menuOpacity.max)
         assertEquals(1, menuOpacity.step)

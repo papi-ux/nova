@@ -23,6 +23,7 @@ class NovaHudPreferencesTest {
         val prefs = context.getSharedPreferences("nova-hud-preferences-shared", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
 
+        assertEquals(64, NovaHudPreferences.readOpacityPercent(prefs))
         assertEquals(listOf(0, 25, 64, 90, 100), NovaHudPreferences.OPACITY_PRESETS)
 
         NovaHudPreferences.writeOpacityPercent(prefs, -10)

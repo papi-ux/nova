@@ -47,7 +47,7 @@ class NovaLibrarySurfacesTest {
     }
 
     @Test
-    fun menuOpacityScalesGlassSurfacesButPreservesFocusAndMediaReadability() {
+    fun menuOpacityUsesAbsoluteOuterPanelWhileScalingNestedChromeAndPreservingFocus() {
         val colors = portableChromeColors()
         val full = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 1f)
         val half = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 0.5f)
@@ -62,7 +62,8 @@ class NovaLibrarySurfacesTest {
             half.backgroundScrim.alpha,
             0.005f
         )
-        assertEquals(full.panel.alpha * 0.5f, half.panel.alpha, 0.005f)
+        assertEquals(1f, full.panel.alpha, 0.005f)
+        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA, half.panel.alpha, 0.005f)
         assertEquals(full.panelBorder.alpha * 0.5f, half.panelBorder.alpha, 0.005f)
         assertEquals(full.tile.alpha * 0.5f, half.tile.alpha, 0.005f)
         assertEquals(full.tileBorder.alpha * 0.5f, half.tileBorder.alpha, 0.005f)
@@ -70,7 +71,7 @@ class NovaLibrarySurfacesTest {
         assertEquals(full.selectedControl.alpha * 0.5f, half.selectedControl.alpha, 0.005f)
         assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA, zero.backgroundScrim.alpha, 0.005f)
         assertEquals(Color.White, zero.backgroundScrim.copy(alpha = 1f))
-        assertEquals(0f, zero.panel.alpha, 0.001f)
+        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA, zero.panel.alpha, 0.001f)
         assertEquals(0f, zero.control.alpha, 0.001f)
         assertEquals(full.focusRing, zero.focusRing)
         assertEquals(full.focusHalo, zero.focusHalo)
@@ -87,7 +88,7 @@ class NovaLibrarySurfacesTest {
         assertTrue(portableChrome.particlesEnabled)
         assertEquals(portableColors.accent, portableChrome.focusRing)
         assertTrue(portableChrome.backgroundScrim.alpha >= 0.24f)
-        assertEquals(NovaSheetChrome.PORTABLE_CHROME_SHEET_GLASS_ALPHA, portableChrome.panel.alpha, 0.001f)
+        assertEquals(1f, portableChrome.panel.alpha, 0.001f)
         assertTrue(portableChrome.panelBorder.alpha in 0.40f..0.52f)
         assertTrue(portableChrome.particleAlpha in 0.16f..0.28f)
         assertTrue(portableChrome.focusHalo.alpha < 0.18f)
@@ -111,8 +112,8 @@ class NovaLibrarySurfacesTest {
             miami.focusHalo.alpha in 0.24f..0.34f
         )
         assertEquals(
-            "Miami panels should use shared readable plum glass alpha",
-            NovaSheetChrome.MIAMI_SHEET_GLASS_ALPHA,
+            "Miami outer panels should be fully opaque at the 100% endpoint",
+            1f,
             miami.panel.alpha,
             0.001f
         )

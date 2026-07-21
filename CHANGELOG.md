@@ -9,6 +9,7 @@ Nova 1.3.2 adds adjustable menu and drawer glass, sharpens controller focus rend
 ### Highlights
 
 - Adds an independent **Menu & Drawer Opacity** control from 0–100%, with live Settings and Command Center previews, readable 0% focus states, and automatic adaptive backdrop blur on Android 12 and newer.
+- Defaults both **NovaHUD Opacity** and **Menu & Drawer Opacity** to 64%, keeps the controls independent, preserves existing saved values, and makes the 100% endpoint fully opaque.
 - Preserves the intended opacity of D-pad artwork instead of flattening asset transparency during rendering.
 - Keeps external-display companion controls owned by the active Game session through Android `Presentation` and removes stale controls after teardown.
 - Hardens APK download, validation, staging, and retry recovery without weakening package identity or signer verification.
