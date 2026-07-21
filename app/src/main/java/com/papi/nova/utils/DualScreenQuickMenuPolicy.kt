@@ -49,6 +49,25 @@ object DualScreenQuickMenuPolicy {
         return if (quickMenuOpen) BackAction.DISMISS else BackAction.SHOW
     }
 
+    fun legacyCompanionBackOrigin(
+        companionDisplayId: Int?,
+        companionHasWindowFocus: Boolean,
+        inputDeviceId: Int,
+        isMouseInput: Boolean,
+    ): Int? {
+        if (!companionHasWindowFocus || companionDisplayId == null) return null
+        if (inputDeviceId >= 0 || isMouseInput) return null
+        return companionDisplayId
+    }
+
+    fun acceptsCompanionFocus(
+        currentCompanionDisplayId: Int?,
+        focusDisplayId: Int,
+        isCurrentPresentation: Boolean,
+    ): Boolean {
+        return isCurrentPresentation && currentCompanionDisplayId == focusDisplayId
+    }
+
     fun openWithFallback(
         requestedSurface: Surface,
         showStream: () -> Unit,
