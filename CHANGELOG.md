@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 1.3.2 - 2026-07-19
+
+Nova 1.3.2 adds adjustable menu and drawer glass, sharpens controller focus rendering, and delivers focused reliability fixes for companion displays, updater recovery, launch diagnostics, and verified host endpoint mobility.
+
+### Highlights
+
+- Adds an independent **Menu & Drawer Opacity** control from 0–100%, with live Settings and Command Center previews, readable 0% focus states, and automatic adaptive backdrop blur on Android 12 and newer.
+- Preserves the intended opacity of D-pad artwork instead of flattening asset transparency during rendering.
+- Keeps external-display companion controls owned by the active Game session through Android `Presentation` and removes stale controls after teardown.
+- Hardens APK download, validation, staging, and retry recovery without weakening package identity or signer verification.
+- Enriches launch diagnostics and classifies near-target stream health without presenting healthy small FPS variance as a failure.
+- Preserves certificate- and UUID-validated host routes across LAN and private-overlay address changes while keeping endpoint and host identity semantics separate.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.2 and versionCode 34.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
+
+### Validation notes
+
+- Final publication validation must use the tagged ARM64 release APK for package identity, Library, Menu & Drawer Opacity at 100%/25%/0%, adaptive-blur cleanup, preflight, live stream, physical controller and D-pad focus, Command Center, NovaHUD, updater, reconnect, and cleanup proof.
+- Physical Thor audio routing remains tracked separately and is not claimed fixed by this release.
+
 ## 1.3.1 - 2026-07-11
 
 Nova 1.3.1 is a focused follow-up to the matched Polaris 1.3 client release. It tightens Watch-stream ownership, keeps NovaHUD readable at Retroid-class widths, and makes the published checksum files portable for normal download-and-verify workflows.
