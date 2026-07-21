@@ -734,7 +734,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         addServer?.let { button ->
             val addParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
             addParams.width = if (collapsed) LinearLayout.LayoutParams.MATCH_PARENT else 0
-            addParams.height = compactHeight
+            addParams.height = if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT
             addParams.weight = if (collapsed) 0f else 1f
             addParams.marginStart = 0
             addParams.topMargin = 0
@@ -743,7 +743,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         scanPair?.let { button ->
             val scanParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
             scanParams.width = if (collapsed) LinearLayout.LayoutParams.MATCH_PARENT else 0
-            scanParams.height = compactHeight
+            scanParams.height = if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT
             scanParams.weight = if (collapsed) 0f else 1f
             scanParams.marginStart = if (collapsed) 0 else collapsedSpacing
             scanParams.topMargin = if (collapsed) collapsedSpacing else 0
