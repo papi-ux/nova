@@ -31,6 +31,7 @@ import android.view.WindowInsets
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.papi.nova.NovaActivity
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.FileProvider
 import androidx.fragment.app.DialogFragment
@@ -72,7 +73,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-class StreamSettings : AppCompatActivity() {
+class StreamSettings : NovaActivity() {
     private lateinit var previousPrefs: PreferenceConfiguration
     private var previousDisplayPixelCount = 0
     private var prefsFragment: SettingsFragment? = null

@@ -19,7 +19,7 @@ object NovaSettingsAvailability {
     }
 
     fun filterForProfileEditor(definitions: NovaSettingsDefinitionSet): NovaSettingsDefinitionSet {
-        val settings = definitions.settings.filterNot { it.key in profileEditorHiddenKeys }
+        val settings = definitions.settings.filter { shouldPersistProfileOverride(it.key) }
         val visibleCategoryKeys = settings.mapTo(linkedSetOf()) { it.categoryKey }
         return definitions.copy(
             categories = definitions.categories.filter { it.key in visibleCategoryKeys },
@@ -115,7 +115,10 @@ object NovaSettingsAvailability {
         "checkbox_enable_keyboard"
     )
 
+    fun shouldPersistProfileOverride(key: String): Boolean = key !in profileEditorHiddenKeys
+
     private val profileEditorHiddenKeys = setOf(
+        "nova_ui_font_scale_percent",
         "option_reset_osc_preference",
         "nova_reset_stream_ui",
         "import_keyboard_file",

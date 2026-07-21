@@ -5,13 +5,13 @@ import android.view.KeyEvent
 import com.journeyapps.barcodescanner.CaptureManager
 import com.journeyapps.barcodescanner.DecoratedBarcodeView
 import com.papi.nova.R
-import androidx.appcompat.app.AppCompatActivity
+import com.papi.nova.NovaActivity
 
 /**
  * Nova-themed QR code scanner activity.
  * Uses custom layout with branded viewfinder and instruction card.
  */
-class NovaQrScanActivity : AppCompatActivity() {
+class NovaQrScanActivity : NovaActivity() {
 
     private lateinit var capture: CaptureManager
     private lateinit var barcodeView: DecoratedBarcodeView

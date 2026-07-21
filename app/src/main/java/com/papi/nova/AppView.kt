@@ -21,7 +21,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -57,7 +56,7 @@ import java.io.StringReader
 import java.util.Locale
 import org.xmlpull.v1.XmlPullParserException
 
-class AppView : AppCompatActivity(), AdapterFragmentCallbacks {
+class AppView : NovaActivity(), AdapterFragmentCallbacks {
     private var appGridAdapter: AppGridAdapter? = null
     private var uuidString: String? = null
     private lateinit var shortcutHelper: ShortcutHelper

@@ -122,6 +122,22 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun novaTextSizeIsGlobalSystemRelativeInstantSlider() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val textSize = definitions.require("nova_ui_font_scale_percent")
+
+        assertEquals("Nova Text Size", textSize.title)
+        assertEquals("category_nova", textSize.categoryKey)
+        assertEquals(NovaSettingType.Slider, textSize.type)
+        assertEquals(NovaSettingValue.IntValue(100), textSize.defaultValue)
+        assertEquals(80, textSize.min)
+        assertEquals(130, textSize.max)
+        assertEquals(1, textSize.step)
+        assertEquals("%", textSize.suffix)
+        assertEquals(NovaSettingApplyTiming.Instant, textSize.applyTiming)
+    }
+
+    @Test
     fun hudOpacityPreferenceIsAdjustableInstantSlider() {
         val definitions = NovaSettingDefinitions.load(context)
         val hudOpacity = definitions.require("nova_polaris_hud_opacity")
@@ -307,6 +323,7 @@ class NovaSettingsDefinitionsTest {
         assertFalse(keys.contains("import_keyboard_file"))
         assertFalse(keys.contains("export_keyboard_file"))
         assertFalse(keys.contains("import_special_button_file"))
+        assertFalse(keys.contains("nova_ui_font_scale_percent"))
     }
 
     private fun legacyPreferenceKeys(): Set<String> {

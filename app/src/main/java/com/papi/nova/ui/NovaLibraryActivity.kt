@@ -10,7 +10,7 @@ import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
+import com.papi.nova.NovaActivity
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -151,7 +151,7 @@ private data class LibraryLoadResult(
     val activeSession: NovaLibraryActiveSessionUiState?
 )
 
-class NovaLibraryActivity : AppCompatActivity() {
+class NovaLibraryActivity : NovaActivity() {
 
     private lateinit var apiClient: PolarisApiClient
     private lateinit var streamHost: String
