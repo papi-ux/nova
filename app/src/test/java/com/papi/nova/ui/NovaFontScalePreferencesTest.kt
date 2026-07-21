@@ -6,10 +6,11 @@ import android.os.Looper
 import android.provider.Settings
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
+import com.papi.nova.Game
 import com.papi.nova.NovaActivity
 import com.papi.nova.R
-import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -81,33 +82,47 @@ class NovaFontScalePreferencesTest {
     }
 
     @Test
-    fun userFacingActivitiesRouteThroughSharedScaledBase() {
+    fun userFacingActivitiesRouteThroughSharedScaledBaseAtRuntime() {
         val activities = listOf(
-            "src/main/java/com/papi/nova/AppView.kt",
-            "src/main/java/com/papi/nova/DebugInfoActivity.kt",
-            "src/main/java/com/papi/nova/EditProfileActivity.kt",
-            "src/main/java/com/papi/nova/Game.kt",
-            "src/main/java/com/papi/nova/HelpActivity.kt",
-            "src/main/java/com/papi/nova/PcView.kt",
-            "src/main/java/com/papi/nova/ProfilesActivity.kt",
-            "src/main/java/com/papi/nova/ShortcutTrampoline.kt",
-            "src/main/java/com/papi/nova/preferences/AddComputerManually.kt",
-            "src/main/java/com/papi/nova/preferences/StreamSettings.kt",
-            "src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt",
-            "src/main/java/com/papi/nova/ui/NovaQrScanActivity.kt",
-            "src/main/java/com/papi/nova/ui/NovaWelcomeActivity.kt",
+            com.papi.nova.AppView::class.java,
+            com.papi.nova.DebugInfoActivity::class.java,
+            com.papi.nova.EditProfileActivity::class.java,
+            Game::class.java,
+            com.papi.nova.HelpActivity::class.java,
+            com.papi.nova.PcView::class.java,
+            com.papi.nova.ProfilesActivity::class.java,
+            com.papi.nova.ShortcutTrampoline::class.java,
+            com.papi.nova.preferences.AddComputerManually::class.java,
+            com.papi.nova.preferences.StreamSettings::class.java,
+            NovaLibraryActivity::class.java,
+            NovaQrScanActivity::class.java,
+            NovaWelcomeActivity::class.java,
         )
-        activities.forEach { path ->
-            assertTrue("$path should inherit NovaActivity", File(path).readText().contains(": NovaActivity"))
+        activities.forEach { activityClass ->
+            assertTrue(
+                "${activityClass.name} should inherit NovaActivity",
+                NovaActivity::class.java.isAssignableFrom(activityClass),
+            )
         }
 
-        val base = File("src/main/java/com/papi/nova/NovaActivity.kt").readText()
-        assertTrue(base.contains("override fun attachBaseContext"))
-        assertTrue(base.contains("NovaFontScalePreferences.wrapContext"))
-        assertTrue(base.contains("OnSharedPreferenceChangeListener"))
-        assertTrue(base.contains("override fun onResume()"))
-        assertTrue(base.contains("recreate()"))
-        assertTrue(File("src/main/java/com/papi/nova/Game.kt").readText().contains("shouldRecreateForFontScaleChange(): Boolean = false"))
+        val gamePolicy = Game::class.java
+            .getDeclaredMethod("shouldRecreateForFontScaleChange")
+            .apply { isAccessible = true }
+        assertFalse(gamePolicy.invoke(Game()) as Boolean)
+    }
+
+    @Test
+    fun activeOptOutNovaActivityDoesNotRecreateAfterTheScalePreferenceChanges() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit().putInt(NovaFontScalePreferences.KEY_SCALE_PERCENT, 80).commit()
+        val controller = Robolectric.buildActivity(RecordingOptOutNovaActivity::class.java).setup()
+        val activity = controller.get()
+
+        prefs.edit().putInt(NovaFontScalePreferences.KEY_SCALE_PERCENT, 130).commit()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(0, activity.recreateCalls)
+        controller.destroy()
     }
 }
 
@@ -118,6 +133,21 @@ private class RecordingNovaActivity : NovaActivity() {
         setTheme(R.style.AppTheme)
         super.onCreate(savedInstanceState)
     }
+
+    override fun recreate() {
+        recreateCalls += 1
+    }
+}
+
+private class RecordingOptOutNovaActivity : NovaActivity() {
+    var recreateCalls: Int = 0
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.AppTheme)
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun shouldRecreateForFontScaleChange(): Boolean = false
 
     override fun recreate() {
         recreateCalls += 1
