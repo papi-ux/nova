@@ -9,7 +9,6 @@ package com.papi.nova.ui.compose
  */
 object NovaInGameOverlayAlpha {
     const val CommandCenterScrim = 0.42f
-    const val GlassPanel = 0.94f
     const val NestedTile = 0.76f
     const val NestedControl = 0.82f
     const val Border = 0.90f
