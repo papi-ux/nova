@@ -183,6 +183,34 @@ class DualScreenQuickMenuPolicyTest {
     }
 
     @Test
+    fun ignoredSyntheticBackKeepsExistingInputPreference() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = false,
+                ignoreSyntheticEvents = true,
+            ),
+        )
+    }
+
+    @Test
+    fun backAsMetaKeepsBalancedHostKeyPath() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = false,
+                sendMetaOnBack = true,
+            ),
+        )
+    }
+
+    @Test
     fun unfocusedCompanionKeepsExistingActivityPath() {
         assertEquals(
             null,

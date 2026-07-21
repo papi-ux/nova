@@ -3131,8 +3131,11 @@ companionDisplayId = companionControlDisplayId.takeIf { it != INVALID_DISPLAY_ID
 companionHasWindowFocus = companionControlHasWindowFocus,
 inputDeviceId = event.getDeviceId(),
 isMouseInput = eventSource == InputDevice.SOURCE_MOUSE || eventSource == InputDevice.SOURCE_MOUSE_RELATIVE,
+ignoreSyntheticEvents = prefConfig!!.ignoreSynthEvents,
+sendMetaOnBack = prefConfig!!.backAsMeta,
 )
-if (companionBackOrigin != null && handleQuickMenuBackFromDisplay(companionBackOrigin))
+if (companionBackOrigin != null &&
+externalDisplayControlPresentation?.handleBackFromOwningGame() == true)
 {
 return true
 }

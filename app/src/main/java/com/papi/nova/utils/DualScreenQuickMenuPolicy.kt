@@ -54,9 +54,11 @@ object DualScreenQuickMenuPolicy {
         companionHasWindowFocus: Boolean,
         inputDeviceId: Int,
         isMouseInput: Boolean,
+        ignoreSyntheticEvents: Boolean = false,
+        sendMetaOnBack: Boolean = false,
     ): Int? {
         if (!companionHasWindowFocus || companionDisplayId == null) return null
-        if (inputDeviceId >= 0 || isMouseInput) return null
+        if (inputDeviceId >= 0 || isMouseInput || ignoreSyntheticEvents || sendMetaOnBack) return null
         return companionDisplayId
     }
 
