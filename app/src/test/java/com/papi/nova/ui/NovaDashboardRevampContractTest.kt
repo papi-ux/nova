@@ -40,9 +40,12 @@ class NovaDashboardRevampContractTest {
             assertTrue("${layout.path} should make Start Polaris a labeled pill", headerXml.contains("@string/pcview_quick_start_polaris"))
             assertTrue("${layout.path} should make Theme a labeled pill", headerXml.contains("@string/pcview_quick_theme"))
             assertTrue("${layout.path} should make GitHub a labeled pill", headerXml.contains("@string/pcview_quick_github"))
-            val expectedActionHeight = if (layout.path.contains("layout-land")) "34dp" else "@dimen/nova_dashboard_top_action_height"
+            val expectedActionHeight = if (layout.path.contains("layout-land")) "wrap_content" else "@dimen/nova_dashboard_top_action_height"
             val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "@dimen/nova_dashboard_top_action_radius"
             assertTrue("${layout.path} should use compact pilled top actions", headerXml.contains("""android:layout_height="$expectedActionHeight"""") && headerXml.contains("""app:cornerRadius="$expectedActionRadius""""))
+            if (layout.path.contains("layout-land")) {
+                assertTrue("landscape text actions should grow above their compact baseline", headerXml.contains("""android:minHeight="34dp"""))
+            }
         }
     }
 
@@ -161,6 +164,39 @@ class NovaDashboardRevampContractTest {
 
 
     @Test
+    fun shortLandscapeRailScrollsAndTextRowsGrowInsteadOfClipping() {
+        val landscape = File("src/main/res/layout-land/activity_pc_view.xml").readText()
+        val railStart = landscape.indexOf("@+id/dashboardCockpitRail")
+        val contentStart = landscape.indexOf("@+id/dashboardContent")
+        val railXml = landscape.substring(railStart, contentStart)
+        val railOpenTag = landscape.substring(landscape.lastIndexOf('<', railStart), landscape.indexOf('>', railStart) + 1)
+
+        assertTrue("short landscape rail should be a focus-aware vertical scroller", railOpenTag.contains("androidx.core.widget.NestedScrollView"))
+        assertTrue("rail should fill the viewport but still scroll overflowing actions", railOpenTag.contains("""android:fillViewport="true"""))
+        assertTrue("rail should scroll focused DPAD descendants into view", railOpenTag.contains("""android:descendantFocusability="afterDescendants"""))
+
+        val headerTag = railXml.substring(railXml.indexOf("@+id/pcViewHeader")).substringBefore('>')
+        assertTrue("scroll content height must be intrinsic", headerTag.contains("""android:layout_height="wrap_content"""))
+
+        listOf(
+            "@+id/actionStartPolaris",
+            "@+id/profilesButton",
+            "@+id/actionTheme",
+            "@+id/actionGithub",
+            "@+id/actionSettings",
+            "@+id/actionNovaUpdate",
+            "@+id/modeServers",
+            "@+id/modeLibrary",
+            "@+id/actionAddServer",
+            "@+id/actionScanPair",
+        ).forEach { id ->
+            val node = railXml.substring(railXml.indexOf(id)).substringBefore('>')
+            assertTrue("$id should grow vertically for scaled text", node.contains("""android:layout_height="wrap_content"""))
+            assertTrue("$id should retain a compact minimum target", node.contains("android:minHeight="))
+        }
+    }
+
+    @Test
     fun laneThreeServerLibraryModesRenderAsCompactSelector() {
         val layouts = listOf(
             File("src/main/res/layout/activity_pc_view.xml"),
@@ -209,7 +245,7 @@ class NovaDashboardRevampContractTest {
             if (layout.path.contains("layout-land")) {
                 assertTrue("${layout.path} setup row should fill the compact left rail", setupXml.contains("""android:layout_width="match_parent"""))
                 assertTrue("${layout.path} expanded setup actions should split into compact paired rail pills", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
-                assertTrue("${layout.path} setup actions should use compact rail pill sizing", setupXml.contains("""android:layout_height="34dp""") && setupXml.contains("""app:cornerRadius="17dp"""))
+                assertTrue("${layout.path} setup actions should retain compact minimums while growing for larger text", setupXml.contains("""android:layout_height="wrap_content""") && setupXml.contains("""android:minHeight="34dp""") && setupXml.contains("""app:cornerRadius="17dp"""))
             } else {
                 assertTrue("${layout.path} setup row should fill portrait width for large touch targets", setupXml.contains("""android:layout_width="match_parent"""))
                 assertTrue("${layout.path} setup actions should use shared pill tokens", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_dashboard_pill_radius"))

@@ -19,11 +19,14 @@
         android:baselineAligned="false"
         android:orientation="horizontal">
 
-        <LinearLayout
+        <androidx.core.widget.NestedScrollView
             android:id="@+id/dashboardCockpitRail"
             android:layout_width="@dimen/nova_dashboard_rail_width"
             android:layout_height="match_parent"
-            android:orientation="vertical"
+            android:clipToPadding="false"
+            android:descendantFocusability="afterDescendants"
+            android:fillViewport="true"
+            android:overScrollMode="ifContentScrolls"
             android:paddingStart="14dp"
             android:paddingTop="6dp"
             android:paddingEnd="14dp"
@@ -32,7 +35,7 @@
             <LinearLayout
                 android:id="@+id/pcViewHeader"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:orientation="vertical">
 
                 <LinearLayout
@@ -93,7 +96,8 @@
                     android:id="@+id/actionStartPolaris"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="match_parent"
-                    android:layout_height="34dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="34dp"
                     android:layout_marginTop="8dp"
                     android:contentDescription="@string/pcview_quick_start_polaris"
                     android:insetTop="0dp"
@@ -116,7 +120,8 @@
                     android:id="@+id/profilesButton"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="match_parent"
-                    android:layout_height="34dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="34dp"
                     android:layout_marginTop="5dp"
                     android:contentDescription="@string/pcview_quick_profiles"
                     android:insetTop="0dp"
@@ -139,7 +144,8 @@
                     android:id="@+id/actionTheme"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="match_parent"
-                    android:layout_height="34dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="34dp"
                     android:layout_marginTop="5dp"
                     android:contentDescription="@string/pcview_quick_theme"
                     android:insetTop="0dp"
@@ -162,7 +168,8 @@
                     android:id="@+id/actionGithub"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="match_parent"
-                    android:layout_height="34dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="34dp"
                     android:layout_marginTop="5dp"
                     android:contentDescription="@string/pcview_quick_github"
                     android:insetTop="0dp"
@@ -185,7 +192,8 @@
                     android:id="@+id/actionSettings"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="match_parent"
-                    android:layout_height="34dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="34dp"
                     android:layout_marginTop="5dp"
                     android:contentDescription="@string/pcview_quick_settings"
                     android:insetTop="0dp"
@@ -207,7 +215,8 @@
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/actionNovaUpdate"
                     android:layout_width="match_parent"
-                    android:layout_height="38dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="38dp"
                     android:layout_marginTop="5dp"
                     android:clickable="true"
                     android:contentDescription="@string/pcview_update_pill_content_current"
@@ -221,7 +230,8 @@
 
                     <LinearLayout
                         android:layout_width="match_parent"
-                        android:layout_height="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="38dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
                         android:paddingStart="10dp"
@@ -291,7 +301,8 @@
                     <LinearLayout
                         android:id="@+id/dashboardModeSelector"
                         android:layout_width="match_parent"
-                        android:layout_height="34dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
                         android:layout_marginTop="6dp"
                         android:contentDescription="@string/pcview_dashboard_mode_selector"
                         android:gravity="center_vertical"
@@ -300,8 +311,9 @@
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/modeServers"
                         android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
                         android:layout_weight="1"
-                        android:layout_height="34dp"
                         android:clickable="true"
                         android:contentDescription="@string/pcview_mode_servers"
                         android:focusable="true"
@@ -314,7 +326,8 @@
 
                         <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="34dp"
                             android:gravity="center"
                             android:orientation="horizontal"
                             android:paddingStart="6dp"
@@ -343,8 +356,9 @@
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/modeLibrary"
                         android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
                         android:layout_weight="1"
-                        android:layout_height="34dp"
                         android:layout_marginStart="6dp"
                         android:clickable="true"
                         android:contentDescription="@string/pcview_mode_library"
@@ -358,7 +372,8 @@
 
                         <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="34dp"
                             android:gravity="center"
                             android:orientation="horizontal"
                             android:paddingStart="6dp"
@@ -408,8 +423,9 @@
                         android:id="@+id/actionAddServer"
                         style="@style/Widget.MaterialComponents.Button"
                         android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
                         android:layout_weight="1"
-                        android:layout_height="34dp"
                         android:contentDescription="@string/pcview_quick_add_server"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
@@ -431,8 +447,9 @@
                         android:id="@+id/actionScanPair"
                         style="@style/Widget.MaterialComponents.Button"
                         android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
                         android:layout_weight="1"
-                        android:layout_height="34dp"
                         android:layout_marginStart="6dp"
                         android:contentDescription="@string/pcview_quick_scan_pair"
                         android:insetTop="0dp"
@@ -456,7 +473,8 @@
                 <TextView
                     android:id="@+id/topActionFocusLabel"
                     android:layout_width="match_parent"
-                    android:layout_height="14dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="14dp"
                     android:layout_marginTop="3dp"
                     android:fontFamily="sans-serif-medium"
                     android:gravity="center"
@@ -465,7 +483,7 @@
                     android:visibility="invisible"
                     tools:text="Settings" />
             </LinearLayout>
-        </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
 
         <LinearLayout
             android:id="@+id/dashboardContent"

@@ -31,7 +31,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.ViewModelProvider
@@ -99,7 +98,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import org.xmlpull.v1.XmlPullParserException
 
-class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
+class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private val THEME_PICKER_GRID_GAP_DP = 8
     private var noPcFoundLayout: View? = null
     private lateinit var pcGridAdapter: PcGridAdapter

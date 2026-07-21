@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
-import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
@@ -44,7 +43,7 @@ import java.util.Locale
 import java.util.Objects
 import java.util.UUID
 
-class ShortcutTrampoline : AppCompatActivity() {
+class ShortcutTrampoline : NovaActivity() {
     private lateinit var prefConfig: PreferenceConfiguration
     private var uuidString: String = ""
     private var app: NvApp? = null

@@ -16,11 +16,10 @@ import android.widget.Button
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.utils.DeviceUtils
 
 @Suppress("DEPRECATION")
-class DebugInfoActivity : AppCompatActivity(), View.OnClickListener {
+class DebugInfoActivity : NovaActivity(), View.OnClickListener {
     private lateinit var gamepadInfoText: TextView
     private var vibrator: Vibrator? = null
     private lateinit var vibratorButton: Button

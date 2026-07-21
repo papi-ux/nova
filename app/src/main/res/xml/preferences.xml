@@ -675,7 +675,7 @@
     <PreferenceCategory
         android:key="category_nova"
         android:title="Nova"
-        android:summary="Theme, auto-connect, Polaris integration"
+        android:summary="Theme, text size, auto-connect, Polaris integration"
         app:iconSpaceReserved="false">
         <Preference
             android:key="nova_app_version"
@@ -690,6 +690,17 @@
             android:entryValues="@array/nova_theme_values"
             android:defaultValue="polaris"
             app:iconSpaceReserved="false" />
+        <com.papi.nova.preferences.SeekBarPreference
+            android:key="nova_ui_font_scale_percent"
+            android:title="Nova Text Size"
+            android:summary="Scale Nova text relative to Android system text size"
+            android:dialogMessage="Scale Nova text relative to Android system text size"
+            android:defaultValue="100"
+            android:max="130"
+            android:text="%"
+            app:iconSpaceReserved="false"
+            seekbar:min="80"
+            seekbar:step="1" />
         <CheckBoxPreference
             android:key="nova_compose_settings_beta"
             android:title="Modern Settings"

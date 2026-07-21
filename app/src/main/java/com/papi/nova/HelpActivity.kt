@@ -9,12 +9,11 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
-import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.SpinnerDialog
 
 @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-class HelpActivity : AppCompatActivity() {
+class HelpActivity : NovaActivity() {
     private var loadingDialog: SpinnerDialog? = null
     private lateinit var webView: WebView
     private var backCallbackRegistered = false

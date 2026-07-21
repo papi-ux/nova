@@ -15,7 +15,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.papi.nova.NovaActivity
 import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.PcView
@@ -36,7 +36,7 @@ import java.net.NetworkInterface
 import java.util.Collections
 import java.util.concurrent.LinkedBlockingQueue
 
-class AddComputerManually : AppCompatActivity() {
+class AddComputerManually : NovaActivity() {
     private lateinit var hostText: TextView
     private var managerBinder: ComputerManagerService.ComputerManagerBinder? = null
     private val computersToAdd = LinkedBlockingQueue<String>()
