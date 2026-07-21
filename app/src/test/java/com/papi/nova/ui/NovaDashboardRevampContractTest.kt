@@ -319,6 +319,24 @@ class NovaDashboardRevampContractTest {
 
 
     @Test
+    fun expandingLandscapeRailRestoresAdaptiveSetupActionHeights() {
+        val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
+
+        assertTrue(
+            "expanded Add Server must return to wrap_content for scaled or multiline text",
+            source.contains(
+                "addParams.height = if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT"
+            ),
+        )
+        assertTrue(
+            "expanded Scan Pair must return to wrap_content for scaled or multiline text",
+            source.contains(
+                "scanParams.height = if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT"
+            ),
+        )
+    }
+
+    @Test
     fun laneThreePointTwoLandscapeRailHasCollapsibleIconDrawerAnatomy() {
         val landscape = File("src/main/res/layout-land/activity_pc_view.xml").readText()
         val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
