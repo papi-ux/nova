@@ -144,12 +144,102 @@ class DualScreenQuickMenuPolicyTest {
     }
 
     @Test
+    fun escapedBackUsesCompanionInteractionAfterGameTakesWindowFocus() {
+        assertEquals(
+            companionDisplayId,
+            DualScreenQuickMenuPolicy.escapedBackOrigin(
+                companionDisplayId = companionDisplayId,
+                lastInteractionDisplayId = companionDisplayId,
+                companionHasWindowFocus = false,
+            ),
+        )
+    }
+
+    @Test
+    fun escapedBackUsesCurrentCompanionFocusWhenLastInteractionIsStream() {
+        assertEquals(
+            companionDisplayId,
+            DualScreenQuickMenuPolicy.escapedBackOrigin(
+                companionDisplayId = companionDisplayId,
+                lastInteractionDisplayId = streamDisplayId,
+                companionHasWindowFocus = true,
+            ),
+        )
+    }
+
+    @Test
+    fun escapedBackKeepsStreamInteractionWithoutCompanionFocus() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.escapedBackOrigin(
+                companionDisplayId = companionDisplayId,
+                lastInteractionDisplayId = streamDisplayId,
+                companionHasWindowFocus = false,
+            ),
+        )
+    }
+
+    @Test
+    fun escapedBackFallsBackToCompanionFocusWithoutRecordedInteraction() {
+        assertEquals(
+            companionDisplayId,
+            DualScreenQuickMenuPolicy.escapedBackOrigin(
+                companionDisplayId = companionDisplayId,
+                lastInteractionDisplayId = null,
+                companionHasWindowFocus = true,
+            ),
+        )
+    }
+
+    @Test
     fun syntheticLegacyBackKeepsCompanionDisplayOrigin() {
         assertEquals(
             companionDisplayId,
             DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
                 companionDisplayId = companionDisplayId,
                 companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = false,
+            ),
+        )
+    }
+
+    @Test
+    fun syntheticLegacyBackUsesRecordedCompanionInteractionWithoutFocus() {
+        assertEquals(
+            companionDisplayId,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                lastInteractionDisplayId = companionDisplayId,
+                companionHasWindowFocus = false,
+                inputDeviceId = -1,
+                isMouseInput = false,
+            ),
+        )
+    }
+
+    @Test
+    fun syntheticLegacyBackUsesCurrentCompanionFocusWhenInteractionIsStream() {
+        assertEquals(
+            companionDisplayId,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                lastInteractionDisplayId = streamDisplayId,
+                companionHasWindowFocus = true,
+                inputDeviceId = -1,
+                isMouseInput = false,
+            ),
+        )
+    }
+
+    @Test
+    fun syntheticLegacyBackKeepsStreamInteractionWithoutCompanionFocus() {
+        assertEquals(
+            null,
+            DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
+                companionDisplayId = companionDisplayId,
+                lastInteractionDisplayId = streamDisplayId,
+                companionHasWindowFocus = false,
                 inputDeviceId = -1,
                 isMouseInput = false,
             ),

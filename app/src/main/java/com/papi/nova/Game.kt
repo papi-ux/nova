@@ -3128,6 +3128,7 @@ if (keyCode == KeyEvent.KEYCODE_BACK)
 val eventSource:Int = event.getSource()
 val companionBackOrigin:Int? = DualScreenQuickMenuPolicy.legacyCompanionBackOrigin(
 companionDisplayId = companionControlDisplayId.takeIf { it != INVALID_DISPLAY_ID },
+lastInteractionDisplayId = lastQuickMenuInteractionDisplayId.takeIf { it != INVALID_DISPLAY_ID },
 companionHasWindowFocus = companionControlHasWindowFocus,
 inputDeviceId = event.getDeviceId(),
 isMouseInput = eventSource == InputDevice.SOURCE_MOUSE || eventSource == InputDevice.SOURCE_MOUSE_RELATIVE,
@@ -5279,6 +5280,16 @@ else -> return false
 }
 }
 override fun onBackPressed() {
+val companionBackOrigin = DualScreenQuickMenuPolicy.escapedBackOrigin(
+companionDisplayId = companionControlDisplayId.takeIf { it != INVALID_DISPLAY_ID },
+lastInteractionDisplayId = lastQuickMenuInteractionDisplayId.takeIf { it != INVALID_DISPLAY_ID },
+companionHasWindowFocus = companionControlHasWindowFocus,
+)
+if (companionBackOrigin != null &&
+externalDisplayControlPresentation?.handleBackFromOwningGame() == true)
+{
+return
+}
 if (handleQuickMenuBackFromDisplay(streamingDisplayId))
 {
 return
