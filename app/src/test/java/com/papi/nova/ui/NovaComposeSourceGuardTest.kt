@@ -1080,9 +1080,9 @@ class NovaComposeSourceGuardTest {
             "private fun GameDetailsPanel(",
             "@Composable\nprivate fun LaunchControlsPanel("
         )
-        val launchControls = detail.section(
-            "private fun LaunchControls(",
-            "@Composable\nprivate fun LaunchProfileSummaryInline("
+        val launchFooter = detail.section(
+            "internal fun NovaGameDetailLaunchFooter(",
+            "@Composable\nprivate fun NovaDetailPanel("
         )
         val launchModePill = detail.section(
             "private fun LaunchModeChoicePill(",
@@ -1105,8 +1105,8 @@ class NovaComposeSourceGuardTest {
                 detailsPanel.contains("fontSize = 22.sp")
         )
         assertTrue(
-            "primary launch and mode choice controls should stay compact enough to be visible together on Retroid first paint",
-            launchControls.contains("minHeight = 50.dp") &&
+            "pinned primary launch and mode choice controls should stay compact enough for Retroid landscape",
+            launchFooter.contains("minHeight = 48.dp") &&
                 launchModePill.contains("modifier = modifier.heightIn(min = 52.dp)")
         )
     }
@@ -1118,36 +1118,66 @@ class NovaComposeSourceGuardTest {
             "private fun LaunchControls(",
             "@Composable\nprivate fun LaunchProfileSummaryInline("
         )
+        val launchFooter = detail.section(
+            "internal fun NovaGameDetailLaunchFooter(",
+            "@Composable\nprivate fun NovaDetailPanel("
+        )
+        val sheetContent = detail.section(
+            "fun NovaGameDetailSheetContent(",
+            "@Composable\nprivate fun NovaGameDetailScrollableContent("
+        )
+        val scrollableContent = detail.section(
+            "private fun NovaGameDetailScrollableContent(",
+            "@Composable\nprivate fun novaGameDetailControllerHints("
+        )
+        val scrollBody = sheetContent.blockStartingAt("NovaGameDetailScrollableContent(")
 
         assertTrue(
-            "game detail should focus the primary play action when the sheet opens",
-            launchControls.contains("val playFocusRequester = remember { FocusRequester() }") &&
-                launchControls.contains("playFocusRequester.requestFocus()") &&
-                launchControls.contains(".focusRequester(playFocusRequester)")
+            "game detail should focus the pinned primary play action when the sheet opens",
+            sheetContent.contains("val playFocusRequester = remember { FocusRequester() }") &&
+                launchFooter.contains("playFocusRequester.requestFocus()") &&
+                launchFooter.contains(".focusRequester(playFocusRequester)")
         )
         assertTrue(
-            "game detail should wire an explicit controller focus route between Play and More details",
-            launchControls.contains("val detailsFocusRequester = remember { FocusRequester() }") &&
+            "game detail should preserve an explicit controller focus route between pinned Play and More details",
+            sheetContent.contains("val detailsFocusRequester = remember { FocusRequester() }") &&
                 launchControls.contains("detailsFocusRequester = detailsFocusRequester") &&
                 launchControls.contains("playFocusRequester = playFocusRequester") &&
-                launchControls.contains(".focusProperties { up = detailsFocusRequester }") &&
+                launchFooter.contains(".focusProperties { up = detailsFocusRequester }") &&
                 launchControls.contains(".focusProperties { down = playFocusRequester }")
         )
         assertTrue(
-            "game detail should make Play the full-width primary action before secondary tuning actions",
-            launchControls.section("text = playLabel", "enabled = uiState.playEnabled")
+            "the pinned footer should keep Play as a full-width primary action above the safe-content bottom inset",
+            launchFooter.section("text = playLabel", "enabled = enabled")
                 .contains(".fillMaxWidth()\n                .focusRequester(playFocusRequester)") &&
-                launchControls.indexOf("text = playLabel") < launchControls.indexOf("text = profilePreferenceLabel")
+                launchFooter.contains(".windowInsetsPadding(contentInsets)") &&
+                launchFooter.contains(".padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 18.dp)") &&
+                sheetContent.contains("contentInsets = WindowInsets.safeContent.only(WindowInsetsSides.Bottom)")
         )
         assertTrue(
-            "game detail should keep Play above mode choices and the longer launch profile summary",
-            launchControls.indexOf("text = playLabel") < launchControls.indexOf("LaunchModeChoicePill(") &&
-                launchControls.indexOf("text = playLabel") < launchControls.indexOf("LaunchProfileSummaryInline(")
+            "the game-detail root must remain bounded while the detail body owns the remaining height and vertical scrolling",
+            sheetContent.contains(".fillMaxHeight()") &&
+                sheetContent.contains("modifier = Modifier.weight(1f)") &&
+                scrollableContent.contains(".verticalScroll(scrollState)")
         )
         assertTrue(
-            "game detail should surface host/render limits before the primary launch action",
+            "the pinned Play footer must be composed after and outside the scrollable detail lambda",
+            scrollBody.contains("GameDetailsPanel(") &&
+                scrollBody.contains("LaunchControlsPanel(") &&
+                scrollBody.contains("NovaControllerHintBar(") &&
+                !scrollBody.contains("NovaGameDetailLaunchFooter(") &&
+                sheetContent.indexOf("NovaGameDetailLaunchFooter(") >
+                    sheetContent.indexOf(scrollBody) + scrollBody.length
+        )
+        assertFalse(
+            "the primary launch button must not remain inside the vertically scrolling launch-controls body",
+            launchControls.contains("text = playLabel") ||
+                launchControls.contains("onClick = onPrimaryLaunch")
+        )
+        assertTrue(
+            "game detail should keep host/render limits in the scrolling body above the pinned launch action",
             launchControls.contains("LaunchProfilePrimaryNotice(") &&
-                launchControls.indexOf("LaunchProfilePrimaryNotice(") < launchControls.indexOf("text = playLabel")
+                sheetContent.indexOf("LaunchControlsPanel(") < sheetContent.indexOf("NovaGameDetailLaunchFooter(")
         )
         assertTrue(
             "Heads up should explain evidence and the recommended next launch instead of showing one vague limited-by line",
@@ -2263,4 +2293,22 @@ class NovaComposeSourceGuardTest {
 
     private fun String.section(startMarker: String, endMarker: String): String =
         substring(indexOf(startMarker), indexOf(endMarker))
+
+    private fun String.blockStartingAt(startMarker: String): String {
+        val markerIndex = indexOf(startMarker)
+        require(markerIndex >= 0) { "Missing start marker: $startMarker" }
+        val openBrace = indexOf('{', markerIndex)
+        require(openBrace >= 0) { "Missing opening brace after: $startMarker" }
+        var depth = 0
+        for (index in openBrace until length) {
+            when (this[index]) {
+                '{' -> depth += 1
+                '}' -> {
+                    depth -= 1
+                    if (depth == 0) return substring(openBrace, index + 1)
+                }
+            }
+        }
+        error("Unbalanced block after: $startMarker")
+    }
 }
