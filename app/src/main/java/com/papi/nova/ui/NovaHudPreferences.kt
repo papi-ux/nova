@@ -10,7 +10,7 @@ import com.papi.nova.preferences.NovaSettingsStore
 
 object NovaHudPreferences {
     const val KEY_OPACITY = "nova_polaris_hud_opacity"
-    const val DEFAULT_OPACITY_PERCENT = 90
+    const val DEFAULT_OPACITY_PERCENT = 64
     const val MIN_OPACITY_PERCENT = 0
     const val MAX_OPACITY_PERCENT = 100
 

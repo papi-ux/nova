@@ -34,10 +34,13 @@ class NovaMenuPreferencesTest {
         val prefs = context.getSharedPreferences("nova-menu-preferences-shared", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
 
-        assertEquals(100, NovaMenuPreferences.readOpacityPercent(prefs))
+        assertEquals(64, NovaMenuPreferences.readOpacityPercent(prefs))
         assertEquals(listOf(0, 25, 64, 90, 100), NovaMenuPreferences.OPACITY_PRESETS)
         assertEquals(0.62f, NovaMenuPreferences.scaleAlpha(0.62f, 100), 0.001f)
         assertEquals(0.31f, NovaMenuPreferences.scaleAlpha(0.62f, 50), 0.001f)
+        assertEquals(1f, NovaMenuPreferences.outerSurfaceAlpha(100, usesDarkText = false), 0.001f)
+        assertEquals(0.64f, NovaMenuPreferences.outerSurfaceAlpha(64, usesDarkText = false), 0.001f)
+        assertEquals(0f, NovaMenuPreferences.outerSurfaceAlpha(0, usesDarkText = false), 0.001f)
 
         NovaMenuPreferences.writeOpacityPercent(prefs, -10)
 
@@ -89,15 +92,15 @@ class NovaMenuPreferencesTest {
         assertEquals(0.57f, NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA, 0.001f)
         assertEquals(
             NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA,
-            NovaMenuPreferences.readabilitySurfaceAlpha(0.94f, 0, usesDarkText = true),
+            NovaMenuPreferences.outerSurfaceAlpha(0, usesDarkText = true),
             0.001f
         )
         assertEquals(
             0f,
-            NovaMenuPreferences.readabilitySurfaceAlpha(0.94f, 0, usesDarkText = false),
+            NovaMenuPreferences.outerSurfaceAlpha(0, usesDarkText = false),
             0.001f
         )
-        assertEquals(0.94f, NovaMenuPreferences.readabilitySurfaceAlpha(0.94f, 100, true), 0.001f)
+        assertEquals(1f, NovaMenuPreferences.outerSurfaceAlpha(100, usesDarkText = true), 0.001f)
 
         val text = Color.rgb(0x1F, 0x2A, 0x35)
         val portableSurface = Color.rgb(0xC4, 0xCD, 0xD8)
@@ -125,7 +128,7 @@ class NovaMenuPreferencesTest {
     }
 
     @Test
-    fun adaptiveBlurPreservesTheDefaultAndStrengthensAsGlassClears() {
+    fun adaptiveBlurMatchesOpacityEndpointsAndStrengthensAsGlassClears() {
         assertEquals(0f, NovaMenuPreferences.blurRadiusDp(100), 0.001f)
         assertEquals(2.4f, NovaMenuPreferences.blurRadiusDp(90), 0.001f)
         assertEquals(8.64f, NovaMenuPreferences.blurRadiusDp(64), 0.001f)
@@ -142,11 +145,15 @@ class NovaMenuPreferencesTest {
 
         NovaMenuPreferences.writeOpacityPercent(prefs, 100)
         val fullGlassAlpha = NovaSheetChrome.getSheetGlassAlpha(context)
+        val fullSurfaceAlpha = Color.alpha(NovaSheetChrome.createSheetSurfaceColor(context))
         val fullStrokeAlpha = Color.alpha(NovaSheetChrome.getSheetStrokeColor(context))
+        assertEquals(1f, fullGlassAlpha, 0.001f)
+        assertEquals(255, fullSurfaceAlpha)
 
         NovaMenuPreferences.writeOpacityPercent(prefs, 50)
 
-        assertEquals(fullGlassAlpha * 0.5f, NovaSheetChrome.getSheetGlassAlpha(context), 0.001f)
+        assertEquals(0.5f, NovaSheetChrome.getSheetGlassAlpha(context), 0.001f)
+        assertEquals(127, Color.alpha(NovaSheetChrome.createSheetSurfaceColor(context)))
         assertEquals(
             NovaMenuPreferences.readabilityScrimAlpha(NovaSheetChrome.SCRIM_ALPHA, 50),
             NovaSheetChrome.getSheetScrimAlpha(context),
@@ -157,6 +164,7 @@ class NovaMenuPreferencesTest {
         NovaMenuPreferences.writeOpacityPercent(prefs, 0)
 
         assertEquals(0f, NovaSheetChrome.getSheetGlassAlpha(context), 0.001f)
+        assertEquals(0, Color.alpha(NovaSheetChrome.createSheetSurfaceColor(context)))
         assertEquals(NovaMenuPreferences.MIN_READABILITY_SCRIM_ALPHA, NovaSheetChrome.getSheetScrimAlpha(context), 0.001f)
         assertEquals(0, Color.alpha(NovaSheetChrome.getSheetStrokeColor(context)))
     }

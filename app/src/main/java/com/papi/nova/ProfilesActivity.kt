@@ -3,7 +3,6 @@ package com.papi.nova
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -12,7 +11,7 @@ import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.UiHelper
 
-class ProfilesActivity : AppCompatActivity(), ProfilesManager.ProfileChangeListener {
+class ProfilesActivity : NovaActivity(), ProfilesManager.ProfileChangeListener {
     private lateinit var adapter: ProfilesAdapter
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyState: View

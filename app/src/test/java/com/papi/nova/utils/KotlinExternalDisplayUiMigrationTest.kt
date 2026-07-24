@@ -6,6 +6,7 @@ import android.content.Context
 import android.view.Display
 import android.view.View
 import com.papi.nova.StartExternalDisplayControlReceiver
+import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.nvstream.http.ComputerDetails
 import java.io.File
 import java.lang.reflect.Modifier
@@ -63,6 +64,30 @@ class KotlinExternalDisplayUiMigrationTest {
         ExternalDisplayControlPresentation::class.java.getMethod("toggleGameMenu")
         ExternalDisplayControlPresentation::class.java.getMethod("toggleZoomMode", Boolean::class.javaPrimitiveType!!)
         ExternalDisplayControlPresentation::class.java.getMethod("showGameMenu")
+        ExternalDisplayControlPresentation::class.java.getMethod(
+            "showGameMenuOnCompanion",
+            GameInputDevice::class.java,
+        ).also { assertEquals(Boolean::class.javaPrimitiveType, it.returnType) }
+        ExternalDisplayControlPresentation::class.java.getMethod("isCompanionDisplayAvailable")
+        ExternalDisplayControlPresentation::class.java.getMethod(
+            "shouldMigrateOpenMenuToStream",
+            Boolean::class.javaPrimitiveType,
+        )
+        ExternalDisplayControlPresentation::class.java.getMethod("hideGameMenu")
+        ExternalDisplayControlPresentation::class.java.getMethod("isGameMenuOpen")
+        com.papi.nova.GameMenu::class.java.getMethod(
+            "setOnMenuDismissedListener",
+            Function0::class.java,
+        )
+        com.papi.nova.Game::class.java.getMethod(
+            "showGameMenuFromDisplay",
+            Int::class.javaPrimitiveType!!,
+            GameInputDevice::class.java,
+        )
+        com.papi.nova.Game::class.java.getMethod(
+            "handleQuickMenuBackFromDisplay",
+            Int::class.javaPrimitiveType!!,
+        )
         com.papi.nova.GameMenu::class.java.getConstructor(com.papi.nova.Game::class.java)
         com.papi.nova.GameMenu::class.java.getConstructor(
             com.papi.nova.Game::class.java,
@@ -146,6 +171,39 @@ class KotlinExternalDisplayUiMigrationTest {
             Regex(
                 """<receiver\s+android:name="\.StartExternalDisplayControlReceiver"\s+android:exported="false"\s*/>"""
             ).containsMatchIn(manifest)
+        )
+    }
+
+    @Test
+    fun displayFocusTelemetryKeepsStablePrivacySafeJvmContract() {
+        val telemetryClass = runCatching {
+            Class.forName("com.papi.nova.utils.DisplayFocusTelemetry")
+        }.getOrElse {
+            assertTrue("DisplayFocusTelemetry must exist for Thor field evidence", false)
+            return
+        }
+        val game = telemetryClass.getMethod(
+            "game",
+            Int::class.javaPrimitiveType!!,
+            Boolean::class.javaPrimitiveType!!,
+            Boolean::class.javaPrimitiveType!!,
+        )
+        val companion = telemetryClass.getMethod(
+            "companion",
+            Int::class.javaPrimitiveType!!,
+            Boolean::class.javaPrimitiveType!!,
+            Boolean::class.javaPrimitiveType!!,
+        )
+
+        assertTrue(Modifier.isStatic(game.modifiers))
+        assertTrue(Modifier.isStatic(companion.modifiers))
+        assertEquals(
+            "Nova: Android display focus role=game display_id=7 window=true game_top_resumed=false",
+            game.invoke(null, 7, true, false),
+        )
+        assertEquals(
+            "Nova: Android display focus role=companion display_id=3 window=false game_top_resumed=true",
+            companion.invoke(null, 3, false, true),
         )
     }
 }

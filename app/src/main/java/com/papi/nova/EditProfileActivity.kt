@@ -10,7 +10,6 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.ViewModelProvider
@@ -35,7 +34,7 @@ import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.UiHelper
 import java.util.UUID
 
-class EditProfileActivity : AppCompatActivity() {
+class EditProfileActivity : NovaActivity() {
     private var profileUuid: String? = null
     private var currentProfile: SettingsProfile? = null
     private lateinit var inMemoryPrefs: InMemorySharedPreferences
@@ -180,7 +179,7 @@ class EditProfileActivity : AppCompatActivity() {
     private fun saveProfile() {
         val profileOptions = HashMap<String, Any>()
         for ((key, value) in inMemoryPrefs.all) {
-            if (value != null) {
+            if (value != null && NovaSettingsAvailability.shouldPersistProfileOverride(key)) {
                 profileOptions[key] = value
             }
         }
@@ -339,6 +338,7 @@ class EditProfileActivity : AppCompatActivity() {
 
             super.onCreatePreferences(savedInstanceState, rootKey)
 
+            findPreference<Preference>("nova_ui_font_scale_percent")?.isVisible = false
             findPreference<Preference>("option_reset_osc_preference")?.isVisible = false
             findPreference<Preference>("import_keyboard_file")?.isVisible = false
             findPreference<Preference>("export_keyboard_file")?.isVisible = false

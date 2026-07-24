@@ -206,6 +206,7 @@ object NovaSettingDefinitions {
             this == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING -> NovaSettingApplyTiming.NextStream
             categoryKey == "category_stream_quality" -> NovaSettingApplyTiming.NextStream
             categoryKey == "category_display_audio" -> NovaSettingApplyTiming.NextStream
+            categoryKey == "category_dual_screen" -> NovaSettingApplyTiming.NextStream
             else -> NovaSettingApplyTiming.Instant
         }
     }

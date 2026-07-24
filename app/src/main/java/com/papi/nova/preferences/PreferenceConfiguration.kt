@@ -9,6 +9,7 @@ import androidx.preference.PreferenceManager
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.utils.AndroidStreamDisplayTarget
+import com.papi.nova.utils.DualScreenQuickMenuPolicy
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
@@ -102,6 +103,8 @@ class PreferenceConfiguration {
     @JvmField var enableNewAnalogStick = false
     @JvmField var enableFullExDisplay = false
     @JvmField var androidStreamDisplayTarget = AndroidStreamDisplayTarget.AUTO
+    @JvmField var quickMenuDisplayPolicy = DualScreenQuickMenuPolicy.FOLLOW_INTERACTION
+    @JvmField var companionScreenDimTimeoutSeconds = 10
     @JvmField var alignDisplayTopCenter = false
     @JvmField var touchSensitivityX = 0
     @JvmField var touchSensitivityY = 0
@@ -173,6 +176,8 @@ class PreferenceConfiguration {
         private const val USE_VIRTUAL_DISPLAY_PREF_STRING = "checkbox_use_virtual_display"
         const val ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING = "checkbox_enable_fullexdisplay"
         const val ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING = "android_stream_display_target"
+        const val QUICK_MENU_DISPLAY_POLICY_PREF_STRING = "dual_screen_quick_menu_display_policy"
+        const val COMPANION_SCREEN_DIM_TIMEOUT_PREF_STRING = "dual_screen_companion_dim_timeout_seconds"
         private const val AUTO_INVERT_VIDEO_RESOLUTION_PREF_STRING = "checkbox_auto_invert_video_resolution"
         private const val RESOLUTION_SCALE_FACTOR_PREF_STRING = "seekbar_resolution_scale_factor"
         private const val RESUME_WITHOUT_CONFIRM_PREF_STRING = "checkbox_resume_without_confirm"
@@ -260,6 +265,7 @@ class PreferenceConfiguration {
         private const val DEFAULT_ENFORCE_DISPLAY_MODE = false
         private const val DEFAULT_USE_VIRTUAL_DISPLAY = false
         private const val DEFAULT_ANDROID_STREAM_DISPLAY_TARGET = AndroidStreamDisplayTarget.AUTO
+        private const val DEFAULT_COMPANION_SCREEN_DIM_TIMEOUT_SECONDS = 10
         private const val DEFAULT_VIDEO_SCALE_MODE = "fit"
         private const val DEFAULT_AUTO_INVERT_VIDEO_RESOLUTION = true
         private const val DEFAULT_RESOLUTION_SCALE_FACTOR = 100
@@ -941,6 +947,16 @@ class PreferenceConfiguration {
                 ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING,
                 DEFAULT_ANDROID_STREAM_DISPLAY_TARGET,
             ) ?: DEFAULT_ANDROID_STREAM_DISPLAY_TARGET
+            config.quickMenuDisplayPolicy = DualScreenQuickMenuPolicy.normalize(
+                prefs.getString(
+                    QUICK_MENU_DISPLAY_POLICY_PREF_STRING,
+                    DualScreenQuickMenuPolicy.FOLLOW_INTERACTION,
+                )
+            )
+            config.companionScreenDimTimeoutSeconds = prefs.getString(
+                COMPANION_SCREEN_DIM_TIMEOUT_PREF_STRING,
+                DEFAULT_COMPANION_SCREEN_DIM_TIMEOUT_SECONDS.toString(),
+            )?.toIntOrNull()?.takeIf { it >= 0 } ?: DEFAULT_COMPANION_SCREEN_DIM_TIMEOUT_SECONDS
             config.alignDisplayTopCenter = prefs.getBoolean("checkbox_enable_view_top_center", false)
             config.touchSensitivityX = prefs.getInt(SEEKBAR_TOUCH_SENSITIVITY, 100)
             config.touchSensitivityY = prefs.getInt("seekbar_touch_sensitivity_opacity_y", 100)

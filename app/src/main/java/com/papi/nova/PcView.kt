@@ -31,7 +31,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.ViewModelProvider
@@ -99,7 +98,10 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import org.xmlpull.v1.XmlPullParserException
 
-class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
+internal fun dashboardSetupActionHeight(collapsed: Boolean, compactHeight: Int): Int =
+    if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT
+
+class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private val THEME_PICKER_GRID_GAP_DP = 8
     private var noPcFoundLayout: View? = null
     private lateinit var pcGridAdapter: PcGridAdapter
@@ -735,7 +737,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         addServer?.let { button ->
             val addParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
             addParams.width = if (collapsed) LinearLayout.LayoutParams.MATCH_PARENT else 0
-            addParams.height = compactHeight
+            addParams.height = dashboardSetupActionHeight(collapsed, compactHeight)
             addParams.weight = if (collapsed) 0f else 1f
             addParams.marginStart = 0
             addParams.topMargin = 0
@@ -744,7 +746,7 @@ class PcView : AppCompatActivity(), AdapterFragmentCallbacks {
         scanPair?.let { button ->
             val scanParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
             scanParams.width = if (collapsed) LinearLayout.LayoutParams.MATCH_PARENT else 0
-            scanParams.height = compactHeight
+            scanParams.height = dashboardSetupActionHeight(collapsed, compactHeight)
             scanParams.weight = if (collapsed) 0f else 1f
             scanParams.marginStart = if (collapsed) 0 else collapsedSpacing
             scanParams.topMargin = if (collapsed) collapsedSpacing else 0

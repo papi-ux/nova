@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.appcompat.app.AppCompatActivity
+import com.papi.nova.NovaActivity
 import com.papi.nova.PcView
 import com.papi.nova.R
 import com.papi.nova.preferences.AddComputerManually
@@ -12,7 +12,7 @@ import com.papi.nova.preferences.AddComputerManually
 /**
  * First-launch welcome screen. Shows once, then never again.
  */
-class NovaWelcomeActivity : AppCompatActivity() {
+class NovaWelcomeActivity : NovaActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)

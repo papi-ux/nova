@@ -335,7 +335,7 @@ private fun HudPanel(
         modifier = modifier
             .shadow(16.dp * hudOpacityScale, panelShape, clip = false)
             .clip(panelShape)
-            .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel * hudOpacityScale))
+            .background(surfaces.panel.copy(alpha = hudOpacityScale))
             .border(
                 1.dp,
                 surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * hudOpacityScale),

@@ -7,6 +7,7 @@ import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import com.papi.nova.utils.AndroidStreamDisplayTarget
+import com.papi.nova.utils.DualScreenQuickMenuPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -47,6 +48,7 @@ class NovaSettingsDefinitionsTest {
             listOf(
                 "category_stream_quality",
                 "category_display_audio",
+                "category_dual_screen",
                 "category_input",
                 "category_overlays",
                 "category_nova",
@@ -120,12 +122,28 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun novaTextSizeIsGlobalSystemRelativeInstantSlider() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val textSize = definitions.require("nova_ui_font_scale_percent")
+
+        assertEquals("Nova Text Size", textSize.title)
+        assertEquals("category_nova", textSize.categoryKey)
+        assertEquals(NovaSettingType.Slider, textSize.type)
+        assertEquals(NovaSettingValue.IntValue(100), textSize.defaultValue)
+        assertEquals(80, textSize.min)
+        assertEquals(130, textSize.max)
+        assertEquals(1, textSize.step)
+        assertEquals("%", textSize.suffix)
+        assertEquals(NovaSettingApplyTiming.Instant, textSize.applyTiming)
+    }
+
+    @Test
     fun hudOpacityPreferenceIsAdjustableInstantSlider() {
         val definitions = NovaSettingDefinitions.load(context)
         val hudOpacity = definitions.require("nova_polaris_hud_opacity")
 
         assertEquals(NovaSettingType.Slider, hudOpacity.type)
-        assertEquals(NovaSettingValue.IntValue(90), hudOpacity.defaultValue)
+        assertEquals(NovaSettingValue.IntValue(64), hudOpacity.defaultValue)
         assertEquals(0, hudOpacity.min)
         assertEquals(100, hudOpacity.max)
         assertEquals(1, hudOpacity.step)
@@ -141,7 +159,7 @@ class NovaSettingsDefinitionsTest {
         assertEquals("Menu & Drawer Opacity", menuOpacity.title)
         assertEquals("category_overlays", menuOpacity.categoryKey)
         assertEquals(NovaSettingType.Slider, menuOpacity.type)
-        assertEquals(NovaSettingValue.IntValue(100), menuOpacity.defaultValue)
+        assertEquals(NovaSettingValue.IntValue(64), menuOpacity.defaultValue)
         assertEquals(0, menuOpacity.min)
         assertEquals(100, menuOpacity.max)
         assertEquals(1, menuOpacity.step)
@@ -259,6 +277,42 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun dualScreenCategoryGroupsRoutingAndCompanionPowerPreferences() {
+        val definitions = NovaSettingDefinitions.load(context)
+        val enabled = definitions.require(PreferenceConfiguration.ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING)
+        val streamTarget = definitions.require(PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING)
+        val quickMenu = definitions.require(PreferenceConfiguration.QUICK_MENU_DISPLAY_POLICY_PREF_STRING)
+        val dimTimeout = definitions.require(PreferenceConfiguration.COMPANION_SCREEN_DIM_TIMEOUT_PREF_STRING)
+
+        assertEquals("category_dual_screen", enabled.categoryKey)
+        assertEquals("category_dual_screen", streamTarget.categoryKey)
+
+        assertEquals("category_dual_screen", quickMenu.categoryKey)
+        assertEquals(NovaSettingType.Select, quickMenu.type)
+        assertEquals(
+            NovaSettingValue.StringValue(DualScreenQuickMenuPolicy.FOLLOW_INTERACTION),
+            quickMenu.defaultValue,
+        )
+        assertEquals(PreferenceConfiguration.ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING, quickMenu.dependencyKey)
+        assertEquals(NovaSettingApplyTiming.NextStream, quickMenu.applyTiming)
+        assertEquals(
+            listOf(
+                DualScreenQuickMenuPolicy.FOLLOW_INTERACTION,
+                DualScreenQuickMenuPolicy.STREAM,
+                DualScreenQuickMenuPolicy.COMPANION,
+            ),
+            quickMenu.options.map { it.value },
+        )
+
+        assertEquals("category_dual_screen", dimTimeout.categoryKey)
+        assertEquals(NovaSettingType.Select, dimTimeout.type)
+        assertEquals(NovaSettingValue.StringValue("10"), dimTimeout.defaultValue)
+        assertEquals(PreferenceConfiguration.ENABLE_FULL_EXTERNAL_DISPLAY_PREF_STRING, dimTimeout.dependencyKey)
+        assertEquals(NovaSettingApplyTiming.NextStream, dimTimeout.applyTiming)
+        assertEquals(listOf("10", "30", "60", "0"), dimTimeout.options.map { it.value })
+    }
+
+    @Test
     fun profileEditorRemovesGlobalOnlyActions() {
         val definitions = NovaSettingsAvailability.filterForProfileEditor(
             NovaSettingDefinitions.load(context)
@@ -269,6 +323,7 @@ class NovaSettingsDefinitionsTest {
         assertFalse(keys.contains("import_keyboard_file"))
         assertFalse(keys.contains("export_keyboard_file"))
         assertFalse(keys.contains("import_special_button_file"))
+        assertFalse(keys.contains("nova_ui_font_scale_percent"))
     }
 
     private fun legacyPreferenceKeys(): Set<String> {

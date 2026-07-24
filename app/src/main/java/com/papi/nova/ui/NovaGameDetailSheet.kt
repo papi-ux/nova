@@ -12,6 +12,7 @@ import android.widget.ImageView
 import android.widget.ScrollView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -19,15 +20,22 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -1206,102 +1214,132 @@ fun NovaGameDetailSheetContent(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val verticalScroll = rememberScrollState()
+    val playFocusRequester = remember { FocusRequester() }
+    val detailsFocusRequester = remember { FocusRequester() }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .fillMaxHeight()
             .clip(RoundedCornerShape(topStart = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp, topEnd = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp))
             .background(surfaces.panel)
-            .verticalScroll(verticalScroll)
-            .padding(bottom = 16.dp)
     ) {
-        NovaSheetDragHandle(onDismiss = onSheetHandleDismiss)
+        NovaGameDetailScrollableContent(
+            scrollState = verticalScroll,
+            modifier = Modifier.weight(1f)
+        ) {
+            NovaSheetDragHandle(onDismiss = onSheetHandleDismiss)
 
-        GameDetailsPanel(
-            uiState = uiState,
-            lastPlayedText = lastPlayedText,
-            coverContentDescription = coverContentDescription,
-            coverLoader = coverLoader
-        )
+            GameDetailsPanel(
+                uiState = uiState,
+                lastPlayedText = lastPlayedText,
+                coverContentDescription = coverContentDescription,
+                coverLoader = coverLoader
+            )
 
-        LaunchControlsPanel(
-            uiState = uiState,
-            launchIntro = launchIntro,
-            launchModeTitle = launchModeTitle,
-            recommendedBadge = recommendedBadge,
+            LaunchControlsPanel(
+                uiState = uiState,
+                launchIntro = launchIntro,
+                launchModeTitle = launchModeTitle,
+                recommendedBadge = recommendedBadge,
+                launchOptionsLabel = launchOptionsLabel,
+                profilePreferenceLabel = profilePreferenceLabel,
+                profileSummary = optimizationState.profileSummary,
+                resetProfileLabel = resetProfileLabel,
+                resetProfileWorking = resetProfileWorking,
+                headlessModeLabel = headlessModeLabel,
+                virtualDisplayModeLabel = virtualDisplayModeLabel,
+                playFocusRequester = playFocusRequester,
+                detailsFocusRequester = detailsFocusRequester,
+                onLaunchOptions = onLaunchOptions,
+                onLaunchModeSelected = onLaunchModeSelected,
+                onProfilePreference = onProfilePreference,
+                onRetryHighFps = onRetryHighFps,
+                onResetProfile = onResetProfile
+            )
+
+            launchOptionsState?.let {
+                NovaLaunchOptionsSheet(
+                    state = it,
+                    onLaunch = onLaunchOptionSelected,
+                    onDismiss = onDismissLaunchOptions
+                )
+            }
+
+            profileOptionsState?.let {
+                NovaProfilePreferenceSheet(
+                    state = it,
+                    onSelected = onProfilePreferenceSelected,
+                    onDismiss = onDismissProfileOptions
+                )
+            }
+
+            SteamLaunchModeCard(
+                visible = uiState.showSteamLaunchMode,
+                label = steamLaunchLabel,
+                modeLabel = steamLaunchModeLabel,
+                caption = steamLaunchCaption,
+                warning = uiState.steamLaunchWarning,
+                onClick = onSteamLaunchMode
+            )
+
+            steamLaunchOptionsState?.let { state ->
+                NovaSteamLaunchModeSheet(
+                    state = state,
+                    onSelected = onSteamLaunchModeSelected,
+                    onDismiss = onDismissSteamLaunchModeOptions
+                )
+            }
+
+            if (mangoHudEnabled) {
+                MangoHudPassiveStatus(
+                    label = mangoHudStatusLabel,
+                    caption = mangoHudStatusCaption,
+                    warning = mangoHudWarning
+                )
+            }
+
+            optimizationState.ai?.let {
+                InsightCard(card = it)
+            }
+
+            optimizationState.stability?.let {
+                InsightCard(card = it)
+            }
+
+            NovaControllerHintBar(
+                hints = novaGameDetailControllerHints(),
+                compact = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, end = 14.dp, top = 12.dp)
+            )
+        }
+
+        NovaGameDetailLaunchFooter(
             playLabel = playLabel,
-            launchOptionsLabel = launchOptionsLabel,
-            profilePreferenceLabel = profilePreferenceLabel,
-            profileSummary = optimizationState.profileSummary,
-            resetProfileLabel = resetProfileLabel,
-            resetProfileWorking = resetProfileWorking,
-            headlessModeLabel = headlessModeLabel,
-            virtualDisplayModeLabel = virtualDisplayModeLabel,
+            enabled = uiState.playEnabled,
             onPrimaryLaunch = onPrimaryLaunch,
-            onLaunchOptions = onLaunchOptions,
-            onLaunchModeSelected = onLaunchModeSelected,
-            onProfilePreference = onProfilePreference,
-            onRetryHighFps = onRetryHighFps,
-            onResetProfile = onResetProfile
-        )
-
-        launchOptionsState?.let {
-            NovaLaunchOptionsSheet(
-                state = it,
-                onLaunch = onLaunchOptionSelected,
-                onDismiss = onDismissLaunchOptions
-            )
-        }
-
-        profileOptionsState?.let {
-            NovaProfilePreferenceSheet(
-                state = it,
-                onSelected = onProfilePreferenceSelected,
-                onDismiss = onDismissProfileOptions
-            )
-        }
-
-        SteamLaunchModeCard(
-            visible = uiState.showSteamLaunchMode,
-            label = steamLaunchLabel,
-            modeLabel = steamLaunchModeLabel,
-            caption = steamLaunchCaption,
-            warning = uiState.steamLaunchWarning,
-            onClick = onSteamLaunchMode
-        )
-
-        steamLaunchOptionsState?.let { state ->
-            NovaSteamLaunchModeSheet(
-                state = state,
-                onSelected = onSteamLaunchModeSelected,
-                onDismiss = onDismissSteamLaunchModeOptions
-            )
-        }
-
-        if (mangoHudEnabled) {
-            MangoHudPassiveStatus(
-                label = mangoHudStatusLabel,
-                caption = mangoHudStatusCaption,
-                warning = mangoHudWarning
-            )
-        }
-
-        optimizationState.ai?.let {
-            InsightCard(card = it)
-        }
-
-        optimizationState.stability?.let {
-            InsightCard(card = it)
-        }
-
-        NovaControllerHintBar(
-            hints = novaGameDetailControllerHints(),
-            compact = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 14.dp, end = 14.dp, top = 12.dp)
+            playFocusRequester = playFocusRequester,
+            detailsFocusRequester = detailsFocusRequester,
+            contentInsets = WindowInsets.safeContent.only(WindowInsetsSides.Bottom)
         )
     }
+}
+
+@Composable
+private fun NovaGameDetailScrollableContent(
+    scrollState: ScrollState,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(scrollState)
+            .padding(bottom = 16.dp),
+        content = content
+    )
 }
 
 @Composable
@@ -1323,6 +1361,57 @@ private fun novaGameDetailControllerHints(): List<NovaControllerHint> = listOf(
         label = stringResource(R.string.nova_controller_hint_profile)
     )
 )
+
+@Composable
+internal fun NovaGameDetailLaunchFooter(
+    playLabel: String,
+    enabled: Boolean,
+    onPrimaryLaunch: () -> Unit,
+    playFocusRequester: FocusRequester,
+    detailsFocusRequester: FocusRequester,
+    contentInsets: WindowInsets,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+
+    LaunchedEffect(enabled) {
+        if (enabled) {
+            playFocusRequester.requestFocus()
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(surfaces.panel)
+            .windowInsetsPadding(contentInsets)
+            .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 18.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 1.dp, max = 1.dp)
+                .background(colors.divider.copy(alpha = 0.55f))
+        )
+        NovaActionButton(
+            text = playLabel,
+            onClick = onPrimaryLaunch,
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(playFocusRequester)
+                .focusProperties { up = detailsFocusRequester }
+                .padding(top = 6.dp),
+            enabled = enabled,
+            primary = true,
+            contentDescription = playLabel,
+            minHeight = 48.dp,
+            cornerRadius = 12.dp,
+            fontSize = 16.sp,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+        )
+    }
+}
 
 @Composable
 private fun NovaDetailPanel(
@@ -1587,7 +1676,6 @@ private fun LaunchControlsPanel(
     launchIntro: String,
     launchModeTitle: String,
     recommendedBadge: String,
-    playLabel: String,
     launchOptionsLabel: String,
     profilePreferenceLabel: String,
     profileSummary: NovaLaunchProfileSummary?,
@@ -1595,7 +1683,8 @@ private fun LaunchControlsPanel(
     resetProfileWorking: Boolean,
     headlessModeLabel: String,
     virtualDisplayModeLabel: String,
-    onPrimaryLaunch: () -> Unit,
+    playFocusRequester: FocusRequester,
+    detailsFocusRequester: FocusRequester,
     onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
     onProfilePreference: () -> Unit,
@@ -1615,7 +1704,6 @@ private fun LaunchControlsPanel(
             launchIntro = launchIntro,
             launchModeTitle = launchModeTitle,
             recommendedBadge = recommendedBadge,
-            playLabel = playLabel,
             launchOptionsLabel = launchOptionsLabel,
             profilePreferenceLabel = profilePreferenceLabel,
             profileSummary = profileSummary,
@@ -1623,7 +1711,8 @@ private fun LaunchControlsPanel(
             resetProfileWorking = resetProfileWorking,
             headlessModeLabel = headlessModeLabel,
             virtualDisplayModeLabel = virtualDisplayModeLabel,
-            onPrimaryLaunch = onPrimaryLaunch,
+            playFocusRequester = playFocusRequester,
+            detailsFocusRequester = detailsFocusRequester,
             onLaunchOptions = onLaunchOptions,
             onLaunchModeSelected = onLaunchModeSelected,
             onProfilePreference = onProfilePreference,
@@ -1676,7 +1765,6 @@ private fun LaunchControls(
     launchIntro: String,
     launchModeTitle: String,
     recommendedBadge: String,
-    playLabel: String,
     launchOptionsLabel: String,
     profilePreferenceLabel: String,
     profileSummary: NovaLaunchProfileSummary?,
@@ -1684,7 +1772,8 @@ private fun LaunchControls(
     resetProfileWorking: Boolean,
     headlessModeLabel: String,
     virtualDisplayModeLabel: String,
-    onPrimaryLaunch: () -> Unit,
+    playFocusRequester: FocusRequester,
+    detailsFocusRequester: FocusRequester,
     onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
     onProfilePreference: () -> Unit,
@@ -1692,14 +1781,6 @@ private fun LaunchControls(
     onResetProfile: () -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
-    val playFocusRequester = remember { FocusRequester() }
-    val detailsFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(uiState.playEnabled) {
-        if (uiState.playEnabled) {
-            playFocusRequester.requestFocus()
-        }
-    }
 
     Column {
         Row(
@@ -1767,23 +1848,6 @@ private fun LaunchControls(
                 playFocusRequester = playFocusRequester
             )
         }
-
-        NovaActionButton(
-            text = playLabel,
-            onClick = onPrimaryLaunch,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(playFocusRequester)
-                .focusProperties { up = detailsFocusRequester }
-                .padding(top = 10.dp),
-            enabled = uiState.playEnabled,
-            primary = true,
-            contentDescription = playLabel,
-            minHeight = 50.dp,
-            cornerRadius = 12.dp,
-            fontSize = 16.sp,
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
-        )
 
         if (uiState.showLaunchOptionsButton || uiState.showVirtualUnavailableHint) {
             Row(

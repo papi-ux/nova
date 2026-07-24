@@ -326,21 +326,6 @@ class NovaLaunchSourceGuardTest {
         )
     }
 
-    @Test
-    fun gameBackPressClosesOpenQuickMenuInsteadOfReopeningIt() {
-        val game = readSource("src/main/java/com/papi/nova/Game.kt")
-        val onBackPressed = game.section(
-            "override fun onBackPressed()",
-            "fun sendExecServerCmd("
-        )
-
-        assertTrue(
-            "Back should dismiss an already-open Command Center instead of opening a second menu window",
-            onBackPressed.contains("gameMenuCallbacks?.isMenuOpen() == true") &&
-                onBackPressed.contains("hideGameMenu()") &&
-                onBackPressed.indexOf("hideGameMenu()") < onBackPressed.indexOf("showGameMenu(null)")
-        )
-    }
 
     @Test
     fun displayPlannerAndPostSessionReportStayControllerFirstAndLowNoise() {

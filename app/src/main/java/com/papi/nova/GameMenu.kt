@@ -41,6 +41,11 @@ class GameMenu @JvmOverloads constructor(
     }
 
     private var currentSheet: BottomSheetDialog? = null
+    private var onMenuDismissedListener: (() -> Unit)? = null
+
+    fun setOnMenuDismissedListener(listener: (() -> Unit)?) {
+        onMenuDismissedListener = listener
+    }
 
     private fun applyDialogWindowType(dialog: Dialog) {
         val window = dialog.window ?: return
@@ -160,6 +165,7 @@ class GameMenu @JvmOverloads constructor(
             if (currentSheet == sheet) {
                 currentSheet = null
             }
+            onMenuDismissedListener?.invoke()
         }
         applyDialogWindowType(sheet)
         sheet.show()
