@@ -36,7 +36,7 @@ object NovaMenuOpacityPreview {
 
 object NovaMenuPreferences {
     const val KEY_OPACITY = "nova_menu_opacity"
-    const val DEFAULT_OPACITY_PERCENT = 100
+    const val DEFAULT_OPACITY_PERCENT = 64
     const val MIN_OPACITY_PERCENT = 0
     const val MAX_OPACITY_PERCENT = 100
     const val MAX_BLUR_RADIUS_DP = 24f
@@ -102,14 +102,14 @@ object NovaMenuPreferences {
             ).coerceIn(0f, 1f)
     }
 
-    fun readabilitySurfaceAlpha(
-        baseAlpha: Float,
-        opacityPercent: Int,
-        usesDarkText: Boolean
-    ): Float {
-        val scaled = scaleAlpha(baseAlpha, opacityPercent)
-        if (!usesDarkText || opacityPercent >= MAX_OPACITY_PERCENT) return scaled
-        return maxOf(scaled, MIN_DARK_TEXT_SURFACE_ALPHA)
+    fun outerSurfaceAlpha(opacityPercent: Int, usesDarkText: Boolean): Float {
+        return outerSurfaceAlpha(opacityScale(opacityPercent), usesDarkText)
+    }
+
+    fun outerSurfaceAlpha(opacityScale: Float, usesDarkText: Boolean): Float {
+        val absoluteAlpha = opacityScale.coerceIn(0f, 1f)
+        if (!usesDarkText || absoluteAlpha >= 1f) return absoluteAlpha
+        return maxOf(absoluteAlpha, MIN_DARK_TEXT_SURFACE_ALPHA)
     }
 
     fun alphaByte(baseAlpha: Float, percent: Int): Int {

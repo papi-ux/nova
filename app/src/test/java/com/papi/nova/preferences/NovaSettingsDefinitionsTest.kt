@@ -159,7 +159,7 @@ class NovaSettingsDefinitionsTest {
         assertEquals("Menu & Drawer Opacity", menuOpacity.title)
         assertEquals("category_overlays", menuOpacity.categoryKey)
         assertEquals(NovaSettingType.Slider, menuOpacity.type)
-        assertEquals(NovaSettingValue.IntValue(100), menuOpacity.defaultValue)
+        assertEquals(NovaSettingValue.IntValue(64), menuOpacity.defaultValue)
         assertEquals(0, menuOpacity.min)
         assertEquals(100, menuOpacity.max)
         assertEquals(1, menuOpacity.step)

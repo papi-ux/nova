@@ -487,17 +487,6 @@
             app:iconSpaceReserved="false"
             seekbar:min="0"
             seekbar:step="1" />
-        <com.papi.nova.preferences.SeekBarPreference
-            android:key="nova_menu_opacity"
-            android:title="Menu &amp; Drawer Opacity"
-            android:summary="Adjust Nova menu, drawer, options, and session glass without dimming text or focus cues"
-            android:dialogMessage="Adjust Nova menu, drawer, options, and session glass without dimming text or focus cues"
-            android:defaultValue="100"
-            android:max="100"
-            android:text="@string/suffix_osc_opacity"
-            app:iconSpaceReserved="false"
-            seekbar:min="0"
-            seekbar:step="1" />
         <Preference
             android:key="nova_reset_stream_ui"
             android:title="Reset Stream UI Defaults"
