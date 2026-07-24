@@ -228,6 +228,7 @@ private var cursorVisible:Boolean = false
 private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
+private var companionControlHasWindowFocus:Boolean = false
 private var lastQuickMenuInteractionDisplayId:Int = INVALID_DISPLAY_ID
 private var isTopResumedActivity:Boolean = false
 private var externalDisplayControlPresentation:ExternalDisplayControlPresentation? = null
