@@ -420,32 +420,6 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
-    fun escapedBackRoutesCurrentCompanionSignalsBeforeStreamFallback() {
-        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
-        val onKeyUp =
-            game.substringAfter("override fun onKeyUp(keyCode:Int, event:KeyEvent):Boolean")
-                .substringBefore("override fun handleKeyUp(event:KeyEvent):Boolean")
-        assertTrue(
-            "Synthetic Back must supply the recorded interaction alongside current focus",
-            onKeyUp.contains(
-                "lastInteractionDisplayId = lastQuickMenuInteractionDisplayId.takeIf { it != INVALID_DISPLAY_ID }",
-            ),
-        )
-
-        val activityBack =
-            game.substringAfter("override fun onBackPressed()")
-                .substringBefore("fun handleQuickMenuBackFromDisplay")
-        val originResolution = activityBack.indexOf("DualScreenQuickMenuPolicy.escapedBackOrigin(")
-        val interactionOrigin = activityBack.indexOf("lastQuickMenuInteractionDisplayId.takeIf")
-        val companionHandler = activityBack.indexOf("handleBackFromOwningGame()")
-        val streamFallback = activityBack.indexOf("handleQuickMenuBackFromDisplay(streamingDisplayId)")
-        assertTrue("Activity Back must resolve companion origin signals", originResolution >= 0)
-        assertTrue("Activity Back must pass the recorded interaction display alongside focus", interactionOrigin > originResolution)
-        assertTrue("Companion handling must follow origin resolution", companionHandler > interactionOrigin)
-        assertTrue("Stream handling must remain the fallback", streamFallback > companionHandler)
-    }
-
-    @Test
     fun presentationCancellationDefersDisplayRemovalAndBackTeardown() {
         val presentation =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()

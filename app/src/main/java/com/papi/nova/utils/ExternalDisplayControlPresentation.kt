@@ -252,7 +252,6 @@ class ExternalDisplayControlPresentation(
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         game.logCompanionDisplayFocus(display.displayId, hasFocus)
-        game.updateCompanionDisplayBackFocus(this, display.displayId, hasFocus)
         if (game.isFinishing) {
             dismissAfterCurrentCallback()
         }

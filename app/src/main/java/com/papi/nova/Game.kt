@@ -126,6 +126,7 @@ import android.widget.Toast
 import android.widget.ImageButton
 import androidx.annotation.NonNull
 import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
 import androidx.preference.PreferenceManager
 
@@ -227,7 +228,6 @@ private var cursorVisible:Boolean = false
 private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
-private var companionControlHasWindowFocus:Boolean = false
 private var lastQuickMenuInteractionDisplayId:Int = INVALID_DISPLAY_ID
 private var isTopResumedActivity:Boolean = false
 private var externalDisplayControlPresentation:ExternalDisplayControlPresentation? = null
@@ -419,31 +419,12 @@ fun streamingDisplayIdForCompanion(): Int = streamingDisplayId
 
 private fun logGameDisplayFocus(hasWindowFocus:Boolean) {
 // Focus restoration after menu dismissal is not user input; keep provenance unchanged.
-if (hasWindowFocus)
-{
-companionControlHasWindowFocus = false
-}
 LimeLog.info(DisplayFocusTelemetry.game(streamingDisplayId, hasWindowFocus, isTopResumedActivity))
 }
 
 fun logCompanionDisplayFocus(displayId:Int, hasWindowFocus:Boolean) {
 // Presentation focus is lifecycle telemetry. Touch/key paths record real interaction origin.
 LimeLog.info(DisplayFocusTelemetry.companion(displayId, hasWindowFocus, isTopResumedActivity))
-}
-
-fun updateCompanionDisplayBackFocus(
-presentation:ExternalDisplayControlPresentation,
-displayId:Int,
-hasWindowFocus:Boolean,
-) {
-if (DualScreenQuickMenuPolicy.acceptsCompanionFocus(
-currentCompanionDisplayId = companionControlDisplayId.takeIf { it != INVALID_DISPLAY_ID },
-focusDisplayId = displayId,
-isCurrentPresentation = externalDisplayControlPresentation === presentation,
-))
-{
-companionControlHasWindowFocus = hasWindowFocus
-}
 }
 
 fun recordQuickMenuInteraction(displayId:Int) {
@@ -485,7 +466,6 @@ if (lastQuickMenuInteractionDisplayId == companionDisplayId)
 lastQuickMenuInteractionDisplayId = streamingDisplayId
 }
 companionControlDisplayId = INVALID_DISPLAY_ID
-companionControlHasWindowFocus = false
 if (shouldMigrateOpenMenu)
 {
 showQuickMenuOnStreamAfterCompanionClose()
@@ -1616,7 +1596,6 @@ if (lastQuickMenuInteractionDisplayId == companionControlDisplayId)
 lastQuickMenuInteractionDisplayId = streamingDisplayId
 }
 companionControlDisplayId = INVALID_DISPLAY_ID
-companionControlHasWindowFocus = false
 presentation?.dismissAfterCurrentCallback()
 if (shouldMigrateOpenMenu)
 {
@@ -5280,16 +5259,6 @@ else -> return false
 }
 }
 override fun onBackPressed() {
-val companionBackOrigin = DualScreenQuickMenuPolicy.escapedBackOrigin(
-companionDisplayId = companionControlDisplayId.takeIf { it != INVALID_DISPLAY_ID },
-lastInteractionDisplayId = lastQuickMenuInteractionDisplayId.takeIf { it != INVALID_DISPLAY_ID },
-companionHasWindowFocus = companionControlHasWindowFocus,
-)
-if (companionBackOrigin != null &&
-externalDisplayControlPresentation?.handleBackFromOwningGame() == true)
-{
-return
-}
 if (handleQuickMenuBackFromDisplay(streamingDisplayId))
 {
 return

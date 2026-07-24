@@ -49,48 +49,6 @@ object DualScreenQuickMenuPolicy {
         return if (quickMenuOpen) BackAction.DISMISS else BackAction.SHOW
     }
 
-    /**
-     * Recovers companion origin when Android routes display-owned Back through [Game].
-     * API 33 can preserve either owner-checked window focus or an ACTION_DOWN interaction,
-     * depending on which legacy callback path receives the system gesture.
-     */
-    fun escapedBackOrigin(
-        companionDisplayId: Int?,
-        lastInteractionDisplayId: Int?,
-        companionHasWindowFocus: Boolean,
-    ): Int? {
-        if (companionDisplayId == null) return null
-
-        return companionDisplayId.takeIf {
-            companionHasWindowFocus || lastInteractionDisplayId == companionDisplayId
-        }
-    }
-
-    fun legacyCompanionBackOrigin(
-        companionDisplayId: Int?,
-        lastInteractionDisplayId: Int? = null,
-        companionHasWindowFocus: Boolean,
-        inputDeviceId: Int,
-        isMouseInput: Boolean,
-        ignoreSyntheticEvents: Boolean = false,
-        sendMetaOnBack: Boolean = false,
-    ): Int? {
-        if (inputDeviceId >= 0 || isMouseInput || ignoreSyntheticEvents || sendMetaOnBack) return null
-        return escapedBackOrigin(
-            companionDisplayId = companionDisplayId,
-            lastInteractionDisplayId = lastInteractionDisplayId,
-            companionHasWindowFocus = companionHasWindowFocus,
-        )
-    }
-
-    fun acceptsCompanionFocus(
-        currentCompanionDisplayId: Int?,
-        focusDisplayId: Int,
-        isCurrentPresentation: Boolean,
-    ): Boolean {
-        return isCurrentPresentation && currentCompanionDisplayId == focusDisplayId
-    }
-
     fun openWithFallback(
         requestedSurface: Surface,
         showStream: () -> Unit,
