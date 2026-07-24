@@ -226,6 +226,24 @@ android {
             shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+
+        preRelease {
+            initWith release
+            applicationIdSuffix ".pre"
+            versionNameSuffix "-pre"
+            resValue "string", "app_label", "Nova Pre"
+            resValue "string", "app_label_root", "Nova Pre (Root)"
+            resValue "string", "app_label_game", "Nova Pre (Game)"
+        }
+
+        dirty {
+            initWith release
+            applicationIdSuffix ".dirty"
+            versionNameSuffix "-dirty"
+            resValue "string", "app_label", "Nova Dirty"
+            resValue "string", "app_label_root", "Nova Dirty (Root)"
+            resValue "string", "app_label_game", "Nova Dirty (Game)"
+        }
     }
 
     externalNativeBuild {
