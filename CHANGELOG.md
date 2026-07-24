@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Release administration
+
+- Merged PR #160 ("chore(nova): integrate 1.3.2 Kanban-full smoke branch") into release/v1.3.2-opacity-prep on 2026-07-24, preserving the 1.3.2 package/version identity (versionName 1.3.2, versionCode 34, minSdk 21, targetSdk 36) and preserving canonical artifact naming.
+
 ## 1.3.2 - 2026-07-19
 
 Nova 1.3.2 adds adjustable menu and drawer glass, sharpens controller focus rendering, and delivers focused reliability fixes for companion displays, updater recovery, launch diagnostics, and verified host endpoint mobility.

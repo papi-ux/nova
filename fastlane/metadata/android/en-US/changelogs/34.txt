@@ -4,3 +4,4 @@ Nova 1.3.2
 - Preserves intended D-pad artwork transparency.
 - Hardens companion-display teardown and updater recovery.
 - Improves launch diagnostics and verified host-route mobility.
+- Improves merge-branch reliability and smoke validation for multi-display, menu drawer, and updater workflows.
