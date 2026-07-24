@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/screenshots/Polaris_icon_1.svg" width="250" />
+<img src="docs/screenshots/Polaris_icon_1.svg" width="140" />
 
 # Nova
 
