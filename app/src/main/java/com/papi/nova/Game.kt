@@ -5259,6 +5259,16 @@ else -> return false
 }
 }
 override fun onBackPressed() {
+val companionBackOrigin = DualScreenQuickMenuPolicy.escapedBackOrigin(
+companionDisplayId = companionControlDisplayId.takeIf { it != INVALID_DISPLAY_ID },
+lastInteractionDisplayId = lastQuickMenuInteractionDisplayId.takeIf { it != INVALID_DISPLAY_ID },
+companionHasWindowFocus = companionControlHasWindowFocus,
+)
+if (companionBackOrigin != null &&
+externalDisplayControlPresentation?.handleBackFromOwningGame() == true)
+{
+return
+}
 if (handleQuickMenuBackFromDisplay(streamingDisplayId))
 {
 return
