@@ -214,12 +214,7 @@ fun NovaComposeColors.librarySurfaces(
                     usesDarkText = textPrimary.luminance() < 0.5f
                 )
             ),
-            panel = surfaces.panel.copy(
-                alpha = NovaMenuPreferences.outerSurfaceAlpha(
-                    opacityScale = opacityScale,
-                    usesDarkText = textPrimary.luminance() < 0.5f
-                )
-            ),
+            panel = surfaces.panel.copy(alpha = surfaces.panel.alpha * opacityScale),
             panelBorder = surfaces.panelBorder.copy(alpha = surfaces.panelBorder.alpha * opacityScale),
             tile = surfaces.tile.copy(alpha = surfaces.tile.alpha * opacityScale),
             tileBorder = surfaces.tileBorder.copy(alpha = surfaces.tileBorder.alpha * opacityScale),

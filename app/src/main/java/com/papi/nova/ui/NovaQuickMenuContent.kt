@@ -257,7 +257,7 @@ fun NovaQuickMenuContent(
             .fillMaxWidth()
             .fillMaxHeight()
             .clip(drawerShape)
-            .background(surfaces.panel)
+            .background(surfaces.panel.copy(alpha = NovaInGameOverlayAlpha.GlassPanel * LocalNovaMenuOpacityScale.current))
             .border(
                 width = 1.dp,
                 color = surfaces.panelBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current),

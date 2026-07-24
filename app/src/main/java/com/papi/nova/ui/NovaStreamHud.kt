@@ -88,7 +88,7 @@ class NovaStreamHud(
             val composeView = ComposeView(activity).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 setContent {
-                    NovaComposeTheme(menuOpacityPercent = NovaMenuPreferences.MAX_OPACITY_PERCENT) {
+                    NovaComposeTheme(menuOpacityPercent = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT) {
                         NovaStreamHudContent(
                             state = hudState.value,
                             opacityScale = hudOpacityScale.value

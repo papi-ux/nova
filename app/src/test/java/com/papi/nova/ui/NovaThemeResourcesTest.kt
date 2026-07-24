@@ -268,36 +268,20 @@ class NovaThemeResourcesTest {
 
 
     @Test
-    fun menuOpacityWiresLiteralOuterSurfacesWithoutCouplingNovaHud() {
+    fun menuOpacityWiresSharedChromeWithoutCouplingNovaHud() {
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
         val composeTheme = File("src/main/java/com/papi/nova/ui/compose/NovaComposeTheme.kt").readText()
-        val quickMenuContent = File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
         val streamHud = File("src/main/java/com/papi/nova/ui/NovaStreamHud.kt").readText()
-        val streamHudContent = File("src/main/java/com/papi/nova/ui/NovaStreamHudContent.kt").readText()
-        val legacyAlertChrome = sheetChrome
-            .substringAfter("fun applyMenuOpacityToLegacyAlert(dialog: AlertDialog")
-            .substringBefore("fun applyAlertDialogChrome(dialog: AlertDialog")
 
         assertTrue("native sheet glass should read the shared menu opacity preference", sheetChrome.contains("NovaMenuPreferences.readOpacityPercent"))
-        assertTrue("native outer surfaces should use absolute opacity with the dark-text readability floor", sheetChrome.contains("NovaMenuPreferences.outerSurfaceAlpha"))
-        assertFalse("literal 100% opacity must not bypass shared alert chrome", legacyAlertChrome.contains("NovaMenuPreferences.MAX_OPACITY_PERCENT"))
         assertTrue("native sheet scrims should expose a preference-scaled alpha", sheetChrome.contains("getSheetScrimAlpha"))
         assertTrue("Compose menus should publish one menu opacity composition local", composeTheme.contains("LocalNovaMenuOpacityScale"))
         assertTrue("Compose menu surfaces should receive the current opacity scale", composeTheme.contains("librarySurfaces(theme, menuOpacityScale)"))
-        assertTrue(
-            "Compose outer panels should resolve absolute opacity rather than multiply theme glass",
-            composeTheme.contains("NovaMenuPreferences.outerSurfaceAlpha(") &&
-                composeTheme.contains("opacityScale = opacityScale") &&
-                !composeTheme.contains("surfaces.panel.alpha * opacityScale")
-        )
-        assertTrue("Command Center outer panel should consume the shared absolute panel", quickMenuContent.contains(".background(surfaces.panel)"))
-        assertFalse("Command Center outer panel must not retain the historical glass multiplier", quickMenuContent.contains("NovaInGameOverlayAlpha.GlassPanel * LocalNovaMenuOpacityScale.current"))
         assertTrue("Compose roots should observe saved menu opacity changes without requiring Activity recreation", composeTheme.contains("registerOnSharedPreferenceChangeListener") && composeTheme.contains("NovaMenuPreferences.KEY_OPACITY"))
         assertTrue(
             "NovaHUD must opt out of menu opacity so its own slider remains authoritative",
-            streamHud.contains("NovaComposeTheme(menuOpacityPercent = NovaMenuPreferences.MAX_OPACITY_PERCENT)")
+            streamHud.contains("NovaComposeTheme(menuOpacityPercent = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT)")
         )
-        assertTrue("NovaHUD outer panel should use its own literal opacity", streamHudContent.contains(".background(surfaces.panel.copy(alpha = hudOpacityScale))"))
     }
 
     @Test
@@ -404,7 +388,7 @@ class NovaThemeResourcesTest {
         assertTrue("game detail fixed glass overrides should consume the menu opacity local", gameDetail.contains("LocalNovaMenuOpacityScale.current"))
         assertTrue("options fixed glass overrides should consume the menu opacity local", settings.contains("LocalNovaMenuOpacityScale.current"))
         assertTrue("shared focus components should scale panel glass while retaining focus rings", focusComponents.contains("LocalNovaMenuOpacityScale.current"))
-        assertTrue("Stream UI reset should restore menu opacity to its declared default", settingsViewModel.contains("NovaMenuPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaMenuPreferences.DEFAULT_OPACITY_PERCENT)"))
+        assertTrue("Stream UI reset should restore menu opacity to its compatibility default", settingsViewModel.contains("NovaMenuPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaMenuPreferences.DEFAULT_OPACITY_PERCENT)"))
         assertTrue("Stream UI reset should remove stale HUD coordinates in the same authoritative batch", settingsViewModel.contains("NOVA_STREAM_UI_RESET_REMOVALS") && settingsViewModel.contains("store.updateAtomically(updates, NOVA_STREAM_UI_RESET_REMOVALS)"))
         assertTrue("reset construction should fail closed instead of silently skipping filtered definitions", settingsViewModel.contains("definitions.require(key) to value"))
         assertTrue("Compose Settings should use canonical unfiltered definitions for resets", streamSettings.contains("resetDefinitions = canonicalDefinitions"))
@@ -438,7 +422,7 @@ class NovaThemeResourcesTest {
         assertTrue("Settings editors should blur the underlying Settings surface", settings.contains("NovaMenuBackdropBlur()"))
         assertTrue("native dialog blur should start on window attach and clear on detach", blur.contains("onViewAttachedToWindow") && blur.contains("isAttachedToWindow") && blur.contains("onViewDetachedFromWindow"))
         assertTrue("native sheets and alerts should share the same adaptive blur contract", sheetChrome.contains("NovaMenuBlur.attachBehindDialog"))
-        assertTrue("dark-text native surfaces should retain a WCAG readability floor below 100%", sheetChrome.contains("NovaMenuPreferences.outerSurfaceAlpha") && sheetChrome.contains("ColorUtils.calculateLuminance"))
+        assertTrue("dark-text native surfaces should retain a WCAG readability floor below 100%", sheetChrome.contains("NovaMenuPreferences.readabilitySurfaceAlpha") && sheetChrome.contains("ColorUtils.calculateLuminance"))
         assertTrue("Compose contrast scrims should use the stronger dark-text floor", composeTheme.contains("usesDarkText = textPrimary.luminance() < 0.5f"))
         assertTrue("custom select dialogs should draw the theme-aware window contrast scrim only below compatibility opacity", settings.contains("NovaDialogContrastBackdrop()") && settings.contains("if (opacityScale < 1f)") && settings.contains("surfaces.backgroundScrim.toArgb()"))
         assertTrue("unfocused native action strokes should disappear with menu glass", sheetChrome.contains("strokeAccentBlend * menuOpacityScale"))
@@ -456,9 +440,9 @@ class NovaThemeResourcesTest {
         val preflight = gameDetail
             .substringAfter("private fun showPreflightReview(")
             .substringBefore("private fun showDesktopSteamLaunchDecision(")
-        assertTrue("game-detail preflight should use shared literal-opacity alert chrome", preflight.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert"))
-        assertTrue("legacy sliders, including Menu & Drawer Opacity, should use shared literal-opacity alert chrome", legacySlider.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)"))
-        assertTrue("session termination/error alerts should use shared literal-opacity alert chrome", sessionDialog.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdAlert)"))
+        assertTrue("game-detail preflight should opt into opacity below 100 without restyling its compatibility default", preflight.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert"))
+        assertTrue("legacy sliders, including Menu & Drawer Opacity, should preserve default dialog chrome at 100%", legacySlider.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)"))
+        assertTrue("session termination/error alerts should preserve default dialog chrome at 100%", sessionDialog.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdAlert)"))
     }
 
     @Test

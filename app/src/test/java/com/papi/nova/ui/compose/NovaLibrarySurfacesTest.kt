@@ -47,7 +47,7 @@ class NovaLibrarySurfacesTest {
     }
 
     @Test
-    fun menuOpacityUsesAbsoluteOuterPanelWhileScalingNestedChromeAndPreservingFocus() {
+    fun menuOpacityScalesGlassSurfacesButPreservesFocusAndMediaReadability() {
         val colors = portableChromeColors()
         val full = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 1f)
         val half = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 0.5f)
@@ -62,8 +62,7 @@ class NovaLibrarySurfacesTest {
             half.backgroundScrim.alpha,
             0.005f
         )
-        assertEquals(1f, full.panel.alpha, 0.005f)
-        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA, half.panel.alpha, 0.005f)
+        assertEquals(full.panel.alpha * 0.5f, half.panel.alpha, 0.005f)
         assertEquals(full.panelBorder.alpha * 0.5f, half.panelBorder.alpha, 0.005f)
         assertEquals(full.tile.alpha * 0.5f, half.tile.alpha, 0.005f)
         assertEquals(full.tileBorder.alpha * 0.5f, half.tileBorder.alpha, 0.005f)
@@ -71,7 +70,7 @@ class NovaLibrarySurfacesTest {
         assertEquals(full.selectedControl.alpha * 0.5f, half.selectedControl.alpha, 0.005f)
         assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA, zero.backgroundScrim.alpha, 0.005f)
         assertEquals(Color.White, zero.backgroundScrim.copy(alpha = 1f))
-        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA, zero.panel.alpha, 0.001f)
+        assertEquals(0f, zero.panel.alpha, 0.001f)
         assertEquals(0f, zero.control.alpha, 0.001f)
         assertEquals(full.focusRing, zero.focusRing)
         assertEquals(full.focusHalo, zero.focusHalo)

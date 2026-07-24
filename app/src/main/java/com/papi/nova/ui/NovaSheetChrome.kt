@@ -140,10 +140,12 @@ object NovaSheetChrome {
 
 
     fun applyMenuOpacityToLegacyAlert(dialog: AlertDialog, destructivePositive: Boolean = false) {
+        if (readMenuOpacityPercent(dialog.context) == NovaMenuPreferences.DEFAULT_OPACITY_PERCENT) return
         applyAlertDialogChrome(dialog, destructivePositive)
     }
 
     fun applyMenuOpacityToLegacyAlert(dialog: AppCompatAlertDialog, destructivePositive: Boolean = false) {
+        if (readMenuOpacityPercent(dialog.context) == NovaMenuPreferences.DEFAULT_OPACITY_PERCENT) return
         applyAlertDialogChrome(dialog, destructivePositive)
     }
 
@@ -227,11 +229,20 @@ object NovaSheetChrome {
 
     fun createSheetSurfaceColor(context: Context): Int {
         val baseSurface = NovaThemeManager.getDialogBackgroundColor(context)
+        val themedAlpha = when {
+            NovaThemeManager.isHighContrast(context) -> HIGH_CONTRAST_SHEET_GLASS_ALPHA
+            NovaThemeManager.isPortableChrome(context) -> PORTABLE_CHROME_SHEET_GLASS_ALPHA
+            NovaThemeManager.isMiami(context) -> MIAMI_SHEET_GLASS_ALPHA
+            NovaThemeManager.isOled(context) -> OLED_SHEET_GLASS_ALPHA
+            NovaThemeManager.isMaterialYou(context) -> MATERIAL_YOU_SHEET_GLASS_ALPHA
+            else -> SHEET_GLASS_ALPHA
+        }
         val opacityPercent = readMenuOpacityPercent(context)
         val usesDarkText = ColorUtils.calculateLuminance(
             NovaThemeManager.getTextPrimaryColor(context)
         ) < 0.5
-        val alpha = NovaMenuPreferences.outerSurfaceAlpha(
+        val alpha = NovaMenuPreferences.readabilitySurfaceAlpha(
+            baseAlpha = themedAlpha,
             opacityPercent = opacityPercent,
             usesDarkText = usesDarkText
         )
@@ -246,13 +257,15 @@ object NovaSheetChrome {
     }
 
     fun getSheetGlassAlpha(context: Context): Float {
-        val usesDarkText = ColorUtils.calculateLuminance(
-            NovaThemeManager.getTextPrimaryColor(context)
-        ) < 0.5
-        return NovaMenuPreferences.outerSurfaceAlpha(
-            opacityPercent = readMenuOpacityPercent(context),
-            usesDarkText = usesDarkText
-        )
+        val themedAlpha = when {
+            NovaThemeManager.isHighContrast(context) -> HIGH_CONTRAST_SHEET_GLASS_ALPHA
+            NovaThemeManager.isPortableChrome(context) -> PORTABLE_CHROME_SHEET_GLASS_ALPHA
+            NovaThemeManager.isMiami(context) -> MIAMI_SHEET_GLASS_ALPHA
+            NovaThemeManager.isOled(context) -> OLED_SHEET_GLASS_ALPHA
+            NovaThemeManager.isMaterialYou(context) -> MATERIAL_YOU_SHEET_GLASS_ALPHA
+            else -> SHEET_GLASS_ALPHA
+        }
+        return NovaMenuPreferences.scaleAlpha(themedAlpha, readMenuOpacityPercent(context))
     }
 
     fun getSheetStrokeColor(context: Context): Int {
