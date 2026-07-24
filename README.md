@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/screenshots/Polaris_icon_1.svg" width="250" />
+
 # Nova
 
 **Game streaming for Android handhelds that understands the host.**
