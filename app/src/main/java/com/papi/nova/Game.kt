@@ -53,8 +53,11 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.DisplayFocusTelemetry
+import com.papi.nova.utils.CompanionControlHostPolicy
 import com.papi.nova.utils.CompanionControlLifecyclePolicy
 import com.papi.nova.utils.DualScreenQuickMenuPolicy
+import com.papi.nova.utils.ExternalDisplayControlActivity
+import com.papi.nova.utils.ExternalDisplayControlHost
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.MouseModeOption
@@ -231,7 +234,7 @@ private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
 private var companionControlHasWindowFocus:Boolean = false
 private var lastQuickMenuInteractionDisplayId:Int = INVALID_DISPLAY_ID
 private var isTopResumedActivity:Boolean = false
-private var externalDisplayControlPresentation:ExternalDisplayControlPresentation? = null
+private var externalDisplayControlPresentation:ExternalDisplayControlHost? = null
 private var externalDisplayListener:DisplayManager.DisplayListener? = null
 @Volatile private var lastClientPresentationRefreshRate:Float = 0f
 @Volatile private var lastClientPresentationDisplayModeId:Int = 0
@@ -452,10 +455,19 @@ val companionDisplay:Display? = getCompanionControlDisplay()
 if (::prefConfig.isInitialized && prefConfig.enableFullExDisplay && companionDisplay != null)
 {
 val companionDisplayId:Int = companionDisplay.getDisplayId()
-val currentPresentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
-if (currentPresentation == null || !currentPresentation.isShowing || companionControlDisplayId != companionDisplayId)
+val currentPresentation:ExternalDisplayControlHost? = externalDisplayControlPresentation
+if (currentPresentation == null || !currentPresentation.isHostShowing() || companionControlDisplayId != companionDisplayId)
 {
 currentPresentation?.dismissAfterCurrentCallback()
+when (CompanionControlHostPolicy.select(companionDisplayId)) {
+CompanionControlHostPolicy.HostType.ACTIVITY -> {
+externalDisplayControlPresentation = null
+companionControlDisplayId = companionDisplayId
+companionControlHasWindowFocus = false
+ExternalDisplayControlActivity.launch(this, companionDisplayId)
+ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+}
+CompanionControlHostPolicy.HostType.PRESENTATION -> {
 val presentation = ExternalDisplayControlPresentation(this, companionDisplay)
 presentation.setOnDismissListener {
 if (externalDisplayControlPresentation === presentation)
@@ -494,6 +506,8 @@ companionControlHasWindowFocus = false
 LimeLog.warning("Nova: Android companion presentation unavailable display_id=$companionDisplayId")
 }
 }
+}
+}
 listenForExternalDisplayRemoval()
 }
 }
@@ -506,6 +520,40 @@ closeCompanionControls()
 return@runOnUiThread
 }
 launchCompanionControlsIfAvailable()
+}
+}
+
+fun attachExternalDisplayControlActivity(activity:ExternalDisplayControlActivity):Boolean {
+if (!CompanionControlLifecyclePolicy.canShow(isStreamActive, isFinishing(), isDestroyed))
+{
+return false
+}
+val companionDisplayId = getCompanionControlDisplay()?.displayId ?: return false
+if (companionDisplayId != Display.DEFAULT_DISPLAY)
+{
+return false
+}
+externalDisplayControlPresentation = activity
+companionControlDisplayId = companionDisplayId
+companionControlHasWindowFocus = false
+return true
+}
+
+fun detachExternalDisplayControlActivity(activity:ExternalDisplayControlActivity) {
+if (externalDisplayControlPresentation === activity)
+{
+val shouldMigrateOpenMenu = activity.shouldMigrateOpenMenuToStream(canMigrateCompanionMenuToStream())
+externalDisplayControlPresentation = null
+if (lastQuickMenuInteractionDisplayId == companionControlDisplayId)
+{
+lastQuickMenuInteractionDisplayId = streamingDisplayId
+}
+companionControlDisplayId = INVALID_DISPLAY_ID
+companionControlHasWindowFocus = false
+if (shouldMigrateOpenMenu)
+{
+showQuickMenuOnStreamAfterCompanionClose()
+}
 }
 }
 
@@ -1580,7 +1628,7 @@ LimeLog.info("Nova: Android companion quick menu migrated to stream after compan
 private fun closeCompanionControls(migrateOpenMenuToStream:Boolean = false) {
 NotificationManagerCompat.from(baseContext)
 .cancel(ExternalDisplayControlPresentation.SECONDARY_SCREEN_NOTIFICATION_ID)
-val presentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
+val presentation:ExternalDisplayControlHost? = externalDisplayControlPresentation
 val shouldMigrateOpenMenu = migrateOpenMenuToStream &&
 DualScreenQuickMenuPolicy.shouldMigrateCompanionMenu(
 presentation?.isGameMenuOpen() == true,
@@ -1706,7 +1754,7 @@ return
 keyBoardController!!.toggleVisibility()
 }
  fun toggleFullKeyboard() {
-if (externalDisplayControlPresentation?.isShowing == true)
+if (externalDisplayControlPresentation?.isHostShowing() == true)
 {
 externalDisplayControlPresentation?.toggleFullKeyboard()
 return
@@ -3439,7 +3487,7 @@ return null
 }
 }
 override fun toggleKeyboard() {
-if (externalDisplayControlPresentation?.isShowing == true)
+if (externalDisplayControlPresentation?.isHostShowing() == true)
 {
 externalDisplayControlPresentation?.toggleKeyboard()
 }
@@ -6237,8 +6285,8 @@ Handler(Looper.getMainLooper()).postDelayed({ GameDisplayLaunchTrampolineActivit
 overridePendingTransition(0, 0) }, 900)
 }
  fun quit() {
-val companionPresentation:ExternalDisplayControlPresentation? = externalDisplayControlPresentation
-?.takeIf { it.isShowing }
+val companionPresentation:ExternalDisplayControlHost? = externalDisplayControlPresentation
+?.takeIf { it.isHostShowing() }
 val context:Context = companionPresentation?.companionDialogContext ?: this
 
 val sheet = BottomSheetDialog(context)

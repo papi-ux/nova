@@ -1,7 +1,6 @@
 package com.papi.nova.utils
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,75 +9,44 @@ import android.app.Presentation
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.view.Display
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
-import android.widget.FrameLayout
-import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import com.papi.nova.Game
-import com.papi.nova.GameMenu
-import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.StartExternalDisplayControlReceiver
 import com.papi.nova.binding.input.GameInputDevice
-import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardLayoutController
-import com.papi.nova.preferences.PreferenceConfiguration
-import com.papi.nova.ui.ExternalControllerView
 
 /**
- * Game-owned controller surface rendered on the derived companion display without creating
- * another Activity/task that can become Android's top-resumed audio owner.
+ * Game-owned controller surface rendered on a presentation-capable companion display.
  */
 class ExternalDisplayControlPresentation(
-    private val game: Game,
-    display: Display,
-) : Presentation(game, display, R.style.ExternalDisplayControllerTheme),
-    View.OnKeyListener,
-    KeyBoardLayoutController.ViewCallbacks {
+    override val game: Game,
+    override val controlDisplay: Display,
+) : Presentation(game, controlDisplay, R.style.ExternalDisplayControllerTheme),
+    ExternalDisplayControlHost {
 
-    private lateinit var prefConfig: PreferenceConfiguration
+    private lateinit var controller: ExternalDisplayControlController
 
-    private lateinit var rootLayout: ExternalControllerView
-    private lateinit var zoomButton: ImageButton
-    private var keyBoardLayoutController: KeyBoardLayoutController? = null
+    override val hostContext: Context
+        get() = context
 
-    private var isKeyboardVisible = false
-    private var transientStateDisposed = false
-    private var dismissalRequestedByNova = false
-    private var menuOpenAtDisposal = false
-
-    private val handler = Handler(Looper.getMainLooper())
-    private var dimScreenRunnable = Runnable {}
-    private var originalBrightness = -1f // -1 = use system default
-
-    private var gameMenu: GameMenu? = null
-    private val presentationWindow: Window
+    override val hostWindow: Window
         get() = requireNotNull(window)
 
-    val companionDialogContext: Context by lazy {
+    override val companionDialogContext: Context by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            game.createDisplayContext(display).createWindowContext(
+            game.createDisplayContext(controlDisplay).createWindowContext(
                 WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG,
                 null,
             )
@@ -87,404 +55,119 @@ class ExternalDisplayControlPresentation(
         }
     }
 
-    val companionDialogWindowType: Int
+    override val companionDialogWindowType: Int
         get() = WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG
 
-    fun companionDialogWindowToken(): IBinder? = presentationWindow.decorView.windowToken
+    override fun companionDialogWindowToken(): IBinder? = hostWindow.decorView.windowToken
+
+    override fun setControllerContentView(view: View) {
+        setContentView(view)
+    }
+
+    override fun isHostShowing(): Boolean = isShowing
+
+    override fun dismissHost() {
+        dismiss()
+    }
+
+    override fun cancelHost() {
+        super.cancel()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        prefConfig = PreferenceConfiguration.readPreferences(context)
-        initViews()
-    }
-
-    private fun initViews() {
-        val windowInsetsController = WindowCompat.getInsetsController(presentationWindow, presentationWindow.decorView)
-
-        windowInsetsController.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-
-        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
-        windowInsetsController.hide(WindowInsetsCompat.Type.navigationBars())
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            WindowCompat.setDecorFitsSystemWindows(presentationWindow, false)
-            ViewCompat.setOnApplyWindowInsetsListener(presentationWindow.decorView) { view, insets ->
-                val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-                updateKeyboardVisibility(
-                    imeVisible ||
-                        (keyBoardLayoutController != null && keyBoardLayoutController!!.isKeyboardVisible()),
-                )
-                ViewCompat.onApplyWindowInsets(view, insets)
-            }
-        }
-
-        initializeComponents()
-        createProgrammaticUI()
-        initTouchEventHandling()
-        setupInactivityTimeoutForBrightness()
-        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun initTouchEventHandling() {
-        rootLayout.setOnTouchListener { view, event ->
-            handleUserActivity()
-            game.handleMotionEvent(view, event)
-            true
-        }
+        controller = ExternalDisplayControlController(this)
+        controller.onCreate()
     }
 
     override fun onStart() {
         super.onStart()
-        transientStateDisposed = false
-        dismissalRequestedByNova = false
-        menuOpenAtDisposal = false
-        resetInactivityTimer()
-        if (game.isFinishing) {
-            dismissAfterCurrentCallback()
-        }
+        controller.onStart()
     }
 
-    fun dismissAfterCurrentCallback() {
-        dismissalRequestedByNova = true
-        transientStateDisposed = true
-        handler.post {
-            if (isShowing) {
-                dismiss()
-            }
-        }
+    override fun dismissAfterCurrentCallback() {
+        controller.dismissAfterCurrentCallback()
     }
 
     override fun cancel() {
-        dismissalRequestedByNova = true
-        transientStateDisposed = true
-        handler.post {
-            cancelNow()
-        }
-    }
-
-    private fun cancelNow() {
-        if (isShowing) {
-            super.cancel()
-        }
-    }
-
-    private fun disposeTransientState() {
-        menuOpenAtDisposal = menuOpenAtDisposal || gameMenu?.isMenuOpen() == true
-        transientStateDisposed = true
-        gameMenu?.hideMenu()
-        handler.removeCallbacksAndMessages(null)
-        restoreBrightnessIfNeeded()
+        controller.cancel()
     }
 
     fun disposeAfterFailedShow() {
-        dismissalRequestedByNova = true
-        disposeTransientState()
+        controller.disposeAfterFailedShow()
     }
 
     override fun onStop() {
-        disposeTransientState()
+        controller.onStop()
         super.onStop()
-    }
-
-    override fun onKeyboardControllerVisibilityChange(visible: Boolean) {
-        updateKeyboardVisibility(visible)
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupInactivityTimeoutForBrightness() {
-        originalBrightness = presentationWindow.attributes.screenBrightness
-
-        dimScreenRunnable = Runnable {
-            if (
-                CompanionScreenDimmingPolicy.shouldDimNow(
-                    keyboardVisible = isKeyboardVisible,
-                    quickMenuOpen = gameMenu?.isMenuOpen() == true,
-                )
-            ) {
-                val layout = presentationWindow.attributes
-                layout.screenBrightness = 0.0f
-                presentationWindow.attributes = layout
-            } else {
-                resetInactivityTimer()
-            }
-        }
-
-        resetInactivityTimer()
-    }
-
-    private fun updateKeyboardVisibility(visible: Boolean) {
-        if (isKeyboardVisible != visible) {
-            isKeyboardVisible = visible
-            if (isKeyboardVisible) {
-                handler.removeCallbacks(dimScreenRunnable)
-                restoreBrightnessIfNeeded()
-            } else {
-                resetInactivityTimer()
-            }
-        }
-    }
-
-    private fun restoreBrightnessIfNeeded() {
-        val layout = presentationWindow.attributes
-        if (layout.screenBrightness == 0.0f) {
-            layout.screenBrightness = originalBrightness
-            presentationWindow.attributes = layout
-        }
-    }
-
-    private fun handleUserActivity() {
-        if (transientStateDisposed) return
-        restoreBrightnessIfNeeded()
-        resetInactivityTimer()
-    }
-
-    private fun resetInactivityTimer() {
-        handler.removeCallbacks(dimScreenRunnable)
-        if (!isKeyboardVisible) {
-            CompanionScreenDimmingPolicy.delayMillis(prefConfig.companionScreenDimTimeoutSeconds)?.let { delay ->
-                handler.postDelayed(dimScreenRunnable, delay)
-            }
-        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        game.logCompanionDisplayFocus(display.displayId, hasFocus)
-        if (game.isFinishing) {
-            dismissAfterCurrentCallback()
-        }
+        controller.onWindowFocusChanged(hasFocus)
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        handleCompanionBack()
+        controller.handleCompanionBack()
     }
 
-    private fun handleCompanionBack() {
-        if (game.isKeyboardLayoutVisible) {
-            toggleFullKeyboard()
-        } else if (!game.handleQuickMenuBackFromDisplay(display.displayId)) {
-            cancel()
-        }
-    }
-
-    fun handleBackFromOwningGame(): Boolean {
-        if (!isCompanionDisplayAvailable()) return false
-        handleCompanionBack()
-        return true
-    }
-
-    private fun initializeComponents() {
-        gameMenu = GameMenu(game, companionDialogContext, companionDialogWindowType, ::companionDialogWindowToken).also {
-            it.setOnMenuDismissedListener(::handleUserActivity)
-        }
-    }
+    override fun handleBackFromOwningGame(): Boolean = controller.handleBackFromOwningGame()
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
-        game.recordQuickMenuInteraction(display.displayId)
-        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-        return game.onGenericMotionEvent(event)
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onKey(view: View, keyCode: Int, keyEvent: KeyEvent): Boolean {
-        game.recordQuickMenuInteraction(display.displayId)
-        if (keyEvent.deviceId >= 0) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-        }
-        return when (keyEvent.action) {
-            KeyEvent.ACTION_DOWN -> game.handleKeyDown(keyEvent)
-            KeyEvent.ACTION_UP -> game.handleKeyUp(keyEvent)
-            KeyEvent.ACTION_MULTIPLE -> game.handleKeyMultiple(keyEvent)
-            else -> false
-        }
+        return controller.onGenericMotionEvent(event)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        game.recordQuickMenuInteraction(display.displayId)
-        if (event.deviceId >= 0) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-        }
-        return game.onKeyDown(keyCode, event)
+        return controller.onKeyDown(event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        game.recordQuickMenuInteraction(display.displayId)
-        if (event.deviceId >= 0) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-        }
-        return game.onKeyUp(keyCode, event)
+        return controller.onKeyUp(event)
     }
 
     override fun onKeyMultiple(keyCode: Int, repeatCount: Int, event: KeyEvent): Boolean {
-        game.recordQuickMenuInteraction(display.displayId)
-        if (event.deviceId >= 0) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-        }
-        return game.onKeyMultiple(keyCode, repeatCount, event)
+        return controller.onKeyMultiple(keyCode, repeatCount, event)
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    private fun createProgrammaticUI() {
-        rootLayout = ExternalControllerView(context)
-        rootLayout.layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        )
-        rootLayout.isFocusable = true
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            rootLayout.isFocusedByDefault = true
-        }
-
-        rootLayout.setInputCallbacks(game)
-        rootLayout.setCommitTextEnabled(prefConfig.enableCommitText)
-
-        setContentView(rootLayout)
-
-        val topLeftButtons = createButtonContainer(Gravity.TOP or Gravity.START)
-        topLeftButtons.isFocusable = false
-        zoomButton = createImageButton(R.drawable.ic_zoom_toggle) { toggleZoomMode(true) }
-        if (game.isZoomModeEnabled) {
-            zoomButton.alpha = 1.0f
-        } else {
-            zoomButton.alpha = 0.5f
-        }
-        topLeftButtons.addView(zoomButton)
-        rootLayout.addView(topLeftButtons)
-
-        val topRightButtons = createButtonContainer(Gravity.TOP or Gravity.END)
-        topRightButtons.isFocusable = false
-        topRightButtons.addView(createImageButton(R.drawable.ic_menu_external) { showGameMenu() })
-        topRightButtons.addView(createImageButton(R.drawable.ic_close_external) { dismissAfterCurrentCallback() })
-        rootLayout.addView(topRightButtons)
-
-        val bottomLeftButton = createButtonContainer(Gravity.BOTTOM or Gravity.START)
-        bottomLeftButton.isFocusable = false
-        bottomLeftButton.addView(createImageButton(R.drawable.ic_android_keyboard) { _toggleKeyboard() })
-        rootLayout.addView(bottomLeftButton)
-
-        val bottomRightButton = createButtonContainer(Gravity.BOTTOM or Gravity.END)
-        bottomRightButton.isFocusable = false
-        bottomRightButton.addView(createImageButton(R.drawable.ic_fullscreen_keyboard) { _toggleFullKeyboard() })
-        rootLayout.addView(bottomRightButton)
-    }
-
-    @Suppress("DEPRECATION")
-    private fun _toggleKeyboard() {
-        LimeLog.info("Toggling keyboard overlay on ExternalDisplayControlPresentation")
-        val inputManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        inputManager.toggleSoftInput(0, 0)
-    }
-
-    private fun initFullKeyboard(prefConfig: PreferenceConfiguration) {
-        keyBoardLayoutController = KeyBoardLayoutController(rootLayout, context, prefConfig).also {
-            it.setViewCallbacks(this)
-            it.refreshLayout()
-            it.show()
-        }
-    }
-
-    private fun _toggleFullKeyboard() {
-        val controller = keyBoardLayoutController
-        if (controller == null) {
-            initFullKeyboard(prefConfig)
-            return
-        }
-        controller.toggleVisibility()
-    }
-
-    fun toggleZoomMode(callGame: Boolean) {
-        if (callGame) {
-            game.toggleZoomMode()
-        } else {
-            zoomButton.alpha = if (game.isZoomModeEnabled) 1.0f else 0.5f
-        }
+    override fun toggleZoomMode(callGame: Boolean) {
+        controller.toggleZoomMode(callGame)
     }
 
     fun showGameMenu() {
-        game.showGameMenuFromDisplay(display.displayId, null)
+        controller.showGameMenu()
     }
 
-    fun isCompanionDisplayAvailable(): Boolean {
-        return isShowing && display.isValid && !transientStateDisposed
+    override fun isCompanionDisplayAvailable(): Boolean {
+        return controller.isCompanionDisplayAvailable()
     }
 
-    fun shouldMigrateOpenMenuToStream(streamAvailable: Boolean): Boolean {
-        return DualScreenQuickMenuPolicy.shouldMigrateCompanionMenu(
-            menuWasOpen = menuOpenAtDisposal || gameMenu?.isMenuOpen() == true,
-            dismissalRequestedByNova = dismissalRequestedByNova,
-            streamAvailable = streamAvailable,
-        )
+    override fun shouldMigrateOpenMenuToStream(streamAvailable: Boolean): Boolean {
+        return controller.shouldMigrateOpenMenuToStream(streamAvailable)
     }
 
-    fun showGameMenuOnCompanion(device: GameInputDevice?): Boolean {
-        if (!isCompanionDisplayAvailable()) return false
-
-        return try {
-            handleUserActivity()
-            gameMenu?.showMenu(device)
-            gameMenu?.isMenuOpen() == true
-        } catch (e: RuntimeException) {
-            LimeLog.warning(
-                "Nova: Android companion quick menu unavailable display_id=${display.displayId} " +
-                    "exception=${e.javaClass.simpleName}"
-            )
-            runCatching { gameMenu?.hideMenu() }
-            false
-        }
+    override fun showGameMenuOnCompanion(device: GameInputDevice?): Boolean {
+        return controller.showGameMenuOnCompanion(device)
     }
 
-    fun hideGameMenu() {
-        runCatching { gameMenu?.hideMenu() }
-            .onFailure { error ->
-                LimeLog.warning(
-                    "Nova: Android companion quick menu dismiss failed display_id=${display.displayId} " +
-                        "exception=${error.javaClass.simpleName}"
-                )
-            }
+    override fun hideGameMenu() {
+        controller.hideGameMenu()
     }
 
-    fun isGameMenuOpen(): Boolean {
-        return gameMenu?.isMenuOpen() == true
+    override fun isGameMenuOpen(): Boolean {
+        return controller.isGameMenuOpen()
     }
 
-    private fun createButtonContainer(gravity: Int): LinearLayout {
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setGravity(gravity)
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                gravity,
-            )
-        }
+    override fun toggleKeyboard() {
+        controller.toggleKeyboard()
     }
 
-    private fun createImageButton(imageResourceId: Int, listener: View.OnClickListener): ImageButton {
-        return ImageButton(context).apply {
-            setImageResource(imageResourceId)
-            setBackgroundColor(Color.TRANSPARENT)
-            setOnClickListener(listener)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(56), dpToPx(56))
-        }
+    override fun toggleFullKeyboard() {
+        controller.toggleFullKeyboard()
     }
 
-    private fun dpToPx(dp: Int): Int {
-        return (dp * context.resources.displayMetrics.density).toInt()
-    }
-
-    fun toggleKeyboard() {
-        _toggleKeyboard()
-    }
-
-    fun toggleFullKeyboard() {
-        _toggleFullKeyboard()
-    }
-
-    fun toggleGameMenu() {
-        showGameMenu()
+    override fun toggleGameMenu() {
+        controller.toggleGameMenu()
     }
 
     companion object {
