@@ -10,36 +10,181 @@ import android.widget.ProgressBar
 import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.DiffUtil
 import com.papi.nova.PcViewModel
 import com.papi.nova.R
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaThemeManager
+import java.util.IdentityHashMap
 import java.util.Locale
 
 class PcGridAdapter(
     context: Context,
     prefs: PreferenceConfiguration
 ) : GenericGridAdapter<PcViewModel.ComputerObject>(context, getLayoutIdForPreferences(prefs)) {
+    private val stableIdsByObject = IdentityHashMap<PcViewModel.ComputerObject, Long>()
+    private val uuidsByObject = IdentityHashMap<PcViewModel.ComputerObject, String>()
+    private val stableIdsByUuid = HashMap<String, Long>()
+    private val reservedStableIds = HashSet<Long>()
+    private val itemIds = ArrayList<Long>()
+    private var nextFallbackStableId = Long.MIN_VALUE
+
+    init {
+        setHasStableIds(true)
+    }
+
+    override fun getItemId(i: Int): Long = itemIds[i]
+
+    override fun setItems(items: List<PcViewModel.ComputerObject>?) {
+        val nextItems = normalizeItems(items.orEmpty())
+        val oldIds = itemIds.toList()
+        val newIds = assignStableIds(nextItems)
+
+        if (oldIds == newIds) {
+            itemList.clear()
+            itemList.addAll(nextItems)
+            itemIds.clear()
+            itemIds.addAll(newIds)
+            if (itemList.isNotEmpty()) {
+                notifyItemRangeChanged(0, itemList.size, SERVER_ROW_REFRESH_PAYLOAD)
+            }
+            return
+        }
+
+        val diff =
+            DiffUtil.calculateDiff(
+                object : DiffUtil.Callback() {
+                    override fun getOldListSize(): Int = oldIds.size
+
+                    override fun getNewListSize(): Int = newIds.size
+
+                    override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
+                        oldIds[oldItemPosition] == newIds[newItemPosition]
+
+                    // ComputerObject instances are updated in place by PcViewModel, so retained
+                    // rows must rebind even when their identity and position stay the same.
+                    override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean = false
+
+                    override fun getChangePayload(oldItemPosition: Int, newItemPosition: Int): Any =
+                        SERVER_ROW_REFRESH_PAYLOAD
+                }
+            )
+
+        itemList.clear()
+        itemList.addAll(nextItems)
+        itemIds.clear()
+        itemIds.addAll(newIds)
+        diff.dispatchUpdatesTo(this)
+    }
+
+    private fun normalizeItems(items: List<PcViewModel.ComputerObject>): List<PcViewModel.ComputerObject> {
+        val seenObjects = IdentityHashMap<PcViewModel.ComputerObject, Boolean>(items.size)
+        val seenUuids = HashSet<String>(items.size)
+        return items.filter { computer ->
+            if (seenObjects.put(computer, true) != null) {
+                false
+            } else {
+                val uuid = computer.details.uuid.trim()
+                uuid.isEmpty() || seenUuids.add(uuid)
+            }
+        }
+    }
+
+    private fun assignStableIds(items: List<PcViewModel.ComputerObject>): List<Long> {
+        val assignedIds = HashSet<Long>(items.size)
+        return items.map { computer ->
+            val knownObjectId = stableIdsByObject[computer]
+            val id =
+                if (knownObjectId != null && knownObjectId !in assignedIds) {
+                    bindUuidIfAvailable(computer, knownObjectId)
+                    knownObjectId
+                } else {
+                    assignStableId(computer, assignedIds)
+                }
+            assignedIds.add(id)
+            id
+        }
+    }
+
+    private fun assignStableId(
+        computer: PcViewModel.ComputerObject,
+        assignedIds: Set<Long>,
+    ): Long {
+        val uuid = computer.details.uuid.trim()
+        val mappedUuidId = uuid.takeIf(String::isNotEmpty)?.let(stableIdsByUuid::get)
+        val id =
+            if (mappedUuidId != null && mappedUuidId !in assignedIds) {
+                mappedUuidId
+            } else if (uuid.isNotEmpty() && mappedUuidId == null) {
+                reserveUniqueId(stableServerId(uuid))
+            } else {
+                reserveFallbackId()
+            }
+
+        stableIdsByObject[computer] = id
+        updateUuidOwnership(computer, uuid, id)
+        return id
+    }
+
+    private fun bindUuidIfAvailable(computer: PcViewModel.ComputerObject, id: Long) {
+        val uuid = computer.details.uuid.trim()
+        updateUuidOwnership(computer, uuid, id)
+    }
+
+    private fun updateUuidOwnership(computer: PcViewModel.ComputerObject, uuid: String, id: Long) {
+        val previousUuid = uuidsByObject.put(computer, uuid)
+        if (!previousUuid.isNullOrEmpty() && previousUuid != uuid && stableIdsByUuid[previousUuid] == id) {
+            stableIdsByUuid.remove(previousUuid)
+        }
+
+        if (uuid.isNotEmpty() && uuid !in stableIdsByUuid) {
+            stableIdsByUuid[uuid] = id
+        }
+    }
+
+    private fun reserveFallbackId(): Long {
+        val id = reserveUniqueId(nextFallbackStableId)
+        nextFallbackStableId = id + 1
+        return id
+    }
+
+    private fun reserveUniqueId(candidate: Long): Long {
+        var id = candidate
+        while (!reservedStableIds.add(id)) {
+            id++
+        }
+        return id
+    }
+
     fun updateLayoutWithPreferences(context: Context, prefs: PreferenceConfiguration) {
         // This will trigger the view to reload with the new layout.
         setLayoutId(getLayoutIdForPreferences(prefs))
     }
 
     fun addComputer(computer: PcViewModel.ComputerObject) {
-        itemList.add(computer)
-        sortList()
-    }
-
-    private fun sortList() {
-        itemList.sortWith { lhs, rhs ->
+        val updatedItems = itemList.toMutableList()
+        updatedItems.add(computer)
+        updatedItems.sortWith { lhs, rhs ->
             lhs.details.name.lowercase(Locale.getDefault())
                 .compareTo(rhs.details.name.lowercase(Locale.getDefault()))
         }
+        setItems(updatedItems)
     }
 
-    fun removeComputer(computer: PcViewModel.ComputerObject): Boolean = itemList.remove(computer)
+    fun removeComputer(computer: PcViewModel.ComputerObject): Boolean {
+        val updatedItems = itemList.toMutableList()
+        if (!updatedItems.remove(computer)) {
+            return false
+        }
+        setItems(updatedItems)
+        return true
+    }
+
+    override fun clear() {
+        setItems(emptyList())
+    }
 
     /** Cached references for PcView-specific views (status dot + text). */
     private class PcViewHolder {
@@ -249,7 +394,17 @@ class PcGridAdapter(
 
     companion object {
         private const val TAG_PC_HOLDER = R.id.status_dot
+        private val SERVER_ROW_REFRESH_PAYLOAD = Any()
 
         private fun getLayoutIdForPreferences(prefs: PreferenceConfiguration): Int = R.layout.pc_grid_item
     }
+}
+
+private fun stableServerId(uuid: String): Long {
+    var hash = -3750763034362895579L
+    for (character in uuid) {
+        hash = hash xor character.code.toLong()
+        hash *= 1099511628211L
+    }
+    return hash
 }
