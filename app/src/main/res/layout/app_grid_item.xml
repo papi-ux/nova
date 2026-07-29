@@ -11,7 +11,7 @@
         android:layout_height="match_parent"
         app:cardCornerRadius="16dp"
         app:cardElevation="0dp"
-        app:cardBackgroundColor="@color/nova_bg_card">
+        app:cardBackgroundColor="?attr/colorSurface">
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -62,7 +62,7 @@
                     android:paddingTop="2dp"
                     android:paddingEnd="7dp"
                     android:paddingBottom="2dp"
-                    android:textColor="@color/nova_text_primary"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:textSize="9sp"
                     android:visibility="gone" />
 
@@ -73,7 +73,7 @@
                     android:layout_marginStart="6dp"
                     android:text="@string/badge_hdr"
                     android:textSize="9sp"
-                    android:textColor="@color/nova_ice"
+                    android:textColor="?attr/colorOnSurface"
                     android:fontFamily="sans-serif-medium"
                     android:letterSpacing="0.05"
                     android:background="@drawable/nova_badge_bg"
@@ -92,7 +92,7 @@
                 android:layout_margin="8dp"
                 android:text="@string/badge_streaming"
                 android:textSize="9sp"
-                android:textColor="@color/nova_bg_window"
+                android:textColor="?attr/colorOnPrimary"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.05"
                 android:background="@drawable/nova_streaming_badge_bg"
@@ -108,14 +108,14 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
                 android:orientation="vertical"
-                android:background="@color/nova_bg_card"
+                android:background="?attr/colorSurface"
                 android:padding="10dp">
 
                 <TextView
                     android:id="@+id/grid_text"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textColor="@color/nova_ice"
+                    android:textColor="?attr/colorOnSurface"
                     android:textSize="12sp"
                     android:fontFamily="sans-serif-medium"
                     android:maxLines="2"
@@ -126,7 +126,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
-                    android:textColor="@color/nova_text_muted"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end"

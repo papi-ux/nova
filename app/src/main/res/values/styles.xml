@@ -17,6 +17,12 @@
         <!-- Dialog styling -->
         <item name="alertDialogTheme">@style/NovaAlertDialog</item>
         <item name="android:alertDialogTheme">@style/NovaAlertDialog</item>
+        <item name="colorSurfaceVariant">@color/nova_badge_bg</item>
+        <item name="colorOnSurfaceVariant">@color/nova_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_bg_window</item>
+        <item name="colorPrimaryContainer">@color/nova_accent_surface</item>
+        <item name="colorOutline">@color/nova_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <!-- Nova Application Theme — Polaris Aurora (default brand: deep navy + violet signal) -->
@@ -27,7 +33,7 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:colorBackground">@color/nova_bg_window</item>
         <item name="android:windowBackground">@color/nova_bg_window</item>
-        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 
     <!-- Portable Chrome — smoked graphite/silver shell with subtle PlayStation-symbol accents. -->
@@ -44,6 +50,12 @@
         <item name="colorControlHighlight">@color/nova_portable_accent_surface</item>
         <item name="colorSurface">@color/nova_portable_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_portable_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_portable_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_portable_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_ice</item>
+        <item name="colorPrimaryContainer">@color/nova_portable_accent_surface</item>
+        <item name="colorOutline">@color/nova_portable_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <!-- Console OLED — pure black surfaces and dim accents for low-emission handheld play. -->
@@ -60,6 +72,12 @@
         <item name="colorControlHighlight">@color/nova_oled_accent_surface</item>
         <item name="colorSurface">@color/nova_oled_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_oled_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_oled_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_oled_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_oled_bg_window</item>
+        <item name="colorPrimaryContainer">@color/nova_oled_accent_surface</item>
+        <item name="colorOutline">@color/nova_oled_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <!-- Miami Nebula — deep plum shell with flamingo-pink hero accent and cyan/aqua support. -->
@@ -76,12 +94,20 @@
         <item name="colorControlHighlight">@color/nova_miami_accent_surface</item>
         <item name="colorSurface">@color/nova_miami_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_miami_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_miami_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_miami_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_miami_void</item>
+        <item name="colorPrimaryContainer">@color/nova_miami_accent_surface</item>
+        <item name="colorOutline">@color/nova_miami_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <!-- High Contrast — firm outlines and bright copy without abandoning Nova's dark UI. -->
     <style name="AppTheme.HighContrast">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
         <item name="android:windowBackground">@color/nova_hc_bg_window</item>
+        <item name="android:statusBarColor">@color/nova_hc_bg_window</item>
+        <item name="android:navigationBarColor">@color/nova_hc_bg_window</item>
         <item name="android:textColor">@color/nova_hc_text_primary</item>
         <item name="android:textColorPrimary">@color/nova_hc_text_primary</item>
         <item name="android:textColorSecondary">@color/nova_hc_text_secondary</item>
@@ -90,10 +116,16 @@
         <item name="colorControlHighlight">@color/nova_hc_accent_surface</item>
         <item name="colorSurface">@color/nova_hc_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_hc_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_hc_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_hc_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_hc_bg_window</item>
+        <item name="colorPrimaryContainer">@color/nova_hc_accent_surface</item>
+        <item name="colorOutline">@color/nova_hc_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <!-- Material You — uses system dynamic colors on Android 12+ -->
-    <style name="AppTheme.MaterialYou">
+    <style name="AppTheme.MaterialYou" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
         <item name="android:colorBackground">?attr/colorSurface</item>
         <item name="android:windowBackground">?attr/colorSurface</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
@@ -104,13 +136,27 @@
         <!-- colorPrimary and colorAccent are overridden by DynamicColors.applyToActivityIfAvailable() -->
     </style>
 
-    <style name="SettingsTheme.MaterialYou" parent="SettingsTheme">
+    <style name="NovaAppCompatDialogTitle.MaterialYou" parent="RtlOverlay.DialogWindowTitle.AppCompat">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <style name="NovaAlertDialogTitleText.MaterialYou" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <style name="SettingsTheme.MaterialYou" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
         <item name="android:colorBackground">?attr/colorSurface</item>
         <item name="android:windowBackground">?attr/colorSurface</item>
         <item name="android:textColorPrimary">?attr/colorOnSurface</item>
         <item name="android:textColorSecondary">?attr/colorOnSurface</item>
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:navigationBarColor">?attr/colorSurface</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog.MaterialYou</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog.MaterialYou</item>
+        <item name="preferenceTheme">@style/NovaPreferenceTheme.MaterialYou</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/NovaAlertDialogTitleText.MaterialYou</item>
         <!-- colorPrimary and colorAccent are overridden by DynamicColors.applyToActivityIfAvailable() -->
     </style>
 
@@ -146,6 +192,12 @@
         <item name="colorOnSurface">@color/nova_portable_text_primary</item>
         <item name="android:navigationBarColor">@color/nova_portable_bg_window</item>
         <item name="android:statusBarColor">@color/nova_portable_bg_window</item>
+        <item name="colorSurfaceVariant">@color/nova_portable_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_portable_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_ice</item>
+        <item name="colorPrimaryContainer">@color/nova_portable_accent_surface</item>
+        <item name="colorOutline">@color/nova_portable_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <!-- Settings OLED variant -->
@@ -160,6 +212,12 @@
         <item name="colorOnSurface">@color/nova_oled_text_primary</item>
         <item name="android:navigationBarColor">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/black</item>
+        <item name="colorSurfaceVariant">@color/nova_oled_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_oled_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_oled_bg_window</item>
+        <item name="colorPrimaryContainer">@color/nova_oled_accent_surface</item>
+        <item name="colorOutline">@color/nova_oled_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <style name="SettingsTheme.Miami" parent="SettingsTheme">
@@ -174,6 +232,12 @@
         <item name="colorOnSurface">@color/nova_miami_text_primary</item>
         <item name="android:navigationBarColor">@color/nova_miami_void</item>
         <item name="android:statusBarColor">@color/nova_miami_void</item>
+        <item name="colorSurfaceVariant">@color/nova_miami_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_miami_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_miami_void</item>
+        <item name="colorPrimaryContainer">@color/nova_miami_accent_surface</item>
+        <item name="colorOutline">@color/nova_miami_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <style name="SettingsTheme.HighContrast" parent="SettingsTheme">
@@ -186,6 +250,12 @@
         <item name="colorControlHighlight">@color/nova_hc_accent_surface</item>
         <item name="colorSurface">@color/nova_hc_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_hc_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_hc_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_hc_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_hc_bg_window</item>
+        <item name="colorPrimaryContainer">@color/nova_hc_accent_surface</item>
+        <item name="colorOutline">@color/nova_hc_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <style name="SettingsTheme" parent="Theme.MaterialComponents.NoActionBar">
@@ -203,6 +273,12 @@
         <item name="alertDialogTheme">@style/NovaAlertDialog</item>
         <item name="android:alertDialogTheme">@style/NovaAlertDialog</item>
         <item name="preferenceTheme">@style/NovaPreferenceTheme</item>
+        <item name="colorSurfaceVariant">@color/nova_badge_bg</item>
+        <item name="colorOnSurfaceVariant">@color/nova_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_bg_window</item>
+        <item name="colorPrimaryContainer">@color/nova_accent_surface</item>
+        <item name="colorOutline">@color/nova_divider</item>
+        <item name="colorError">@color/nova_error</item>
     </style>
 
     <!-- Nova preference category/item styling -->
@@ -210,6 +286,11 @@
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
         <item name="android:textColorSecondary">@color/nova_text_secondary</item>
         <item name="preferenceCategoryStyle">@style/NovaPrefCategory</item>
+    </style>
+
+    <style name="NovaPreferenceTheme.MaterialYou" parent="NovaPreferenceTheme">
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
     </style>
 
     <style name="NovaPrefCategory" parent="Preference.Category">
@@ -234,13 +315,22 @@
         <item name="buttonBarNeutralButtonStyle">@style/NovaDialogButton</item>
     </style>
 
+    <style name="NovaAlertDialog.MaterialYou" parent="NovaAlertDialog">
+        <item name="android:background">?attr/colorSurface</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/NovaAlertDialogTitleText.MaterialYou</item>
+        <item name="android:windowTitleStyle">@style/NovaAppCompatDialogTitle.MaterialYou</item>
+    </style>
+
     <style name="NovaDialogButton" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
         <item name="android:textColor">?attr/colorAccent</item>
     </style>
 
     <!-- Nova popup/context menu -->
     <style name="NovaPopupMenu" parent="Widget.MaterialComponents.PopupMenu">
-        <item name="android:popupBackground">@color/nova_context_bg</item>
+        <item name="android:popupBackground">?attr/colorSurface</item>
     </style>
 
     <declare-styleable name="ApertureViewGroup">
@@ -260,7 +350,7 @@
         <item name="android:paddingEnd">18dp</item>
         <item name="android:layout_marginEnd">10dp</item>
         <item name="android:gravity">center</item>
-        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:background">@drawable/nova_chip_default</item>
@@ -271,7 +361,7 @@
     <style name="NovaMaterialChip" parent="Widget.MaterialComponents.Chip.Choice">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="chipBackgroundColor">@color/nova_chip_bg_selector</item>
@@ -285,10 +375,10 @@
     <style name="NovaMaterialChip.Action" parent="Widget.MaterialComponents.Chip.Action">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="chipBackgroundColor">@color/nova_badge_bg</item>
+        <item name="chipBackgroundColor">?attr/colorSurfaceVariant</item>
         <item name="chipStrokeColor">@color/nova_focus_stroke_selector</item>
         <item name="chipStrokeWidth">2dp</item>
         <item name="chipCornerRadius">12dp</item>
@@ -301,7 +391,7 @@
         <item name="bottomSheetStyle">@style/NovaBottomSheetStyle</item>
         <item name="android:windowIsFloating">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@color/nova_bg_window</item>
+        <item name="android:navigationBarColor">?attr/colorSurface</item>
         <item name="android:colorBackground">@android:color/transparent</item>
     </style>
 

@@ -22,6 +22,7 @@ import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.nvstream.wol.WakeOnLanSender
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.CacheHelper
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.Dialog
@@ -452,6 +453,7 @@ class ShortcutTrampoline : NovaActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
 
         prefConfig = PreferenceConfiguration.readPreferences(this)

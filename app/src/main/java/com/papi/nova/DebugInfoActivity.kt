@@ -16,6 +16,7 @@ import android.widget.Button
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.DeviceUtils
 
 @Suppress("DEPRECATION")
@@ -29,6 +30,7 @@ class DebugInfoActivity : NovaActivity(), View.OnClickListener {
     private var simulatedAmplitude = 220
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_axitest)
 

@@ -2,13 +2,13 @@ package com.papi.nova.ui
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
-import com.papi.nova.R
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -23,7 +23,9 @@ class SpaceParticleView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
-    private val bgColor: Int = NovaThemeManager.getWindowBackgroundColor(context)
+    private val bgColor: Int = NovaThemeManager.getActivityWindowSurfaceColor(context)
+    private val starRgb: Int = NovaThemeManager.getTextPrimaryColor(context) and 0x00FFFFFF
+    private val accentColor: Int = NovaThemeManager.getAccentColor(context)
 
     var dense = false
         set(value) { field = value; rebuild() }
@@ -96,13 +98,12 @@ class SpaceParticleView @JvmOverloads constructor(
     private fun createNebula(): Nebula {
         val w = width.toFloat().coerceAtLeast(1f)
         val h = height.toFloat().coerceAtLeast(1f)
-        val purple = Random.nextBoolean()
         return Nebula(
             x = Random.nextFloat() * w, y = Random.nextFloat() * h,
             radius = Random.nextFloat() * 200f + 100f,
-            r = if (purple) 140 else 100,
-            g = if (purple) 100 else 120,
-            b = if (purple) 160 else 180,
+            r = Color.red(accentColor),
+            g = Color.green(accentColor),
+            b = Color.blue(accentColor),
             opacity = Random.nextFloat() * 0.03f + 0.01f,
             drift = (Random.nextFloat() - 0.5f) * 0.02f
         )
@@ -158,17 +159,17 @@ class SpaceParticleView @JvmOverloads constructor(
             val alpha = (p.opacity * twinkle * 255).toInt().coerceIn(0, 255)
 
             // Star core
-            paint.color = (alpha shl 24) or 0xC8D6E5
+            paint.color = (alpha shl 24) or starRgb
             canvas.drawCircle(p.x, p.y, p.size, paint)
 
             // Glow
             if (p.isBright && alpha > 76) {
-                paint.color = ((alpha * 0.08f).toInt().coerceIn(0, 255) shl 24) or 0xC8D6E5
+                paint.color = ((alpha * 0.08f).toInt().coerceIn(0, 255) shl 24) or starRgb
                 canvas.drawCircle(p.x, p.y, p.size * 3f, paint)
 
                 // Cross sparkle
                 if (dense && p.size > 1.5f && twinkle > 0.85f) {
-                    linePaint.color = ((alpha * 0.3f).toInt().coerceIn(0, 255) shl 24) or 0xC8D6E5
+                    linePaint.color = ((alpha * 0.3f).toInt().coerceIn(0, 255) shl 24) or starRgb
                     linePaint.strokeWidth = 0.5f
                     val len = p.size * 4f
                     canvas.drawLine(p.x - len, p.y, p.x + len, p.y, linePaint)
@@ -196,7 +197,7 @@ class SpaceParticleView @JvmOverloads constructor(
             // Trail
             linePaint.shader = LinearGradient(
                 s.x, s.y, s.x - s.dx * 20f, s.y - s.dy * 20f,
-                (alpha shl 24) or 0xC8D6E5, 0x00C8D6E5,
+                (alpha shl 24) or starRgb, starRgb,
                 Shader.TileMode.CLAMP
             )
             linePaint.strokeWidth = s.size
@@ -204,7 +205,7 @@ class SpaceParticleView @JvmOverloads constructor(
             linePaint.shader = null
 
             // Head
-            paint.color = (alpha shl 24) or 0xDCE6F5
+            paint.color = (alpha shl 24) or starRgb
             canvas.drawCircle(s.x, s.y, s.size, paint)
 
             if (s.life >= s.maxLife || s.x > w + 50 || s.y > h + 50) {

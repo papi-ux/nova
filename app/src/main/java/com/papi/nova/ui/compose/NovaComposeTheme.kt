@@ -1,7 +1,9 @@
 package com.papi.nova.ui.compose
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
@@ -262,7 +264,7 @@ fun NovaComposeTheme(
         window = Color(NovaThemeManager.getWindowBackgroundColor(context)),
         card = Color(NovaThemeManager.getCardBackgroundColor(context)),
         dialog = Color(NovaThemeManager.getDialogBackgroundColor(context)),
-        badge = Color(ContextCompat.getColor(context, R.color.nova_badge_bg)),
+        badge = Color(NovaThemeManager.getBadgeBackgroundColor(context)),
         divider = Color(NovaThemeManager.getDividerColor(context)),
         accent = Color(NovaThemeManager.getAccentColor(context)),
         accentSurface = Color(NovaThemeManager.getAccentSurfaceColor(context)),
@@ -270,14 +272,27 @@ fun NovaComposeTheme(
         textPrimary = Color(NovaThemeManager.getTextPrimaryColor(context)),
         textSecondary = Color(NovaThemeManager.getTextSecondaryColor(context)),
         textMuted = Color(NovaThemeManager.getTextMutedColor(context)),
-        onAccent = Color(
-            ContextCompat.getColor(
-                context,
-                if (theme == NovaThemeManager.THEME_MIAMI) R.color.nova_miami_void else R.color.nova_ice
-            )
-        )
+        onAccent = Color(NovaThemeManager.getOnAccentColor(context))
     )
     val librarySurfaces = colors.librarySurfaces(theme, menuOpacityScale)
+
+    val useDarkColorScheme = when (theme) {
+        NovaThemeManager.THEME_MATERIAL_YOU -> isSystemInDarkTheme()
+        NovaThemeManager.THEME_PORTABLE_CHROME -> false
+        else -> true
+    }
+    val colorScheme = (if (useDarkColorScheme) darkColorScheme() else lightColorScheme()).copy(
+        primary = colors.accent,
+        onPrimary = colors.onAccent,
+        background = colors.window,
+        onBackground = colors.textPrimary,
+        surface = colors.card,
+        onSurface = colors.textPrimary,
+        surfaceVariant = colors.badge,
+        onSurfaceVariant = colors.textSecondary,
+        outline = colors.divider,
+        error = colors.warning
+    )
 
     androidx.compose.runtime.CompositionLocalProvider(
         LocalNovaComposeColors provides colors,
@@ -285,18 +300,7 @@ fun NovaComposeTheme(
         LocalNovaMenuOpacityScale provides menuOpacityScale
     ) {
         MaterialTheme(
-            colorScheme = darkColorScheme(
-                primary = colors.accent,
-                onPrimary = colors.onAccent,
-                background = colors.window,
-                onBackground = colors.textPrimary,
-                surface = colors.card,
-                onSurface = colors.textPrimary,
-                surfaceVariant = colors.badge,
-                onSurfaceVariant = colors.textSecondary,
-                outline = colors.divider,
-                error = colors.warning
-            ),
+            colorScheme = colorScheme,
             content = content
         )
     }

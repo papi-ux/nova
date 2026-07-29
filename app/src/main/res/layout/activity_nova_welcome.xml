@@ -38,7 +38,7 @@
                 android:gravity="center"
                 android:letterSpacing="0.03"
                 android:text="Welcome to Nova"
-                android:textColor="@color/nova_ice"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="28sp" />
 
             <TextView
@@ -50,7 +50,7 @@
                 android:gravity="center"
                 android:lineSpacingExtra="2dp"
                 android:text="A polished streaming home for Polaris, handhelds, TV, and Moonlight-compatible hosts."
-                android:textColor="@color/nova_text_secondary"
+                android:textColor="?android:attr/textColorSecondary"
                 android:textSize="14sp" />
 
             <LinearLayout
@@ -75,7 +75,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="Nova discovers PCs on your local network and keeps manual entry close when discovery is not enough."
-                    android:textColor="@color/nova_text_primary"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:textSize="16sp" />
             </LinearLayout>
 
@@ -101,7 +101,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="Use standard Moonlight pairing, or scan a Polaris pairing QR when your host shows one."
-                    android:textColor="@color/nova_text_primary"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:textSize="16sp" />
             </LinearLayout>
 
@@ -127,7 +127,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="Controller-first navigation, touch-friendly controls, TV focus rings, and performance HUDs are ready when you stream."
-                    android:textColor="@color/nova_text_primary"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:textSize="16sp" />
             </LinearLayout>
 
@@ -158,7 +158,7 @@
                 android:nextFocusDown="@id/welcome_scan_qr_btn"
                 android:text="Add manually"
                 android:textAllCaps="false"
-                android:textColor="@color/nova_text_primary"
+                android:textColor="?android:attr/textColorPrimary"
                 app:cornerRadius="25dp"
                 app:strokeColor="@color/nova_focus_stroke_selector"
                 app:strokeWidth="2dp" />
@@ -173,7 +173,7 @@
                 android:nextFocusUp="@id/welcome_add_manual_btn"
                 android:text="Scan Polaris QR"
                 android:textAllCaps="false"
-                android:textColor="@color/nova_text_primary"
+                android:textColor="?android:attr/textColorPrimary"
                 app:cornerRadius="25dp"
                 app:strokeColor="@color/nova_focus_stroke_selector"
                 app:strokeWidth="2dp" />

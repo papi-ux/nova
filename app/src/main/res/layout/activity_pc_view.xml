@@ -591,7 +591,7 @@
                         android:layout_height="32dp"
                         android:layout_marginTop="20dp"
                         android:indeterminate="true"
-                        android:indeterminateTint="@color/nova_accent" />
+                        android:indeterminateTint="?attr/colorPrimary" />
 
                     <TextView
                         android:id="@+id/pcViewEmptyTitle"

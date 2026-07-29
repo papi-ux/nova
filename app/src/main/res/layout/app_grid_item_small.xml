@@ -11,7 +11,7 @@
         android:layout_height="match_parent"
         app:cardCornerRadius="12dp"
         app:cardElevation="0dp"
-        app:cardBackgroundColor="@color/nova_bg_card">
+        app:cardBackgroundColor="?attr/colorSurface">
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -48,7 +48,7 @@
                 android:layout_margin="6dp"
                 android:text="@string/badge_hdr"
                 android:textSize="8sp"
-                android:textColor="@color/nova_ice"
+                android:textColor="?attr/colorOnSurface"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.05"
                 android:background="@drawable/nova_badge_bg"
@@ -62,7 +62,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
-                android:background="@color/nova_bg_card"
+                android:background="?attr/colorSurface"
                 android:orientation="vertical"
                 android:padding="8dp">
 
@@ -70,7 +70,7 @@
                     android:id="@+id/grid_text"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textColor="@color/nova_ice"
+                    android:textColor="?attr/colorOnSurface"
                     android:fontFamily="sans-serif-medium"
                     android:textSize="11sp"
                     android:maxLines="1"
@@ -81,7 +81,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:textColor="@color/nova_text_muted"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:textSize="8sp"
                     android:maxLines="1"
                     android:ellipsize="end"

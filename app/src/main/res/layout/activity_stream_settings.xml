@@ -22,7 +22,7 @@
             android:layout_height="wrap_content"
             android:text="Settings"
             android:textSize="26sp"
-            android:textColor="@color/nova_ice"
+            android:textColor="?attr/colorOnSurface"
             android:fontFamily="sans-serif-light"
             android:letterSpacing="0.02" />
 
@@ -31,7 +31,7 @@
             android:layout_height="wrap_content"
             android:text="Streaming"
             android:textSize="11sp"
-            android:textColor="@color/nova_text_muted"
+            android:textColor="?android:attr/textColorSecondary"
             android:fontFamily="sans-serif-medium"
             android:letterSpacing="0.12"
             android:textAllCaps="true"

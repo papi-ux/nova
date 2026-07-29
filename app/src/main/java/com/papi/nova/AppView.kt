@@ -76,6 +76,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
     private var polarisMetadataRefreshInFlight = false
     private var prefConfig: PreferenceConfiguration? = null
     private var managerBinder: ComputerManagerService.ComputerManagerBinder? = null
+    private var appliedTheme: String? = null
 
     private val serviceConnection =
         object : ServiceConnection {
@@ -262,6 +263,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
+        appliedTheme = NovaThemeManager.getTheme(this)
         super.onCreate(savedInstanceState)
 
         inForeground = true
@@ -280,7 +282,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
             }
             swipeRefresh.setColorSchemeColors(NovaThemeManager.getAccentColor(this))
             swipeRefresh.setProgressBackgroundColorSchemeColor(
-                ContextCompat.getColor(this, R.color.nova_bg_elevated),
+                NovaThemeManager.getCardBackgroundColor(this),
             )
             swipeRefresh.setOnRefreshListener {
                 poller?.pollNow()
@@ -468,8 +470,17 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
         }
     }
 
+    private fun recreateForThemeChangeIfNeeded(): Boolean {
+        val currentTheme = NovaThemeManager.getTheme(this)
+        if (appliedTheme == currentTheme) return false
+        appliedTheme = currentTheme
+        recreate()
+        return true
+    }
+
     override fun onResume() {
         super.onResume()
+        if (recreateForThemeChangeIfNeeded()) return
 
         UiHelper.showDecoderCrashDialog(this)
 

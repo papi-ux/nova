@@ -11,5 +11,5 @@
     android:maxLines="1"
     android:paddingStart="32dp"
     android:paddingEnd="32dp"
-    android:textColor="@color/nova_text_primary"
+    android:textColor="?android:attr/textColorPrimary"
     android:textSize="20sp" />
