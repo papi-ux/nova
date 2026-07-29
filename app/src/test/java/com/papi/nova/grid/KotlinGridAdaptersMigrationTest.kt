@@ -293,31 +293,79 @@ class KotlinGridAdaptersMigrationTest {
         val firstDuplicate = createComputerObject("duplicate-server")
         val secondDuplicate = createComputerObject("duplicate-server")
         adapter.setItems(listOf(firstDuplicate, secondDuplicate))
+        val duplicateId = adapter.getItemId(0)
 
         assertEquals("duplicate logical hosts must only appear once", 1, adapter.itemCount)
+
+        adapter.setItems(
+            listOf(
+                createComputerObject("duplicate-server"),
+                createComputerObject("duplicate-server"),
+            )
+        )
+
+        assertEquals("replacement duplicates must still normalize to one row", 1, adapter.itemCount)
+        assertEquals("the normalized logical host must keep its stable ID", duplicateId, adapter.getItemId(0))
+
+        val known = createComputerObject("known-server")
+        adapter.setItems(listOf(known))
+        val knownId = adapter.getItemId(0)
+        val provisional = createComputerObject("").apply { details.uuid = "" }
+        adapter.setItems(listOf(provisional))
+        val provisionalId = adapter.getItemId(0)
+
+        provisional.details.uuid = known.details.uuid
+        adapter.setItems(listOf(provisional, known))
+
+        assertEquals("discovery collisions must normalize to one logical host", 1, adapter.itemCount)
+        assertEquals("the known UUID must retain ownership of its stable ID", knownId, adapter.getItemId(0))
+        assertTrue("the provisional ID must not displace a known UUID", provisionalId != adapter.getItemId(0))
     }
 
     @Test
-    fun pcGridAdapterTransfersUuidOwnershipWithoutAliasingIds() {
+    fun pcGridAdapterKeepsStableIdsBoundToLogicalUuids() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val adapter = PcGridAdapter(context, PreferenceConfiguration())
-        val retained = createComputerObject("server-a")
-        adapter.setItems(listOf(retained))
-        val retainedId = adapter.getItemId(0)
+        val serverA = createComputerObject("server-a")
+        val serverB = createComputerObject("server-b")
+        adapter.setItems(listOf(serverA, serverB))
+        val serverAId = adapter.getItemId(0)
+        val serverBId = adapter.getItemId(1)
 
-        retained.details.uuid = "server-b"
-        adapter.setItems(listOf(retained))
+        serverA.details.uuid = "server-b-uuid"
+        adapter.setItems(listOf(serverA, serverB))
 
-        assertEquals("the retained row should keep its ID after UUID discovery", retainedId, adapter.getItemId(0))
+        assertEquals("duplicate UUID normalization should retain one logical server", 1, adapter.itemCount)
+        assertEquals("the retained logical server-b row must keep server-b's ID", serverBId, adapter.getItemId(0))
 
-        val replacementForOldUuid = createComputerObject("server-a")
-        adapter.setItems(listOf(replacementForOldUuid, retained))
+        val replacementA = createComputerObject("server-a")
+        val replacementB = createComputerObject("server-b")
+        adapter.setItems(listOf(replacementA, replacementB))
 
-        assertTrue(
-            "the old UUID must not remain aliased to the retained row ID",
-            adapter.getItemId(0) != retainedId,
-        )
-        assertEquals(retainedId, adapter.getItemId(1))
+        assertEquals("server-a must retain its UUID-owned ID", serverAId, adapter.getItemId(0))
+        assertEquals("server-b replacements must retain their UUID-owned ID", serverBId, adapter.getItemId(1))
+        assertTrue("logical UUIDs must never alias the same stable ID", adapter.getItemId(0) != adapter.getItemId(1))
+    }
+
+    @Test
+    fun pcGridAdapterTreatsNonblankUuidChangesAsNewLogicalServers() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val adapter = PcGridAdapter(context, PreferenceConfiguration())
+        val original = createComputerObject("server-a")
+        adapter.setItems(listOf(original))
+        val serverAId = adapter.getItemId(0)
+
+        original.details.uuid = "server-c-uuid"
+        adapter.setItems(listOf(original))
+        val serverCId = adapter.getItemId(0)
+
+        assertTrue("a different nonblank UUID must not inherit server-a's ID", serverAId != serverCId)
+
+        val replacementA = createComputerObject("server-a")
+        adapter.setItems(listOf(replacementA, original))
+
+        assertEquals(serverAId, adapter.getItemId(0))
+        assertEquals(serverCId, adapter.getItemId(1))
     }
 
     private fun createAdapter(): AppGridAdapter {

@@ -11,6 +11,7 @@ import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.RecyclerView
 import com.papi.nova.PcViewModel
 import com.papi.nova.R
 import com.papi.nova.nvstream.http.ComputerDetails
@@ -24,8 +25,9 @@ class PcGridAdapter(
     context: Context,
     prefs: PreferenceConfiguration
 ) : GenericGridAdapter<PcViewModel.ComputerObject>(context, getLayoutIdForPreferences(prefs)) {
-    private val stableIdsByObject = IdentityHashMap<PcViewModel.ComputerObject, Long>()
-    private val uuidsByObject = IdentityHashMap<PcViewModel.ComputerObject, String>()
+    // PcViewModel and ComputerDetails treat a nonblank UUID as the logical host identity.
+    // Object identity is only a provisional fallback until discovery supplies that UUID.
+    private val provisionalIdsByObject = IdentityHashMap<PcViewModel.ComputerObject, Long>()
     private val stableIdsByUuid = HashMap<String, Long>()
     private val reservedStableIds = HashSet<Long>()
     private val itemIds = ArrayList<Long>()
@@ -92,56 +94,24 @@ class PcGridAdapter(
         }
     }
 
-    private fun assignStableIds(items: List<PcViewModel.ComputerObject>): List<Long> {
-        val assignedIds = HashSet<Long>(items.size)
-        return items.map { computer ->
-            val knownObjectId = stableIdsByObject[computer]
-            val id =
-                if (knownObjectId != null && knownObjectId !in assignedIds) {
-                    bindUuidIfAvailable(computer, knownObjectId)
-                    knownObjectId
-                } else {
-                    assignStableId(computer, assignedIds)
-                }
-            assignedIds.add(id)
-            id
-        }
-    }
+    private fun assignStableIds(items: List<PcViewModel.ComputerObject>): List<Long> =
+        items.map(::stableIdFor)
 
-    private fun assignStableId(
-        computer: PcViewModel.ComputerObject,
-        assignedIds: Set<Long>,
-    ): Long {
+    private fun stableIdFor(computer: PcViewModel.ComputerObject): Long {
         val uuid = computer.details.uuid.trim()
-        val mappedUuidId = uuid.takeIf(String::isNotEmpty)?.let(stableIdsByUuid::get)
-        val id =
-            if (mappedUuidId != null && mappedUuidId !in assignedIds) {
-                mappedUuidId
-            } else if (uuid.isNotEmpty() && mappedUuidId == null) {
-                reserveUniqueId(stableServerId(uuid))
-            } else {
-                reserveFallbackId()
-            }
+        if (uuid.isEmpty()) {
+            return provisionalIdsByObject.getOrPut(computer, ::reserveFallbackId)
+        }
 
-        stableIdsByObject[computer] = id
-        updateUuidOwnership(computer, uuid, id)
+        val existingId = stableIdsByUuid[uuid]
+        if (existingId != null) {
+            provisionalIdsByObject.remove(computer)
+            return existingId
+        }
+
+        val id = provisionalIdsByObject.remove(computer) ?: reserveUniqueId(stableServerId(uuid))
+        stableIdsByUuid[uuid] = id
         return id
-    }
-
-    private fun bindUuidIfAvailable(computer: PcViewModel.ComputerObject, id: Long) {
-        val uuid = computer.details.uuid.trim()
-        updateUuidOwnership(computer, uuid, id)
-    }
-
-    private fun updateUuidOwnership(computer: PcViewModel.ComputerObject, uuid: String, id: Long) {
-        val previousUuid = uuidsByObject.put(computer, uuid)
-        if (!previousUuid.isNullOrEmpty() && previousUuid != uuid && stableIdsByUuid[previousUuid] == id) {
-            stableIdsByUuid.remove(previousUuid)
-        }
-
-        if (uuid.isNotEmpty() && uuid !in stableIdsByUuid) {
-            stableIdsByUuid[uuid] = id
-        }
     }
 
     private fun reserveFallbackId(): Long {
@@ -152,7 +122,7 @@ class PcGridAdapter(
 
     private fun reserveUniqueId(candidate: Long): Long {
         var id = candidate
-        while (!reservedStableIds.add(id)) {
+        while (id == RecyclerView.NO_ID || !reservedStableIds.add(id)) {
             id++
         }
         return id
