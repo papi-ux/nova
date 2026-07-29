@@ -37,7 +37,7 @@ abstract class GenericGridAdapter<T>(
         clickListener = listener
     }
 
-    fun setItems(items: List<T>?) {
+    open fun setItems(items: List<T>?) {
         itemList.clear()
         if (items != null) {
             itemList.addAll(items)
