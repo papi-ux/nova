@@ -513,33 +513,28 @@ class ComputerManagerService : Service() {
     }
 
     fun removeComputer(computer: ComputerDetails): Boolean {
-        val removed = pollingTuples.remove(computer.uuid)
-        removed?.future?.cancel(true)
-        if (removed != null) {
-            removed.future = null
+        // Acquire before waiting so service teardown cannot close the database mid-removal.
+        if (!getLocalDatabaseReference()) {
+            return false
         }
 
-        fun deletePersistedComputer(): Boolean {
-            if (!getLocalDatabaseReference()) {
-                return false
-            }
-            return try {
+        return try {
+            val removed = pollingTuples.remove(computer.uuid)
+            removed?.future?.cancel(true)
+            if (removed != null) {
+                removed.future = null
+                synchronized(removed.networkLock) {
+                    dbManager.deleteComputer(computer)
+                }
+            } else {
                 dbManager.deleteComputer(computer)
-                true
-            } catch (error: RuntimeException) {
-                LimeLog.warning("ComputerManagerService: remove failed (${error.javaClass.simpleName})")
-                false
-            } finally {
-                releaseLocalDatabaseReference()
             }
-        }
-
-        return if (removed != null) {
-            synchronized(removed.networkLock) {
-                deletePersistedComputer()
-            }
-        } else {
-            deletePersistedComputer()
+            true
+        } catch (error: RuntimeException) {
+            LimeLog.warning("ComputerManagerService: remove failed (${error.javaClass.simpleName})")
+            false
+        } finally {
+            releaseLocalDatabaseReference()
         }
     }
 

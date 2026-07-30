@@ -34,7 +34,6 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -96,7 +95,10 @@ import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParserException
@@ -2569,59 +2571,77 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     private fun removeComputer(details: ComputerDetails) {
-        val binder = managerBinder
-        if (binder == null) {
-            Toast.makeText(this, R.string.nova_server_remove_failed, Toast.LENGTH_LONG).show()
-            return
-        }
+        val appContext = applicationContext
+        val failureMessage = getString(R.string.nova_server_remove_failed)
+        val deletedShortcutReason = getString(R.string.scut_deleted_pc)
+        val removalViewModel = if (::viewModel.isInitialized) viewModel else null
+        val removalShortcutHelper = shortcutHelper
 
-        lifecycleScope.launch {
-            val removed = withContext(Dispatchers.IO) {
-                val success = runCatching {
-                    binder.removeComputer(details)
-                }.onFailure { error ->
-                    LimeLog.warning("Nova: Remove server request failed (${error.javaClass.simpleName})")
-                }.getOrDefault(false)
+        lateinit var removalConnection: ServiceConnection
+        removalConnection = object : ServiceConnection {
+            override fun onServiceConnected(className: ComponentName, service: IBinder) {
+                val binder = service as? ComputerManagerService.ComputerManagerBinder
+                if (binder == null) {
+                    runCatching { appContext.unbindService(removalConnection) }
+                    Toast.makeText(appContext, failureMessage, Toast.LENGTH_LONG).show()
+                    return
+                }
 
-                if (success) {
-                    runCatching {
-                        DiskAssetLoader(applicationContext).deleteAssetsForComputer(details.uuid)
-                    }.onFailure { error ->
-                        LimeLog.warning("Nova: Server asset cleanup failed (${error.javaClass.simpleName})")
+                serverRemovalScope.launch {
+                    try {
+                        val removed = runCatching {
+                            binder.removeComputer(details)
+                        }.onFailure { error ->
+                            LimeLog.warning("Nova: Remove server request failed (${error.javaClass.simpleName})")
+                        }.getOrDefault(false)
+
+                        if (!removed) {
+                            withContext(Dispatchers.Main.immediate) {
+                                Toast.makeText(appContext, failureMessage, Toast.LENGTH_LONG).show()
+                            }
+                            return@launch
+                        }
+
+                        runCatching {
+                            DiskAssetLoader(appContext).deleteAssetsForComputer(details.uuid)
+                        }.onFailure { error ->
+                            LimeLog.warning("Nova: Server asset cleanup failed (${error.javaClass.simpleName})")
+                        }
+
+                        appContext.getSharedPreferences(AppView.HIDDEN_APPS_PREF_FILENAME, MODE_PRIVATE)
+                            .edit()
+                            .remove(details.uuid)
+                            .apply()
+                        removalViewModel?.removeComputer(details.uuid)
+
+                        withContext(Dispatchers.Main.immediate) {
+                            runCatching {
+                                removalShortcutHelper.disableComputerShortcut(details, deletedShortcutReason)
+                            }.onFailure { error ->
+                                LimeLog.warning("Nova: Shortcut cleanup failed (${error.javaClass.simpleName})")
+                            }
+                            if (!isFinishing && !isDestroyed) {
+                                syncComputerList()
+                            }
+                        }
+                    } finally {
+                        withContext(Dispatchers.Main.immediate) {
+                            runCatching { appContext.unbindService(removalConnection) }
+                        }
                     }
                 }
-                success
             }
 
-            if (!removed) {
-                if (!isFinishing && !isDestroyed) {
-                    Toast.makeText(
-                        this@PcView,
-                        R.string.nova_server_remove_failed,
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
-                return@launch
-            }
-            if (isFinishing || isDestroyed) {
-                return@launch
-            }
+            override fun onServiceDisconnected(className: ComponentName) = Unit
+        }
 
-            if (::viewModel.isInitialized) {
-                viewModel.removeComputer(details.uuid)
-            }
-
-            getSharedPreferences(AppView.HIDDEN_APPS_PREF_FILENAME, MODE_PRIVATE)
-                .edit()
-                .remove(details.uuid)
-                .apply()
-
-            shortcutHelper.disableComputerShortcut(
-                details,
-                resources.getString(R.string.scut_deleted_pc),
+        if (!appContext.bindService(
+                Intent(appContext, ComputerManagerService::class.java),
+                removalConnection,
+                Context.BIND_AUTO_CREATE,
             )
-
-            syncComputerList()
+        ) {
+            Toast.makeText(appContext, failureMessage, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -2750,6 +2770,11 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     companion object {
+        private val serverRemovalScope = CoroutineScope(
+            SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, error ->
+                LimeLog.warning("Nova: Server removal task failed (${error.javaClass.simpleName})")
+            },
+        )
         private const val FILTER_ALL = 0
         private const val FILTER_ONLINE = 1
         private const val FILTER_STREAMING = 2
