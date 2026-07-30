@@ -389,7 +389,7 @@
     <!-- Theme-aware legacy action pills -->
     <style name="NovaTonalPillButton" parent="Widget.AppCompat.Button.Borderless">
         <item name="android:background">@drawable/nova_tonal_pill_button</item>
-        <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="android:textColor">?attr/colorOnPrimaryContainer</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:textSize">13sp</item>
         <item name="android:textAllCaps">false</item>

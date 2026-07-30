@@ -36,6 +36,7 @@ class StreamSettingsModernButtonSourceTest {
         assertTrue(layout.contains("style=\"@style/NovaTonalPillButton\""))
         assertTrue(manageLayout.contains("style=\"@style/NovaTonalPillButton\""))
         assertTrue(styles.contains("name=\"NovaTonalPillButton\""))
+        assertTrue(styles.contains("?attr/colorOnPrimaryContainer"))
         assertTrue(pill.exists())
         assertTrue(pillXml.contains("?attr/colorPrimaryContainer"))
         assertTrue(pillXml.contains("?attr/colorControlHighlight"))
