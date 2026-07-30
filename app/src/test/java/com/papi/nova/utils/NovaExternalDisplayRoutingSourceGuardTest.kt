@@ -192,20 +192,23 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     fun companionDialogsAttachToTheLivePresentationWindowToken() {
         val presentation =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val controller =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlController.kt").readText()
         val gameMenu = File("src/main/java/com/papi/nova/GameMenu.kt").readText()
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
 
         assertTrue(presentation.contains("TYPE_APPLICATION_ATTACHED_DIALOG"))
         assertTrue(presentation.contains("createWindowContext("))
-        assertTrue(presentation.contains("presentationWindow.decorView.windowToken"))
+        assertTrue(presentation.contains("hostWindow.decorView.windowToken"))
         assertFalse(
             "A second TYPE_PRESENTATION window reuses the wrong WindowContext token and crashes",
             presentation.contains("presentationWindow.attributes.type")
         )
         assertTrue(
-            presentation.contains(
+            controller.contains(
                 "GameMenu(game, companionDialogContext, companionDialogWindowType, ::companionDialogWindowToken)"
-            )
+            ) ||
+                controller.contains("host.companionDialogContext")
         )
         assertTrue(gameMenu.contains("private val dialogWindowTokenProvider: (() -> IBinder?)? = null"))
         assertTrue(gameMenu.contains("window.setType(windowType)"))
@@ -245,7 +248,7 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
-    fun companionControlsAreGameOwnedPresentationInsteadOfManifestActivity() {
+    fun companionControlsUsePresentationForSecondaryDisplaysAndActivityForDefaultDisplay() {
         val presentationFile =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt")
         val activityFile =
@@ -253,15 +256,52 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val manifest = File("src/main/AndroidManifest.xml").readText()
 
-        assertTrue("Companion controls should have a Presentation source", presentationFile.exists())
+        assertTrue("Companion controls should retain a Presentation source", presentationFile.exists())
         val presentation = presentationFile.readText()
         assertTrue(presentation.contains("class ExternalDisplayControlPresentation"))
-        assertTrue(presentation.contains("Presentation(game, display"))
-        assertTrue(game.contains("private var externalDisplayControlPresentation"))
-        assertTrue(game.contains("ExternalDisplayControlPresentation(this, companionDisplay"))
-        assertFalse("The obsolete companion Activity source should be removed", activityFile.exists())
+        assertTrue(presentation.contains("Presentation(game, controlDisplay"))
+        assertTrue(
+            "Game should retain the Presentation path for presentation-capable companion displays",
+            game.contains("ExternalDisplayControlPresentation(this, companionDisplay")
+        )
+
+        assertTrue(
+            "Display.DEFAULT_DISPLAY cannot host TYPE_PRESENTATION, so a fallback Activity source is required",
+            activityFile.exists()
+        )
+        val activity = activityFile.readText()
+        assertTrue(activity.contains("class ExternalDisplayControlActivity"))
+        assertTrue(activity.contains("ExternalDisplayControlController(this)"))
+        assertTrue(activity.contains("attachExternalDisplayControlActivity(this)"))
+        assertTrue(
+            "The default-display fallback must not steal Game focus/audio ownership",
+            activity.contains("WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE")
+        )
+        val activityOnCreate = activity.substringAfter("override fun onCreate").substringBefore("override fun onStart")
+        val notFocusable = activityOnCreate.indexOf("WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE")
+        val controlCreation = activityOnCreate.indexOf("ExternalDisplayControlController(this)")
+        assertTrue(
+            "The fallback Activity must be non-focusable before control creation",
+            notFocusable >= 0 && controlCreation > notFocusable
+        )
+        assertTrue(
+            "Game must route companion displays through the tested host-selection policy",
+            game.contains("when (CompanionControlHostPolicy.select(companionDisplayId))")
+        )
+        assertTrue(
+            "The Activity policy branch must launch the default-display fallback",
+            game.contains("CompanionControlHostPolicy.HostType.ACTIVITY") &&
+                game.contains("ExternalDisplayControlActivity.launch(this, companionDisplayId)")
+        )
+        assertTrue(activity.contains("options.setLaunchDisplayId(displayId)"))
+        assertTrue(activity.contains("Intent.FLAG_ACTIVITY_NEW_TASK"))
+        assertTrue(manifest.contains(".utils.ExternalDisplayControlActivity"))
+        assertTrue(manifest.contains("android:launchMode=\"singleInstance\""))
+        assertTrue(manifest.contains("android:taskAffinity=\"\""))
+        assertTrue(manifest.contains("android:exported=\"false\""))
+        assertTrue(manifest.contains("android:noHistory=\"true\""))
         assertFalse(
-            "A Game-owned Presentation must not be registered as an Activity",
+            "A Game-owned Presentation must never be registered as an Activity",
             manifest.contains("ExternalDisplayControlPresentation")
         )
     }
@@ -271,6 +311,8 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val presentation =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val controller =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlController.kt").readText()
         val showBlock =
             game.substringAfter("val presentation = ExternalDisplayControlPresentation")
                 .substringBefore("listenForExternalDisplayRemoval()")
@@ -280,11 +322,15 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         assertTrue("Failed show must explicitly dispose partial Presentation state", dispose >= 0)
         assertTrue("Disposal must happen before Game clears its owner reference", clearReference > dispose)
         val transientDisposal =
-            presentation.substringAfter("private fun disposeTransientState()")
+            controller.substringAfter("private fun disposeTransientState()")
                 .substringBefore("fun disposeAfterFailedShow()")
         val failedShowDisposal =
-            presentation.substringAfter("fun disposeAfterFailedShow()")
+            controller.substringAfter("fun disposeAfterFailedShow()")
                 .substringBefore("override fun onStop()")
+                .ifEmpty {
+                    controller.substringAfter("fun disposeAfterFailedShow()")
+                        .substringBefore("fun onStop()")
+                }
         assertTrue(transientDisposal.contains("handler.removeCallbacksAndMessages(null)"))
         assertTrue(
             "Failed-show disposal must invoke the real transient-state cleanup",
@@ -297,13 +343,15 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val presentation =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val controller =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlController.kt").readText()
         val launchBlock =
             game.substringAfter("presentation.show()").substringBefore("catch (e:WindowManager.InvalidDisplayException)")
         val permissionBlock =
             game.substringAfter("override fun onRequestPermissionsResult(")
                 .substringBefore("override fun onNewIntent(")
         val compactPermissionBlock = permissionBlock.replace(Regex("""\s+"""), " ")
-        val initViews = presentation.substringAfter("private fun initViews()").substringBefore("private fun initTouchEventHandling()")
+        val initViews = controller.substringAfter("private fun initViews()").substringBefore("private fun initTouchEventHandling()")
 
         assertTrue(
             launchBlock.contains(
@@ -358,27 +406,29 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val presentation =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val controller =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlController.kt").readText()
 
         assertTrue(
             "Presentation teardown needs one deferred dismissal entrypoint",
             presentation.contains("fun dismissAfterCurrentCallback()"),
         )
         val deferredDismiss =
-            presentation.substringAfter("fun dismissAfterCurrentCallback()")
-                .substringBefore("override fun onStop()")
+            controller.substringAfter("fun dismissAfterCurrentCallback()")
+                .substringBefore("fun cancel()")
         val post = deferredDismiss.indexOf("handler.post")
-        val showingGuard = deferredDismiss.indexOf("if (isShowing)", post)
-        val dismiss = deferredDismiss.indexOf("dismiss()", showingGuard)
+        val showingGuard = deferredDismiss.indexOf("if (host.isHostShowing())", post)
+        val dismiss = deferredDismiss.indexOf("host.dismissHost()", showingGuard)
         assertTrue("dismissal must be posted beyond the active ViewRoot callback", post >= 0)
         assertTrue("a stale posted callback must not dismiss an already-hidden Presentation", showingGuard > post)
         assertTrue("dismissal must happen only after the showing-state guard", dismiss > showingGuard)
 
         val onStart =
-            presentation.substringAfter("override fun onStart()")
-                .substringBefore("private fun disposeTransientState()")
+            controller.substringAfter("fun onStart()")
+                .substringBefore("fun dismissAfterCurrentCallback()")
         val focusChanged =
-            presentation.substringAfter("override fun onWindowFocusChanged(hasFocus: Boolean)")
-                .substringBefore("@Deprecated")
+            controller.substringAfter("fun onWindowFocusChanged(hasFocus: Boolean)")
+                .substringBefore("fun handleCompanionBack()")
         assertTrue(onStart.contains("dismissAfterCurrentCallback()"))
         assertTrue(focusChanged.contains("dismissAfterCurrentCallback()"))
 
@@ -414,7 +464,7 @@ class NovaExternalDisplayRoutingSourceGuardTest {
 
         val directDismissCalls = Regex("""(?<![\w.])dismiss\(\)""").findAll(presentation).count()
         assertTrue(
-            "all Presentation-owned teardown must flow through the deferred helper; found $directDismissCalls direct calls",
+            "Presentation-owned teardown must keep one host dismiss implementation; found $directDismissCalls direct calls",
             directDismissCalls == 1,
         )
     }
@@ -449,27 +499,26 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     fun presentationCancellationDefersDisplayRemovalAndBackTeardown() {
         val presentation =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val controller =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlController.kt").readText()
 
         assertTrue(
             "Presentation must override inherited cancel() used by display removal and Back",
             presentation.contains("override fun cancel()"),
         )
         val cancel =
-            presentation.substringAfter("override fun cancel()")
-                .substringBefore("private fun cancelNow()")
-        assertTrue("inherited cancellation must post beyond the active framework callback", cancel.contains("handler.post"))
-        assertTrue("the posted cancellation must delegate to one framework-cancel helper", cancel.contains("cancelNow()"))
-
-        val cancelNow =
-            presentation.substringAfter("private fun cancelNow()")
+            controller.substringAfter("fun cancel()")
                 .substringBefore("private fun disposeTransientState()")
-        val showingGuard = cancelNow.indexOf("if (isShowing)")
-        val frameworkCancel = cancelNow.indexOf("super.cancel()", showingGuard)
+        assertTrue("inherited cancellation must post beyond the active framework callback", cancel.contains("handler.post"))
+        assertTrue("the posted cancellation must delegate to the host cancel helper", cancel.contains("host.cancelHost()"))
+
+        val showingGuard = cancel.indexOf("if (host.isHostShowing())")
+        val frameworkCancel = cancel.indexOf("host.cancelHost()", showingGuard)
         assertTrue("stale cancellation must not act on an already-hidden Presentation", showingGuard >= 0)
         assertTrue("framework cancellation must run only after the showing-state guard", frameworkCancel > showingGuard)
 
         val backPressed =
-            presentation.substringAfter("override fun onBackPressed()")
+            controller.substringAfter("fun handleCompanionBack()")
                 .substringBefore("private fun initializeComponents()")
         assertTrue("Back teardown must use the deferred cancellation override", backPressed.contains("cancel()"))
         assertFalse("Back must not re-enter synchronous Dialog.onBackPressed teardown", backPressed.contains("super.onBackPressed()"))
@@ -523,6 +572,8 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val presentation =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
+        val controller =
+            File("src/main/java/com/papi/nova/utils/ExternalDisplayControlController.kt").readText()
 
         assertTrue("Shared focus telemetry formatter must exist", telemetryFile.exists())
         val telemetry = telemetryFile.readText()
@@ -556,8 +607,8 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         )
 
         val presentationFocus =
-            presentation.substringAfter("override fun onWindowFocusChanged(hasFocus: Boolean)")
-                .substringBefore("@Deprecated")
+            controller.substringAfter("fun onWindowFocusChanged(hasFocus: Boolean)")
+                .substringBefore("fun handleCompanionBack()")
         assertTrue(
             presentationFocus.contains(
                 "game.logCompanionDisplayFocus(display.displayId, hasFocus)",

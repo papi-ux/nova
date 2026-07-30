@@ -166,6 +166,14 @@
             android:noHistory="true"
             android:resizeableActivity="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
+        <activity android:name=".utils.ExternalDisplayControlActivity"
+            android:exported="false"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
+            android:resizeableActivity="true"
+            android:theme="@style/ExternalDisplayControllerTheme"/>
         <activity
             android:name=".preferences.StreamSettings"
             android:resizeableActivity="true"
