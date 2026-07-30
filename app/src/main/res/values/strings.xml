@@ -236,6 +236,8 @@
     <string name="nova_library_options_layout_compact_grid_hint">More games on screen for fast controller sweeps.</string>
     <string name="nova_library_options_layout_list">List</string>
     <string name="nova_library_options_layout_list_hint">One-column rows for quick title scanning.</string>
+    <string name="nova_library_options_layout_spotlight">Spotlight row</string>
+    <string name="nova_library_options_layout_spotlight_hint">Center the focused game with adjacent titles ready on either side.</string>
     <string name="nova_library_options_poster_titles_title">Poster titles</string>
     <string name="nova_library_options_poster_titles_show">Show titles</string>
     <string name="nova_library_options_poster_titles_show_hint">Keep the readable title bar on poster cards.</string>
@@ -296,6 +298,7 @@
     <string name="nova_library_error_hint">Check Polaris and try again.</string>
     <string name="nova_library_error_action_manage">Manage server</string>
     <string name="nova_library_card_action_details">Details</string>
+    <string name="nova_library_unknown_game">Unknown game</string>
     <string name="nova_library_meta_last_played">Played %1$s</string>
     <string name="nova_library_meta_ready_to_play">Ready to play</string>
     <string name="nova_library_launch_mode_title">Launch Mode</string>

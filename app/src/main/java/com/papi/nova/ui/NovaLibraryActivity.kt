@@ -4,10 +4,17 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.tween
 import androidx.activity.OnBackPressedCallback
 import com.papi.nova.NovaActivity
@@ -144,6 +151,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import kotlin.math.abs
 
 private data class LibraryLoadResult(
     val games: List<PolarisGame>,
@@ -179,7 +187,9 @@ class NovaLibraryActivity : NovaActivity() {
     private var activeSystemMenu by mutableStateOf(false)
     private var lastFocusedGameId by mutableStateOf<String?>(null)
     private var lastFocusedPrimaryFilter by mutableStateOf(NovaLibraryPrimaryFilter.ALL)
+    private var controllerHintChromeState by mutableStateOf(NovaControllerHintChromeState())
     private var activeSessionRefreshJob: Job? = null
+    private var controllerHintIdleJob: Job? = null
     private var appliedTheme: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -239,6 +249,7 @@ class NovaLibraryActivity : NovaActivity() {
                         activeFilterSheet = activeFilterSheet,
                         activeOptionsSheet = activeOptionsSheet,
                         activeSystemMenu = activeSystemMenu,
+                        controllerHintsVisible = controllerHintChromeState.visible,
                         restoreFocusGameId = lastFocusedGameId,
                         restoreFocusPrimaryFilter = lastFocusedPrimaryFilter,
                         onBack = ::finishWithTransition,
@@ -262,9 +273,7 @@ class NovaLibraryActivity : NovaActivity() {
                         onSortMode = { sortMode ->
                             updateLibraryOptions { it.copy(sortMode = sortMode) }
                         },
-                        onLayoutMode = { layoutMode ->
-                            updateLibraryOptions { it.copy(layoutMode = layoutMode) }
-                        },
+                        onLayoutMode = ::selectLibraryLayoutMode,
                         onPosterTitlesVisible = { showPosterTitles ->
                             updateLibraryOptions { it.copy(showPosterTitles = showPosterTitles) }
                         },
@@ -333,6 +342,11 @@ class NovaLibraryActivity : NovaActivity() {
         NovaLibraryPreferences.persistOptions(libraryPreferences(), nextState)
     }
 
+    private fun selectLibraryLayoutMode(layoutMode: NovaLibraryLayoutMode) {
+        updateLibraryOptions { it.copy(layoutMode = layoutMode) }
+        revealControllerHints(NovaControllerHintChromeEvent.LAYOUT_CHANGED)
+    }
+
     private fun updateLibraryFilterState(nextState: NovaLibraryFilterState) {
         val normalized = NovaLibraryPreferences.normalizeFilterState(nextState)
         filterState = normalized
@@ -343,6 +357,7 @@ class NovaLibraryActivity : NovaActivity() {
     override fun onResume() {
         super.onResume()
         if (recreateForThemeChangeIfNeeded()) return
+        revealControllerHints(NovaControllerHintChromeEvent.EXPLICIT_REVEAL)
         if (::apiClient.isInitialized && !isInitialLoading) {
             if (consumeLocalSessionEndSignal()) {
                 activeSession = null
@@ -379,6 +394,16 @@ class NovaLibraryActivity : NovaActivity() {
                 true
             }
             KeyEvent.KEYCODE_BUTTON_Y -> cycleLibraryLayoutMode()
+            KeyEvent.KEYCODE_HELP,
+            KeyEvent.KEYCODE_INFO,
+            KeyEvent.KEYCODE_F1 -> {
+                revealControllerHints(NovaControllerHintChromeEvent.HELP_REQUESTED)
+                true
+            }
+            KeyEvent.KEYCODE_BUTTON_SELECT -> {
+                revealControllerHints(NovaControllerHintChromeEvent.EXPLICIT_REVEAL)
+                true
+            }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_START -> {
                 if (!activeSystemMenu) openLibrarySystemMenu()
                 true
@@ -387,12 +412,53 @@ class NovaLibraryActivity : NovaActivity() {
         }
     }
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode in CONTROLLER_BROWSE_KEYS) {
+            registerControllerBrowseIntent()
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        val isJoystick = event.source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
+        if (isJoystick && event.action == MotionEvent.ACTION_MOVE && event.hasControllerBrowseMotion()) {
+            registerControllerBrowseIntent()
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    private fun MotionEvent.hasControllerBrowseMotion(): Boolean {
+        return CONTROLLER_BROWSE_AXES.any { axis ->
+            abs(getAxisValue(axis)) >= CONTROLLER_AXIS_INTENT_THRESHOLD
+        }
+    }
+
+    private fun registerControllerBrowseIntent() {
+        if (hasActiveLibraryOverlay) return
+        controllerHintChromeState = controllerHintChromeState.reduce(
+            NovaControllerHintChromeEvent.BROWSE_INTENT
+        )
+        controllerHintIdleJob?.cancel()
+        controllerHintIdleJob = lifecycleScope.launch {
+            delay(CONTROLLER_HINT_IDLE_REVEAL_MS)
+            controllerHintChromeState = controllerHintChromeState.reduce(
+                NovaControllerHintChromeEvent.IDLE
+            )
+        }
+    }
+
+    private fun revealControllerHints(event: NovaControllerHintChromeEvent) {
+        controllerHintIdleJob?.cancel()
+        controllerHintIdleJob = null
+        controllerHintChromeState = controllerHintChromeState.reduce(event)
+    }
+
     private fun cycleLibraryLayoutMode(): Boolean {
         if (activeOptionsSheet || activeSystemMenu || activeFilterSheet != null) {
             return false
         }
         val nextMode = optionsState.layoutMode.next()
-        updateLibraryOptions { it.copy(layoutMode = nextMode) }
+        selectLibraryLayoutMode(nextMode)
         Toast.makeText(
             this,
             getString(R.string.nova_library_layout_toast_format, getString(layoutModeLabelRes(nextMode))),
@@ -404,6 +470,8 @@ class NovaLibraryActivity : NovaActivity() {
     override fun onStop() {
         activeSessionRefreshJob?.cancel()
         activeSessionRefreshJob = null
+        controllerHintIdleJob?.cancel()
+        controllerHintIdleJob = null
         detailSheet?.dismissAllowingStateLoss()
         detailSheet = null
         super.onStop()
@@ -904,6 +972,7 @@ class NovaLibraryActivity : NovaActivity() {
         activeFilterSheet: LibraryFilterSheet?,
         activeOptionsSheet: Boolean,
         activeSystemMenu: Boolean,
+        controllerHintsVisible: Boolean,
         restoreFocusGameId: String?,
         restoreFocusPrimaryFilter: NovaLibraryPrimaryFilter,
         onBack: () -> Unit,
@@ -938,6 +1007,7 @@ class NovaLibraryActivity : NovaActivity() {
         }
         val configuration = LocalConfiguration.current
         val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+        val spotlightMode = model.optionsState.layoutMode == NovaLibraryLayoutMode.SPOTLIGHT
         val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()
         val columns = NovaLibraryUiStateMapper.gridColumnsForScreen(
             configuration.screenWidthDp,
@@ -945,16 +1015,17 @@ class NovaLibraryActivity : NovaActivity() {
             model.optionsState.layoutMode
         )
         val railWidth = NovaLibraryUiStateMapper.railWidthDp(configuration.screenWidthDp).dp
-        val showLandscapeRecentRail = NovaLibraryUiStateMapper.showLandscapeRecentRail(
-            screenHeightDp = configuration.screenHeightDp,
-            heroReason = model.hero.reason,
-            recentCount = model.recentGames.size
-        )
+        val showLandscapeRecentRail = !spotlightMode &&
+            NovaLibraryUiStateMapper.showLandscapeRecentRail(
+                screenHeightDp = configuration.screenHeightDp,
+                heroReason = model.hero.reason,
+                recentCount = model.recentGames.size
+            )
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
         val controllerHintBarBottomPadding = NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp
         val controllerHintBarLandscapeStartPadding = if (isLandscape && showLandscapeControlRail) railWidth + 10.dp else 0.dp
-        val restoreFocusGameInRecent = restoreFocusGameId != null &&
+        val restoreFocusGameInRecent = !spotlightMode && restoreFocusGameId != null &&
             model.recentGames.any { it.id == restoreFocusGameId }
         val focusedBackdropGame = remember(
             model.filteredGames,
@@ -1014,27 +1085,29 @@ class NovaLibraryActivity : NovaActivity() {
                                 onOpenOptions = onOpenOptions,
                                 onOpenSystemMenu = onOpenSystemMenu
                             )
-                            NovaLibraryHomeHero(
-                                hero = model.hero,
-                                compact = true,
-                                apiClient = apiClient,
-                                onPrimaryAction = {
-                                    when (model.hero.primaryAction) {
-                                        NovaLibraryHeroPrimaryAction.RESUME,
-                                        NovaLibraryHeroPrimaryAction.WATCH -> activeSession?.let(onResumeSession)
-                                        NovaLibraryHeroPrimaryAction.OPEN_DETAIL -> model.hero.game?.let(onOpenDetail)
-                                        NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
-                                        NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
-                                    }
-                                },
-                                onSecondaryAction = {
-                                    when (model.hero.secondaryAction) {
-                                        NovaLibraryHeroSecondaryAction.END_SESSION -> activeSession?.let(onEndSession)
-                                        null -> Unit
-                                    }
-                                },
-                                onGameFocused = onGameFocused
-                            )
+                            if (!spotlightMode || activeSession != null) {
+                                NovaLibraryHomeHero(
+                                    hero = model.hero,
+                                    compact = true,
+                                    apiClient = apiClient,
+                                    onPrimaryAction = {
+                                        when (model.hero.primaryAction) {
+                                            NovaLibraryHeroPrimaryAction.RESUME,
+                                            NovaLibraryHeroPrimaryAction.WATCH -> activeSession?.let(onResumeSession)
+                                            NovaLibraryHeroPrimaryAction.OPEN_DETAIL -> model.hero.game?.let(onOpenDetail)
+                                            NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
+                                            NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
+                                        }
+                                    },
+                                    onSecondaryAction = {
+                                        when (model.hero.secondaryAction) {
+                                            NovaLibraryHeroSecondaryAction.END_SESSION -> activeSession?.let(onEndSession)
+                                            null -> Unit
+                                        }
+                                    },
+                                    onGameFocused = onGameFocused
+                                )
+                            }
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
@@ -1082,28 +1155,30 @@ class NovaLibraryActivity : NovaActivity() {
                                 onOpenOptions = onOpenOptions,
                                 onOpenSystemMenu = onOpenSystemMenu
                             )
-                            NovaLibraryHomeHero(
-                                hero = model.hero,
-                                compact = false,
-                                apiClient = apiClient,
-                                onPrimaryAction = {
-                                    when (model.hero.primaryAction) {
-                                        NovaLibraryHeroPrimaryAction.RESUME,
-                                        NovaLibraryHeroPrimaryAction.WATCH -> activeSession?.let(onResumeSession)
-                                        NovaLibraryHeroPrimaryAction.OPEN_DETAIL -> model.hero.game?.let(onOpenDetail)
-                                        NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
-                                        NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
-                                    }
-                                },
-                                onSecondaryAction = {
-                                    when (model.hero.secondaryAction) {
-                                        NovaLibraryHeroSecondaryAction.END_SESSION -> activeSession?.let(onEndSession)
-                                        null -> Unit
-                                    }
-                                },
-                                onGameFocused = onGameFocused
-                            )
-                            if (model.recentGames.isNotEmpty()) {
+                            if (!spotlightMode || activeSession != null) {
+                                NovaLibraryHomeHero(
+                                    hero = model.hero,
+                                    compact = false,
+                                    apiClient = apiClient,
+                                    onPrimaryAction = {
+                                        when (model.hero.primaryAction) {
+                                            NovaLibraryHeroPrimaryAction.RESUME,
+                                            NovaLibraryHeroPrimaryAction.WATCH -> activeSession?.let(onResumeSession)
+                                            NovaLibraryHeroPrimaryAction.OPEN_DETAIL -> model.hero.game?.let(onOpenDetail)
+                                            NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
+                                            NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
+                                        }
+                                    },
+                                    onSecondaryAction = {
+                                        when (model.hero.secondaryAction) {
+                                            NovaLibraryHeroSecondaryAction.END_SESSION -> activeSession?.let(onEndSession)
+                                            null -> Unit
+                                        }
+                                    },
+                                    onGameFocused = onGameFocused
+                                )
+                            }
+                            if (!spotlightMode && model.recentGames.isNotEmpty()) {
                                 NovaLibraryRecentRail(
                                     games = model.recentGames,
                                     apiClient = apiClient,
@@ -1134,14 +1209,28 @@ class NovaLibraryActivity : NovaActivity() {
                         }
                     }
                 }
-                NovaControllerHintBar(
-                    hints = novaLibraryControllerHints(isLandscape),
-                    compact = isLandscape,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(start = controllerHintBarLandscapeStartPadding)
-                        .fillMaxWidth()
-                )
+                AnimatedVisibility(
+                    visible = controllerHintsVisible,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    enter = fadeIn(tween(durationMillis = CONTROLLER_HINT_ANIMATION_MS)) +
+                        slideInVertically(
+                            animationSpec = tween(durationMillis = CONTROLLER_HINT_ANIMATION_MS),
+                            initialOffsetY = { it / 2 }
+                        ),
+                    exit = fadeOut(tween(durationMillis = CONTROLLER_HINT_ANIMATION_MS)) +
+                        slideOutVertically(
+                            animationSpec = tween(durationMillis = CONTROLLER_HINT_ANIMATION_MS),
+                            targetOffsetY = { it / 2 }
+                        )
+                ) {
+                    NovaControllerHintBar(
+                        hints = novaLibraryControllerHints(isLandscape),
+                        compact = isLandscape,
+                        modifier = Modifier
+                            .padding(start = controllerHintBarLandscapeStartPadding)
+                            .fillMaxWidth()
+                    )
+                }
             }
 
             when {
@@ -2215,6 +2304,16 @@ class NovaLibraryActivity : NovaActivity() {
                         NovaLibraryRecoveryState(
                             recoveryState = emptyRecoveryState,
                             onAction = onRecoveryAction
+                        )
+                    } else if (layoutMode == NovaLibraryLayoutMode.SPOTLIGHT) {
+                        NovaLibrarySpotlightRow(
+                            games = model.filteredGames,
+                            apiClient = apiClient,
+                            isLandscape = isLandscape,
+                            restoreFocusGameId = restoreFocusGameId,
+                            showPosterTitles = model.optionsState.showPosterTitles,
+                            onGameFocused = onGameFocused,
+                            onOpenDetail = onOpenDetail
                         )
                     } else {
                         LazyVerticalGrid(
@@ -3560,6 +3659,7 @@ class NovaLibraryActivity : NovaActivity() {
         NovaLibraryLayoutMode.GRID -> R.string.nova_library_options_layout_grid
         NovaLibraryLayoutMode.COMPACT_GRID -> R.string.nova_library_options_layout_compact_grid
         NovaLibraryLayoutMode.LIST -> R.string.nova_library_options_layout_list
+        NovaLibraryLayoutMode.SPOTLIGHT -> R.string.nova_library_options_layout_spotlight
     }
 
     @Composable
@@ -3567,6 +3667,7 @@ class NovaLibraryActivity : NovaActivity() {
         NovaLibraryLayoutMode.GRID -> stringResource(R.string.nova_library_options_layout_grid_hint)
         NovaLibraryLayoutMode.COMPACT_GRID -> stringResource(R.string.nova_library_options_layout_compact_grid_hint)
         NovaLibraryLayoutMode.LIST -> stringResource(R.string.nova_library_options_layout_list_hint)
+        NovaLibraryLayoutMode.SPOTLIGHT -> stringResource(R.string.nova_library_options_layout_spotlight_hint)
     }
 
     private fun filterCount(filter: NovaLibraryPrimaryFilter, model: NovaLibraryUiModel): Int {
@@ -3615,6 +3716,27 @@ class NovaLibraryActivity : NovaActivity() {
         const val EXTRA_PC_UUID = "pc_uuid"
         const val EXTRA_SERVER_COMMANDS = "server_commands"
         const val EXTRA_SERVER_CERT = "server_cert"
+        private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
+        private const val CONTROLLER_HINT_ANIMATION_MS = 180
+        private const val CONTROLLER_AXIS_INTENT_THRESHOLD = 0.35f
+        private val CONTROLLER_BROWSE_KEYS = setOf(
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_MOVE_HOME,
+            KeyEvent.KEYCODE_MOVE_END
+        )
+        private val CONTROLLER_BROWSE_AXES = intArrayOf(
+            MotionEvent.AXIS_X,
+            MotionEvent.AXIS_Y,
+            MotionEvent.AXIS_HAT_X,
+            MotionEvent.AXIS_HAT_Y,
+            MotionEvent.AXIS_Z,
+            MotionEvent.AXIS_RZ,
+            MotionEvent.AXIS_RX,
+            MotionEvent.AXIS_RY
+        )
         private val ACTIVE_SESSION_RESUME_REFRESH_DELAYS_MS = longArrayOf(1500L, 2000L, 3000L, 5000L, 8000L)
     }
 }

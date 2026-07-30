@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.api.PolarisSessionStatus
+import kotlin.math.roundToInt
 
 enum class NovaLibraryPrimaryFilter {
     ALL,
@@ -33,12 +34,14 @@ enum class NovaLibrarySortMode {
 enum class NovaLibraryLayoutMode {
     GRID,
     COMPACT_GRID,
-    LIST;
+    LIST,
+    SPOTLIGHT;
 
     fun next(): NovaLibraryLayoutMode = when (this) {
         GRID -> COMPACT_GRID
         COMPACT_GRID -> LIST
-        LIST -> GRID
+        LIST -> SPOTLIGHT
+        SPOTLIGHT -> GRID
     }
 }
 
@@ -784,7 +787,57 @@ object NovaLibraryUiStateMapper {
             NovaLibraryLayoutMode.GRID -> baseColumns
             NovaLibraryLayoutMode.COMPACT_GRID -> (baseColumns + 1).coerceAtMost(6)
             NovaLibraryLayoutMode.LIST -> 1
+            NovaLibraryLayoutMode.SPOTLIGHT -> 1
         }
+    }
+
+    fun spotlightCardWidthDp(availableWidthDp: Int, isLandscape: Boolean): Int {
+        val fraction = if (isLandscape) 0.58f else 0.84f
+        val configuredMin = if (isLandscape) 320 else 260
+        val configuredMax = if (isLandscape) 520 else 420
+        val safeMax = minOf(configuredMax, (availableWidthDp - 32).coerceAtLeast(1))
+        val safeMin = minOf(configuredMin, safeMax)
+        return (availableWidthDp * fraction).roundToInt().coerceIn(safeMin, safeMax)
+    }
+
+    fun spotlightHorizontalContentPaddingDp(
+        availableWidthDp: Int,
+        cardWidthDp: Int
+    ): Int = ((availableWidthDp - cardWidthDp) / 2).coerceAtLeast(12)
+
+    fun spotlightCardHeightDp(
+        cardWidthDp: Int,
+        isLandscape: Boolean,
+        largeText: Boolean
+    ): Int {
+        val ratio = when {
+            isLandscape && largeText -> 0.68f
+            isLandscape -> 0.60f
+            largeText -> 0.90f
+            else -> 0.80f
+        }
+        val minimum = if (isLandscape) 220 else 240
+        val maximum = if (isLandscape) 360 else 420
+        return (cardWidthDp * ratio).roundToInt().coerceIn(minimum, maximum)
+    }
+
+    fun spotlightConstrainedCardHeightDp(
+        desiredHeightDp: Int,
+        availableHeightDp: Int,
+        verticalContentPaddingDp: Int = 26
+    ): Int {
+        val viewportHeight = (availableHeightDp - verticalContentPaddingDp).coerceAtLeast(180)
+        return desiredHeightDp.coerceAtMost(viewportHeight)
+    }
+
+    fun spotlightRestoreIndex(gameIds: List<String>, restoreGameId: String?): Int {
+        if (gameIds.isEmpty() || restoreGameId == null) return 0
+        return gameIds.indexOf(restoreGameId).takeIf { it >= 0 } ?: 0
+    }
+
+    fun spotlightAdjacentIndex(currentIndex: Int, delta: Int, itemCount: Int): Int {
+        if (itemCount <= 0) return 0
+        return (currentIndex + delta).coerceIn(0, itemCount - 1)
     }
 
     fun recentRailCardWidthDp(
@@ -815,6 +868,7 @@ object NovaLibraryUiStateMapper {
             NovaLibraryLayoutMode.COMPACT_GRID -> 112
             NovaLibraryLayoutMode.GRID -> if (isLandscape) 156 else 168
             NovaLibraryLayoutMode.LIST -> 88
+            NovaLibraryLayoutMode.SPOTLIGHT -> if (isLandscape) 290 else 300
         }
     }
 

@@ -46,6 +46,18 @@ class NovaLibraryPreferencesTest {
     }
 
     @Test
+    fun persistsSpotlightAsAnOptionalLibraryLayout() {
+        val prefs = freshPrefs("nova-library-prefs-spotlight")
+        val options = NovaLibraryOptionsState(
+            layoutMode = NovaLibraryLayoutMode.SPOTLIGHT
+        )
+
+        NovaLibraryPreferences.persistOptions(prefs, options)
+
+        assertEquals(options, NovaLibraryPreferences.loadOptions(prefs))
+    }
+
+    @Test
     fun persistsMoreFiltersAndClearsThemBackToAll() {
         val prefs = freshPrefs("nova-library-prefs-more")
         val category = NovaLibraryFilterState(

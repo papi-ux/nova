@@ -571,6 +571,14 @@ class NovaLibraryUiStateTest {
                 layoutMode = NovaLibraryLayoutMode.LIST
             )
         )
+        assertEquals(
+            1,
+            NovaLibraryUiStateMapper.gridColumnsForScreen(
+                widthDp = 833,
+                isLandscape = true,
+                layoutMode = NovaLibraryLayoutMode.SPOTLIGHT
+            )
+        )
         assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.GRID, isLandscape = true))
         assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.COMPACT_GRID, isLandscape = true))
         assertEquals(88, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.LIST, isLandscape = true))
@@ -580,15 +588,83 @@ class NovaLibraryUiStateTest {
     fun libraryLayoutModesCycleForTheYShortcut() {
         assertEquals(NovaLibraryLayoutMode.COMPACT_GRID, NovaLibraryLayoutMode.GRID.next())
         assertEquals(NovaLibraryLayoutMode.LIST, NovaLibraryLayoutMode.COMPACT_GRID.next())
-        assertEquals(NovaLibraryLayoutMode.GRID, NovaLibraryLayoutMode.LIST.next())
+        assertEquals(NovaLibraryLayoutMode.SPOTLIGHT, NovaLibraryLayoutMode.LIST.next())
+        assertEquals(NovaLibraryLayoutMode.GRID, NovaLibraryLayoutMode.SPOTLIGHT.next())
         assertEquals(
             listOf(
                 NovaLibraryLayoutMode.GRID,
                 NovaLibraryLayoutMode.COMPACT_GRID,
-                NovaLibraryLayoutMode.LIST
+                NovaLibraryLayoutMode.LIST,
+                NovaLibraryLayoutMode.SPOTLIGHT
             ),
             NovaLibraryLayoutMode.entries
         )
+    }
+
+    @Test
+    fun spotlightMetricsCenterTheFocusedGameAndScaleForLargeText() {
+        val thorWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
+            availableWidthDp = 833,
+            isLandscape = true
+        )
+        val phoneWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
+            availableWidthDp = 430,
+            isLandscape = false
+        )
+
+        assertEquals(483, thorWidth)
+        assertEquals(361, phoneWidth)
+        assertEquals(
+            175,
+            NovaLibraryUiStateMapper.spotlightHorizontalContentPaddingDp(
+                availableWidthDp = 833,
+                cardWidthDp = thorWidth
+            )
+        )
+        assertEquals(
+            290,
+            NovaLibraryUiStateMapper.spotlightCardHeightDp(
+                cardWidthDp = thorWidth,
+                isLandscape = true,
+                largeText = false
+            )
+        )
+        assertEquals(
+            328,
+            NovaLibraryUiStateMapper.spotlightCardHeightDp(
+                cardWidthDp = thorWidth,
+                isLandscape = true,
+                largeText = true
+            )
+        )
+        assertEquals(
+            284,
+            NovaLibraryUiStateMapper.spotlightConstrainedCardHeightDp(
+                desiredHeightDp = 328,
+                availableHeightDp = 310
+            )
+        )
+        assertEquals(
+            290,
+            NovaLibraryUiStateMapper.spotlightConstrainedCardHeightDp(
+                desiredHeightDp = 290,
+                availableHeightDp = 400
+            )
+        )
+    }
+
+    @Test
+    fun spotlightFocusRestorationAndAdjacentNavigationAreDeterministic() {
+        val gameIds = listOf("alpha", "bravo", "charlie")
+
+        assertEquals(1, NovaLibraryUiStateMapper.spotlightRestoreIndex(gameIds, "bravo"))
+        assertEquals(0, NovaLibraryUiStateMapper.spotlightRestoreIndex(gameIds, "missing"))
+        assertEquals(0, NovaLibraryUiStateMapper.spotlightRestoreIndex(gameIds, null))
+        assertEquals(0, NovaLibraryUiStateMapper.spotlightRestoreIndex(emptyList(), "bravo"))
+        assertEquals(0, NovaLibraryUiStateMapper.spotlightAdjacentIndex(0, -1, gameIds.size))
+        assertEquals(1, NovaLibraryUiStateMapper.spotlightAdjacentIndex(0, 1, gameIds.size))
+        assertEquals(2, NovaLibraryUiStateMapper.spotlightAdjacentIndex(2, 1, gameIds.size))
+        assertEquals(1, NovaLibraryUiStateMapper.spotlightAdjacentIndex(2, -1, gameIds.size))
     }
 
     @Test
