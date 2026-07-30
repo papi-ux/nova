@@ -24,16 +24,31 @@ class PcViewModel : ViewModel() {
 
     private val managerListener = object : ComputerManagerListener {
         override fun notifyComputerUpdated(details: ComputerDetails) {
-            viewModelScope.launch {
-                val obj = computerMap[details.uuid] ?: ComputerObject(details)
-                obj.details = details
-                computerMap[details.uuid] = obj
-                
-                val newList = computerMap.values.toList()
-                _computers.value = newList
-                _computersLiveData.postValue(newList)
+            updateComputer(details)
+        }
+    }
+
+    internal fun updateComputer(details: ComputerDetails) {
+        viewModelScope.launch {
+            val obj = computerMap[details.uuid] ?: ComputerObject(details)
+            obj.details = details
+            computerMap[details.uuid] = obj
+            publishComputers()
+        }
+    }
+
+    fun removeComputer(uuid: String) {
+        viewModelScope.launch {
+            if (computerMap.remove(uuid) != null) {
+                publishComputers()
             }
         }
+    }
+
+    private fun publishComputers() {
+        val newList = computerMap.values.toList()
+        _computers.value = newList
+        _computersLiveData.postValue(newList)
     }
 
     fun startPolling(binder: ComputerManagerService.ComputerManagerBinder) {

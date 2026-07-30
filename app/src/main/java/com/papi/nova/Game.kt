@@ -63,6 +63,7 @@ import com.papi.nova.utils.ExternalDisplayControlActivity
 import com.papi.nova.utils.ExternalDisplayControlHost
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
+import com.papi.nova.utils.AndroidStreamDisplayTarget
 import com.papi.nova.utils.MouseModeOption
 import com.papi.nova.utils.PanZoomHandler
 import com.papi.nova.utils.PerformanceDataTracker
@@ -716,20 +717,17 @@ clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManag
         novaProgressOverlay?.updateState("conn_establishing", getResources().getString(R.string.conn_establishing_msg))
 
 
-var currentDisplay:Display? = null
-if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-{
-streamingDisplayId = getIntent().getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY)
-currentDisplay = getSystemService(DisplayManager::class.java).getDisplay(streamingDisplayId)
+val requestedDisplayId = getIntent().getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY)
+@Suppress("DEPRECATION")
+val currentDisplay: Display = getWindowManager().getDefaultDisplay()
+if (requestedDisplayId != currentDisplay.displayId) {
+LimeLog.warning(
+"Nova: Android stream display mismatch requested_id=$requestedDisplayId " +
+"window_id=${currentDisplay.displayId}; using window display metrics"
+)
 }
-
-if (currentDisplay == null)
-{
-currentDisplay = getWindowManager().getDefaultDisplay()
-}
-
-streamingDisplayId = currentDisplay!!.getDisplayId()
-isOnExternalDisplay = currentDisplay!!.getDisplayId() != Display.DEFAULT_DISPLAY
+streamingDisplayId = currentDisplay.displayId
+isOnExternalDisplay = currentDisplay.displayId != Display.DEFAULT_DISPLAY
 
 var shouldInvertDecoderResolution:Boolean = false
 
@@ -741,7 +739,6 @@ displayHeight = currentMode!!.getPhysicalHeight()
 prefConfig!!.width = displayWidth
 prefConfig!!.height = displayHeight
 prefConfig!!.fps = currentMode!!.getRefreshRate()
-prefConfig!!.videoScaleMode = PreferenceConfiguration.ScaleMode.STRETCH
 prefConfig!!.enableFloatingButton = false
 prefConfig!!.showOverlayZoomToggleButton = false
 prefConfig!!.enablePip = false
@@ -768,6 +765,36 @@ displayHeight = if (shouldInvertDecoderResolution) prefConfig!!.width else prefC
  // Enter landscape unless we're on a square screen
 	            setPreferredOrientationForActivity()
 	}
+
+if (prefConfig!!.enableFullExDisplay) {
+val physicalSize = Point()
+@Suppress("DEPRECATION")
+currentDisplay.getRealSize(physicalSize)
+val windowSize = Point()
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+val bounds = getWindowManager().currentWindowMetrics.bounds
+windowSize.set(bounds.width(), bounds.height())
+} else {
+windowSize.set(physicalSize.x, physicalSize.y)
+}
+val configuredWidth = if (isOnExternalDisplay) physicalSize.x else displayWidth
+val configuredHeight = if (isOnExternalDisplay) physicalSize.y else displayHeight
+val resolution = AndroidStreamDisplayTarget.resolveStreamResolution(
+modeWidth = configuredWidth,
+modeHeight = configuredHeight,
+windowWidth = windowSize.x,
+windowHeight = windowSize.y,
+landscape = currentOrientation != Configuration.ORIENTATION_PORTRAIT,
+)
+displayWidth = resolution.width
+displayHeight = resolution.height
+prefConfig!!.width = displayWidth
+prefConfig!!.height = displayHeight
+LimeLog.info(
+"Nova: Android stream geometry display_id=$streamingDisplayId physical=${physicalSize.x}x${physicalSize.y} " +
+"window=${windowSize.x}x${windowSize.y} selected=${displayWidth}x${displayHeight}"
+)
+}
 
 watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
 watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
@@ -2767,6 +2794,15 @@ disconnect()
 return
 }
 
+if (intent != null) {
+val requestedDisplayId = intent.getIntExtra(EXTRA_DISPLAY_ID, streamingDisplayId)
+if (AndroidStreamDisplayTarget.requiresGameRecreation(streamingDisplayId, requestedDisplayId)) {
+setIntent(intent)
+LimeLog.info("Nova: Relaunching stream for Android display change from=$streamingDisplayId to=$requestedDisplayId")
+relaunchStream()
+return
+}
+}
 setIntent(intent)
 }
 

@@ -35,7 +35,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
-import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -51,7 +50,6 @@ import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.binding.crypto.AndroidCryptoProvider
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.grid.PcGridAdapter
-import com.papi.nova.grid.RecyclerItemClickListener
 import com.papi.nova.grid.assets.DiskAssetLoader
 import com.papi.nova.manager.PolarisStartupCoordinator
 import com.papi.nova.manager.PolarisStartupStatus
@@ -76,6 +74,7 @@ import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
 import com.papi.nova.ui.NovaLibraryActivity
+import com.papi.nova.ui.NovaServerGridLayoutManager
 import com.papi.nova.ui.NovaQrScanActivity
 import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaSnackbar
@@ -105,6 +104,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private val THEME_PICKER_GRID_GAP_DP = 8
     private var noPcFoundLayout: View? = null
     private lateinit var pcGridAdapter: PcGridAdapter
+    private var serverGridView: RecyclerView? = null
     private lateinit var shortcutHelper: ShortcutHelper
     private lateinit var viewModel: PcViewModel
     private var managerBinder: ComputerManagerService.ComputerManagerBinder? = null
@@ -1845,6 +1845,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     public override fun onDestroy() {
+        serverGridView?.adapter = null
+        serverGridView = null
         super.onDestroy()
 
         runtimeTasks.cancelAll()
@@ -2563,8 +2565,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     private fun removeComputer(details: ComputerDetails) {
-        val binder = managerBinder ?: return
-        binder.removeComputer(details)
+        val binder = managerBinder
+        if (binder == null || !binder.removeComputer(details)) {
+            Toast.makeText(this, R.string.nova_server_remove_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (::viewModel.isInitialized) {
+            viewModel.removeComputer(details.uuid)
+        }
 
         DiskAssetLoader(this).deleteAssetsForComputer(details.uuid)
 
@@ -2641,8 +2649,17 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
 
             val rv = gridView
-            rv.layoutManager = GridLayoutManager(this, 1)
-            rv.adapter = pcGridAdapter
+            if (serverGridView !== rv) {
+                serverGridView?.adapter = null
+                serverGridView = rv
+            }
+            rv.itemAnimator = null
+            if (rv.layoutManager !is NovaServerGridLayoutManager) {
+                rv.layoutManager = NovaServerGridLayoutManager(this)
+            }
+            if (rv.adapter !== pcGridAdapter) {
+                rv.adapter = pcGridAdapter
+            }
             rv.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
             rv.setOnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) {
@@ -2672,20 +2689,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     openBestPlaySurface(computer.details)
                 }
             }
-            rv.addOnItemTouchListener(
-                RecyclerItemClickListener(
-                    this,
-                    rv,
-                    object : RecyclerItemClickListener.OnItemClickListener {
-                        override fun onItemClick(view: View, position: Int) = Unit
-
-                        override fun onLongItemClick(view: View, position: Int) {
-                            val computer = pcGridAdapter.getItem(position)
-                            showServerBottomSheet(computer)
-                        }
-                    },
-                ),
-            )
+            pcGridAdapter.setOnServerActionListener { computer ->
+                showServerBottomSheet(computer)
+            }
             UiHelper.applyStatusBarPadding(rv)
             rv.post {
                 for (i in 0 until rv.childCount) {
@@ -2696,6 +2702,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     setServerFilterNextFocusDown(firstRow)
                 }
             }
+        }
+    }
+
+    override fun releaseAbsListView(gridView: View) {
+        if (gridView is RecyclerView && serverGridView === gridView) {
+            gridView.adapter = null
+            gridView.layoutManager = null
+            serverGridView = null
         }
     }
 

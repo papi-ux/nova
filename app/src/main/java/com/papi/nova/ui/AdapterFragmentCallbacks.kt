@@ -6,4 +6,6 @@ interface AdapterFragmentCallbacks {
     fun getAdapterFragmentLayoutId(): Int
 
     fun receiveAbsListView(gridView: View)
+
+    fun releaseAbsListView(gridView: View) = Unit
 }

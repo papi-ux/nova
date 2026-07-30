@@ -269,9 +269,8 @@ class ComputerManagerService : Service() {
             return this@ComputerManagerService.addComputerBlocking(fakeDetails)
         }
 
-        fun removeComputer(computer: ComputerDetails) {
+        fun removeComputer(computer: ComputerDetails): Boolean =
             this@ComputerManagerService.removeComputer(computer)
-        }
 
         fun stopPolling() {
             // Just call the unbind handler to cleanup
@@ -502,21 +501,26 @@ class ComputerManagerService : Service() {
         }
     }
 
-    fun removeComputer(computer: ComputerDetails) {
+    fun removeComputer(computer: ComputerDetails): Boolean {
         if (!getLocalDatabaseReference()) {
-            return
+            return false
         }
 
-        // Remove it from the database
-        dbManager.deleteComputer(computer)
+        return try {
+            dbManager.deleteComputer(computer)
 
-        val removed = pollingTuples.remove(computer.uuid)
-        if (removed != null && removed.future != null) {
-            removed.future!!.cancel(true)
-            removed.future = null
+            val removed = pollingTuples.remove(computer.uuid)
+            if (removed?.future != null) {
+                removed.future!!.cancel(true)
+                removed.future = null
+            }
+            true
+        } catch (error: RuntimeException) {
+            LimeLog.warning("ComputerManagerService: remove failed (${error.javaClass.simpleName})")
+            false
+        } finally {
+            releaseLocalDatabaseReference()
         }
-
-        releaseLocalDatabaseReference()
     }
 
     private fun pollComputerNow(uuid: String): ComputerDetails? {

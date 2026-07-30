@@ -1338,4 +1338,7 @@
     <string name="companion_deck_status_codec">Codec %1$s</string>
     <string name="companion_deck_status_resolution">Resolution %1$s</string>
     <string name="companion_deck_status_profile">Profile %1$s</string>
+    <string name="nova_settings_modern">Modern</string>
+    <string name="nova_server_manage">Manage</string>
+    <string name="nova_server_remove_failed">Couldn\'t remove server. Try again.</string>
 </resources>

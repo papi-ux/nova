@@ -7,6 +7,7 @@ import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.RelativeLayout
 import android.widget.TextView
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.AppView
@@ -366,6 +367,31 @@ class KotlinGridAdaptersMigrationTest {
 
         assertEquals(serverAId, adapter.getItemId(0))
         assertEquals(serverCId, adapter.getItemId(1))
+    }
+
+    @Test
+    fun pcGridAdapterKeepsManageActionDistinctFromPrimaryRowClick() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val adapter = PcGridAdapter(context, PreferenceConfiguration())
+        val computer = createComputerObject("managed-server")
+        var opened: PcViewModel.ComputerObject? = null
+        var managed: PcViewModel.ComputerObject? = null
+        adapter.setOnItemClickListener { opened = it }
+        adapter.setOnServerActionListener { managed = it }
+        adapter.setItems(listOf(computer))
+
+        val recyclerView = RecyclerView(context).apply {
+            layoutManager = LinearLayoutManager(context)
+        }
+        val holder = adapter.onCreateViewHolder(recyclerView, 0)
+        adapter.onBindViewHolder(holder, 0)
+
+        assertTrue(holder.itemView.findViewById<View>(R.id.server_actions_button).performClick())
+        assertEquals(computer, managed)
+        assertNull(opened)
+
+        assertTrue(holder.itemView.performClick())
+        assertEquals(computer, opened)
     }
 
     private fun createAdapter(): AppGridAdapter {

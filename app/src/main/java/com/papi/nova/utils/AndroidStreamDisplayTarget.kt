@@ -53,4 +53,34 @@ object AndroidStreamDisplayTarget {
         if (selectedDisplayId == null || companionDisplayId == null) return false
         return selectedDisplayId != currentDisplayId
     }
+
+    data class Resolution(val width: Int, val height: Int)
+
+    fun requiresGameRecreation(activeDisplayId: Int, requestedDisplayId: Int): Boolean =
+        activeDisplayId != requestedDisplayId
+
+    fun resolveStreamResolution(
+        modeWidth: Int,
+        modeHeight: Int,
+        windowWidth: Int,
+        windowHeight: Int,
+        landscape: Boolean,
+    ): Resolution {
+        val safeMode = Resolution(modeWidth.coerceAtLeast(1), modeHeight.coerceAtLeast(1))
+        if (windowWidth <= 0 || windowHeight <= 0) return safeMode
+
+        val rawWindow = Resolution(windowWidth, windowHeight)
+        val orientedWindow = when {
+            landscape && rawWindow.width < rawWindow.height -> Resolution(rawWindow.height, rawWindow.width)
+            !landscape && rawWindow.width > rawWindow.height -> Resolution(rawWindow.height, rawWindow.width)
+            else -> rawWindow
+        }
+        val modeRatio = safeMode.width.toDouble() / safeMode.height
+        val windowRatio = orientedWindow.width.toDouble() / orientedWindow.height
+        val relativeRatioDelta = kotlin.math.abs(modeRatio - windowRatio) / modeRatio
+
+        return if (relativeRatioDelta > MAX_WINDOW_MODE_RATIO_DELTA) orientedWindow else safeMode
+    }
+
+    private const val MAX_WINDOW_MODE_RATIO_DELTA = 0.08
 }

@@ -26,4 +26,9 @@ class AdapterFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         callbacks.receiveAbsListView(view.findViewById(R.id.fragmentView))
     }
+
+    override fun onDestroyView() {
+        view?.findViewById<View>(R.id.fragmentView)?.let(callbacks::releaseAbsListView)
+        super.onDestroyView()
+    }
 }

@@ -32,6 +32,7 @@ class PcGridAdapter(
     private val reservedStableIds = HashSet<Long>()
     private val itemIds = ArrayList<Long>()
     private var nextFallbackStableId = Long.MIN_VALUE
+    private var serverActionListener: ((PcViewModel.ComputerObject) -> Unit)? = null
 
     init {
         setHasStableIds(true)
@@ -156,12 +157,17 @@ class PcGridAdapter(
         setItems(emptyList())
     }
 
+    fun setOnServerActionListener(listener: (PcViewModel.ComputerObject) -> Unit) {
+        serverActionListener = listener
+    }
+
     /** Cached references for PcView-specific views (status dot + text). */
     private class PcViewHolder {
         var statusDot: View? = null
         var statusText: TextView? = null
         var statusHint: TextView? = null
         var primaryAction: TextView? = null
+        var serverActions: View? = null
     }
 
     private fun getPcHolder(parentView: View): PcViewHolder {
@@ -175,6 +181,7 @@ class PcGridAdapter(
         holder.statusText = parentView.findViewById(R.id.status_text)
         holder.statusHint = parentView.findViewById(R.id.status_hint_text)
         holder.primaryAction = parentView.findViewById(R.id.primary_action_text)
+        holder.serverActions = parentView.findViewById(R.id.server_actions_button)
         parentView.setTag(TAG_PC_HOLDER, holder)
         return holder
     }
@@ -190,6 +197,16 @@ class PcGridAdapter(
     ) {
         val pcHolder = getPcHolder(parentView)
         applyCardTheme(parentView, imgView, prgView!!, txtView, pcHolder)
+        pcHolder.serverActions?.setOnClickListener { serverActionListener?.invoke(obj) }
+        parentView.setOnLongClickListener {
+            val listener = serverActionListener
+            if (listener == null) {
+                false
+            } else {
+                listener(obj)
+                true
+            }
+        }
 
         imgView.setImageResource(R.drawable.ic_computer)
         imgView.setColorFilter(NovaThemeManager.getTextSecondaryColor(context))
