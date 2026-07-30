@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.os.Build
-import android.util.DisplayMetrics
 import android.view.Display
 import android.widget.Toast
 import com.papi.nova.AppView
@@ -128,14 +127,7 @@ object ServerHelper {
         val candidates = displays.map { display ->
             LimeLog.info(display.toString())
             displaysById[display.displayId] = display
-            val metrics = DisplayMetrics()
-            @Suppress("DEPRECATION")
-            display.getRealMetrics(metrics)
-            AndroidStreamDisplayTarget.Candidate(
-                displayId = display.displayId,
-                width = metrics.widthPixels,
-                height = metrics.heightPixels,
-            )
+            AndroidDisplayCandidateAdapter.from(display)
         }
         return AndroidDisplayCandidateMap(displaysById, candidates)
     }

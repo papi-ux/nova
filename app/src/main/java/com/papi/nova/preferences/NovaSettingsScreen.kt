@@ -950,7 +950,18 @@ private fun NovaSettingDialog(
     onSave: (NovaSettingDefinition, NovaSettingValue) -> Unit
 ) {
     when (dialog) {
-        is NovaSettingsDialog.Select -> NovaSelectDialog(dialog.definition, state, onDismiss, onSave)
+        is NovaSettingsDialog.Select -> {
+            if (dialog.definition.key == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING) {
+                NovaDisplayRoleComposerDialog(
+                    definition = dialog.definition,
+                    state = state,
+                    onDismiss = onDismiss,
+                    onSave = onSave,
+                )
+            } else {
+                NovaSelectDialog(dialog.definition, state, onDismiss, onSave)
+            }
+        }
         is NovaSettingsDialog.Slider -> NovaSliderDialog(
             definition = dialog.definition,
             state = state,
@@ -994,7 +1005,7 @@ private fun NovaSelectDialog(
 }
 
 @Composable
-private fun NovaSelectDialogShell(
+internal fun NovaSelectDialogShell(
     onDismissRequest: () -> Unit,
     confirmButton: @Composable () -> Unit = {},
     dismissButton: @Composable () -> Unit,
@@ -1018,7 +1029,9 @@ private fun NovaSelectDialogShell(
         ) {
             title()
             Spacer(Modifier.height(12.dp))
-            text()
+            Box(modifier = Modifier.weight(1f, fill = false)) {
+                text()
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 horizontalArrangement = Arrangement.End
@@ -1349,7 +1362,7 @@ private fun NovaSettingsUiState.intValue(definition: NovaSettingDefinition): Int
     return (value as? NovaSettingValue.IntValue)?.value ?: definition.min ?: 0
 }
 
-private fun NovaSettingsUiState.stringValue(definition: NovaSettingDefinition): String {
+internal fun NovaSettingsUiState.stringValue(definition: NovaSettingDefinition): String {
     val value = values[definition.key] ?: definition.defaultValue
     return (value as? NovaSettingValue.StringValue)?.value.orEmpty()
 }

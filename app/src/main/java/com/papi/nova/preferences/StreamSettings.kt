@@ -33,6 +33,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.NovaActivity
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.FileProvider
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
@@ -42,6 +43,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
+import androidx.preference.PreferenceDialogFragmentCompat
 import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
@@ -1284,6 +1286,14 @@ class StreamSettings : NovaActivity() {
                     ConfirmDeleteKeyboardPreference.DialogFragmentCompat.newInstance(preference.key)
                 dialogFragment.setTargetFragment(this, 0)
                 dialogFragment.show(parentFragmentManager, null)
+            } else if (
+                preference is ListPreference &&
+                preference.key == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING
+            ) {
+                val dialogFragment: DialogFragment =
+                    NovaDisplayRoleComposerDialogFragment.newInstance(preference.key)
+                dialogFragment.setTargetFragment(this, 0)
+                dialogFragment.show(parentFragmentManager, null)
             } else if (preference is ListPreference) {
                 val dialogFragment: DialogFragment =
                     NovaListPreferenceDialogFragment.newInstance(preference.key)
@@ -1329,5 +1339,60 @@ class StreamSettings : NovaActivity() {
     companion object {
         @JvmField
         var displayCutoutP: DisplayCutout? = null
+    }
+}
+
+class NovaDisplayRoleComposerDialogFragment : PreferenceDialogFragmentCompat() {
+    private val listPreference: ListPreference
+        get() = preference as ListPreference
+
+    override fun onCreateDialogView(context: Context): View {
+        val currentTarget = listPreference.value
+            ?: com.papi.nova.utils.AndroidStreamDisplayTarget.AUTO
+        return ComposeView(context).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            setContent {
+                NovaComposeTheme {
+                    NovaDisplayRoleComposerLegacyPanel(
+                        currentTarget = currentTarget,
+                        onDismiss = { dismiss() },
+                        onApply = ::applyTarget,
+                    )
+                }
+            }
+        }
+    }
+
+    override fun onPrepareDialogBuilder(builder: androidx.appcompat.app.AlertDialog.Builder) {
+        super.onPrepareDialogBuilder(builder)
+        builder.setTitle(null)
+        builder.setPositiveButton(null, null)
+        builder.setNegativeButton(null, null)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val width = resources.displayMetrics.widthPixels * 86 / 100
+        dialog?.window?.setLayout(width, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
+    }
+
+    override fun onDialogClosed(positiveResult: Boolean) = Unit
+
+    private fun applyTarget(target: String) {
+        if (listPreference.callChangeListener(target)) {
+            listPreference.value = target
+        }
+        dismiss()
+    }
+
+    companion object {
+        @JvmStatic
+        fun newInstance(preferenceKey: String): NovaDisplayRoleComposerDialogFragment {
+            return NovaDisplayRoleComposerDialogFragment().apply {
+                arguments = Bundle().apply {
+                    putString(ARG_KEY, preferenceKey)
+                }
+            }
+        }
     }
 }
