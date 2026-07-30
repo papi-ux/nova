@@ -10,6 +10,7 @@ import android.widget.ProgressBar
 import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.widget.ImageViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.papi.nova.PcViewModel
@@ -197,7 +198,10 @@ class PcGridAdapter(
     ) {
         val pcHolder = getPcHolder(parentView)
         applyCardTheme(parentView, imgView, prgView!!, txtView, pcHolder)
-        pcHolder.serverActions?.setOnClickListener { serverActionListener?.invoke(obj) }
+        pcHolder.serverActions?.apply {
+            isActivated = true
+            setOnClickListener { serverActionListener?.invoke(obj) }
+        }
         parentView.setOnLongClickListener {
             val listener = serverActionListener
             if (listener == null) {
@@ -209,7 +213,12 @@ class PcGridAdapter(
         }
 
         imgView.setImageResource(R.drawable.ic_computer)
-        imgView.setColorFilter(NovaThemeManager.getTextSecondaryColor(context))
+        val iconColor = if (obj.details.state == ComputerDetails.State.ONLINE) {
+            NovaThemeManager.getAccentColor(context)
+        } else {
+            NovaThemeManager.getTextSecondaryColor(context)
+        }
+        ImageViewCompat.setImageTintList(imgView, ColorStateList.valueOf(iconColor))
 
         val statusDot = pcHolder.statusDot
         val statusText = pcHolder.statusText
