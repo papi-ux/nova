@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme.MaterialYou" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <item name="android:colorBackground">@android:color/system_neutral1_900</item>
+        <item name="android:windowBackground">@android:color/system_neutral1_900</item>
+        <item name="android:statusBarColor">@android:color/system_neutral1_900</item>
+        <item name="android:navigationBarColor">@android:color/system_neutral1_900</item>
+        <item name="android:textColorPrimary">@android:color/system_neutral1_50</item>
+        <item name="android:textColorSecondary">@android:color/system_neutral2_200</item>
+        <item name="colorSurface">@android:color/system_neutral1_900</item>
+        <item name="colorSurfaceVariant">@android:color/system_neutral2_800</item>
+        <item name="colorOnSurface">@android:color/system_neutral1_50</item>
+        <item name="colorOnSurfaceVariant">@android:color/system_neutral2_200</item>
+        <item name="colorPrimary">@android:color/system_accent1_200</item>
+        <item name="colorOnPrimary">@android:color/system_neutral1_900</item>
+        <item name="android:windowSplashScreenBackground">@android:color/system_accent1_800</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_light</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/system_accent1_800</item>
+    </style>
+
+    <style name="NovaPreferenceTheme.MaterialYou" parent="NovaPreferenceTheme">
+        <item name="android:textColorPrimary">@android:color/system_neutral1_50</item>
+        <item name="android:textColorSecondary">@android:color/system_neutral2_200</item>
+    </style>
+
+    <style name="NovaAlertDialog.MaterialYou" parent="NovaAlertDialog">
+        <item name="android:background">@android:color/system_neutral1_900</item>
+        <item name="android:windowBackground">@android:color/system_neutral1_900</item>
+        <item name="android:textColorPrimary">@android:color/system_neutral1_50</item>
+        <item name="android:textColorSecondary">@android:color/system_neutral2_200</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/NovaAlertDialogTitleText.MaterialYou</item>
+        <item name="android:windowTitleStyle">@style/NovaAppCompatDialogTitle.MaterialYou</item>
+    </style>
+
+    <style name="NovaAppCompatDialogTitle.MaterialYou" parent="RtlOverlay.DialogWindowTitle.AppCompat">
+        <item name="android:textColor">@android:color/system_neutral1_50</item>
+    </style>
+
+    <style name="NovaAlertDialogTitleText.MaterialYou" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
+        <item name="android:textColor">@android:color/system_neutral1_50</item>
+    </style>
+
+    <style name="SettingsTheme.MaterialYou" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog.MaterialYou</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog.MaterialYou</item>
+        <item name="preferenceTheme">@style/NovaPreferenceTheme.MaterialYou</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/NovaAlertDialogTitleText.MaterialYou</item>
+        <item name="android:colorBackground">@android:color/system_neutral1_900</item>
+        <item name="android:windowBackground">@android:color/system_neutral1_900</item>
+        <item name="android:statusBarColor">@android:color/system_neutral1_900</item>
+        <item name="android:navigationBarColor">@android:color/system_neutral1_900</item>
+        <item name="android:textColorPrimary">@android:color/system_neutral1_50</item>
+        <item name="android:textColorSecondary">@android:color/system_neutral2_200</item>
+        <item name="colorSurface">@android:color/system_neutral1_900</item>
+        <item name="colorSurfaceVariant">@android:color/system_neutral2_800</item>
+        <item name="colorOnSurface">@android:color/system_neutral1_50</item>
+        <item name="colorOnSurfaceVariant">@android:color/system_neutral2_200</item>
+        <item name="colorPrimary">@android:color/system_accent1_200</item>
+        <item name="colorOnPrimary">@android:color/system_neutral1_900</item>
+        <item name="android:windowSplashScreenBackground">@android:color/system_accent1_800</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_light</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/system_accent1_800</item>
+    </style>
+</resources>

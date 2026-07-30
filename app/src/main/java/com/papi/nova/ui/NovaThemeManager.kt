@@ -2,14 +2,15 @@ package com.papi.nova.ui
 
 import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
-import android.util.TypedValue
 import android.os.Build
-import android.view.Window
+import android.util.TypedValue
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import androidx.preference.PreferenceManager
+import com.google.android.material.color.DynamicColors
 import com.papi.nova.R
 
 object NovaThemeManager {
@@ -30,7 +31,10 @@ object NovaThemeManager {
 
     fun applyTheme(activity: Activity) {
         val theme = getTheme(activity)
-        val isSettings = activity is com.papi.nova.preferences.StreamSettings
+        val isSettings =
+            activity is com.papi.nova.preferences.StreamSettings ||
+                activity is com.papi.nova.ProfilesActivity ||
+                activity is com.papi.nova.EditProfileActivity
 
         when {
             theme == THEME_PORTABLE_CHROME && isSettings -> activity.setTheme(R.style.SettingsTheme_PortableChrome)
@@ -48,16 +52,37 @@ object NovaThemeManager {
         }
 
         if (theme == THEME_MATERIAL_YOU && isMaterialYouAvailable()) {
-            com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(activity)
+            DynamicColors.applyToActivityIfAvailable(activity)
         }
-        applyEdgeToEdge(activity.window)
+        configureSystemBars(activity)
     }
 
     @Suppress("DEPRECATION")
-    fun applyEdgeToEdge(window: Window) {
+    private fun configureSystemBars(activity: Activity) {
+        val window = activity.window
+        val surfaceColor = getActivityWindowSurfaceColor(activity)
+        val useDarkIcons =
+            ColorUtils.calculateContrast(Color.BLACK, surfaceColor) >=
+                ColorUtils.calculateContrast(Color.WHITE, surfaceColor)
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
+        window.decorView.setBackgroundColor(surfaceColor)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            window.statusBarColor = Color.TRANSPARENT
+            window.navigationBarColor = Color.TRANSPARENT
+        } else {
+            window.statusBarColor = surfaceColor
+            window.navigationBarColor = surfaceColor
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = useDarkIcons
+            isAppearanceLightNavigationBars = useDarkIcons
+        }
     }
 
     fun getTheme(context: Context): String {
@@ -124,6 +149,7 @@ object NovaThemeManager {
     private fun getMaterialYouSurfaceColor(context: Context): Int =
         resolveMaterialYouColor(
             context,
+            android.R.color.system_neutral1_10,
             android.R.color.system_neutral1_900,
             com.google.android.material.R.attr.colorSurface,
             ContextCompat.getColor(context, R.color.nova_bg_window)
@@ -132,14 +158,16 @@ object NovaThemeManager {
     private fun getMaterialYouCardColor(context: Context): Int =
         resolveMaterialYouColor(
             context,
-            android.R.color.system_neutral1_800,
-            com.google.android.material.R.attr.colorSurface,
+            android.R.color.system_neutral2_50,
+            android.R.color.system_neutral2_800,
+            com.google.android.material.R.attr.colorSurfaceVariant,
             ContextCompat.getColor(context, R.color.nova_bg_card)
         )
 
     private fun getMaterialYouTextPrimaryColor(context: Context): Int =
         resolveMaterialYouColor(
             context,
+            android.R.color.system_neutral1_900,
             android.R.color.system_neutral1_50,
             com.google.android.material.R.attr.colorOnSurface,
             ContextCompat.getColor(context, R.color.nova_text_primary)
@@ -148,11 +176,15 @@ object NovaThemeManager {
     private fun getMaterialYouTextSecondaryColor(context: Context): Int =
         resolveMaterialYouColor(
             context,
-            android.R.color.system_neutral1_200,
-            com.google.android.material.R.attr.colorOnSurface,
+            android.R.color.system_neutral2_600,
+            android.R.color.system_neutral2_200,
+            com.google.android.material.R.attr.colorOnSurfaceVariant,
             ContextCompat.getColor(context, R.color.nova_text_secondary)
         )
 
+    private fun isNightMode(context: Context): Boolean =
+        context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+            Configuration.UI_MODE_NIGHT_YES
 
     private fun resolveThemeColor(context: Context, attr: Int, fallback: Int): Int {
         val typedValue = TypedValue()
@@ -178,10 +210,36 @@ object NovaThemeManager {
         }
     }
 
-    private fun resolveMaterialYouColor(context: Context, colorRes: Int, attr: Int, fallback: Int): Int {
-        val themedFallback = resolveThemeColor(context, attr, fallback)
-        return resolveSystemColor(context, colorRes, themedFallback)
+    private fun resolveMaterialYouColor(
+        context: Context,
+        lightColorRes: Int,
+        darkColorRes: Int,
+        attr: Int,
+        fallback: Int,
+    ): Int {
+        val systemFallback = resolveSystemColor(
+            context,
+            if (isNightMode(context)) darkColorRes else lightColorRes,
+            fallback,
+        )
+        val dynamicContext = try {
+            DynamicColors.wrapContextIfAvailable(context)
+        } catch (_: Exception) {
+            context
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return systemFallback
+        }
+        return resolveThemeColor(dynamicContext, attr, systemFallback)
     }
+
+    /** Returns the semantic Activity surface used behind system bars and custom window backdrops. */
+    fun getActivityWindowSurfaceColor(context: Context): Int =
+        resolveThemeColor(
+            context,
+            android.R.attr.colorBackground,
+            getWindowBackgroundColor(context),
+        )
 
     /** Returns the correct window background color for the current theme */
     fun getWindowBackgroundColor(context: Context): Int {
@@ -246,7 +304,8 @@ object NovaThemeManager {
         if (theme == THEME_MATERIAL_YOU && isMaterialYouAvailable()) {
             return resolveMaterialYouColor(
                 context,
-                android.R.color.system_accent1_500,
+                android.R.color.system_accent1_600,
+                android.R.color.system_accent1_200,
                 android.R.attr.colorPrimary,
                 ContextCompat.getColor(context, R.color.nova_accent)
             )
@@ -268,7 +327,13 @@ object NovaThemeManager {
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_accent_surface)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_accent_surface)
             isMaterialYou(context) && isMaterialYouAvailable() ->
-                ColorUtils.setAlphaComponent(getAccentColor(context), 0x1A)
+                resolveMaterialYouColor(
+                    context,
+                    android.R.color.system_accent1_100,
+                    android.R.color.system_accent1_700,
+                    com.google.android.material.R.attr.colorPrimaryContainer,
+                    ColorUtils.setAlphaComponent(getAccentColor(context), 0x1A)
+                )
             else -> ContextCompat.getColor(context, R.color.nova_polaris_accent_surface)
         }
     }
@@ -283,7 +348,8 @@ object NovaThemeManager {
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
                     context,
-                    android.R.color.system_neutral1_600,
+                    android.R.color.system_neutral2_200,
+                    android.R.color.system_neutral2_600,
                     com.google.android.material.R.attr.colorOutline,
                     ContextCompat.getColor(context, R.color.nova_divider)
                 )
@@ -327,11 +393,40 @@ object NovaThemeManager {
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
                     context,
-                    android.R.color.system_neutral1_400,
-                    com.google.android.material.R.attr.colorOnSurface,
+                    android.R.color.system_neutral2_500,
+                    android.R.color.system_neutral2_400,
+                    com.google.android.material.R.attr.colorOnSurfaceVariant,
                     ContextCompat.getColor(context, R.color.nova_text_muted)
                 )
             else -> ContextCompat.getColor(context, R.color.nova_text_muted)
+        }
+    }
+
+    /** Returns the correct badge/surface-variant color for the current theme. */
+    fun getBadgeBackgroundColor(context: Context): Int {
+        return if (isMaterialYou(context) && isMaterialYouAvailable()) {
+            getMaterialYouCardColor(context)
+        } else {
+            ContextCompat.getColor(context, R.color.nova_badge_bg)
+        }
+    }
+
+    /** Returns a readable foreground for primary/accent controls. */
+    fun getOnAccentColor(context: Context): Int {
+        return when {
+            isMaterialYou(context) && isMaterialYouAvailable() ->
+                resolveMaterialYouColor(
+                    context,
+                    android.R.color.system_neutral1_10,
+                    android.R.color.system_neutral1_900,
+                    com.google.android.material.R.attr.colorOnPrimary,
+                    ContextCompat.getColor(context, R.color.nova_bg_window)
+                )
+            else -> resolveThemeColor(
+                context,
+                com.google.android.material.R.attr.colorOnPrimary,
+                ContextCompat.getColor(context, R.color.nova_ice),
+            )
         }
     }
 }

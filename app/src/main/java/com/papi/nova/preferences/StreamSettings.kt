@@ -42,6 +42,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
+import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
 import com.google.gson.Gson
@@ -563,6 +564,18 @@ class StreamSettings : NovaActivity() {
             initializePreferences()
         }
 
+        private fun applySemanticPreferenceLayouts(group: PreferenceGroup) {
+            for (index in 0 until group.preferenceCount) {
+                val preference = group.getPreference(index)
+                if (preference !is PreferenceCategory) {
+                    preference.layoutResource = R.layout.nova_preference_semantic
+                }
+                if (preference is PreferenceGroup) {
+                    applySemanticPreferenceLayouts(preference)
+                }
+            }
+        }
+
         fun initializePreferences() {
             if (prevPrefConfig == null) {
                 prevPrefConfig = PreferenceConfiguration.readPreferences(requireContext())
@@ -570,6 +583,9 @@ class StreamSettings : NovaActivity() {
             val prefConfig = prevPrefConfig!!
 
             addPreferencesFromResource(R.xml.preferences)
+            if (NovaThemeManager.getTheme(requireContext()) == NovaThemeManager.THEME_MATERIAL_YOU) {
+                applySemanticPreferenceLayouts(preferenceScreen)
+            }
 
             findPreference<Preference>("nova_app_version")?.summary = NovaAppVersion.current()
 

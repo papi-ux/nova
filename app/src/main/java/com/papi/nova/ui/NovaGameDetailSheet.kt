@@ -1609,7 +1609,7 @@ private fun GameDetailsPanel(
                     factory = { context ->
                         ImageView(context).apply {
                             scaleType = ImageView.ScaleType.CENTER_CROP
-                            setBackgroundColor(ContextCompat.getColor(context, R.color.nova_deep))
+                            setBackgroundColor(NovaThemeManager.getCardBackgroundColor(context))
                             contentDescription = coverContentDescription
                             coverLoader(this)
                         }

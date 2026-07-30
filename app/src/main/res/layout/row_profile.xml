@@ -18,7 +18,7 @@
             android:id="@+id/profileName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/nova_text_primary"
+            android:textColor="?android:attr/textColorPrimary"
             android:textSize="16sp"
             android:fontFamily="sans-serif-medium"
             android:singleLine="true"
@@ -29,7 +29,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textColor="@color/nova_text_secondary"
+            android:textColor="?android:attr/textColorSecondary"
             android:textSize="12sp"
             android:fontFamily="sans-serif" />
 
@@ -51,7 +51,7 @@
         android:background="?android:attr/selectableItemBackgroundBorderless"
         android:contentDescription="Edit profile"
         app:srcCompat="@drawable/ic_edit"
-        app:tint="@color/nova_silver" />
+        app:tint="?android:attr/textColorSecondary" />
 
     <ImageButton
         android:id="@+id/deleteProfile"
@@ -60,6 +60,6 @@
         android:background="?android:attr/selectableItemBackgroundBorderless"
         android:contentDescription="Delete profile"
         app:srcCompat="@drawable/ic_delete"
-        app:tint="@color/nova_silver" />
+        app:tint="?android:attr/textColorSecondary" />
 
 </LinearLayout>

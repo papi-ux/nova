@@ -27,7 +27,7 @@
             android:layout_height="wrap_content"
             android:text="Scan Pairing Code"
             android:textSize="18sp"
-            android:textColor="@color/nova_ice"
+            android:textColor="?attr/colorOnSurface"
             android:fontFamily="sans-serif-medium"
             android:paddingBottom="8dp" />
 
@@ -37,7 +37,7 @@
             android:layout_height="wrap_content"
             android:text="Point camera at the QR code on your Polaris server"
             android:textSize="13sp"
-            android:textColor="@color/nova_text_muted"
+            android:textColor="?android:attr/textColorSecondary"
             android:fontFamily="sans-serif"
             android:gravity="center" />
     </LinearLayout>

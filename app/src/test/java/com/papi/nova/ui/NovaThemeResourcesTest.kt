@@ -489,6 +489,288 @@ class NovaThemeResourcesTest {
     }
 
     @Test
+    fun api31ThemeStylesPreserveEveryNovaPalette() {
+        val stylesV31 = File("src/main/res/values-v31/styles.xml").readText()
+        val requiredItems = listOf(
+            "android:colorBackground",
+            "android:windowBackground",
+            "android:textColorPrimary",
+            "android:textColorSecondary",
+            "colorPrimary",
+            "colorSurface",
+            "colorOnSurface",
+            "colorOnPrimary",
+            "android:statusBarColor",
+            "android:navigationBarColor",
+        )
+        val paletteMarkers = mapOf(
+            "AppTheme.PortableChrome" to "@color/nova_portable_bg_window",
+            "AppTheme.OLED" to "@color/nova_oled_bg_window",
+            "AppTheme.Miami" to "@color/nova_miami_void",
+            "AppTheme.HighContrast" to "@color/nova_hc_bg_window",
+        )
+
+        paletteMarkers.forEach { (styleName, paletteMarker) ->
+            val block = stylesV31
+                .substringAfter("<style name=\"$styleName\"")
+                .substringBefore("</style>")
+            assertTrue("v31 $styleName must retain its palette", block.contains(paletteMarker))
+            requiredItems.forEach { item ->
+                assertTrue("v31 $styleName missing $item", block.contains("name=\"$item\""))
+            }
+        }
+    }
+
+    @Test
+    fun dashboardActivitiesRecreateAfterExternalThemeChanges() {
+        listOf("PcView.kt", "AppView.kt").forEach { fileName ->
+            val source = File("src/main/java/com/papi/nova/$fileName").readText()
+            val onCreate = source.substringAfter("override fun onCreate(savedInstanceState: Bundle?)")
+                .substringBefore("private fun", missingDelimiterValue = source.substringAfter("override fun onCreate(savedInstanceState: Bundle?)"))
+            val onResume = source.substringAfter("override fun onResume()")
+                .substringBefore("override fun onPause()")
+
+            assertTrue("$fileName must snapshot the applied theme before view inflation", onCreate.indexOf("appliedTheme = NovaThemeManager.getTheme(this)") in 0 until onCreate.indexOf("super.onCreate(savedInstanceState)"))
+            assertTrue("$fileName must detect and recreate for an external theme change", onResume.contains("if (recreateForThemeChangeIfNeeded()) return"))
+            assertFalse("$fileName must not partially retheme an already-inflated hierarchy", onResume.contains("NovaThemeManager.applyTheme(this)"))
+            assertFalse("$fileName must not manually recolor only part of an already-inflated hierarchy", onResume.contains("applyThemeToServerBrowser()"))
+            assertTrue("$fileName theme-change helper must recreate the whole Activity", source.contains("private fun recreateForThemeChangeIfNeeded(): Boolean") && source.contains("recreate()"))
+        }
+    }
+
+    @Test
+    fun materialYouAppSurfacesDoNotUseStaticLegacyBackgrounds() {
+        val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val appView = File("src/main/java/com/papi/nova/AppView.kt").readText()
+        val gameDetail = File("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt").readText()
+        val manager = File("src/main/java/com/papi/nova/ui/NovaThemeManager.kt").readText()
+        val particles = File("src/main/java/com/papi/nova/ui/SpaceParticleView.kt").readText()
+
+        assertFalse(pcView.contains("R.color.nova_bg_elevated"))
+        assertFalse(appView.contains("R.color.nova_bg_elevated"))
+        assertFalse(gameDetail.contains("R.color.nova_deep"))
+        assertTrue(manager.contains("fun getActivityWindowSurfaceColor(context: Context): Int"))
+        assertTrue(manager.contains("val surfaceColor = getActivityWindowSurfaceColor(activity)"))
+        assertTrue(particles.contains("NovaThemeManager.getActivityWindowSurfaceColor(context)"))
+    }
+
+    @Test
+    fun legacyPreferenceRowsBindSemanticThemeColors() {
+        val settings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
+        val layout = File("src/main/res/layout/nova_preference_semantic.xml").readText()
+        val title = File("src/main/res/color/nova_preference_title_semantic.xml").readText()
+        val summary = File("src/main/res/color/nova_preference_summary_semantic.xml").readText()
+
+        assertTrue(settings.contains("NovaThemeManager.getTheme(requireContext()) == NovaThemeManager.THEME_MATERIAL_YOU"))
+        assertTrue(settings.contains("applySemanticPreferenceLayouts(preferenceScreen)"))
+        assertTrue(settings.contains("preference.layoutResource = R.layout.nova_preference_semantic"))
+        assertTrue(settings.contains("preference !is PreferenceCategory"))
+        assertTrue(settings.contains("preference is PreferenceGroup"))
+        assertFalse(settings.contains("PreferenceGroupAdapter"))
+        assertTrue(layout.contains("@color/nova_preference_title_semantic"))
+        assertTrue(layout.contains("@color/nova_preference_summary_semantic"))
+        assertTrue(title.contains("state_enabled=\"false\""))
+        assertTrue(title.contains("android:alpha=\"0.38\""))
+        assertTrue(title.contains("?attr/colorOnSurface"))
+        assertTrue(summary.contains("state_enabled=\"false\""))
+        assertTrue(summary.contains("android:alpha=\"0.38\""))
+        assertTrue(summary.contains("?attr/colorOnSurfaceVariant"))
+        assertFalse(layout.contains("@layout/image_frame"))
+        assertFalse(layout.contains("@style/PreferenceSummaryTextStyle"))
+        assertFalse(layout.contains("androidx.preference.internal"))
+        assertTrue(layout.contains("androidx.appcompat.widget.AppCompatImageView"))
+        assertTrue(layout.contains("?android:attr/textAppearanceListItemSecondary"))
+    }
+
+    @Test
+    fun sharedThemeOverlaysUseSemanticRolesInsteadOfPolarisPalette() {
+        val styles = File("src/main/res/values/styles.xml").readText()
+        listOf(
+            "NovaPreferenceTheme.MaterialYou",
+            "NovaAlertDialog.MaterialYou",
+            "NovaPopupMenu",
+            "NovaFilterChip",
+            "NovaMaterialChip",
+            "NovaMaterialChip.Action",
+            "NovaBottomSheet",
+        ).forEach { styleName ->
+            val block = styles.substringAfter("<style name=\"$styleName\"")
+                .substringBefore("</style>")
+            val semanticBlock = block
+                .replace("@color/nova_chip_bg_selector", "")
+                .replace("@color/nova_focus_stroke_selector", "")
+            assertFalse("$styleName must not hardcode the Polaris palette", semanticBlock.contains("@color/nova_"))
+        }
+        listOf("NovaPreferenceTheme.MaterialYou", "NovaAlertDialog.MaterialYou").forEach { styleName ->
+            val block = styles.substringAfter("<style name=\"$styleName\"")
+                .substringBefore("</style>")
+            assertTrue(block.contains("?attr/colorOnSurface"))
+            assertTrue(block.contains("?attr/colorOnSurfaceVariant"))
+        }
+
+        val appView = File("src/main/res/layout/activity_app_view.xml").readText()
+        val profilesButton = appView.substringAfter("android:id=\"@+id/profilesButton\"")
+            .substringBefore("/>")
+        assertTrue(profilesButton.contains("app:backgroundTint=\"?attr/colorAccent\""))
+        assertTrue(profilesButton.contains("app:iconTint=\"?attr/colorOnPrimary\""))
+
+        val profiles = File("src/main/res/layout/activity_profiles.xml").readText()
+        val addProfileFab = profiles.substringAfter("android:id=\"@+id/addProfileFab\"")
+            .substringBefore("/>")
+        assertTrue(addProfileFab.contains("app:backgroundTint=\"?attr/colorAccent\""))
+        assertTrue(addProfileFab.contains("app:tint=\"?attr/colorOnPrimary\""))
+        assertFalse(addProfileFab.contains("app:iconTint="))
+    }
+
+    @Test
+    fun materialYouStylesExplicitlyUseDynamicDayNightParents() {
+        val styles = File("src/main/res/values/styles.xml").readText()
+        val stylesV31 = File("src/main/res/values-v31/styles.xml").readText()
+        val stylesNightV31 = File("src/main/res/values-night-v31/styles.xml").readText()
+
+        assertTrue(
+            styles.contains(
+                "<style name=\"AppTheme.MaterialYou\" parent=\"Theme.Material3.DynamicColors.DayNight.NoActionBar\">"
+            )
+        )
+        val materialSettingsStyle = styles
+            .substringAfter("<style name=\"SettingsTheme.MaterialYou\"")
+            .substringBefore("</style>")
+        assertTrue(
+            styles.contains(
+                "<style name=\"SettingsTheme.MaterialYou\" parent=\"Theme.Material3.DynamicColors.DayNight.NoActionBar\">"
+            )
+        )
+        assertTrue(materialSettingsStyle.contains("name=\"preferenceTheme\">@style/NovaPreferenceTheme.MaterialYou"))
+        assertTrue(materialSettingsStyle.contains("name=\"alertDialogTheme\">@style/NovaAlertDialog.MaterialYou"))
+        assertTrue(materialSettingsStyle.contains("name=\"android:alertDialogTheme\">@style/NovaAlertDialog.MaterialYou"))
+        assertTrue(materialSettingsStyle.contains("name=\"materialAlertDialogTitleTextStyle\">@style/NovaAlertDialogTitleText.MaterialYou"))
+
+        val v31MaterialSettings = stylesV31
+            .substringAfter("<style name=\"SettingsTheme.MaterialYou\"")
+            .substringBefore("</style>")
+        val nightV31MaterialSettings = stylesNightV31
+            .substringAfter("<style name=\"SettingsTheme.MaterialYou\"")
+            .substringBefore("</style>")
+        assertTrue(v31MaterialSettings.contains("@android:color/system_neutral1_900"))
+        assertTrue(v31MaterialSettings.contains("name=\"preferenceTheme\">@style/NovaPreferenceTheme.MaterialYou"))
+        assertTrue(v31MaterialSettings.contains("name=\"materialAlertDialogTitleTextStyle\">@style/NovaAlertDialogTitleText.MaterialYou"))
+        assertTrue(nightV31MaterialSettings.contains("@android:color/system_neutral1_50"))
+        assertTrue(nightV31MaterialSettings.contains("name=\"preferenceTheme\">@style/NovaPreferenceTheme.MaterialYou"))
+        assertTrue(nightV31MaterialSettings.contains("name=\"materialAlertDialogTitleTextStyle\">@style/NovaAlertDialogTitleText.MaterialYou"))
+        val v31PreferenceOverlay = stylesV31
+            .substringAfter("<style name=\"NovaPreferenceTheme.MaterialYou\"")
+            .substringBefore("</style>")
+        val nightPreferenceOverlay = stylesNightV31
+            .substringAfter("<style name=\"NovaPreferenceTheme.MaterialYou\"")
+            .substringBefore("</style>")
+        assertTrue(v31PreferenceOverlay.contains("name=\"android:textColorPrimary\">@android:color/system_neutral1_900"))
+        assertTrue(nightPreferenceOverlay.contains("name=\"android:textColorPrimary\">@android:color/system_neutral1_50"))
+        val v31AlertOverlay = stylesV31
+            .substringAfter("<style name=\"NovaAlertDialog.MaterialYou\"")
+            .substringBefore("</style>")
+        assertTrue(v31AlertOverlay.contains("name=\"materialAlertDialogTitleTextStyle\">@style/NovaAlertDialogTitleText.MaterialYou"))
+        val baseAlertOverlay = styles
+            .substringAfter("<style name=\"NovaAlertDialog.MaterialYou\"")
+            .substringBefore("</style>")
+        val baseAppCompatAlertTitle = styles
+            .substringAfter("<style name=\"NovaAppCompatDialogTitle.MaterialYou\"")
+            .substringBefore("</style>")
+        val v31AppCompatAlertTitle = stylesV31
+            .substringAfter("<style name=\"NovaAppCompatDialogTitle.MaterialYou\"")
+            .substringBefore("</style>")
+        val nightAppCompatAlertTitle = stylesNightV31
+            .substringAfter("<style name=\"NovaAppCompatDialogTitle.MaterialYou\"")
+            .substringBefore("</style>")
+        assertTrue(baseAlertOverlay.contains("name=\"android:windowTitleStyle\">@style/NovaAppCompatDialogTitle.MaterialYou"))
+        assertTrue(baseAppCompatAlertTitle.contains("?attr/colorOnSurface"))
+        assertTrue(v31AppCompatAlertTitle.contains("@android:color/system_neutral1_900"))
+        assertTrue(nightAppCompatAlertTitle.contains("@android:color/system_neutral1_50"))
+        assertTrue(
+            stylesV31.contains(
+                "<style name=\"AppTheme.MaterialYou\" parent=\"Theme.Material3.DynamicColors.DayNight.NoActionBar\">"
+            )
+        )
+        assertTrue(
+            stylesNightV31.contains(
+                "<style name=\"AppTheme.MaterialYou\" parent=\"Theme.Material3.DynamicColors.DayNight.NoActionBar\">"
+            )
+        )
+    }
+
+    @Test
+    fun materialYouUsesDayNightSemanticRolesAcrossSystemBarsComposeAndVisibleXml() {
+        val manager = File("src/main/java/com/papi/nova/ui/NovaThemeManager.kt").readText()
+        val composeTheme = File("src/main/java/com/papi/nova/ui/compose/NovaComposeTheme.kt").readText()
+        val v31Styles = File("src/main/res/values-v31/styles.xml").readText()
+        val v31MaterialYou = v31Styles
+            .substringAfter("<style name=\"AppTheme.MaterialYou\"")
+            .substringBefore("</style>")
+
+        listOf(
+            "android:colorBackground",
+            "android:windowBackground",
+            "android:statusBarColor",
+            "android:navigationBarColor",
+            "android:textColorPrimary",
+            "android:textColorSecondary",
+            "colorSurface",
+            "colorOnSurface",
+        ).forEach { role ->
+            assertTrue("API 31+ Material You style must retain $role instead of shadowing the base style", v31MaterialYou.contains("name=\"$role\""))
+        }
+
+        assertTrue("Material You role lookup must use the Material dynamic context wrapper", manager.contains("DynamicColors.wrapContextIfAvailable"))
+        assertTrue(
+            "system-bar icons must choose the higher-contrast black or white appearance",
+            manager.contains("isAppearanceLightStatusBars") &&
+                manager.contains("isAppearanceLightNavigationBars") &&
+                manager.contains("ColorUtils.calculateContrast(Color.BLACK, surfaceColor)") &&
+                manager.contains("ColorUtils.calculateContrast(Color.WHITE, surfaceColor)")
+        )
+        assertTrue("Compose must support a light Material color scheme", composeTheme.contains("lightColorScheme"))
+        assertTrue("Compose Material You must follow system DayNight", composeTheme.contains("isSystemInDarkTheme"))
+
+        val forbiddenStaticRoles = listOf(
+            "@color/nova_text_primary",
+            "@color/nova_text_secondary",
+            "@color/nova_text_muted",
+            "@color/nova_ice",
+            "@color/nova_bg_card",
+            "@color/nova_deep",
+            "@color/nova_bg_window",
+            "@color/nova_badge_bg",
+            "@color/nova_storm",
+            "@color/nova_silver",
+            "@color/nova_accent",
+        )
+        val offenders = File("src/main/res")
+            .walkTopDown()
+            .filter { file ->
+                val parentName = file.parentFile?.name.orEmpty()
+                file.isFile && file.extension == "xml" && (parentName.startsWith("layout") || parentName == "drawable")
+            }
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    forbiddenStaticRoles.firstOrNull(line::contains)?.let { "${file.path}:${index + 1}:$it" }
+                }
+            }
+            .toList()
+        assertTrue("visible XML must consume semantic theme attributes, not static Nova surface/text roles: $offenders", offenders.isEmpty())
+    }
+
+    @Test
+    fun everyVisibleColdStartActivityAppliesSelectedNovaTheme() {
+        val debug = File("src/main/java/com/papi/nova/DebugInfoActivity.kt").readText()
+        val shortcut = File("src/main/java/com/papi/nova/ShortcutTrampoline.kt").readText()
+        val debugBeforeSuper = debug.substringAfter("override fun onCreate").substringBefore("super.onCreate")
+        val shortcutBeforeSuper = shortcut.substringAfter("override fun onCreate").substringBefore("super.onCreate")
+
+        assertTrue("DebugInfoActivity must apply the selected theme before super.onCreate", debugBeforeSuper.contains("NovaThemeManager.applyTheme(this)"))
+        assertTrue("ShortcutTrampoline dialogs must inherit the selected theme on cold start", shortcutBeforeSuper.contains("NovaThemeManager.applyTheme(this)"))
+    }
+
+    @Test
     fun sheetActionRowsExposeDpadFocusedAndPressedFeedback() {
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
 

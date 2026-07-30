@@ -17,6 +17,22 @@
     <style name="AppTheme.OLED">
         <item name="android:colorBackground">@color/nova_oled_bg_window</item>
         <item name="android:windowBackground">@color/nova_oled_bg_window</item>
+        <item name="android:textColor">@color/nova_oled_text_primary</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:textColorPrimary">@color/nova_oled_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_oled_text_secondary</item>
+        <item name="colorPrimary">@color/nova_oled_accent</item>
+        <item name="colorAccent">@color/nova_oled_accent</item>
+        <item name="colorControlHighlight">@color/nova_oled_accent_surface</item>
+        <item name="colorSurface">@color/nova_oled_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_oled_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_oled_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_oled_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_oled_bg_window</item>
+        <item name="colorPrimaryContainer">@color/nova_oled_accent_surface</item>
+        <item name="colorOutline">@color/nova_oled_divider</item>
+        <item name="colorError">@color/nova_error</item>
         <item name="android:windowSplashScreenBackground">@color/nova_oled_bg_window</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_oled_bg_window</item>
@@ -25,14 +41,46 @@
     <style name="AppTheme.Miami">
         <item name="android:colorBackground">@color/nova_miami_bg_window</item>
         <item name="android:windowBackground">@color/nova_miami_bg_window</item>
+        <item name="android:textColor">@color/nova_miami_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_miami_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_miami_text_secondary</item>
+        <item name="android:navigationBarColor">@color/nova_miami_void</item>
+        <item name="android:statusBarColor">@color/nova_miami_void</item>
+        <item name="colorPrimary">@color/nova_miami_accent</item>
+        <item name="colorAccent">@color/nova_miami_accent</item>
+        <item name="colorControlHighlight">@color/nova_miami_accent_surface</item>
+        <item name="colorSurface">@color/nova_miami_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_miami_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_miami_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_miami_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_miami_void</item>
+        <item name="colorPrimaryContainer">@color/nova_miami_accent_surface</item>
+        <item name="colorOutline">@color/nova_miami_divider</item>
+        <item name="colorError">@color/nova_error</item>
         <item name="android:windowSplashScreenBackground">@color/nova_miami_bg_window</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_miami_bg_window</item>
     </style>
 
-    <style name="AppTheme.PortableChrome">
+    <style name="AppTheme.PortableChrome" parent="AppBaseTheme">
         <item name="android:colorBackground">@color/nova_portable_bg_window</item>
         <item name="android:windowBackground">@color/nova_portable_bg_window</item>
+        <item name="android:textColor">@color/nova_portable_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_portable_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_portable_text_secondary</item>
+        <item name="android:navigationBarColor">@color/nova_portable_bg_window</item>
+        <item name="android:statusBarColor">@color/nova_portable_bg_window</item>
+        <item name="colorPrimary">@color/nova_portable_accent</item>
+        <item name="colorAccent">@color/nova_portable_accent</item>
+        <item name="colorControlHighlight">@color/nova_portable_accent_surface</item>
+        <item name="colorSurface">@color/nova_portable_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_portable_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_portable_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_portable_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_ice</item>
+        <item name="colorPrimaryContainer">@color/nova_portable_accent_surface</item>
+        <item name="colorOutline">@color/nova_portable_divider</item>
+        <item name="colorError">@color/nova_error</item>
         <item name="android:windowSplashScreenBackground">@color/nova_portable_bg_window</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_light</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_portable_bg_window</item>
@@ -41,12 +89,87 @@
     <style name="AppTheme.HighContrast">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
         <item name="android:windowBackground">@color/nova_hc_bg_window</item>
+        <item name="android:statusBarColor">@color/nova_hc_bg_window</item>
+        <item name="android:navigationBarColor">@color/nova_hc_bg_window</item>
+        <item name="android:textColor">@color/nova_hc_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_hc_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_hc_text_secondary</item>
+        <item name="colorPrimary">@color/nova_hc_accent</item>
+        <item name="colorAccent">@color/nova_hc_accent</item>
+        <item name="colorControlHighlight">@color/nova_hc_accent_surface</item>
+        <item name="colorSurface">@color/nova_hc_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_hc_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_hc_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_hc_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_hc_bg_window</item>
+        <item name="colorPrimaryContainer">@color/nova_hc_accent_surface</item>
+        <item name="colorOutline">@color/nova_hc_divider</item>
+        <item name="colorError">@color/nova_error</item>
         <item name="android:windowSplashScreenBackground">@color/nova_hc_bg_window</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_hc_bg_window</item>
     </style>
 
-    <style name="AppTheme.MaterialYou">
+    <style name="AppTheme.MaterialYou" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <item name="android:colorBackground">@android:color/system_neutral1_10</item>
+        <item name="android:windowBackground">@android:color/system_neutral1_10</item>
+        <item name="android:statusBarColor">@android:color/system_neutral1_10</item>
+        <item name="android:navigationBarColor">@android:color/system_neutral1_10</item>
+        <item name="android:textColorPrimary">@android:color/system_neutral1_900</item>
+        <item name="android:textColorSecondary">@android:color/system_neutral2_600</item>
+        <item name="colorSurface">@android:color/system_neutral1_10</item>
+        <item name="colorSurfaceVariant">@android:color/system_neutral2_50</item>
+        <item name="colorOnSurface">@android:color/system_neutral1_900</item>
+        <item name="colorOnSurfaceVariant">@android:color/system_neutral2_600</item>
+        <item name="colorPrimary">@android:color/system_accent1_600</item>
+        <item name="colorOnPrimary">@android:color/system_neutral1_10</item>
+        <item name="android:windowSplashScreenBackground">@android:color/system_accent1_100</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/system_accent1_100</item>
+    </style>
+
+    <style name="NovaPreferenceTheme.MaterialYou" parent="NovaPreferenceTheme">
+        <item name="android:textColorPrimary">@android:color/system_neutral1_900</item>
+        <item name="android:textColorSecondary">@android:color/system_neutral2_600</item>
+    </style>
+
+    <style name="NovaAlertDialog.MaterialYou" parent="NovaAlertDialog">
+        <item name="android:background">@android:color/system_neutral1_10</item>
+        <item name="android:windowBackground">@android:color/system_neutral1_10</item>
+        <item name="android:textColorPrimary">@android:color/system_neutral1_900</item>
+        <item name="android:textColorSecondary">@android:color/system_neutral2_600</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/NovaAlertDialogTitleText.MaterialYou</item>
+        <item name="android:windowTitleStyle">@style/NovaAppCompatDialogTitle.MaterialYou</item>
+    </style>
+
+    <style name="NovaAppCompatDialogTitle.MaterialYou" parent="RtlOverlay.DialogWindowTitle.AppCompat">
+        <item name="android:textColor">@android:color/system_neutral1_900</item>
+    </style>
+
+    <style name="NovaAlertDialogTitleText.MaterialYou" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
+        <item name="android:textColor">@android:color/system_neutral1_900</item>
+    </style>
+
+    <style name="SettingsTheme.MaterialYou" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog.MaterialYou</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog.MaterialYou</item>
+        <item name="preferenceTheme">@style/NovaPreferenceTheme.MaterialYou</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/NovaAlertDialogTitleText.MaterialYou</item>
+        <item name="android:colorBackground">@android:color/system_neutral1_10</item>
+        <item name="android:windowBackground">@android:color/system_neutral1_10</item>
+        <item name="android:statusBarColor">@android:color/system_neutral1_10</item>
+        <item name="android:navigationBarColor">@android:color/system_neutral1_10</item>
+        <item name="android:textColorPrimary">@android:color/system_neutral1_900</item>
+        <item name="android:textColorSecondary">@android:color/system_neutral2_600</item>
+        <item name="colorSurface">@android:color/system_neutral1_10</item>
+        <item name="colorSurfaceVariant">@android:color/system_neutral2_50</item>
+        <item name="colorOnSurface">@android:color/system_neutral1_900</item>
+        <item name="colorOnSurfaceVariant">@android:color/system_neutral2_600</item>
+        <item name="colorPrimary">@android:color/system_accent1_600</item>
+        <item name="colorOnPrimary">@android:color/system_neutral1_10</item>
         <item name="android:windowSplashScreenBackground">@android:color/system_accent1_100</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@android:color/system_accent1_100</item>

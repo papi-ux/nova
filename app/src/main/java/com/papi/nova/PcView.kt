@@ -349,7 +349,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         if (swipeRefresh != null) {
             swipeRefresh.setColorSchemeColors(NovaThemeManager.getAccentColor(this))
             swipeRefresh.setProgressBackgroundColorSchemeColor(
-                ContextCompat.getColor(this, R.color.nova_bg_elevated),
+                NovaThemeManager.getCardBackgroundColor(this),
             )
             swipeRefresh.setOnRefreshListener {
                 resetLibraryReadiness()
@@ -1853,15 +1853,17 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
     }
 
+    private fun recreateForThemeChangeIfNeeded(): Boolean {
+        val currentTheme = NovaThemeManager.getTheme(this)
+        if (appliedTheme == currentTheme) return false
+        appliedTheme = currentTheme
+        recreate()
+        return true
+    }
+
     override fun onResume() {
         super.onResume()
-
-        val currentTheme = NovaThemeManager.getTheme(this)
-        if (appliedTheme != null && appliedTheme != currentTheme) {
-            appliedTheme = currentTheme
-            NovaThemeManager.applyTheme(this)
-            applyThemeToServerBrowser()
-        }
+        if (recreateForThemeChangeIfNeeded()) return
 
         UiHelper.showDecoderCrashDialog(this)
         refreshProfileButton()

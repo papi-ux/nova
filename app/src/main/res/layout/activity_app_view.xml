@@ -32,7 +32,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="@dimen/nova_text_header"
-                android:textColor="@color/nova_ice"
+                android:textColor="?attr/colorOnSurface"
                 android:fontFamily="sans-serif-medium" />
 
             <TextView
@@ -40,7 +40,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/server_library_label"
                 android:textSize="@dimen/nova_text_badge"
-                android:textColor="@color/nova_text_muted"
+                android:textColor="?android:attr/textColorSecondary"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.08"
                 android:textAllCaps="true"
@@ -59,10 +59,10 @@
             android:background="@drawable/nova_search_bg"
             android:drawableStart="@android:drawable/ic_menu_search"
             android:drawablePadding="12dp"
-            android:drawableTint="@color/nova_text_muted"
+            android:drawableTint="?android:attr/textColorSecondary"
             android:hint="@string/server_library_search_hint"
-            android:textColorHint="@color/nova_text_muted"
-            android:textColor="@color/nova_text_primary"
+            android:textColorHint="?android:attr/textColorSecondary"
+            android:textColor="?android:attr/textColorPrimary"
             android:textSize="14sp"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
@@ -96,7 +96,7 @@
                 android:layout_height="112dp"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
-                app:cardBackgroundColor="@color/nova_deep">
+                app:cardBackgroundColor="?attr/colorSurface">
 
                 <ImageView
                     android:id="@+id/recently_played_art"
@@ -128,7 +128,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textSize="18sp"
-                    android:textColor="@color/nova_ice"
+                    android:textColor="?attr/colorOnSurface"
                     android:fontFamily="sans-serif-medium"
                     android:maxLines="2"
                     android:ellipsize="end"
@@ -140,7 +140,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/applist_hero_summary_continue"
                     android:textSize="13sp"
-                    android:textColor="@color/nova_text_secondary"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:fontFamily="sans-serif"
                     android:maxLines="2"
                     android:ellipsize="end"
@@ -162,7 +162,7 @@
                     android:gravity="center"
                     android:text="@string/pcview_card_action_resume"
                     android:textSize="12sp"
-                    android:textColor="@color/nova_ice"
+                    android:textColor="?attr/colorOnSurface"
                     android:fontFamily="sans-serif-medium"
                     android:background="@drawable/nova_featured_action_bg"
                     android:paddingStart="14dp"
@@ -230,7 +230,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/applist_error_title"
-                    android:textColor="@color/nova_ice"
+                    android:textColor="?attr/colorOnSurface"
                     android:textSize="20sp"
                     android:fontFamily="sans-serif-medium" />
 
@@ -240,7 +240,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="@string/applist_error_message"
-                    android:textColor="@color/nova_text_secondary"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:textSize="14sp" />
 
                 <TextView
@@ -248,7 +248,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:textColor="@color/nova_text_muted"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:textSize="12sp"
                     android:visibility="gone" />
 
@@ -274,6 +274,6 @@
         android:contentDescription="@string/profile_manager_choose_profile"
         app:icon="@drawable/ic_profiles"
         app:backgroundTint="?attr/colorAccent"
-        app:iconTint="@color/nova_ice" />
+        app:iconTint="?attr/colorOnPrimary" />
 
 </FrameLayout>
