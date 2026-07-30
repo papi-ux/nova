@@ -34,6 +34,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -95,6 +96,9 @@ import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParserException
 
 internal fun dashboardSetupActionHeight(collapsed: Boolean, compactHeight: Int): Int =
@@ -2566,27 +2570,59 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     private fun removeComputer(details: ComputerDetails) {
         val binder = managerBinder
-        if (binder == null || !binder.removeComputer(details)) {
+        if (binder == null) {
             Toast.makeText(this, R.string.nova_server_remove_failed, Toast.LENGTH_LONG).show()
             return
         }
-        if (::viewModel.isInitialized) {
-            viewModel.removeComputer(details.uuid)
+
+        lifecycleScope.launch {
+            val removed = withContext(Dispatchers.IO) {
+                val success = runCatching {
+                    binder.removeComputer(details)
+                }.onFailure { error ->
+                    LimeLog.warning("Nova: Remove server request failed (${error.javaClass.simpleName})")
+                }.getOrDefault(false)
+
+                if (success) {
+                    runCatching {
+                        DiskAssetLoader(applicationContext).deleteAssetsForComputer(details.uuid)
+                    }.onFailure { error ->
+                        LimeLog.warning("Nova: Server asset cleanup failed (${error.javaClass.simpleName})")
+                    }
+                }
+                success
+            }
+
+            if (!removed) {
+                if (!isFinishing && !isDestroyed) {
+                    Toast.makeText(
+                        this@PcView,
+                        R.string.nova_server_remove_failed,
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+                return@launch
+            }
+            if (isFinishing || isDestroyed) {
+                return@launch
+            }
+
+            if (::viewModel.isInitialized) {
+                viewModel.removeComputer(details.uuid)
+            }
+
+            getSharedPreferences(AppView.HIDDEN_APPS_PREF_FILENAME, MODE_PRIVATE)
+                .edit()
+                .remove(details.uuid)
+                .apply()
+
+            shortcutHelper.disableComputerShortcut(
+                details,
+                resources.getString(R.string.scut_deleted_pc),
+            )
+
+            syncComputerList()
         }
-
-        DiskAssetLoader(this).deleteAssetsForComputer(details.uuid)
-
-        getSharedPreferences(AppView.HIDDEN_APPS_PREF_FILENAME, MODE_PRIVATE)
-            .edit()
-            .remove(details.uuid)
-            .apply()
-
-        shortcutHelper.disableComputerShortcut(
-            details,
-            resources.getString(R.string.scut_deleted_pc),
-        )
-
-        syncComputerList()
     }
 
     private fun checkAutoNavigation(computers: List<ComputerObject>?) {

@@ -57,11 +57,20 @@ class Issue157ThorRegressionSourceTest {
         val strings = File("src/main/res/values/strings.xml").readText()
 
         assertTrue(service.contains("fun removeComputer(computer: ComputerDetails): Boolean"))
+        assertTrue(service.contains("isCurrentPollingComputer(pollingTuples, details)"))
+        val removal = service.substringAfter("fun removeComputer(computer: ComputerDetails): Boolean")
+            .substringBefore("private fun pollComputerNow")
+        assertTrue(removal.contains("pollingTuples.remove(computer.uuid)"))
+        assertTrue(removal.contains("removed?.future?.cancel(true)"))
+        assertTrue(removal.contains("synchronized(removed.networkLock)"))
+        assertTrue(removal.contains("deletePersistedComputer()"))
         assertTrue(service.contains("finally"))
         assertTrue(service.contains("releaseLocalDatabaseReference()"))
         assertTrue(viewModel.contains("fun removeComputer(uuid: String)"))
-        assertTrue(pcView.contains("!binder.removeComputer(details)"))
+        assertTrue(pcView.contains("withContext(Dispatchers.IO)"))
+        assertTrue(pcView.contains("binder.removeComputer(details)"))
         assertTrue(pcView.contains("viewModel.removeComputer(details.uuid)"))
+        assertFalse(pcView.contains("binder == null || !binder.removeComputer(details)"))
         assertTrue(strings.contains("name=\"nova_server_remove_failed\""))
     }
 
