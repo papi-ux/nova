@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="?attr/colorControlHighlight">
+    android:color="@color/nova_tonal_pill_state_layer">
     <item>
         <selector>
             <item android:state_focused="true">
                 <shape android:shape="rectangle">
                     <solid android:color="?attr/colorPrimaryContainer" />
-                    <stroke android:width="2dp" android:color="?attr/colorPrimary" />
+                    <stroke android:width="2dp" android:color="?attr/colorOnPrimaryContainer" />
                     <corners android:radius="24dp" />
                 </shape>
             </item>

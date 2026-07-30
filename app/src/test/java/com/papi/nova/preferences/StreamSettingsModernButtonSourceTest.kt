@@ -27,6 +27,8 @@ class StreamSettingsModernButtonSourceTest {
         val styles = File(main, "res/values/styles.xml").readText()
         val pill = File(main, "res/drawable/nova_tonal_pill_button.xml")
         val pillXml = if (pill.exists()) pill.readText() else ""
+        val textStates = File(main, "res/color/nova_tonal_pill_text.xml").readText()
+        val pressedStates = File(main, "res/color/nova_tonal_pill_state_layer.xml").readText()
 
         assertTrue(layout.contains("androidx.appcompat.widget.AppCompatButton"))
         assertTrue(layout.contains("@+id/modernSettingsButton"))
@@ -36,13 +38,18 @@ class StreamSettingsModernButtonSourceTest {
         assertTrue(layout.contains("style=\"@style/NovaTonalPillButton\""))
         assertTrue(manageLayout.contains("style=\"@style/NovaTonalPillButton\""))
         assertTrue(styles.contains("name=\"NovaTonalPillButton\""))
-        assertTrue(styles.contains("?attr/colorOnPrimaryContainer"))
+        assertTrue(styles.contains("@color/nova_tonal_pill_text"))
         assertTrue(pill.exists())
         assertTrue(pillXml.contains("?attr/colorPrimaryContainer"))
-        assertTrue(pillXml.contains("?attr/colorControlHighlight"))
+        assertTrue(pillXml.contains("@color/nova_tonal_pill_state_layer"))
         assertTrue(pillXml.contains("android:radius=\"24dp\""))
         assertTrue(pillXml.contains("android:state_focused=\"true\""))
-        assertTrue(pillXml.contains("android:color=\"?attr/colorPrimary\""))
+        assertTrue(pillXml.contains("android:color=\"?attr/colorOnPrimaryContainer\""))
+        assertTrue(textStates.contains("android:state_enabled=\"false\""))
+        assertTrue(textStates.contains("android:alpha=\"0.38\""))
+        assertTrue(textStates.contains("?attr/colorOnPrimaryContainer"))
+        assertTrue(pressedStates.contains("android:alpha=\"0.20\""))
+        assertTrue(pressedStates.contains("?attr/colorOnPrimaryContainer"))
     }
 
     @Test
