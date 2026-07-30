@@ -9,6 +9,9 @@
         <item name="android:colorBackground">@color/nova_bg_window</item>
         <item name="android:windowBackground">@color/nova_bg_window</item>
         <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="colorPrimaryContainer">@color/nova_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_polaris</item>
         <item name="android:windowSplashScreenBackground">@color/nova_bg_window</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_bg_window</item>
@@ -32,6 +35,7 @@
         <item name="colorOnPrimary">@color/nova_oled_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_oled_accent_surface</item>
         <item name="colorOnPrimaryContainer">@color/nova_oled_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_oled</item>
         <item name="colorOutline">@color/nova_oled_divider</item>
         <item name="colorError">@color/nova_error</item>
         <item name="android:windowSplashScreenBackground">@color/nova_oled_bg_window</item>
@@ -57,6 +61,7 @@
         <item name="colorOnPrimary">@color/nova_miami_void</item>
         <item name="colorPrimaryContainer">@color/nova_miami_accent_surface</item>
         <item name="colorOnPrimaryContainer">@color/nova_miami_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_miami</item>
         <item name="colorOutline">@color/nova_miami_divider</item>
         <item name="colorError">@color/nova_error</item>
         <item name="android:windowSplashScreenBackground">@color/nova_miami_bg_window</item>
@@ -82,6 +87,7 @@
         <item name="colorOnPrimary">@color/nova_ice</item>
         <item name="colorPrimaryContainer">@color/nova_portable_accent_surface</item>
         <item name="colorOnPrimaryContainer">@color/nova_portable_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_portable</item>
         <item name="colorOutline">@color/nova_portable_divider</item>
         <item name="colorError">@color/nova_error</item>
         <item name="android:windowSplashScreenBackground">@color/nova_portable_bg_window</item>
@@ -107,6 +113,7 @@
         <item name="colorOnPrimary">@color/nova_hc_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_hc_accent_surface</item>
         <item name="colorOnPrimaryContainer">@color/nova_hc_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_high_contrast</item>
         <item name="colorOutline">@color/nova_hc_divider</item>
         <item name="colorError">@color/nova_error</item>
         <item name="android:windowSplashScreenBackground">@color/nova_hc_bg_window</item>
@@ -127,6 +134,7 @@
         <item name="colorOnSurfaceVariant">@android:color/system_neutral2_600</item>
         <item name="colorPrimary">@android:color/system_accent1_600</item>
         <item name="colorOnPrimary">@android:color/system_neutral1_10</item>
+        <item name="novaTonalPillPressedColor">?attr/colorControlHighlight</item>
         <item name="android:windowSplashScreenBackground">@android:color/system_accent1_100</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@android:color/system_accent1_100</item>
@@ -174,6 +182,7 @@
         <item name="colorOnSurfaceVariant">@android:color/system_neutral2_600</item>
         <item name="colorPrimary">@android:color/system_accent1_600</item>
         <item name="colorOnPrimary">@android:color/system_neutral1_10</item>
+        <item name="novaTonalPillPressedColor">?attr/colorControlHighlight</item>
         <item name="android:windowSplashScreenBackground">@android:color/system_accent1_100</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@android:color/system_accent1_100</item>

@@ -123,4 +123,10 @@
     <color name="nova_connecting">#FFfbbf24</color>
     <color name="nova_offline">#FFf87171</color>
     <color name="nova_online">#FF7FA38D</color>
+    <!-- Tonal pill pressed-state overlays: 20% of each theme's on-container text role. -->
+    <color name="nova_tonal_pill_pressed_polaris">#33D4DDE8</color>
+    <color name="nova_tonal_pill_pressed_portable">#331F2A35</color>
+    <color name="nova_tonal_pill_pressed_oled">#33E0E6ED</color>
+    <color name="nova_tonal_pill_pressed_miami">#33FFF1F7</color>
+    <color name="nova_tonal_pill_pressed_high_contrast">#33FFFFFF</color>
 </resources>

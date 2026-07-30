@@ -221,11 +221,13 @@ class NovaThemeManagerTest {
             "OLED app" to R.style.AppTheme_OLED,
             "Miami app" to R.style.AppTheme_Miami,
             "High Contrast app" to R.style.AppTheme_HighContrast,
+            "Material You app" to R.style.AppTheme_MaterialYou,
             "Polaris settings" to R.style.SettingsTheme,
             "Portable settings" to R.style.SettingsTheme_PortableChrome,
             "OLED settings" to R.style.SettingsTheme_OLED,
             "Miami settings" to R.style.SettingsTheme_Miami,
             "High Contrast settings" to R.style.SettingsTheme_HighContrast,
+            "Material You settings" to R.style.SettingsTheme_MaterialYou,
         )
 
         themes.forEach { (label, themeId) ->
@@ -242,7 +244,15 @@ class NovaThemeManagerTest {
                 themed,
                 com.google.android.material.R.attr.colorOnPrimaryContainer,
             )
-            val pressedLayer = themed.getColorStateList(R.color.nova_tonal_pill_state_layer).defaultColor
+            if (label.startsWith("Polaris")) {
+                assertEquals(themed.getColor(R.color.nova_accent_surface), containerOverlay)
+                assertEquals(themed.getColor(R.color.nova_text_primary), foreground)
+                assertEquals(
+                    themed.getColor(R.color.nova_tonal_pill_pressed_polaris),
+                    resolveThemeColor(themed, R.attr.novaTonalPillPressedColor),
+                )
+            }
+            val pressedLayer = resolveThemeColor(themed, R.attr.novaTonalPillPressedColor)
 
             listOf("window" to window, "card" to card).forEach { (backdropName, backdrop) ->
                 val container = ColorUtils.compositeColors(containerOverlay, backdrop)

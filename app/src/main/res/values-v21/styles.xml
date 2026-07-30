@@ -6,6 +6,9 @@
         <item name="colorAccent">@color/nova_accent</item>
         <item name="colorSurface">@color/nova_bg_elevated</item>
         <item name="colorOnSurface">@color/nova_text_primary</item>
+        <item name="colorPrimaryContainer">@color/nova_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_polaris</item>
         <item name="android:textColorPrimary">@color/nova_text_primary</item>
         <item name="android:textColorSecondary">@color/nova_text_secondary</item>
         <item name="android:statusBarColor">@android:color/transparent</item>

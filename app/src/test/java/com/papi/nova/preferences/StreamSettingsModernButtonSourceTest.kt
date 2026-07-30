@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,7 +29,12 @@ class StreamSettingsModernButtonSourceTest {
         val pill = File(main, "res/drawable/nova_tonal_pill_button.xml")
         val pillXml = if (pill.exists()) pill.readText() else ""
         val textStates = File(main, "res/color/nova_tonal_pill_text.xml").readText()
-        val pressedStates = File(main, "res/color/nova_tonal_pill_state_layer.xml").readText()
+        val qualifiedBaseStyles = listOf("values-v21", "values-v24", "values-v29").associateWith {
+            File(main, "res/$it/styles.xml").readText()
+        }
+        val api31Styles = File(main, "res/values-v31/styles.xml").readText()
+        fun styleBody(xml: String, name: String): String =
+            xml.substringAfter("<style name=\"$name\"").substringBefore("</style>")
 
         assertTrue(layout.contains("androidx.appcompat.widget.AppCompatButton"))
         assertTrue(layout.contains("@+id/modernSettingsButton"))
@@ -41,15 +47,25 @@ class StreamSettingsModernButtonSourceTest {
         assertTrue(styles.contains("@color/nova_tonal_pill_text"))
         assertTrue(pill.exists())
         assertTrue(pillXml.contains("?attr/colorPrimaryContainer"))
-        assertTrue(pillXml.contains("@color/nova_tonal_pill_state_layer"))
+        assertTrue(pillXml.contains("android:color=\"?attr/novaTonalPillPressedColor\""))
+        assertFalse(pillXml.contains("@color/nova_tonal_pill_state_layer"))
         assertTrue(pillXml.contains("android:radius=\"24dp\""))
         assertTrue(pillXml.contains("android:state_focused=\"true\""))
         assertTrue(pillXml.contains("android:color=\"?attr/colorOnPrimaryContainer\""))
         assertTrue(textStates.contains("android:state_enabled=\"false\""))
         assertTrue(textStates.contains("android:alpha=\"0.38\""))
         assertTrue(textStates.contains("?attr/colorOnPrimaryContainer"))
-        assertTrue(pressedStates.contains("android:alpha=\"0.20\""))
-        assertTrue(pressedStates.contains("?attr/colorOnPrimaryContainer"))
+        assertTrue(styles.contains("<attr name=\"novaTonalPillPressedColor\" format=\"color\""))
+        qualifiedBaseStyles.forEach { (qualifier, xml) ->
+            val baseTheme = styleBody(xml, "AppBaseTheme")
+            assertTrue("$qualifier primary container", baseTheme.contains("colorPrimaryContainer"))
+            assertTrue("$qualifier on-primary container", baseTheme.contains("colorOnPrimaryContainer"))
+            assertTrue("$qualifier pressed color", baseTheme.contains("novaTonalPillPressedColor"))
+        }
+        val api31AppTheme = styleBody(api31Styles, "AppTheme")
+        assertTrue(api31AppTheme.contains("colorPrimaryContainer"))
+        assertTrue(api31AppTheme.contains("colorOnPrimaryContainer"))
+        assertTrue(api31AppTheme.contains("novaTonalPillPressedColor"))
     }
 
     @Test
