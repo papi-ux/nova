@@ -45,6 +45,9 @@ import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaHudSessionSummaryLog
+import com.papi.nova.ui.NovaCompanionCommandDeckState
+import com.papi.nova.ui.NovaHudMode
+import com.papi.nova.ui.NovaHudUiState
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaSheetChrome
@@ -60,6 +63,7 @@ import com.papi.nova.utils.ExternalDisplayControlActivity
 import com.papi.nova.utils.ExternalDisplayControlHost
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
+import com.papi.nova.utils.AndroidStreamDisplayTarget
 import com.papi.nova.utils.MouseModeOption
 import com.papi.nova.utils.PanZoomHandler
 import com.papi.nova.utils.PerformanceDataTracker
@@ -165,6 +169,7 @@ private var novaHud:com.papi.nova.ui.NovaStreamHud? = null
  var configuredHudTargetFps:Float = 0f
 private var configuredStreamFrameRateFps:Float = 0f
 private var configuredStreamBitrateKbps:Int = 0
+@Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
 private var preferStableRefreshMultipleForAutoSafe:Boolean = false
 private var audioHapticEngine:com.papi.nova.ui.AudioHapticEngine? = null
 private var gyroAimController:com.papi.nova.ui.GyroAimController? = null
@@ -450,6 +455,48 @@ private fun shouldLaunchCompanionControls(): Boolean {
 return ::prefConfig.isInitialized && prefConfig.enableFullExDisplay && getCompanionControlDisplay() != null
 }
 
+private fun updateCompanionCommandDeck() {
+val sample = lastCompanionPerfSample
+val status = lastPolarisSessionStatus
+val targetFps = listOf(
+status?.encoder?.sessionTargetFps ?: 0.0,
+status?.encoder?.encodeTargetFps ?: 0.0,
+status?.encoder?.requestedClientFps ?: 0.0,
+configuredHudTargetFps.toDouble(),
+configuredStreamFrameRateFps.toDouble(),
+).firstOrNull { it > 0.0 }
+val bitrateKbps = listOf(
+status?.autoQuality?.liveBitrateKbps ?: 0,
+status?.encoder?.bitrateKbps ?: 0,
+configuredStreamBitrateKbps,
+).firstOrNull { it > 0 }
+val sessionState = status?.state.orEmpty().ifBlank {
+when {
+connected -> "streaming"
+connecting -> "connecting"
+else -> ""
+}
+}
+val state = NovaCompanionCommandDeckState.from(
+hud = NovaHudUiState.from(
+mode = NovaHudMode.DEBUG,
+fps = sample?.fps ?: 0.0,
+targetFps = targetFps ?: 0.0,
+latencyMs = sample?.rttMs ?: 0,
+codec = (sample?.codec?.takeIf { it.isNotBlank() } ?: status?.encoder?.codec).orEmpty(),
+bitrateKbps = bitrateKbps ?: 0,
+width = sample?.width ?: 0,
+height = sample?.height ?: 0,
+status = status,
+sparklineSamples = emptyList(),
+),
+sessionState = sessionState,
+displayRole = getString(R.string.companion_deck_display_role),
+unavailableLabel = getString(R.string.companion_deck_status_unavailable),
+)
+externalDisplayControlPresentation?.updateCommandDeckState(state)
+}
+
 private fun launchCompanionControlsIfAvailable() {
 val companionDisplay:Display? = getCompanionControlDisplay()
 if (::prefConfig.isInitialized && prefConfig.enableFullExDisplay && companionDisplay != null)
@@ -491,6 +538,7 @@ companionControlHasWindowFocus = false
 try
 {
 presentation.show()
+updateCompanionCommandDeck()
 ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
 }
 catch (e:WindowManager.InvalidDisplayException)
@@ -536,6 +584,7 @@ return false
 externalDisplayControlPresentation = activity
 companionControlDisplayId = companionDisplayId
 companionControlHasWindowFocus = false
+updateCompanionCommandDeck()
 return true
 }
 
@@ -668,20 +717,17 @@ clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManag
         novaProgressOverlay?.updateState("conn_establishing", getResources().getString(R.string.conn_establishing_msg))
 
 
-var currentDisplay:Display? = null
-if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-{
-streamingDisplayId = getIntent().getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY)
-currentDisplay = getSystemService(DisplayManager::class.java).getDisplay(streamingDisplayId)
+val requestedDisplayId = getIntent().getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY)
+@Suppress("DEPRECATION")
+val currentDisplay: Display = getWindowManager().getDefaultDisplay()
+if (requestedDisplayId != currentDisplay.displayId) {
+LimeLog.warning(
+"Nova: Android stream display mismatch requested_id=$requestedDisplayId " +
+"window_id=${currentDisplay.displayId}; using window display metrics"
+)
 }
-
-if (currentDisplay == null)
-{
-currentDisplay = getWindowManager().getDefaultDisplay()
-}
-
-streamingDisplayId = currentDisplay!!.getDisplayId()
-isOnExternalDisplay = currentDisplay!!.getDisplayId() != Display.DEFAULT_DISPLAY
+streamingDisplayId = currentDisplay.displayId
+isOnExternalDisplay = currentDisplay.displayId != Display.DEFAULT_DISPLAY
 
 var shouldInvertDecoderResolution:Boolean = false
 
@@ -693,7 +739,6 @@ displayHeight = currentMode!!.getPhysicalHeight()
 prefConfig!!.width = displayWidth
 prefConfig!!.height = displayHeight
 prefConfig!!.fps = currentMode!!.getRefreshRate()
-prefConfig!!.videoScaleMode = PreferenceConfiguration.ScaleMode.STRETCH
 prefConfig!!.enableFloatingButton = false
 prefConfig!!.showOverlayZoomToggleButton = false
 prefConfig!!.enablePip = false
@@ -720,6 +765,36 @@ displayHeight = if (shouldInvertDecoderResolution) prefConfig!!.width else prefC
  // Enter landscape unless we're on a square screen
 	            setPreferredOrientationForActivity()
 	}
+
+if (prefConfig!!.enableFullExDisplay) {
+val physicalSize = Point()
+@Suppress("DEPRECATION")
+currentDisplay.getRealSize(physicalSize)
+val windowSize = Point()
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+val bounds = getWindowManager().currentWindowMetrics.bounds
+windowSize.set(bounds.width(), bounds.height())
+} else {
+windowSize.set(physicalSize.x, physicalSize.y)
+}
+val configuredWidth = if (isOnExternalDisplay) physicalSize.x else displayWidth
+val configuredHeight = if (isOnExternalDisplay) physicalSize.y else displayHeight
+val resolution = AndroidStreamDisplayTarget.resolveStreamResolution(
+modeWidth = configuredWidth,
+modeHeight = configuredHeight,
+windowWidth = windowSize.x,
+windowHeight = windowSize.y,
+landscape = currentOrientation != Configuration.ORIENTATION_PORTRAIT,
+)
+displayWidth = resolution.width
+displayHeight = resolution.height
+prefConfig!!.width = displayWidth
+prefConfig!!.height = displayHeight
+LimeLog.info(
+"Nova: Android stream geometry display_id=$streamingDisplayId physical=${physicalSize.x}x${physicalSize.y} " +
+"window=${windowSize.x}x${windowSize.y} selected=${displayWidth}x${displayHeight}"
+)
+}
 
 watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)
 watchStreamWidth = this@Game.getIntent().getIntExtra(EXTRA_STREAM_WIDTH, 0)
@@ -2719,6 +2794,15 @@ disconnect()
 return
 }
 
+if (intent != null) {
+val requestedDisplayId = intent.getIntExtra(EXTRA_DISPLAY_ID, streamingDisplayId)
+if (AndroidStreamDisplayTarget.requiresGameRecreation(streamingDisplayId, requestedDisplayId)) {
+setIntent(intent)
+LimeLog.info("Nova: Relaunching stream for Android display change from=$streamingDisplayId to=$requestedDisplayId")
+relaunchStream()
+return
+}
+}
 setIntent(intent)
 }
 
@@ -5282,10 +5366,12 @@ novaHud!!.updateFromPerfText(text)
 override fun onPerfSample(sample:PerfOverlaySample) {
 runOnUiThread(object : Runnable {
 override fun run() {
+lastCompanionPerfSample = sample
                 if (novaHud != null && novaHud!!.isShowing)
 {
 novaHud!!.updateFromPerfSample(sample)
 }
+updateCompanionCommandDeck()
 }
 })
 }
@@ -5928,15 +6014,13 @@ var status:com.papi.nova.api.PolarisSessionStatus? = novaApiClient!!.getSessionS
 if (status != null)
 {
 lastPolarisSessionStatus = status
-if (novaHud != null)
-{
 runtimeTasks.runOnMainIfActive {
 if (isFinishing || isDestroyed)
 {
 return@runOnMainIfActive
 }
-novaHud!!.applySessionStatus(status)
-}
+novaHud?.applySessionStatus(status)
+updateCompanionCommandDeck()
 }
 reportClientPresentationIfNeeded(status)
 }

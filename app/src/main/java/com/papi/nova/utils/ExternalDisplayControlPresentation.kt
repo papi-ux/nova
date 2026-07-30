@@ -26,6 +26,7 @@ import com.papi.nova.Game
 import com.papi.nova.R
 import com.papi.nova.StartExternalDisplayControlReceiver
 import com.papi.nova.binding.input.GameInputDevice
+import com.papi.nova.ui.NovaCompanionCommandDeckState
 
 /**
  * Game-owned controller surface rendered on a presentation-capable companion display.
@@ -158,6 +159,10 @@ class ExternalDisplayControlPresentation(
         return controller.isGameMenuOpen()
     }
 
+    override fun releaseCommandDeckFocus() {
+        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+    }
+
     override fun toggleKeyboard() {
         controller.toggleKeyboard()
     }
@@ -168,6 +173,10 @@ class ExternalDisplayControlPresentation(
 
     override fun toggleGameMenu() {
         controller.toggleGameMenu()
+    }
+
+    override fun updateCommandDeckState(state: NovaCompanionCommandDeckState) {
+        controller.updateCommandDeckState(state)
     }
 
     companion object {

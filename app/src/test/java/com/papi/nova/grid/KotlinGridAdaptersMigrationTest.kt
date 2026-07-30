@@ -1,12 +1,15 @@
 package com.papi.nova.grid
 
 import android.content.Context
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.RelativeLayout
 import android.widget.TextView
+import androidx.core.widget.ImageViewCompat
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.AppView
@@ -15,6 +18,7 @@ import com.papi.nova.R
 import com.papi.nova.TestLogSuppressor
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaThemeManager
 import java.io.File
 import java.lang.reflect.Modifier
 import org.junit.Assert.assertEquals
@@ -144,7 +148,10 @@ class KotlinGridAdaptersMigrationTest {
 
     @Test
     fun genericGridViewHolderAllowsLayoutsWithoutGridMask() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        val context = ContextThemeWrapper(
+            ApplicationProvider.getApplicationContext<Context>(),
+            R.style.AppTheme,
+        )
         val view = LayoutInflater.from(context).inflate(R.layout.pc_grid_item, null, false)
 
         val holder = GenericGridAdapter.ViewHolder(view)
@@ -366,6 +373,69 @@ class KotlinGridAdaptersMigrationTest {
 
         assertEquals(serverAId, adapter.getItemId(0))
         assertEquals(serverCId, adapter.getItemId(1))
+    }
+
+    @Test
+    fun pcGridAdapterUsesActiveAccentOnlyForOnlineComputerIcon() {
+        val context = ContextThemeWrapper(
+            ApplicationProvider.getApplicationContext<Context>(),
+            R.style.AppTheme,
+        )
+        val adapter = PcGridAdapter(context, PreferenceConfiguration())
+        val computer = createComputerObject("accent-server")
+        computer.details.state = ComputerDetails.State.ONLINE
+        adapter.setItems(listOf(computer))
+
+        val recyclerView = RecyclerView(context).apply {
+            layoutManager = LinearLayoutManager(context)
+        }
+        val holder = adapter.onCreateViewHolder(recyclerView, 0)
+        adapter.onBindViewHolder(holder, 0)
+        val icon = holder.itemView.findViewById<ImageView>(R.id.grid_image)
+
+        assertEquals(
+            NovaThemeManager.getAccentColor(context),
+            ImageViewCompat.getImageTintList(icon)?.defaultColor,
+        )
+
+        computer.details.state = ComputerDetails.State.OFFLINE
+        adapter.onBindViewHolder(holder, 0)
+        assertEquals(
+            NovaThemeManager.getTextSecondaryColor(context),
+            ImageViewCompat.getImageTintList(icon)?.defaultColor,
+        )
+    }
+
+    @Test
+    fun pcGridAdapterKeepsManageActionDistinctFromPrimaryRowClick() {
+        val context = ContextThemeWrapper(
+            ApplicationProvider.getApplicationContext<Context>(),
+            R.style.AppTheme,
+        )
+        val adapter = PcGridAdapter(context, PreferenceConfiguration())
+        val computer = createComputerObject("managed-server")
+        var opened: PcViewModel.ComputerObject? = null
+        var managed: PcViewModel.ComputerObject? = null
+        adapter.setOnItemClickListener { opened = it }
+        adapter.setOnServerActionListener { managed = it }
+        adapter.setItems(listOf(computer))
+
+        val recyclerView = RecyclerView(context).apply {
+            layoutManager = LinearLayoutManager(context)
+        }
+        val holder = adapter.onCreateViewHolder(recyclerView, 0)
+        adapter.onBindViewHolder(holder, 0)
+
+        val manageAction = holder.itemView.findViewById<View>(R.id.server_actions_button)
+        val manageLabel = holder.itemView.findViewById<View>(R.id.server_actions_label)
+        assertTrue(manageAction.isActivated)
+        assertTrue(manageLabel.isActivated)
+        assertTrue(manageAction.performClick())
+        assertEquals(computer, managed)
+        assertNull(opened)
+
+        assertTrue(holder.itemView.performClick())
+        assertEquals(computer, opened)
     }
 
     private fun createAdapter(): AppGridAdapter {

@@ -1313,4 +1313,32 @@
     <string name="title_checkbox_full_screen">Enable Full Screen</string>
     <string name="summary_checkbox_full_screen">Hide system bars with immersive mode</string>
     <string name="nova_stream_surface_accessibility_label">Nova game stream surface</string>
+
+    <!-- Companion command deck -->
+    <string name="companion_deck_touchpad">Touchpad</string>
+    <string name="companion_deck_touchpad_active">Touchpad active</string>
+    <string name="companion_deck_android_keyboard">Android keyboard</string>
+    <string name="companion_deck_nova_keyboard">Nova keyboard</string>
+    <string name="companion_deck_quick_keys">Quick Keys</string>
+    <string name="companion_deck_nova_hud">NovaHUD</string>
+    <string name="companion_deck_zoom_pan">Zoom and pan</string>
+    <string name="companion_deck_command_center">Command Center</string>
+    <string name="companion_deck_disconnect">Disconnect</string>
+    <string name="companion_deck_end_session">End session</string>
+    <string name="companion_deck_status_unavailable">Unavailable</string>
+    <string name="companion_deck_state_active">Active</string>
+    <string name="companion_deck_state_inactive">Inactive</string>
+    <string name="companion_deck_display_role">Companion</string>
+    <string name="companion_deck_status_session">Session: %1$s</string>
+    <string name="companion_deck_status_display">Display: %1$s</string>
+    <string name="companion_deck_status_fps">FPS %1$s</string>
+    <string name="companion_deck_status_target_fps">Target %1$s</string>
+    <string name="companion_deck_status_latency">Latency %1$s</string>
+    <string name="companion_deck_status_bitrate">Bitrate %1$s</string>
+    <string name="companion_deck_status_codec">Codec %1$s</string>
+    <string name="companion_deck_status_resolution">Resolution %1$s</string>
+    <string name="companion_deck_status_profile">Profile %1$s</string>
+    <string name="nova_settings_modern">Modern</string>
+    <string name="nova_server_manage">Manage</string>
+    <string name="nova_server_remove_failed">Couldn\'t remove server. Try again.</string>
 </resources>

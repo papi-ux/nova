@@ -168,4 +168,52 @@ class AndroidStreamDisplayTargetTest {
             )
         )
     }
+
+    @Test
+    fun activeGameMustRestartWhenRequestedDisplayChanges() {
+        assertTrue(AndroidStreamDisplayTarget.requiresGameRecreation(activeDisplayId = 0, requestedDisplayId = 4))
+        assertFalse(AndroidStreamDisplayTarget.requiresGameRecreation(activeDisplayId = 4, requestedDisplayId = 4))
+    }
+
+    @Test
+    fun windowBoundsRejectCombinedThorPanelMode() {
+        val resolution = AndroidStreamDisplayTarget.resolveStreamResolution(
+            modeWidth = 1920,
+            modeHeight = 2170,
+            windowWidth = 1920,
+            windowHeight = 1080,
+            landscape = true,
+        )
+
+        assertEquals(1920, resolution.width)
+        assertEquals(1080, resolution.height)
+    }
+
+    @Test
+    fun nativeModeWinsWhenWindowBoundsOnlyExcludeInsets() {
+        val resolution = AndroidStreamDisplayTarget.resolveStreamResolution(
+            modeWidth = 1920,
+            modeHeight = 1080,
+            windowWidth = 1920,
+            windowHeight = 1040,
+            landscape = true,
+        )
+
+        assertEquals(1920, resolution.width)
+        assertEquals(1080, resolution.height)
+    }
+
+    @Test
+    fun configuredResolutionIsPreservedWhenAspectMatchesWindow() {
+        val resolution = AndroidStreamDisplayTarget.resolveStreamResolution(
+            modeWidth = 1280,
+            modeHeight = 720,
+            windowWidth = 1920,
+            windowHeight = 1080,
+            landscape = true,
+        )
+
+        assertEquals(1280, resolution.width)
+        assertEquals(720, resolution.height)
+    }
 }

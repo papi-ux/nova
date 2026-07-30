@@ -17,14 +17,31 @@
         android:paddingTop="16dp"
         android:paddingBottom="12dp">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Settings"
-            android:textSize="26sp"
-            android:textColor="?attr/colorOnSurface"
-            android:fontFamily="sans-serif-light"
-            android:letterSpacing="0.02" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Settings"
+                android:textSize="26sp"
+                android:textColor="?attr/colorOnSurface"
+                android:fontFamily="sans-serif-light"
+                android:letterSpacing="0.02" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/modernSettingsButton"
+                style="@style/NovaTonalPillButton"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_gravity="end|center_vertical"
+                android:focusable="true"
+                android:text="@string/nova_settings_modern" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"

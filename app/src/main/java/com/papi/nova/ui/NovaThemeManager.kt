@@ -233,6 +233,26 @@ object NovaThemeManager {
         return resolveThemeColor(dynamicContext, attr, systemFallback)
     }
 
+    /** Returns the semantic error/destructive color for the active Android/Nova theme. */
+    fun getErrorColor(context: Context): Int {
+        val candidate =
+            if (isPortableChrome(context)) {
+                ContextCompat.getColor(context, R.color.nova_portable_error)
+            } else {
+                resolveThemeColor(
+                    context,
+                    android.R.attr.colorError,
+                    ContextCompat.getColor(context, R.color.nova_error),
+                )
+            }
+        val window = getWindowBackgroundColor(context)
+        val card = ColorUtils.compositeColors(getCardBackgroundColor(context), window)
+        val focused = ColorUtils.compositeColors(getAccentSurfaceColor(context), card)
+        val readable = ColorUtils.calculateContrast(candidate, card) >= 4.5 &&
+            ColorUtils.calculateContrast(candidate, focused) >= 4.5
+        return if (readable) candidate else getTextPrimaryColor(context)
+    }
+
     /** Returns the semantic Activity surface used behind system bars and custom window backdrops. */
     fun getActivityWindowSurfaceColor(context: Context): Int =
         resolveThemeColor(

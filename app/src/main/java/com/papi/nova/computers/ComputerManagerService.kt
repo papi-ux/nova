@@ -110,6 +110,14 @@ class ComputerManagerService : Service() {
             activePolls.decrementAndGet()
         }
 
+        // Removal drops the tuple before waiting for an in-flight poll to drain. If this
+        // details object no longer belongs to the current tuple, it must not resurrect
+        // persistence or publish a stale UI update.
+        if (!newPc && !isCurrentPollingComputer(pollingTuples, details)) {
+            releaseLocalDatabaseReference()
+            return false
+        }
+
         // If it's online, update our persistent state
         if (details.state == ComputerDetails.State.ONLINE) {
             val existingComputer = dbManager.getComputerByUUID(details.uuid)
@@ -167,6 +175,9 @@ class ComputerManagerService : Service() {
                 try {
                     // Only allow one request to the machine at a time
                     synchronized(tuple.networkLock) {
+                        if (pollingTuples[tuple.computer.uuid] !== tuple) {
+                            return@synchronized
+                        }
                         if (!runPoll(tuple.computer, false, tuple.offlineCount)) {
                             LimeLog.warning(tuple.computer.name + " is offline (try " + tuple.offlineCount + ")")
                             tuple.offlineCount++
@@ -269,9 +280,8 @@ class ComputerManagerService : Service() {
             return this@ComputerManagerService.addComputerBlocking(fakeDetails)
         }
 
-        fun removeComputer(computer: ComputerDetails) {
+        fun removeComputer(computer: ComputerDetails): Boolean =
             this@ComputerManagerService.removeComputer(computer)
-        }
 
         fun stopPolling() {
             // Just call the unbind handler to cleanup
@@ -466,10 +476,10 @@ class ComputerManagerService : Service() {
 
         // New entry
         val tuple = PollingTuple(details)
+        pollingTuples[details.uuid] = tuple
         if (pollingActive) {
             tuple.future = schedulePolling(tuple)
         }
-        pollingTuples[details.uuid] = tuple
     }
 
     @Throws(InterruptedException::class)
@@ -502,26 +512,38 @@ class ComputerManagerService : Service() {
         }
     }
 
-    fun removeComputer(computer: ComputerDetails) {
+    fun removeComputer(computer: ComputerDetails): Boolean {
+        // Acquire before waiting so service teardown cannot close the database mid-removal.
         if (!getLocalDatabaseReference()) {
-            return
+            return false
         }
 
-        // Remove it from the database
-        dbManager.deleteComputer(computer)
-
-        val removed = pollingTuples.remove(computer.uuid)
-        if (removed != null && removed.future != null) {
-            removed.future!!.cancel(true)
-            removed.future = null
+        return try {
+            val removed = pollingTuples.remove(computer.uuid)
+            removed?.future?.cancel(true)
+            if (removed != null) {
+                removed.future = null
+                synchronized(removed.networkLock) {
+                    dbManager.deleteComputer(computer)
+                }
+            } else {
+                dbManager.deleteComputer(computer)
+            }
+            true
+        } catch (error: RuntimeException) {
+            LimeLog.warning("ComputerManagerService: remove failed (${error.javaClass.simpleName})")
+            false
+        } finally {
+            releaseLocalDatabaseReference()
         }
-
-        releaseLocalDatabaseReference()
     }
 
     private fun pollComputerNow(uuid: String): ComputerDetails? {
         val tuple = pollingTuples[uuid] ?: return null
         return synchronized(tuple.networkLock) {
+            if (pollingTuples[uuid] !== tuple) {
+                return@synchronized null
+            }
             try {
                 if (runPoll(tuple.computer, false, tuple.offlineCount)) {
                     tuple.lastSuccessfulPollMs = SystemClock.elapsedRealtime()
@@ -545,6 +567,9 @@ class ComputerManagerService : Service() {
             val tuple = pollingTuples[uuid] ?: return
 
             synchronized(tuple.networkLock) {
+                if (pollingTuples[uuid] !== tuple) {
+                    return@synchronized
+                }
                 dbManager.updateComputer(tuple.computer)
             }
         } finally {
@@ -1014,6 +1039,11 @@ class ComputerManagerService : Service() {
         }
     }
 }
+
+internal fun isCurrentPollingComputer(
+    pollingTuples: Map<String, PollingTuple>,
+    details: ComputerDetails,
+): Boolean = pollingTuples[details.uuid]?.computer === details
 
 class PollingTuple(@JvmField val computer: ComputerDetails) {
     @JvmField

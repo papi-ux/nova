@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <attr name="novaTonalPillPressedColor" format="color" />
 
     <!--
         Base application theme, dependent on API level. This theme is replaced
@@ -21,6 +22,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_polaris</item>
         <item name="colorOutline">@color/nova_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -54,6 +57,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_portable_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_ice</item>
         <item name="colorPrimaryContainer">@color/nova_portable_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_portable_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_portable</item>
         <item name="colorOutline">@color/nova_portable_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -76,6 +81,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_oled_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_oled_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_oled_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_oled_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_oled</item>
         <item name="colorOutline">@color/nova_oled_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -98,6 +105,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_miami_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_miami_void</item>
         <item name="colorPrimaryContainer">@color/nova_miami_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_miami_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_miami</item>
         <item name="colorOutline">@color/nova_miami_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -120,6 +129,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_hc_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_hc_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_hc_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_hc_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_high_contrast</item>
         <item name="colorOutline">@color/nova_hc_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -133,6 +144,7 @@
         <item name="android:textColorSecondary">?attr/colorOnSurface</item>
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:navigationBarColor">?attr/colorSurface</item>
+        <item name="novaTonalPillPressedColor">?attr/colorControlHighlight</item>
         <!-- colorPrimary and colorAccent are overridden by DynamicColors.applyToActivityIfAvailable() -->
     </style>
 
@@ -153,6 +165,7 @@
         <item name="android:textColorSecondary">?attr/colorOnSurface</item>
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:navigationBarColor">?attr/colorSurface</item>
+        <item name="novaTonalPillPressedColor">?attr/colorControlHighlight</item>
         <item name="alertDialogTheme">@style/NovaAlertDialog.MaterialYou</item>
         <item name="android:alertDialogTheme">@style/NovaAlertDialog.MaterialYou</item>
         <item name="preferenceTheme">@style/NovaPreferenceTheme.MaterialYou</item>
@@ -196,6 +209,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_portable_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_ice</item>
         <item name="colorPrimaryContainer">@color/nova_portable_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_portable_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_portable</item>
         <item name="colorOutline">@color/nova_portable_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -216,6 +231,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_oled_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_oled_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_oled_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_oled_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_oled</item>
         <item name="colorOutline">@color/nova_oled_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -236,6 +253,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_miami_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_miami_void</item>
         <item name="colorPrimaryContainer">@color/nova_miami_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_miami_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_miami</item>
         <item name="colorOutline">@color/nova_miami_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -254,6 +273,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_hc_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_hc_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_hc_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_hc_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_high_contrast</item>
         <item name="colorOutline">@color/nova_hc_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -277,6 +298,8 @@
         <item name="colorOnSurfaceVariant">@color/nova_text_secondary</item>
         <item name="colorOnPrimary">@color/nova_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_polaris</item>
         <item name="colorOutline">@color/nova_divider</item>
         <item name="colorError">@color/nova_error</item>
     </style>
@@ -384,6 +407,21 @@
         <item name="chipCornerRadius">12dp</item>
         <item name="android:checkable">false</item>
         <item name="android:layout_marginEnd">4dp</item>
+    </style>
+
+    <!-- Theme-aware legacy action pills -->
+    <style name="NovaTonalPillButton" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/nova_tonal_pill_button</item>
+        <item name="android:textColor">@color/nova_tonal_pill_text</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minWidth">72dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:elevation">0dp</item>
     </style>
 
     <!-- Nova bottom sheet -->

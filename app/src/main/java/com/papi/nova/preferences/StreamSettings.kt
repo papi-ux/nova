@@ -167,6 +167,11 @@ class StreamSettings : NovaActivity() {
         legacyMode = true
         setContentView(R.layout.activity_stream_settings)
 
+        findViewById<View>(R.id.modernSettingsButton)?.setOnClickListener {
+            NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@StreamSettings, true)
+            showComposeSettings()
+        }
+
         findViewById<View>(R.id.settingsHeader)?.let { header ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
                 header.setOnApplyWindowInsetsListener { view, insets ->

@@ -290,6 +290,18 @@ class NovaFocusDrawableTest {
                 !adapter.contains("primaryAction?.isSelected = hasFocus")
         )
         assertTrue(
+            "Manage should retain a 48dp focus/touch target around the visual chip",
+            hasViewAttribute(row, "server_actions_button", "android:layout_height", "48dp")
+        )
+        assertTrue(
+            "Manage should use the same visual pill as Open Library",
+            hasViewAttribute(row, "server_actions_label", "android:background", "@drawable/nova_chip_default")
+        )
+        assertTrue(
+            "Manage's visual chip should mirror its parent focus and pressed states",
+            hasViewAttribute(row, "server_actions_label", "android:duplicateParentState", "true")
+        )
+        assertTrue(
             "server rows should explain the state-specific action, not only name the state",
             adapter.contains("R.string.pcview_card_hint_pair") &&
                 adapter.contains("R.string.pcview_card_hint_open_library") &&

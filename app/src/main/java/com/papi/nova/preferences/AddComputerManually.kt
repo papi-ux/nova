@@ -18,6 +18,7 @@ import android.widget.Toast
 import com.papi.nova.NovaActivity
 import com.papi.nova.AppView
 import com.papi.nova.Game
+import com.papi.nova.LimeLog
 import com.papi.nova.PcView
 import com.papi.nova.R
 import com.papi.nova.ShortcutTrampoline
@@ -39,6 +40,7 @@ import java.util.concurrent.LinkedBlockingQueue
 class AddComputerManually : NovaActivity() {
     private lateinit var hostText: TextView
     private var managerBinder: ComputerManagerService.ComputerManagerBinder? = null
+    private var serviceBound = false
     private val computersToAdd = LinkedBlockingQueue<String>()
     private var addThread: Thread? = null
 
@@ -107,19 +109,22 @@ class AddComputerManually : NovaActivity() {
         return null
     }
 
-    @Throws(InterruptedException::class)
-    private fun doAddPc(rawUserInput: String) {
-        var wrongSiteLocal = false
-        var invalidInput = false
-        var success: Boolean
-        val dialog = SpinnerDialog.displayDialog(
+    private fun showAddProgressDialog(): SpinnerDialog =
+        SpinnerDialog.displayDialog(
             this,
             resources.getString(R.string.title_add_pc),
             resources.getString(R.string.msg_add_pc),
             false
         )
 
+    @Throws(InterruptedException::class)
+    private fun doAddPc(rawUserInput: String) {
+        var wrongSiteLocal = false
+        var invalidInput = false
+        var success = false
+        val dialog = showAddProgressDialog()
         val uri = parseRawUserInputToUri(rawUserInput)
+
         try {
             val details = ComputerDetails()
             if (uri?.host?.isNotEmpty() == true) {
@@ -130,61 +135,67 @@ class AddComputerManually : NovaActivity() {
                 }
 
                 details.manualAddress = ComputerDetails.AddressTuple(host, port)
-                success = managerBinder!!.addComputerBlocking(details)
+                success = managerBinder?.addComputerBlocking(details) == true
                 if (!success) {
                     wrongSiteLocal = isWrongSubnetSiteLocalAddress(host)
                 }
             } else {
-                success = false
                 invalidInput = true
             }
         } catch (e: InterruptedException) {
-            dialog.dismiss()
+            runOnUiThread { dialog.dismiss() }
             throw e
         } catch (e: IllegalArgumentException) {
-            e.printStackTrace()
             success = false
             invalidInput = true
+        } catch (e: RuntimeException) {
+            LimeLog.warning("AddComputerManually: add failed (${e.javaClass.simpleName})")
+            success = false
         }
 
         val portTestResult = if (!success && !wrongSiteLocal && !invalidInput) {
-            MoonBridge.testClientConnectivity(
-                ServerHelper.CONNECTION_TEST_SERVER,
-                443,
-                MoonBridge.ML_PORT_FLAG_TCP_47984 or MoonBridge.ML_PORT_FLAG_TCP_47989
-            )
+            runCatching {
+                MoonBridge.testClientConnectivity(
+                    ServerHelper.CONNECTION_TEST_SERVER,
+                    443,
+                    MoonBridge.ML_PORT_FLAG_TCP_47984 or MoonBridge.ML_PORT_FLAG_TCP_47989
+                )
+            }.onFailure { error ->
+                LimeLog.warning("AddComputerManually: connectivity test failed (${error.javaClass.simpleName})")
+            }.getOrDefault(MoonBridge.ML_TEST_RESULT_INCONCLUSIVE)
         } else {
             MoonBridge.ML_TEST_RESULT_INCONCLUSIVE
         }
 
-        dialog.dismiss()
+        runOnUiThread {
+            dialog.dismiss()
+            if (isFinishing || isDestroyed) return@runOnUiThread
 
-        if (invalidInput) {
-            Dialog.displayDialog(
-                this,
-                resources.getString(R.string.conn_error_title),
-                resources.getString(R.string.addpc_unknown_host),
-                false
-            )
-        } else if (wrongSiteLocal) {
-            Dialog.displayDialog(
-                this,
-                resources.getString(R.string.conn_error_title),
-                resources.getString(R.string.addpc_wrong_sitelocal),
-                false
-            )
-        } else if (!success) {
-            val dialogText = if (
-                portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE &&
-                portTestResult != 0
-            ) {
-                resources.getString(R.string.nettest_text_blocked)
+            if (invalidInput) {
+                Dialog.displayDialog(
+                    this,
+                    resources.getString(R.string.conn_error_title),
+                    resources.getString(R.string.addpc_unknown_host),
+                    false
+                )
+            } else if (wrongSiteLocal) {
+                Dialog.displayDialog(
+                    this,
+                    resources.getString(R.string.conn_error_title),
+                    resources.getString(R.string.addpc_wrong_sitelocal),
+                    false
+                )
+            } else if (!success) {
+                val dialogText = if (
+                    portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE &&
+                    portTestResult != 0
+                ) {
+                    resources.getString(R.string.nettest_text_blocked)
+                } else {
+                    resources.getString(R.string.addpc_fail)
+                }
+                Dialog.displayDialog(this, resources.getString(R.string.conn_error_title), dialogText, false)
             } else {
-                resources.getString(R.string.addpc_fail)
-            }
-            Dialog.displayDialog(this, resources.getString(R.string.conn_error_title), dialogText, false)
-        } else {
-            runOnUiThread {
                 Toast.makeText(
                     this@AddComputerManually,
                     resources.getString(R.string.addpc_success),
@@ -212,6 +223,7 @@ class AddComputerManually : NovaActivity() {
     }
 
     private fun startAddThread() {
+        if (addThread?.isAlive == true) return
         addThread = object : Thread() {
             override fun run() {
                 while (!isInterrupted) {
@@ -233,12 +245,15 @@ class AddComputerManually : NovaActivity() {
         val thread = addThread ?: return
         thread.interrupt()
         try {
-            thread.join()
+            thread.join(500L)
         } catch (e: InterruptedException) {
-            e.printStackTrace()
             Thread.currentThread().interrupt()
         }
-        addThread = null
+        if (thread.isAlive) {
+            LimeLog.warning("AddComputerManually: add worker did not stop within 500 ms")
+        } else {
+            addThread = null
+        }
     }
 
     override fun onStop() {
@@ -248,11 +263,17 @@ class AddComputerManually : NovaActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        if (managerBinder != null) {
-            joinAddThread()
-            unbindService(serviceConnection)
+        joinAddThread()
+        managerBinder = null
+        if (serviceBound) {
+            try {
+                unbindService(serviceConnection)
+            } catch (_: IllegalArgumentException) {
+                LimeLog.warning("AddComputerManually: service already unbound")
+            }
+            serviceBound = false
         }
+        super.onDestroy()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -315,11 +336,20 @@ class AddComputerManually : NovaActivity() {
             handleDoneEvent()
         }
 
-        bindService(
+        serviceBound = bindService(
             Intent(this, ComputerManagerService::class.java),
             serviceConnection,
             Service.BIND_AUTO_CREATE
         )
+        if (!serviceBound) {
+            LimeLog.warning("AddComputerManually: unable to bind computer manager service")
+            Dialog.displayDialog(
+                this,
+                resources.getString(R.string.conn_error_title),
+                resources.getString(R.string.addpc_fail),
+                false,
+            )
+        }
 
         if (data == null || server == null || query == null) {
             return
@@ -336,7 +366,6 @@ class AddComputerManually : NovaActivity() {
                 .setMessage(getString(R.string.pair_pc_confirm_message, hostName))
                 .setPositiveButton(getString(R.string.proceed)) { dialog, _ ->
                     dialog.dismiss()
-                    finish()
                     computersToAdd.add("$server?$query")
                 }
                 .setNegativeButton(getString(R.string.cancel)) { dialog, _ -> dialog.dismiss() }
