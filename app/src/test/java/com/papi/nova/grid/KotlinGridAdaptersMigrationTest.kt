@@ -1,6 +1,7 @@
 package com.papi.nova.grid
 
 import android.content.Context
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageView
@@ -145,7 +146,10 @@ class KotlinGridAdaptersMigrationTest {
 
     @Test
     fun genericGridViewHolderAllowsLayoutsWithoutGridMask() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        val context = ContextThemeWrapper(
+            ApplicationProvider.getApplicationContext<Context>(),
+            R.style.AppTheme,
+        )
         val view = LayoutInflater.from(context).inflate(R.layout.pc_grid_item, null, false)
 
         val holder = GenericGridAdapter.ViewHolder(view)
@@ -371,7 +375,10 @@ class KotlinGridAdaptersMigrationTest {
 
     @Test
     fun pcGridAdapterKeepsManageActionDistinctFromPrimaryRowClick() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        val context = ContextThemeWrapper(
+            ApplicationProvider.getApplicationContext<Context>(),
+            R.style.AppTheme,
+        )
         val adapter = PcGridAdapter(context, PreferenceConfiguration())
         val computer = createComputerObject("managed-server")
         var opened: PcViewModel.ComputerObject? = null
