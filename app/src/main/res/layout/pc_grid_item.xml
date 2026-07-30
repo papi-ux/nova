@@ -125,13 +125,12 @@
 
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/server_actions_button"
+            style="@style/NovaTonalPillButton"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:layout_marginStart="@dimen/nova_spacing_sm"
             android:focusable="true"
-            android:minWidth="72dp"
-            android:text="@string/nova_server_manage"
-            android:textAllCaps="false" />
+            android:text="@string/nova_server_manage" />
 
     </LinearLayout>
 </FrameLayout>

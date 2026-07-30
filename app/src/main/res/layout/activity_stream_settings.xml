@@ -35,13 +35,12 @@
 
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/modernSettingsButton"
+                style="@style/NovaTonalPillButton"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:layout_gravity="end|center_vertical"
                 android:focusable="true"
-                android:minWidth="72dp"
-                android:text="@string/nova_settings_modern"
-                android:textAllCaps="false" />
+                android:text="@string/nova_settings_modern" />
         </LinearLayout>
 
         <TextView
