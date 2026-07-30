@@ -45,6 +45,9 @@ import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaHudSessionSummaryLog
+import com.papi.nova.ui.NovaCompanionCommandDeckState
+import com.papi.nova.ui.NovaHudMode
+import com.papi.nova.ui.NovaHudUiState
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaSheetChrome
@@ -165,6 +168,7 @@ private var novaHud:com.papi.nova.ui.NovaStreamHud? = null
  var configuredHudTargetFps:Float = 0f
 private var configuredStreamFrameRateFps:Float = 0f
 private var configuredStreamBitrateKbps:Int = 0
+@Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
 private var preferStableRefreshMultipleForAutoSafe:Boolean = false
 private var audioHapticEngine:com.papi.nova.ui.AudioHapticEngine? = null
 private var gyroAimController:com.papi.nova.ui.GyroAimController? = null
@@ -450,6 +454,48 @@ private fun shouldLaunchCompanionControls(): Boolean {
 return ::prefConfig.isInitialized && prefConfig.enableFullExDisplay && getCompanionControlDisplay() != null
 }
 
+private fun updateCompanionCommandDeck() {
+val sample = lastCompanionPerfSample
+val status = lastPolarisSessionStatus
+val targetFps = listOf(
+status?.encoder?.sessionTargetFps ?: 0.0,
+status?.encoder?.encodeTargetFps ?: 0.0,
+status?.encoder?.requestedClientFps ?: 0.0,
+configuredHudTargetFps.toDouble(),
+configuredStreamFrameRateFps.toDouble(),
+).firstOrNull { it > 0.0 }
+val bitrateKbps = listOf(
+status?.autoQuality?.liveBitrateKbps ?: 0,
+status?.encoder?.bitrateKbps ?: 0,
+configuredStreamBitrateKbps,
+).firstOrNull { it > 0 }
+val sessionState = status?.state.orEmpty().ifBlank {
+when {
+connected -> "streaming"
+connecting -> "connecting"
+else -> ""
+}
+}
+val state = NovaCompanionCommandDeckState.from(
+hud = NovaHudUiState.from(
+mode = NovaHudMode.DEBUG,
+fps = sample?.fps ?: 0.0,
+targetFps = targetFps ?: 0.0,
+latencyMs = sample?.rttMs ?: 0,
+codec = (sample?.codec?.takeIf { it.isNotBlank() } ?: status?.encoder?.codec).orEmpty(),
+bitrateKbps = bitrateKbps ?: 0,
+width = sample?.width ?: 0,
+height = sample?.height ?: 0,
+status = status,
+sparklineSamples = emptyList(),
+),
+sessionState = sessionState,
+displayRole = getString(R.string.companion_deck_display_role),
+unavailableLabel = getString(R.string.companion_deck_status_unavailable),
+)
+externalDisplayControlPresentation?.updateCommandDeckState(state)
+}
+
 private fun launchCompanionControlsIfAvailable() {
 val companionDisplay:Display? = getCompanionControlDisplay()
 if (::prefConfig.isInitialized && prefConfig.enableFullExDisplay && companionDisplay != null)
@@ -491,6 +537,7 @@ companionControlHasWindowFocus = false
 try
 {
 presentation.show()
+updateCompanionCommandDeck()
 ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
 }
 catch (e:WindowManager.InvalidDisplayException)
@@ -536,6 +583,7 @@ return false
 externalDisplayControlPresentation = activity
 companionControlDisplayId = companionDisplayId
 companionControlHasWindowFocus = false
+updateCompanionCommandDeck()
 return true
 }
 
@@ -5282,10 +5330,12 @@ novaHud!!.updateFromPerfText(text)
 override fun onPerfSample(sample:PerfOverlaySample) {
 runOnUiThread(object : Runnable {
 override fun run() {
+lastCompanionPerfSample = sample
                 if (novaHud != null && novaHud!!.isShowing)
 {
 novaHud!!.updateFromPerfSample(sample)
 }
+updateCompanionCommandDeck()
 }
 })
 }
@@ -5928,15 +5978,13 @@ var status:com.papi.nova.api.PolarisSessionStatus? = novaApiClient!!.getSessionS
 if (status != null)
 {
 lastPolarisSessionStatus = status
-if (novaHud != null)
-{
 runtimeTasks.runOnMainIfActive {
 if (isFinishing || isDestroyed)
 {
 return@runOnMainIfActive
 }
-novaHud!!.applySessionStatus(status)
-}
+novaHud?.applySessionStatus(status)
+updateCompanionCommandDeck()
 }
 reportClientPresentationIfNeeded(status)
 }

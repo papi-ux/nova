@@ -95,6 +95,7 @@
     <color name="nova_portable_cross_accent">#FF2F64B3</color>
     <color name="nova_portable_square_accent">#FF9D679D</color>
     <color name="nova_portable_circle_accent">#FFB8575F</color>
+    <color name="nova_portable_error">#FF8B1E2D</color>
     <color name="nova_portable_triangle_accent">#FF4F9A67</color>
     <color name="nova_portable_accent_glow">#332F64B3</color>
     <color name="nova_portable_accent_surface">#1A2F64B3</color>

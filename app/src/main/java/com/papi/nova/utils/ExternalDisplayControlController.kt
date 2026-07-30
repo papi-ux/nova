@@ -2,11 +2,9 @@ package com.papi.nova.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Color
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -14,8 +12,6 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
-import android.widget.ImageButton
-import android.widget.LinearLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -23,11 +19,14 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.R
-import com.papi.nova.StartExternalDisplayControlReceiver
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardLayoutController
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.ExternalControllerView
+import com.papi.nova.ui.NovaCompanionCommandActionId
+import com.papi.nova.ui.NovaCompanionCommandDeckState
+import com.papi.nova.ui.NovaCompanionCommandDeckView
+import com.papi.nova.ui.NovaHudUiState
 
 private const val SOFT_KEYBOARD_SHOW_MAX_ATTEMPTS = 3
 private const val SOFT_KEYBOARD_SHOW_RETRY_MILLIS = 100L
@@ -45,10 +44,19 @@ class ExternalDisplayControlController(
 
     private lateinit var prefConfig: PreferenceConfiguration
     private lateinit var rootLayout: ExternalControllerView
-    private lateinit var zoomButton: ImageButton
+    private lateinit var commandDeckView: NovaCompanionCommandDeckView
     private var keyBoardLayoutController: KeyBoardLayoutController? = null
+    private var commandDeckState = NovaCompanionCommandDeckState.from(
+        hud = NovaHudUiState.empty(),
+        sessionState = "",
+        displayRole = "Companion",
+        unavailableLabel = context.getString(R.string.companion_deck_status_unavailable),
+    )
 
-    private var isKeyboardVisible = false
+    private var isAndroidKeyboardVisible = false
+    private var isNovaKeyboardVisible = false
+    private val isAnyKeyboardVisible: Boolean
+        get() = isAndroidKeyboardVisible || isNovaKeyboardVisible
     private var softKeyboardShowPending = false
     private var softKeyboardShowAttempts = 0
     private var softKeyboardShowAccepted = false
@@ -92,9 +100,9 @@ class ExternalDisplayControlController(
                     softKeyboardWasVisible = false
                 }
             }
-            updateKeyboardVisibility(
-                imeVisible ||
-                    (keyBoardLayoutController != null && keyBoardLayoutController!!.isKeyboardVisible()),
+            updateAndroidKeyboardVisibility(imeVisible)
+            updateNovaKeyboardVisibility(
+                keyBoardLayoutController?.isKeyboardVisible() == true,
             )
             ViewCompat.onApplyWindowInsets(view, insets)
         }
@@ -103,13 +111,16 @@ class ExternalDisplayControlController(
         createProgrammaticUI()
         initTouchEventHandling()
         setupInactivityTimeoutForBrightness()
-        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+        restoreCommandDeckFocus()
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun initTouchEventHandling() {
         rootLayout.setOnTouchListener { view, event ->
-            handleUserActivity()
+            handleUserActivity(
+                touchpadActive = event.actionMasked != MotionEvent.ACTION_UP &&
+                    event.actionMasked != MotionEvent.ACTION_CANCEL,
+            )
             game.handleMotionEvent(view, event)
             true
         }
@@ -167,7 +178,7 @@ class ExternalDisplayControlController(
     }
 
     override fun onKeyboardControllerVisibilityChange(visible: Boolean) {
-        updateKeyboardVisibility(visible)
+        updateNovaKeyboardVisibility(visible)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -177,13 +188,14 @@ class ExternalDisplayControlController(
         dimScreenRunnable = Runnable {
             if (
                 CompanionScreenDimmingPolicy.shouldDimNow(
-                    keyboardVisible = isKeyboardVisible,
+                    keyboardVisible = isAnyKeyboardVisible,
                     quickMenuOpen = gameMenu?.isMenuOpen() == true,
                 )
             ) {
                 val layout = controllerWindow.attributes
                 layout.screenBrightness = 0.0f
                 controllerWindow.attributes = layout
+                updateCommandDeckInteraction(dimmed = true, touchpadActive = false)
             } else {
                 resetInactivityTimer()
             }
@@ -192,16 +204,31 @@ class ExternalDisplayControlController(
         resetInactivityTimer()
     }
 
-    private fun updateKeyboardVisibility(visible: Boolean) {
-        if (isKeyboardVisible != visible) {
-            isKeyboardVisible = visible
-            if (isKeyboardVisible) {
-                handler.removeCallbacks(dimScreenRunnable)
-                restoreBrightnessIfNeeded()
-            } else {
-                resetInactivityTimer()
+    private fun updateAndroidKeyboardVisibility(visible: Boolean) {
+        if (isAndroidKeyboardVisible == visible) return
+        val wasAnyKeyboardVisible = isAnyKeyboardVisible
+        isAndroidKeyboardVisible = visible
+        applyKeyboardVisibilityChange(wasAnyKeyboardVisible)
+    }
+
+    private fun updateNovaKeyboardVisibility(visible: Boolean) {
+        if (isNovaKeyboardVisible == visible) return
+        val wasAnyKeyboardVisible = isAnyKeyboardVisible
+        isNovaKeyboardVisible = visible
+        applyKeyboardVisibilityChange(wasAnyKeyboardVisible)
+    }
+
+    private fun applyKeyboardVisibilityChange(wasAnyKeyboardVisible: Boolean) {
+        if (isAnyKeyboardVisible) {
+            handler.removeCallbacks(dimScreenRunnable)
+            restoreBrightnessIfNeeded()
+        } else {
+            resetInactivityTimer()
+            if (wasAnyKeyboardVisible && ::commandDeckView.isInitialized) {
+                restoreCommandDeckFocus()
             }
         }
+        renderCommandDeck()
     }
 
     private fun restoreBrightnessIfNeeded() {
@@ -212,15 +239,45 @@ class ExternalDisplayControlController(
         }
     }
 
-    private fun handleUserActivity() {
+    private fun handleUserActivity(touchpadActive: Boolean = false) {
         if (transientStateDisposed) return
         restoreBrightnessIfNeeded()
+        updateCommandDeckInteraction(dimmed = false, touchpadActive = touchpadActive)
         resetInactivityTimer()
+    }
+
+    private fun updateCommandDeckInteraction(dimmed: Boolean, touchpadActive: Boolean) {
+        if (!::commandDeckView.isInitialized ||
+            (commandDeckState.dimmed == dimmed && commandDeckState.touchpadActive == touchpadActive)
+        ) {
+            return
+        }
+        commandDeckState = commandDeckState.copy(dimmed = dimmed, touchpadActive = touchpadActive)
+        renderCommandDeck()
+    }
+
+    private fun restoreCommandDeckFocus() {
+        host.prepareForCommandDeckFocus()
+        if (::commandDeckView.isInitialized) {
+            commandDeckView.restoreSafeActionFocus()
+        }
+    }
+
+    private fun renderCommandDeck() {
+        if (!::commandDeckView.isInitialized) return
+        commandDeckView.render(
+            commandDeckState.withActionSelections(
+                androidKeyboardVisible = isAndroidKeyboardVisible,
+                novaKeyboardVisible = isNovaKeyboardVisible,
+                novaHudVisible = game.isNovaHudShowing(),
+                zoomPanEnabled = game.isZoomModeEnabled,
+            ),
+        )
     }
 
     private fun resetInactivityTimer() {
         handler.removeCallbacks(dimScreenRunnable)
-        if (!isKeyboardVisible) {
+        if (!isAnyKeyboardVisible) {
             CompanionScreenDimmingPolicy.delayMillis(prefConfig.companionScreenDimTimeoutSeconds)?.let { delay ->
                 handler.postDelayed(dimScreenRunnable, delay)
             }
@@ -231,6 +288,9 @@ class ExternalDisplayControlController(
         game.logCompanionDisplayFocus(display.displayId, hasFocus)
         if (hasFocus) {
             showPendingSoftKeyboardIfReady()
+            if (!softKeyboardShowPending && !isAnyKeyboardVisible) {
+                restoreCommandDeckFocus()
+            }
         }
         if (game.isFinishing) {
             dismissAfterCurrentCallback()
@@ -238,7 +298,7 @@ class ExternalDisplayControlController(
     }
 
     fun handleCompanionBack() {
-        if (game.isKeyboardLayoutVisible) {
+        if (isNovaKeyboardVisible) {
             toggleFullKeyboard()
         } else if (!game.handleQuickMenuBackFromDisplay(display.displayId)) {
             cancel()
@@ -258,13 +318,16 @@ class ExternalDisplayControlController(
             host.companionDialogWindowType,
             host::companionDialogWindowToken,
         ).also {
-            it.setOnMenuDismissedListener(::handleUserActivity)
+            it.setOnMenuDismissedListener {
+                handleUserActivity()
+                restoreCommandDeckFocus()
+            }
         }
     }
 
     fun onGenericMotionEvent(event: MotionEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
-        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+        host.releaseCommandDeckFocus()
         return game.onGenericMotionEvent(event)
     }
 
@@ -272,7 +335,7 @@ class ExternalDisplayControlController(
     override fun onKey(view: View, keyCode: Int, keyEvent: KeyEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
         if (keyEvent.deviceId >= 0) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+            host.releaseCommandDeckFocus()
         }
         return when (keyEvent.action) {
             KeyEvent.ACTION_DOWN -> game.handleKeyDown(keyEvent)
@@ -285,7 +348,7 @@ class ExternalDisplayControlController(
     fun onKeyDown(event: KeyEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
         if (event.deviceId >= 0) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+            host.releaseCommandDeckFocus()
         }
         return game.onKeyDown(event.keyCode, event)
     }
@@ -293,7 +356,7 @@ class ExternalDisplayControlController(
     fun onKeyUp(event: KeyEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
         if (event.deviceId >= 0) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+            host.releaseCommandDeckFocus()
         }
         return game.onKeyUp(event.keyCode, event)
     }
@@ -301,7 +364,7 @@ class ExternalDisplayControlController(
     fun onKeyMultiple(keyCode: Int, repeatCount: Int, event: KeyEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
         if (event.deviceId >= 0) {
-            StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+            host.releaseCommandDeckFocus()
         }
         return game.onKeyMultiple(keyCode, repeatCount, event)
     }
@@ -324,32 +387,41 @@ class ExternalDisplayControlController(
 
         host.setControllerContentView(rootLayout)
 
-        val topLeftButtons = createButtonContainer(Gravity.TOP or Gravity.START)
-        topLeftButtons.isFocusable = false
-        zoomButton = createImageButton(R.drawable.ic_zoom_toggle) { toggleZoomMode(true) }
-        if (game.isZoomModeEnabled) {
-            zoomButton.alpha = 1.0f
-        } else {
-            zoomButton.alpha = 0.5f
+        commandDeckView = NovaCompanionCommandDeckView(context, ::onCommandDeckAction)
+        rootLayout.addView(
+            commandDeckView,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        renderCommandDeck()
+    }
+
+    fun updateCommandDeckState(state: NovaCompanionCommandDeckState) {
+        commandDeckState = state.copy(
+            dimmed = commandDeckState.dimmed,
+            touchpadActive = commandDeckState.touchpadActive,
+        )
+        renderCommandDeck()
+    }
+
+    private fun onCommandDeckAction(actionId: NovaCompanionCommandActionId) {
+        handleUserActivity()
+        when (actionId) {
+            NovaCompanionCommandActionId.ANDROID_KEYBOARD -> _toggleKeyboard()
+            NovaCompanionCommandActionId.NOVA_KEYBOARD -> _toggleFullKeyboard()
+            NovaCompanionCommandActionId.QUICK_KEYS -> showQuickKeys()
+            NovaCompanionCommandActionId.COMMAND_CENTER -> showGameMenu()
+            NovaCompanionCommandActionId.NOVA_HUD -> game.toggleNovaHud()
+            NovaCompanionCommandActionId.ZOOM_PAN -> toggleZoomMode(true)
+            NovaCompanionCommandActionId.DISCONNECT -> game.disconnect()
+            NovaCompanionCommandActionId.END_SESSION -> {
+                restoreCommandDeckFocus()
+                game.quit()
+            }
         }
-        topLeftButtons.addView(zoomButton)
-        rootLayout.addView(topLeftButtons)
-
-        val topRightButtons = createButtonContainer(Gravity.TOP or Gravity.END)
-        topRightButtons.isFocusable = false
-        topRightButtons.addView(createImageButton(R.drawable.ic_menu_external) { showGameMenu() })
-        topRightButtons.addView(createImageButton(R.drawable.ic_close_external) { dismissAfterCurrentCallback() })
-        rootLayout.addView(topRightButtons)
-
-        val bottomLeftButton = createButtonContainer(Gravity.BOTTOM or Gravity.START)
-        bottomLeftButton.isFocusable = false
-        bottomLeftButton.addView(createImageButton(R.drawable.ic_android_keyboard) { _toggleKeyboard() })
-        rootLayout.addView(bottomLeftButton)
-
-        val bottomRightButton = createButtonContainer(Gravity.BOTTOM or Gravity.END)
-        bottomRightButton.isFocusable = false
-        bottomRightButton.addView(createImageButton(R.drawable.ic_fullscreen_keyboard) { _toggleFullKeyboard() })
-        rootLayout.addView(bottomRightButton)
+        handler.post(::renderCommandDeck)
     }
 
     private fun _toggleKeyboard() {
@@ -454,13 +526,16 @@ class ExternalDisplayControlController(
     fun toggleZoomMode(callGame: Boolean) {
         if (callGame) {
             game.toggleZoomMode()
-        } else {
-            zoomButton.alpha = if (game.isZoomModeEnabled) 1.0f else 0.5f
         }
     }
 
     fun showGameMenu() {
         game.showGameMenuFromDisplay(display.displayId, null)
+    }
+
+    private fun showQuickKeys() {
+        game.recordQuickMenuInteraction(display.displayId)
+        gameMenu?.showSpecialKeysMenuFromCommandDeck()
     }
 
     fun isCompanionDisplayAvailable(): Boolean {
@@ -506,30 +581,6 @@ class ExternalDisplayControlController(
         return gameMenu?.isMenuOpen() == true
     }
 
-    private fun createButtonContainer(gravity: Int): LinearLayout {
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setGravity(gravity)
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                gravity,
-            )
-        }
-    }
-
-    private fun createImageButton(imageResourceId: Int, listener: View.OnClickListener): ImageButton {
-        return ImageButton(context).apply {
-            setImageResource(imageResourceId)
-            setBackgroundColor(Color.TRANSPARENT)
-            setOnClickListener(listener)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(56), dpToPx(56))
-        }
-    }
-
-    private fun dpToPx(dp: Int): Int {
-        return (dp * context.resources.displayMetrics.density).toInt()
-    }
 
     fun toggleKeyboard() {
         _toggleKeyboard()

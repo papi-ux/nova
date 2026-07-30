@@ -7,6 +7,7 @@ import android.view.View
 import android.view.Window
 import com.papi.nova.Game
 import com.papi.nova.binding.input.GameInputDevice
+import com.papi.nova.ui.NovaCompanionCommandDeckState
 
 interface ExternalDisplayControlHost {
     val game: Game
@@ -33,7 +34,10 @@ interface ExternalDisplayControlHost {
     fun toggleKeyboard()
     fun toggleFullKeyboard()
     fun toggleGameMenu()
+    fun updateCommandDeckState(state: NovaCompanionCommandDeckState)
 
+    fun prepareForCommandDeckFocus() = Unit
+    fun releaseCommandDeckFocus() = Unit
     fun prepareForSoftKeyboard() = Unit
     fun onSoftKeyboardVisibilityChanged(imeVisible: Boolean) = Unit
     fun releaseSoftKeyboardFocus() = Unit

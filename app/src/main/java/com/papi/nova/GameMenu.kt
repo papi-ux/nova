@@ -177,6 +177,10 @@ class GameMenu @JvmOverloads constructor(
         )
         firstActionRow?.let { row -> row.post { row.requestFocus() } }
     }
+    fun showSpecialKeysMenuFromCommandDeck() {
+        showSpecialKeysMenu()
+    }
+
     private fun showSpecialKeysMenu() {
         val options = ArrayList<MenuOption>()
 
