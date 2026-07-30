@@ -25,7 +25,7 @@ class LayoutInflationTest {
     @Test
     fun allLayoutsInflateSuccessfully() {
         val base = ApplicationProvider.getApplicationContext<Context>()
-        val context = ContextThemeWrapper(base, com.google.android.material.R.style.Theme_MaterialComponents_NoActionBar)
+        val context = ContextThemeWrapper(base, R.style.AppTheme)
         for (layoutId in getAllLayoutResourceIds()) {
             try {
                 LayoutInflater.from(context).inflate(layoutId, null)
