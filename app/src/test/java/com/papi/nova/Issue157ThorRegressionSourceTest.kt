@@ -43,8 +43,11 @@ class Issue157ThorRegressionSourceTest {
         assertTrue(pcView.contains("setOnServerActionListener"))
         assertTrue(pcView.contains("showServerBottomSheet(computer)"))
         assertTrue(adapter.contains("serverActionListener"))
-        assertTrue(layout.contains("androidx.appcompat.widget.AppCompatButton"))
+        assertTrue(adapter.contains("setOnClickListener { serverActionListener?.invoke(obj) }"))
         assertTrue(layout.contains("@+id/server_actions_button"))
+        assertTrue(layout.contains("android:layout_height=\"48dp\""))
+        assertTrue(layout.contains("@+id/server_actions_label"))
+        assertTrue(layout.contains("@drawable/nova_chip_default"))
         assertTrue(layout.contains("@string/nova_server_manage"))
         assertTrue(strings.contains("name=\"nova_server_manage\""))
     }
