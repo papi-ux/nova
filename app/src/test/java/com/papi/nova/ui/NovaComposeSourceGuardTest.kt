@@ -494,7 +494,7 @@ class NovaComposeSourceGuardTest {
             "private fun NovaLibraryLandscapeToolbar("
         )
 
-        val landscape = screen.section("if (isLandscape) {", "} else {")
+        val landscape = screen.blockStartingAt("if (isLandscape) {")
 
         assertTrue(
             "landscape library should promote the hero before grid content so the picker remains visible on Retroid",
@@ -1636,7 +1636,7 @@ class NovaComposeSourceGuardTest {
                 libraryScreen.contains("NovaLibraryLandscapeToolbar(") &&
                 libraryScreen.contains(".padding(bottom = controllerHintBarBottomPadding)") &&
                 libraryScreen.contains("NovaControllerHintBar(") &&
-                libraryScreen.contains("hints = novaLibraryControllerHints(isLandscape)") &&
+                libraryScreen.contains("hints = visibleControllerHints") &&
                 libraryScreen.contains("modifier = Modifier") &&
                 libraryScreen.contains(".align(Alignment.BottomCenter)") &&
                 libraryScreen.contains(".padding(start = controllerHintBarLandscapeStartPadding)") &&
