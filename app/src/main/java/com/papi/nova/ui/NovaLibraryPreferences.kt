@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 object NovaLibraryPreferences {
     private const val SORT_MODE_PREF = "nova_library_sort_mode"
     private const val LAYOUT_MODE_PREF = "nova_library_layout_mode"
+    private const val LEGACY_SPOTLIGHT_LAYOUT_MODE = "SPOTLIGHT"
     private const val POSTER_TITLES_PREF = "nova_library_poster_titles"
     private const val FILTER_PRIMARY_PREF = "nova_library_filter_primary"
     private const val FILTER_SOURCE_PREF = "nova_library_filter_source"
@@ -14,7 +15,7 @@ object NovaLibraryPreferences {
     fun loadOptions(prefs: SharedPreferences): NovaLibraryOptionsState {
         return NovaLibraryOptionsState(
             sortMode = prefs.enumValue(SORT_MODE_PREF, NovaLibrarySortMode.LIBRARY_ORDER),
-            layoutMode = prefs.enumValue(LAYOUT_MODE_PREF, NovaLibraryLayoutMode.GRID),
+            layoutMode = prefs.libraryLayoutMode(),
             showPosterTitles = prefs.getBoolean(POSTER_TITLES_PREF, true)
         )
     }
@@ -83,6 +84,14 @@ object NovaLibraryPreferences {
                 )
                 else -> NovaLibraryFilterState()
             }
+        }
+    }
+
+    private fun SharedPreferences.libraryLayoutMode(): NovaLibraryLayoutMode {
+        return if (getString(LAYOUT_MODE_PREF, null) == LEGACY_SPOTLIGHT_LAYOUT_MODE) {
+            NovaLibraryLayoutMode.SPOTLIGHT_ROW
+        } else {
+            enumValue(LAYOUT_MODE_PREF, NovaLibraryLayoutMode.GRID)
         }
     }
 

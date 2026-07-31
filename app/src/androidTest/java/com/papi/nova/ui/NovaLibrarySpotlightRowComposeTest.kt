@@ -16,8 +16,11 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -32,6 +35,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.abs
 
 @RunWith(AndroidJUnit4::class)
 class NovaLibrarySpotlightRowComposeTest {
@@ -119,6 +123,57 @@ class NovaLibrarySpotlightRowComposeTest {
         composeRule.runOnIdle { restoreFocusGameId = "charlie" }
 
         waitForFocus(composeRule.onNode(hasContentDescription("Charlie", substring = true)))
+    }
+
+    @Test
+    fun touchSwipeReportsTheCardNearestTheViewportCenter() {
+        val games = listOf(
+            game("alpha", "Alpha", "steam"),
+            game("bravo", "Bravo", "epic"),
+            game("charlie", "Charlie", "gog"),
+            game("delta", "Delta", "steam")
+        )
+        val focusedGameId = AtomicReference<String?>(null)
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
+
+        composeRule.setContent {
+            NovaComposeTheme {
+                Box(Modifier.fillMaxSize()) {
+                    NovaLibrarySpotlightRow(
+                        games = games,
+                        apiClient = apiClient,
+                        isLandscape = true,
+                        restoreFocusGameId = "bravo",
+                        showPosterTitles = true,
+                        onGameFocused = { focusedGameId.set(it.id) },
+                        onOpenDetail = {}
+                    )
+                }
+            }
+        }
+
+        val bravo = composeRule.onNode(hasContentDescription("Bravo", substring = true))
+        bravo.assertIsDisplayed()
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { focusedGameId.set(null) }
+
+        bravo.performTouchInput { swipeLeft(durationMillis = 800) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) { focusedGameId.get() != null }
+        val viewportCenterX = composeRule.onRoot().fetchSemanticsNode().boundsInRoot.center.x
+        val centeredGameId = games.mapNotNull { game ->
+            runCatching {
+                composeRule.onNode(
+                    hasContentDescription(game.name, substring = true)
+                ).fetchSemanticsNode().boundsInRoot
+            }.getOrNull()?.let { bounds ->
+                game.id to abs(bounds.center.x - viewportCenterX)
+            }
+        }.minByOrNull { (_, distance) -> distance }?.first
+
+        assertEquals(centeredGameId, focusedGameId.get())
+        assertEquals("charlie", centeredGameId)
     }
 
     @Test

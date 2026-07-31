@@ -35,6 +35,9 @@ class NovaLibrarySpotlightSourceTest {
         assertTrue(spotlight.contains("remember(gameIds, restoreFocusGameId)"))
         assertTrue(spotlight.contains("NovaLibraryUiStateMapper.spotlightAdjacentIndex("))
         assertTrue(spotlight.contains("rememberLazyListState("))
+        assertTrue(spotlight.contains("layoutInfo.viewportStartOffset"))
+        assertTrue(spotlight.contains("layoutInfo.visibleItemsInfo.minByOrNull"))
+        assertFalse(spotlight.contains("games.getOrNull(listState.firstVisibleItemIndex)"))
         assertTrue(spotlight.contains("FocusRequester()"))
         assertTrue(spotlight.contains("repeat(SPOTLIGHT_FOCUS_REQUEST_ATTEMPTS)"))
         assertTrue(spotlight.contains("SPOTLIGHT_FOCUS_RETRY_DELAY_MS"))
@@ -69,6 +72,11 @@ class NovaLibrarySpotlightSourceTest {
         assertTrue(activity.contains("AnimatedVisibility("))
         assertTrue(activity.contains("visible = controllerHintsVisible"))
         assertTrue(activity.contains("val handled = super.dispatchGenericMotionEvent(event)"))
+        val genericMotionDispatch = activity.substring(
+            activity.indexOf("override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean"),
+            activity.indexOf("override fun dispatchTouchEvent(event: MotionEvent): Boolean")
+        )
+        assertTrue(genericMotionDispatch.contains("if (handled && hasBrowseIntent)"))
         assertTrue(activity.contains("return handled"))
     }
     @Test

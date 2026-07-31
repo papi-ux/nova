@@ -72,6 +72,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.util.Locale
+import kotlin.math.abs
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -116,7 +117,14 @@ internal fun NovaLibrarySpotlightRow(
             .drop(1)
             .filter { scrolling -> !scrolling }
             .collect {
-                games.getOrNull(listState.firstVisibleItemIndex)?.let(onGameFocused)
+                val layoutInfo = listState.layoutInfo
+                val viewportCenter = (
+                    layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset
+                ) / 2f
+                val centeredIndex = layoutInfo.visibleItemsInfo.minByOrNull { item ->
+                    abs(item.offset + item.size / 2f - viewportCenter)
+                }?.index
+                centeredIndex?.let(games::getOrNull)?.let(onGameFocused)
             }
     }
 

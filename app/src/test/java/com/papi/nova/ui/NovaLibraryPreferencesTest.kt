@@ -58,6 +58,19 @@ class NovaLibraryPreferencesTest {
     }
 
     @Test
+    fun migratesCandidateEraSpotlightLayoutWithoutResettingToGrid() {
+        val prefs = freshPrefs("nova-library-prefs-spotlight-migration")
+        prefs.edit()
+            .putString("nova_library_layout_mode", "SPOTLIGHT")
+            .commit()
+
+        assertEquals(
+            NovaLibraryLayoutMode.SPOTLIGHT_ROW,
+            NovaLibraryPreferences.loadOptions(prefs).layoutMode
+        )
+    }
+
+    @Test
     fun persistsMoreFiltersAndClearsThemBackToAll() {
         val prefs = freshPrefs("nova-library-prefs-more")
         val category = NovaLibraryFilterState(

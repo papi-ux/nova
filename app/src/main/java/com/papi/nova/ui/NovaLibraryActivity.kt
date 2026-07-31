@@ -432,7 +432,7 @@ class NovaLibraryActivity : NovaActivity() {
                 event.action == MotionEvent.ACTION_MOVE &&
                 event.hasControllerBrowseMotion()
         val handled = super.dispatchGenericMotionEvent(event)
-        if (hasBrowseIntent) {
+        if (handled && hasBrowseIntent) {
             registerSuccessfulLibraryInput(NovaControllerHintChromeEvent.CONTROLLER_INPUT)
         }
         return handled
