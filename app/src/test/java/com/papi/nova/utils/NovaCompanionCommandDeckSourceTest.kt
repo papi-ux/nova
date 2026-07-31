@@ -50,16 +50,19 @@ class NovaCompanionCommandDeckSourceTest {
     }
 
     @Test
-    fun defaultDisplayHostLeasesFocusForControllerNavigationThenYieldsToGame() {
+    fun defaultDisplayHostKeepsWindowFocusWhileYieldingHandledInputToTheRoot() {
         val activity = File(root, "utils/ExternalDisplayControlActivity.kt").readText()
         val controller = File(root, "utils/ExternalDisplayControlController.kt").readText()
 
         assertTrue(activity.contains("window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)"))
         assertTrue(activity.contains("override fun prepareForCommandDeckFocus()"))
         assertTrue(activity.contains("window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)"))
-        assertTrue(activity.contains("override fun releaseCommandDeckFocus()"))
+        assertFalse(activity.contains("override fun releaseCommandDeckFocus()"))
         assertTrue(controller.contains("host.prepareForCommandDeckFocus()"))
-        assertTrue(controller.contains("host.releaseCommandDeckFocus()"))
+        assertTrue(controller.contains("yieldCommandDeckFocusAfterHandledInput(handled"))
+        assertTrue(controller.contains("handler.post"))
+        assertTrue(controller.contains("rootLayout.requestFocus()"))
+        assertFalse(controller.contains("host.releaseCommandDeckFocus()"))
         assertTrue(controller.contains("restoreCommandDeckFocus()"))
     }
 

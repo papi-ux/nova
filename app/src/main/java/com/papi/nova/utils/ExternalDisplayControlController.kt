@@ -327,46 +327,52 @@ class ExternalDisplayControlController(
 
     fun onGenericMotionEvent(event: MotionEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
-        host.releaseCommandDeckFocus()
-        return game.onGenericMotionEvent(event)
+        val handled = game.onGenericMotionEvent(event)
+        yieldCommandDeckFocusAfterHandledInput(handled, event.deviceId)
+        return handled
     }
 
     @Suppress("DEPRECATION")
     override fun onKey(view: View, keyCode: Int, keyEvent: KeyEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
-        if (keyEvent.deviceId >= 0) {
-            host.releaseCommandDeckFocus()
-        }
-        return when (keyEvent.action) {
+        val handled = when (keyEvent.action) {
             KeyEvent.ACTION_DOWN -> game.handleKeyDown(keyEvent)
             KeyEvent.ACTION_UP -> game.handleKeyUp(keyEvent)
             KeyEvent.ACTION_MULTIPLE -> game.handleKeyMultiple(keyEvent)
             else -> false
         }
+        yieldCommandDeckFocusAfterHandledInput(handled, keyEvent.deviceId)
+        return handled
     }
 
     fun onKeyDown(event: KeyEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
-        if (event.deviceId >= 0) {
-            host.releaseCommandDeckFocus()
-        }
-        return game.onKeyDown(event.keyCode, event)
+        val handled = game.onKeyDown(event.keyCode, event)
+        yieldCommandDeckFocusAfterHandledInput(handled, event.deviceId)
+        return handled
     }
 
     fun onKeyUp(event: KeyEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
-        if (event.deviceId >= 0) {
-            host.releaseCommandDeckFocus()
-        }
-        return game.onKeyUp(event.keyCode, event)
+        val handled = game.onKeyUp(event.keyCode, event)
+        yieldCommandDeckFocusAfterHandledInput(handled, event.deviceId)
+        return handled
     }
 
     fun onKeyMultiple(keyCode: Int, repeatCount: Int, event: KeyEvent): Boolean {
         game.recordQuickMenuInteraction(display.displayId)
-        if (event.deviceId >= 0) {
-            host.releaseCommandDeckFocus()
+        val handled = game.onKeyMultiple(keyCode, repeatCount, event)
+        yieldCommandDeckFocusAfterHandledInput(handled, event.deviceId)
+        return handled
+    }
+
+    private fun yieldCommandDeckFocusAfterHandledInput(handled: Boolean, deviceId: Int) {
+        if (!handled || deviceId < 0 || transientStateDisposed || isAnyKeyboardVisible) return
+        handler.post {
+            if (!transientStateDisposed && !isAnyKeyboardVisible && ::rootLayout.isInitialized) {
+                rootLayout.requestFocus()
+            }
         }
-        return game.onKeyMultiple(keyCode, repeatCount, event)
     }
 
     @SuppressLint("ClickableViewAccessibility")

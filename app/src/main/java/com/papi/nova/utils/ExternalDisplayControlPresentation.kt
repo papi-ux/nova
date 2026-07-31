@@ -159,10 +159,6 @@ class ExternalDisplayControlPresentation(
         return controller.isGameMenuOpen()
     }
 
-    override fun releaseCommandDeckFocus() {
-        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-    }
-
     override fun toggleKeyboard() {
         controller.toggleKeyboard()
     }
