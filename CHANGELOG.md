@@ -2,9 +2,36 @@
 
 ## Unreleased
 
-### Release administration
+## 1.3.3 - 2026-07-30
 
-- Merged PR #160 ("chore(nova): integrate 1.3.2 Kanban-full smoke branch") into release/v1.3.2-opacity-prep on 2026-07-24, preserving the 1.3.2 package/version identity (versionName 1.3.2, versionCode 34, minSdk 21, targetSdk 36) and preserving canonical artifact naming.
+Nova 1.3.3 turns the Library and dual-screen experience into a controller-first command surface. It adds Spotlight Row, explicit Follow / Stream / Companion display roles, the Thor companion command deck, broader Material You semantics, and focused navigation, lifecycle, and API 33 reliability fixes.
+
+### Highlights
+
+- Adds **Spotlight Row** as a fourth persisted Library mode beside Grid, Compact Grid, and List, with centered artwork, adjacent-card peeks, stable-ID focus restoration, touch snapping, readable offline fallbacks, and adaptive controller guidance.
+- Adds a visual **Follow / Stream / Companion** role composer that previews display assignments, applies changes explicitly, survives hotplug safely, and reuses Nova's existing display-routing authority.
+- Ships the **Thor companion command deck** on the non-stream display while preserving keyboard, Quick Menu, touchpad, controller-focus, lifecycle, and teardown behavior.
+- Applies **Material You** and OLED-aware semantic surfaces across system bars, dialogs, settings, Library chrome, focus states, and companion controls.
+- Keeps controller focus stable while server state refreshes, fixes the API 33 codec-settings dialog crash, and strengthens display-ID reconciliation, stream geometry, server removal, polling, manual-add, and active-session cleanup.
+- Adds a distinct **Modern** Settings action and clearer **Manage** server action without changing card activation semantics.
+
+### Compatibility and behavior
+
+- Preserves Grid, Compact Grid, and List; Spotlight Row remains optional.
+- Preserves Android scaled text rather than shrinking source typography at large font scales, including a two-line Spotlight title and complete accessibility semantics.
+- Keeps Android focus/navigation as the only movement authority; adaptive chrome observes successfully handled input without consuming or duplicating navigation.
+- Preserves minSdk 21, targetSdk 36, existing database and routing authorities, Moonlight-compatible hosts, Polaris integration, artwork fallbacks, and signed in-place upgrades.
+- Issue #127 remains separate; its current workaround is **Screen Launch → Top Screen**, not Auto.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.3 and versionCode 35.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
+
+### Validation notes
+
+- Final publication requires the exact tagged ARM64 APK to pass package/version and signer continuity checks plus physical AYN Thor validation for OLED appearance, real D-pad/shoulder/touch behavior, both Stream/Companion directions, reconnect/focus, active-session command-deck lifecycle, teardown, and recovery.
+- Roadmap issue #115 remains the release hardware-evidence umbrella until that physical matrix is recorded; merged child issues #169, #170, and #171 are not themselves proof of release validation.
 
 ## 1.3.2 - 2026-07-19
 

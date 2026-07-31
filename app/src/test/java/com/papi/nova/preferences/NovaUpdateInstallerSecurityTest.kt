@@ -1,5 +1,6 @@
 package com.papi.nova.preferences
 
+import com.papi.nova.BuildConfig
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -21,21 +22,25 @@ class NovaUpdateInstallerSecurityTest {
 
     @Test
     fun downloadedApkValidationBlocksPackageSignatureAndDowngradeMismatches() {
+        val currentVersionCode = BuildConfig.VERSION_CODE.toLong()
+        val downloadedVersionCode = currentVersionCode + 1L
+        val currentMajor = BuildConfig.VERSION_NAME.substringBefore('.').toIntOrNull() ?: 0
+        val releaseVersionName = "${currentMajor + 1}.0.0"
         val release = NovaUpdateRelease(
-            tagName = "v1.3.3",
-            versionName = "1.3.3",
-            releaseUrl = "https://github.com/papi-ux/nova/releases/tag/v1.3.3",
+            tagName = "v$releaseVersionName",
+            versionName = releaseVersionName,
+            releaseUrl = "https://github.com/papi-ux/nova/releases/tag/v$releaseVersionName",
             apkAssetName = "Nova-Android-arm64-v8a.apk",
-            apkDownloadUrl = "https://github.com/papi-ux/nova/releases/download/v1.3.3/Nova-Android-arm64-v8a.apk"
+            apkDownloadUrl = "https://github.com/papi-ux/nova/releases/download/v$releaseVersionName/Nova-Android-arm64-v8a.apk"
         )
 
         assertTrue(
             NovaUpdateInstaller.validateDownloadedApkMetadata(
                 expectedPackageName = "com.papi.nova",
-                currentVersionCode = 34L,
+                currentVersionCode = currentVersionCode,
                 currentSignerDigests = setOf("AA"),
                 downloadedPackageName = "com.papi.nova",
-                downloadedVersionCode = 35L,
+                downloadedVersionCode = downloadedVersionCode,
                 downloadedSignerDigests = setOf("AA"),
                 release = release
             ) is NovaUpdateInstallValidation.Valid
@@ -44,10 +49,10 @@ class NovaUpdateInstallerSecurityTest {
         assertTrue(
             NovaUpdateInstaller.validateDownloadedApkMetadata(
                 expectedPackageName = "com.papi.nova",
-                currentVersionCode = 34L,
+                currentVersionCode = currentVersionCode,
                 currentSignerDigests = setOf("AA"),
                 downloadedPackageName = "com.papi.nova.debug",
-                downloadedVersionCode = 35L,
+                downloadedVersionCode = downloadedVersionCode,
                 downloadedSignerDigests = setOf("AA"),
                 release = release
             ) is NovaUpdateInstallValidation.Invalid
@@ -56,10 +61,10 @@ class NovaUpdateInstallerSecurityTest {
         assertTrue(
             NovaUpdateInstaller.validateDownloadedApkMetadata(
                 expectedPackageName = "com.papi.nova",
-                currentVersionCode = 34L,
+                currentVersionCode = currentVersionCode,
                 currentSignerDigests = setOf("AA"),
                 downloadedPackageName = "com.papi.nova",
-                downloadedVersionCode = 35L,
+                downloadedVersionCode = downloadedVersionCode,
                 downloadedSignerDigests = setOf("BB"),
                 release = release
             ) is NovaUpdateInstallValidation.Invalid
@@ -68,10 +73,10 @@ class NovaUpdateInstallerSecurityTest {
         assertTrue(
             NovaUpdateInstaller.validateDownloadedApkMetadata(
                 expectedPackageName = "com.papi.nova",
-                currentVersionCode = 34L,
+                currentVersionCode = currentVersionCode,
                 currentSignerDigests = setOf("AA"),
                 downloadedPackageName = "com.papi.nova",
-                downloadedVersionCode = 34L,
+                downloadedVersionCode = currentVersionCode,
                 downloadedSignerDigests = setOf("AA"),
                 release = release
             ) is NovaUpdateInstallValidation.Invalid

@@ -17,7 +17,7 @@ while you play, and what is safe to do when you leave.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v132) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v133) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -107,18 +107,19 @@ Use Nova with any compatible host for normal streaming. Pair it with Polaris whe
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## Latest release: v1.3.2
+## Latest release: v1.3.3
 
-Nova v1.3.2 adds adjustable menu and drawer glass, clearer controller focus, and focused reliability improvements across companion displays, updater recovery, launch diagnostics, and verified host routes.
+Nova v1.3.3 adds an optional Spotlight Row, explicit dual-display roles, and a Thor companion command deck while tightening Material You, controller focus, large-text behavior, and display/session reliability.
 
-- **Adjustable menu glass**: Menu & Drawer Opacity runs independently from NovaHUD, previews live in Settings and Command Center, keeps 0% text and focus readable, and adds automatic backdrop blur on Android 12 and newer.
-- **Sharper D-pad rendering**: virtual-controller artwork keeps its intended asset transparency instead of being forced to full opacity.
-- **Safer companion controls**: external-display controls remain Game-owned, use Android `Presentation`, and are removed when their stream session ends instead of leaving stale controls behind.
-- **Recoverable updates**: interrupted APK downloads, stale staged files, validation failures, and retry flows recover without weakening package or signer checks.
-- **Clearer launch health**: richer launch diagnostics distinguish healthy near-target streams from real degraded states.
-- **Verified endpoint mobility**: paired hosts can retain validated routes as they move between LAN and private-overlay addresses without treating an address as host identity.
-- **Release packaging**: public GitHub Releases ship signed ARM64, ARMv7, and x86_64 APKs plus SHA-256 checksums. VersionCode 34 keeps Obtainium and manual installs on a clean upgrade path.
-- **Release validation**: final publication validation must use the tagged ARM64 release APK for menu opacity, blur cleanup, package identity, Library, preflight, live stream, physical controls, Command Center, NovaHUD, and cleanup smoke evidence.
+- **Spotlight Row**: choose a centered, artwork-forward fourth Library mode with adjacent-card peeks, stable focus restoration, touch snapping, offline fallbacks, and adaptive controller hints.
+- **Display roles**: assign Follow, Stream, and Companion visually, preview Swap safely, and apply changes without creating a second routing authority.
+- **Thor command deck**: keep keyboard, Quick Menu, touchpad, and useful session controls on the non-stream display with controller/touch focus and lifecycle-aware teardown.
+- **Material You and OLED**: semantic surfaces, system bars, dialogs, settings, focus states, Library chrome, and companion controls now follow the selected theme more consistently.
+- **Controller and accessibility polish**: server focus survives polling; Spotlight uses genuine Android text scaling, meaningful two-line titles, complete semantics, and handled-input-only chrome transitions.
+- **Reliability**: fixes the API 33 codec-settings crash and strengthens display reconciliation, target-aware stream geometry, server removal/polling, manual add, and active-session cleanup.
+- **Compatibility**: preserves Grid, Compact Grid, List, existing routing and persistence authorities, minSdk 21, targetSdk 36, Polaris integration, Moonlight-compatible hosts, and signed in-place upgrades.
+- **Release packaging**: signed ARM64, ARMv7, and x86_64 APKs ship with portable SHA-256 sidecars. VersionCode 35 keeps Obtainium and manual installs on a clean upgrade path.
+- **Release validation**: final publication requires the tagged ARM64 APK to pass signer/package checks and the complete physical AYN Thor dual-display, OLED, controller, touch, reconnect, lifecycle, and teardown matrix. Issue #127 remains separate; use **Screen Launch → Top Screen**, not Auto.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 
