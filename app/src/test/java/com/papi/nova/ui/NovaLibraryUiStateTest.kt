@@ -576,7 +576,7 @@ class NovaLibraryUiStateTest {
             NovaLibraryUiStateMapper.gridColumnsForScreen(
                 widthDp = 833,
                 isLandscape = true,
-                layoutMode = NovaLibraryLayoutMode.SPOTLIGHT
+                layoutMode = NovaLibraryLayoutMode.SPOTLIGHT_ROW
             )
         )
         assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.GRID, isLandscape = true))
@@ -588,14 +588,14 @@ class NovaLibraryUiStateTest {
     fun libraryLayoutModesCycleForTheYShortcut() {
         assertEquals(NovaLibraryLayoutMode.COMPACT_GRID, NovaLibraryLayoutMode.GRID.next())
         assertEquals(NovaLibraryLayoutMode.LIST, NovaLibraryLayoutMode.COMPACT_GRID.next())
-        assertEquals(NovaLibraryLayoutMode.SPOTLIGHT, NovaLibraryLayoutMode.LIST.next())
-        assertEquals(NovaLibraryLayoutMode.GRID, NovaLibraryLayoutMode.SPOTLIGHT.next())
+        assertEquals(NovaLibraryLayoutMode.SPOTLIGHT_ROW, NovaLibraryLayoutMode.LIST.next())
+        assertEquals(NovaLibraryLayoutMode.GRID, NovaLibraryLayoutMode.SPOTLIGHT_ROW.next())
         assertEquals(
             listOf(
                 NovaLibraryLayoutMode.GRID,
                 NovaLibraryLayoutMode.COMPACT_GRID,
                 NovaLibraryLayoutMode.LIST,
-                NovaLibraryLayoutMode.SPOTLIGHT
+                NovaLibraryLayoutMode.SPOTLIGHT_ROW
             ),
             NovaLibraryLayoutMode.entries
         )
@@ -607,12 +607,24 @@ class NovaLibraryUiStateTest {
             availableWidthDp = 833,
             isLandscape = true
         )
+        val thorLargeTextWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
+            availableWidthDp = 833,
+            isLandscape = true,
+            largeText = true
+        )
+        val compactThorLargeTextWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
+            availableWidthDp = 472,
+            isLandscape = true,
+            largeText = true
+        )
         val phoneWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
             availableWidthDp = 430,
             isLandscape = false
         )
 
         assertEquals(483, thorWidth)
+        assertEquals(520, thorLargeTextWidth)
+        assertEquals(352, compactThorLargeTextWidth)
         assertEquals(361, phoneWidth)
         assertEquals(
             175,
@@ -992,6 +1004,19 @@ class NovaLibraryUiStateTest {
                 PolarisSessionStatus(state = "idle", game = "Indy", gameId = 777)
             )
         )
+    }
+
+    @Test
+    fun largeTextSpotlightTitlesWrapAtNaturalWordBoundaries() {
+        assertEquals(
+            "Control Ultimate\nEdition",
+            spotlightDisplayTitle("Control Ultimate Edition", largeText = true)
+        )
+        assertEquals(
+            "Control Ultimate Edition",
+            spotlightDisplayTitle("Control Ultimate Edition", largeText = false)
+        )
+        assertEquals("Alan Wake 2", spotlightDisplayTitle("Alan Wake 2", largeText = true))
     }
 
     private fun game(

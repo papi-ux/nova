@@ -49,7 +49,7 @@ class NovaLibraryPreferencesTest {
     fun persistsSpotlightAsAnOptionalLibraryLayout() {
         val prefs = freshPrefs("nova-library-prefs-spotlight")
         val options = NovaLibraryOptionsState(
-            layoutMode = NovaLibraryLayoutMode.SPOTLIGHT
+            layoutMode = NovaLibraryLayoutMode.SPOTLIGHT_ROW
         )
 
         NovaLibraryPreferences.persistOptions(prefs, options)

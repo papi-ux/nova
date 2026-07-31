@@ -5,9 +5,11 @@ import android.widget.ImageView
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -64,9 +67,13 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaFocusMotionSpec
 import com.papi.nova.ui.compose.novaFocusMotion
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun NovaLibrarySpotlightRow(
     games: List<PolarisGame>,
@@ -81,16 +88,18 @@ internal fun NovaLibrarySpotlightRow(
     }
 ) {
     val gameIds = remember(games) { games.map { it.id } }
-    val initialIndex = remember(gameIds) {
+    val initialIndex = remember(gameIds, restoreFocusGameId) {
         NovaLibraryUiStateMapper.spotlightRestoreIndex(gameIds, restoreFocusGameId)
     }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    val snapFlingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
     val focusRequesters = remember(gameIds) { List(games.size) { FocusRequester() } }
     val scope = rememberCoroutineScope()
     val largeText = LocalDensity.current.fontScale >= 1.5f
 
     LaunchedEffect(gameIds, initialIndex) {
         if (games.isEmpty()) return@LaunchedEffect
+        listState.scrollToItem(initialIndex)
         repeat(SPOTLIGHT_FOCUS_REQUEST_ATTEMPTS) {
             withFrameNanos { }
             val accepted = runCatching {
@@ -101,11 +110,22 @@ internal fun NovaLibrarySpotlightRow(
         }
     }
 
+    LaunchedEffect(gameIds, listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .distinctUntilChanged()
+            .drop(1)
+            .filter { scrolling -> !scrolling }
+            .collect {
+                games.getOrNull(listState.firstVisibleItemIndex)?.let(onGameFocused)
+            }
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val availableWidthDp = maxWidth.value.toInt()
         val cardWidthDp = NovaLibraryUiStateMapper.spotlightCardWidthDp(
             availableWidthDp = availableWidthDp,
-            isLandscape = isLandscape
+            isLandscape = isLandscape,
+            largeText = largeText
         )
         val desiredCardHeightDp = NovaLibraryUiStateMapper.spotlightCardHeightDp(
             cardWidthDp = cardWidthDp,
@@ -123,6 +143,7 @@ internal fun NovaLibrarySpotlightRow(
 
         LazyRow(
             state = listState,
+            flingBehavior = snapFlingBehavior,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = horizontalPaddingDp.dp,
@@ -165,7 +186,11 @@ internal fun NovaLibrarySpotlightRow(
                         true
                     },
                     coverLoader = coverLoader,
-                    onOpenDetail = { onOpenDetail(game) }
+                    onOpenDetail = {
+                        onGameFocused(game)
+                        scope.launch { listState.animateScrollToItem(index) }
+                        onOpenDetail(game)
+                    }
                 )
             }
         }
@@ -189,6 +214,7 @@ private fun NovaLibrarySpotlightCard(
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(22.dp)
     val title = game.name.ifBlank { stringResource(R.string.nova_library_unknown_game) }
+    val displayTitle = spotlightDisplayTitle(title, largeText)
     val detailsLabel = stringResource(R.string.nova_library_card_action_details)
     val recentLabel = stringResource(R.string.nova_library_filter_recent)
     val source = spotlightLabel(game.source)
@@ -196,8 +222,6 @@ private fun NovaLibrarySpotlightCard(
     val metadata = buildList {
         add(source)
         add(category)
-        if (largeText && game.hdrSupported) add("HDR")
-        if (largeText && game.lastLaunched > 0) add(recentLabel)
     }.filter { it.isNotBlank() }.distinct().joinToString(" · ")
     var focused by remember(game.id) { mutableStateOf(false) }
     val cardAlpha by animateFloatAsState(
@@ -208,7 +232,8 @@ private fun NovaLibrarySpotlightCard(
     val accessibilityLabel = buildString {
         append(title)
         if (metadata.isNotBlank()) append(". ").append(metadata)
-        if (game.hdrSupported && !largeText) append(". HDR")
+        if (game.hdrSupported) append(". HDR")
+        if (game.lastLaunched > 0) append(". ").append(recentLabel)
         append(". ").append(detailsLabel)
     }
 
@@ -280,27 +305,25 @@ private fun NovaLibrarySpotlightCard(
             modifier = Modifier.fillMaxSize()
         )
 
-        if (!largeText) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (game.hdrSupported) {
-                    NovaSpotlightPill(text = "HDR", emphasized = focused)
-                }
-                if (game.lastLaunched > 0) {
-                    NovaSpotlightPill(text = recentLabel, emphasized = false)
-                }
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(if (largeText) 8.dp else 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (largeText) 4.dp else 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (game.hdrSupported) {
+                NovaSpotlightPill(text = "HDR", emphasized = focused)
+            }
+            if (game.lastLaunched > 0) {
+                NovaSpotlightPill(text = recentLabel, emphasized = false)
             }
         }
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (largeText) 164.dp else 128.dp)
+                .height(if (largeText) 216.dp else 128.dp)
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
@@ -317,28 +340,31 @@ private fun NovaLibrarySpotlightCard(
                 .fillMaxWidth()
                 .padding(
                     horizontal = if (largeText) 14.dp else 18.dp,
-                    vertical = if (largeText) 10.dp else 14.dp
+                    vertical = if (largeText) 4.dp else 14.dp
                 ),
             verticalArrangement = Arrangement.spacedBy(if (largeText) 2.dp else 3.dp)
         ) {
             if (showPosterTitles || focused) {
                 Text(
-                    text = title,
+                    text = displayTitle,
                     color = surfaces.onMedia,
-                    fontSize = if (largeText) 10.sp else if (focused) 21.sp else 17.sp,
+                    fontSize = if (focused) 21.sp else 17.sp,
                     fontWeight = if (focused) FontWeight.Bold else FontWeight.SemiBold,
+                    minLines = if (largeText) 2 else 1,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             if (metadata.isNotBlank()) {
                 Text(
                     text = metadata,
                     color = surfaces.onMediaSecondary,
-                    fontSize = if (largeText) 8.sp else 12.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = if (largeText) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -355,6 +381,7 @@ private fun NovaSpotlightPill(text: String, emphasized: Boolean) {
         text = text,
         color = if (emphasized) colors.onAccent else surfaces.onMedia,
         fontSize = 10.sp,
+        lineHeight = 10.sp,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
         modifier = Modifier
@@ -372,6 +399,16 @@ private fun NovaSpotlightPill(text: String, emphasized: Boolean) {
             )
             .padding(horizontal = 8.dp, vertical = 3.dp)
     )
+}
+
+internal fun spotlightDisplayTitle(title: String, largeText: Boolean): String {
+    if (!largeText || title.length <= 20 || '\n' in title) return title
+    val midpoint = title.length / 2
+    val breakIndex = title.indices
+        .filter { index -> title[index] == ' ' }
+        .minByOrNull { index -> kotlin.math.abs(index - midpoint) }
+        ?: return title
+    return title.substring(0, breakIndex) + "\n" + title.substring(breakIndex + 1)
 }
 
 private fun spotlightLabel(value: String?): String {

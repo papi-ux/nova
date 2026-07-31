@@ -35,13 +35,13 @@ enum class NovaLibraryLayoutMode {
     GRID,
     COMPACT_GRID,
     LIST,
-    SPOTLIGHT;
+    SPOTLIGHT_ROW;
 
     fun next(): NovaLibraryLayoutMode = when (this) {
         GRID -> COMPACT_GRID
         COMPACT_GRID -> LIST
-        LIST -> SPOTLIGHT
-        SPOTLIGHT -> GRID
+        LIST -> SPOTLIGHT_ROW
+        SPOTLIGHT_ROW -> GRID
     }
 }
 
@@ -787,13 +787,27 @@ object NovaLibraryUiStateMapper {
             NovaLibraryLayoutMode.GRID -> baseColumns
             NovaLibraryLayoutMode.COMPACT_GRID -> (baseColumns + 1).coerceAtMost(6)
             NovaLibraryLayoutMode.LIST -> 1
-            NovaLibraryLayoutMode.SPOTLIGHT -> 1
+            NovaLibraryLayoutMode.SPOTLIGHT_ROW -> 1
         }
     }
 
-    fun spotlightCardWidthDp(availableWidthDp: Int, isLandscape: Boolean): Int {
-        val fraction = if (isLandscape) 0.58f else 0.84f
-        val configuredMin = if (isLandscape) 320 else 260
+    fun spotlightCardWidthDp(
+        availableWidthDp: Int,
+        isLandscape: Boolean,
+        largeText: Boolean = false
+    ): Int {
+        val fraction = when {
+            isLandscape && largeText -> 0.72f
+            isLandscape -> 0.58f
+            largeText -> 0.92f
+            else -> 0.84f
+        }
+        val configuredMin = when {
+            isLandscape && largeText -> 352
+            isLandscape -> 320
+            largeText -> 300
+            else -> 260
+        }
         val configuredMax = if (isLandscape) 520 else 420
         val safeMax = minOf(configuredMax, (availableWidthDp - 32).coerceAtLeast(1))
         val safeMin = minOf(configuredMin, safeMax)
@@ -868,7 +882,7 @@ object NovaLibraryUiStateMapper {
             NovaLibraryLayoutMode.COMPACT_GRID -> 112
             NovaLibraryLayoutMode.GRID -> if (isLandscape) 156 else 168
             NovaLibraryLayoutMode.LIST -> 88
-            NovaLibraryLayoutMode.SPOTLIGHT -> if (isLandscape) 290 else 300
+            NovaLibraryLayoutMode.SPOTLIGHT_ROW -> if (isLandscape) 290 else 300
         }
     }
 

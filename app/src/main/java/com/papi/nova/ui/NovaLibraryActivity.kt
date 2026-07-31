@@ -95,6 +95,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -413,18 +414,36 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode in CONTROLLER_BROWSE_KEYS) {
-            registerControllerBrowseIntent()
+        val handled = super.dispatchKeyEvent(event)
+        if (
+            handled &&
+            event.action == KeyEvent.ACTION_DOWN &&
+            event.keyCode in CONTROLLER_BROWSE_KEYS
+        ) {
+            registerSuccessfulLibraryInput(NovaControllerHintChromeEvent.CONTROLLER_INPUT)
         }
-        return super.dispatchKeyEvent(event)
+        return handled
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         val isJoystick = event.source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
-        if (isJoystick && event.action == MotionEvent.ACTION_MOVE && event.hasControllerBrowseMotion()) {
-            registerControllerBrowseIntent()
+        val hasBrowseIntent =
+            isJoystick &&
+                event.action == MotionEvent.ACTION_MOVE &&
+                event.hasControllerBrowseMotion()
+        val handled = super.dispatchGenericMotionEvent(event)
+        if (hasBrowseIntent) {
+            registerSuccessfulLibraryInput(NovaControllerHintChromeEvent.CONTROLLER_INPUT)
         }
-        return super.dispatchGenericMotionEvent(event)
+        return handled
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        val handled = super.dispatchTouchEvent(event)
+        if (handled && event.actionMasked == MotionEvent.ACTION_UP) {
+            registerSuccessfulLibraryInput(NovaControllerHintChromeEvent.TOUCH_INPUT)
+        }
+        return handled
     }
 
     private fun MotionEvent.hasControllerBrowseMotion(): Boolean {
@@ -433,11 +452,9 @@ class NovaLibraryActivity : NovaActivity() {
         }
     }
 
-    private fun registerControllerBrowseIntent() {
+    private fun registerSuccessfulLibraryInput(event: NovaControllerHintChromeEvent) {
         if (hasActiveLibraryOverlay) return
-        controllerHintChromeState = controllerHintChromeState.reduce(
-            NovaControllerHintChromeEvent.BROWSE_INTENT
-        )
+        controllerHintChromeState = controllerHintChromeState.reduce(event)
         controllerHintIdleJob?.cancel()
         controllerHintIdleJob = lifecycleScope.launch {
             delay(CONTROLLER_HINT_IDLE_REVEAL_MS)
@@ -1007,7 +1024,8 @@ class NovaLibraryActivity : NovaActivity() {
         }
         val configuration = LocalConfiguration.current
         val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
-        val spotlightMode = model.optionsState.layoutMode == NovaLibraryLayoutMode.SPOTLIGHT
+        val largeText = LocalDensity.current.fontScale >= 1.5f
+        val spotlightMode = model.optionsState.layoutMode == NovaLibraryLayoutMode.SPOTLIGHT_ROW
         val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()
         val columns = NovaLibraryUiStateMapper.gridColumnsForScreen(
             configuration.screenWidthDp,
@@ -1039,6 +1057,15 @@ class NovaLibraryActivity : NovaActivity() {
                 ?: model.hero.game
                 ?: model.filteredGames.firstOrNull()
                 ?: model.recentGames.firstOrNull()
+        }
+        val controllerHints = novaLibraryControllerHints(isLandscape)
+        val visibleControllerHints = if (largeText) {
+            controllerHints.filterIndexed { index, _ -> index in LARGE_TEXT_HINT_INDICES }
+        } else {
+            controllerHints
+        }
+        val controllerHintDescription = controllerHints.joinToString(separator = " · ") { hint ->
+            "${hint.key} ${hint.label}"
         }
 
         Box(
@@ -1224,8 +1251,9 @@ class NovaLibraryActivity : NovaActivity() {
                         )
                 ) {
                     NovaControllerHintBar(
-                        hints = novaLibraryControllerHints(isLandscape),
+                        hints = visibleControllerHints,
                         compact = isLandscape,
+                        semanticsDescription = controllerHintDescription,
                         modifier = Modifier
                             .padding(start = controllerHintBarLandscapeStartPadding)
                             .fillMaxWidth()
@@ -1655,6 +1683,8 @@ class NovaLibraryActivity : NovaActivity() {
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
+        val largeText = LocalDensity.current.fontScale >= 1.5f
+        val optionsDescription = stringResource(R.string.nova_library_options_title)
         val hostLabel = serverName?.takeIf { it.isNotBlank() } ?: serverHost
         val shape = RoundedCornerShape(18.dp)
 
@@ -1669,7 +1699,12 @@ class NovaLibraryActivity : NovaActivity() {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             NovaActionButton(
-                text = stringResource(R.string.nova_library_options_title),
+                text = if (largeText) {
+                    stringResource(R.string.nova_controller_hint_options)
+                } else {
+                    optionsDescription
+                },
+                contentDescription = optionsDescription,
                 onClick = onOpenOptions,
                 primary = true,
                 minHeight = 34.dp,
@@ -2305,7 +2340,7 @@ class NovaLibraryActivity : NovaActivity() {
                             recoveryState = emptyRecoveryState,
                             onAction = onRecoveryAction
                         )
-                    } else if (layoutMode == NovaLibraryLayoutMode.SPOTLIGHT) {
+                    } else if (layoutMode == NovaLibraryLayoutMode.SPOTLIGHT_ROW) {
                         NovaLibrarySpotlightRow(
                             games = model.filteredGames,
                             apiClient = apiClient,
@@ -3659,7 +3694,7 @@ class NovaLibraryActivity : NovaActivity() {
         NovaLibraryLayoutMode.GRID -> R.string.nova_library_options_layout_grid
         NovaLibraryLayoutMode.COMPACT_GRID -> R.string.nova_library_options_layout_compact_grid
         NovaLibraryLayoutMode.LIST -> R.string.nova_library_options_layout_list
-        NovaLibraryLayoutMode.SPOTLIGHT -> R.string.nova_library_options_layout_spotlight
+        NovaLibraryLayoutMode.SPOTLIGHT_ROW -> R.string.nova_library_options_layout_spotlight
     }
 
     @Composable
@@ -3667,7 +3702,7 @@ class NovaLibraryActivity : NovaActivity() {
         NovaLibraryLayoutMode.GRID -> stringResource(R.string.nova_library_options_layout_grid_hint)
         NovaLibraryLayoutMode.COMPACT_GRID -> stringResource(R.string.nova_library_options_layout_compact_grid_hint)
         NovaLibraryLayoutMode.LIST -> stringResource(R.string.nova_library_options_layout_list_hint)
-        NovaLibraryLayoutMode.SPOTLIGHT -> stringResource(R.string.nova_library_options_layout_spotlight_hint)
+        NovaLibraryLayoutMode.SPOTLIGHT_ROW -> stringResource(R.string.nova_library_options_layout_spotlight_hint)
     }
 
     private fun filterCount(filter: NovaLibraryPrimaryFilter, model: NovaLibraryUiModel): Int {
@@ -3719,6 +3754,7 @@ class NovaLibraryActivity : NovaActivity() {
         private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
         private const val CONTROLLER_HINT_ANIMATION_MS = 180
         private const val CONTROLLER_AXIS_INTENT_THRESHOLD = 0.35f
+        private val LARGE_TEXT_HINT_INDICES = setOf(0, 1, 3)
         private val CONTROLLER_BROWSE_KEYS = setOf(
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_DPAD_DOWN,

@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,9 +13,9 @@ class NovaLibrarySpotlightSourceTest {
         val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val spotlight = read("src/main/java/com/papi/nova/ui/NovaLibrarySpotlightRow.kt")
 
-        assertTrue(activity.contains("layoutMode == NovaLibraryLayoutMode.SPOTLIGHT"))
+        assertTrue(activity.contains("layoutMode == NovaLibraryLayoutMode.SPOTLIGHT_ROW"))
         assertTrue(activity.contains("NovaLibrarySpotlightRow("))
-        assertTrue(activity.contains("NovaLibraryLayoutMode.SPOTLIGHT -> R.string.nova_library_options_layout_spotlight"))
+        assertTrue(activity.contains("NovaLibraryLayoutMode.SPOTLIGHT_ROW -> R.string.nova_library_options_layout_spotlight"))
         assertTrue(spotlight.contains("LazyRow("))
         assertTrue(spotlight.contains("itemsIndexed("))
         assertTrue(spotlight.contains("key = { _, game -> game.id }"))
@@ -31,6 +32,7 @@ class NovaLibrarySpotlightSourceTest {
         assertTrue(spotlight.contains("apiClient.loadCoverInto(view, game)"))
         assertTrue(spotlight.contains("coverLoader(view, game)"))
         assertTrue(spotlight.contains("NovaLibraryUiStateMapper.spotlightRestoreIndex("))
+        assertTrue(spotlight.contains("remember(gameIds, restoreFocusGameId)"))
         assertTrue(spotlight.contains("NovaLibraryUiStateMapper.spotlightAdjacentIndex("))
         assertTrue(spotlight.contains("rememberLazyListState("))
         assertTrue(spotlight.contains("FocusRequester()"))
@@ -43,6 +45,8 @@ class NovaLibrarySpotlightSourceTest {
         assertTrue(spotlight.contains("contentDescription = accessibilityLabel"))
         assertTrue(spotlight.contains("showPosterTitles || focused"))
         assertTrue(spotlight.contains("LocalDensity.current.fontScale >= 1.5f"))
+        assertFalse(spotlight.contains("fontSize = if (largeText) 10.sp"))
+        assertFalse(spotlight.contains("fontSize = if (largeText) 8.sp"))
     }
 
     @Test
@@ -51,10 +55,12 @@ class NovaLibrarySpotlightSourceTest {
 
         assertTrue(activity.contains("private var controllerHintChromeState by mutableStateOf(NovaControllerHintChromeState())"))
         assertTrue(activity.contains("override fun dispatchKeyEvent(event: KeyEvent): Boolean"))
-        assertTrue(activity.contains("registerControllerBrowseIntent()"))
+        assertTrue(activity.contains("registerSuccessfulLibraryInput(NovaControllerHintChromeEvent.CONTROLLER_INPUT)"))
         assertTrue(activity.contains("override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean"))
+        assertTrue(activity.contains("override fun dispatchTouchEvent(event: MotionEvent): Boolean"))
         assertTrue(activity.contains("InputDevice.SOURCE_JOYSTICK"))
-        assertTrue(activity.contains("NovaControllerHintChromeEvent.BROWSE_INTENT"))
+        assertTrue(activity.contains("NovaControllerHintChromeEvent.CONTROLLER_INPUT"))
+        assertTrue(activity.contains("NovaControllerHintChromeEvent.TOUCH_INPUT"))
         assertTrue(activity.contains("NovaControllerHintChromeEvent.IDLE"))
         assertTrue(activity.contains("NovaControllerHintChromeEvent.LAYOUT_CHANGED"))
         assertTrue(activity.contains("NovaControllerHintChromeEvent.HELP_REQUESTED"))
@@ -62,6 +68,16 @@ class NovaLibrarySpotlightSourceTest {
         assertTrue(activity.contains("controllerHintChromeState.visible"))
         assertTrue(activity.contains("AnimatedVisibility("))
         assertTrue(activity.contains("visible = controllerHintsVisible"))
-        assertTrue(activity.contains("return super.dispatchGenericMotionEvent(event)"))
+        assertTrue(activity.contains("val handled = super.dispatchGenericMotionEvent(event)"))
+        assertTrue(activity.contains("return handled"))
     }
+    @Test
+    fun largeTextToolbarKeepsEssentialHintsVisibleAndFullSemantics() {
+        val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+
+        assertTrue(activity.contains("LARGE_TEXT_HINT_INDICES"))
+        assertTrue(activity.contains("semanticsDescription = controllerHintDescription"))
+        assertTrue(activity.contains("R.string.nova_controller_hint_options"))
+    }
+
 }

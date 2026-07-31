@@ -10,7 +10,7 @@ class NovaControllerHintChromeStateTest {
         val initial = NovaControllerHintChromeState()
 
         assertTrue(initial.visible)
-        assertFalse(initial.reduce(NovaControllerHintChromeEvent.BROWSE_INTENT).visible)
+        assertFalse(initial.reduce(NovaControllerHintChromeEvent.CONTROLLER_INPUT).visible)
     }
 
     @Test
@@ -26,9 +26,23 @@ class NovaControllerHintChromeStateTest {
     @Test
     fun repeatedVisibilityEventsAreIdempotent() {
         val visible = NovaControllerHintChromeState()
-        val hidden = visible.reduce(NovaControllerHintChromeEvent.BROWSE_INTENT)
+        val hidden = visible.reduce(NovaControllerHintChromeEvent.CONTROLLER_INPUT)
 
-        assertFalse(hidden.reduce(NovaControllerHintChromeEvent.BROWSE_INTENT).visible)
+        assertFalse(hidden.reduce(NovaControllerHintChromeEvent.CONTROLLER_INPUT).visible)
         assertTrue(visible.reduce(NovaControllerHintChromeEvent.IDLE).visible)
+    }
+
+    @Test
+    fun changingBetweenControllerAndTouchRestoresHintsBeforeRepeatedInputCollapsesThem() {
+        val controllerHidden = NovaControllerHintChromeState()
+            .reduce(NovaControllerHintChromeEvent.CONTROLLER_INPUT)
+        val touchModeRevealed = controllerHidden.reduce(NovaControllerHintChromeEvent.TOUCH_INPUT)
+        val touchHidden = touchModeRevealed.reduce(NovaControllerHintChromeEvent.TOUCH_INPUT)
+        val controllerModeRevealed = touchHidden.reduce(NovaControllerHintChromeEvent.CONTROLLER_INPUT)
+
+        assertFalse(controllerHidden.visible)
+        assertTrue(touchModeRevealed.visible)
+        assertFalse(touchHidden.visible)
+        assertTrue(controllerModeRevealed.visible)
     }
 }
