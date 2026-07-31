@@ -1,0 +1,7 @@
+Nova 1.3.3
+
+- Adds an optional Spotlight Row with centered artwork, touch snapping, stable focus restoration, large-text support, and adaptive controller hints.
+- Adds explicit Follow / Stream / Companion display roles and a Thor companion command deck.
+- Applies Material You and OLED-aware semantic surfaces more consistently.
+- Preserves controller focus during polling and fixes the API 33 codec-settings dialog crash.
+- Hardens display routing, stream geometry, server lifecycle, reconnect, and teardown behavior.
