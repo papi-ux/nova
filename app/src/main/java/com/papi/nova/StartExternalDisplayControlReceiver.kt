@@ -46,6 +46,8 @@ class StartExternalDisplayControlReceiver : BroadcastReceiver() {
 
             isTimeoutActive = true
             val game = Game.instance
+            val reopenRequestGeneration =
+                if (showCompanionControls) game?.beginExplicitCompanionControlsReopen() else null
             if (game != null) {
                 val activityManager = game.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager?
                 activityManager?.moveTaskToFront(game.taskId, 0)
@@ -55,11 +57,15 @@ class StartExternalDisplayControlReceiver : BroadcastReceiver() {
                 {
                     if (
                         showCompanionControls &&
+                        reopenRequestGeneration != null &&
                         game != null &&
                         Game.instance === game &&
                         !game.isFinishing
                     ) {
-                        game.showCompanionControls()
+                        game.showCompanionControls(
+                            explicitUserRequest = true,
+                            requestGeneration = reopenRequestGeneration,
+                        )
                     }
                     isTimeoutActive = false
                 },

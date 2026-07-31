@@ -1367,6 +1367,8 @@
     <string name="companion_deck_nova_hud">Nova HUD</string>
     <string name="companion_deck_zoom_pan">Zoom and pan</string>
     <string name="companion_deck_command_center">Command Center</string>
+    <string name="companion_deck_hide_companion">Hide companion</string>
+    <string name="companion_deck_hide_requires_notifications">Enable notifications to hide and reopen companion controls</string>
     <string name="companion_deck_disconnect">Disconnect</string>
     <string name="companion_deck_end_session">End Session</string>
     <string name="companion_deck_status_unavailable">Unavailable</string>

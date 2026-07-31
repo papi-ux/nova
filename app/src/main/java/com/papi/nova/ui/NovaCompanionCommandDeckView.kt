@@ -313,6 +313,7 @@ class NovaCompanionCommandDeckView(
         NovaCompanionCommandActionId.NOVA_HUD -> R.string.companion_deck_nova_hud
         NovaCompanionCommandActionId.ZOOM_PAN -> R.string.companion_deck_zoom_pan
         NovaCompanionCommandActionId.COMMAND_CENTER -> R.string.companion_deck_command_center
+        NovaCompanionCommandActionId.HIDE_COMPANION -> R.string.companion_deck_hide_companion
         NovaCompanionCommandActionId.DISCONNECT -> R.string.companion_deck_disconnect
         NovaCompanionCommandActionId.END_SESSION -> R.string.companion_deck_end_session
     }
@@ -324,6 +325,7 @@ class NovaCompanionCommandDeckView(
         NovaCompanionCommandActionId.NOVA_HUD -> R.drawable.ic_hud_bg
         NovaCompanionCommandActionId.ZOOM_PAN -> R.drawable.ic_zoom_toggle
         NovaCompanionCommandActionId.COMMAND_CENTER -> R.drawable.ic_menu_external
+        NovaCompanionCommandActionId.HIDE_COMPANION -> R.drawable.ic_menu_collapse
         NovaCompanionCommandActionId.DISCONNECT -> R.drawable.ic_close_external
         NovaCompanionCommandActionId.END_SESSION -> R.drawable.ic_close
     }

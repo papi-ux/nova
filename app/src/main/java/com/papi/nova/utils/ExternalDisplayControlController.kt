@@ -301,7 +301,7 @@ class ExternalDisplayControlController(
         if (isNovaKeyboardVisible) {
             toggleFullKeyboard()
         } else if (!game.handleQuickMenuBackFromDisplay(display.displayId)) {
-            cancel()
+            game.hideCompanionControlsForSession()
         }
     }
 
@@ -419,6 +419,7 @@ class ExternalDisplayControlController(
             NovaCompanionCommandActionId.NOVA_KEYBOARD -> _toggleFullKeyboard()
             NovaCompanionCommandActionId.QUICK_KEYS -> showQuickKeys()
             NovaCompanionCommandActionId.COMMAND_CENTER -> showGameMenu()
+            NovaCompanionCommandActionId.HIDE_COMPANION -> game.hideCompanionControlsForSession()
             NovaCompanionCommandActionId.NOVA_HUD -> game.toggleNovaHud()
             NovaCompanionCommandActionId.ZOOM_PAN -> toggleZoomMode(true)
             NovaCompanionCommandActionId.DISCONNECT -> game.disconnect()

@@ -32,7 +32,16 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         assertFalse(Regex("""\bstartActivit(?:y|ies)\s*\(""").containsMatchIn(source))
         assertFalse(source.contains("ExternalDisplayControlActivity"))
         assertTrue(source.contains("Game.instance"))
-        assertTrue(source.contains("game.showCompanionControls()"))
+        assertTrue(source.contains("beginExplicitCompanionControlsReopen()"))
+        assertTrue(source.contains("game.showCompanionControls("))
+        assertTrue(source.contains("explicitUserRequest = true"))
+        assertTrue(source.contains("requestGeneration = reopenRequestGeneration"))
+        assertFalse(source.contains("game.showCompanionControls(explicitUserRequest = true)"))
+        val begin = source.indexOf("beginExplicitCompanionControlsReopen()")
+        val delay = source.indexOf("handler.postDelayed(")
+        val completion = source.indexOf("requestGeneration = reopenRequestGeneration")
+        assertTrue("Notification intent must be recorded before delayed focus restoration", begin >= 0 && begin < delay)
+        assertTrue("Only token-checked completion may run after the delay", completion > delay)
     }
 
     @Test
@@ -165,11 +174,15 @@ class NovaExternalDisplayRoutingSourceGuardTest {
             surfaceStart.contains("launchCompanionControlsIfAvailable()")
         )
         val handleStarted = connectionStarted.indexOf("handleStreamStartedState()")
-        val controlsStart = connectionStarted.indexOf("launchCompanionControlsIfAvailable()")
+        val controlsStart = connectionStarted.indexOf("showCompanionControls()")
         assertTrue("connectionStarted should mark the stream active", handleStarted >= 0)
-        assertTrue("connectionStarted should start companion controls after stream/audio setup", controlsStart >= 0)
+        assertFalse(
+            "connectionStarted must not bypass the session dismissal policy",
+            connectionStarted.contains("launchCompanionControlsIfAvailable()"),
+        )
+        assertTrue("connectionStarted should request policy-gated companion controls after stream/audio setup", controlsStart >= 0)
         assertTrue(
-            "Companion controls should launch after connectionStarted marks the stream active so audio binds to the stream display first",
+            "Companion controls should be requested after connectionStarted marks the stream active so audio binds to the stream display first",
             controlsStart > handleStarted
         )
     }
@@ -387,6 +400,35 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     }
 
     @Test
+    fun companionDisplayRemovalPreservesAHiddenSessionsReopenNotification() {
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val closeControls =
+            game.substringAfter("private fun closeCompanionControls(")
+                .substringBefore("private fun closeCompanionControlsForDisplayRemoval(")
+        val displayRemovalClose =
+            game.substringAfter("private fun closeCompanionControlsForDisplayRemoval()")
+                .substringBefore("private fun handleDisplayRemoved(")
+        val displayRemoved =
+            game.substringAfter("private fun handleDisplayRemoved(")
+                .substringBefore("@SuppressLint(\"ClickableViewAccessibility\")")
+
+        assertTrue(closeControls.contains("preserveReopenNotification:Boolean = false"))
+        assertTrue(closeControls.contains("if (preserveReopenNotification)"))
+        assertTrue(closeControls.contains("ensureCompanionControlsNotification(this)"))
+        assertTrue(closeControls.contains("SECONDARY_SCREEN_NOTIFICATION_ID"))
+        assertTrue(
+            displayRemovalClose.contains("CompanionControlLifecyclePolicy.shouldPreserveReopenNotification("),
+        )
+        assertTrue(displayRemovalClose.contains("preserveReopenNotification = preserveReopenNotification"))
+        assertTrue(
+            "Both companion-display removal branches must use the preserving teardown authority",
+            displayRemoved.split("closeCompanionControlsForDisplayRemoval()").size - 1 == 2,
+        )
+        val streamDisplayRemoved = displayRemoved.substringAfter("removedDisplayId == streamingDisplayId").substringBefore("removedDisplayId == companionControlDisplayId")
+        assertTrue("Terminal stream-display teardown must still cancel the notification", streamDisplayRemoved.contains("closeCompanionControls()"))
+    }
+
+    @Test
     fun stoppedStreamDismissesCompanionControlsBeforeBackgroundCleanup() {
         val source = File("src/main/java/com/papi/nova/Game.kt").readText()
         val stopConnection =
@@ -434,9 +476,9 @@ class NovaExternalDisplayRoutingSourceGuardTest {
 
         val launchControls =
             game.substringAfter("private fun launchCompanionControlsIfAvailable()")
-                .substringBefore("fun showCompanionControls()")
+                .substringBefore("fun hideCompanionControlsForSession()")
         val closeControls =
-            game.substringAfter("private fun closeCompanionControls()")
+            game.substringAfter("private fun closeCompanionControls(")
                 .substringBefore("private fun handleDisplayRemoved(")
         assertTrue(
             "replacing a companion Presentation must unwind the current callback first",
@@ -520,7 +562,8 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         val backPressed =
             controller.substringAfter("fun handleCompanionBack()")
                 .substringBefore("private fun initializeComponents()")
-        assertTrue("Back teardown must use the deferred cancellation override", backPressed.contains("cancel()"))
+        assertTrue("Back teardown must record a session-scoped user hide", backPressed.contains("game.hideCompanionControlsForSession()"))
+        assertFalse("Back must not bypass Game lifecycle ownership with raw cancellation", backPressed.contains("cancel()"))
         assertFalse("Back must not re-enter synchronous Dialog.onBackPressed teardown", backPressed.contains("super.onBackPressed()"))
     }
 
@@ -528,12 +571,12 @@ class NovaExternalDisplayRoutingSourceGuardTest {
     fun companionReopenChecksLiveGameLifecycleAtExecutionTime() {
         val source = File("src/main/java/com/papi/nova/Game.kt").readText()
         val showControls =
-            source.substringAfter("fun showCompanionControls() {")
+            source.substringAfter("fun showCompanionControls(")
                 .substringBefore("@SuppressLint(\"InlinedApi\")")
         val uiDispatch = showControls.indexOf("runOnUiThread {")
         val lifecycleDecision = showControls.indexOf("CompanionControlLifecyclePolicy.canShow(")
         val deniedClose = showControls.indexOf("closeCompanionControls()")
-        val deniedReturn = showControls.indexOf("return@runOnUiThread")
+        val deniedReturn = showControls.indexOf("return@runOnUiThread", startIndex = deniedClose)
         val presentationLaunch = showControls.indexOf("launchCompanionControlsIfAvailable()")
 
         assertTrue("showCompanionControls must dispatch before reading lifecycle state", uiDispatch >= 0)
@@ -545,7 +588,7 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         assertTrue(
             "The execution-time lifecycle decision must receive the live Game state, not constants",
             compactShowControls.contains(
-                "CompanionControlLifecyclePolicy.canShow(isStreamActive, isFinishing(), isDestroyed)"
+                "CompanionControlLifecyclePolicy.canShow( isStreamActive, isFinishing(), isDestroyed, companionControlsDismissedByUser, explicitUserRequest, )"
             )
         )
     }
