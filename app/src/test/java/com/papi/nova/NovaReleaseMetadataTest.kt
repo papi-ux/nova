@@ -21,6 +21,7 @@ class NovaReleaseMetadataTest {
             root,
             "fastlane/metadata/android/en-US/changelogs/35.txt"
         )
+        val storeNotesBody = storeNotes.readText().trimEnd()
 
         assertTrue(build.contains("versionName \"1.3.3\""))
         assertTrue(build.contains("versionCode = 35"))
@@ -29,6 +30,10 @@ class NovaReleaseMetadataTest {
         assertTrue(readme.contains("VersionCode 35"))
         assertFalse(readme.contains("## Latest release: v1.3.2"))
         assertTrue(storeNotes.isFile)
-        assertTrue(storeNotes.readText().startsWith("Nova 1.3.3\n"))
+        assertTrue(
+            "Google Play release notes must be at most 500 Unicode characters",
+            storeNotesBody.codePointCount(0, storeNotesBody.length) <= 500,
+        )
+        assertTrue(storeNotesBody.startsWith("Nova 1.3.3"))
     }
 }
