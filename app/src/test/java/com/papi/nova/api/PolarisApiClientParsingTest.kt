@@ -1,9 +1,11 @@
 package com.papi.nova.api
 
 import com.papi.nova.shared.polaris.model.PolarisGame
+import okhttp3.OkHttpClient
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,6 +15,17 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 @RunWith(RobolectricTestRunner::class)
 class PolarisApiClientParsingTest {
+
+    @Test
+    fun artworkHttpClientDisablesAllRedirects() {
+        val base = OkHttpClient.Builder().build()
+        val artwork = PolarisApiClient.buildArtworkHttpClient(base)
+
+        assertTrue(base.followRedirects)
+        assertTrue(base.followSslRedirects)
+        assertFalse(artwork.followRedirects)
+        assertFalse(artwork.followSslRedirects)
+    }
 
     @Test
     fun parseUnlockResponse_requiresSuccessFlag() {
@@ -486,6 +499,218 @@ class PolarisApiClientParsingTest {
             "Steam Big Picture compatibility mode may also receive controller input.",
             game.steamLaunch?.modeReason
         )
+    }
+
+    @Test
+    fun parseGame_includesArtworkManifestWithDefaults() {
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                """
+                {
+                  "id":"game-artwork",
+                  "cover_url":"/legacy-cover",
+                  "artwork":{
+                    "revision":"revision-a",
+                    "assets":{
+                      "poster":{"url":"/polaris/v1/games/game-artwork/artwork/poster","source":"local","mime_type":"image/png","cached":true},
+                      "hero":{"url":"/polaris/v1/games/game-artwork/artwork/hero"}
+                    }
+                  }
+                }
+                """.trimIndent()
+            )
+        )
+
+        assertEquals(1, game.artwork?.version)
+        assertEquals("revision-a", game.artwork?.revision)
+        assertEquals("/polaris/v1/games/game-artwork/artwork/poster", game.posterArtwork?.url)
+        assertEquals("local", game.posterArtwork?.source)
+        assertEquals("image/png", game.posterArtwork?.mimeType)
+        assertTrue(game.posterArtwork?.cached == true)
+        assertEquals("", game.heroArtwork?.source)
+        assertEquals("/legacy-cover", game.coverUrl)
+    }
+
+    @Test
+    fun parseGame_includesCompleteArtworkManifestV1Shape() {
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                """
+                {
+                  "id":"game-complete",
+                  "artwork":{
+                    "version":1,
+                    "revision":"rev-complete",
+                    "state":"partial",
+                    "match":{"source":"steamgriddb","provider_game_id":"99","title":"Corrected Match","confidence":1.5,"manual":true},
+                    "cached_at":1785641400000,
+                    "assets":{
+                      "screenshots":[
+                        {"url":"/polaris/v1/games/game-complete/artwork/screenshots/0","source":"steam","mime_type":"image/jpeg","cached":true},
+                        "malformed"
+                      ],
+                      "trailer":{"url":"/polaris/v1/games/game-complete/artwork/trailer","source":"steam","mime_type":"video/mp4","cached":true}
+                    },
+                    "override":{"active":true,"kinds":["logo"],"logo_transform":{"x":-2,"y":0.75,"scale":9}}
+                  }
+                }
+                """.trimIndent()
+            )
+        )
+
+        assertEquals("partial", game.artwork?.state)
+        assertEquals(1785641400000, game.artwork?.cachedAt)
+        assertEquals(1.0, game.artwork?.match?.confidence)
+        assertTrue(game.artwork?.match?.manual == true)
+        assertEquals(1, game.screenshotArtwork.size)
+        assertEquals("video/mp4", game.trailerArtwork?.mimeType)
+        assertEquals(0.0, game.artwork?.override?.logoTransform?.x)
+        assertEquals(0.75, game.artwork?.override?.logoTransform?.y)
+        assertEquals(4.0, game.artwork?.override?.logoTransform?.scale)
+    }
+
+    @Test
+    fun parseGame_ignoresMalformedArtworkKindsAndKeepsLegacyCover() {
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                """
+                {
+                  "id":"game-malformed-artwork",
+                  "cover_url":"/polaris/v1/games/game-malformed-artwork/cover",
+                  "artwork":{
+                    "version":"not-an-int",
+                    "assets":{
+                      "poster":"not-an-object",
+                      "hero":{"url":""},
+                      "banner":{"url":"https://provider.invalid/banner.png"}
+                    }
+                  }
+                }
+                """.trimIndent()
+            )
+        )
+
+        assertEquals(1, game.artwork?.version)
+        assertNull(game.posterArtwork)
+        assertNull(game.heroArtwork)
+        assertNull(game.artworkAsset("banner"))
+        assertEquals("/polaris/v1/games/game-malformed-artwork/cover", game.coverUrl)
+    }
+
+    @Test
+    fun parseGame_withoutArtworkRemainsCompatibleWithOldHosts() {
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject("{\"id\":\"legacy\",\"cover_url\":\"https://legacy.example/cover.png\"}")
+        )
+
+        assertNull(game.artwork)
+        assertEquals("https://legacy.example/cover.png", game.coverUrl)
+    }
+
+    @Test
+    fun artworkUrlSelectionPrefersSanitizedManifestThenLegacyFallbacks() {
+        val manifestGame = PolarisGame(
+            id = "game-url",
+            coverUrl = "/polaris/v1/games/game-url/cover",
+            artwork = PolarisGame.ArtworkManifest(
+                revision = "rev-1",
+                assets = PolarisGame.ArtworkAssets(
+                    poster = PolarisGame.ArtworkAsset(
+                        url = "/polaris/v1/games/game-url/artwork/poster",
+                        cached = true
+                    )
+                )
+            )
+        )
+
+        assertEquals(
+            "https://polaris.lan:47984/polaris/v1/games/game-url/artwork/poster",
+            PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, manifestGame, "poster")
+        )
+
+        val absoluteManifest = manifestGame.copy(
+            artwork = manifestGame.artwork?.copy(
+                assets = PolarisGame.ArtworkAssets(
+                    poster = PolarisGame.ArtworkAsset("https://steam.invalid/poster.jpg")
+                )
+            )
+        )
+        assertEquals(
+            "https://polaris.lan:47984/polaris/v1/games/game-url/cover",
+            PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, absoluteManifest, "poster")
+        )
+
+        val absoluteLegacy = PolarisGame(
+            id = "legacy-hosted",
+            coverUrl = "https://provider.example/should-not-leave-the-host.jpg"
+        )
+        assertEquals(
+            "https://polaris.lan:47984/polaris/v1/games/legacy-hosted/cover",
+            PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, absoluteLegacy, "poster")
+        )
+
+        val legacyEndpoint = PolarisGame(id = "legacy-endpoint")
+        assertEquals(
+            "https://polaris.lan:47984/polaris/v1/games/legacy-endpoint/cover",
+            PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, legacyEndpoint, "poster")
+        )
+        assertNull(PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, legacyEndpoint, "hero"))
+
+        val uncachedManifest = manifestGame.copy(
+            artwork = manifestGame.artwork?.copy(
+                assets = PolarisGame.ArtworkAssets(
+                    poster = PolarisGame.ArtworkAsset(
+                        url = "/polaris/v1/games/game-url/artwork/poster",
+                        cached = false
+                    )
+                )
+            )
+        )
+        assertEquals(
+            "https://polaris.lan:47984/polaris/v1/games/game-url/cover",
+            PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, uncachedManifest, "poster")
+        )
+        assertNull(
+            PolarisApiClient.selectArtworkUrl(
+                "polaris.lan",
+                47984,
+                PolarisGame(id = "../unsafe", coverUrl = "javascript:bad"),
+                "poster"
+            )
+        )
+    }
+
+    @Test
+    fun manifestUrlResolutionRejectsAbsoluteProtocolRelativeAndTraversalPaths() {
+        assertEquals(
+            "https://host.example:444/polaris/v1/games/abc/artwork/logo?revision=2",
+            PolarisApiClient.resolveManifestPath(
+                "host.example",
+                444,
+                "/polaris/v1/games/abc/artwork/logo?revision=2"
+            )
+        )
+        assertNull(PolarisApiClient.resolveManifestPath("host.example", 444, "https://sgdb.invalid/logo.png"))
+        assertNull(PolarisApiClient.resolveManifestPath("host.example", 444, "//sgdb.invalid/logo.png"))
+        assertNull(PolarisApiClient.resolveManifestPath("host.example", 444, "/polaris/v1/../private/logo.png"))
+        assertNull(PolarisApiClient.resolveManifestPath("host.example", 444, "/covers/logo.png"))
+        assertNull(PolarisApiClient.resolveManifestPath("host.example", 444, "/polaris/v1\\evil"))
+        assertNull(PolarisApiClient.resolveManifestPath("host.example", 444, "/polaris/v1/%2e%2e/private/logo.png"))
+        assertNull(PolarisApiClient.resolveManifestPath("host.example", 444, "/polaris/v1/%252e%252e/private/logo.png"))
+    }
+
+    @Test
+    fun artworkResolveResponseAcceptsDirectAndNestedEnvelopes() {
+        val direct = PolarisApiClient.parseArtworkResolveResponse(
+            JSONObject("{\"version\":1,\"revision\":\"direct\",\"assets\":{\"poster\":{\"url\":\"/polaris/v1/games/a/artwork/poster\"}}}")
+        )
+        val nested = PolarisApiClient.parseArtworkResolveResponse(
+            JSONObject("{\"data\":{\"game\":{\"artwork\":{\"version\":1,\"revision\":\"nested\",\"assets\":{\"poster\":{\"url\":\"/polaris/v1/games/b/artwork/poster\"}}}}}}")
+        )
+
+        assertEquals("direct", direct?.revision)
+        assertEquals("nested", nested?.revision)
+        assertNull(PolarisApiClient.parseArtworkResolveResponse(JSONObject("{\"success\":true}")))
     }
 
     @Test
