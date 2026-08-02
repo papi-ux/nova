@@ -1344,4 +1344,39 @@
     <string name="nova_settings_modern">Modern</string>
     <string name="nova_server_manage">Manage</string>
     <string name="nova_server_remove_failed">Couldn\'t remove server. Try again.</string>
+
+    <!-- Polaris artwork correction -->
+    <string name="nova_artwork_title">Artwork</string>
+    <string name="nova_artwork_summary">Manage poster, hero, logo, and icon</string>
+    <string name="nova_artwork_expand">Expand artwork preferences</string>
+    <string name="nova_artwork_collapse">Collapse artwork preferences</string>
+    <string name="nova_artwork_icon_content_description">%1$s game icon</string>
+    <string name="nova_artwork_hero_content_description">%1$s hero artwork</string>
+    <string name="nova_artwork_logo_content_description">%1$s game logo</string>
+    <string name="nova_artwork_logo_unavailable">No game logo is available yet. Refresh artwork or choose a custom match.</string>
+    <string name="nova_artwork_search_title">Search title</string>
+    <string name="nova_artwork_refresh">Refresh artwork</string>
+    <string name="nova_artwork_fix_match">Fix match</string>
+    <string name="nova_artwork_clear_match">Clear custom match</string>
+    <string name="nova_artwork_preview_candidate">Preview %1$s</string>
+    <string name="nova_artwork_confirm_candidate">Use %1$s as the custom artwork match?</string>
+    <string name="nova_artwork_apply_match">Apply match</string>
+    <string name="nova_artwork_no_matches">No matches found</string>
+    <string name="nova_artwork_search_failed">Artwork search unavailable. Check SteamGridDB in Polaris and try again.</string>
+    <string name="nova_artwork_refresh_failed">Artwork refresh failed</string>
+    <string name="nova_artwork_apply_failed">Custom match failed</string>
+    <string name="nova_artwork_clear_failed">Clear custom match failed</string>
+    <string name="nova_artwork_select_kinds">Artwork types to replace</string>
+    <string name="nova_artwork_kind_poster">Poster</string>
+    <string name="nova_artwork_kind_hero">Hero</string>
+    <string name="nova_artwork_kind_logo">Logo</string>
+    <string name="nova_artwork_kind_icon">Icon</string>
+    <string name="nova_artwork_logo_controls">Logo position and size</string>
+    <string name="nova_artwork_smaller">Smaller</string>
+    <string name="nova_artwork_reset">Reset</string>
+    <string name="nova_artwork_larger">Larger</string>
+    <string name="nova_artwork_left">Left</string>
+    <string name="nova_artwork_up">Up</string>
+    <string name="nova_artwork_down">Down</string>
+    <string name="nova_artwork_right">Right</string>
 </resources>

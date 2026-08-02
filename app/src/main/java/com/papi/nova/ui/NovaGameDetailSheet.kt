@@ -15,10 +15,12 @@ import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,7 +31,9 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
@@ -40,6 +44,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -75,6 +81,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
@@ -90,6 +97,7 @@ import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaFocusableCard
 import com.papi.nova.utils.DeviceUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,6 +117,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
     private var defaultToVirtualDisplay: Boolean = false
     private var clientSettings: PolarisClientSettings? = null
     private var onLaunch: ((PolarisGame, Boolean, Boolean, Boolean, String, JSONObject?) -> Unit)? = null
+    private var onGameUpdated: ((PolarisGame) -> Unit)? = null
 
     companion object {
         fun newInstance(
@@ -116,6 +125,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
             apiClient: PolarisApiClient,
             defaultToVirtualDisplay: Boolean,
             clientSettings: PolarisClientSettings?,
+            onGameUpdated: (PolarisGame) -> Unit,
             onLaunch: (PolarisGame, Boolean, Boolean, Boolean, String, JSONObject?) -> Unit
         ): NovaGameDetailSheet {
             return NovaGameDetailSheet().apply {
@@ -123,6 +133,7 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                 this.apiClient = apiClient
                 this.defaultToVirtualDisplay = defaultToVirtualDisplay
                 this.clientSettings = clientSettings
+                this.onGameUpdated = onGameUpdated
                 this.onLaunch = onLaunch
             }
         }
@@ -166,9 +177,22 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
         var launchOptionsState by mutableStateOf<NovaLaunchOptionsState?>(null)
         var profileOptionsState by mutableStateOf<NovaProfilePreferenceOptionsState?>(null)
         var steamLaunchOptionsState by mutableStateOf<NovaSteamLaunchModeOptionsState?>(null)
+        var artworkState by mutableStateOf(loadArtworkState(game))
 
         fun refreshUiState(preference: String = profilePreference) {
             uiState = buildUiState(currentGame, preference)
+        }
+
+        fun acceptArtwork(manifest: PolarisGame.ArtworkManifest) {
+            currentGame = currentGame.copy(artwork = manifest)
+            refreshUiState()
+            artworkState = artworkState.copy(
+                working = false,
+                error = null,
+                overrideActive = manifest.override?.active == true,
+                candidates = emptyList()
+            )
+            onGameUpdated?.invoke(currentGame)
         }
 
         fun loadOptimization(preference: String, usesVirtualDisplay: Boolean = uiState.playUsesVirtualDisplay) {
@@ -444,6 +468,71 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
                     onDismissSteamLaunchModeOptions = {
                         steamLaunchOptionsState = null
                     },
+                    artworkState = artworkState,
+                    onRefreshArtwork = {
+                        artworkState = artworkState.copy(working = true, error = null)
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            val manifest = withContext(Dispatchers.IO) { apiClient.resolveArtwork(currentGame.id, force = true) }
+                            if (manifest != null) acceptArtwork(manifest)
+                            else artworkState = artworkState.copy(working = false, error = getString(R.string.nova_artwork_refresh_failed))
+                        }
+                    },
+                    onSearchArtwork = { query ->
+                        artworkState = artworkState.copy(working = true, error = null)
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            try {
+                                val candidates = withContext(Dispatchers.IO) {
+                                    apiClient.searchArtworkCandidates(currentGame.id, query)
+                                }
+                                artworkState = artworkState.copy(
+                                    working = false,
+                                    candidates = candidates,
+                                    error = if (candidates.isEmpty()) getString(R.string.nova_artwork_no_matches) else null,
+                                )
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                artworkState = artworkState.copy(
+                                    working = false,
+                                    candidates = emptyList(),
+                                    error = getString(R.string.nova_artwork_search_failed),
+                                )
+                            }
+                        }
+                    },
+                    onApplyArtwork = { candidate, kinds ->
+                        artworkState = artworkState.copy(working = true, error = null)
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            val manifest = withContext(Dispatchers.IO) { apiClient.applyArtworkMatch(currentGame.id, candidate, kinds) }
+                            if (manifest != null) acceptArtwork(manifest)
+                            else artworkState = artworkState.copy(working = false, error = getString(R.string.nova_artwork_apply_failed))
+                        }
+                    },
+                    onClearArtwork = {
+                        artworkState = artworkState.copy(working = true, error = null)
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            val manifest = withContext(Dispatchers.IO) { apiClient.clearArtworkOverride(currentGame.id) }
+                            if (manifest != null) acceptArtwork(manifest)
+                            else artworkState = artworkState.copy(working = false, error = getString(R.string.nova_artwork_clear_failed))
+                        }
+                    },
+                    onLogoTransform = { scale, x, y ->
+                        artworkState = artworkState.copy(logoScale = scale, logoX = x, logoY = y)
+                        saveArtworkTransform(currentGame.id, scale, x, y)
+                    },
+                    candidatePreviewLoader = apiClient::loadArtworkCandidatePreviewInto,
+                    heroAvailable = currentGame.heroArtwork?.cached == true,
+                    heroPresentationKey = PolarisApiClient.artworkPresentationKey(currentGame, PolarisGame.ARTWORK_KIND_HERO),
+                    heroLoader = { imageView -> apiClient.loadArtworkInto(imageView, currentGame, PolarisGame.ARTWORK_KIND_HERO) },
+                    heroContentDescription = getString(R.string.nova_artwork_hero_content_description, currentGame.name),
+                    logoAvailable = currentGame.logoArtwork?.cached == true,
+                    logoPresentationKey = PolarisApiClient.artworkPresentationKey(currentGame, PolarisGame.ARTWORK_KIND_LOGO),
+                    logoLoader = { imageView -> apiClient.loadArtworkInto(imageView, currentGame, PolarisGame.ARTWORK_KIND_LOGO) },
+                    logoContentDescription = getString(R.string.nova_artwork_logo_content_description, currentGame.name),
+                    iconAvailable = currentGame.iconArtwork?.cached == true,
+                    iconPresentationKey = PolarisApiClient.artworkPresentationKey(currentGame, PolarisGame.ARTWORK_KIND_ICON),
+                    iconLoader = { imageView -> apiClient.loadArtworkInto(imageView, currentGame, PolarisGame.ARTWORK_KIND_ICON) },
+                    iconContentDescription = getString(R.string.nova_artwork_icon_content_description, currentGame.name),
                     coverLoader = { imageView ->
                         apiClient.loadCoverInto(imageView, currentGame)
                     }
@@ -469,6 +558,25 @@ class NovaGameDetailSheet : BottomSheetDialogFragment() {
 
     private fun saveProfilePreference(game: PolarisGame, preference: String) {
         AutoQualityProfilePreferences.save(requireContext(), game.name, preference)
+    }
+
+    private fun loadArtworkState(game: PolarisGame): NovaArtworkCorrectionState {
+        val defaults = NovaArtworkCorrectionState.from(game)
+        val prefs = requireContext().getSharedPreferences("nova_artwork", 0)
+        val key = "logo_${game.id}_"
+        return defaults.copy(
+            logoScale = prefs.getFloat("${key}scale", defaults.logoScale).coerceIn(0.25f, 4f),
+            logoX = prefs.getFloat("${key}x", defaults.logoX).coerceIn(0f, 1f),
+            logoY = prefs.getFloat("${key}y", defaults.logoY).coerceIn(0f, 1f),
+        )
+    }
+
+    private fun saveArtworkTransform(gameId: String, scale: Float, x: Float, y: Float) {
+        requireContext().getSharedPreferences("nova_artwork", 0).edit()
+            .putFloat("logo_${gameId}_scale", scale.coerceIn(0.25f, 4f))
+            .putFloat("logo_${gameId}_x", x.coerceIn(0f, 1f))
+            .putFloat("logo_${gameId}_y", y.coerceIn(0f, 1f))
+            .apply()
     }
 
     private fun logPreflightOptimization(
@@ -1168,6 +1276,28 @@ data class NovaSteamLaunchModeOptionsState(
     val options: List<NovaSteamLaunchModeItem>
 )
 
+data class NovaArtworkCorrectionState(
+    val working: Boolean = false,
+    val error: String? = null,
+    val candidates: List<PolarisArtworkMatchCandidate> = emptyList(),
+    val overrideActive: Boolean = false,
+    val logoScale: Float = 1f,
+    val logoX: Float = 0.5f,
+    val logoY: Float = 0.5f,
+) {
+    companion object {
+        fun from(game: PolarisGame): NovaArtworkCorrectionState {
+            val transform = game.artwork?.override?.logoTransform
+            return NovaArtworkCorrectionState(
+                overrideActive = game.artwork?.override?.active == true,
+                logoScale = transform?.scale?.toFloat() ?: 1f,
+                logoX = transform?.x?.toFloat() ?: 0.5f,
+                logoY = transform?.y?.toFloat() ?: 0.5f,
+            )
+        }
+    }
+}
+
 @Composable
 fun NovaGameDetailSheetContent(
     uiState: NovaGameDetailUiState,
@@ -1209,6 +1339,25 @@ fun NovaGameDetailSheetContent(
     onSteamLaunchMode: () -> Unit,
     onSteamLaunchModeSelected: (NovaSteamLaunchModeItem) -> Unit = {},
     onDismissSteamLaunchModeOptions: () -> Unit = {},
+    artworkState: NovaArtworkCorrectionState,
+    onRefreshArtwork: () -> Unit,
+    onSearchArtwork: (String) -> Unit,
+    onApplyArtwork: (PolarisArtworkMatchCandidate, List<String>) -> Unit,
+    onClearArtwork: () -> Unit,
+    onLogoTransform: (Float, Float, Float) -> Unit,
+    candidatePreviewLoader: (ImageView, PolarisArtworkMatchCandidate) -> Unit,
+    heroAvailable: Boolean = false,
+    heroPresentationKey: String = "",
+    heroLoader: (ImageView) -> Unit = {},
+    heroContentDescription: String = "",
+    logoAvailable: Boolean,
+    logoPresentationKey: String,
+    logoLoader: (ImageView) -> Unit,
+    logoContentDescription: String = "",
+    iconAvailable: Boolean,
+    iconPresentationKey: String,
+    iconLoader: (ImageView) -> Unit,
+    iconContentDescription: String = "",
     coverLoader: (ImageView) -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
@@ -1234,7 +1383,20 @@ fun NovaGameDetailSheetContent(
                 uiState = uiState,
                 lastPlayedText = lastPlayedText,
                 coverContentDescription = coverContentDescription,
-                coverLoader = coverLoader
+                coverLoader = coverLoader,
+                artworkState = artworkState,
+                heroAvailable = heroAvailable,
+                heroPresentationKey = heroPresentationKey,
+                heroLoader = heroLoader,
+                heroContentDescription = heroContentDescription,
+                logoAvailable = logoAvailable,
+                logoPresentationKey = logoPresentationKey,
+                logoLoader = logoLoader,
+                logoContentDescription = logoContentDescription,
+                iconAvailable = iconAvailable,
+                iconPresentationKey = iconPresentationKey,
+                iconLoader = iconLoader,
+                iconContentDescription = iconContentDescription,
             )
 
             LaunchControlsPanel(
@@ -1306,6 +1468,23 @@ fun NovaGameDetailSheetContent(
             optimizationState.stability?.let {
                 InsightCard(card = it)
             }
+
+            ArtworkCorrectionPanel(
+                state = artworkState,
+                initialQuery = uiState.game.name,
+                onRefresh = onRefreshArtwork,
+                onSearch = onSearchArtwork,
+                onApply = onApplyArtwork,
+                onClear = onClearArtwork,
+                onTransform = onLogoTransform,
+                previewLoader = candidatePreviewLoader,
+                logoAvailable = logoAvailable,
+                logoPresentationKey = logoPresentationKey,
+                logoLoader = logoLoader,
+                iconAvailable = iconAvailable,
+                iconPresentationKey = iconPresentationKey,
+                iconLoader = iconLoader,
+            )
 
             NovaControllerHintBar(
                 hints = novaGameDetailControllerHints(),
@@ -1581,14 +1760,185 @@ private fun NovaDesktopSteamLaunchDecisionContent(
 }
 
 @Composable
+private fun ArtworkCorrectionPanel(
+    state: NovaArtworkCorrectionState,
+    initialQuery: String,
+    onRefresh: () -> Unit,
+    onSearch: (String) -> Unit,
+    onApply: (PolarisArtworkMatchCandidate, List<String>) -> Unit,
+    onClear: () -> Unit,
+    onTransform: (Float, Float, Float) -> Unit,
+    previewLoader: (ImageView, PolarisArtworkMatchCandidate) -> Unit,
+    logoAvailable: Boolean,
+    logoPresentationKey: String,
+    logoLoader: (ImageView) -> Unit,
+    iconAvailable: Boolean,
+    iconPresentationKey: String,
+    iconLoader: (ImageView) -> Unit,
+) {
+    val colors = LocalNovaComposeColors.current
+    var expanded by remember(initialQuery) { mutableStateOf(false) }
+    var query by remember(initialQuery) { mutableStateOf(initialQuery) }
+    var pendingCandidate by remember { mutableStateOf<PolarisArtworkMatchCandidate?>(null) }
+    val artworkKinds = listOf("poster", "hero", "logo", "icon")
+    var selectedKinds by remember { mutableStateOf(artworkKinds.toSet()) }
+    val artworkTitle = stringResource(R.string.nova_artwork_title)
+    val artworkSummary = stringResource(R.string.nova_artwork_summary)
+    val toggleDescription = stringResource(if (expanded) R.string.nova_artwork_collapse else R.string.nova_artwork_expand)
+    val iconDescription = stringResource(R.string.nova_artwork_icon_content_description, initialQuery)
+    LaunchedEffect(state.candidates) { pendingCandidate = null }
+    NovaDetailPanel(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 14.dp, end = 14.dp, top = 12.dp),
+        contentDescription = toggleDescription,
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = toggleDescription }
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (iconAvailable) {
+                    key(iconPresentationKey) {
+                        AndroidView(
+                            factory = { context ->
+                                ImageView(context).apply {
+                                    scaleType = ImageView.ScaleType.FIT_CENTER
+                                    contentDescription = iconDescription
+                                    iconLoader(this)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(colors.window)
+                                .border(1.dp, colors.divider, RoundedCornerShape(10.dp)),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(artworkTitle, color = colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(artworkSummary, color = colors.textMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(if (expanded) "▴" else "▾", color = colors.textSecondary, fontSize = 18.sp)
+            }
+            if (expanded) {
+                Column(modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp)) {
+                    OutlinedTextField(
+            value = query,
+            onValueChange = { candidate ->
+                if (candidate.toByteArray(Charsets.UTF_8).size <= 160 && candidate.none { it.code < 0x20 || it.code in 0x7f..0x9f }) query = candidate
+            },
+            label = { Text(stringResource(R.string.nova_artwork_search_title)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            NovaActionButton(stringResource(R.string.nova_artwork_refresh), onRefresh, Modifier.weight(1f), enabled = !state.working)
+            NovaActionButton(stringResource(R.string.nova_artwork_fix_match), { onSearch(query.trim()) }, Modifier.weight(1f), enabled = !state.working && query.isNotBlank())
+        }
+        if (state.overrideActive) {
+            NovaActionButton(stringResource(R.string.nova_artwork_clear_match), onClear, Modifier.fillMaxWidth().padding(top = 8.dp), enabled = !state.working)
+        }
+        state.error?.let { Text(it, color = colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
+        if (logoAvailable) {
+            key(logoPresentationKey) {
+                AndroidView(
+                    factory = { context -> ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER; logoLoader(this) } },
+                    modifier = Modifier.fillMaxWidth().height(72.dp).graphicsLayer {
+                        scaleX = state.logoScale
+                        scaleY = state.logoScale
+                        translationX = (state.logoX - 0.5f) * 120f
+                        translationY = (state.logoY - 0.5f) * 72f
+                    }
+                )
+            }
+            LogoTransformControls(state, onTransform)
+        } else {
+            Text(
+                stringResource(R.string.nova_artwork_logo_unavailable),
+                color = colors.textMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        state.candidates.forEach { candidate ->
+            key(candidate.providerGameId) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                AndroidView(factory = { context -> ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; previewLoader(this, candidate) } }, modifier = Modifier.size(56.dp))
+                NovaActionButton(stringResource(R.string.nova_artwork_preview_candidate, candidate.title), { pendingCandidate = candidate }, Modifier.weight(1f).padding(start = 8.dp), enabled = !state.working)
+            }
+        }
+        }
+        pendingCandidate?.let { candidate ->
+            Text(stringResource(R.string.nova_artwork_confirm_candidate, candidate.title), modifier = Modifier.padding(top = 10.dp), color = colors.textPrimary)
+            Text(stringResource(R.string.nova_artwork_select_kinds), modifier = Modifier.padding(top = 6.dp), color = colors.textMuted, fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                artworkKinds.forEach { kind ->
+                    val label = stringResource(when (kind) {
+                        "poster" -> R.string.nova_artwork_kind_poster
+                        "hero" -> R.string.nova_artwork_kind_hero
+                        "logo" -> R.string.nova_artwork_kind_logo
+                        else -> R.string.nova_artwork_kind_icon
+                    })
+                    NovaActionButton(label, { selectedKinds = if (kind in selectedKinds) selectedKinds - kind else selectedKinds + kind }, Modifier.weight(1f), enabled = !state.working, primary = kind in selectedKinds)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                NovaActionButton(stringResource(R.string.nova_artwork_apply_match), { pendingCandidate = null; onApply(candidate, artworkKinds.filter { it in selectedKinds }) }, Modifier.weight(1f), enabled = !state.working && selectedKinds.isNotEmpty(), primary = true)
+                NovaActionButton(stringResource(R.string.cancel), { pendingCandidate = null }, Modifier.weight(1f), enabled = !state.working)
+            }
+        }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogoTransformControls(state: NovaArtworkCorrectionState, onTransform: (Float, Float, Float) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.nova_artwork_logo_controls), fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            NovaActionButton(stringResource(R.string.nova_artwork_smaller), { onTransform((state.logoScale - 0.1f).coerceAtLeast(0.25f), state.logoX, state.logoY) }, Modifier.weight(1f))
+            NovaActionButton(stringResource(R.string.nova_artwork_reset), { onTransform(1f, 0.5f, 0.5f) }, Modifier.weight(1f))
+            NovaActionButton(stringResource(R.string.nova_artwork_larger), { onTransform((state.logoScale + 0.1f).coerceAtMost(4f), state.logoX, state.logoY) }, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
+            NovaActionButton(stringResource(R.string.nova_artwork_left), { onTransform(state.logoScale, (state.logoX - 0.05f).coerceAtLeast(0f), state.logoY) }, Modifier.weight(1f))
+            NovaActionButton(stringResource(R.string.nova_artwork_up), { onTransform(state.logoScale, state.logoX, (state.logoY - 0.05f).coerceAtLeast(0f)) }, Modifier.weight(1f))
+            NovaActionButton(stringResource(R.string.nova_artwork_down), { onTransform(state.logoScale, state.logoX, (state.logoY + 0.05f).coerceAtMost(1f)) }, Modifier.weight(1f))
+            NovaActionButton(stringResource(R.string.nova_artwork_right), { onTransform(state.logoScale, (state.logoX + 0.05f).coerceAtMost(1f), state.logoY) }, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
 private fun GameDetailsPanel(
     uiState: NovaGameDetailUiState,
     lastPlayedText: String?,
     coverContentDescription: String,
-    coverLoader: (ImageView) -> Unit
+    coverLoader: (ImageView) -> Unit,
+    artworkState: NovaArtworkCorrectionState,
+    heroAvailable: Boolean,
+    heroPresentationKey: String,
+    heroLoader: (ImageView) -> Unit,
+    heroContentDescription: String,
+    logoAvailable: Boolean,
+    logoPresentationKey: String,
+    logoLoader: (ImageView) -> Unit,
+    logoContentDescription: String,
+    iconAvailable: Boolean,
+    iconPresentationKey: String,
+    iconLoader: (ImageView) -> Unit,
+    iconContentDescription: String,
 ) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
     val game = uiState.game
 
     NovaDetailPanel(
@@ -1600,71 +1950,251 @@ private fun GameDetailsPanel(
         accent = true,
         contentPadding = PaddingValues(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            key(game.id, game.coverUrl) {
+        if (heroAvailable) {
+            NovaGameDetailHero(
+                game = game,
+                artworkState = artworkState,
+                heroPresentationKey = heroPresentationKey,
+                heroLoader = heroLoader,
+                heroContentDescription = heroContentDescription,
+                logoAvailable = logoAvailable,
+                logoPresentationKey = logoPresentationKey,
+                logoLoader = logoLoader,
+                logoContentDescription = logoContentDescription,
+                iconAvailable = iconAvailable,
+                iconPresentationKey = iconPresentationKey,
+                iconLoader = iconLoader,
+                iconContentDescription = iconContentDescription,
+            )
+        } else {
+            NovaGameDetailPosterFallback(
+                uiState = uiState,
+                lastPlayedText = lastPlayedText,
+                coverContentDescription = coverContentDescription,
+                coverLoader = coverLoader,
+                iconAvailable = iconAvailable,
+                iconPresentationKey = iconPresentationKey,
+                iconLoader = iconLoader,
+                iconContentDescription = iconContentDescription,
+            )
+        }
+    }
+}
+
+@Composable
+private fun NovaGameDetailHero(
+    game: PolarisGame,
+    artworkState: NovaArtworkCorrectionState,
+    heroPresentationKey: String,
+    heroLoader: (ImageView) -> Unit,
+    heroContentDescription: String,
+    logoAvailable: Boolean,
+    logoPresentationKey: String,
+    logoLoader: (ImageView) -> Unit,
+    logoContentDescription: String,
+    iconAvailable: Boolean,
+    iconPresentationKey: String,
+    iconLoader: (ImageView) -> Unit,
+    iconContentDescription: String,
+) {
+    val colors = LocalNovaComposeColors.current
+    val menuOpacityScale = LocalNovaMenuOpacityScale.current
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(136.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.window)
+    ) {
+        key(heroPresentationKey) {
+            AndroidView(
+                factory = { context ->
+                    ImageView(context).apply {
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        setBackgroundColor(NovaThemeManager.getCardBackgroundColor(context))
+                        contentDescription = heroContentDescription
+                        heroLoader(this)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(136.dp)
+                    .semantics { contentDescription = heroContentDescription }
+            )
+        }
+
+        if (logoAvailable) {
+            val logoWidth = maxWidth * 0.56f
+            val logoHeight = maxHeight * 0.46f
+            val logoOffsetX = (maxWidth - logoWidth) * artworkState.logoX
+            val logoOffsetY = (maxHeight - logoHeight) * artworkState.logoY
+            key(logoPresentationKey) {
                 AndroidView(
                     factory = { context ->
                         ImageView(context).apply {
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            setBackgroundColor(NovaThemeManager.getCardBackgroundColor(context))
-                            contentDescription = coverContentDescription
-                            coverLoader(this)
+                            scaleType = ImageView.ScaleType.FIT_CENTER
+                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            contentDescription = logoContentDescription
+                            logoLoader(this)
                         }
                     },
                     modifier = Modifier
-                        .width(108.dp)
-                        .aspectRatio(88f / 118f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.window)
-                        .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
-                        .semantics { contentDescription = coverContentDescription }
+                        .offset(x = logoOffsetX, y = logoOffsetY)
+                        .size(logoWidth, logoHeight)
+                        .graphicsLayer {
+                            scaleX = artworkState.logoScale
+                            scaleY = artworkState.logoScale
+                        }
+                        .semantics { contentDescription = logoContentDescription }
                 )
             }
+        }
 
-            Column(
+        NovaGameDetailIdentity(
+            game = game,
+            iconAvailable = iconAvailable,
+            iconPresentationKey = iconPresentationKey,
+            iconLoader = iconLoader,
+            iconContentDescription = iconContentDescription,
+            compact = true,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(colors.window.copy(alpha = 0.84f * menuOpacityScale))
+                .padding(horizontal = 10.dp, vertical = 7.dp)
+        )
+    }
+}
+
+@Composable
+private fun NovaGameDetailPosterFallback(
+    uiState: NovaGameDetailUiState,
+    lastPlayedText: String?,
+    coverContentDescription: String,
+    coverLoader: (ImageView) -> Unit,
+    iconAvailable: Boolean,
+    iconPresentationKey: String,
+    iconLoader: (ImageView) -> Unit,
+    iconContentDescription: String,
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val game = uiState.game
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER)) {
+            AndroidView(
+                factory = { context ->
+                    ImageView(context).apply {
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        setBackgroundColor(NovaThemeManager.getCardBackgroundColor(context))
+                        contentDescription = coverContentDescription
+                        coverLoader(this)
+                    }
+                },
                 modifier = Modifier
-                    .padding(start = 12.dp)
-                    .weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
+                    .width(108.dp)
+                    .aspectRatio(88f / 118f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.window)
+                    .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
+                    .semantics { contentDescription = coverContentDescription }
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .padding(start = 12.dp)
+                .weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            NovaGameDetailIdentity(
+                game = game,
+                iconAvailable = iconAvailable,
+                iconPresentationKey = iconPresentationKey,
+                iconLoader = iconLoader,
+                iconContentDescription = iconContentDescription,
+                compact = false,
+            )
+
+            MetadataBadges(game)
+            GenresRow(game.genres)
+
+            if (lastPlayedText != null) {
+                NovaBadge(
+                    text = lastPlayedText,
+                    modifier = Modifier.padding(top = 7.dp),
+                    color = colors.textSecondary,
+                    backgroundColor = surfaces.control.copy(alpha = 0.78f * LocalNovaMenuOpacityScale.current),
+                    borderColor = surfaces.tileBorder,
+                    fontSize = 11.sp,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovaGameDetailIdentity(
+    game: PolarisGame,
+    iconAvailable: Boolean,
+    iconPresentationKey: String,
+    iconLoader: (ImageView) -> Unit,
+    iconContentDescription: String,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalNovaComposeColors.current
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (iconAvailable) {
+            key(iconPresentationKey) {
+                AndroidView(
+                    factory = { context ->
+                        ImageView(context).apply {
+                            scaleType = ImageView.ScaleType.FIT_CENTER
+                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            contentDescription = iconContentDescription
+                            iconLoader(this)
+                        }
+                    },
+                    modifier = Modifier
+                        .size(if (compact) 34.dp else 38.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .semantics { contentDescription = iconContentDescription }
+                )
+            }
+        }
+        Column(
+            modifier = Modifier
+                .padding(start = if (iconAvailable) 9.dp else 0.dp)
+                .weight(1f)
+        ) {
+            Text(
+                text = game.name,
+                color = colors.textPrimary,
+                fontSize = if (compact) 17.sp else 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = if (compact) 19.sp else 22.sp,
+                maxLines = if (compact) 1 else 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (game.sourceRuntimeLabel.isNotBlank()) {
                 Text(
-                    text = game.name,
-                    color = colors.textPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    lineHeight = 22.sp,
-                    maxLines = 2,
+                    text = game.sourceRuntimeLabel,
+                    modifier = Modifier.padding(top = if (compact) 1.dp else 5.dp),
+                    color = colors.textSecondary,
+                    fontSize = 11.sp,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                if (game.sourceRuntimeLabel.isNotBlank()) {
-                    Text(
-                        text = game.sourceRuntimeLabel,
-                        modifier = Modifier.padding(top = 5.dp),
-                        color = colors.textSecondary,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                MetadataBadges(game)
-                GenresRow(game.genres)
-
-                if (lastPlayedText != null) {
-                    NovaBadge(
-                        text = lastPlayedText,
-                        modifier = Modifier.padding(top = 7.dp),
-                        color = colors.textSecondary,
-                        backgroundColor = surfaces.control.copy(alpha = 0.78f * LocalNovaMenuOpacityScale.current),
-                        borderColor = surfaces.tileBorder,
-                        fontSize = 11.sp,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
             }
         }
     }

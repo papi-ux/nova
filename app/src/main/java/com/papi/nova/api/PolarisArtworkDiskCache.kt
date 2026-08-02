@@ -3,9 +3,13 @@ package com.papi.nova.api
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.system.Os
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.FutureTask
@@ -15,13 +19,23 @@ internal class PolarisArtworkDiskCache(
     context: Context,
     private val host: String,
     private val port: Int,
+    private val cacheRoot: File = File(context.cacheDir, "polaris-artwork"),
+    private val maxCacheBytes: Long = MAX_CACHE_BYTES,
+    private val maxCacheEntries: Int = MAX_CACHE_ENTRIES,
+    private val replaceFile: (File, File) -> Boolean = Companion::atomicReplace,
 ) {
+    init {
+        require(maxCacheBytes > 0L)
+        require(maxCacheEntries > 0)
+    }
+
     private val cacheDir = File(
-        context.cacheDir,
-        "polaris-artwork/${sha256(listOf(host.trim().lowercase(), port.toString()))}",
+        cacheRoot,
+        sha256(listOf(host.trim().lowercase(), port.toString())),
     )
 
     fun load(gameId: String, kind: String, revision: String, allowStale: Boolean): Bitmap? {
+        if (revision.isBlank()) return null
         val exact = cacheFile(gameId, kind, revision)
         val candidates = buildList {
             if (exact.isFile) add(exact)
@@ -38,14 +52,20 @@ internal class PolarisArtworkDiskCache(
                 file.inputStream().buffered().use { readBounded(it, MAX_IMAGE_BYTES) }
             }.getOrNull()
             val bitmap = bytes?.let(::decodeBounded)
-            if (bitmap != null) return bitmap
-            file.delete()
+            if (bitmap != null) {
+                synchronized(CACHE_LOCK) {
+                    if (file.isFile) file.setLastModified(System.currentTimeMillis())
+                }
+                return bitmap
+            }
+            synchronized(CACHE_LOCK) { file.delete() }
         }
         return null
     }
 
     fun store(gameId: String, kind: String, revision: String, bytes: ByteArray, mimeType: String?): File? {
         if (
+            revision.isBlank() ||
             bytes.isEmpty() ||
             bytes.size > MAX_IMAGE_BYTES ||
             !isSupportedImageMime(mimeType) ||
@@ -54,41 +74,84 @@ internal class PolarisArtworkDiskCache(
         val decoded = decodeBounded(bytes) ?: return null
         decoded.recycle()
 
-        if (!cacheDir.exists() && !cacheDir.mkdirs()) return null
+        if (!cacheDir.isDirectory && !cacheDir.mkdirs() && !cacheDir.isDirectory) return null
         val target = cacheFile(gameId, kind, revision)
         val temp = File(cacheDir, "${target.name}.${TEMP_SEQUENCE.incrementAndGet()}.tmp")
-        val backup = File(cacheDir, "${target.name}.bak")
         return try {
-            temp.outputStream().buffered().use { output ->
+            FileOutputStream(temp).use { output ->
                 output.write(bytes)
                 output.flush()
+                output.fd.sync()
             }
-            backup.delete()
-            if (target.exists() && !target.renameTo(backup)) return null
-            if (!temp.renameTo(target)) {
-                if (backup.exists()) backup.renameTo(target)
-                return null
+            synchronized(WRITER_LOCK) {
+                if (!replaceFile(temp, target)) return null
+                cacheFilesForTest(gameId, kind).filterNot { it == target }.forEach(File::delete)
+                enforceGlobalBudget(pinned = target)
             }
-            backup.delete()
-            cacheFilesForTest(gameId, kind).filterNot { it == target }.forEach(File::delete)
             target
         } catch (_: Exception) {
-            if (!target.exists() && backup.exists()) backup.renameTo(target)
             null
         } finally {
             temp.delete()
-            if (target.exists()) backup.delete()
         }
     }
 
     fun clear() {
-        cacheDir.deleteRecursively()
+        synchronized(WRITER_LOCK) { cacheDir.deleteRecursively() }
     }
 
     internal fun cacheFilesForTest(gameId: String, kind: String): List<File> {
         val prefix = "${scopeKey(gameId, kind)}."
         return cacheDir.listFiles()
             ?.filter { it.isFile && it.name.startsWith(prefix) && it.name.endsWith(FILE_SUFFIX) }
+            .orEmpty()
+    }
+
+    internal fun rawCacheFilesForTest(): List<File> =
+        cacheDir.listFiles()?.filter(File::isFile).orEmpty()
+
+    private fun enforceGlobalBudget(pinned: File) {
+        val files = globalCacheFiles()
+        var totalBytes = files.sumOf(File::length)
+        var totalEntries = files.size
+        if (totalBytes <= maxCacheBytes && totalEntries <= maxCacheEntries) return
+
+        val evictionOrder = files
+            .asSequence()
+            .filterNot { it == pinned }
+            .sortedWith(compareBy<File>(File::lastModified).thenBy { it.absolutePath })
+            .toList()
+        for (candidate in evictionOrder) {
+            if (totalBytes <= maxCacheBytes && totalEntries <= maxCacheEntries) break
+            val size = candidate.length()
+            if (candidate.delete()) {
+                totalBytes = (totalBytes - size).coerceAtLeast(0L)
+                totalEntries -= 1
+            }
+        }
+        cacheRoot.listFiles()
+            ?.filter {
+                OWNED_HOST_DIRECTORY.matches(it.name) &&
+                    Files.isDirectory(it.toPath(), LinkOption.NOFOLLOW_LINKS) &&
+                    it.listFiles().isNullOrEmpty()
+            }
+            ?.forEach(File::delete)
+    }
+
+    private fun globalCacheFiles(): List<File> {
+        if (!Files.isDirectory(cacheRoot.toPath(), LinkOption.NOFOLLOW_LINKS)) return emptyList()
+        return cacheRoot.listFiles()
+            ?.asSequence()
+            ?.filter {
+                OWNED_HOST_DIRECTORY.matches(it.name) &&
+                    Files.isDirectory(it.toPath(), LinkOption.NOFOLLOW_LINKS)
+            }
+            ?.flatMap { directory -> directory.listFiles()?.asSequence() ?: emptySequence() }
+            ?.filter {
+                OWNED_CACHE_FILE.matches(it.name) &&
+                    Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS)
+            }
+            ?.toList()
             .orEmpty()
     }
 
@@ -101,10 +164,16 @@ internal class PolarisArtworkDiskCache(
 
     companion object {
         const val MAX_IMAGE_BYTES = 8 * 1024 * 1024
+        const val MAX_CACHE_BYTES = 96L * 1024L * 1024L
+        const val MAX_CACHE_ENTRIES = 128
         private const val MAX_IMAGE_DIMENSION = 8_192
         private const val MAX_IMAGE_PIXELS = 32L * 1024L * 1024L
         private const val FILE_SUFFIX = ".image"
+        private val OWNED_HOST_DIRECTORY = Regex("^[0-9a-f]{64}$")
+        private val OWNED_CACHE_FILE = Regex("^[0-9a-f]{64}\\.[0-9a-f]{64}\\.image$")
         private val TEMP_SEQUENCE = AtomicLong()
+        private val CACHE_LOCK = Any()
+        private val WRITER_LOCK = Any()
         private val SUPPORTED_IMAGE_MIMES = setOf(
             "image/png",
             "image/jpeg",
@@ -112,6 +181,13 @@ internal class PolarisArtworkDiskCache(
             "image/webp",
             "image/gif",
         )
+
+        @JvmStatic
+        internal fun atomicReplace(from: File, to: File): Boolean {
+            runCatching { Os.rename(from.absolutePath, to.absolutePath) }
+            if (!from.exists() && to.isFile) return true
+            return from.renameTo(to) && !from.exists() && to.isFile
+        }
 
         @JvmStatic
         fun cacheKey(host: String, port: Int, gameId: String, kind: String, revision: String): String =
