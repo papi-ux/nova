@@ -1,11 +1,13 @@
 package com.papi.nova.api
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -215,6 +217,51 @@ class PolarisArtworkDiskCacheTest {
         assertFalse(second.exists())
         assertTrue(third.isFile)
         root.deleteRecursively()
+    }
+
+    @Test
+    fun cacheOwnershipChecksRemainApi21Compatible() {
+        val source = File("src/main/java/com/papi/nova/api/PolarisArtworkDiskCache.kt").readText()
+
+        assertFalse(source.contains("java.nio.file.Files"))
+        assertFalse(source.contains(".toPath()"))
+        assertTrue(source.contains("file.canonicalFile == file.absoluteFile"))
+    }
+
+    @SuppressLint("NewApi")
+    @Test
+    fun globalEvictionDoesNotFollowOwnedLookingSymlinkDirectory() {
+        val root = File(context.cacheDir, "symlink-cache-${System.nanoTime()}").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val outside = File(context.cacheDir, "symlink-target-${System.nanoTime()}").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val outsideImage = File(
+            outside,
+            "${"b".repeat(64)}.${"c".repeat(64)}.image",
+        ).apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val ownedLookingLink = File(root, "a".repeat(64))
+        Files.createSymbolicLink(ownedLookingLink.toPath(), outside.toPath())
+        val cache = PolarisArtworkDiskCache(
+            context,
+            "real-host",
+            47984,
+            cacheRoot = root,
+            maxCacheBytes = Long.MAX_VALUE,
+            maxCacheEntries = 1,
+        )
+
+        val published = cache.store("game", "poster", "revision", pngBytes(24, 24), "image/png")
+
+        assertNotNull(published)
+        assertTrue(outsideImage.isFile)
+        assertTrue(Files.isSymbolicLink(ownedLookingLink.toPath()))
+        Files.deleteIfExists(ownedLookingLink.toPath())
+        root.deleteRecursively()
+        outside.deleteRecursively()
     }
 
     @Test

@@ -8,8 +8,6 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
-import java.nio.file.Files
-import java.nio.file.LinkOption
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.FutureTask
@@ -132,28 +130,32 @@ internal class PolarisArtworkDiskCache(
         cacheRoot.listFiles()
             ?.filter {
                 OWNED_HOST_DIRECTORY.matches(it.name) &&
-                    Files.isDirectory(it.toPath(), LinkOption.NOFOLLOW_LINKS) &&
+                    isRealDirectory(it) &&
                     it.listFiles().isNullOrEmpty()
             }
             ?.forEach(File::delete)
     }
 
     private fun globalCacheFiles(): List<File> {
-        if (!Files.isDirectory(cacheRoot.toPath(), LinkOption.NOFOLLOW_LINKS)) return emptyList()
+        if (!isRealDirectory(cacheRoot)) return emptyList()
         return cacheRoot.listFiles()
             ?.asSequence()
             ?.filter {
-                OWNED_HOST_DIRECTORY.matches(it.name) &&
-                    Files.isDirectory(it.toPath(), LinkOption.NOFOLLOW_LINKS)
+                OWNED_HOST_DIRECTORY.matches(it.name) && isRealDirectory(it)
             }
             ?.flatMap { directory -> directory.listFiles()?.asSequence() ?: emptySequence() }
             ?.filter {
-                OWNED_CACHE_FILE.matches(it.name) &&
-                    Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS)
+                OWNED_CACHE_FILE.matches(it.name) && isRealFile(it)
             }
             ?.toList()
             .orEmpty()
     }
+
+    private fun isRealDirectory(file: File): Boolean =
+        file.isDirectory && runCatching { file.canonicalFile == file.absoluteFile }.getOrDefault(false)
+
+    private fun isRealFile(file: File): Boolean =
+        file.isFile && runCatching { file.canonicalFile == file.absoluteFile }.getOrDefault(false)
 
     private fun cacheFile(gameId: String, kind: String, revision: String): File {
         return File(cacheDir, "${scopeKey(gameId, kind)}.${cacheKey(host, port, gameId, kind, revision)}$FILE_SUFFIX")
