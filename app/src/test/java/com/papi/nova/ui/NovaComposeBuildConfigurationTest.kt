@@ -48,23 +48,31 @@ class NovaComposeBuildConfigurationTest {
     @Test
     fun gradlePinsNettyForToolingDependencyAlerts() {
         val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
+        val expectedVersion = "4.1.136.Final"
+        val constrainedModules = listOf(
+            "netty-codec",
+            "netty-codec-http",
+            "netty-codec-http2",
+            "netty-common",
+            "netty-handler",
+            "netty-handler-proxy"
+        )
 
         assertTrue(
             "root build should keep a single patched Netty version for Gradle and Android test tooling",
-            rootBuild.contains("patchedNettyVersion = '4.1.135.Final'")
+            rootBuild.contains("patchedNettyVersion = '$expectedVersion'")
         )
         assertTrue(
             "all project configurations should force Netty transitives onto the patched line",
             rootBuild.contains("details.requested.group == 'io.netty'") &&
                 rootBuild.contains("details.useVersion patchedNettyVersion")
         )
-        assertTrue(
-            "the existing buildscript classpath constraints should still cover settings/build-tool Netty transitives",
-            rootBuild.contains("classpath('io.netty:netty-codec:4.1.135.Final')") &&
-                rootBuild.contains("classpath('io.netty:netty-codec-http:4.1.135.Final')") &&
-                rootBuild.contains("classpath('io.netty:netty-codec-http2:4.1.135.Final')") &&
-                rootBuild.contains("classpath('io.netty:netty-handler-proxy:4.1.135.Final')")
-        )
+        constrainedModules.forEach { module ->
+            assertTrue(
+                "$module should use the project-wide patched Netty version",
+                rootBuild.contains("classpath('io.netty:$module:$expectedVersion')")
+            )
+        }
     }
 
     @Test
