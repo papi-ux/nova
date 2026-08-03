@@ -25,8 +25,72 @@ data class PolarisGame(
     @SerialName("hdr_supported") val hdrSupported: Boolean = false,
     @SerialName("launch_mode") val launchMode: LaunchModeContract? = null,
     @SerialName("steam_launch") val steamLaunch: SteamLaunchContract? = null,
-    @SerialName("display_planner") val displayPlanner: DisplayPlannerContract? = null
+    @SerialName("display_planner") val displayPlanner: DisplayPlannerContract? = null,
+    @SerialName("artwork") val artwork: ArtworkManifest? = null
 ) {
+    @Serializable
+    data class ArtworkManifest(
+        @SerialName("version") val version: Int = 1,
+        @SerialName("revision") val revision: String = "",
+        @SerialName("state") val state: String = "partial",
+        @SerialName("match") val match: ArtworkMatch? = null,
+        @SerialName("cached_at") val cachedAt: Long = 0,
+        @SerialName("assets") val assets: ArtworkAssets = ArtworkAssets(),
+        @SerialName("override") val override: ArtworkOverride? = null
+    ) {
+        fun asset(kind: String): ArtworkAsset? = assets.asset(kind)
+    }
+
+    @Serializable
+    data class ArtworkMatch(
+        @SerialName("source") val source: String = "",
+        @SerialName("provider_game_id") val providerGameId: String = "",
+        @SerialName("title") val title: String = "",
+        @SerialName("confidence") val confidence: Double = 0.0,
+        @SerialName("manual") val manual: Boolean = false
+    )
+
+    @Serializable
+    data class ArtworkOverride(
+        @SerialName("active") val active: Boolean = false,
+        @SerialName("kinds") val kinds: List<String> = emptyList(),
+        @SerialName("logo_transform") val logoTransform: ArtworkLogoTransform? = null
+    )
+
+    @Serializable
+    data class ArtworkLogoTransform(
+        @SerialName("x") val x: Double = 0.5,
+        @SerialName("y") val y: Double = 0.5,
+        @SerialName("scale") val scale: Double = 1.0
+    )
+
+    @Serializable
+    data class ArtworkAssets(
+        @SerialName("poster") val poster: ArtworkAsset? = null,
+        @SerialName("hero") val hero: ArtworkAsset? = null,
+        @SerialName("logo") val logo: ArtworkAsset? = null,
+        @SerialName("icon") val icon: ArtworkAsset? = null,
+        @SerialName("screenshots") val screenshots: List<ArtworkAsset> = emptyList(),
+        @SerialName("trailer") val trailer: ArtworkAsset? = null
+    ) {
+        fun asset(kind: String): ArtworkAsset? = when (kind.trim().lowercase()) {
+            ARTWORK_KIND_POSTER -> poster
+            ARTWORK_KIND_HERO -> hero
+            ARTWORK_KIND_LOGO -> logo
+            ARTWORK_KIND_ICON -> icon
+            ARTWORK_KIND_TRAILER -> trailer
+            else -> null
+        }?.takeIf { it.url.isNotBlank() }
+    }
+
+    @Serializable
+    data class ArtworkAsset(
+        @SerialName("url") val url: String = "",
+        @SerialName("source") val source: String = "",
+        @SerialName("mime_type") val mimeType: String = "",
+        @SerialName("cached") val cached: Boolean = false
+    )
+
     @Serializable
     data class DisplayPlannerContract(
         @SerialName("available") val available: Boolean = false,
@@ -113,6 +177,13 @@ data class PolarisGame(
     val supportsSteamLaunchMode: Boolean get() = isSteamGame && steamLaunch?.available == true
     val steamLaunchMode: String get() = steamLaunch?.mode ?: "direct"
     val steamLaunchUsesBigPicture: Boolean get() = steamLaunchMode == "big-picture"
+    fun artworkAsset(kind: String): ArtworkAsset? = artwork?.asset(kind)
+    val posterArtwork: ArtworkAsset? get() = artworkAsset(ARTWORK_KIND_POSTER)
+    val heroArtwork: ArtworkAsset? get() = artworkAsset(ARTWORK_KIND_HERO)
+    val logoArtwork: ArtworkAsset? get() = artworkAsset(ARTWORK_KIND_LOGO)
+    val iconArtwork: ArtworkAsset? get() = artworkAsset(ARTWORK_KIND_ICON)
+    val screenshotArtwork: List<ArtworkAsset> get() = artwork?.assets?.screenshots.orEmpty().filter { it.url.isNotBlank() }
+    val trailerArtwork: ArtworkAsset? get() = artworkAsset(ARTWORK_KIND_TRAILER)
 
     val categoryLabel: String get() = when (category) {
         "fast_action" -> "Action"
@@ -155,6 +226,13 @@ data class PolarisGame(
     }
 
     companion object {
+        const val ARTWORK_KIND_POSTER = "poster"
+        const val ARTWORK_KIND_HERO = "hero"
+        const val ARTWORK_KIND_LOGO = "logo"
+        const val ARTWORK_KIND_ICON = "icon"
+        const val ARTWORK_KIND_SCREENSHOT = "screenshot"
+        const val ARTWORK_KIND_TRAILER = "trailer"
+
         fun normalizeLaunchMode(mode: String): String {
             return when (mode.trim().lowercase()) {
                 "headless", "headless_stream", "desktop_display", "windowed_stream", "host_display" -> "headless"

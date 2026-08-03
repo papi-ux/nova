@@ -402,9 +402,15 @@ class NovaComposeSourceGuardTest {
     fun libraryCoverLoadingIsKeyedOutsideAndroidViewUpdate() {
         val source = readNovaLibraryActivity()
 
+        val revisionKey = "key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER))"
+        val focusedRevisionKey = "key(PolarisApiClient.artworkPresentationKey(targetGame, PolarisGame.ARTWORK_KIND_POSTER))"
         assertTrue(
-            "cover view should be keyed by the game cover identity",
-            source.contains("key(game.id, game.coverUrl)")
+            "both library cover views should be keyed by the manifest revision or legacy cover identity",
+            source.split(revisionKey).size - 1 >= 2
+        )
+        assertTrue(
+            "focused backdrop and home Hero cover should also recreate when the Poster revision changes",
+            source.split(focusedRevisionKey).size - 1 >= 2
         )
         assertTrue(
             "cover load should happen when the keyed ImageView is created",
@@ -1090,13 +1096,14 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "Retroid landscape first paint should treat game identity as a compact launch header, not a second hero slab",
+            "Retroid landscape first paint should keep either Hero or Poster identity inside the compact launch header ceiling",
             detailsPanel.contains(".heightIn(min = 136.dp)") &&
                 detailsPanel.contains("contentPadding = PaddingValues(12.dp)") &&
+                detailsPanel.contains(".height(136.dp)") &&
                 detailsPanel.contains(".width(108.dp)") &&
-                detailsPanel.contains("fontSize = 20.sp") &&
-                detailsPanel.contains("lineHeight = 22.sp") &&
-                detailsPanel.contains("maxLines = 2")
+                detailsPanel.contains("fontSize = if (compact) 17.sp else 20.sp") &&
+                detailsPanel.contains("lineHeight = if (compact) 19.sp else 22.sp") &&
+                detailsPanel.contains("maxLines = if (compact) 1 else 2")
         )
         assertFalse(
             "game detail should not keep the old oversized first-paint panel that pushed launch mode choices below the fold",
@@ -1259,16 +1266,159 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailCoverLoadingIsKeyedByGameIdentity() {
-        val detailsPanel = readNovaGameDetailSheet().section(
+        val source = readNovaGameDetailSheet()
+        val detailsPanel = source.section(
             "private fun GameDetailsPanel(",
             "@Composable\nprivate fun LaunchControlsPanel("
         )
 
         assertTrue(
-            "detail sheet cover view should be keyed by game identity so reused panels do not show stale artwork",
-            detailsPanel.contains("key(game.id, game.coverUrl)") &&
+            "detail sheet cover view should follow artwork revision changes",
+            detailsPanel.contains("key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER))") &&
                 detailsPanel.contains("coverLoader(this)")
         )
+        assertTrue("logo view should follow artwork revision changes", source.contains("key(logoPresentationKey)"))
+        assertTrue(
+            "successful artwork mutations should refresh detail state before propagation",
+            source.contains("currentGame = currentGame.copy(artwork = manifest)\n            refreshUiState()")
+        )
+    }
+
+    @Test
+    fun gameDetailUsesHeroBackdropLogoTransformIconIdentityAndPosterFallback() {
+        val source = readNovaGameDetailSheet()
+        val sheetContent = source.section(
+            "fun NovaGameDetailSheetContent(",
+            "@Composable\nprivate fun NovaGameDetailScrollableContent("
+        )
+        val detailsPanel = source.section(
+            "private fun GameDetailsPanel(",
+            "@Composable\nprivate fun LaunchControlsPanel("
+        )
+
+        assertTrue(
+            "detail content should route revision-aware Hero, Logo, and Icon presentation into the identity panel",
+            sheetContent.contains("heroAvailable = heroAvailable") &&
+                sheetContent.contains("heroPresentationKey = heroPresentationKey") &&
+                sheetContent.contains("heroLoader = heroLoader") &&
+                sheetContent.contains("logoPresentationKey = logoPresentationKey") &&
+                sheetContent.contains("iconPresentationKey = iconPresentationKey")
+        )
+        assertTrue(
+            "a real manifest Hero should become the compact detail backdrop",
+            detailsPanel.contains("if (heroAvailable)") &&
+                detailsPanel.contains("NovaGameDetailHero(") &&
+                detailsPanel.contains("key(heroPresentationKey)") &&
+                detailsPanel.contains("heroLoader(this)") &&
+                detailsPanel.contains(".height(136.dp)")
+        )
+        assertTrue(
+            "the manifest Logo should be revision-aware and use the saved normalized transform over Hero",
+            detailsPanel.contains("BoxWithConstraints(") &&
+                detailsPanel.contains("key(logoPresentationKey)") &&
+                detailsPanel.contains("logoLoader(this)") &&
+                detailsPanel.contains("offset(x = logoOffsetX, y = logoOffsetY)") &&
+                detailsPanel.contains("scaleX = artworkState.logoScale") &&
+                detailsPanel.contains("scaleY = artworkState.logoScale")
+        )
+        assertTrue(
+            "the manifest Icon should provide a compact revision-aware identity mark beside the title",
+            detailsPanel.contains("if (iconAvailable)") &&
+                detailsPanel.contains("key(iconPresentationKey)") &&
+                detailsPanel.contains("iconLoader(this)") &&
+                detailsPanel.contains("text = game.name")
+        )
+        assertTrue(
+            "Poster must remain the no-Hero fallback instead of disappearing from detail presentation",
+            detailsPanel.contains("NovaGameDetailPosterFallback(") &&
+                detailsPanel.contains("key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER))") &&
+                detailsPanel.contains("coverLoader(this)")
+        )
+    }
+
+    @Test
+    fun artworkPreferencesAreCollapsedAtBottomAndUseManifestArtwork() {
+        val source = readNovaGameDetailSheet()
+        val content = source.section(
+            "fun NovaGameDetailSheetContent(",
+            "@Composable\nprivate fun NovaGameDetailScrollableContent("
+        )
+        val artworkIndex = content.indexOf("ArtworkCorrectionPanel(")
+        val stabilityIndex = content.indexOf("optimizationState.stability?.let")
+        val hintIndex = content.indexOf("NovaControllerHintBar(")
+        assertTrue("artwork preferences should follow functional and insight content", artworkIndex > stabilityIndex)
+        assertTrue("artwork preferences should remain above the controller hint footer", artworkIndex in 1 until hintIndex)
+
+        val panel = source.section(
+            "private fun ArtworkCorrectionPanel(",
+            "@Composable\nprivate fun LogoTransformControls("
+        )
+        assertTrue("artwork preferences should start collapsed", panel.contains("var expanded by remember(initialQuery) { mutableStateOf(false) }"))
+        assertTrue("artwork header should toggle expansion", panel.contains("clickable { expanded = !expanded }") && panel.contains("if (expanded)"))
+        assertTrue("compact artwork header should load the real manifest icon only when available", panel.contains("if (iconAvailable)") && panel.contains("key(iconPresentationKey)") && panel.contains("iconLoader(this)"))
+        assertTrue("logo preview should not show a generic placeholder when no logo exists", panel.contains("if (logoAvailable)") && panel.contains("nova_artwork_logo_unavailable"))
+    }
+
+    @Test
+    fun artworkProviderFailuresAreNotReportedAsNoMatches() {
+        val sheet = readNovaGameDetailSheet()
+        val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
+        val strings = readSource("src/main/res/values/strings.xml")
+        val searchHandler = sheet.section(
+            "onSearchArtwork = { query ->",
+            "onApplyArtwork = { candidate, kinds ->",
+        )
+
+        assertTrue(
+            "candidate search should surface HTTP, envelope, and malformed-body failures without retaining provider response content",
+            api.contains("throw IOException(\"artwork candidate search HTTP \${response.code}\")") &&
+                api.contains("throw IOException(\"invalid artwork candidate search response\")") &&
+                api.contains("catch (_: JSONException)") &&
+                api.contains("throw IOException(\"invalid artwork JSON\")") &&
+                api.contains("Nova: artwork candidate search failed")
+        )
+        assertTrue(
+            "detail UI should reserve No matches for successful empty searches, rethrow cancellation, and map ordinary failures separately",
+            searchHandler.contains("try {") &&
+                searchHandler.contains("catch (e: CancellationException)") &&
+                searchHandler.contains("throw e") &&
+                searchHandler.contains("catch (_: Exception)") &&
+                !searchHandler.contains("runCatching") &&
+                searchHandler.contains("R.string.nova_artwork_search_failed") &&
+                searchHandler.contains("R.string.nova_artwork_no_matches")
+        )
+        assertTrue(
+            "provider failure copy should direct the user to Polaris without pretending a search succeeded",
+            strings.contains("name=\"nova_artwork_search_failed\">Artwork search unavailable. Check SteamGridDB in Polaris and try again.</string>")
+        )
+    }
+
+    @Test
+    fun artworkRequestsUseFreshTlsStateWithoutCachingTheDerivedClient() {
+        val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
+        assertTrue(
+            "production artwork calls should rebuild policy from the fresh per-call TLS client",
+            api.contains("private fun executeArtwork(request: Request) = buildArtworkHttpClientForCall(::clientForCall).newCall(") &&
+                api.contains("SSLContext.getInstance(\"TLS\").apply") &&
+                api.contains(".sslSocketFactory(sslContext.socketFactory, trustManager)")
+        )
+        assertFalse(
+            "artwork client must not be cached across mTLS calls",
+            api.contains("private val artworkHttpClient")
+        )
+    }
+
+    @Test
+    fun artworkFetchLogsUseFixedClassificationWithoutUrlsOrExceptionMessages() {
+        val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
+        val fetch = api.section(
+            "private fun fetchArtwork(url: String)",
+            "/**\n     * Toggle MangoHud",
+        )
+        assertTrue(fetch.contains("val requestClass = artworkRequestLogLabel(url)"))
+        assertTrue(fetch.contains("e.javaClass.simpleName"))
+        assertFalse(fetch.contains("\$url"))
+        assertFalse(fetch.contains("errorMessage(e)"))
     }
 
     @Test

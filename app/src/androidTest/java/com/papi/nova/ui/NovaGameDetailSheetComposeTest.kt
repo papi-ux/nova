@@ -93,6 +93,19 @@ class NovaGameDetailSheetComposeTest {
                         onRetryHighFps = {},
                         onResetProfile = {},
                         onSteamLaunchMode = {},
+                        artworkState = NovaArtworkCorrectionState(),
+                        onRefreshArtwork = {},
+                        onSearchArtwork = {},
+                        onApplyArtwork = { _, _ -> },
+                        onClearArtwork = {},
+                        onLogoTransform = { _, _, _ -> },
+                        candidatePreviewLoader = { _, _ -> },
+                        logoAvailable = false,
+                        logoPresentationKey = "",
+                        logoLoader = {},
+                        iconAvailable = false,
+                        iconPresentationKey = "",
+                        iconLoader = {},
                         coverLoader = {}
                     )
                 }

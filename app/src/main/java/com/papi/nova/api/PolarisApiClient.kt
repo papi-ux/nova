@@ -1,7 +1,6 @@
 package com.papi.nova.api
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.content.Context
 import com.papi.nova.binding.PlatformBinding
 import android.widget.ImageView
@@ -19,9 +18,15 @@ import okhttp3.Protocol
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.ByteArrayInputStream
+import java.io.IOException
+import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import java.net.Proxy
+import java.net.URI
+import java.net.URLDecoder
 import java.security.KeyStore
 import java.security.Principal
 import java.security.PrivateKey
@@ -41,6 +46,16 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509KeyManager
 import javax.net.ssl.X509TrustManager
 import androidx.collection.LruCache
+
+data class PolarisArtworkMatchCandidate(
+    val provider: String,
+    val providerGameId: String,
+    val title: String,
+    val steamAppid: String? = null,
+    val releaseYear: Int? = null,
+    val confidence: Double = 0.0,
+    val posterPreviewUrl: String? = null,
+)
 
 /**
  * HTTP client for Polaris REST API on the nvhttp port (47984).
@@ -62,6 +77,8 @@ class PolarisApiClient @JvmOverloads constructor(
     private val resolvedHttpsPort = if (httpsPort > 0) httpsPort else 47984
     private val baseUrl = "https://$serverAddress:$resolvedHttpsPort/polaris/v1"
     private val webBaseUrl = "https://$serverAddress:$WEB_UI_HTTPS_PORT"
+    private val artworkDiskCache = PolarisArtworkDiskCache(context.applicationContext, serverAddress, resolvedHttpsPort)
+    private val artworkResolveOnce = ArtworkResolveOnce<PolarisGame.ArtworkManifest>()
     private val imageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
     private val coverCache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
@@ -76,6 +93,215 @@ class PolarisApiClient @JvmOverloads constructor(
             if (serverCertDer == null) return null
             return CertificateFactory.getInstance("X.509")
                 .generateCertificate(ByteArrayInputStream(serverCertDer)) as X509Certificate
+        }
+
+        @JvmStatic
+        internal fun buildArtworkHttpClient(base: OkHttpClient): OkHttpClient =
+            base.newBuilder()
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .callTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build()
+
+        @JvmStatic
+        internal fun buildArtworkHttpClientForCall(baseForCall: () -> OkHttpClient): OkHttpClient =
+            buildArtworkHttpClient(baseForCall())
+
+        @JvmStatic
+        internal fun parseArtworkJsonBytes(bytes: ByteArray): JSONObject? {
+            val text = bytes.toString(Charsets.UTF_8)
+            if (text.isBlank()) return null
+            return try {
+                JSONObject(text)
+            } catch (_: JSONException) {
+                throw IOException("invalid artwork JSON")
+            }
+        }
+
+        private val SAFE_GAME_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,255}")
+        private val CANDIDATE_PREVIEW_PATH = Regex(
+            "^/polaris/v1/games/[A-Za-z0-9][A-Za-z0-9._-]{0,255}/artwork/candidate/[0-9a-f]{32}/poster$",
+        )
+        private val PROVIDER_GAME_ID = Regex("[1-9][0-9]{0,19}")
+        private val STEAM_APP_ID = Regex("[1-9][0-9]{0,9}")
+        private val ARTWORK_KINDS = listOf("poster", "hero", "logo", "icon")
+        private const val MAX_ARTWORK_JSON_BYTES = 1024 * 1024
+        private const val ARTWORK_REQUEST_TIMEOUT_SECONDS = 120L
+
+        private fun sanitizedCandidateTitle(value: String): String? {
+            val title = value.trim()
+            if (title.isEmpty() || title.toByteArray(Charsets.UTF_8).size > 160) return null
+            if (title.any { it.code < 0x20 || it.code in 0x7f..0x9f }) return null
+            return title
+        }
+
+        @JvmStatic
+        fun isSafeArtworkGameId(gameId: String): Boolean =
+            SAFE_GAME_ID.matches(gameId) && gameId != "." && gameId != ".."
+
+        @JvmStatic
+        fun artworkPresentationKey(game: PolarisGame, kind: String): String {
+            val normalizedKind = kind.trim().lowercase()
+            val asset = game.artworkAsset(normalizedKind)?.takeIf { it.cached }
+            return if (asset != null) {
+                "manifest:${game.id}:$normalizedKind:${game.artwork?.revision.orEmpty()}:${asset.url}"
+            } else {
+                "legacy:${game.id}:${game.coverUrl}"
+            }
+        }
+
+        @JvmStatic
+        fun isTrustedCandidatePreviewUrl(url: String, host: String, port: Int): Boolean {
+            if (port !in 1..65535) return false
+            val uri = runCatching { URI(url) }.getOrNull() ?: return false
+            val pairedHost = host.trim().removePrefix("[").removeSuffix("]")
+            if (uri.scheme != "https" || uri.rawUserInfo != null || uri.rawQuery != null || uri.rawFragment != null) return false
+            if (!uri.host.orEmpty().equals(pairedHost, ignoreCase = true) || uri.port != port) return false
+            return CANDIDATE_PREVIEW_PATH.matches(uri.rawPath.orEmpty())
+        }
+
+        @JvmStatic
+        internal fun artworkRequestLogLabel(url: String): String {
+            val path = runCatching { URI(url).rawPath.orEmpty() }.getOrDefault("")
+            return when {
+                CANDIDATE_PREVIEW_PATH.matches(path) -> "candidate-preview"
+                path.startsWith("/polaris/v1/games/") && path.contains("/artwork/") -> "manifest-artwork"
+                else -> "legacy-cover"
+            }
+        }
+
+        @JvmStatic
+        fun resolveManifestPath(host: String, port: Int, path: String): String? =
+            resolveHostRelativePath(host, port, path, requiredPrefix = "/polaris/v1/")
+
+        @JvmStatic
+        fun parseArtworkCandidates(json: JSONObject, gameId: String, host: String, port: Int): List<PolarisArtworkMatchCandidate> {
+            if (!isSafeArtworkGameId(gameId)) return emptyList()
+            val status = json.opt("status")
+            if (status !is Boolean || !status) {
+                throw IOException("invalid artwork candidate search response")
+            }
+            val values = json.optJSONArray("candidates")
+                ?: throw IOException("invalid artwork candidate search response")
+            return (0 until values.length()).asSequence()
+                .mapNotNull { index -> values.optJSONObject(index)?.let { parseArtworkCandidate(it, gameId, host, port) } }
+                .distinctBy { "${it.provider}:${it.providerGameId}" }
+                .take(5)
+                .toList()
+        }
+
+        @JvmStatic
+        fun buildArtworkMatchBody(candidate: PolarisArtworkMatchCandidate, kinds: List<String>): JSONObject {
+            require(candidate.provider == "steamgriddb")
+            require(PROVIDER_GAME_ID.matches(candidate.providerGameId))
+            val title = requireNotNull(sanitizedCandidateTitle(candidate.title))
+            require(candidate.steamAppid == null || STEAM_APP_ID.matches(candidate.steamAppid))
+            val selectedKinds = kinds.map { it.trim().lowercase() }
+            require(selectedKinds.isNotEmpty() && selectedKinds.size <= ARTWORK_KINDS.size)
+            require(selectedKinds.distinct().size == selectedKinds.size && selectedKinds.all { it in ARTWORK_KINDS })
+            return JSONObject().apply {
+                put("provider", "steamgriddb")
+                put("provider_game_id", candidate.providerGameId)
+                put("title", title)
+                candidate.steamAppid?.let { put("steam_appid", it) }
+                put("kinds", JSONArray(selectedKinds))
+            }
+        }
+
+        private fun parseArtworkCandidate(item: JSONObject, gameId: String, host: String, port: Int): PolarisArtworkMatchCandidate? {
+            if (item.optString("provider") != "steamgriddb") return null
+            val providerGameId = item.optString("provider_game_id")
+            if (!PROVIDER_GAME_ID.matches(providerGameId)) return null
+            val title = sanitizedCandidateTitle(item.optString("title")) ?: return null
+            val steamAppid = item.optString("steam_appid").takeIf { STEAM_APP_ID.matches(it) }
+            val releaseYear = item.optInt("release_year", 0).takeIf { it in 1970..2100 }
+            val confidence = item.optDouble("confidence", 0.0).takeIf { it.isFinite() }?.coerceIn(0.0, 1.0) ?: 0.0
+            val previewPath = item.optJSONObject("preview")?.optString("poster").orEmpty()
+            val prefix = "/polaris/v1/games/$gameId/artwork/candidate/"
+            val token = previewPath.removePrefix(prefix).removeSuffix("/poster")
+            val previewUrl = previewPath.takeIf {
+                it.startsWith(prefix) && it.endsWith("/poster") && Regex("[0-9a-f]{32}").matches(token)
+            }?.let { resolveManifestPath(host, port, it) }
+            return PolarisArtworkMatchCandidate("steamgriddb", providerGameId, title, steamAppid, releaseYear, confidence, previewUrl)
+        }
+
+        private fun resolveLegacyCoverPath(host: String, port: Int, path: String): String? =
+            resolveHostRelativePath(host, port, path, requiredPrefix = "/")
+
+        private fun resolveHostRelativePath(
+            host: String,
+            port: Int,
+            path: String,
+            requiredPrefix: String,
+        ): String? {
+            val candidate = path.trim()
+            if (candidate.isEmpty() || !candidate.startsWith("/") || candidate.startsWith("//") || '\\' in candidate) return null
+            if (port !in 1..65535) return null
+            return try {
+                val uri = URI(candidate)
+                if (uri.isAbsolute || uri.rawAuthority != null || uri.rawFragment != null) return null
+                val rawPath = uri.rawPath ?: return null
+                if (!rawPath.startsWith(requiredPrefix)) return null
+                var decodedPath = rawPath
+                repeat(4) {
+                    val decoded = URLDecoder.decode(decodedPath.replace("+", "%2B"), Charsets.UTF_8.name())
+                    if (decoded != decodedPath) decodedPath = decoded
+                }
+                if ('\\' in decodedPath || !decodedPath.startsWith(requiredPrefix)) return null
+                if (decodedPath.split('/').any { it == "." || it == ".." }) return null
+                val normalizedHost = host.trim().removePrefix("[").removeSuffix("]")
+                val base = okhttp3.HttpUrl.Builder()
+                    .scheme("https")
+                    .host(normalizedHost)
+                    .port(port)
+                    .build()
+                val resolved = base.resolve(candidate) ?: return null
+                if (resolved.scheme != "https" || resolved.host != base.host || resolved.port != port) return null
+                if (!resolved.encodedPath.startsWith(requiredPrefix)) return null
+                resolved.toString()
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        @JvmStatic
+        fun selectArtworkUrl(
+            host: String,
+            port: Int,
+            game: PolarisGame,
+            kind: String = PolarisGame.ARTWORK_KIND_POSTER,
+        ): String? {
+            val normalizedKind = kind.trim().lowercase()
+            game.artworkAsset(normalizedKind)
+                ?.takeIf { it.cached }
+                ?.let { resolveManifestPath(host, port, it.url) }
+                ?.let { return it }
+            if (normalizedKind != PolarisGame.ARTWORK_KIND_POSTER) return null
+
+            val legacy = game.coverUrl.trim()
+            if (legacy.startsWith("/")) {
+                resolveLegacyCoverPath(host, port, legacy)?.let { return it }
+            }
+            if (!isSafeArtworkGameId(game.id)) return null
+            return resolveManifestPath(host, port, "/polaris/v1/games/${game.id}/cover")
+        }
+
+        @JvmStatic
+        fun parseArtworkResolveResponse(json: JSONObject): PolarisGame.ArtworkManifest? {
+            val manifest = when {
+                json.has("assets") -> json
+                json.optJSONObject("artwork") != null -> json.optJSONObject("artwork")
+                json.optJSONObject("game")?.optJSONObject("artwork") != null ->
+                    json.optJSONObject("game")?.optJSONObject("artwork")
+                json.optJSONObject("data")?.optJSONObject("artwork") != null ->
+                    json.optJSONObject("data")?.optJSONObject("artwork")
+                else -> json.optJSONObject("data")
+                    ?.optJSONObject("game")
+                    ?.optJSONObject("artwork")
+            } ?: return null
+            if (!manifest.has("assets")) return null
+            return PolarisGameJsonAdapter.parseArtworkManifest(manifest)
         }
 
         @JvmStatic
@@ -754,18 +980,18 @@ class PolarisApiClient @JvmOverloads constructor(
             override fun getServerAliases(keyType: String?, issuers: Array<Principal>?): Array<String>? = null
         }
 
-		val trustManager = createPinnedServerTrustManager()
-		apiKeyManager = keyManager
-		apiTrustManager = trustManager
-		val sslContext = SSLContext.getInstance("TLS").apply {
-			init(arrayOf<KeyManager>(keyManager), arrayOf<TrustManager>(trustManager), SecureRandom())
-		}
+        val trustManager = createPinnedServerTrustManager()
+        apiKeyManager = keyManager
+        apiTrustManager = trustManager
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(arrayOf<KeyManager>(keyManager), arrayOf<TrustManager>(trustManager), SecureRandom())
+        }
 
-		return OkHttpClient.Builder()
-			.sslSocketFactory(sslContext.socketFactory, trustManager)
-			.hostnameVerifier { hostname, session ->
-				isPinnedServerCertificate(session) ||
-					HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)
+        return OkHttpClient.Builder()
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .hostnameVerifier { hostname, session ->
+                isPinnedServerCertificate(session) ||
+                    HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)
             }
             .connectionPool(ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
             .protocols(listOf(Protocol.HTTP_1_1))
@@ -779,10 +1005,10 @@ class PolarisApiClient @JvmOverloads constructor(
     private fun createPinnedServerTrustManager(): X509TrustManager {
         val defaultTrustManager = getDefaultTrustManager()
 
-		return object : X509TrustManager {
-			override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
-				throw IllegalStateException("Should never be called")
-			}
+        return object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
+                throw IllegalStateException("Should never be called")
+            }
 
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
                 try {
@@ -846,6 +1072,12 @@ class PolarisApiClient @JvmOverloads constructor(
 			.header("Connection", "close")
 			.build()
 	).execute()
+
+    private fun executeArtwork(request: Request) = buildArtworkHttpClientForCall(::clientForCall).newCall(
+        request.newBuilder()
+            .header("Connection", "close")
+            .build()
+    ).execute()
 
     private fun executeGetWithRetry(request: Request, attempts: Int = 3): okhttp3.Response {
         var lastError: Exception? = null
@@ -992,32 +1224,144 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     /**
-     * Get the cover art URL for a game (full HTTPS URL).
+     * Get the legacy cover art URL for a game. Unsafe IDs fail closed.
      */
-	fun getCoverUrl(gameId: String): String {
-		return "https://$serverAddress:$resolvedHttpsPort/polaris/v1/games/$gameId/cover"
-	}
+    fun getCoverUrl(gameId: String): String =
+        if (isSafeArtworkGameId(gameId)) {
+            resolveManifestPath(serverAddress, resolvedHttpsPort, "/polaris/v1/games/$gameId/cover").orEmpty()
+        } else ""
 
-    fun getPreferredCoverUrl(game: PolarisGame): String {
-        val coverUrl = game.coverUrl.trim()
-        return when {
-            coverUrl.isEmpty() -> getCoverUrl(game.id)
-            coverUrl.startsWith("https://") || coverUrl.startsWith("http://") -> coverUrl
-			coverUrl.startsWith("/") -> "https://$serverAddress:$resolvedHttpsPort$coverUrl"
-            else -> getCoverUrl(game.id)
-        }
-    }
+    fun getPreferredCoverUrl(game: PolarisGame): String =
+        selectArtworkUrl(serverAddress, resolvedHttpsPort, game, PolarisGame.ARTWORK_KIND_POSTER).orEmpty()
 
     fun clearCoverCache() {
         coverCache.evictAll()
     }
 
+    private fun parseBoundedArtworkJson(body: okhttp3.ResponseBody): JSONObject? {
+        if (body.contentLength() > MAX_ARTWORK_JSON_BYTES) return null
+        val bytes = PolarisArtworkDiskCache.readBounded(body.byteStream(), MAX_ARTWORK_JSON_BYTES) ?: return null
+        return parseArtworkJsonBytes(bytes)
+    }
+
+    fun resolveArtwork(gameId: String, force: Boolean = false): PolarisGame.ArtworkManifest? {
+        if (!isSafeArtworkGameId(gameId)) return null
+        if (force) artworkResolveOnce.invalidate(gameId)
+        return artworkResolveOnce.resolve(gameId) {
+            try {
+                val request = Request.Builder()
+                    .url("$baseUrl/games/$gameId/artwork/resolve")
+                    .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), "{}"))
+                    .build()
+                executeArtwork(request).use { response ->
+                    if (!response.isSuccessful) return@resolve null
+                    response.body.let(::parseBoundedArtworkJson)?.let(::parseArtworkResolveResponse)
+                }
+            } catch (e: Exception) {
+                LimeLog.warning("Nova: artwork resolve failed for $gameId: ${errorMessage(e)}")
+                null
+            }
+        }
+    }
+
+
+    fun searchArtworkCandidates(gameId: String, query: String): List<PolarisArtworkMatchCandidate> {
+        if (!isSafeArtworkGameId(gameId)) return emptyList()
+        val sanitizedQuery = sanitizedCandidateTitle(query) ?: return emptyList()
+        return try {
+            val url = "$baseUrl/games/$gameId/artwork/candidates".toHttpUrl().newBuilder()
+                .addQueryParameter("query", sanitizedQuery)
+                .build()
+            executeArtwork(Request.Builder().url(url).build()).use { response ->
+                if (!response.isSuccessful) throw IOException("artwork candidate search HTTP ${response.code}")
+                val json = parseBoundedArtworkJson(response.body)
+                    ?: throw IOException("artwork candidate search returned an invalid response")
+                parseArtworkCandidates(json, gameId, serverAddress, resolvedHttpsPort)
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: artwork candidate search failed for $gameId: ${errorMessage(e)}")
+            throw e
+        }
+    }
+
+    fun applyArtworkMatch(
+        gameId: String,
+        candidate: PolarisArtworkMatchCandidate,
+        kinds: List<String> = ARTWORK_KINDS,
+    ): PolarisGame.ArtworkManifest? {
+        if (!isSafeArtworkGameId(gameId)) return null
+        val body = runCatching { buildArtworkMatchBody(candidate, kinds) }.getOrNull() ?: return null
+        val request = Request.Builder()
+            .url("$baseUrl/games/$gameId/artwork/match")
+            .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body.toString()))
+            .build()
+        return executeArtworkManifestMutation(gameId, request, "apply")
+    }
+
+    fun clearArtworkOverride(gameId: String): PolarisGame.ArtworkManifest? {
+        if (!isSafeArtworkGameId(gameId)) return null
+        val request = Request.Builder()
+            .url("$baseUrl/games/$gameId/artwork/override")
+            .delete()
+            .build()
+        return executeArtworkManifestMutation(gameId, request, "clear")
+    }
+
+    private fun executeArtworkManifestMutation(gameId: String, request: Request, operation: String): PolarisGame.ArtworkManifest? {
+        return try {
+            executeArtwork(request).use { response ->
+                if (!response.isSuccessful) return null
+                val json = parseBoundedArtworkJson(response.body)
+                val manifest = json?.let(::parseArtworkResolveResponse)
+                if (manifest != null) {
+                    artworkResolveOnce.invalidate(gameId)
+                    clearCoverCache()
+                }
+                manifest
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: artwork $operation failed for $gameId: ${errorMessage(e)}")
+            null
+        }
+    }
+
+    fun loadArtworkCandidatePreviewInto(view: ImageView, candidate: PolarisArtworkMatchCandidate) {
+        val url = candidate.posterPreviewUrl ?: return
+        if (!isTrustedCandidatePreviewUrl(url, serverAddress, resolvedHttpsPort)) return
+        val cacheKey = "polaris-artwork-preview:$url"
+        view.tag = cacheKey
+        view.setImageResource(R.drawable.nova_cover_placeholder)
+        imageScope.launch {
+            val fetched = fetchArtwork(url) ?: return@launch
+            withContext(Dispatchers.Main) {
+                if (view.tag == cacheKey) view.setImageBitmap(fetched.bitmap)
+            }
+        }
+    }
+
     fun loadCoverInto(view: ImageView, game: PolarisGame) {
-        val cacheKey = "polaris-cover:${game.id}:${game.coverUrl}"
-        val imageUrl = getPreferredCoverUrl(game)
+        loadArtworkInto(view, game, PolarisGame.ARTWORK_KIND_POSTER)
+    }
+
+    fun loadArtworkInto(view: ImageView, game: PolarisGame, kind: String) {
+        val normalizedKind = kind.trim().lowercase()
+        val manifestAsset = game.artworkAsset(normalizedKind)?.takeIf { it.cached }
+        val manifestUrl = manifestAsset?.let {
+            resolveManifestPath(serverAddress, resolvedHttpsPort, it.url)
+        }
+        val usesManifest = manifestUrl != null
+        val imageUrl = manifestUrl
+            ?: selectArtworkUrl(serverAddress, resolvedHttpsPort, game, normalizedKind)
+        val revision = if (usesManifest) game.artwork?.revision.orEmpty() else ""
+        val cacheKey = if (usesManifest) {
+            "polaris-artwork:${game.id}:$normalizedKind:$revision:$manifestUrl"
+        } else {
+            "polaris-cover:${game.id}:${game.coverUrl}"
+        }
 
         view.tag = cacheKey
         view.setImageResource(R.drawable.nova_cover_placeholder)
+        if (imageUrl == null) return
 
         coverCache.get(cacheKey)?.let { cached ->
             view.setImageBitmap(cached)
@@ -1025,58 +1369,75 @@ class PolarisApiClient @JvmOverloads constructor(
         }
 
         imageScope.launch {
-            val bitmap = fetchCoverBitmap(imageUrl)
+            val exactDisk = if (usesManifest) {
+                artworkDiskCache.load(game.id, normalizedKind, revision, allowStale = false)
+            } else null
+            val bitmap = exactDisk ?: run {
+                val fetched = fetchArtwork(imageUrl)
+                if (fetched != null) {
+                    if (usesManifest) {
+                        artworkDiskCache.store(
+                            game.id,
+                            normalizedKind,
+                            revision,
+                            fetched.bytes,
+                            fetched.mimeType,
+                        )
+                    }
+                    fetched.bitmap
+                } else if (usesManifest) {
+                    artworkDiskCache.load(game.id, normalizedKind, revision, allowStale = true)
+                } else null
+            }
             withContext(Dispatchers.Main) {
-                if (view.tag != cacheKey) {
-                    return@withContext
-                }
-
+                if (view.tag != cacheKey) return@withContext
                 if (bitmap != null) {
                     coverCache.put(cacheKey, bitmap)
                     view.setImageBitmap(bitmap)
                 } else {
                     view.setImageResource(R.drawable.nova_cover_placeholder)
-                    LimeLog.warning("Nova: cover load failed for ${game.name}")
+                    LimeLog.warning("Nova: $normalizedKind artwork load failed for ${game.name}")
                 }
             }
         }
     }
 
-    private fun fetchCoverBitmap(url: String): Bitmap? {
+    private data class FetchedArtwork(val bytes: ByteArray, val mimeType: String, val bitmap: Bitmap)
+
+    private fun fetchArtwork(url: String): FetchedArtwork? {
+        val requestClass = artworkRequestLogLabel(url)
         repeat(3) { attempt ->
             try {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("Connection", "close")
-                    .build()
-                execute(request).use { response ->
+                val request = Request.Builder().url(url).header("Connection", "close").build()
+                executeArtwork(request).use { response ->
                     if (!response.isSuccessful) {
-                        LimeLog.warning("Nova: cover request failed [$url] code=${response.code}")
+                        LimeLog.warning("Nova: artwork request failed [$requestClass] code=${response.code}")
                         return null
                     }
-
-                    val bytes = response.body?.bytes() ?: return null
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply {
-                        inPreferredConfig = Bitmap.Config.ARGB_8888
-                        inScaled = false
-                    })
-                    if (bitmap != null) {
-                        return bitmap
+                    val body = response.body ?: return null
+                    val mimeType = response.header("Content-Type") ?: body.contentType()?.toString()
+                    if (!PolarisArtworkDiskCache.isSupportedImageMime(mimeType)) {
+                        LimeLog.warning("Nova: artwork MIME rejected [$requestClass] type=${mimeType ?: "missing"}")
+                        return null
                     }
-
-                    LimeLog.warning("Nova: cover decode failed [$url] bytes=${bytes.size}")
-                }
-
-                if (attempt < 2) {
-                    Thread.sleep((attempt + 1) * 150L)
+                    val contentLength = body.contentLength()
+                    if (contentLength > PolarisArtworkDiskCache.MAX_IMAGE_BYTES) return null
+                    val bytes = body.byteStream().use {
+                        PolarisArtworkDiskCache.readBounded(it, PolarisArtworkDiskCache.MAX_IMAGE_BYTES)
+                    } ?: return null
+                    if (!PolarisArtworkDiskCache.hasSupportedImageSignature(bytes, mimeType)) return null
+                    val bitmap = PolarisArtworkDiskCache.decodeBounded(bytes)
+                    if (bitmap != null) return FetchedArtwork(bytes, mimeType.orEmpty(), bitmap)
+                    LimeLog.warning("Nova: artwork decode failed [$requestClass] bytes=${bytes.size}")
+                    return null
                 }
             } catch (e: Exception) {
                 if (attempt == 2) {
-                    LimeLog.warning("Nova: cover fetch failed [$url]: ${errorMessage(e)}")
+                    LimeLog.warning("Nova: artwork fetch failed [$requestClass]: ${e.javaClass.simpleName}")
                 }
+                if (attempt < 2) Thread.sleep((attempt + 1) * 150L)
             }
         }
-
         return null
     }
 

@@ -675,7 +675,10 @@ class NovaLibraryActivity : NovaActivity() {
             game = game,
             apiClient = apiClient,
             defaultToVirtualDisplay = defaultToVirtualDisplay,
-            clientSettings = clientSettings
+            clientSettings = clientSettings,
+            onGameUpdated = { updated ->
+                allGames = allGames.map { if (it.id == updated.id) updated else it }
+            }
         ) { selectedGame, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, preflightOptimization ->
             launchGame(selectedGame, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, preflightOptimization)
         }
@@ -1364,7 +1367,7 @@ class NovaLibraryActivity : NovaActivity() {
         ) { targetGame ->
             if (targetGame != null) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    key(targetGame.id, targetGame.coverUrl) {
+                    key(PolarisApiClient.artworkPresentationKey(targetGame, PolarisGame.ARTWORK_KIND_POSTER)) {
                         AndroidView(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -1583,7 +1586,7 @@ class NovaLibraryActivity : NovaActivity() {
                 .background(surfaces.mediaPlaceholder)
                 .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f * LocalNovaMenuOpacityScale.current), shape)
         ) {
-            key(targetGame.id, targetGame.coverUrl) {
+            key(PolarisApiClient.artworkPresentationKey(targetGame, PolarisGame.ARTWORK_KIND_POSTER)) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { context ->
@@ -2545,7 +2548,7 @@ class NovaLibraryActivity : NovaActivity() {
                             .clip(RoundedCornerShape(10.dp))
                             .background(surfaces.mediaPlaceholder)
                     ) {
-                        key(game.id, game.coverUrl) {
+                        key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER)) {
                             AndroidView(
                                 modifier = Modifier.fillMaxSize(),
                                 factory = { context ->
@@ -2602,7 +2605,7 @@ class NovaLibraryActivity : NovaActivity() {
                     }
                 }
             } else {
-                key(game.id, game.coverUrl) {
+                key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER)) {
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { context ->
