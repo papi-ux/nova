@@ -57,6 +57,27 @@ data class PolarisArtworkMatchCandidate(
     val posterPreviewUrl: String? = null,
 )
 
+data class PolarisArtworkChoice(
+    val kind: String,
+    val selectionToken: String,
+    val previewUrl: String,
+    val expiresAt: Long,
+)
+
+enum class PolarisArtworkUpdateStatus {
+    HEALTHY,
+    UPDATED,
+    CUSTOM_PRESERVED,
+    PARTIAL_FAILURE,
+}
+
+data class PolarisArtworkUpdateResult(
+    val manifest: PolarisGame.ArtworkManifest,
+    val status: PolarisArtworkUpdateStatus,
+    val requestedKinds: List<String>,
+    val remainingKinds: List<String>,
+)
+
 /**
  * HTTP client for Polaris REST API on the nvhttp port (47984).
  * Uses the same client certificate as Moonlight pairing.
@@ -121,8 +142,9 @@ class PolarisApiClient @JvmOverloads constructor(
 
         private val SAFE_GAME_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,255}")
         private val CANDIDATE_PREVIEW_PATH = Regex(
-            "^/polaris/v1/games/[A-Za-z0-9][A-Za-z0-9._-]{0,255}/artwork/candidate/[0-9a-f]{32}/poster$",
+            "^/polaris/v1/games/[A-Za-z0-9][A-Za-z0-9._-]{0,255}/artwork/candidate/[0-9a-f]{32}/(poster|hero|logo|icon)$",
         )
+        private val OPAQUE_SELECTION_TOKEN = Regex("[0-9a-f]{32}")
         private val PROVIDER_GAME_ID = Regex("[1-9][0-9]{0,19}")
         private val STEAM_APP_ID = Regex("[1-9][0-9]{0,9}")
         private val ARTWORK_KINDS = listOf("poster", "hero", "logo", "icon")
@@ -192,22 +214,79 @@ class PolarisApiClient @JvmOverloads constructor(
         }
 
         @JvmStatic
-        fun buildArtworkMatchBody(candidate: PolarisArtworkMatchCandidate, kinds: List<String>): JSONObject {
+        fun parseArtworkChoices(
+            json: JSONObject,
+            gameId: String,
+            requestedKind: String,
+            host: String,
+            port: Int,
+        ): List<PolarisArtworkChoice> {
+            if (!isSafeArtworkGameId(gameId)) return emptyList()
+            val kind = requestedKind.trim().lowercase()
+            if (kind !in ARTWORK_KINDS || json.opt("status") != true || json.optString("kind") != kind) {
+                return emptyList()
+            }
+            val values = json.optJSONArray("choices") ?: return emptyList()
+            val prefix = "/polaris/v1/games/$gameId/artwork/candidate/"
+            return (0 until values.length()).asSequence()
+                .mapNotNull { values.optJSONObject(it) }
+                .mapNotNull { item ->
+                    val token = item.optString("selection_token")
+                    if (!OPAQUE_SELECTION_TOKEN.matches(token)) return@mapNotNull null
+                    val path = item.optString("preview")
+                    if (path != "$prefix$token/$kind") return@mapNotNull null
+                    val url = resolveManifestPath(host, port, path) ?: return@mapNotNull null
+                    if (!isTrustedCandidatePreviewUrl(url, host, port)) return@mapNotNull null
+                    PolarisArtworkChoice(kind, token, url, item.optLong("expires_at", 0L))
+                }
+                .distinctBy { it.selectionToken }
+                .take(5)
+                .toList()
+        }
+
+        @JvmStatic
+        fun buildArtworkChoiceBody(candidate: PolarisArtworkMatchCandidate): JSONObject {
             require(candidate.provider == "steamgriddb")
             require(PROVIDER_GAME_ID.matches(candidate.providerGameId))
             val title = requireNotNull(sanitizedCandidateTitle(candidate.title))
             require(candidate.steamAppid == null || STEAM_APP_ID.matches(candidate.steamAppid))
-            val selectedKinds = kinds.map { it.trim().lowercase() }
-            require(selectedKinds.isNotEmpty() && selectedKinds.size <= ARTWORK_KINDS.size)
-            require(selectedKinds.distinct().size == selectedKinds.size && selectedKinds.all { it in ARTWORK_KINDS })
             return JSONObject().apply {
                 put("provider", "steamgriddb")
                 put("provider_game_id", candidate.providerGameId)
                 put("title", title)
                 candidate.steamAppid?.let { put("steam_appid", it) }
-                put("kinds", JSONArray(selectedKinds))
             }
         }
+
+        @JvmStatic
+        fun buildArtworkMatchBody(candidate: PolarisArtworkMatchCandidate, kinds: List<String>): JSONObject {
+            val selectedKinds = kinds.map { it.trim().lowercase() }
+            require(selectedKinds.isNotEmpty() && selectedKinds.size <= ARTWORK_KINDS.size)
+            require(selectedKinds.distinct().size == selectedKinds.size && selectedKinds.all { it in ARTWORK_KINDS })
+            return buildArtworkChoiceBody(candidate).apply { put("kinds", JSONArray(selectedKinds)) }
+        }
+
+        @JvmStatic
+        fun buildArtworkSelectionBody(
+            candidate: PolarisArtworkMatchCandidate,
+            selections: Map<String, PolarisArtworkChoice>,
+        ): JSONObject {
+            require(selections.isNotEmpty() && selections.size <= ARTWORK_KINDS.size)
+            val tokens = linkedMapOf<String, String>()
+            selections.forEach { (rawKind, choice) ->
+                val kind = rawKind.trim().lowercase()
+                require(kind in ARTWORK_KINDS && choice.kind == kind)
+                require(OPAQUE_SELECTION_TOKEN.matches(choice.selectionToken))
+                require(choice.selectionToken !in tokens.values)
+                tokens[kind] = choice.selectionToken
+            }
+            val selected = JSONObject()
+            ARTWORK_KINDS.forEach { kind -> tokens[kind]?.let { selected.put(kind, it) } }
+            return buildArtworkChoiceBody(candidate).apply { put("selections", selected) }
+        }
+
+        @JvmStatic
+        fun buildArtworkLibraryUpdateBody(): JSONObject = JSONObject().put("policy", "missing_or_stale")
 
         private fun parseArtworkCandidate(item: JSONObject, gameId: String, host: String, port: Int): PolarisArtworkMatchCandidate? {
             if (item.optString("provider") != "steamgriddb") return null
@@ -302,6 +381,30 @@ class PolarisApiClient @JvmOverloads constructor(
             } ?: return null
             if (!manifest.has("assets")) return null
             return PolarisGameJsonAdapter.parseArtworkManifest(manifest)
+        }
+
+        @JvmStatic
+        fun parseArtworkLibraryUpdateResponse(json: JSONObject): PolarisArtworkUpdateResult? {
+            val manifest = parseArtworkResolveResponse(json) ?: return null
+            val resolution = json.optJSONObject("resolution") ?: return null
+            val status = when (resolution.optString("status")) {
+                "healthy" -> PolarisArtworkUpdateStatus.HEALTHY
+                "updated" -> PolarisArtworkUpdateStatus.UPDATED
+                "custom_preserved" -> PolarisArtworkUpdateStatus.CUSTOM_PRESERVED
+                "partial_failure" -> PolarisArtworkUpdateStatus.PARTIAL_FAILURE
+                else -> return null
+            }
+            fun parseKinds(name: String): List<String>? {
+                val values = resolution.optJSONArray(name) ?: return null
+                if (values.length() > ARTWORK_KINDS.size) return null
+                val kinds = (0 until values.length()).map { values.optString(it) }
+                if (kinds.any { it !in ARTWORK_KINDS } || kinds.distinct().size != kinds.size) return null
+                return kinds
+            }
+            val requested = parseKinds("requested_kinds") ?: return null
+            val remaining = parseKinds("remaining_kinds") ?: return null
+            if (remaining.any { it !in requested }) return null
+            return PolarisArtworkUpdateResult(manifest, status, requested, remaining)
         }
 
         @JvmStatic
