@@ -54,6 +54,29 @@ plugins {
 }
 
 def patchedNettyVersion = '4.1.136.Final'
+def expectedNettyBuildscriptModules = [
+    'netty-codec',
+    'netty-codec-http',
+    'netty-codec-http2',
+    'netty-common',
+    'netty-handler',
+    'netty-handler-proxy'
+]
+def expectedNettyBuildscriptConstraints = expectedNettyBuildscriptModules.collect { module ->
+    [module, patchedNettyVersion]
+}
+def actualNettyBuildscriptConstraints = buildscript.configurations.classpath.allDependencyConstraints
+    .findAll { constraint -> constraint.group == 'io.netty' }
+    .collect { constraint -> [constraint.name, constraint.version] }
+if (
+    actualNettyBuildscriptConstraints.size() != expectedNettyBuildscriptConstraints.size() ||
+        actualNettyBuildscriptConstraints.toSet() != expectedNettyBuildscriptConstraints.toSet()
+) {
+    throw new GradleException(
+        "Netty buildscript constraints must exactly match ${expectedNettyBuildscriptConstraints}; " +
+            "found ${actualNettyBuildscriptConstraints}"
+    )
+}
 def patchedWireVersion = '6.3.0'
 def patchedWireModules = ['wire-runtime', 'wire-runtime-jvm'] as Set
 

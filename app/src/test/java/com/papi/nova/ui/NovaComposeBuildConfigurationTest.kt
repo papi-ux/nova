@@ -3,7 +3,6 @@ package com.papi.nova.ui
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Paths
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,14 +49,6 @@ class NovaComposeBuildConfigurationTest {
     fun gradlePinsNettyForToolingDependencyAlerts() {
         val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
         val expectedVersion = "4.1.136.Final"
-        val constrainedModules = listOf(
-            "netty-codec",
-            "netty-codec-http",
-            "netty-codec-http2",
-            "netty-common",
-            "netty-handler",
-            "netty-handler-proxy"
-        )
 
         assertTrue(
             "root build should keep a single patched Netty version for Gradle and Android test tooling",
@@ -68,24 +59,10 @@ class NovaComposeBuildConfigurationTest {
             rootBuild.contains("details.requested.group == 'io.netty'") &&
                 rootBuild.contains("details.useVersion patchedNettyVersion")
         )
-        val nettyConstraints = Regex(
-            """(?m)^\s*classpath\('io\.netty:([^:']+):([^']+)'\)\s*\{"""
-        ).findAll(rootBuild).map { match ->
-            match.groupValues[1] to match.groupValues[2]
-        }.toList()
-        val expectedConstraints = constrainedModules.map { module ->
-            module to expectedVersion
-        }.toSet()
-
-        assertEquals(
-            "buildscript should contain exactly the expected Netty module/version constraints",
-            expectedConstraints,
-            nettyConstraints.toSet()
-        )
-        assertEquals(
-            "buildscript should not contain duplicate Netty constraints",
-            expectedConstraints.size,
-            nettyConstraints.size
+        assertTrue(
+            "Gradle configuration should validate active Netty constraints from its parsed model",
+            rootBuild.contains("buildscript.configurations.classpath.allDependencyConstraints") &&
+                rootBuild.contains("Netty buildscript constraints must exactly match")
         )
     }
 
