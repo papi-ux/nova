@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Paths
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -67,12 +68,25 @@ class NovaComposeBuildConfigurationTest {
             rootBuild.contains("details.requested.group == 'io.netty'") &&
                 rootBuild.contains("details.useVersion patchedNettyVersion")
         )
-        constrainedModules.forEach { module ->
-            assertTrue(
-                "$module should use the project-wide patched Netty version",
-                rootBuild.contains("classpath('io.netty:$module:$expectedVersion')")
-            )
-        }
+        val nettyConstraints = Regex(
+            """(?m)^\s*classpath\('io\.netty:([^:']+):([^']+)'\)\s*\{"""
+        ).findAll(rootBuild).map { match ->
+            match.groupValues[1] to match.groupValues[2]
+        }.toList()
+        val expectedConstraints = constrainedModules.map { module ->
+            module to expectedVersion
+        }.toSet()
+
+        assertEquals(
+            "buildscript should contain exactly the expected Netty module/version constraints",
+            expectedConstraints,
+            nettyConstraints.toSet()
+        )
+        assertEquals(
+            "buildscript should not contain duplicate Netty constraints",
+            expectedConstraints.size,
+            nettyConstraints.size
+        )
     }
 
     @Test
