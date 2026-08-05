@@ -30,6 +30,14 @@ class SpaceParticleView @JvmOverloads constructor(
     var dense = false
         set(value) { field = value; rebuild() }
 
+    /**
+     * When true the view fills its canvas with the opaque theme surface colour before
+     * drawing particles. Layers stacked above cinematic artwork must set this to false,
+     * otherwise the fill erases the artwork underneath.
+     */
+    var paintsOpaqueBackground = true
+        set(value) { field = value; invalidate() }
+
     private data class Star(
         var x: Float, var y: Float, var size: Float,
         var speedX: Float, var speedY: Float,
@@ -126,8 +134,11 @@ class SpaceParticleView @JvmOverloads constructor(
         val w = width.toFloat()
         val h = height.toFloat()
 
-        // Theme-aware background (Polaris navy or OLED black)
-        canvas.drawColor(bgColor)
+        // Theme-aware background (Polaris navy or OLED black). Skipped when the view
+        // is an overlay so cinematic artwork below stays visible.
+        if (paintsOpaqueBackground) {
+            canvas.drawColor(bgColor)
+        }
 
         // Nebulae
         for (n in nebulae) {

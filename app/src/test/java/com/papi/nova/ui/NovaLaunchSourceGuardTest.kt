@@ -246,9 +246,9 @@ class NovaLaunchSourceGuardTest {
             "override fun onResume()",
             "override fun onKeyDown("
         )
-        val loadGames = activity.section(
-            "private fun loadGames(forceRefresh: Boolean)",
-            "private fun refreshActiveSession("
+        val refresh = activity.section(
+            "private fun refreshActiveSession(",
+            "private fun scheduleActiveSessionFollowUpRefreshes("
         )
         val followUps = activity.section(
             "private fun scheduleActiveSessionFollowUpRefreshes(",
@@ -288,13 +288,20 @@ class NovaLaunchSourceGuardTest {
         )
         assertTrue(
             "Library resume should consume the local End marker before polling can re-add a paused session",
-            onResume.contains("consumeLocalSessionEndSignal()") &&
-                onResume.contains("scheduleActiveSessionFollowUpRefreshes(clearOnly = true)")
+            onResume.contains("refreshActiveSession(scheduleFollowUps = true)") &&
+                refresh.contains("val generation = beginActiveSessionRefresh()") &&
+                refresh.contains("if (consumeLocalSessionEndSignal())") &&
+                refresh.indexOf("val generation = beginActiveSessionRefresh()") <
+                    refresh.indexOf("if (consumeLocalSessionEndSignal())")
         )
         assertTrue(
-            "initial library load should also consume a local End marker before showing session state",
-            loadGames.contains("val clearSessionAfterLocalEnd = consumeLocalSessionEndSignal()") &&
-                loadGames.contains("if (clearSessionAfterLocalEnd) null else result.activeSession")
+            "initial session refresh should consume a local End marker before querying Polaris",
+            refresh.contains("if (consumeLocalSessionEndSignal())") &&
+                refresh.contains("activeSession = null") &&
+                refresh.contains("clearOnly = true") &&
+                refresh.contains("generation = generation") &&
+                refresh.indexOf("if (consumeLocalSessionEndSignal())") <
+                    refresh.indexOf("queryActiveSession()")
         )
         assertTrue(
             "Library should consume the End marker scoped by both PC UUID and host",
@@ -306,9 +313,10 @@ class NovaLaunchSourceGuardTest {
             onResume.contains("refreshActiveSession(scheduleFollowUps = true)")
         )
         assertTrue(
-            "initial library load should also schedule delayed refreshes when it catches paused teardown",
-            loadGames.contains("if (result.activeSession != null)") &&
-                loadGames.contains("scheduleActiveSessionFollowUpRefreshes()")
+            "cold start should schedule delayed refreshes independently of game-library loading",
+            activity.contains("setContentView(content)\n        refreshActiveSession(scheduleFollowUps = true)") &&
+                refresh.contains("if (published && scheduleFollowUps && refreshed != null)") &&
+                refresh.contains("generation = generation")
         )
         assertTrue(
             "follow-up refreshes should wait before polling Polaris again",

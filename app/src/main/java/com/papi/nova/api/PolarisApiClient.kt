@@ -8,6 +8,7 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.nvstream.http.LimelightCryptoProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,6 +78,9 @@ data class PolarisArtworkUpdateResult(
     val requestedKinds: List<String>,
     val remainingKinds: List<String>,
 )
+
+class PolarisArtworkLibraryUpdateUnavailableException :
+    IOException("Polaris artwork library update API unavailable")
 
 /**
  * HTTP client for Polaris REST API on the nvhttp port (47984).
@@ -150,6 +154,33 @@ class PolarisApiClient @JvmOverloads constructor(
         private val ARTWORK_KINDS = listOf("poster", "hero", "logo", "icon")
         private const val MAX_ARTWORK_JSON_BYTES = 1024 * 1024
         private const val ARTWORK_REQUEST_TIMEOUT_SECONDS = 120L
+
+        @JvmStatic
+        internal fun paginateAllGames(
+            pageSize: Int,
+            fetchPage: (offset: Int) -> List<PolarisGame>,
+        ): List<PolarisGame> {
+            require(pageSize > 0)
+            val games = linkedMapOf<String, PolarisGame>()
+            var offset = 0
+            while (true) {
+                val before = games.size
+                val batch = fetchPage(offset)
+                batch.forEach { game ->
+                    if (!games.containsKey(game.id)) {
+                        games[game.id] = game
+                    }
+                }
+                if (batch.size < pageSize) return games.values.toList()
+                if (games.size == before) {
+                    throw IOException("game library pagination made no progress")
+                }
+                if (offset > Int.MAX_VALUE - pageSize) {
+                    throw IOException("game library pagination overflow")
+                }
+                offset += pageSize
+            }
+        }
 
         private fun sanitizedCandidateTitle(value: String): String? {
             val title = value.trim()
@@ -1291,7 +1322,7 @@ class PolarisApiClient @JvmOverloads constructor(
             execute(request).use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (response.code != 200) {
-                    LimeLog.warning("Nova: Client settings update rejected code=${response.code} body=${responseBody.take(240)}")
+                    LimeLog.warning("Nova: Client settings update rejected code=${response.code}")
                     return null
                 }
                 parseClientSettingsResponse(JSONObject(responseBody.ifBlank { return null }))
@@ -1302,29 +1333,57 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Fetch the game library.
-     */
-    fun getGames(search: String = "", source: String = "", limit: Int = 50): List<PolarisGame> {
-        return try {
-            var url = "$baseUrl/games?limit=$limit"
-            if (search.isNotEmpty()) url += "&search=$search"
-            if (source.isNotEmpty()) url += "&source=$source"
+    private fun getGamesPageOrThrow(
+        search: String = "",
+        source: String = "",
+        limit: Int = 50,
+        offset: Int = 0,
+    ): List<PolarisGame> {
+        var url = "$baseUrl/games?limit=${limit.coerceAtLeast(1)}&offset=${offset.coerceAtLeast(0)}"
+        if (search.isNotEmpty()) url += "&search=$search"
+        if (source.isNotEmpty()) url += "&source=$source"
 
-            val request = Request.Builder().url(url).build()
-            executeGetWithRetry(request).use { response ->
-                if (response.code != 200) return emptyList()
-
-                val json = org.json.JSONObject(response.body?.string() ?: return emptyList())
-                val gamesArray = json.optJSONArray("games") ?: return emptyList()
-
-                (0 until gamesArray.length()).map { PolarisGameJsonAdapter.fromJson(gamesArray.getJSONObject(it)) }
+        val request = Request.Builder().url(url).build()
+        return executeGetWithRetry(request).use { response ->
+            if (response.code != 200) {
+                throw IOException("game library HTTP ${response.code}")
             }
-        } catch (e: Exception) {
-            LimeLog.warning("Nova: Game library fetch failed: ${errorMessage(e)}")
+            val body = response.body?.string() ?: throw IOException("empty game library response")
+            try {
+                val gamesArray = org.json.JSONObject(body).optJSONArray("games")
+                    ?: throw IOException("invalid game library response")
+                (0 until gamesArray.length()).map {
+                    PolarisGameJsonAdapter.fromJson(gamesArray.getJSONObject(it))
+                }
+            } catch (e: IOException) {
+                throw e
+            } catch (_: Exception) {
+                throw IOException("invalid game library response")
+            }
+        }
+    }
+
+    /**
+     * Fetch one best-effort game-library page for legacy callers.
+     */
+    fun getGames(search: String = "", source: String = "", limit: Int = 50, offset: Int = 0): List<PolarisGame> {
+        return try {
+            getGamesPageOrThrow(search = search, source = source, limit = limit, offset = offset)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            LimeLog.warning("Nova: Game library page fetch failed")
             emptyList()
         }
     }
+
+    /**
+     * Fetch every local page. Any failed page aborts instead of returning a successful prefix.
+     */
+    fun getAllGames(pageSize: Int = 100): List<PolarisGame> =
+        paginateAllGames(pageSize) { offset ->
+            getGamesPageOrThrow(limit = pageSize, offset = offset)
+        }
 
     /**
      * Get the legacy cover art URL for a game. Unsafe IDs fail closed.
@@ -1360,6 +1419,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     if (!response.isSuccessful) return@resolve null
                     response.body.let(::parseBoundedArtworkJson)?.let(::parseArtworkResolveResponse)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 LimeLog.warning("Nova: artwork resolve failed for $gameId: ${errorMessage(e)}")
                 null
@@ -1367,6 +1428,37 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
+
+    fun updateArtworkForLibrary(gameId: String): PolarisArtworkUpdateResult {
+        require(isSafeArtworkGameId(gameId))
+        val body = buildArtworkLibraryUpdateBody()
+        try {
+            val request = Request.Builder()
+                .url("$baseUrl/games/$gameId/artwork/resolve")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body.toString()))
+                .build()
+            return executeArtwork(request).use { response ->
+                if (!response.isSuccessful) {
+                    if (response.code == 404 || response.code == 405 || response.code == 501) {
+                        throw PolarisArtworkLibraryUpdateUnavailableException()
+                    }
+                    throw IOException("artwork library update HTTP ${response.code}")
+                }
+                val json = parseBoundedArtworkJson(response.body)
+                    ?: throw IOException("invalid artwork library update response")
+                val result = parseArtworkLibraryUpdateResponse(json)
+                    ?: throw PolarisArtworkLibraryUpdateUnavailableException()
+                artworkResolveOnce.invalidate(gameId)
+                clearCoverCache()
+                result
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: artwork library update failed for $gameId: ${errorMessage(e)}")
+            throw e
+        }
+    }
 
     fun searchArtworkCandidates(gameId: String, query: String): List<PolarisArtworkMatchCandidate> {
         if (!isSafeArtworkGameId(gameId)) return emptyList()
@@ -1381,11 +1473,44 @@ class PolarisApiClient @JvmOverloads constructor(
                     ?: throw IOException("artwork candidate search returned an invalid response")
                 parseArtworkCandidates(json, gameId, serverAddress, resolvedHttpsPort)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             LimeLog.warning("Nova: artwork candidate search failed for $gameId: ${errorMessage(e)}")
             throw e
         }
     }
+
+    fun listArtworkChoices(
+        gameId: String,
+        candidate: PolarisArtworkMatchCandidate,
+        kind: String,
+    ): List<PolarisArtworkChoice> {
+        require(isSafeArtworkGameId(gameId))
+        val normalizedKind = kind.trim().lowercase()
+        require(normalizedKind in ARTWORK_KINDS)
+        val body = buildArtworkChoiceBody(candidate)
+        try {
+            val request = Request.Builder()
+                .url("$baseUrl/games/$gameId/artwork/choices/$normalizedKind")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body.toString()))
+                .build()
+            return executeArtwork(request).use { response ->
+                if (!response.isSuccessful) {
+                    throw IOException("artwork choices HTTP ${response.code}")
+                }
+                val json = parseBoundedArtworkJson(response.body)
+                    ?: throw IOException("invalid artwork choices response")
+                parseArtworkChoices(json, gameId, normalizedKind, serverAddress, resolvedHttpsPort)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: artwork choices failed for $gameId/$normalizedKind: ${errorMessage(e)}")
+            throw e
+        }
+    }
+
 
     fun applyArtworkMatch(
         gameId: String,
@@ -1400,6 +1525,21 @@ class PolarisApiClient @JvmOverloads constructor(
             .build()
         return executeArtworkManifestMutation(gameId, request, "apply")
     }
+
+    fun applyArtworkSelections(
+        gameId: String,
+        candidate: PolarisArtworkMatchCandidate,
+        selections: Map<String, PolarisArtworkChoice>,
+    ): PolarisGame.ArtworkManifest? {
+        require(isSafeArtworkGameId(gameId))
+        val body = buildArtworkSelectionBody(candidate, selections)
+        val request = Request.Builder()
+            .url("$baseUrl/games/$gameId/artwork/match")
+            .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body.toString()))
+            .build()
+        return executeArtworkManifestMutation(gameId, request, "selected apply")
+    }
+
 
     fun clearArtworkOverride(gameId: String): PolarisGame.ArtworkManifest? {
         if (!isSafeArtworkGameId(gameId)) return null
@@ -1422,6 +1562,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 }
                 manifest
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             LimeLog.warning("Nova: artwork $operation failed for $gameId: ${errorMessage(e)}")
             null
@@ -1430,17 +1572,27 @@ class PolarisApiClient @JvmOverloads constructor(
 
     fun loadArtworkCandidatePreviewInto(view: ImageView, candidate: PolarisArtworkMatchCandidate) {
         val url = candidate.posterPreviewUrl ?: return
+        loadTrustedArtworkPreviewInto(view, url)
+    }
+
+    fun loadArtworkChoicePreviewInto(view: ImageView, choice: PolarisArtworkChoice) {
+        if (choice.kind !in ARTWORK_KINDS) return
+        loadTrustedArtworkPreviewInto(view, choice.previewUrl)
+    }
+
+    private fun loadTrustedArtworkPreviewInto(view: ImageView, url: String) {
         if (!isTrustedCandidatePreviewUrl(url, serverAddress, resolvedHttpsPort)) return
-        val cacheKey = "polaris-artwork-preview:$url"
-        view.tag = cacheKey
+        val requestMarker = Any()
+        view.setTag(R.id.nova_artwork_request_key, requestMarker)
         view.setImageResource(R.drawable.nova_cover_placeholder)
         imageScope.launch {
             val fetched = fetchArtwork(url) ?: return@launch
             withContext(Dispatchers.Main) {
-                if (view.tag == cacheKey) view.setImageBitmap(fetched.bitmap)
+                if (view.getTag(R.id.nova_artwork_request_key) === requestMarker) view.setImageBitmap(fetched.bitmap)
             }
         }
     }
+
 
     fun loadCoverInto(view: ImageView, game: PolarisGame) {
         loadArtworkInto(view, game, PolarisGame.ARTWORK_KIND_POSTER)
@@ -1462,7 +1614,7 @@ class PolarisApiClient @JvmOverloads constructor(
             "polaris-cover:${game.id}:${game.coverUrl}"
         }
 
-        view.tag = cacheKey
+        view.setTag(R.id.nova_artwork_request_key, cacheKey)
         view.setImageResource(R.drawable.nova_cover_placeholder)
         if (imageUrl == null) return
 
@@ -1493,7 +1645,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 } else null
             }
             withContext(Dispatchers.Main) {
-                if (view.tag != cacheKey) return@withContext
+                if (view.getTag(R.id.nova_artwork_request_key) != cacheKey) return@withContext
                 if (bitmap != null) {
                     coverCache.put(cacheKey, bitmap)
                     view.setImageBitmap(bitmap)
@@ -1580,7 +1732,7 @@ class PolarisApiClient @JvmOverloads constructor(
             execute(request).use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (response.code != 200) {
-                    LimeLog.warning("Nova: Steam launch mode update rejected code=${response.code} body=${responseBody.take(240)}")
+                    LimeLog.warning("Nova: Steam launch mode update rejected code=${response.code}")
                     return null
                 }
                 val json = JSONObject(responseBody.ifBlank { "{}" })
