@@ -85,10 +85,6 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val PolarisStageIce = androidx.compose.ui.graphics.Color(0xFFC8D6E5)
-private val PolarisStageTwilight = androidx.compose.ui.graphics.Color(0xFF4C5265)
-private val PolarisStageVoid = androidx.compose.ui.graphics.Color(0xFF2A2840)
-private val PolarisStageAccent = androidx.compose.ui.graphics.Color(0xFF7C73FF)
 
 @Composable
 internal fun NovaLibraryLandscapeStageShell(
@@ -127,12 +123,12 @@ internal fun NovaLibraryLandscapeToolbarContent(
     val largeText = LocalDensity.current.fontScale >= 1.5f
     val shape = RoundedCornerShape(if (cinematic) 8.dp else 18.dp)
     val toolbarColor = if (cinematic) {
-        PolarisStageTwilight.copy(alpha = 0.34f * LocalNovaMenuOpacityScale.current)
+        surfaces.panel.copy(alpha = 0.34f * LocalNovaMenuOpacityScale.current)
     } else {
         surfaces.panel.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current)
     }
     val toolbarBorder = if (cinematic) {
-        PolarisStageIce.copy(alpha = 0.14f)
+        surfaces.tileBorder
     } else {
         surfaces.tileBorder
     }
@@ -156,7 +152,7 @@ internal fun NovaLibraryLandscapeToolbarContent(
                 if (polarisReady) {
                     Text(
                         text = stringResource(R.string.nova_system_menu_status_polaris_ready),
-                        color = if (cinematic) PolarisStageIce.copy(alpha = 0.62f) else LocalNovaComposeColors.current.textSecondary,
+                        color = LocalNovaComposeColors.current.textSecondary,
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
                         maxLines = 1,
@@ -267,7 +263,7 @@ private fun NovaLibraryToolbarIdentity(
             }
             Text(
                 text = if (cinematic) hostLabel else "· $hostLabel",
-                color = if (cinematic) PolarisStageIce.copy(alpha = 0.72f) else colors.textSecondary,
+                color = colors.textSecondary,
                 fontSize = 11.sp,
                 lineHeight = 13.sp,
                 maxLines = 1,
@@ -294,7 +290,7 @@ private fun NovaLibraryResultAndLayoutMeta(
     ) {
         Text(
             text = stringResource(R.string.nova_library_results_format, resultCount),
-            color = if (cinematic) PolarisStageIce.copy(alpha = 0.62f) else colors.textSecondary,
+            color = colors.textSecondary,
             fontSize = 10.sp,
             lineHeight = 12.sp,
             maxLines = 1,
@@ -302,7 +298,7 @@ private fun NovaLibraryResultAndLayoutMeta(
         )
         Text(
             text = layoutLabel,
-            color = if (cinematic) PolarisStageAccent else colors.textMuted,
+            color = colors.accent,
             fontSize = 10.sp,
             lineHeight = 12.sp,
             maxLines = 1,
@@ -570,6 +566,7 @@ private fun NovaLibraryStageHero(
     onSessionAction: (() -> Unit)? = null,
     onSecondaryAction: (() -> Unit)? = null,
 ) {
+    val heroColors = LocalNovaComposeColors.current
     val hasIcon = game.iconArtwork != null
     val iconKey = PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_ICON)
     // No scrim here: NovaLibraryCinematicBackdrop is the single owner of the stage
@@ -627,7 +624,7 @@ private fun NovaLibraryStageHero(
             if (heroMetadata.isNotBlank() && !largeText) {
                 Text(
                     text = heroMetadata,
-                    color = PolarisStageIce.copy(alpha = 0.72f),
+                    color = heroColors.textSecondary,
                     fontSize = if (compact) 9.sp else 10.sp,
                     lineHeight = if (compact) 11.sp else 12.sp,
                     fontWeight = FontWeight.SemiBold,
