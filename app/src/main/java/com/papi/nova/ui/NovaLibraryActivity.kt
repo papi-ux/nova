@@ -3575,7 +3575,10 @@ class NovaLibraryActivity : NovaActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         Surface(
             modifier = modifier,
-            shape = RoundedCornerShape(if (cinematic) 8.dp else 18.dp),
+            // One corner radius for library surfaces whichever layout is showing. Only the
+            // fill still varies: the cinematic stage lets the backdrop through, while the
+            // grid keeps a panel behind its poster wall.
+            shape = RoundedCornerShape(8.dp),
             color = if (cinematic) {
                 androidx.compose.ui.graphics.Color.Transparent
             } else if (subtle) {
