@@ -28,11 +28,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.R
@@ -173,6 +175,23 @@ internal fun NovaLibraryCinematicControllerHints(
             .testTag("nova-library-cinematic-controller-hints"),
         contentAlignment = Alignment.CenterEnd,
     ) {
+        // Sits in the empty space the right-aligned hints leave behind, so it costs no
+        // vertical budget. Dropped on compact shells where that space is not free.
+        if (!compact) {
+            Text(
+                text = stringResource(R.string.nova_stage_footer_brand),
+                color = colors.textSecondary.copy(alpha = 0.72f),
+                fontSize = 9.sp,
+                lineHeight = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.18.em,
+                maxLines = 1,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 12.dp)
+                    .testTag("nova-stage-footer-brand"),
+            )
+        }
         Row(
             modifier = Modifier
                 .widthIn(max = rowMaxWidth)

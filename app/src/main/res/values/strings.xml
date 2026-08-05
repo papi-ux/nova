@@ -1431,4 +1431,5 @@
     <string name="nova_artwork_library_update_retry_hint">Checks only the games that failed.</string>
     <string name="nova_artwork_library_update_retry_all">Try again</string>
     <string name="nova_artwork_library_update_retry_all_hint">Starts a new all-games artwork check.</string>
+    <string name="nova_stage_footer_brand">POLARIS CINEMATIC STAGE</string>
 </resources>
