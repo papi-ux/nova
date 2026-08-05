@@ -10,9 +10,10 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun gameDetailLaunchUsesSelectedMangoHudState() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val primaryLaunch = detail.section("onPrimaryLaunch = {", "},\n                    onLaunchModeSelected")
-        val launchModeSelection = detail.section("fun selectLaunchMode(", "composeView.setContent {")
+        val launchModeSelection = detail.section("fun selectLaunchMode(", "setContentView(")
 
         assertTrue(
             "primary Play should pass the selected MangoHUD state into the launch request",
@@ -43,7 +44,8 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun desktopSteamDecisionSheetUsesNovaGlassAndExplicitMirrorDesktopPlumbing() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val streamConfiguration = readSource("src/main/java/com/papi/nova/nvstream/StreamConfiguration.kt")
@@ -60,7 +62,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "desktop Steam active policy should open a Nova-themed Compose bottom sheet, not a legacy square AlertDialog",
-            decisionSheet.contains("BottomSheetDialog(requireContext(), theme)") &&
+            decisionSheet.contains("BottomSheetDialog(this@NovaGameDetailActivity)") &&
                 decisionSheet.contains("NovaDesktopSteamLaunchDecisionContent(") &&
                 !decisionSheet.contains("AlertDialog.Builder")
         )
@@ -93,7 +95,8 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun launchFailureAndDesktopSteamActionsUseNovaThemedFlow() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val nvHttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
@@ -127,7 +130,7 @@ class NovaLaunchSourceGuardTest {
             "Nova drawers should let content scroll down without minimizing the whole sheet; only the top handle strip may drag-dismiss",
             detail.contains("behavior.isDraggable = false") &&
                 detail.contains("novaSheetHandleDrag") &&
-                detail.contains("onSheetHandleDismiss") &&
+                detail.contains("NovaSheetDragHandle(") &&
                 syncSheetGestureIsLocked() &&
                 chrome.contains("isDraggable = false") &&
                 chrome.contains("attachHandleDragToDismiss") &&
@@ -158,13 +161,14 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun composeBottomSheetsUseThemeAwareGlassHostInsteadOfStaticOldThemeInset() {
-        val gameDetailSheet = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val gameDetailSheet = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val syncSheet = readSource("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt")
 
         assertTrue(
-            "Game detail sheet must clear/style the Material host with shared Nova glass chrome so bottom/nav inset gaps do not show old static blue chrome",
+            "The desktop Steam sheet hosted by the game detail window must clear/style the Material host with shared Nova glass chrome so bottom/nav inset gaps do not show old static blue chrome",
             gameDetailSheet.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)") &&
-                gameDetailSheet.contains("NovaSheetChrome.createSheetBackground(requireContext())") &&
+                gameDetailSheet.contains("NovaSheetChrome.createSheetBackground(this@NovaGameDetailActivity)") &&
                 !gameDetailSheet.contains("sheet.setBackgroundResource(sheetBackgroundRes())")
         )
         assertTrue(
@@ -176,7 +180,8 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun virtualLaunchPreflightUsesHostVirtualDisplayContractConstants() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
         val displayMode = readSource("src/main/java/com/papi/nova/api/PolarisStreamDisplayMode.kt")
 
@@ -337,7 +342,8 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun displayPlannerAndPostSessionReportStayControllerFirstAndLowNoise() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val quickContent = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
         val planner = readSource("src/main/java/com/papi/nova/ui/NovaDisplayResolutionPlanner.kt")
         val optionSheet = detail.section(
@@ -482,7 +488,8 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun virtualDisplayUnavailableCopyUsesHostVirtualDisplayLanguageAndReason() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val strings = readSource("src/main/res/values/strings.xml")
 
         assertTrue(strings.contains("nova_library_virtual_display_unavailable_title") && strings.contains("Host Virtual Display is not ready"))
@@ -618,7 +625,8 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun gameDetailPreflightPreservesExplicitPolarisNonVirtualMode() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val preflight = detail.section(
             "private fun syncLaunchPreflightSettings(",
             "private fun showPreflightReview("
@@ -650,7 +658,8 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun steamLaunchSelectionDoesNotDismissGameDetailOrStartStream() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val selection = detail.section(
             "onSteamLaunchModeSelected = { selected ->",
             "},\n                    onDismissSteamLaunchModeOptions"
@@ -664,7 +673,8 @@ class NovaLaunchSourceGuardTest {
     @Test
     fun steamLaunchModeUpdateConfirmsHostModeAndStaysInline() {
         val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
 
         assertTrue(api.contains("fun setSteamLaunchMode(gameId: String, mode: String): String?"))
         assertTrue(api.contains("json.optString(\"mode\", normalizedMode)"))

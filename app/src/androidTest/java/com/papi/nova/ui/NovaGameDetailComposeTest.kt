@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
-class NovaGameDetailSheetComposeTest {
+class NovaGameDetailComposeTest {
     @get:Rule
     val activityRule = ActivityScenarioRule(ComponentActivity::class.java)
 
@@ -57,7 +57,7 @@ class NovaGameDetailSheetComposeTest {
             composeViewRef.set(composeView)
             composeView.setContent {
                 NovaComposeTheme {
-                    NovaGameDetailSheetContent(
+                    NovaGameDetailContent(
                         uiState = uiState,
                         launchIntro = "Virtual Display is currently the default for this Polaris server.",
                         recommendedBadge = "Rec. Virtual",
@@ -81,7 +81,6 @@ class NovaGameDetailSheetComposeTest {
                         headlessModeLabel = "Headless",
                         virtualDisplayModeLabel = "Virtual Display",
                         coverContentDescription = "Game cover art",
-                        onSheetHandleDismiss = {},
                         onPrimaryLaunch = {},
                         onLaunchOptions = {},
                         onLaunchModeSelected = {},

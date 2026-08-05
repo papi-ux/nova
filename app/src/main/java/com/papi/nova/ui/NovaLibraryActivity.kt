@@ -124,6 +124,8 @@ import com.papi.nova.LimeLog
 import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisGameJson
+import org.json.JSONObject
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.manager.StreamSyncManager
@@ -174,7 +176,9 @@ class NovaLibraryActivity : NovaActivity() {
     private var streamPcName: String = ""
     private var streamServerCommands: ArrayList<String>? = null
     private var streamServerCert: ByteArray? = null
-    private var detailSheet: NovaGameDetailSheet? = null
+    private val gameDetailLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { result -> onGameDetailResult(result) }
 
     private var allGames by mutableStateOf<List<PolarisGame>>(emptyList())
     private var filterState by mutableStateOf(NovaLibraryFilterState())
@@ -533,8 +537,6 @@ class NovaLibraryActivity : NovaActivity() {
         activeSessionRefreshJob = null
         controllerHintIdleJob?.cancel()
         controllerHintIdleJob = null
-        detailSheet?.dismissAllowingStateLoss()
-        detailSheet = null
         super.onStop()
     }
 
@@ -772,41 +774,48 @@ class NovaLibraryActivity : NovaActivity() {
 
     private fun showGameDetail(game: PolarisGame) {
         launchErrorMessage = null
-        detailSheet?.dismissAllowingStateLoss()
         val preferences = PreferenceConfiguration.readPreferences(this)
-        val defaultToVirtualDisplay = preferences.useVirtualDisplay
-        detailSheet = NovaGameDetailSheet.newInstance(
-            game = game,
-            apiClient = apiClient,
-            defaultToVirtualDisplay = defaultToVirtualDisplay,
-            clientSettings = clientSettings,
-            onGameUpdated = { updated ->
-                allGames = allGames.map { if (it.id == updated.id) updated else it }
-            },
-            onRefreshArtwork = { gameToUpdate, onResult ->
-                artworkLibraryUpdateViewModel.refreshArtwork(
-                    game = gameToUpdate,
-                    onResult = onResult,
-                )
-            },
-            onApplyArtwork = { gameToUpdate, candidate, selections, onResult ->
-                artworkLibraryUpdateViewModel.applyArtworkSelections(
-                    game = gameToUpdate,
-                    candidate = candidate,
-                    selections = selections,
-                    onResult = onResult,
-                )
-            },
-            onClearArtwork = { gameToUpdate, onResult ->
-                artworkLibraryUpdateViewModel.clearArtworkOverride(
-                    game = gameToUpdate,
-                    onResult = onResult,
-                )
-            },
-        ) { selectedGame, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, preflightOptimization ->
-            launchGame(selectedGame, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, preflightOptimization)
+        gameDetailLauncher.launch(
+            NovaGameDetailActivity.newIntent(
+                context = this,
+                game = game,
+                host = streamHost,
+                httpsPort = streamHttpsPort,
+                serverCert = streamServerCert,
+                defaultToVirtualDisplay = preferences.useVirtualDisplay,
+            ),
+        )
+        NovaThemeManager.applyForwardTransition(this)
+    }
+
+    /**
+     * The detail window returns the launch it chose rather than performing it, so the
+     * stream starts from the library after that window is gone.
+     */
+    private fun onGameDetailResult(result: androidx.activity.result.ActivityResult) {
+        val data = result.data ?: return
+        data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_GAME)
+            ?.let { PolarisGameJson.decode(it) }
+            ?.let { updated -> allGames = allGames.map { if (it.id == updated.id) updated else it } }
+
+        val launch = data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_LAUNCH) ?: return
+        val request = try {
+            JSONObject(launch)
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Unreadable launch result from the game detail window: ${e.message}")
+            return
         }
-        detailSheet?.show(supportFragmentManager, "game_detail")
+        val selected = data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_LAUNCH_GAME)
+            ?.let { PolarisGameJson.decode(it) }
+            ?: return
+        launchGame(
+            game = selected,
+            withVirtualDisplay = request.optBoolean(NovaGameDetailActivity.RESULT_KEY_VIRTUAL_DISPLAY),
+            mirrorDesktop = request.optBoolean(NovaGameDetailActivity.RESULT_KEY_MIRROR_DESKTOP),
+            forcePrivateAfterSteamClose = request.optBoolean(NovaGameDetailActivity.RESULT_KEY_FORCE_PRIVATE),
+            profilePreference = request.optString(NovaGameDetailActivity.RESULT_KEY_PROFILE_PREFERENCE, "auto"),
+            preflightOptimization = request.optJSONObject(NovaGameDetailActivity.RESULT_KEY_PREFLIGHT),
+        )
     }
 
     private fun launchGame(

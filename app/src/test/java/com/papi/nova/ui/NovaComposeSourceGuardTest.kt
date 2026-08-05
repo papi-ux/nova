@@ -1033,7 +1033,7 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailRetroidFirstPaintUsesCompactGameIdentityHeader() {
-        val detail = readNovaGameDetailSheet()
+        val detail = readNovaGameDetail()
         val detailsPanel = detail.section(
             "private fun GameDetailsPanel(",
             "@Composable\nprivate fun LaunchControlsPanel("
@@ -1072,7 +1072,7 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailLaunchControlsPrioritizePrimaryPlayFocus() {
-        val detail = readNovaGameDetailSheet()
+        val detail = readNovaGameDetail()
         val launchControls = detail.section(
             "private fun LaunchControls(",
             "@Composable\nprivate fun LaunchProfileSummaryInline("
@@ -1082,7 +1082,7 @@ class NovaComposeSourceGuardTest {
             "@Composable\nprivate fun NovaDetailPanel("
         )
         val sheetContent = detail.section(
-            "fun NovaGameDetailSheetContent(",
+            "fun NovaGameDetailContent(",
             "@Composable\nprivate fun NovaGameDetailScrollableContent("
         )
         val scrollableContent = detail.section(
@@ -1169,7 +1169,7 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailLaunchModeUsesSingleInlineSelectorInsteadOfDuplicateOptionsDrawer() {
-        val detail = readNovaGameDetailSheet()
+        val detail = readNovaGameDetail()
         val launchControls = detail.section(
             "private fun LaunchControls(",
             "@Composable\nprivate fun LaunchProfileSummaryInline("
@@ -1198,9 +1198,9 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailKeepsMangoHudOutOfPrimaryLaunchDrawer() {
-        val detail = readNovaGameDetailSheet()
+        val detail = readNovaGameDetail()
         val sheetContent = detail.section(
-            "fun NovaGameDetailSheetContent(",
+            "fun NovaGameDetailContent(",
             "@Composable\nprivate fun NovaDetailPanel("
         )
 
@@ -1218,7 +1218,7 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailCoverLoadingIsKeyedByGameIdentity() {
-        val source = readNovaGameDetailSheet()
+        val source = readNovaGameDetail()
         val detailsPanel = source.section(
             "private fun GameDetailsPanel(",
             "@Composable\nprivate fun LaunchControlsPanel("
@@ -1238,9 +1238,9 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailUsesHeroBackdropLogoTransformIconIdentityAndPosterFallback() {
-        val source = readNovaGameDetailSheet()
+        val source = readNovaGameDetail()
         val sheetContent = source.section(
-            "fun NovaGameDetailSheetContent(",
+            "fun NovaGameDetailContent(",
             "@Composable\nprivate fun NovaGameDetailScrollableContent("
         )
         val detailsPanel = source.section(
@@ -1290,9 +1290,9 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun artworkPreferencesAreCollapsedAtBottomAndUseManifestArtwork() {
-        val source = readNovaGameDetailSheet()
+        val source = readNovaGameDetail()
         val content = source.section(
-            "fun NovaGameDetailSheetContent(",
+            "fun NovaGameDetailContent(",
             "@Composable\nprivate fun NovaGameDetailScrollableContent("
         )
         val artworkIndex = content.indexOf("NovaArtworkStudio(")
@@ -1310,7 +1310,7 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun artworkProviderFailuresAreNotReportedAsNoMatches() {
-        val sheet = readNovaGameDetailSheet()
+        val sheet = readNovaGameDetail()
         val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
         val strings = readSource("src/main/res/values/strings.xml")
         val searchHandler = sheet.section(
@@ -1711,9 +1711,9 @@ class NovaComposeSourceGuardTest {
             "private fun NovaLibraryScreen(",
             "@Composable\n    private fun NovaLibraryHomeHero("
         )
-        val detail = readNovaGameDetailSheet()
+        val detail = readNovaGameDetail()
         val detailContent = detail.section(
-            "fun NovaGameDetailSheetContent(",
+            "fun NovaGameDetailContent(",
             "@Composable\nprivate fun NovaDetailPanel("
         )
         val settings = readNovaSettingsScreen()
@@ -2747,8 +2747,9 @@ class NovaComposeSourceGuardTest {
     private fun readNovaQuickMenuContent(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
 
-    private fun readNovaGameDetailSheet(): String =
-        readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+    private fun readNovaGameDetail(): String =
+        readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
 
     private fun readNovaSettingsScreen(): String =
         readSource("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt")
@@ -2758,7 +2759,7 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailLaunchOptionsUseActionableModeState() {
-        val launchControls = readNovaGameDetailSheet().section(
+        val launchControls = readNovaGameDetail().section(
             "private fun LaunchControls(",
             "@Composable\nprivate fun LaunchModeChoicePill("
         )
@@ -2770,7 +2771,8 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailLaunchOptionsAvoidRawAppCompatAlertDialogButtons() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val launchOptions = detail.section(
             "private fun showLaunchOptions(",
             "private fun optionLabel("
@@ -2786,7 +2788,8 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun gameDetailProfilePreferenceAvoidsRawAppCompatAlertDialogButtons() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
         val profileOptions = detail.section(
             "private fun showProfilePreferenceOptions(",
             "private fun steamLaunchModeOptionsState("
