@@ -293,6 +293,11 @@
             android:exported="false" />
 
         <activity
+            android:name="com.papi.nova.ui.NovaGameDetailActivity"
+            android:theme="@style/AppTheme"
+            android:exported="false" />
+
+        <activity
             android:name="com.papi.nova.ui.NovaQrScanActivity"
             android:theme="@style/AppTheme"
             android:exported="false" />

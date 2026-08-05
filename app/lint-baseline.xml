@@ -6052,16 +6052,6 @@
             column="25"/>
     </issue>
 
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `ViewGroup.isNotEmpty` instead?"
-        errorLine1="                if (genreContainer.childCount > 0) params.marginStart = 8"
-        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt"
-            line="102"
-            column="21"/>
-    </issue>
 
     <issue
         id="UseKtx"
@@ -6228,27 +6218,7 @@
             column="25"/>
     </issue>
 
-    <issue
-        id="SetTextI18n"
-        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
-        errorLine1="            lastPlayed.text = &quot;Last played: ${fmt.format(date)}&quot;"
-        errorLine2="                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt"
-            line="112"
-            column="31"/>
-    </issue>
 
-    <issue
-        id="SetTextI18n"
-        message="String literal in `setText` can not be translated. Use Android resources instead."
-        errorLine1="            lastPlayed.text = &quot;Last played: ${fmt.format(date)}&quot;"
-        errorLine2="                               ~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/papi/nova/ui/NovaGameDetailSheet.kt"
-            line="112"
-            column="32"/>
-    </issue>
 
     <issue
         id="SetTextI18n"
