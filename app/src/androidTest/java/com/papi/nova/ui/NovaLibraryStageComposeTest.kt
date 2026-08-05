@@ -855,6 +855,73 @@ class NovaLibraryStageComposeTest {
         assertTrue("$label bottom reflowed: $before -> $after", kotlin.math.abs(before.bottom - after.bottom) <= 0.5f)
     }
 
+    @Test
+    fun stageRailHoldsStillUntilFocusApproachesAnEdge() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
+        val many = (0 until 14).map { index ->
+            game("game-$index", "Game $index", "steam")
+        }
+
+        composeRule.setContent {
+            NovaComposeTheme {
+                Box(Modifier.requiredSize(width = 833.dp, height = 390.dp)) {
+                    NovaLibraryStage(
+                        games = many,
+                        focusedGame = many.first(),
+                        restoreFocusGameId = many.first().id,
+                        primaryActionLabel = "Review & Launch",
+                        apiClient = apiClient,
+                        showPosterTitles = false,
+                        onPrimaryAction = {},
+                        onGameFocused = {},
+                        onOpenDetail = {},
+                        artworkLoader = { _, _, _ -> },
+                        posterLoader = { _, _ -> },
+                    )
+                }
+            }
+        }
+
+        fun railOriginOf(id: String): Float =
+            composeRule.onNodeWithTag("nova-stage-poster-$id").fetchSemanticsNode().boundsInRoot.left
+
+        // Anchor on a poster that stays composed throughout so its screen position is a
+        // direct readout of how far the rail has scrolled.
+        composeRule.onNodeWithTag("nova-poster-${many[2].id}")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+        val anchorAfterNearFocus = railOriginOf(many[2].id)
+
+        // Moving the selection one step, well inside the rail, must not drag the library
+        // sideways: the focus travels across stationary posters.
+        composeRule.onNodeWithTag("nova-poster-${many[3].id}")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+        val anchorAfterInteriorStep = railOriginOf(many[2].id)
+        assertEquals(
+            "interior focus step must not scroll the rail",
+            anchorAfterNearFocus,
+            anchorAfterInteriorStep,
+            0.5f,
+        )
+
+        // Stepping on until the selection reaches the trailing edge must scroll, otherwise
+        // the tail of the library would be unreachable. Lazy items only exist once visible,
+        // so walk the selection the way a D-pad would rather than jumping to the end.
+        for (index in 4..7) {
+            composeRule.onNodeWithTag("nova-poster-${many[index].id}")
+                .performSemanticsAction(SemanticsActions.RequestFocus)
+            composeRule.waitForIdle()
+        }
+        val anchorAfterEdgeFocus = railOriginOf(many[2].id)
+        assertTrue(
+            "focus reaching the trailing edge must scroll the rail: " +
+                "$anchorAfterInteriorStep -> $anchorAfterEdgeFocus",
+            anchorAfterInteriorStep - anchorAfterEdgeFocus > 1f,
+        )
+    }
+
     private fun games(): List<PolarisGame> = listOf(
         game("alpha", "Alpha", "steam"),
         game("bravo", "Bravo", "epic"),

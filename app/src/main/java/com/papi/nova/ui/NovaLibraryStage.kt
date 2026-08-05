@@ -2,6 +2,8 @@ package com.papi.nova.ui
 
 import android.widget.ImageView
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -520,6 +523,38 @@ private fun NovaLibraryStageSessionHero(
  *  comes from [NovaLibraryUiStateMapper.stageRailPosterWidthDp]. */
 private val NovaStageCarouselGapDp = 12.dp
 
+/** How close (in card widths) the focused poster may come to a rail edge before the rail
+ *  scrolls. Inside that band the rail holds still and the selection travels across
+ *  stationary posters, which is what keeps a sense of place in a long library. */
+private const val NovaStageEdgeScrollMarginCards = 1.15f
+
+/**
+ * Edge-scrolling policy for the poster rail.
+ *
+ * Compose already asks the scrollable to bring a newly focused child into view; the default
+ * spec scrolls the minimum needed, which re-seats the selection against the viewport edge on
+ * every step. Supplying the spec — rather than running a second scroller next to it — keeps a
+ * single scroll authority and lets the rail stay put until the selection nears an edge.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private object NovaStageEdgeScrollSpec : BringIntoViewSpec {
+    override fun calculateScrollDistance(
+        offset: Float,
+        size: Float,
+        containerSize: Float,
+    ): Float {
+        val margin = (size * NovaStageEdgeScrollMarginCards)
+            .coerceAtMost((containerSize - size) / 2f)
+            .coerceAtLeast(0f)
+        val trailingEdge = offset + size
+        return when {
+            offset < margin -> offset - margin
+            trailingEdge > containerSize - margin -> trailingEdge - (containerSize - margin)
+            else -> 0f
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NovaLibraryStageHero(
@@ -850,42 +885,8 @@ internal fun NovaLibraryStageRow(
     val focusRequesters = remember(gameIds) { List(effectiveGames.size) { FocusRequester() } }
     val scope = rememberCoroutineScope()
     var focusedCardId by remember(gameIds) { mutableStateOf<String?>(null) }
-    var smoothScrollJob by remember(gameIds) { mutableStateOf<Job?>(null) }
     val largeText = LocalDensity.current.fontScale >= 1.5f
     val inputModeManager = LocalInputModeManager.current
-
-    fun requestSmoothScrollToIndex(targetIndex: Int) {
-        if (effectiveGames.isEmpty()) return
-        smoothScrollJob?.cancel()
-        smoothScrollJob = scope.launch {
-            val maxIndex = effectiveGames.lastIndex
-            val clampedIndex = targetIndex.coerceIn(0, maxIndex)
-            val layoutInfo = listState.layoutInfo
-            if (layoutInfo.totalItemsCount == 0) return@launch
-
-            val viewportStart = layoutInfo.viewportStartOffset
-            val viewportEnd = layoutInfo.viewportEndOffset
-            val viewportCenter = (viewportStart + viewportEnd) / 2f
-            val viewportWidth = (viewportEnd - viewportStart).coerceAtLeast(0)
-            val visibleItem = layoutInfo.visibleItemsInfo.firstOrNull { it.index == clampedIndex }
-
-            val needsScroll = if (visibleItem == null) {
-                true
-            } else {
-                val itemCenter = visibleItem.offset + (visibleItem.size / 2f)
-                kotlin.math.abs(itemCenter - viewportCenter) > (visibleItem.size * 0.08f)
-            }
-
-            if (!listState.isScrollInProgress && needsScroll) {
-                if (visibleItem != null) {
-                    val targetOffset = (viewportStart + (viewportWidth / 2f) - (visibleItem.size / 2f)).roundToInt()
-                    listState.animateScrollToItem(clampedIndex, targetOffset.coerceAtLeast(0))
-                } else {
-                    listState.animateScrollToItem(clampedIndex)
-                }
-            }
-        }
-    }
 
     // A FocusRequester bound to a lazy item that has not been composed yet silently does
     // nothing, so wait for the target to actually appear in the layout before asking. Without
@@ -955,6 +956,7 @@ internal fun NovaLibraryStageRow(
             cardWidthDp = cellWidthDp,
         )
 
+        CompositionLocalProvider(LocalBringIntoViewSpec provides NovaStageEdgeScrollSpec) {
         LazyRow(
             state = listState,
             modifier = Modifier
@@ -989,7 +991,6 @@ internal fun NovaLibraryStageRow(
                         showPosterTitle = showPosterTitles,
                         onOpenDetail = {
                             onGameFocused(game)
-                            requestSmoothScrollToIndex(index)
                             onOpenDetail(game)
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -1001,10 +1002,7 @@ internal fun NovaLibraryStageRow(
                                 isFocused = isFocused,
                             )
                         },
-                        onFocused = {
-                            onGameFocused(game)
-                            requestSmoothScrollToIndex(index)
-                        },
+                        onFocused = { onGameFocused(game) },
                         onNavigate = { delta ->
                             val nextIndex = NovaLibraryUiStateMapper.stageAdjacentIndex(
                                 currentIndex = index,
@@ -1012,7 +1010,6 @@ internal fun NovaLibraryStageRow(
                                 itemCount = effectiveGames.size,
                             )
                             if (nextIndex != index) {
-                                requestSmoothScrollToIndex(nextIndex)
                                 scope.launch {
                                     repeat(STAGE_FOCUS_REQUEST_ATTEMPTS) {
                                         withFrameNanos { }
@@ -1032,6 +1029,7 @@ internal fun NovaLibraryStageRow(
                     )
                 }
             }
+        }
         }
     }
 }
