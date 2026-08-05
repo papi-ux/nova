@@ -712,6 +712,13 @@ class NovaLibraryActivity : NovaActivity() {
         return consumed
     }
 
+    private fun queryActiveSessionAsync(onResult: (NovaLibraryActiveSessionUiState?) -> Unit) {
+        lifecycleScope.launch {
+            val session = withContext(Dispatchers.IO) { runCatching { queryActiveSession() }.getOrNull() }
+            onResult(session)
+        }
+    }
+
     private fun queryActiveSession(): NovaLibraryActiveSessionUiState? {
         return NovaLibraryActiveSessionUiState.from(apiClient.getSessionStatus())
     }
@@ -797,6 +804,14 @@ class NovaLibraryActivity : NovaActivity() {
         data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_GAME)
             ?.let { PolarisGameJson.decode(it) }
             ?.let { updated -> allGames = allGames.map { if (it.id == updated.id) updated else it } }
+        when (data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_SESSION)) {
+            // The window saw the session but cannot act on it: resuming and ending both
+            // need stream credentials that live here.
+            NovaGameDetailActivity.RESULT_SESSION_RESUME ->
+                queryActiveSessionAsync { session -> session?.let { resumeActiveSession(it) } }
+            NovaGameDetailActivity.RESULT_SESSION_END ->
+                queryActiveSessionAsync { session -> session?.let { endActiveSession(it) } }
+        }
 
         val launch = data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_LAUNCH) ?: return
         val request = try {
@@ -1287,6 +1302,7 @@ class NovaLibraryActivity : NovaActivity() {
                                             null -> Unit
                                         }
                                     },
+                                    onOpenDetail = model.hero.game?.let { game -> { onOpenDetail(game) } },
                                     onGameFocused = onGameFocused
                                 )
                             }
@@ -1365,6 +1381,7 @@ class NovaLibraryActivity : NovaActivity() {
                                             null -> Unit
                                         }
                                     },
+                                    onOpenDetail = model.hero.game?.let { game -> { onOpenDetail(game) } },
                                     onGameFocused = onGameFocused
                                 )
                             }
@@ -1520,6 +1537,12 @@ class NovaLibraryActivity : NovaActivity() {
         apiClient: PolarisApiClient,
         onPrimaryAction: () -> Unit,
         onSecondaryAction: (() -> Unit)? = null,
+        /**
+         * The card opens the game; the buttons do the thing. Without this the running
+         * game was the one entry whose detail could not be reached at all, because the
+         * whole card resumed and the grid omits it while a session is live.
+         */
+        onOpenDetail: (() -> Unit)? = null,
         onGameFocused: (PolarisGame) -> Unit
     ) {
         val colors = LocalNovaComposeColors.current
@@ -1562,7 +1585,7 @@ class NovaLibraryActivity : NovaActivity() {
                 .onFocusChanged {
                     focused = it.isFocused || it.hasFocus
                 }
-                .combinedClickable(onClick = onPrimaryAction)
+                .combinedClickable(onClick = onOpenDetail ?: onPrimaryAction)
                 .focusable()
                 .padding(if (compact) 8.dp else 16.dp),
             horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 16.dp),

@@ -126,6 +126,10 @@ class NovaGameDetailComposeTest {
                         sourceLabel = "Steam",
                         onDestination = {},
                         onSteamChoice = {},
+                        // no session under test, so the primary action stays a launch
+                        activeSession = null,
+                        onResumeSession = {},
+                        onEndSession = {},
                     )
                 }
             }

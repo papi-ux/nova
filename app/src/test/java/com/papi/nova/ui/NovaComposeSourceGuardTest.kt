@@ -575,9 +575,9 @@ class NovaComposeSourceGuardTest {
                 hero.contains("if (!compact && hero.badges.isNotEmpty())")
         )
         assertTrue(
-            "hero card itself should activate the same primary action when D-pad focus lands on the container",
-            hero.contains(".combinedClickable(onClick = onPrimaryAction)") &&
-                hero.indexOf(".combinedClickable(onClick = onPrimaryAction)") in 0 until hero.indexOf(".focusable()")
+            "hero card opens the game and falls back to the primary action, so a running game is still reachable while the grid omits it",
+            hero.contains(".combinedClickable(onClick = onOpenDetail ?: onPrimaryAction)") &&
+                hero.indexOf(".combinedClickable(onClick = onOpenDetail ?: onPrimaryAction)") in 0 until hero.indexOf(".focusable()")
         )
         assertTrue(
             "hero focus should update the focused backdrop/focus restore model for D-pad users",
@@ -1086,7 +1086,7 @@ class NovaComposeSourceGuardTest {
             "the primary action holds first focus, and nothing scrolls above it",
             detail.contains("val playFocusRequester = remember { FocusRequester() }") &&
                 actions.contains(".focusRequester(playFocusRequester)") &&
-                actions.contains("primary = true") &&
+                actions.contains("primary = activeSession?.watchOnly != true") &&
                 !overview.contains("verticalScroll")
         )
         assertTrue(

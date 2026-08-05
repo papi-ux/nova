@@ -153,6 +153,17 @@ class NovaGameDetailActivity : NovaActivity() {
 
     private val onGameUpdated: ((PolarisGame) -> Unit)? = { game -> updatedGame = game }
 
+    /** Resume and End need stream credentials this window does not carry, so it asks. */
+    private fun finishWithSessionRequest(request: String) {
+        setResult(
+            RESULT_OK,
+            Intent()
+                .putExtra(EXTRA_RESULT_SESSION, request)
+                .putExtra(EXTRA_RESULT_GAME, updatedGame?.let { PolarisGameJson.encode(it) }),
+        )
+        finish()
+    }
+
     private val onRefreshArtwork: ((PolarisGame, (NovaArtworkMutationResult) -> Unit) -> Unit)? =
         { game, onResult -> artworkViewModel.refreshArtwork(game = game, onResult = onResult) }
 
@@ -186,6 +197,9 @@ class NovaGameDetailActivity : NovaActivity() {
 
     /** The preflight review, expanded on the Overview rather than raised as an alert. */
     private var reviewExpanded by mutableStateOf(false)
+
+    /** The host's session, when it is this game's. Null means nothing is running. */
+    private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
@@ -225,6 +239,7 @@ class NovaGameDetailActivity : NovaActivity() {
         )
 
         setUpDetail(game, apiClient)
+        refreshActiveSession(game)
     }
 
     /**
@@ -242,6 +257,22 @@ class NovaGameDetailActivity : NovaActivity() {
             true
         }
         else -> false
+    }
+
+    /**
+     * Polaris reports one session at a time, so it only matters here when it is this
+     * game's. Matched on the UUID Polaris uses, falling back to the numeric app id.
+     */
+    private fun refreshActiveSession(game: PolarisGame) {
+        lifecycleScope.launch {
+            val session = withContext(Dispatchers.IO) {
+                runCatching { NovaLibraryActiveSessionUiState.from(apiClient.getSessionStatus()) }
+                    .getOrNull()
+            }
+            activeSession = session?.takeIf {
+                it.gameUuid.equals(game.id, ignoreCase = true) || it.gameId == game.appId
+            }
+        }
     }
 
     /** Carries artwork or MangoHUD edits back even when the window closes without launching. */
@@ -485,6 +516,9 @@ class NovaGameDetailActivity : NovaActivity() {
                     apiClient = apiClient,
                     sourceLabel = currentGame.sourceLabel,
                     onDestination = { next -> destination = next },
+                    activeSession = activeSession,
+                    onResumeSession = { finishWithSessionRequest(RESULT_SESSION_RESUME) },
+                    onEndSession = { finishWithSessionRequest(RESULT_SESSION_END) },
                     onSteamChoice = { choice ->
                         when (choice) {
                             NovaSteamLaunchChoice.PRIVATE_STREAM ->
@@ -1335,6 +1369,9 @@ class NovaGameDetailActivity : NovaActivity() {
         const val EXTRA_DEFAULT_VIRTUAL_DISPLAY = "nova.detail.defaultVirtualDisplay"
         const val EXTRA_RESULT_LAUNCH = "nova.detail.result.launch"
         const val EXTRA_RESULT_LAUNCH_GAME = "nova.detail.result.launchGame"
+        const val EXTRA_RESULT_SESSION = "nova.detail.result.session"
+        const val RESULT_SESSION_RESUME = "resume"
+        const val RESULT_SESSION_END = "end"
         const val EXTRA_RESULT_GAME = "nova.detail.result.game"
 
         const val RESULT_KEY_VIRTUAL_DISPLAY = "virtualDisplay"

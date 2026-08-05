@@ -289,6 +289,9 @@ internal fun NovaGameDetailContent(
     sourceLabel: String,
     onDestination: (NovaGameDetailDestination) -> Unit,
     onSteamChoice: (NovaSteamLaunchChoice) -> Unit,
+    activeSession: NovaLibraryActiveSessionUiState?,
+    onResumeSession: () -> Unit,
+    onEndSession: () -> Unit,
 ) {
     val verticalScroll = rememberScrollState()
     val playFocusRequester = remember { FocusRequester() }
@@ -313,6 +316,9 @@ internal fun NovaGameDetailContent(
             onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile,
             onDestination = onDestination,
+            activeSession = activeSession,
+            onResumeSession = onResumeSession,
+            onEndSession = onEndSession,
         )
 
         when (destination) {

@@ -262,6 +262,9 @@
     <string name="nova_system_menu_about_hint">Version and client identity.</string>
     <string name="nova_system_menu_about_toast">%1$s</string>
     <string name="nova_controller_hint_system">System</string>
+    <string name="nova_game_detail_resume">Resume</string>
+    <string name="nova_game_detail_watch">Watch</string>
+    <string name="nova_game_detail_end_session">End session</string>
     <string name="nova_game_detail_tune">Tune</string>
     <string name="nova_game_detail_where_it_runs">Where it runs</string>
     <string name="nova_game_detail_group_state">State</string>

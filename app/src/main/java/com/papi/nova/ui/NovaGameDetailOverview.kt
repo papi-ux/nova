@@ -102,6 +102,9 @@ internal fun NovaGameDetailOverview(
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
     onDestination: (NovaGameDetailDestination) -> Unit,
+    activeSession: NovaLibraryActiveSessionUiState?,
+    onResumeSession: () -> Unit,
+    onEndSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
@@ -178,6 +181,9 @@ internal fun NovaGameDetailOverview(
                 onRetryHighFps = onRetryHighFps,
                 onResetProfile = onResetProfile,
                 onDestination = onDestination,
+                activeSession = activeSession,
+                onResumeSession = onResumeSession,
+                onEndSession = onEndSession,
                 modifier = Modifier.padding(top = 16.dp),
             )
 
@@ -330,6 +336,9 @@ private fun NovaGameDetailActions(
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
     onDestination: (NovaGameDetailDestination) -> Unit,
+    activeSession: NovaLibraryActiveSessionUiState?,
+    onResumeSession: () -> Unit,
+    onEndSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -337,16 +346,30 @@ private fun NovaGameDetailActions(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier,
     ) {
+        // Precedence: someone else's session, then yours, then the ordinary launch.
+        // Launching over a session another device owns would take their display.
         NovaGameDetailAction(
-            text = playLabel,
-            onClick = onPrimaryLaunch,
-            enabled = uiState.playEnabled,
-            primary = true,
+            text = when {
+                activeSession?.watchOnly == true -> stringResource(R.string.nova_game_detail_watch)
+                activeSession != null -> stringResource(R.string.nova_game_detail_resume)
+                else -> playLabel
+            },
+            onClick = if (activeSession != null) onResumeSession else onPrimaryLaunch,
+            enabled = uiState.playEnabled || activeSession != null,
+            primary = activeSession?.watchOnly != true,
             glyph = stringResource(R.string.nova_controller_hint_a),
             modifier = Modifier
                 .focusRequester(playFocusRequester)
                 .testTag("nova-game-detail-primary"),
         )
+
+        if (activeSession != null && !activeSession.watchOnly) {
+            NovaGameDetailAction(
+                text = stringResource(R.string.nova_game_detail_end_session),
+                onClick = onEndSession,
+                mark = "◼",
+            )
+        }
 
         if (reviewExpanded) {
             if (optimizationState.profileSummary?.showRetryHighFps == true) {
