@@ -1209,7 +1209,12 @@ class NovaLibraryActivity : NovaActivity() {
         ) {
             NovaLibraryCinematicBackdrop(
                 game = focusedBackdropGame,
-                apiClient = apiClient
+                apiClient = apiClient,
+                strength = if (model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE) {
+                    1f
+                } else {
+                    NovaLibraryGridBackdropStrength
+                },
             )
             if (surfaces.particlesEnabled) {
                 AndroidView(
@@ -1562,7 +1567,9 @@ class NovaLibraryActivity : NovaActivity() {
                 compact = compact
             )
             Column(
-                modifier = Modifier.weight(1f),
+                // fill = false so the action sits with the content it belongs to instead of
+                // being pushed to the far edge across a gulf of empty row.
+                modifier = Modifier.weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 5.dp)
             ) {
                 Text(
@@ -2413,6 +2420,7 @@ class NovaLibraryActivity : NovaActivity() {
                             posterLoader = stablePosterLoader
                         )
                     } else {
+                        Box(modifier = Modifier.fillMaxSize()) {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(gridColumns),
                             modifier = Modifier.fillMaxSize(),
@@ -2444,6 +2452,23 @@ class NovaLibraryActivity : NovaActivity() {
                                     onOpenDetail = { onOpenDetail(game) },
                                 )
                             }
+                        }
+                        // The grid scrolls, so its last visible row is cut mid-artwork. A
+                        // short fade reads as there is more below instead of a severed edge.
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(NovaLibraryGridScrollFadeHeight)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            androidx.compose.ui.graphics.Color.Transparent,
+                                            LocalNovaComposeColors.current.window.copy(alpha = 0.85f),
+                                        ),
+                                    ),
+                                ),
+                        )
                         }
                     }
                 }
@@ -3683,6 +3708,13 @@ class NovaLibraryActivity : NovaActivity() {
         /** One corner radius for library surfaces, so panels, the continue-playing row and
          *  the bar keep the same edge whichever layout is showing. */
         private val NovaLibrarySurfaceCornerRadius = 8.dp
+
+        /** The poster wall owns the screen in grid layouts, so the shared backdrop reads
+         *  as atmosphere behind it rather than competing with twenty covers. */
+        private const val NovaLibraryGridBackdropStrength = 0.45f
+
+        /** Height of the fade at the foot of the scrolling poster grid. */
+        private val NovaLibraryGridScrollFadeHeight = 44.dp
 
         private val LARGE_TEXT_HINT_INDICES = setOf(0, 1, 3)
         private val PRIMARY_HINT_INDICES = setOf(0, 1, 2)

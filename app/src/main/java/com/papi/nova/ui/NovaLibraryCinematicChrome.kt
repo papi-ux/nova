@@ -56,6 +56,12 @@ internal fun NovaLibraryCinematicBackdrop(
     game: PolarisGame?,
     apiClient: PolarisApiClient,
     modifier: Modifier = Modifier,
+    /**
+     * How strongly the artwork reads. The cinematic stage pairs one hero with small
+     * posters, so the art is the subject there; the grid puts twenty covers on screen and
+     * the same artwork competes with them, so it is pulled back behind that wall.
+     */
+    strength: Float = 1f,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -116,7 +122,7 @@ internal fun NovaLibraryCinematicBackdrop(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                alpha = 0.9f + (surfaces.focusedArtworkAlpha * 0.1f)
+                                alpha = (0.9f + (surfaces.focusedArtworkAlpha * 0.1f)) * strength
                             }
                             .testTag("nova-library-cinematic-artwork"),
                     )

@@ -601,7 +601,7 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "compact landscape hero should place artwork, title context, and a bounded launch CTA in that order",
-            hero.indexOf("NovaLibraryHeroArtwork(") in 0 until hero.indexOf("Column(\n                modifier = Modifier.weight(1f)") &&
+            hero.indexOf("NovaLibraryHeroArtwork(") in 0 until hero.indexOf("Column(\n                // fill = false") &&
                 hero.contains("Modifier.width(if (compact) 132.dp else 168.dp)")
         )
         assertFalse(
