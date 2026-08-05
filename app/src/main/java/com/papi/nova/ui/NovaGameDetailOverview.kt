@@ -2,17 +2,21 @@ package com.papi.nova.ui
 
 import android.widget.ImageView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
@@ -21,8 +25,13 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
@@ -30,8 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -114,7 +126,7 @@ internal fun NovaGameDetailOverview(
             )
 
             Text(
-                text = novaGameDetailIdentityLine(sourceLabel, lastPlayedText, game),
+                text = novaGameDetailIdentityLine(sourceLabel, lastPlayedText, game).uppercase(),
                 color = colors.textSecondary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -169,13 +181,50 @@ internal fun NovaGameDetailOverview(
                 modifier = Modifier.padding(top = 16.dp),
             )
 
-            NovaControllerHintBar(
-                hints = novaGameDetailOverviewHints(),
-                compact = true,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            )
+            NovaGameDetailFooter(modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
         }
 
+    }
+}
+
+/**
+ * The floor: what the buttons do on the left, the Polaris mark on the right. Borderless,
+ * because a bordered container here would be one more box on a screen whose point is that
+ * nothing sits on the artwork in a box.
+ */
+@Composable
+private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
+    val colors = LocalNovaComposeColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.testTag("nova-game-detail-footer"),
+    ) {
+        novaGameDetailOverviewHints().forEach { hint ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(end = 18.dp),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(colors.accent.copy(alpha = 0.22f)),
+                ) {
+                    Text(hint.key, color = colors.textPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+                Text(hint.label, color = colors.textSecondary, fontSize = 11.sp)
+            }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = stringResource(R.string.nova_polaris_wordmark),
+            color = colors.textMuted,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.20.em,
+        )
     }
 }
 
@@ -249,11 +298,15 @@ private fun NovaGameDetailStatusLine(
     ) {
         Box(modifier = Modifier.size(7.dp).clip(RoundedCornerShape(percent = 50)).background(lamp))
         Text(
-            text = novaGameDetailStatusText(uiState, summary),
+            text = novaGameDetailStatusText(uiState, summary).uppercase(),
             color = colors.textPrimary,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.11.em,
+            // these are measurements, so the digits line up rather than dance
+            style = LocalTextStyle.current.copy(
+                fontFeatureSettings = "tnum",
+            ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -284,15 +337,12 @@ private fun NovaGameDetailActions(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier,
     ) {
-        NovaActionButton(
+        NovaGameDetailAction(
             text = playLabel,
             onClick = onPrimaryLaunch,
             enabled = uiState.playEnabled,
             primary = true,
-            minHeight = NovaGameDetailActionHeight,
-            cornerRadius = NovaGameDetailCornerRadius,
-            fontSize = 15.sp,
-            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp),
+            glyph = stringResource(R.string.nova_controller_hint_a),
             modifier = Modifier
                 .focusRequester(playFocusRequester)
                 .testTag("nova-game-detail-primary"),
@@ -300,45 +350,129 @@ private fun NovaGameDetailActions(
 
         if (reviewExpanded) {
             if (optimizationState.profileSummary?.showRetryHighFps == true) {
-                NovaGameDetailSecondaryAction(stringResource(R.string.nova_library_retry_high_fps), onRetryHighFps)
+                NovaGameDetailAction(
+                    text = stringResource(R.string.nova_library_retry_high_fps),
+                    onClick = onRetryHighFps,
+                    mark = "\u25B2",
+                )
             }
-            NovaGameDetailSecondaryAction(stringResource(R.string.nova_library_reset_game_profile), onResetProfile)
+            NovaGameDetailAction(
+                text = stringResource(R.string.nova_library_reset_game_profile),
+                onClick = onResetProfile,
+                mark = "\u21BA",
+            )
         } else {
             if (showLaunchModeAction) {
-                NovaGameDetailSecondaryAction(stringResource(R.string.nova_library_launch_mode_title)) {
-                    onDestination(NovaGameDetailDestination.LAUNCH_MODE)
-                }
+                NovaGameDetailAction(
+                    text = stringResource(R.string.nova_library_launch_mode_title),
+                    onClick = { onDestination(NovaGameDetailDestination.LAUNCH_MODE) },
+                    mark = "\u229E",
+                )
             }
-            NovaGameDetailSecondaryAction(stringResource(R.string.nova_library_launch_options_secondary)) {
-                onDestination(NovaGameDetailDestination.TUNE)
-            }
-            NovaGameDetailSecondaryAction(stringResource(R.string.nova_artwork_studio_title)) {
-                onDestination(NovaGameDetailDestination.ARTWORK)
-            }
+            NovaGameDetailAction(
+                text = stringResource(R.string.nova_library_launch_options_secondary),
+                onClick = { onDestination(NovaGameDetailDestination.TUNE) },
+                mark = "\u2699",
+            )
+            NovaGameDetailAction(
+                text = stringResource(R.string.nova_artwork_studio_title),
+                onClick = { onDestination(NovaGameDetailDestination.ARTWORK) },
+                mark = "\u25C8",
+            )
         }
     }
 }
 
+/**
+ * One action in the lane. The primary carries the button it is bound to and an accent
+ * gradient; the rest are quiet, hairline-bordered and marked. Focus is a ring and a
+ * tint — never a scale or an offset, which is the contract the poster cards settled on.
+ */
 @Composable
-private fun NovaGameDetailSecondaryAction(text: String, onClick: () -> Unit) {
+private fun NovaGameDetailAction(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    primary: Boolean = false,
+    glyph: String? = null,
+    mark: String? = null,
+) {
+    val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    NovaActionButton(
-        text = text,
-        onClick = onClick,
-        minHeight = NovaGameDetailActionHeight,
-        cornerRadius = NovaGameDetailCornerRadius,
-        fontSize = 13.sp,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(NovaGameDetailCornerRadius))
-            .background(surfaces.control.copy(alpha = 1f)),
-    )
+    val interactionSource = remember { MutableInteractionSource() }
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(NovaGameDetailCornerRadius)
+
+    val background = if (primary && enabled) {
+        Brush.linearGradient(
+            listOf(
+                colors.accent,
+                lerp(colors.accent, Color.White, 0.28f),
+                lerp(colors.accent, Color.White, 0.62f),
+            ),
+        )
+    } else {
+        SolidColor(surfaces.control.copy(alpha = 1f))
+    }
+    val label = when {
+        primary && enabled -> colors.onAccent
+        enabled -> colors.textPrimary
+        else -> colors.textMuted
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        modifier = modifier
+            .heightIn(min = NovaGameDetailActionHeight)
+            .clip(shape)
+            .background(background, shape)
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) colors.accent else surfaces.tileBorder,
+                shape = shape,
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = text }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        if (glyph != null) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(colors.window.copy(alpha = 0.88f)),
+            ) {
+                Text(
+                    text = glyph,
+                    color = colors.textPrimary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        if (mark != null) {
+            Text(text = mark, color = label.copy(alpha = 0.62f), fontSize = 13.sp)
+        }
+        Text(
+            text = text,
+            color = label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
-/**
- * The alert this replaces stated the reason and offered launch, retry and reset. Expanded
- * in place it keeps all four, without a dialog landing on the artwork.
- */
 @Composable
 private fun LaunchProfileReviewNotice(
     optimizationState: NovaGameDetailOptimizationState,

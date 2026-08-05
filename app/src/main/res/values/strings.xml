@@ -262,6 +262,7 @@
     <string name="nova_system_menu_about_hint">Version and client identity.</string>
     <string name="nova_system_menu_about_toast">%1$s</string>
     <string name="nova_controller_hint_system">System</string>
+    <string name="nova_polaris_wordmark" translatable="false">✦ POLARIS</string>
     <string name="nova_controller_hint_a">A</string>
     <string name="nova_controller_hint_b">B</string>
     <string name="nova_controller_hint_x">X</string>

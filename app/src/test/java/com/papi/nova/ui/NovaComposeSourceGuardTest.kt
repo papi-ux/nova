@@ -1079,7 +1079,7 @@ class NovaComposeSourceGuardTest {
         )
         val actions = detail.section(
             "private fun NovaGameDetailActions(",
-            "private fun NovaGameDetailSecondaryAction("
+            "private fun NovaGameDetailAction("
         )
 
         assertTrue(
@@ -1097,7 +1097,7 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "every focusable action clears the accessible target floor",
             detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
-                actions.contains("minHeight = NovaGameDetailActionHeight")
+                detail.contains("heightIn(min = NovaGameDetailActionHeight)")
         )
         assertTrue(
             "the rail is gated rather than decorative: Launch mode appears only when there is a real choice, and a review replaces the rail with its own answers",
@@ -1676,9 +1676,10 @@ class NovaComposeSourceGuardTest {
                 libraryScreen.contains("controllerHintBarLandscapeStartPadding")
         )
         assertTrue(
-            "the game detail window should keep the shared hint bar on the Overview floor and in every destination",
-            detail.contains("NovaControllerHintBar(") &&
-                detail.contains("hints = novaGameDetailOverviewHints()") &&
+            "the game detail window keeps the shared hint model; the Overview paints it borderless on the artwork while destinations keep the reusable bar",
+            detail.contains("List<NovaControllerHint>") &&
+                detail.contains("novaGameDetailOverviewHints()") &&
+                detail.contains("NovaControllerHintBar(") &&
                 detail.contains("nova_controller_hint_back")
         )
         assertTrue(
