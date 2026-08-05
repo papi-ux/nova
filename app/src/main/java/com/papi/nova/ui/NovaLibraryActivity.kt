@@ -1209,7 +1209,12 @@ class NovaLibraryActivity : NovaActivity() {
         ) {
             NovaLibraryCinematicBackdrop(
                 game = focusedBackdropGame,
-                apiClient = apiClient
+                apiClient = apiClient,
+                strength = if (model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE) {
+                    1f
+                } else {
+                    NovaLibraryGridBackdropStrength
+                },
             )
             if (surfaces.particlesEnabled) {
                 AndroidView(
@@ -1528,9 +1533,9 @@ class NovaLibraryActivity : NovaActivity() {
                     focused = focused,
                     focusedScale = NovaFocusMotionSpec.CardFocusedScale,
                     haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-                    cornerRadius = 20.dp
+                    cornerRadius = NovaLibrarySurfaceCornerRadius
                 )
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(NovaLibrarySurfaceCornerRadius))
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
@@ -1543,7 +1548,7 @@ class NovaLibraryActivity : NovaActivity() {
                 .border(
                     width = if (focused) 3.dp else 1.dp,
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
-                    shape = RoundedCornerShape(20.dp)
+                    shape = RoundedCornerShape(NovaLibrarySurfaceCornerRadius)
                 )
                 .onFocusChanged {
                     focused = it.isFocused || it.hasFocus
@@ -1562,7 +1567,9 @@ class NovaLibraryActivity : NovaActivity() {
                 compact = compact
             )
             Column(
-                modifier = Modifier.weight(1f),
+                // fill = false so the action sits with the content it belongs to instead of
+                // being pushed to the far edge across a gulf of empty row.
+                modifier = Modifier.weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 5.dp)
             ) {
                 Text(
@@ -1781,7 +1788,10 @@ class NovaLibraryActivity : NovaActivity() {
             resultCount = model.resultCount,
             layoutLabel = layoutModeLabel(model.optionsState.layoutMode),
             polarisReady = clientSettings != null,
-            cinematic = model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE,
+            // The library bar is the same furniture whichever layout is below it, so it
+            // keeps one treatment across Grid, Compact and Stage rather than changing
+            // weight and shape as the content does.
+            cinematic = true,
             onOpenOptions = onOpenOptions,
             onOpenSystemMenu = onOpenSystemMenu,
         )
@@ -2410,6 +2420,7 @@ class NovaLibraryActivity : NovaActivity() {
                             posterLoader = stablePosterLoader
                         )
                     } else {
+                        Box(modifier = Modifier.fillMaxSize()) {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(gridColumns),
                             modifier = Modifier.fillMaxSize(),
@@ -2441,6 +2452,23 @@ class NovaLibraryActivity : NovaActivity() {
                                     onOpenDetail = { onOpenDetail(game) },
                                 )
                             }
+                        }
+                        // The grid scrolls, so its last visible row is cut mid-artwork. A
+                        // short fade reads as there is more below instead of a severed edge.
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(NovaLibraryGridScrollFadeHeight)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            androidx.compose.ui.graphics.Color.Transparent,
+                                            LocalNovaComposeColors.current.window.copy(alpha = 0.85f),
+                                        ),
+                                    ),
+                                ),
+                        )
                         }
                     }
                 }
@@ -3572,7 +3600,10 @@ class NovaLibraryActivity : NovaActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         Surface(
             modifier = modifier,
-            shape = RoundedCornerShape(if (cinematic) 8.dp else 18.dp),
+            // One corner radius for library surfaces whichever layout is showing. Only the
+            // fill still varies: the cinematic stage lets the backdrop through, while the
+            // grid keeps a panel behind its poster wall.
+            shape = RoundedCornerShape(NovaLibrarySurfaceCornerRadius),
             color = if (cinematic) {
                 androidx.compose.ui.graphics.Color.Transparent
             } else if (subtle) {
@@ -3674,6 +3705,17 @@ class NovaLibraryActivity : NovaActivity() {
         private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
         private const val CONTROLLER_HINT_ANIMATION_MS = 180
         private const val CONTROLLER_AXIS_INTENT_THRESHOLD = 0.35f
+        /** One corner radius for library surfaces, so panels, the continue-playing row and
+         *  the bar keep the same edge whichever layout is showing. */
+        private val NovaLibrarySurfaceCornerRadius = 8.dp
+
+        /** The poster wall owns the screen in grid layouts, so the shared backdrop reads
+         *  as atmosphere behind it rather than competing with twenty covers. */
+        private const val NovaLibraryGridBackdropStrength = 0.45f
+
+        /** Height of the fade at the foot of the scrolling poster grid. */
+        private val NovaLibraryGridScrollFadeHeight = 44.dp
+
         private val LARGE_TEXT_HINT_INDICES = setOf(0, 1, 3)
         private val PRIMARY_HINT_INDICES = setOf(0, 1, 2)
         private val CONTROLLER_BROWSE_KEYS = setOf(
