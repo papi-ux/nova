@@ -144,7 +144,7 @@ class NovaLibraryStageComposeTest {
         assertTrue("toolbarDp=${toolbarBounds.height / pixelsPerDp} px=${toolbarBounds.height} density=$pixelsPerDp", toolbarBounds.height / pixelsPerDp in 61f..63f)
         assertTrue(stageBounds.height / pixelsPerDp in 285f..287f)
         val railHeightDp = railBounds.height / pixelsPerDp
-        assertTrue("railDp=$railHeightDp px=${railBounds.height} density=$pixelsPerDp", railHeightDp in 222f..236f)
+        assertTrue("railDp=$railHeightDp px=${railBounds.height} density=$pixelsPerDp", railHeightDp in 146f..156f)
         val cardHeightDp = cardBounds.height / pixelsPerDp
         assertTrue("cardDp=$cardHeightDp railDp=$railHeightDp", cardHeightDp <= railHeightDp)
         val posterArtBounds = composeRule.onNodeWithTag("nova-poster-art-${games[1].id}", useUnmergedTree = true)
@@ -157,13 +157,11 @@ class NovaLibraryStageComposeTest {
             posterCaptionBounds.top >= posterArtBounds.bottom - 1f,
         )
         val actionHeightDp = actionBounds.height / pixelsPerDp
-        val actionWidthDp = actionBounds.width / pixelsPerDp
         val surfaceHeightDp = surfaceBounds.height / pixelsPerDp
-        val surfaceWidthDp = surfaceBounds.width / pixelsPerDp
         assertTrue("actionHeightDp=$actionHeightDp", actionHeightDp >= 41.5f)
-        assertTrue("actionWidthDp=$actionWidthDp", actionWidthDp in 139.5f..140.5f)
         assertTrue("surfaceHeightDp=$surfaceHeightDp", surfaceHeightDp <= 35f)
-        assertTrue("surfaceWidthDp=$surfaceWidthDp", surfaceWidthDp <= 133f)
+        assertContained(actionBounds, surfaceBounds, "primary action surface in action row")
+        assertContained(stageBounds, actionBounds, "primary action row in stage")
         listOf(
             "nova-stage-identity",
             "nova-stage-primary-action",

@@ -51,7 +51,7 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 
 private const val NovaPosterAnimationDurationMillis = 180
-private val NovaPosterFocusedLift = 4.dp
+internal val NovaPosterFocusedLift = 10.dp
 
 /**
  * Box art reads as box art, not as an app tile. The cinematic concept uses a 7px radius on a

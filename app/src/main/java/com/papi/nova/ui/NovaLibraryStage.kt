@@ -1,8 +1,6 @@
 package com.papi.nova.ui
 
 import android.widget.ImageView
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
@@ -19,7 +17,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -523,10 +520,6 @@ private fun NovaLibraryStageSessionHero(
  *  comes from [NovaLibraryUiStateMapper.stageRailPosterWidthDp]. */
 private val NovaStageCarouselGapDp = 12.dp
 
-/** Extra lift applied to the focused card so unfocused posters read as a
- *  settled baseline row (concept: unfocused translateY(12px)). */
-private val NovaStageCarouselRestingDropDp = 6.dp
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NovaLibraryStageHero(
@@ -596,7 +589,7 @@ private fun NovaLibraryStageHero(
                 )
             }
             val heroMetadata = stageHeroMetadata(game)
-            if (heroMetadata.isNotBlank()) {
+            if (heroMetadata.isNotBlank() && !largeText) {
                 Text(
                     text = heroMetadata,
                     color = PolarisStageIce.copy(alpha = 0.72f),
@@ -982,17 +975,11 @@ internal fun NovaLibraryStageRow(
                 contentType = { _, _ -> "stage-game" }
             ) { index, game ->
                 val isFocusedCard = focusedCardId == game.id
-                val restingDrop by animateDpAsState(
-                    targetValue = if (isFocusedCard) 0.dp else NovaStageCarouselRestingDropDp,
-                    animationSpec = tween(durationMillis = STAGE_CAROUSEL_SETTLE_MILLIS),
-                    label = "NovaStageCarouselRestingDrop",
-                )
                 Box(
                     modifier = Modifier
                         .width(cellWidthDp.dp)
                         .height(cellHeightDp.dp)
                         .zIndex(if (isFocusedCard) 1f else 0f)
-                        .offset(y = restingDrop)
                         .testTag("nova-stage-poster-${game.id}"),
                 ) {
                     NovaLibraryPosterCard(
@@ -1059,7 +1046,6 @@ private const val STAGE_POSTER_CAPTION_BUDGET_DP = 36
 private const val STAGE_LARGE_TEXT_POSTER_CAPTION_BUDGET_DP = 64
 private const val STAGE_FOCUS_REQUEST_ATTEMPTS = 24
 private const val STAGE_FOCUS_RETRY_DELAY_MS = 32L
-private const val STAGE_CAROUSEL_SETTLE_MILLIS = 180
 
 /**
  * Supporting line under the hero title: where the game came from, what it is, and the
