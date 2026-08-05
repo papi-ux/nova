@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,7 +23,8 @@ class NovaLibraryActivitySourceTest {
 
         assertTrue(source.contains("val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()"))
         assertTrue(source.contains("NovaLibraryLandscapeToolbar("))
-        assertTrue(source.contains("controllerHintBarLandscapeStartPadding = if (isLandscape && showLandscapeControlRail)"))
+        assertFalse(source.contains("controllerHintBarLandscapeStartPadding"))
+        assertTrue(source.contains("NovaLibraryCinematicControllerHints("))
         val landscapeBranch = source.substring(
             source.indexOf("if (isLandscape) {"),
             source.indexOf("} else {", source.indexOf("if (isLandscape) {"))
@@ -49,12 +51,32 @@ class NovaLibraryActivitySourceTest {
     }
 
     @Test
+    fun selectableChipsReserveVisibleLabelSpaceBeforeLongDetails() {
+        val source = readLibraryActivitySource()
+        val chip = sourceBetween(
+            source,
+            "private fun NovaSelectableChip(",
+            "@Composable\n    private fun NovaLibraryPanel("
+        )
+        val strings = File("src/main/res/values/strings.xml").readText()
+
+        assertTrue(chip.contains("modifier = Modifier.weight(0.34f)"))
+        assertTrue(chip.contains("modifier = Modifier.weight(0.66f)"))
+        assertTrue(chip.windowed("overflow = TextOverflow.Ellipsis".length).count { it == "overflow = TextOverflow.Ellipsis" } >= 2)
+        assertTrue(
+            strings.contains(
+                "name=\"nova_library_options_layout_stage_hint\">Artwork-first home with hero environment, icon identity, and immediate actions."
+            )
+        )
+    }
+
+    @Test
     fun yButtonCyclesLibraryLayoutWithoutOpeningADrawer() {
         val source = readLibraryActivitySource()
         val hints = sourceBetween(
             source,
             "private fun novaLibraryControllerHints(",
-            "@Composable\n    private fun NovaLibraryFocusedBackdrop"
+            "@Composable\n    private fun NovaLibraryHomeHero("
         )
 
         assertTrue(source.contains("KeyEvent.KEYCODE_BUTTON_Y"))
@@ -64,6 +86,29 @@ class NovaLibraryActivitySourceTest {
         assertTrue(source.contains("revealControllerHints(NovaControllerHintChromeEvent.LAYOUT_CHANGED)"))
         assertTrue(hints.contains("R.string.nova_controller_hint_y"))
         assertTrue(hints.contains("R.string.nova_controller_hint_layout"))
+    }
+
+    @Test
+    fun portraitHeaderWiresSharedRightAlignedToolbarWithoutASecondMetadataRow() {
+        val source = readLibraryActivitySource()
+        val header = sourceBetween(
+            source,
+            "private fun NovaLibraryTopHeader(",
+            "private fun NovaLibraryCompactMetaRow(",
+        )
+
+        assertTrue(header.contains("NovaLibraryPortraitToolbarContent("))
+        assertTrue(header.contains("hostLabel = serverName?.takeIf { it.isNotBlank() } ?: serverHost"))
+        assertTrue(header.contains("resultCount = model.resultCount"))
+        assertTrue(header.contains("layoutLabel = layoutModeLabel(model.optionsState.layoutMode)"))
+        assertTrue(header.contains("identityStatus = {"))
+        assertTrue(header.contains("NovaLibraryCompactMetaRow("))
+        assertTrue(header.contains("onOpenOptions = onOpenOptions"))
+        assertTrue(header.contains("onOpenSystemMenu = onOpenSystemMenu"))
+        assertTrue(
+            "portrait Activity should delegate action sizing/order to the internal shared toolbar",
+            !header.contains("NovaActionButton(") && !header.contains("minHeight = 36.dp"),
+        )
     }
 
     @Test

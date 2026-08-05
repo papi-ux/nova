@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 object NovaLibraryPreferences {
     private const val SORT_MODE_PREF = "nova_library_sort_mode"
     private const val LAYOUT_MODE_PREF = "nova_library_layout_mode"
-    private const val LEGACY_SPOTLIGHT_LAYOUT_MODE = "SPOTLIGHT"
     private const val POSTER_TITLES_PREF = "nova_library_poster_titles"
     private const val FILTER_PRIMARY_PREF = "nova_library_filter_primary"
     private const val FILTER_SOURCE_PREF = "nova_library_filter_source"
@@ -16,7 +15,7 @@ object NovaLibraryPreferences {
         return NovaLibraryOptionsState(
             sortMode = prefs.enumValue(SORT_MODE_PREF, NovaLibrarySortMode.LIBRARY_ORDER),
             layoutMode = prefs.libraryLayoutMode(),
-            showPosterTitles = prefs.getBoolean(POSTER_TITLES_PREF, true)
+            showPosterTitles = prefs.getBoolean(POSTER_TITLES_PREF, false)
         )
     }
 
@@ -88,11 +87,18 @@ object NovaLibraryPreferences {
     }
 
     private fun SharedPreferences.libraryLayoutMode(): NovaLibraryLayoutMode {
-        return if (getString(LAYOUT_MODE_PREF, null) == LEGACY_SPOTLIGHT_LAYOUT_MODE) {
-            NovaLibraryLayoutMode.SPOTLIGHT_ROW
-        } else {
-            enumValue(LAYOUT_MODE_PREF, NovaLibraryLayoutMode.GRID)
+        val persisted = getString(LAYOUT_MODE_PREF, null)
+        val migrated = when (persisted) {
+            NovaLibraryLayoutMode.STAGE.name -> NovaLibraryLayoutMode.STAGE
+            NovaLibraryLayoutMode.GRID.name, "COMPACT_GRID", "LIST" -> NovaLibraryLayoutMode.GRID
+            NovaLibraryLayoutMode.COMPACT.name -> NovaLibraryLayoutMode.COMPACT
+            "SPOTLIGHT", "SPOTLIGHT_ROW" -> NovaLibraryLayoutMode.STAGE
+            else -> NovaLibraryLayoutMode.GRID
         }
+        if (persisted != migrated.name) {
+            edit().putString(LAYOUT_MODE_PREF, migrated.name).commit()
+        }
+        return migrated
     }
 
     private inline fun <reified T : Enum<T>> SharedPreferences.enumValue(

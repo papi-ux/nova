@@ -70,7 +70,7 @@ class NovaComposeSourceGuardTest {
         val strings = readSource("src/main/res/values/strings.xml")
         val screen = activity.section(
             "private fun NovaLibraryScreen(",
-            "private fun NovaLibraryFocusedBackdrop("
+            "private fun NovaLibraryHomeHero("
         )
 
         assertTrue(
@@ -133,12 +133,12 @@ class NovaComposeSourceGuardTest {
                 activity.contains("updateLibraryFilterState(NovaLibraryFilterState())")
         )
         assertTrue(
-            "layout modes and poster-title visibility should be wired into actual library card rendering",
+            "Stage, Grid, Compact, and poster-title visibility should be wired into production rendering",
             activity.contains("val layoutMode = model.optionsState.layoutMode") &&
-                activity.contains("val compactCards = layoutMode == NovaLibraryLayoutMode.COMPACT_GRID") &&
-                activity.contains("val listCards = layoutMode == NovaLibraryLayoutMode.LIST") &&
-                activity.contains("compact = compactCards") &&
-                activity.contains("listStyle = listCards") &&
+                activity.contains("layoutMode == NovaLibraryLayoutMode.STAGE") &&
+                activity.contains("NovaLibraryStage(") &&
+                activity.contains("layoutMode = layoutMode") &&
+                activity.contains("layoutMode = NovaLibraryLayoutMode.COMPACT") &&
                 activity.contains("showPosterTitle = model.optionsState.showPosterTitles")
         )
         assertTrue(
@@ -149,7 +149,9 @@ class NovaComposeSourceGuardTest {
                 strings.contains("name=\"nova_library_options_sort_name_desc\">Name Z-A") &&
                 strings.contains("name=\"nova_library_options_sort_source\">Source") &&
                 strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR first") &&
-                strings.contains("name=\"nova_library_options_layout_compact_grid\">Compact grid") &&
+                strings.contains("name=\"nova_library_options_layout_stage\">Stage") &&
+                strings.contains("name=\"nova_library_options_layout_grid\">Grid") &&
+                strings.contains("name=\"nova_library_options_layout_compact\">Compact") &&
                 strings.contains("name=\"nova_library_options_poster_titles_title\">Poster titles") &&
                 strings.contains("name=\"nova_library_options_poster_titles_hide\">Plain artwork")
         )
@@ -158,9 +160,14 @@ class NovaComposeSourceGuardTest {
     @Test
     fun libraryPersistentChromeStaysOutOfTheGamesWay() {
         val activity = readNovaLibraryActivity()
+        val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
+        val sharedToolbar = stage.section(
+            "internal fun NovaLibraryLandscapeToolbarContent(",
+            "internal fun NovaLibraryStage(",
+        )
         val screen = activity.section(
             "private fun NovaLibraryScreen(",
-            "private fun NovaLibraryFocusedBackdrop("
+            "private fun NovaLibraryHomeHero("
         )
         val landscapeToolbar = activity.section(
             "private fun NovaLibraryLandscapeToolbar(",
@@ -173,9 +180,11 @@ class NovaComposeSourceGuardTest {
 
         assertTrue(
             "landscape toolbar should be a slim nav overlay, not another padded card slab above the grid",
-            landscapeToolbar.contains("surfaces.panel.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current)") &&
-                landscapeToolbar.contains(".padding(horizontal = 10.dp, vertical = 6.dp)") &&
-                landscapeToolbar.contains("fontSize = 16.sp")
+            sharedToolbar.contains("surfaces.panel.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current)") &&
+                sharedToolbar.contains(".padding(horizontal = 10.dp, vertical = 5.5.dp)") &&
+                sharedToolbar.contains("landscapeToolbarHeightDp(largeText)") &&
+                sharedToolbar.contains("fontSize = 16.sp") &&
+                landscapeToolbar.contains("NovaLibraryLandscapeToolbarContent(")
         )
         assertFalse(
             "landscape toolbar should not wrap the top nav in NovaLibraryPanel's full card treatment",
@@ -269,7 +278,7 @@ class NovaComposeSourceGuardTest {
         val strings = readSource("src/main/res/values/strings.xml")
         val screen = activity.section(
             "private fun NovaLibraryScreen(",
-            "private fun NovaLibraryFocusedBackdrop("
+            "private fun NovaLibraryHomeHero("
         )
         val keyHandler = activity.section(
             "override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {",
@@ -401,58 +410,42 @@ class NovaComposeSourceGuardTest {
     @Test
     fun libraryCoverLoadingIsKeyedOutsideAndroidViewUpdate() {
         val source = readNovaLibraryActivity()
-
-        val revisionKey = "key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER))"
+        val chrome = readSource("src/main/java/com/papi/nova/ui/NovaLibraryCinematicChrome.kt")
+        val posterCard = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
         val focusedRevisionKey = "key(PolarisApiClient.artworkPresentationKey(targetGame, PolarisGame.ARTWORK_KIND_POSTER))"
         assertTrue(
-            "both library cover views should be keyed by the manifest revision or legacy cover identity",
-            source.split(revisionKey).size - 1 >= 2
+            "shared Activity and Stage poster views should be revision-aware",
+            posterCard.contains("PolarisApiClient.artworkPresentationKey(") &&
+                posterCard.contains("PolarisGame.ARTWORK_KIND_POSTER") &&
+                chrome.contains("PolarisApiClient.artworkPresentationKey(") &&
+                chrome.contains("PolarisGame.ARTWORK_KIND_POSTER")
         )
         assertTrue(
             "focused backdrop and home Hero cover should also recreate when the Poster revision changes",
-            source.split(focusedRevisionKey).size - 1 >= 2
+            source.split(focusedRevisionKey).size - 1 >= 1 &&
+                chrome.contains("R.id.nova_artwork_presentation_key")
         )
         assertTrue(
-            "cover load should happen when the keyed ImageView is created",
-            source.contains("apiClient.loadCoverInto(this, game)")
+            "shared poster load should be fenced by the keyed ImageView presentation identity",
+            posterCard.contains("view.getTag(R.id.nova_artwork_presentation_key) != posterPresentationKey") &&
+                posterCard.contains("posterLoader?.invoke(view, game) ?: apiClient.loadCoverInto(view, game)")
         )
-        assertFalse(
-            "cover load should not be restarted from AndroidView.update on focus recomposition",
-            source.contains("update = { imageView ->\n                    apiClient.loadCoverInto(imageView, game)")
+        assertTrue(
+            "shared poster update should persist the presentation key before loading",
+            posterCard.contains("view.setTag(R.id.nova_artwork_presentation_key, posterPresentationKey)")
         )
     }
 
     @Test
-    fun libraryFocusedBackdropUsesFallbackArtworkCandidates() {
-        val source = readNovaLibraryActivity()
-        val screen = source.section(
-            "private fun NovaLibraryScreen(",
-            "private fun NovaLibraryFocusedBackdrop("
-        )
-        val backdrop = source.section(
-            "private fun NovaLibraryFocusedBackdrop(",
-            "private fun NovaLibraryHomeHero("
-        )
+    fun libraryCinematicBackdropUsesCachedHeroThenPosterFallback() {
+        val backdrop = readSource("src/main/java/com/papi/nova/ui/NovaLibraryCinematicChrome.kt")
 
-        assertTrue(
-            "focused backdrop remember keys should include the hero game so active-session backdrop changes are not stale",
-            screen.contains("remember(\n            model.filteredGames,\n            model.recentGames,\n            model.allGames,\n            model.hero.game,")
-        )
-        assertTrue(
-            "focused backdrop should fall back to visible library artwork before remaining blank",
-            screen.contains("model.hero.game") &&
-                screen.contains("model.filteredGames.firstOrNull()") &&
-                screen.contains("model.recentGames.firstOrNull()")
-        )
-        assertTrue(
-            "focused backdrop should let the cover loader use its game-id fallback when coverUrl is blank",
-            backdrop.contains("val artworkGame = game") &&
-                backdrop.contains("apiClient.loadCoverInto(this, targetGame)")
-        )
-        assertFalse(
-            "focused backdrop should not hide artwork only because Polaris omitted coverUrl",
-            backdrop.contains("coverUrl.trim().isNotEmpty()")
-        )
+        assertTrue(backdrop.contains("artworkKind = if (hasCachedHero)"))
+        assertTrue(backdrop.contains("PolarisGame.ARTWORK_KIND_HERO"))
+        assertTrue(backdrop.contains("PolarisGame.ARTWORK_KIND_POSTER"))
+        assertTrue(backdrop.contains("apiClient.loadArtworkInto(view, target.game, PolarisGame.ARTWORK_KIND_HERO)"))
+        assertTrue(backdrop.contains("apiClient.loadCoverInto(view, target.game)"))
+        assertFalse(backdrop.contains("coverUrl.trim().isNotEmpty()"))
     }
 
     @Test
@@ -493,13 +486,14 @@ class NovaComposeSourceGuardTest {
         val source = readNovaLibraryActivity()
         val screen = source.section(
             "private fun NovaLibraryScreen(",
-            "private fun NovaLibraryFocusedBackdrop("
+            "private fun NovaLibraryHomeHero("
         )
         val hero = source.section(
             "private fun NovaLibraryHomeHero(",
             "private fun NovaLibraryLandscapeToolbar("
         )
 
+        val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val landscape = screen.blockStartingAt("if (isLandscape) {")
 
         assertTrue(
@@ -554,8 +548,9 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "landscape compact shell should route persistent chrome metrics through the mapper before games lose another row",
             screen.contains("NovaLibraryUiStateMapper.screenPaddingDp(isLandscape).dp") &&
-                screen.contains("NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
-                screen.contains("Arrangement.spacedBy(NovaLibraryUiStateMapper.landscapeContentSpacingDp().dp)")
+                screen.contains("NovaLibraryLandscapeStageShell(") &&
+                stage.contains("controllerHintBarBottomPaddingDp(isLandscape = true)") &&
+                stage.contains("NovaLibraryUiStateMapper.landscapeContentSpacingDp().dp")
         )
         assertTrue(
             "hero caption stack should use tighter vertical spacing to avoid clipped badge rows",
@@ -621,7 +616,7 @@ class NovaComposeSourceGuardTest {
         val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
         val screen = activity.section(
             "private fun NovaLibraryScreen(",
-            "@Composable\n    private fun NovaLibraryFocusedBackdrop("
+            "@Composable\n    private fun NovaLibraryHomeHero("
         )
         val content = activity.section(
             "private fun NovaLibraryContent(",
@@ -800,9 +795,9 @@ class NovaComposeSourceGuardTest {
     @Test
     fun libraryRestoresLastFocusedGameAndFilter() {
         val source = readNovaLibraryActivity()
-        val gameCard = source.section(
-            "private fun NovaLibraryGameCard(",
-            "private fun NovaMiniBadge("
+        val posterFocus = source.section(
+            "private fun rememberLibraryPosterFocusRequester(",
+            "@Composable\n    private fun NovaLibraryLoadingGrid("
         )
         val filterChip = source.section(
             "private fun NovaSelectableChip(",
@@ -820,10 +815,12 @@ class NovaComposeSourceGuardTest {
                 source.contains("onPrimaryFilterFocused = { lastFocusedPrimaryFilter = it }")
         )
         assertTrue(
-            "game cards should request focus when they match the remembered game",
-            gameCard.contains("val focusRequester = remember { FocusRequester() }") &&
-                gameCard.contains(".focusRequester(focusRequester)") &&
-                gameCard.contains("if (restoreFocus && !restoreAttempted)")
+            "shared poster call sites should request focus when they match the remembered game",
+            source.windowed("rememberLibraryPosterFocusRequester(".length)
+                .count { it == "rememberLibraryPosterFocusRequester(" } == 3 &&
+                posterFocus.contains("val focusRequester = remember { FocusRequester() }") &&
+                posterFocus.contains("if (restoreFocus && !restoreAttempted)") &&
+                posterFocus.contains("focusRequester.requestFocus()")
         )
         assertTrue(
             "filter chips should request focus when they match the remembered filter",
@@ -834,141 +831,91 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun libraryGameCardsUseHighVisibilityFocusedFrame() {
-        val gameCard = readNovaLibraryActivity().section(
-            "private fun NovaLibraryGameCard(",
-            "private fun NovaMiniBadge("
+    fun gridCompactAndRecentUseSharedCinematicPosterCallSites() {
+        val activity = readNovaLibraryActivity()
+        val content = activity.section(
+            "private fun NovaLibraryContent(",
+            "private fun NovaLibraryRecentRail("
+        )
+        val recentRail = activity.section(
+            "private fun NovaLibraryRecentRail(",
+            "@Composable\n    private fun NovaLibraryLoadingGrid("
         )
 
-        assertTrue(
-            "focused library cards should use a thicker outer focus border",
-            gameCard.contains("width = if (focused) 3.dp else 1.dp")
+        assertEquals(
+            "Grid/Compact and Recent should be the Activity's only two shared-poster call sites",
+            2,
+            activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" },
+        )
+        assertEquals(
+            "the main grid should render one shared poster per keyed game",
+            1,
+            content.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" },
         )
         assertTrue(
-            "focused library cards should draw a foreground focus frame above cover art",
-            gameCard.contains(".border(4.dp, surfaces.focusRing, RoundedCornerShape(14.dp))")
+            "the main grid should pass the mapper-selected Grid or Compact mode into the shared poster",
+            content.contains("layoutMode = layoutMode") &&
+                content.contains("showPosterTitle = model.optionsState.showPosterTitles") &&
+                content.contains("onOpenDetail = { onOpenDetail(game) }")
+        )
+        assertEquals(
+            "the Recent/Continue rail should render one shared poster per keyed game",
+            1,
+            recentRail.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" },
         )
         assertTrue(
-            "focused library cards should add an accent wash so the selected cover is visible on busy art",
-            gameCard.contains(".background(surfaces.focusHalo.copy(alpha = 0.28f))")
+            "the Recent/Continue rail should use Compact presentation and preserve title/detail callbacks",
+            recentRail.contains("layoutMode = NovaLibraryLayoutMode.COMPACT") &&
+                recentRail.contains("showPosterTitle = showPosterTitles") &&
+                recentRail.contains("onOpenDetail = { onOpenDetail(game) }")
         )
         assertTrue(
-            "focused library cards should include a bright inner ring for contrast",
-            gameCard.contains(".border(2.dp, colors.onAccent.copy(alpha = 0.82f), RoundedCornerShape(10.dp))")
+            "Stage poster loading should receive a stable remembered loader rather than a new recomposition identity",
+            content.contains("val stablePosterLoader = remember(apiClient)") &&
+                content.contains("posterLoader = stablePosterLoader")
         )
-        assertTrue(
-            "focused library cards should expose a compact action affordance",
-            gameCard.contains("R.string.nova_library_card_action_details") &&
-                gameCard.contains(".align(Alignment.TopEnd)")
+        assertFalse(
+            "the retired fixed-height bordered library card must be deleted after both call sites migrate",
+            activity.contains("private fun NovaLibraryGameCard(") ||
+                activity.contains("private fun NovaLibraryCardTitleScrim(") ||
+                activity.contains("private fun NovaLibraryCardBadgeRow(")
         )
-        assertTrue(
-            "focused library cards should observe the same focus target that receives D-pad focus",
-            gameCard.indexOf(".onFocusChanged {") in 0 until
-                gameCard.indexOf(".combinedClickable(")
-        )
+        listOf(
+            "NovaLibraryCardTitleScrim(",
+            "NovaLibraryCardBadgeRow(",
+            ".background(surfaces.focusHalo.copy(alpha = 0.28f))",
+            ".border(4.dp, surfaces.focusRing",
+            "R.string.nova_library_card_action_details",
+        ).forEach { forbidden ->
+            assertFalse("migrated Activity poster call sites must not render legacy visual chrome: $forbidden", content.contains(forbidden) || recentRail.contains(forbidden))
+        }
     }
 
     @Test
-    fun libraryGameCardHeightsComeFromSharedSizingRules() {
-        val gameCard = readNovaLibraryActivity().section(
-            "private fun NovaLibraryGameCard(",
-            "private fun NovaMiniBadge("
+    fun gridAndCompactLoadingPlaceholdersUsePortraitPosterGeometry() {
+        val activity = readNovaLibraryActivity()
+        val content = activity.section(
+            "private fun NovaLibraryContent(",
+            "private fun NovaLibraryRecentRail("
         )
-        val loadingCard = readNovaLibraryActivity().section(
-            "private fun NovaLoadingCard(",
+        val loading = activity.section(
+            "private fun NovaLibraryLoadingGrid(",
             "private fun NovaLibraryRecoveryState("
         )
 
-        assertTrue(
-            "library game cards should use shared sizing rules for grid, compact grid, and list modes",
-            gameCard.contains("NovaLibraryUiStateMapper.gameCardHeightDp(layoutMode = layoutMode, isLandscape = isLandscape).dp") &&
-                gameCard.contains("listStyle -> NovaLibraryLayoutMode.LIST") &&
-                gameCard.contains("compact -> NovaLibraryLayoutMode.COMPACT_GRID")
+        assertFalse(
+            "shared-poster grids should no longer thread the retired fixed game-card height",
+            content.contains("gameCardHeightDp") || loading.contains("gameCardHeightDp") || loading.contains("cardHeightDp")
         )
         assertTrue(
-            "library loading cards should match the same default card sizing",
-            loadingCard.contains("NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = isLandscape).dp")
+            "loading posters should use the same mapper-owned 2:3 artwork ratio and mode-specific focus gutter",
+            loading.contains("NovaLibraryUiStateMapper.posterPresentationSpec(layoutMode)") &&
+                loading.contains(".padding(horizontal = presentationSpec.focusGutterDp.dp)") &&
+                loading.contains(".aspectRatio(NovaLibraryUiStateMapper.posterAspectRatio())")
         )
         assertFalse(
-            "library game cards should not keep the old large default heights inline",
-            gameCard.contains("isLandscape -> 164.dp") || gameCard.contains("else -> 184.dp")
-        )
-    }
-
-    @Test
-    fun libraryGameCardsReserveReadableTitleBandOnBusyArtwork() {
-        val activity = readNovaLibraryActivity()
-        val gameCard = activity.section(
-            "private fun NovaLibraryGameCard(",
-            "private fun NovaMiniBadge("
-        )
-        val titleScrim = if (activity.contains("private fun NovaLibraryCardTitleScrim(")) {
-            activity.section(
-                "private fun NovaLibraryCardTitleScrim(",
-                "private fun NovaLibraryCardBadgeRow("
-            )
-        } else {
-            ""
-        }
-
-        assertTrue(
-            "grid game cards should gate the poster title/caption overlay so users can choose plain artwork posters",
-            gameCard.contains("showPosterTitle: Boolean = true") &&
-                gameCard.contains("if (showPosterTitle) {") &&
-                gameCard.contains("NovaLibraryCardTitleScrim(") &&
-                gameCard.indexOf("if (showPosterTitle) {") in 0 until gameCard.lastIndexOf("text = title")
-        )
-        assertTrue(
-            "grid game cards should draw a dedicated title-safe scrim above cover art before title text when titles are enabled",
-            gameCard.contains("NovaLibraryCardTitleScrim(") &&
-                gameCard.indexOf("NovaLibraryCardTitleScrim(") in 0 until gameCard.lastIndexOf("text = title")
-        )
-        assertTrue(
-            "title scrim should be a bounded bottom band, not a weak full-card wash that leaves white logo art behind white text",
-            titleScrim.contains(".height(if (compact) 64.dp else 88.dp)") &&
-                titleScrim.contains("0.36f to surfaces.mediaScrimBottom.copy(alpha = 0.64f)") &&
-                titleScrim.contains("1.0f to surfaces.mediaScrimBottom.copy(alpha = 0.96f)")
-        )
-        assertTrue(
-            "title and metadata should sit inside a small padded caption panel for extra contrast over noisy cover art",
-            gameCard.contains(".background(surfaces.mediaScrimBottom.copy(alpha = 0.34f))") &&
-                gameCard.contains(".padding(horizontal = 7.dp, vertical = 5.dp)")
-        )
-    }
-
-    @Test
-    fun libraryMiniBadgesStaySmallOnDenseCards() {
-        val activity = readNovaLibraryActivity()
-        val miniBadge = activity.section(
-            "private fun NovaMiniBadge(",
-            "@Composable\n    private fun NovaLibraryLoadingGrid("
-        )
-        val badgeRow = if (activity.contains("private fun NovaLibraryCardBadgeRow(")) {
-            activity.section(
-                "private fun NovaLibraryCardBadgeRow(",
-                "private fun NovaMiniBadge("
-            )
-        } else {
-            ""
-        }
-
-        assertTrue(
-            "library card badges should use compact text",
-            miniBadge.contains("fontSize = 8.sp")
-        )
-        assertTrue(
-            "library card badges should pin a compact line height",
-            miniBadge.contains("lineHeight = 9.sp")
-        )
-        assertTrue(
-            "library card badges should use tighter pill padding",
-            miniBadge.contains(".padding(horizontal = 5.dp, vertical = 1.dp)")
-        )
-        assertTrue(
-            "grid cards should render badges through a bounded row so repeated HDR/Recent chips do not dominate cover art",
-            badgeRow.contains("private fun NovaLibraryCardBadgeRow(") &&
-                badgeRow.contains(".widthIn(max = if (compact) 92.dp else 128.dp)") &&
-                badgeRow.contains("horizontalArrangement = Arrangement.spacedBy(4.dp)")
+            "loading posters must not retain the retired short landscape crop",
+            loading.contains(".height(cardHeightDp.dp)") || loading.contains("112.dp") || loading.contains("88.dp")
         )
     }
 
@@ -993,6 +940,10 @@ class NovaComposeSourceGuardTest {
     @Test
     fun libraryShowsCompactStatusMetadataWithoutPermanentRailCounts() {
         val source = readNovaLibraryActivity()
+        val sharedToolbar = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt").section(
+            "internal fun NovaLibraryLandscapeToolbarContent(",
+            "internal fun NovaLibraryStage(",
+        )
         val landscapeToolbar = source.section(
             "private fun NovaLibraryLandscapeToolbar(",
             "private fun NovaLibraryTopHeader("
@@ -1021,8 +972,9 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "compact chrome should keep Polaris readiness and result metadata visible without count-card rail chrome",
-            landscapeToolbar.contains("R.string.nova_system_menu_status_polaris_ready") &&
-                landscapeToolbar.contains("R.string.nova_library_results_format") &&
+            sharedToolbar.contains("R.string.nova_system_menu_status_polaris_ready") &&
+                sharedToolbar.contains("R.string.nova_library_results_format") &&
+                landscapeToolbar.contains("NovaLibraryLandscapeToolbarContent(") &&
                 topHeader.contains("NovaLibraryCompactMetaRow(") &&
                 compactMeta.contains("R.string.nova_system_menu_status_polaris_ready") &&
                 compactMeta.contains("R.string.nova_library_status_checking") &&
@@ -1343,20 +1295,17 @@ class NovaComposeSourceGuardTest {
             "fun NovaGameDetailSheetContent(",
             "@Composable\nprivate fun NovaGameDetailScrollableContent("
         )
-        val artworkIndex = content.indexOf("ArtworkCorrectionPanel(")
+        val artworkIndex = content.indexOf("NovaArtworkStudio(")
         val stabilityIndex = content.indexOf("optimizationState.stability?.let")
         val hintIndex = content.indexOf("NovaControllerHintBar(")
         assertTrue("artwork preferences should follow functional and insight content", artworkIndex > stabilityIndex)
         assertTrue("artwork preferences should remain above the controller hint footer", artworkIndex in 1 until hintIndex)
 
-        val panel = source.section(
-            "private fun ArtworkCorrectionPanel(",
-            "@Composable\nprivate fun LogoTransformControls("
-        )
+        val panel = readSource("src/main/java/com/papi/nova/ui/NovaArtworkStudio.kt")
         assertTrue("artwork preferences should start collapsed", panel.contains("var expanded by remember(initialQuery) { mutableStateOf(false) }"))
         assertTrue("artwork header should toggle expansion", panel.contains("clickable { expanded = !expanded }") && panel.contains("if (expanded)"))
-        assertTrue("compact artwork header should load the real manifest icon only when available", panel.contains("if (iconAvailable)") && panel.contains("key(iconPresentationKey)") && panel.contains("iconLoader(this)"))
-        assertTrue("logo preview should not show a generic placeholder when no logo exists", panel.contains("if (logoAvailable)") && panel.contains("nova_artwork_logo_unavailable"))
+        assertTrue("Studio should show persisted identity and composition beside the live draft", panel.contains("R.string.nova_artwork_current_match") && panel.contains("R.string.nova_artwork_current_composition") && panel.contains("R.string.nova_artwork_live_preview"))
+        assertTrue("Studio should render Poster, Hero, Logo, and Icon composition layers", NovaArtworkKinds.ALL.all { kind -> panel.contains("kind = NovaArtworkKinds.${kind.uppercase()}") })
     }
 
     @Test
@@ -1366,7 +1315,7 @@ class NovaComposeSourceGuardTest {
         val strings = readSource("src/main/res/values/strings.xml")
         val searchHandler = sheet.section(
             "onSearchArtwork = { query ->",
-            "onApplyArtwork = { candidate, kinds ->",
+            "onIdentitySelected = { candidate ->",
         )
 
         assertTrue(
@@ -1438,8 +1387,11 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "library content should render a persistent mapper-owned recovery state when no games loaded",
-            content.contains("loadErrorMessage != null && model.allGames.isEmpty()") &&
-                content.contains("NovaLibraryUiStateMapper.loadFailureRecoveryState(loadErrorMessage)") &&
+            content.contains("NovaLibraryUiStateMapper.shouldShowLoadFailure(") &&
+                content.contains("loadErrorMessage = loadErrorMessage") &&
+                content.contains("heroReason = model.hero.reason") &&
+                content.contains("NovaLibraryUiStateMapper.loadFailureRecoveryState(") &&
+                content.contains("loadErrorMessage.orEmpty()") &&
                 content.contains("NovaLibraryRecoveryState(")
         )
         assertTrue(
@@ -1517,7 +1469,7 @@ class NovaComposeSourceGuardTest {
     fun libraryRecentRailTargetsFourVisibleCards() {
         val rail = readNovaLibraryActivity().section(
             "private fun NovaLibraryRecentRail(",
-            "private fun NovaLibraryGameCard("
+            "@Composable\n    private fun NovaLibraryLoadingGrid("
         )
 
         assertTrue(
@@ -1715,7 +1667,7 @@ class NovaComposeSourceGuardTest {
         val strings = readSource("src/main/res/values/strings.xml")
         val hints = activity.section(
             "private fun novaLibraryControllerHints(",
-            "@Composable\n    private fun NovaLibraryFocusedBackdrop("
+            "@Composable\n    private fun NovaLibraryHomeHero("
         )
         val keyHandler = activity.section(
             "override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {",
@@ -1751,12 +1703,13 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun reusableControllerHintBarIsWiredAcrossLibraryDetailAndSettings() {
+    fun libraryUsesCinematicHintsWhileDetailAndSettingsKeepTheReusableBar() {
         val focusComponents = readNovaFocusComponents()
+        val cinematicChrome = readSource("src/main/java/com/papi/nova/ui/NovaLibraryCinematicChrome.kt")
         val library = readNovaLibraryActivity()
         val libraryScreen = library.section(
             "private fun NovaLibraryScreen(",
-            "@Composable\n    private fun NovaLibraryFocusedBackdrop("
+            "@Composable\n    private fun NovaLibraryHomeHero("
         )
         val detail = readNovaGameDetailSheet()
         val detailContent = detail.section(
@@ -1770,7 +1723,7 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "shared focus components should expose a small, reusable controller hint model and bar",
+            "shared focus components should retain the reusable model and bar for non-library surfaces",
             focusComponents.contains("data class NovaControllerHint(") &&
                 focusComponents.contains("fun NovaControllerHintBar(") &&
                 focusComponents.contains(".horizontalScroll(rememberScrollState())") &&
@@ -1778,26 +1731,27 @@ class NovaComposeSourceGuardTest {
                 focusComponents.contains("contentDescription = hintContentDescription")
         )
         assertTrue(
-            "library should default to drawer-first landscape controls while still preserving bottom space for the controller hint bar",
-            libraryScreen.contains("val controllerHintBarBottomPadding = NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
+            "library should use its borderless full-width cinematic hint renderer while preserving reserved footer space",
+            cinematicChrome.contains("internal fun NovaLibraryCinematicControllerHints(") &&
+                libraryScreen.contains("val controllerHintBarBottomPadding = NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
                 libraryScreen.contains("val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()") &&
-                libraryScreen.contains("val controllerHintBarLandscapeStartPadding = if (isLandscape && showLandscapeControlRail) railWidth + 10.dp else 0.dp") &&
                 libraryScreen.contains("if (isLandscape) {") &&
                 libraryScreen.contains("NovaLibraryLandscapeToolbar(") &&
                 libraryScreen.contains(".padding(bottom = controllerHintBarBottomPadding)") &&
-                libraryScreen.contains("NovaControllerHintBar(") &&
+                libraryScreen.contains("NovaLibraryCinematicControllerHints(") &&
                 libraryScreen.contains("hints = visibleControllerHints") &&
-                libraryScreen.contains("modifier = Modifier") &&
+                libraryScreen.contains("semanticsDescription = controllerHintDescription") &&
                 libraryScreen.contains(".align(Alignment.BottomCenter)") &&
-                libraryScreen.contains(".padding(start = controllerHintBarLandscapeStartPadding)") &&
                 libraryScreen.contains(".fillMaxWidth()")
         )
         assertFalse(
-            "landscape should no longer require the permanent left rail as the default customization surface",
-            libraryScreen.contains("val controllerHintBarLandscapeStartPadding = if (isLandscape) railWidth + 10.dp else 0.dp")
+            "library alone should stop using the shared bordered bar and obsolete left-start offset",
+            libraryScreen.contains("NovaControllerHintBar(") ||
+                library.contains("import com.papi.nova.ui.compose.NovaControllerHintBar") ||
+                libraryScreen.contains("controllerHintBarLandscapeStartPadding")
         )
         assertTrue(
-            "game detail sheet should use the shared hint bar with explicit horizontal and bottom padding inside the scrollable sheet",
+            "game detail sheet should keep the shared hint bar with explicit horizontal and bottom padding inside the scrollable sheet",
             detailContent.contains("NovaControllerHintBar(") &&
                 detailContent.contains("hints = novaGameDetailControllerHints()") &&
                 detailContent.contains(".padding(start = 14.dp, end = 14.dp, top = 12.dp)") &&
@@ -2219,6 +2173,10 @@ class NovaComposeSourceGuardTest {
     @Test
     fun composeLibraryActiveSessionCardExposesEndSessionForOwnedStreams() {
         val source = readNovaLibraryActivity()
+        val endActiveSession = source.section(
+            "private fun endActiveSession(",
+            "private fun openServerManagement("
+        )
         val card = source.section(
             "private fun NovaLibraryActiveSessionCard(",
             "private fun formatStreamProfile("
@@ -2237,11 +2195,13 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "ending from the library should route through the same confirmed quit path and clear the card",
-            source.contains("private fun endActiveSession(session: NovaLibraryActiveSessionUiState)") &&
-                source.contains("ComputerDetails.AddressTuple(streamHost, streamHttpPort)") &&
-                source.contains("ServerHelper.doQuit(") &&
-                source.contains("activeSession = null") &&
-                source.contains("scheduleActiveSessionFollowUpRefreshes(clearOnly = true)")
+            endActiveSession.contains("ComputerDetails.AddressTuple(streamHost, streamHttpPort)") &&
+                endActiveSession.contains("ServerHelper.doQuit(") &&
+                endActiveSession.contains("val generation = beginActiveSessionRefresh()") &&
+                endActiveSession.contains("activeSession = null") &&
+                endActiveSession.contains("scheduleActiveSessionFollowUpRefreshes(") &&
+                endActiveSession.contains("clearOnly = true") &&
+                endActiveSession.contains("generation = generation")
         )
     }
 
@@ -2370,6 +2330,411 @@ class NovaComposeSourceGuardTest {
         )
     }
 
+    @Test
+    fun artworkProgressAccountingIsPublishedAtomically() {
+        val updater = readSource("src/main/java/com/papi/nova/ui/NovaArtworkLibraryUpdater.kt")
+        val workerAccounting = updater.section(
+            "val status = try {",
+            "results[gameIndex] = ItemResult",
+        )
+
+        assertTrue(
+            workerAccounting.contains(
+                "withContext(NonCancellable) {\n" +
+                    "                        callbackLock.withLock {\n" +
+                    "                            when (status)"
+            ) &&
+                workerAccounting.indexOf("when (status)") <
+                    workerAccounting.indexOf("completed.incrementAndGet()") &&
+                workerAccounting.indexOf("completed.incrementAndGet()") <
+                    workerAccounting.indexOf("onProgress(snapshot())")
+        )
+    }
+
+
+    @Test
+    fun libraryOptionsExposeBoundedArtworkLibraryUpdateLifecycle() {
+        val activity = readNovaLibraryActivity()
+        val strings = readSource("src/main/res/values/strings.xml")
+        val apiClient = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
+        val updater = readSource("src/main/java/com/papi/nova/ui/NovaArtworkLibraryUpdater.kt")
+        val optionsSheet = activity.section(
+            "private fun NovaLibraryOptionsSheet(",
+            "private fun NovaLibraryFilterSheet("
+        )
+        val startOwnership = updater.section(
+            "fun start(games: List<PolarisGame>): Boolean",
+            "fun cancel(): Boolean",
+        )
+        val cancelOwnership = updater.section(
+            "fun cancel(): Boolean",
+            "fun beginRefresh(): NovaArtworkLibraryRefreshToken",
+        )
+        val refreshPublication = updater.section(
+            "fun publishRefresh(",
+            "fun discardRefresh(",
+        )
+        assertTrue(
+            activity.contains("private lateinit var artworkLibraryUpdateViewModel") &&
+                activity.contains("ViewModelProvider(") &&
+                activity.contains("repeatOnLifecycle(Lifecycle.State.STARTED)") &&
+                activity.contains("apiClient.getAllGames()") &&
+                activity.contains("val published = artworkLibraryUpdateViewModel.publishRefresh(") &&
+                activity.contains(") { publishedGames ->") &&
+                activity.contains("if (!published) return@launch") &&
+                activity.contains("ownsVisibleRefreshState") &&
+                activity.contains("allGames = publishedGames") &&
+                activity.contains("artworkLibraryUpdateViewModel.start(selectedGames)") &&
+                activity.contains("artworkLibraryUpdateViewModel.cancel()") &&
+                !activity.contains("private var artworkLibraryUpdateJob: Job?")
+        )
+        assertTrue(
+            updater.contains("class NovaArtworkLibraryUpdateViewModel(") &&
+                updater.contains("scope = viewModelScope") &&
+                updater.contains("parallelism = 2") &&
+                updater.contains("if (activeJob != null) return false") &&
+                !updater.contains("if (activeJob?.isActive == true) return false") &&
+                !updater.contains("activeJob?.takeIf { it.isActive }") &&
+                updater.contains("withContext(NonCancellable)") &&
+                updater.contains("val workerCount = minOf(parallelism, eligibleGames.size)") &&
+                updater.contains("currentCoroutineContext().ensureActive()") &&
+                updater.contains("List(workerCount)") &&
+                !updater.contains("eligibleGames.map { game ->") &&
+                updater.contains("fun publishRefresh(") &&
+                updater.contains("publish: (List<PolarisGame>) -> Unit") &&
+                updater.contains("publish(merged)") &&
+                updater.contains("if (token.id != refreshSequence) {") &&
+                updater.contains("return@synchronized false") &&
+                updater.contains("acknowledgedPublicationSequence") &&
+                updater.contains("committed.sequence <= acknowledgedPublicationSequence") &&
+                updater.contains("fun discardRefresh(token: NovaArtworkLibraryRefreshToken): Boolean") &&
+                updater.contains("activeRefreshes")
+        )
+        assertTrue(
+            refreshPublication.contains("try {") &&
+                refreshPublication.contains("publish(merged)") &&
+                refreshPublication.contains("} finally {") &&
+                refreshPublication.contains("activeRefreshes.remove(token.id)") &&
+                refreshPublication.indexOf("publish(merged)") <
+                    refreshPublication.indexOf("acknowledgedPublicationSequence")
+        )
+        assertTrue(
+            startOwnership.contains("launched.invokeOnCompletion { cause ->") &&
+                startOwnership.contains("if (activeJob === launched)") &&
+                startOwnership.contains("cause is CancellationException") &&
+                startOwnership.indexOf("activeJob = launched") <
+                    startOwnership.indexOf("launched.invokeOnCompletion") &&
+                startOwnership.indexOf("launched.invokeOnCompletion") <
+                    startOwnership.indexOf("launched.start()")
+        )
+        assertTrue(
+            cancelOwnership.contains("return synchronized(runLock)") &&
+                cancelOwnership.indexOf("onCancelAdmissionAttempt()") <
+                    cancelOwnership.indexOf("return synchronized(runLock)") &&
+                cancelOwnership.indexOf("val job = activeJob") <
+                    cancelOwnership.indexOf("_snapshot.update") &&
+                cancelOwnership.indexOf("_snapshot.update") <
+                    cancelOwnership.indexOf("job.cancel()")
+        )
+        assertTrue(
+            updater.contains("Channel<IndexedValue<PolarisGame>>(") &&
+                updater.contains("capacity = maxOf(1, workerCount)") &&
+                updater.contains("eligibleGames.withIndex().forEach { queue.send(it) }") &&
+                updater.contains("} finally {\n                queue.close()") &&
+                updater.contains("for ((gameIndex, game) in queue)") &&
+                updater.contains(
+                    "for ((gameIndex, game) in queue) {\n" +
+                        "                    currentCoroutineContext().ensureActive()\n" +
+                        "                    val status = try {\n" +
+                        "                        update(game).status"
+                ) &&
+                updater.contains("val workers = List(workerCount)") &&
+                updater.contains("workers.awaitAll()") &&
+                updater.contains("producer.join()") &&
+                !updater.contains("nextGameIndex") &&
+                !updater.contains("eligibleGames.map { game ->")
+        )
+        assertTrue(
+            apiClient.contains("internal fun paginateAllGames(") &&
+                apiClient.contains("private fun getGamesPageOrThrow(") &&
+                apiClient.contains("fun getAllGames(pageSize: Int = 100") &&
+                apiClient.contains("paginateAllGames(pageSize)") &&
+                apiClient.contains("getGamesPageOrThrow(limit = pageSize, offset = offset)") &&
+                apiClient.contains("throw IOException(\"game library HTTP") &&
+                apiClient.contains("offset += pageSize") &&
+                apiClient.contains("if (games.size == before)") &&
+                apiClient.contains("throw IOException(\"game library pagination made no progress\")") &&
+                !apiClient.contains("putIfAbsent") &&
+                apiClient.contains("fun updateArtworkForLibrary(gameId: String)") &&
+                apiClient.contains("buildArtworkLibraryUpdateBody()") &&
+                apiClient.contains("parseArtworkLibraryUpdateResponse(json)")
+        )
+        assertTrue(
+            optionsSheet.contains("R.string.nova_artwork_library_update_title") &&
+                optionsSheet.contains("NovaArtworkLibraryUpdateUiState.Running") &&
+                optionsSheet.contains("LinearProgressIndicator(") &&
+                optionsSheet.contains("onClick = ::cancelArtworkLibraryUpdate") &&
+                optionsSheet.contains("onClick = { startArtworkLibraryUpdate(")
+        )
+        assertTrue(
+            optionsSheet.contains("R.string.nova_artwork_library_update_policy") &&
+                optionsSheet.contains("R.string.nova_artwork_library_update_preserve_custom") &&
+                optionsSheet.contains("R.string.nova_artwork_library_update_retry")
+        )
+        assertTrue(
+            strings.contains("name=\"nova_artwork_library_update_title\">Update artwork library") &&
+                strings.contains("name=\"nova_artwork_library_update_policy\"") &&
+                strings.contains("name=\"nova_artwork_library_update_preserve_custom\"") &&
+                strings.contains("name=\"nova_artwork_library_update_cancel\"") &&
+                strings.contains("name=\"nova_artwork_library_update_retry\"")
+        )
+    }
+
+
+    @Test
+    fun artworkLibraryCapabilityFailureExplainsServerMismatch() {
+        val activity = readNovaLibraryActivity()
+        val strings = readSource("src/main/res/values/strings.xml")
+        val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
+        assertTrue(activity.contains("NovaArtworkLibraryUpdateFailure.SERVER_CAPABILITY_UNAVAILABLE"))
+        assertTrue(activity.contains("R.string.nova_artwork_library_update_unavailable"))
+        assertTrue(strings.contains("name=\"nova_artwork_library_update_unavailable\"") && strings.contains("Update Polaris"))
+        assertTrue(api.contains("?: throw PolarisArtworkLibraryUpdateUnavailableException()") && api.contains("response.code == 404"))
+    }
+
+    // Task 9 plain-art/default/semantic source guards: BEGIN
+    @Test
+    fun task9SharedPosterCardKeepsMetadataInAccessibilityOnly() {
+        val poster = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
+        val card = poster.section(
+            "internal fun NovaLibraryPosterCard(",
+            "@Composable\nprivate fun NovaLibraryPosterArtwork(",
+        )
+        val artwork = poster.section(
+            "private fun NovaLibraryPosterArtwork(",
+            "@Composable\nprivate fun NovaLibraryPosterCaption(",
+        )
+        val metadata = poster.substringAfter("private fun novaLibraryPosterMetadata(game: PolarisGame): String =")
+        val visualCard = card.substringAfter("    Column(")
+
+        assertTrue(
+            "the accessible poster label must retain title, nonblank source/category metadata, HDR, recent, and Details",
+            card.contains("val metadata = novaLibraryPosterMetadata(game)") &&
+                card.contains("add(title)") &&
+                card.contains("if (metadata.isNotBlank()) add(metadata)") &&
+                card.contains("if (game.hdrSupported) add(hdrLabel)") &&
+                card.contains("if (game.lastLaunched > 0L) add(recentLabel)") &&
+                card.contains("add(detailsLabel)") &&
+                card.contains("contentDescription = accessibleLabel") &&
+                metadata.contains("listOf(game.sourceLabel, game.categoryLabel)") &&
+                metadata.contains(".filter(String::isNotBlank)")
+        )
+        assertTrue(
+            "poster semantic activation must remain the detail-only path",
+            card.contains("onOpenDetail: () -> Unit") &&
+                card.contains(".combinedClickable(") &&
+                card.contains("onClick = onOpenDetail")
+        )
+        listOf("onLaunch", "onStream", "launchGame", "startStream").forEach { forbidden ->
+            assertFalse("poster semantics must not gain launch/stream callback $forbidden", card.contains(forbidden))
+        }
+        listOf(
+            "NovaStagePill(",
+            "NovaBadge(",
+            "NovaMiniBadge(",
+            "NovaLibraryCardBadgeRow(",
+            "NovaLibraryCardTitleScrim(",
+            "SELECTED",
+            "Selected",
+            "R.string.nova_library_badge_hdr",
+            "R.string.nova_library_filter_recent",
+            "R.string.nova_library_card_action_details",
+            "sourceLabel",
+            "categoryLabel",
+        ).forEach { forbidden ->
+            assertFalse("plain poster visual tree must not render $forbidden", visualCard.contains(forbidden))
+        }
+        assertFalse("poster artwork must not render text or pill overlays", artwork.contains("Text(") || artwork.contains("Pill("))
+    }
+
+    @Test
+    fun task9SharedPosterCardUsesScaleOnlyWithoutVisualBadgesOrBorders() {
+        val poster = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
+        val card = poster.section(
+            "internal fun NovaLibraryPosterCard(",
+            "@Composable\nprivate fun NovaLibraryPosterArtwork(",
+        )
+        val artwork = poster.section(
+            "private fun NovaLibraryPosterArtwork(",
+            "@Composable\nprivate fun NovaLibraryPosterCaption(",
+        )
+        val implementation = poster.section(
+            "internal fun NovaLibraryPosterCard(",
+            "private fun novaLibraryPosterMetadata(game: PolarisGame): String =",
+        )
+
+        assertTrue(
+            "shared PosterCard focus treatment must stay scale-led with the approved alpha/lift support",
+            card.contains("val presentationSpec = NovaLibraryUiStateMapper.posterPresentationSpec(layoutMode)") &&
+                card.contains("val scale by animateFloatAsState(") &&
+                card.contains("targetValue = if (focused) presentationSpec.focusedScale else 1f") &&
+                card.contains("val alpha by animateFloatAsState(") &&
+                card.contains("targetValue = if (focused) 1f else presentationSpec.unfocusedAlpha") &&
+                card.contains("val lift by animateDpAsState(") &&
+                card.contains("targetValue = if (focused) NovaPosterFocusedLift else 0.dp") &&
+                artwork.contains("scaleX = scale") &&
+                artwork.contains("scaleY = scale") &&
+                artwork.contains("translationY = -lift.toPx()") &&
+                artwork.contains("this.alpha = alpha")
+        )
+        assertFalse("PosterCard implementation must remain borderless", implementation.contains(".border("))
+        listOf(
+            "NovaStagePill(",
+            "NovaBadge(",
+            "NovaMiniBadge(",
+            "NovaLibraryCardBadgeRow(",
+            "NovaLibraryCardTitleScrim(",
+            "SELECTED",
+            "Selected",
+        ).forEach { forbidden ->
+            assertFalse("PosterCard implementation must not restore visual overlay $forbidden", implementation.contains(forbidden))
+        }
+    }
+
+    @Test
+    fun task9StageGridCompactAndRecentUseOnlySharedPosterCard() {
+        val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
+        val activity = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        val stageGrid = stage.section(
+            "private fun NovaLibraryStagePosterGrid(",
+            "internal fun NovaLibraryStageRow(",
+        )
+        val stageRow = stage.section(
+            "internal fun NovaLibraryStageRow(",
+            "private fun stagePosterCaptionBudgetDp(",
+        )
+        val libraryGrid = activity.section(
+            "private fun NovaLibraryContent(",
+            "private fun NovaLibraryRecentRail(",
+        )
+        val recentContinue = activity.section(
+            "private fun NovaLibraryRecentRail(",
+            "private fun rememberLibraryPosterFocusRequester(",
+        )
+
+        assertTrue(
+            "Stage and compact Stage rails must each call the shared PosterCard",
+            stageGrid.countOccurrences("NovaLibraryPosterCard(") == 1 &&
+                stageGrid.contains("layoutMode = NovaLibraryLayoutMode.STAGE") &&
+                stageRow.countOccurrences("NovaLibraryPosterCard(") == 1 &&
+                stageRow.contains("layoutMode = NovaLibraryLayoutMode.STAGE")
+        )
+        assertTrue(
+            "Grid/Compact library content and Recent/Continue must call the shared PosterCard",
+            libraryGrid.countOccurrences("NovaLibraryPosterCard(") == 1 &&
+                libraryGrid.contains("layoutMode = layoutMode") &&
+                recentContinue.countOccurrences("NovaLibraryPosterCard(") == 1 &&
+                recentContinue.contains("layoutMode = NovaLibraryLayoutMode.COMPACT")
+        )
+        listOf("NovaLibraryStageCard(", "NovaLibraryGameCard(").forEach { legacy ->
+            assertFalse("legacy poster definition/call must stay deleted: $legacy", stage.contains(legacy) || activity.contains(legacy))
+        }
+    }
+
+    @Test
+    fun task9StageIdentityUsesOneManifestIconAndOneRenderedTitle() {
+        val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
+        val identity = stage.blockStartingAt("private fun NovaLibraryStageHero(")
+
+        assertTrue(
+            "Stage identity must use exactly one manifest-icon rendering path",
+            identity.countOccurrences("AndroidView(") == 1 &&
+                identity.countOccurrences("game.iconArtwork") == 1 &&
+                identity.countOccurrences("PolarisGame.ARTWORK_KIND_ICON") == 2 &&
+                identity.contains("artworkLoader(view, game, PolarisGame.ARTWORK_KIND_ICON)")
+        )
+        assertTrue(
+            "Stage identity must render the game name exactly once in Nova text; the second"
+                + " Text is the supporting source/category/capability line, not another title",
+            identity.countOccurrences("Text(") == 2 &&
+                identity.countOccurrences("text = game.name") == 1 &&
+                identity.contains("stageHeroMetadata(game)")
+        )
+        assertFalse("Stage identity must never request logo artwork", identity.contains("ARTWORK_KIND_LOGO"))
+        assertFalse(
+            "Stage identity must not add a separate logo or wordmark path",
+            identity.lowercase().contains("wordmark") || identity.lowercase().contains("logo")
+        )
+    }
+    // Task 9 plain-art/default/semantic source guards: END
+
+    @Test
+    fun sharedPosterCardIsCleanOwnerAcrossStageGridAndRecentMigrations() {
+        val poster = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
+        val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
+        val activity = readNovaLibraryActivity()
+        val focusComponents = readNovaFocusComponents()
+        val signatureStart = poster.indexOf("internal fun NovaLibraryPosterCard(")
+        val signature = poster.substring(signatureStart, poster.indexOf("\n) {", signatureStart) + 4)
+        val modifierStart = poster.indexOf("modifier = modifier", signatureStart)
+        val requesterIndex = poster.indexOf(".then(focusRequesterModifier)", modifierStart)
+        val focusObserverIndex = poster.indexOf(".onFocusChanged", modifierStart)
+        val clickOwnerIndex = poster.indexOf(".combinedClickable(", modifierStart)
+
+        assertTrue(poster.contains("internal fun NovaLibraryPosterCard("))
+        assertTrue(poster.contains(".semantics(mergeDescendants = true)"))
+        assertEquals(1, poster.windowed(".combinedClickable(".length).count { it == ".combinedClickable(" })
+        assertFalse("combinedClickable already owns focus and activation", poster.contains(".focusable()"))
+        assertFalse(poster.contains("import androidx.compose.foundation.focusable"))
+        assertTrue(
+            "FocusRequester and onFocusChanged must precede combinedClickable so they observe its focus target",
+            requesterIndex >= 0 && requesterIndex < focusObserverIndex && focusObserverIndex < clickOwnerIndex,
+        )
+        assertTrue(signature.contains("onOpenDetail: () -> Unit"))
+        assertFalse(signature.contains("onLaunch") || signature.contains("onStream") || signature.contains("onPrimaryAction"))
+        assertTrue(poster.contains("posterLoader: ((ImageView, PolarisGame) -> Unit)? = null"))
+        assertTrue(poster.contains("val posterLoaderIdentity: Any = posterLoader ?: apiClient"))
+        assertTrue(poster.contains("remember(artworkRevisionKey, posterLoaderIdentity)"))
+        assertTrue(poster.contains("posterLoader?.invoke(view, game) ?: apiClient.loadCoverInto(view, game)"))
+        assertTrue(poster.contains(".testTag(\"nova-poster-${'$'}{game.id}\")"))
+        assertTrue(poster.contains(".testTag(\"nova-poster-art-${'$'}{game.id}\")"))
+        assertFalse(poster.contains(".border("))
+        assertFalse(poster.contains("SELECTED"))
+        assertFalse(poster.contains("NovaFocusMotionSpec.CardFocusedScale"))
+        assertTrue(focusComponents.contains("const val DurationMillis = 150"))
+        assertTrue(focusComponents.contains("const val CardFocusedScale = 1.025f"))
+        assertEquals(2, stage.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
+        assertEquals(2, activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
+    }
+
+    @Test
+    fun libraryBackdropSelectionPrefersCurrentFocusBeforeHeroEvenForActiveSessions() {
+        val activity = readNovaLibraryActivity()
+        val screen = activity.section(
+            "private fun NovaLibraryScreen(",
+            "private fun NovaLibraryHomeHero("
+        )
+        val selection = screen
+            .substringAfter("val focusedBackdropGame = remember(")
+            .substringBefore("val controllerHints")
+        val focusLookup = selection.indexOf("restoreFocusGameId")
+        val focusedItem = selection.indexOf("model.filteredGames.firstOrNull { it.id == focusedId }")
+        val heroFallback = selection.indexOf("?: model.hero.game")
+        val filteredFallback = selection.indexOf("?: model.filteredGames.firstOrNull()")
+        val recentFallback = selection.indexOf("?: model.recentGames.firstOrNull()")
+        val backdropCall = screen.indexOf("NovaLibraryCinematicBackdrop(")
+        val particles = screen.indexOf("if (surfaces.particlesEnabled)")
+        val windowContent = screen.indexOf(".background(surfaces.backgroundScrim)")
+
+        assertEquals(1, activity.windowed("NovaLibraryCinematicBackdrop(".length).count { it == "NovaLibraryCinematicBackdrop(" })
+        assertFalse(activity.contains("NovaLibraryFocusedBackdrop"))
+        assertFalse(selection.contains("if (model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION)"))
+        assertTrue(focusLookup >= 0 && focusedItem > focusLookup)
+        assertTrue(focusedItem < heroFallback && heroFallback < filteredFallback && filteredFallback < recentFallback)
+        assertTrue(backdropCall >= 0 && backdropCall < particles && backdropCall < windowContent)
+        assertTrue(activity.windowed("onGameFocused = onGameFocused".length).count { it == "onGameFocused = onGameFocused" } >= 7)
+    }
+
     private fun readNovaLibraryActivity(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
 
@@ -2437,6 +2802,9 @@ class NovaComposeSourceGuardTest {
 
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
+
+    private fun String.countOccurrences(value: String): Int =
+        Regex(Regex.escape(value)).findAll(this).count()
 
     private fun String.containsRegex(pattern: String): Boolean =
         Regex(pattern).containsMatchIn(this)

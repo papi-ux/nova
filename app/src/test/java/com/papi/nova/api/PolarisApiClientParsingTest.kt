@@ -83,7 +83,10 @@ class PolarisApiClientParsingTest {
         assertTrue(PolarisApiClient.isTrustedCandidatePreviewUrl(good, "POLARIS.LAN", 47984))
         assertFalse(PolarisApiClient.isTrustedCandidatePreviewUrl("https://user@polaris.lan:47984/x", "polaris.lan", 47984))
         assertFalse(PolarisApiClient.isTrustedCandidatePreviewUrl("$good?token=secret", "polaris.lan", 47984))
-        assertFalse(PolarisApiClient.isTrustedCandidatePreviewUrl(good.replace("/poster", "/hero"), "polaris.lan", 47984))
+        assertTrue(PolarisApiClient.isTrustedCandidatePreviewUrl(good.replace("/poster", "/hero"), "polaris.lan", 47984))
+        assertTrue(PolarisApiClient.isTrustedCandidatePreviewUrl(good.replace("/poster", "/logo"), "polaris.lan", 47984))
+        assertTrue(PolarisApiClient.isTrustedCandidatePreviewUrl(good.replace("/poster", "/icon"), "polaris.lan", 47984))
+        assertFalse(PolarisApiClient.isTrustedCandidatePreviewUrl(good.replace("/poster", "/trailer"), "polaris.lan", 47984))
     }
 
     @Test
@@ -802,6 +805,98 @@ class PolarisApiClientParsingTest {
         try { PolarisApiClient.buildArtworkMatchBody(first, listOf("poster", "poster")) }
         catch (_: IllegalArgumentException) { invalidKindsRejected = true }
         assertTrue(invalidKindsRejected)
+    }
+
+    @Test
+    fun artworkChoicesAreKindBoundAndSelectionBodiesContainOnlyOpaqueTokens() {
+        val candidate = PolarisArtworkMatchCandidate(
+            provider = "steamgriddb",
+            providerGameId = "12345",
+            title = "Portal 2",
+            steamAppid = "620",
+        )
+        val token = "00000000000000000000000000000002"
+        val choicesJson = JSONObject("""{"status":true,"kind":"hero","choices":[
+          {"selection_token":"$token","preview":"/polaris/v1/games/game-1/artwork/candidate/$token/hero","expires_at":123456},
+          {"selection_token":"ABCDEF00000000000000000000000000","preview":"/polaris/v1/games/game-1/artwork/candidate/ABCDEF00000000000000000000000000/hero","expires_at":123456},
+          {"selection_token":"00000000000000000000000000000003","preview":"https://provider.invalid/hero.png","expires_at":123456}
+        ]}""")
+
+        val choices = PolarisApiClient.parseArtworkChoices(
+            choicesJson, "game-1", "hero", "polaris.lan", 47984,
+        )
+        assertEquals(1, choices.size)
+        val hero = choices.single()
+        assertEquals("hero", hero.kind)
+        assertEquals(token, hero.selectionToken)
+        assertEquals(
+            "https://polaris.lan:47984/polaris/v1/games/game-1/artwork/candidate/$token/hero",
+            hero.previewUrl,
+        )
+
+        val identityBody = PolarisApiClient.buildArtworkChoiceBody(candidate)
+        assertEquals(setOf("provider", "provider_game_id", "title", "steam_appid"), identityBody.keys().asSequence().toSet())
+        assertFalse(identityBody.toString().contains("preview"))
+
+        val posterToken = "00000000000000000000000000000004"
+        val poster = PolarisArtworkChoice(
+            kind = "poster",
+            selectionToken = posterToken,
+            previewUrl = "https://polaris.lan:47984/polaris/v1/games/game-1/artwork/candidate/$posterToken/poster",
+            expiresAt = 123456,
+        )
+        val selectionBody = PolarisApiClient.buildArtworkSelectionBody(
+            candidate,
+            mapOf("poster" to poster, "hero" to hero),
+        )
+        assertEquals(setOf("provider", "provider_game_id", "title", "steam_appid", "selections"), selectionBody.keys().asSequence().toSet())
+        assertEquals(
+            setOf("poster", "hero"),
+            selectionBody.getJSONObject("selections").keys().asSequence().toSet(),
+        )
+        assertEquals(posterToken, selectionBody.getJSONObject("selections").getString("poster"))
+        assertEquals(token, selectionBody.getJSONObject("selections").getString("hero"))
+        assertFalse(selectionBody.toString().contains("https://"))
+        assertFalse(selectionBody.toString().contains("preview"))
+
+        var emptySetRejected = false
+        try { PolarisApiClient.buildArtworkSelectionBody(candidate, emptyMap()) }
+        catch (_: IllegalArgumentException) { emptySetRejected = true }
+        assertTrue(emptySetRejected)
+
+        var mismatchedKindRejected = false
+        try { PolarisApiClient.buildArtworkSelectionBody(candidate, mapOf("poster" to hero)) }
+        catch (_: IllegalArgumentException) { mismatchedKindRejected = true }
+        assertTrue(mismatchedKindRejected)
+        assertTrue(PolarisApiClient.parseArtworkChoices(
+            choicesJson, "game-1", "poster", "polaris.lan", 47984,
+        ).isEmpty())
+    }
+
+    @Test
+    fun artworkLibraryUpdateBodyAndResultAreStrictAndPrivacySafe() {
+        val body = PolarisApiClient.buildArtworkLibraryUpdateBody()
+        assertEquals(setOf("policy"), body.keys().asSequence().toSet())
+        assertEquals("missing_or_stale", body.getString("policy"))
+
+        val response = JSONObject("""{
+          "version":1,"revision":"rev-2","assets":{},
+          "resolution":{"status":"partial_failure","requested_kinds":["poster","hero"],"remaining_kinds":["hero"]}
+        }""")
+        val result = requireNotNull(PolarisApiClient.parseArtworkLibraryUpdateResponse(response))
+        assertEquals(PolarisArtworkUpdateStatus.PARTIAL_FAILURE, result.status)
+        assertEquals(listOf("poster", "hero"), result.requestedKinds)
+        assertEquals(listOf("hero"), result.remainingKinds)
+        assertEquals("rev-2", result.manifest.revision)
+
+        assertNull(PolarisApiClient.parseArtworkLibraryUpdateResponse(JSONObject("""{
+          "version":1,"revision":"bad","assets":{},
+          "resolution":{"status":"updated","requested_kinds":["poster"],"remaining_kinds":["logo"]}
+        }""")))
+        assertNull(PolarisApiClient.parseArtworkLibraryUpdateResponse(JSONObject("""{
+          "version":1,"revision":"bad","assets":{},
+          "resolution":{"status":"provider_url","requested_kinds":[],"remaining_kinds":[]}
+        }""")))
     }
 
     @Test

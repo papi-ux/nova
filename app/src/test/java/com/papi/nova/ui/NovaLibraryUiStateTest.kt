@@ -95,7 +95,7 @@ class NovaLibraryUiStateTest {
 
         assertEquals(NovaLibrarySortMode.LIBRARY_ORDER, model.optionsState.sortMode)
         assertEquals(NovaLibraryLayoutMode.GRID, model.optionsState.layoutMode)
-        assertTrue(model.optionsState.showPosterTitles)
+        assertFalse(model.optionsState.showPosterTitles)
         assertEquals(listOf("Beta", "Alpha", "Charlie"), model.filteredGames.map { it.name })
     }
 
@@ -354,6 +354,54 @@ class NovaLibraryUiStateTest {
         assertFalse(hero.actionLabel.contains("Resume"))
         assertFalse(hero.supportingLine.contains("Resume"))
         assertTrue(hero.badges.contains("2 viewers"))
+        val unrelated = game("unrelated", "Unrelated Game")
+        assertEquals(
+            unrelated,
+            NovaLibraryUiStateMapper.stageFocusedGame(
+                hero = hero,
+                filteredGames = listOf(unrelated),
+                restoreFocusGameId = unrelated.id,
+            )
+        )
+        assertTrue(
+            NovaLibraryUiStateMapper.shouldRenderStageContent(
+                layoutMode = NovaLibraryLayoutMode.STAGE,
+                filteredGamesEmpty = true,
+                heroReason = hero.reason,
+            )
+        )
+    }
+
+    @Test
+    fun activeSessionSuppressesAnUnrelatedEmptyLibraryLoadFailure() {
+        assertFalse(
+            NovaLibraryUiStateMapper.shouldShowLoadFailure(
+                loadErrorMessage = "game library HTTP 503",
+                allGamesEmpty = true,
+                heroReason = NovaLibraryHeroReason.ACTIVE_SESSION,
+            )
+        )
+        assertTrue(
+            NovaLibraryUiStateMapper.shouldShowLoadFailure(
+                loadErrorMessage = "game library HTTP 503",
+                allGamesEmpty = true,
+                heroReason = NovaLibraryHeroReason.EMPTY,
+            )
+        )
+        assertFalse(
+            NovaLibraryUiStateMapper.shouldShowLoadFailure(
+                loadErrorMessage = null,
+                allGamesEmpty = true,
+                heroReason = NovaLibraryHeroReason.EMPTY,
+            )
+        )
+        assertFalse(
+            NovaLibraryUiStateMapper.shouldShowLoadFailure(
+                loadErrorMessage = "game library HTTP 503",
+                allGamesEmpty = false,
+                heroReason = NovaLibraryHeroReason.FIRST_LIBRARY_GAME,
+            )
+        )
     }
 
     @Test
@@ -560,7 +608,7 @@ class NovaLibraryUiStateTest {
             NovaLibraryUiStateMapper.gridColumnsForScreen(
                 widthDp = 833,
                 isLandscape = true,
-                layoutMode = NovaLibraryLayoutMode.COMPACT_GRID
+                layoutMode = NovaLibraryLayoutMode.COMPACT
             )
         )
         assertEquals(
@@ -568,126 +616,125 @@ class NovaLibraryUiStateTest {
             NovaLibraryUiStateMapper.gridColumnsForScreen(
                 widthDp = 833,
                 isLandscape = true,
-                layoutMode = NovaLibraryLayoutMode.LIST
+                layoutMode = NovaLibraryLayoutMode.STAGE
             )
         )
-        assertEquals(
-            1,
-            NovaLibraryUiStateMapper.gridColumnsForScreen(
-                widthDp = 833,
-                isLandscape = true,
-                layoutMode = NovaLibraryLayoutMode.SPOTLIGHT_ROW
-            )
-        )
-        assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.GRID, isLandscape = true))
-        assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.COMPACT_GRID, isLandscape = true))
-        assertEquals(88, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.LIST, isLandscape = true))
+        assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.GRID, isLandscape = true))
+        assertEquals(88, NovaLibraryUiStateMapper.gameCardHeightDp(NovaLibraryLayoutMode.COMPACT, isLandscape = true))
     }
 
     @Test
     fun libraryLayoutModesCycleForTheYShortcut() {
-        assertEquals(NovaLibraryLayoutMode.COMPACT_GRID, NovaLibraryLayoutMode.GRID.next())
-        assertEquals(NovaLibraryLayoutMode.LIST, NovaLibraryLayoutMode.COMPACT_GRID.next())
-        assertEquals(NovaLibraryLayoutMode.SPOTLIGHT_ROW, NovaLibraryLayoutMode.LIST.next())
-        assertEquals(NovaLibraryLayoutMode.GRID, NovaLibraryLayoutMode.SPOTLIGHT_ROW.next())
+        assertEquals(NovaLibraryLayoutMode.COMPACT, NovaLibraryLayoutMode.GRID.next())
+        assertEquals(NovaLibraryLayoutMode.STAGE, NovaLibraryLayoutMode.COMPACT.next())
+        assertEquals(NovaLibraryLayoutMode.GRID, NovaLibraryLayoutMode.STAGE.next())
         assertEquals(
             listOf(
                 NovaLibraryLayoutMode.GRID,
-                NovaLibraryLayoutMode.COMPACT_GRID,
-                NovaLibraryLayoutMode.LIST,
-                NovaLibraryLayoutMode.SPOTLIGHT_ROW
+                NovaLibraryLayoutMode.COMPACT,
+                NovaLibraryLayoutMode.STAGE
             ),
             NovaLibraryLayoutMode.entries
         )
     }
 
     @Test
-    fun spotlightMetricsCenterTheFocusedGameAndScaleForLargeText() {
-        val thorWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
+    fun stageMetricsCenterTheFocusedGameAndPreservePortraitGeometry() {
+        val thorWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
             availableWidthDp = 833,
             isLandscape = true
         )
-        val thorLargeTextWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
+        val thorLargeTextWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
             availableWidthDp = 833,
             isLandscape = true,
             largeText = true
         )
-        val compactThorLargeTextWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
+        val compactThorLargeTextWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
             availableWidthDp = 472,
             isLandscape = true,
             largeText = true
         )
-        val phoneWidth = NovaLibraryUiStateMapper.spotlightCardWidthDp(
+        val phoneWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
             availableWidthDp = 430,
             isLandscape = false
         )
 
-        assertEquals(483, thorWidth)
-        assertEquals(520, thorLargeTextWidth)
-        assertEquals(352, compactThorLargeTextWidth)
-        assertEquals(361, phoneWidth)
+        assertEquals(149, thorWidth)
+        assertEquals(190, thorLargeTextWidth)
+        assertEquals(100, compactThorLargeTextWidth)
+        assertEquals(84, phoneWidth)
+        assertTrue(thorWidth * 5 + 16 * 4 + 24 <= 833)
+        // End inset tracks the viewport so a focused first/last poster is not crowded
+        // against the screen edge (concept: 54px on a 1920px stage).
         assertEquals(
-            175,
-            NovaLibraryUiStateMapper.spotlightHorizontalContentPaddingDp(
+            23,
+            NovaLibraryUiStateMapper.stageHorizontalContentPaddingDp(
                 availableWidthDp = 833,
                 cardWidthDp = thorWidth
             )
         )
         assertEquals(
-            290,
-            NovaLibraryUiStateMapper.spotlightCardHeightDp(
-                cardWidthDp = thorWidth,
-                isLandscape = true,
-                largeText = false
-            )
+            NovaPortraitPosterSize(widthDp = 148, heightDp = 222),
+            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(thorWidth),
         )
         assertEquals(
-            328,
-            NovaLibraryUiStateMapper.spotlightCardHeightDp(
-                cardWidthDp = thorWidth,
-                isLandscape = true,
-                largeText = true
-            )
+            NovaPortraitPosterSize(widthDp = 190, heightDp = 285),
+            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(thorLargeTextWidth),
         )
         assertEquals(
-            284,
-            NovaLibraryUiStateMapper.spotlightConstrainedCardHeightDp(
-                desiredHeightDp = 328,
-                availableHeightDp = 310
-            )
+            NovaPortraitPosterSize(widthDp = 100, heightDp = 150),
+            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(compactThorLargeTextWidth),
         )
         assertEquals(
-            290,
-            NovaLibraryUiStateMapper.spotlightConstrainedCardHeightDp(
-                desiredHeightDp = 290,
-                availableHeightDp = 400
-            )
+            NovaPortraitPosterSize(widthDp = 84, heightDp = 126),
+            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(phoneWidth),
         )
+
+        val stagePresentation = NovaLibraryUiStateMapper.posterPresentationSpec(
+            NovaLibraryLayoutMode.STAGE,
+        )
+        val constrainedSizes = listOf(
+            310 to NovaPortraitPosterSize(widthDp = 180, heightDp = 270),
+            400 to NovaPortraitPosterSize(widthDp = 234, heightDp = 351),
+            126 to NovaPortraitPosterSize(widthDp = 68, heightDp = 102),
+        )
+        constrainedSizes.forEach { (railHeightDp, expectedSize) ->
+            val actualSize = NovaLibraryUiStateMapper.portraitPosterSizeForRail(
+                railHeightDp = railHeightDp,
+                presentationSpec = stagePresentation,
+            )
+            assertEquals(expectedSize, actualSize)
+            assertEquals(actualSize.widthDp * 3, actualSize.heightDp * 2)
+            assertTrue(
+                actualSize.heightDp * stagePresentation.focusedScale +
+                    stagePresentation.focusGutterDp * 2 <= railHeightDp + 0.0001f,
+            )
+        }
     }
 
     @Test
-    fun spotlightFocusRestorationAndAdjacentNavigationAreDeterministic() {
+    fun stageFocusRestorationAndAdjacentNavigationAreDeterministic() {
         val gameIds = listOf("alpha", "bravo", "charlie")
 
-        assertEquals(1, NovaLibraryUiStateMapper.spotlightRestoreIndex(gameIds, "bravo"))
-        assertEquals(0, NovaLibraryUiStateMapper.spotlightRestoreIndex(gameIds, "missing"))
-        assertEquals(0, NovaLibraryUiStateMapper.spotlightRestoreIndex(gameIds, null))
-        assertEquals(0, NovaLibraryUiStateMapper.spotlightRestoreIndex(emptyList(), "bravo"))
-        assertEquals(0, NovaLibraryUiStateMapper.spotlightAdjacentIndex(0, -1, gameIds.size))
-        assertEquals(1, NovaLibraryUiStateMapper.spotlightAdjacentIndex(0, 1, gameIds.size))
-        assertEquals(2, NovaLibraryUiStateMapper.spotlightAdjacentIndex(2, 1, gameIds.size))
-        assertEquals(1, NovaLibraryUiStateMapper.spotlightAdjacentIndex(2, -1, gameIds.size))
+        assertEquals(1, NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, "bravo"))
+        assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, "missing"))
+        assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, null))
+        assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(emptyList(), "bravo"))
+        assertEquals(0, NovaLibraryUiStateMapper.stageAdjacentIndex(0, -1, gameIds.size))
+        assertEquals(1, NovaLibraryUiStateMapper.stageAdjacentIndex(0, 1, gameIds.size))
+        assertEquals(2, NovaLibraryUiStateMapper.stageAdjacentIndex(2, 1, gameIds.size))
+        assertEquals(1, NovaLibraryUiStateMapper.stageAdjacentIndex(2, -1, gameIds.size))
     }
 
     @Test
     fun layoutMetricsMakeRetroidLandscapeGameSelectionPrimary() {
-        assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
+        assertEquals(104, NovaLibraryUiStateMapper.gameCardHeightDp(compact = true, isLandscape = false))
         assertEquals(76, NovaLibraryUiStateMapper.heroHeightDp(compact = true))
         assertTrue(
             "compact landscape resume hero should read as a short console home strip, not a second feature panel",
             NovaLibraryUiStateMapper.heroHeightDp(compact = true) <= 80
         )
-        assertEquals(156, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
+        assertEquals(112, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = true))
         assertEquals(168, NovaLibraryUiStateMapper.gameCardHeightDp(compact = false, isLandscape = false))
     }
 
@@ -1010,13 +1057,13 @@ class NovaLibraryUiStateTest {
     fun largeTextSpotlightTitlesWrapAtNaturalWordBoundaries() {
         assertEquals(
             "Control Ultimate\nEdition",
-            spotlightDisplayTitle("Control Ultimate Edition", largeText = true)
+            stageDisplayTitle("Control Ultimate Edition", largeText = true)
         )
         assertEquals(
             "Control Ultimate Edition",
-            spotlightDisplayTitle("Control Ultimate Edition", largeText = false)
+            stageDisplayTitle("Control Ultimate Edition", largeText = false)
         )
-        assertEquals("Alan Wake 2", spotlightDisplayTitle("Alan Wake 2", largeText = true))
+        assertEquals("Alan Wake 2", stageDisplayTitle("Alan Wake 2", largeText = true))
     }
 
     private fun game(

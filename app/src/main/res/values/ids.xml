@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="nova_artwork_presentation_key" type="id" />
+    <item name="nova_artwork_request_key" type="id" />
+</resources>
