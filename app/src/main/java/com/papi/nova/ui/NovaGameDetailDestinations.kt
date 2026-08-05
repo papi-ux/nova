@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -169,6 +170,67 @@ private fun NovaGameDetailDestinationHeader(eyebrow: String, headline: String, r
                 modifier = Modifier.padding(top = 5.dp),
             )
         }
+    }
+}
+
+/**
+ * Divides what you read from what you do. The sheet presented both as one list, so a
+ * readout like "MangoHUD: On" sat in the same shape as "Reset profile" — one is a
+ * statement, the other has consequences.
+ */
+@Composable
+internal fun NovaGameDetailGroupLabel(text: String) {
+    val colors = LocalNovaComposeColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 6.dp),
+    ) {
+        Text(
+            text = text.uppercase(),
+            color = colors.textMuted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.22.em,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(colors.divider.copy(alpha = 0.5f)),
+        )
+    }
+}
+
+/** Retry and reset: the two things in Tune that change something rather than report it. */
+@Composable
+internal fun LaunchProfileSummaryActions(
+    summary: NovaLaunchProfileSummary?,
+    resetProfileLabel: String,
+    resetProfileWorking: Boolean,
+    onRetryHighFps: () -> Unit,
+    onResetProfile: () -> Unit,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (summary?.showRetryHighFps == true) {
+            NovaSteamChoiceRow(
+                label = summary.retryHighFpsLabel.ifBlank {
+                    stringResource(R.string.nova_library_retry_high_fps)
+                },
+                caption = "",
+                enabled = true,
+                onClick = onRetryHighFps,
+            )
+        }
+        NovaSteamChoiceRow(
+            label = resetProfileLabel,
+            caption = "",
+            enabled = !resetProfileWorking,
+            onClick = onResetProfile,
+        )
     }
 }
 

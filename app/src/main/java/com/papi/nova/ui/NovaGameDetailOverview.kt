@@ -370,7 +370,7 @@ private fun NovaGameDetailActions(
                 )
             }
             NovaGameDetailAction(
-                text = stringResource(R.string.nova_library_launch_options_secondary),
+                text = stringResource(R.string.nova_game_detail_tune),
                 onClick = { onDestination(NovaGameDetailDestination.TUNE) },
                 mark = "\u2699",
             )

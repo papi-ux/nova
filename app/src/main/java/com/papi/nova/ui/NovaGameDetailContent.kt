@@ -320,8 +320,12 @@ internal fun NovaGameDetailContent(
 
             NovaGameDetailDestination.LAUNCH_MODE -> NovaGameDetailPanel(
                 eyebrow = stringResource(R.string.nova_library_launch_mode_title),
-                headline = launchModeTitle,
-                readout = optimizationState.profileSummary?.selectedLine.orEmpty(),
+                headline = stringResource(R.string.nova_game_detail_where_it_runs),
+                readout = if (steamDecision != null) {
+                    stringResource(R.string.nova_desktop_steam_title)
+                } else {
+                    optimizationState.profileSummary?.selectedLine.orEmpty()
+                },
                 scrollState = verticalScroll,
             ) {
                 val decision = steamDecision
@@ -362,12 +366,15 @@ internal fun NovaGameDetailContent(
             }
 
             NovaGameDetailDestination.TUNE -> NovaGameDetailPanel(
-                eyebrow = stringResource(R.string.nova_library_launch_options_secondary),
-                headline = optimizationState.profileSummary?.primaryLaunchLabel.orEmpty()
-                    .ifBlank { profilePreferenceLabel },
-                readout = optimizationState.profileSummary?.freshnessLine.orEmpty(),
+                eyebrow = stringResource(R.string.nova_game_detail_tune),
+                headline = profilePreferenceLabel,
+                readout = listOf(
+                    optimizationState.profileSummary?.selectedLine,
+                    optimizationState.profileSummary?.freshnessLine,
+                ).filter { !it.isNullOrBlank() }.joinToString("  ·  "),
                 scrollState = verticalScroll,
             ) {
+                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_state))
                 profileOptionsState?.let {
                     NovaProfilePreferenceSheet(
                         state = it,
@@ -399,6 +406,14 @@ internal fun NovaGameDetailContent(
                 }
                 optimizationState.ai?.let { InsightCard(card = it) }
                 optimizationState.stability?.let { InsightCard(card = it) }
+                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_actions))
+                LaunchProfileSummaryActions(
+                    summary = optimizationState.profileSummary,
+                    resetProfileLabel = resetProfileLabel,
+                    resetProfileWorking = resetProfileWorking,
+                    onRetryHighFps = onRetryHighFps,
+                    onResetProfile = onResetProfile,
+                )
             }
 
             // The studio opens with a Row of weighted Columns, so it needs the window
