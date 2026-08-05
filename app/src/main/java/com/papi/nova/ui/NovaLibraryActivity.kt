@@ -1528,9 +1528,9 @@ class NovaLibraryActivity : NovaActivity() {
                     focused = focused,
                     focusedScale = NovaFocusMotionSpec.CardFocusedScale,
                     haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-                    cornerRadius = 20.dp
+                    cornerRadius = NovaLibrarySurfaceCornerRadius
                 )
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(NovaLibrarySurfaceCornerRadius))
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
@@ -1543,7 +1543,7 @@ class NovaLibraryActivity : NovaActivity() {
                 .border(
                     width = if (focused) 3.dp else 1.dp,
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
-                    shape = RoundedCornerShape(20.dp)
+                    shape = RoundedCornerShape(NovaLibrarySurfaceCornerRadius)
                 )
                 .onFocusChanged {
                     focused = it.isFocused || it.hasFocus
@@ -3578,7 +3578,7 @@ class NovaLibraryActivity : NovaActivity() {
             // One corner radius for library surfaces whichever layout is showing. Only the
             // fill still varies: the cinematic stage lets the backdrop through, while the
             // grid keeps a panel behind its poster wall.
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(NovaLibrarySurfaceCornerRadius),
             color = if (cinematic) {
                 androidx.compose.ui.graphics.Color.Transparent
             } else if (subtle) {
@@ -3680,6 +3680,10 @@ class NovaLibraryActivity : NovaActivity() {
         private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
         private const val CONTROLLER_HINT_ANIMATION_MS = 180
         private const val CONTROLLER_AXIS_INTENT_THRESHOLD = 0.35f
+        /** One corner radius for library surfaces, so panels, the continue-playing row and
+         *  the bar keep the same edge whichever layout is showing. */
+        private val NovaLibrarySurfaceCornerRadius = 8.dp
+
         private val LARGE_TEXT_HINT_INDICES = setOf(0, 1, 3)
         private val PRIMARY_HINT_INDICES = setOf(0, 1, 2)
         private val CONTROLLER_BROWSE_KEYS = setOf(
