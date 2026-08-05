@@ -1781,7 +1781,10 @@ class NovaLibraryActivity : NovaActivity() {
             resultCount = model.resultCount,
             layoutLabel = layoutModeLabel(model.optionsState.layoutMode),
             polarisReady = clientSettings != null,
-            cinematic = model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE,
+            // The library bar is the same furniture whichever layout is below it, so it
+            // keeps one treatment across Grid, Compact and Stage rather than changing
+            // weight and shape as the content does.
+            cinematic = true,
             onOpenOptions = onOpenOptions,
             onOpenSystemMenu = onOpenSystemMenu,
         )
