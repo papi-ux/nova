@@ -654,7 +654,7 @@ class NovaLibraryStageSourceTest {
         val composeTest = read("src/androidTest/java/com/papi/nova/ui/NovaLibraryStageComposeTest.kt")
         assertTrue(composeTest.contains("nova-stage-primary-action-surface"))
         assertTrue(composeTest.contains("surfaceHeightDp <= 35f"))
-        assertTrue(composeTest.contains("surfaceWidthDp <= 133f"))
+        assertTrue(composeTest.contains("assertContained(actionBounds, surfaceBounds, \"primary action surface in action row\")"))
         assertTrue(composeTest.contains("actionHeightDp >= 41.5f"))
         assertTrue(composeTest.contains("assertContentDescriptionEquals(\"Review & Launch\")"))
     }

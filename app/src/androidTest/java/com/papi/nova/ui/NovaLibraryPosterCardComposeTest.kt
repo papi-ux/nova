@@ -222,7 +222,7 @@ class NovaLibraryPosterCardComposeTest {
         )
         val expectedFocusedTop = restingArtworkBounds.top -
             ((restingArtworkBounds.height * presentationSpec.focusedScale - restingArtworkBounds.height) / 2f) -
-            (4f * context.resources.displayMetrics.density)
+            (NovaPosterFocusedLift.value * context.resources.displayMetrics.density)
         assertEquals(expectedFocusedTop, focusedArtworkBounds.top, 2f)
         composeRule.mainClock.autoAdvance = true
     }
