@@ -7,6 +7,7 @@ import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.NovaComposeTheme
 import org.junit.Assert.assertTrue
@@ -113,7 +114,18 @@ class NovaGameDetailComposeTest {
                         iconAvailable = false,
                         iconPresentationKey = "",
                         iconLoader = {},
-                        coverLoader = {}
+                        coverLoader = {},
+                        destination = NovaGameDetailDestination.OVERVIEW,
+                        steamDecision = null,
+                        reviewExpanded = false,
+                        // No host is reachable under test; the backdrop simply draws nothing.
+                        apiClient = PolarisApiClient(
+                            InstrumentationRegistry.getInstrumentation().targetContext,
+                            "",
+                        ),
+                        sourceLabel = "Steam",
+                        onDestination = {},
+                        onSteamChoice = {},
                     )
                 }
             }

@@ -294,6 +294,7 @@
 
         <activity
             android:name="com.papi.nova.ui.NovaGameDetailActivity"
+            android:launchMode="singleTop"
             android:theme="@style/AppTheme"
             android:exported="false" />
 

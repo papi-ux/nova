@@ -1073,97 +1073,42 @@ class NovaComposeSourceGuardTest {
     @Test
     fun gameDetailLaunchControlsPrioritizePrimaryPlayFocus() {
         val detail = readNovaGameDetail()
-        val launchControls = detail.section(
-            "private fun LaunchControls(",
-            "@Composable\nprivate fun LaunchProfileSummaryInline("
+        val overview = detail.section(
+            "internal fun NovaGameDetailOverview(",
+            "private fun NovaGameDetailTitle("
         )
-        val launchFooter = detail.section(
-            "internal fun NovaGameDetailLaunchFooter(",
-            "@Composable\nprivate fun NovaDetailPanel("
+        val actions = detail.section(
+            "private fun NovaGameDetailActions(",
+            "private fun NovaGameDetailSecondaryAction("
         )
-        val sheetContent = detail.section(
-            "fun NovaGameDetailContent(",
-            "@Composable\nprivate fun NovaGameDetailScrollableContent("
-        )
-        val scrollableContent = detail.section(
-            "private fun NovaGameDetailScrollableContent(",
-            "@Composable\nprivate fun novaGameDetailControllerHints("
-        )
-        val scrollBody = sheetContent.blockStartingAt("NovaGameDetailScrollableContent(")
 
         assertTrue(
-            "game detail should focus the pinned primary play action when the sheet opens",
-            sheetContent.contains("val playFocusRequester = remember { FocusRequester() }") &&
-                launchFooter.contains("playFocusRequester.requestFocus()") &&
-                launchFooter.contains(".focusRequester(playFocusRequester)")
+            "the primary action holds first focus, and nothing scrolls above it",
+            detail.contains("val playFocusRequester = remember { FocusRequester() }") &&
+                actions.contains(".focusRequester(playFocusRequester)") &&
+                actions.contains("primary = true") &&
+                !overview.contains("verticalScroll")
         )
         assertTrue(
-            "game detail should preserve an explicit controller focus route between pinned Play and More details",
-            sheetContent.contains("val detailsFocusRequester = remember { FocusRequester() }") &&
-                launchControls.contains("detailsFocusRequester = detailsFocusRequester") &&
-                launchControls.contains("playFocusRequester = playFocusRequester") &&
-                launchFooter.contains(".focusProperties { up = detailsFocusRequester }") &&
-                launchControls.contains(".focusProperties { down = playFocusRequester }")
+            "the action lane is one row, so a D-pad walk never leaves it",
+            actions.contains("Row(") &&
+                actions.contains("horizontalArrangement = Arrangement.spacedBy(10.dp)")
         )
         assertTrue(
-            "the pinned footer should keep Play as a full-width primary action above the safe-content bottom inset",
-            launchFooter.section("text = playLabel", "enabled = enabled")
-                .contains(".fillMaxWidth()\n                .focusRequester(playFocusRequester)") &&
-                launchFooter.contains(".windowInsetsPadding(contentInsets)") &&
-                launchFooter.contains(".padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 18.dp)") &&
-                sheetContent.contains("contentInsets = WindowInsets.safeContent.only(WindowInsetsSides.Bottom)")
+            "every focusable action clears the accessible target floor",
+            detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
+                actions.contains("minHeight = NovaGameDetailActionHeight")
         )
         assertTrue(
-            "the game-detail root must remain bounded while the detail body owns the remaining height and vertical scrolling",
-            sheetContent.contains(".fillMaxHeight()") &&
-                sheetContent.contains("modifier = Modifier.weight(1f)") &&
-                scrollableContent.contains(".verticalScroll(scrollState)")
-        )
-        assertTrue(
-            "the pinned Play footer must be composed after and outside the scrollable detail lambda",
-            scrollBody.contains("GameDetailsPanel(") &&
-                scrollBody.contains("LaunchControlsPanel(") &&
-                scrollBody.contains("NovaControllerHintBar(") &&
-                !scrollBody.contains("NovaGameDetailLaunchFooter(") &&
-                sheetContent.indexOf("NovaGameDetailLaunchFooter(") >
-                    sheetContent.indexOf(scrollBody) + scrollBody.length
+            "the rail is gated rather than decorative: Launch mode appears only when there is a real choice, and a review replaces the rail with its own answers",
+            actions.contains("if (showLaunchModeAction)") &&
+                actions.contains("if (reviewExpanded)") &&
+                actions.contains("onRetryHighFps") &&
+                actions.contains("onResetProfile")
         )
         assertFalse(
-            "the primary launch button must not remain inside the vertically scrolling launch-controls body",
-            launchControls.contains("text = playLabel") ||
-                launchControls.contains("onClick = onPrimaryLaunch")
-        )
-        assertTrue(
-            "game detail should keep host/render limits in the scrolling body above the pinned launch action",
-            launchControls.contains("LaunchProfilePrimaryNotice(") &&
-                sheetContent.indexOf("LaunchControlsPanel(") < sheetContent.indexOf("NovaGameDetailLaunchFooter(")
-        )
-        assertTrue(
-            "Heads up should explain evidence and the recommended next launch instead of showing one vague limited-by line",
-            launchControls.contains("text = summary.noticeDetail") &&
-                launchControls.contains("text = summary.noticeRecommendation")
-        )
-        assertTrue(
-            "Heads up should remain visible when only the new evidence or recommendation fields are available",
-            launchControls.contains("val hasNoticeContent = listOf(") &&
-                launchControls.contains("summary.noticeDetail") &&
-                launchControls.contains("summary.noticeRecommendation") &&
-                launchControls.contains("if (!hasNoticeContent) return") &&
-                launchControls.contains("text = notice.ifBlank { \"Launch profile adjusted\" }")
-        )
-        assertTrue(
-            "near-target performance should use an explicit healthy status tone instead of warning styling",
-            launchControls.contains("summary.noticeTone == NovaLaunchProfileNoticeTone.HEALTHY") &&
-                launchControls.contains("val badgeLabel = if (isHealthy) summary.noticeLabel else \"Heads up\"") &&
-                launchControls.contains("colorResource(R.color.nova_success)")
-        )
-        assertTrue(
-            "Heads up should stay compact until the player opens the DPAD-friendly detail control",
-            launchControls.contains("var noticeExpanded by remember(") &&
-                launchControls.contains("text = if (noticeExpanded) \"Hide details\" else \"More details\"") &&
-                launchControls.contains("stateDescription = if (noticeExpanded) \"Expanded\" else \"Collapsed\"") &&
-                launchControls.contains("if (noticeExpanded && summary.noticeDetail.isNotBlank())") &&
-                launchControls.contains("if (noticeExpanded && summary.noticeRecommendation.isNotBlank())")
+            "the primary launch button must not sit inside a scrolling body",
+            actions.contains("verticalScroll")
         )
     }
 
@@ -1239,52 +1184,32 @@ class NovaComposeSourceGuardTest {
     @Test
     fun gameDetailUsesHeroBackdropLogoTransformIconIdentityAndPosterFallback() {
         val source = readNovaGameDetail()
-        val sheetContent = source.section(
-            "fun NovaGameDetailContent(",
-            "@Composable\nprivate fun NovaGameDetailScrollableContent("
+        val overview = source.section(
+            "internal fun NovaGameDetailOverview(",
+            "private fun NovaGameDetailTitle("
         )
-        val detailsPanel = source.section(
-            "private fun GameDetailsPanel(",
-            "@Composable\nprivate fun LaunchControlsPanel("
+        val title = source.section(
+            "private fun NovaGameDetailTitle(",
+            "private fun NovaGameDetailStatusLine("
         )
 
         assertTrue(
-            "detail content should route revision-aware Hero, Logo, and Icon presentation into the identity panel",
-            sheetContent.contains("heroAvailable = heroAvailable") &&
-                sheetContent.contains("heroPresentationKey = heroPresentationKey") &&
-                sheetContent.contains("heroLoader = heroLoader") &&
-                sheetContent.contains("logoPresentationKey = logoPresentationKey") &&
-                sheetContent.contains("iconPresentationKey = iconPresentationKey")
+            "the hero should be the full-bleed backdrop rather than a 136dp panel thumbnail, reusing the library's own backdrop so hero-to-poster fallback and the theme scrims come with it",
+            overview.contains("NovaLibraryCinematicBackdrop(") &&
+                overview.contains("strength = 1f") &&
+                !overview.contains(".height(136.dp)")
         )
         assertTrue(
-            "a real manifest Hero should become the compact detail backdrop",
-            detailsPanel.contains("if (heroAvailable)") &&
-                detailsPanel.contains("NovaGameDetailHero(") &&
-                detailsPanel.contains("key(heroPresentationKey)") &&
-                detailsPanel.contains("heroLoader(this)") &&
-                detailsPanel.contains(".height(136.dp)")
+            "curated logo artwork should become the title treatment at real size, still keyed by presentation revision",
+            title.contains("if (logoAvailable)") &&
+                title.contains("key(logoPresentationKey)") &&
+                title.contains("logoLoader(this)") &&
+                title.contains("maxWidth = 200.dp, maxHeight = 64.dp")
         )
         assertTrue(
-            "the manifest Logo should be revision-aware and use the saved normalized transform over Hero",
-            detailsPanel.contains("BoxWithConstraints(") &&
-                detailsPanel.contains("key(logoPresentationKey)") &&
-                detailsPanel.contains("logoLoader(this)") &&
-                detailsPanel.contains("offset(x = logoOffsetX, y = logoOffsetY)") &&
-                detailsPanel.contains("scaleX = artworkState.logoScale") &&
-                detailsPanel.contains("scaleY = artworkState.logoScale")
-        )
-        assertTrue(
-            "the manifest Icon should provide a compact revision-aware identity mark beside the title",
-            detailsPanel.contains("if (iconAvailable)") &&
-                detailsPanel.contains("key(iconPresentationKey)") &&
-                detailsPanel.contains("iconLoader(this)") &&
-                detailsPanel.contains("text = game.name")
-        )
-        assertTrue(
-            "Poster must remain the no-Hero fallback instead of disappearing from detail presentation",
-            detailsPanel.contains("NovaGameDetailPosterFallback(") &&
-                detailsPanel.contains("key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER))") &&
-                detailsPanel.contains("coverLoader(this)")
+            "a game with no curated logo falls back to its name, and the fallback is a title rather than a poster card",
+            title.contains("text = game.name") &&
+                title.contains("nova-game-detail-title")
         )
     }
 
@@ -1295,11 +1220,11 @@ class NovaComposeSourceGuardTest {
             "fun NovaGameDetailContent(",
             "@Composable\nprivate fun NovaGameDetailScrollableContent("
         )
-        val artworkIndex = content.indexOf("NovaArtworkStudio(")
-        val stabilityIndex = content.indexOf("optimizationState.stability?.let")
-        val hintIndex = content.indexOf("NovaControllerHintBar(")
-        assertTrue("artwork preferences should follow functional and insight content", artworkIndex > stabilityIndex)
-        assertTrue("artwork preferences should remain above the controller hint footer", artworkIndex in 1 until hintIndex)
+        assertTrue(
+            "artwork curation should be its own destination, and a full-screen one: the studio lays itself out as a Row of weighted Columns and cannot fold into a side panel",
+            content.contains("NovaGameDetailDestination.ARTWORK -> NovaGameDetailFullScreen(") &&
+                content.contains("NovaArtworkStudio(")
+        )
 
         val panel = readSource("src/main/java/com/papi/nova/ui/NovaArtworkStudio.kt")
         assertTrue("artwork preferences should start collapsed", panel.contains("var expanded by remember(initialQuery) { mutableStateOf(false) }"))
@@ -1751,11 +1676,10 @@ class NovaComposeSourceGuardTest {
                 libraryScreen.contains("controllerHintBarLandscapeStartPadding")
         )
         assertTrue(
-            "game detail sheet should keep the shared hint bar with explicit horizontal and bottom padding inside the scrollable sheet",
-            detailContent.contains("NovaControllerHintBar(") &&
-                detailContent.contains("hints = novaGameDetailControllerHints()") &&
-                detailContent.contains(".padding(start = 14.dp, end = 14.dp, top = 12.dp)") &&
-                detailContent.contains(".padding(bottom = 16.dp)")
+            "the game detail window should keep the shared hint bar on the Overview floor and in every destination",
+            detail.contains("NovaControllerHintBar(") &&
+                detail.contains("hints = novaGameDetailOverviewHints()") &&
+                detail.contains("nova_controller_hint_back")
         )
         assertTrue(
             "settings should keep the main rows weighted above the shared hint bar instead of letting rows consume and clip the bottom controls",
@@ -2749,7 +2673,9 @@ class NovaComposeSourceGuardTest {
 
     private fun readNovaGameDetail(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
 
     private fun readNovaSettingsScreen(): String =
         readSource("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt")
@@ -2772,7 +2698,9 @@ class NovaComposeSourceGuardTest {
     @Test
     fun gameDetailLaunchOptionsAvoidRawAppCompatAlertDialogButtons() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val launchOptions = detail.section(
             "private fun showLaunchOptions(",
             "private fun optionLabel("
@@ -2789,7 +2717,9 @@ class NovaComposeSourceGuardTest {
     @Test
     fun gameDetailProfilePreferenceAvoidsRawAppCompatAlertDialogButtons() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val profileOptions = detail.section(
             "private fun showProfilePreferenceOptions(",
             "private fun steamLaunchModeOptionsState("

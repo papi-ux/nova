@@ -10,14 +10,15 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun gameDetailLaunchUsesSelectedMangoHudState() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
-        val primaryLaunch = detail.section("onPrimaryLaunch = {", "},\n                    onLaunchModeSelected")
-        val launchModeSelection = detail.section("fun selectLaunchMode(", "setContentView(")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        // launchConfirmed is shared by the primary action, the option picker and the
+        // expanded review, so the MangoHUD state is asserted where they all pass through.
+        val launchConfirmed = detail.section("fun launchConfirmed(", "fun resetProfile(")
+        val launchModeSelection = detail.section("fun selectLaunchMode(", "fun launchConfirmed(")
 
         assertTrue(
-            "primary Play should pass the selected MangoHUD state into the launch request",
-            primaryLaunch.contains("currentGame.copy(mangohud = mangoHudEnabled)")
+            "every launch path should pass the selected MangoHUD state into the launch request",
+            launchConfirmed.contains("currentGame.copy(mangohud = mangoHudEnabled)")
         )
         assertTrue(
             "inline mode selection should keep the selected MangoHUD state in preview/preflight state",
@@ -45,38 +46,40 @@ class NovaLaunchSourceGuardTest {
     @Test
     fun desktopSteamDecisionSheetUsesNovaGlassAndExplicitMirrorDesktopPlumbing() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val streamConfiguration = readSource("src/main/java/com/papi/nova/nvstream/StreamConfiguration.kt")
         val nvHttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
-        val chrome = readSource("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt")
-        val decisionSheet = detail.section(
-            "private fun showDesktopSteamLaunchDecision(",
-            "private fun modeLabel("
-        )
-        val launchOptions = detail.section(
-            "onLaunchOptionSelected = { option ->",
-            "onDismissLaunchOptions ="
+        val decisionRows = detail.section(
+            "internal fun NovaDesktopSteamLaunchDecisionRows(",
+            "private fun NovaSteamChoiceRow("
         )
 
         assertTrue(
-            "desktop Steam active policy should open a Nova-themed Compose bottom sheet, not a legacy square AlertDialog",
-            decisionSheet.contains("BottomSheetDialog(this@NovaGameDetailActivity)") &&
-                decisionSheet.contains("NovaDesktopSteamLaunchDecisionContent(") &&
-                !decisionSheet.contains("AlertDialog.Builder")
+            "the desktop Steam choice belongs in the Launch mode destination, not a sheet or an alert raised over the artwork",
+            detail.contains("destination = NovaGameDetailDestination.LAUNCH_MODE") &&
+                detail.contains("steamDecision = desktopSteamDecision") &&
+                !detail.contains("BottomSheetDialog(") &&
+                !detail.contains("AlertDialog.Builder")
         )
         assertTrue(
-            "decision sheet should offer explicit Private Stream, Mirror Desktop, and Cancel actions",
-            decisionSheet.contains("nova_desktop_steam_private_stream") &&
-                decisionSheet.contains("nova_desktop_steam_mirror_desktop") &&
-                decisionSheet.contains("nova_desktop_steam_cancel")
+            "the decision should offer explicit Private Stream, Mirror Desktop, and close-Steam paths",
+            decisionRows.contains("nova_desktop_steam_private_stream") &&
+                decisionRows.contains("nova_desktop_steam_mirror_desktop") &&
+                decisionRows.contains("NovaSteamLaunchChoice.CLOSE_STEAM_THEN_PRIVATE")
+        )
+        assertTrue(
+            "a blocked option stays visible and inert, because the reason it is blocked is the useful part",
+            decisionRows.contains("enabled = decision.privateStreamEnabled") &&
+                decisionRows.contains("caption = decision.privateStreamUnavailableReason")
         )
         assertTrue(
             "Launch Options must not bypass desktop-Steam safety for selected private headless launches",
-            launchOptions.contains("usesVirtualDisplay = option.usesVirtualDisplay") &&
-                launchOptions.contains("showDesktopSteamLaunchDecision(") &&
-                launchOptions.contains("onForcePrivateAfterSteamClose = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }")
+            detail.contains("usesVirtualDisplay = option.usesVirtualDisplay") &&
+                detail.contains("steamDecision = desktopSteamDecision")
         )
         assertTrue(
             "Mirror Desktop must be carried as an explicit launch override through the stream launch path",
@@ -88,15 +91,16 @@ class NovaLaunchSourceGuardTest {
                 streamConfiguration.contains("fun setMirrorDesktop(enable: Boolean)") &&
                 streamConfiguration.contains("fun setForcePrivateAfterSteamClose(enable: Boolean)") &&
                 nvHttp.contains("&mirrorDesktop=") &&
-                nvHttp.contains("&launchMode=mirror_desktop") &&
-                serverHelper.contains("forcePrivateAfterSteamClose = forcePrivateAfterSteamClose")
+                nvHttp.contains("&launchMode=mirror_desktop")
         )
     }
 
     @Test
     fun launchFailureAndDesktopSteamActionsUseNovaThemedFlow() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val nvHttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
@@ -161,15 +165,22 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun composeBottomSheetsUseThemeAwareGlassHostInsteadOfStaticOldThemeInset() {
-        val gameDetailSheet = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+        val gameDetail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val syncSheet = readSource("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt")
 
         assertTrue(
-            "The desktop Steam sheet hosted by the game detail window must clear/style the Material host with shared Nova glass chrome so bottom/nav inset gaps do not show old static blue chrome",
-            gameDetailSheet.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)") &&
-                gameDetailSheet.contains("NovaSheetChrome.createSheetBackground(this@NovaGameDetailActivity)") &&
-                !gameDetailSheet.contains("sheet.setBackgroundResource(sheetBackgroundRes())")
+            "the game detail window hosts no bottom sheet and no legacy alert at all, so there is no Material host left to restyle",
+            !gameDetail.contains("BottomSheetDialog(") &&
+                !gameDetail.contains("AlertDialog.Builder") &&
+                !gameDetail.contains("sheet.setBackgroundResource")
+        )
+        assertTrue(
+            "a destination is a surface, not media: its glass must sit on an opaque ground or the artwork reads straight through it",
+            gameDetail.contains(".background(colors.window)\n            .background(surfaces.panel)") ||
+                gameDetail.contains(".background(colors.window)\n                .background(surfaces.panel)")
         )
         assertTrue(
             "Polaris sync sheet must use the same theme-aware host chrome instead of static nova_sheet_bg inset background",
@@ -181,7 +192,9 @@ class NovaLaunchSourceGuardTest {
     @Test
     fun virtualLaunchPreflightUsesHostVirtualDisplayContractConstants() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
         val displayMode = readSource("src/main/java/com/papi/nova/api/PolarisStreamDisplayMode.kt")
 
@@ -343,7 +356,9 @@ class NovaLaunchSourceGuardTest {
     @Test
     fun displayPlannerAndPostSessionReportStayControllerFirstAndLowNoise() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val quickContent = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
         val planner = readSource("src/main/java/com/papi/nova/ui/NovaDisplayResolutionPlanner.kt")
         val optionSheet = detail.section(
@@ -489,7 +504,9 @@ class NovaLaunchSourceGuardTest {
     @Test
     fun virtualDisplayUnavailableCopyUsesHostVirtualDisplayLanguageAndReason() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val strings = readSource("src/main/res/values/strings.xml")
 
         assertTrue(strings.contains("nova_library_virtual_display_unavailable_title") && strings.contains("Host Virtual Display is not ready"))
@@ -625,11 +642,10 @@ class NovaLaunchSourceGuardTest {
 
     @Test
     fun gameDetailPreflightPreservesExplicitPolarisNonVirtualMode() {
-        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
         val preflight = detail.section(
             "private fun syncLaunchPreflightSettings(",
-            "private fun showPreflightReview("
+            "private fun modeLabel("
         )
 
         assertTrue(
@@ -659,7 +675,9 @@ class NovaLaunchSourceGuardTest {
     @Test
     fun steamLaunchSelectionDoesNotDismissGameDetailOrStartStream() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val selection = detail.section(
             "onSteamLaunchModeSelected = { selected ->",
             "},\n                    onDismissSteamLaunchModeOptions"
@@ -674,7 +692,9 @@ class NovaLaunchSourceGuardTest {
     fun steamLaunchModeUpdateConfirmsHostModeAndStaysInline() {
         val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
 
         assertTrue(api.contains("fun setSteamLaunchMode(gameId: String, mode: String): String?"))
         assertTrue(api.contains("json.optString(\"mode\", normalizedMode)"))

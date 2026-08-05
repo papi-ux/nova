@@ -81,7 +81,9 @@ class NovaArtworkStudioSourceGuardTest {
     @Test
     fun detailSheetUsesArtworkStudioInsteadOfThePosterCentricFixMatchFlow() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val studio = readSource("src/main/java/com/papi/nova/ui/NovaArtworkStudio.kt")
         val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val updater = readSource("src/main/java/com/papi/nova/ui/NovaArtworkLibraryUpdater.kt")
@@ -120,7 +122,9 @@ class NovaArtworkStudioSourceGuardTest {
     @Test
     fun studioMutationsAreOwnedByRetainedViewModelAndUiCallbacksAreLifecycleGated() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val updater = readSource("src/main/java/com/papi/nova/ui/NovaArtworkLibraryUpdater.kt")
 
@@ -189,7 +193,9 @@ class NovaArtworkStudioSourceGuardTest {
     @Test
     fun gameDetailsPreservesCachedHeroAvailabilityAndStablePresentationIdentity() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val contentCall = detail.section(
             "NovaGameDetailContent(",
             "\n        loadOptimization(profilePreference)",
@@ -244,7 +250,9 @@ class NovaArtworkStudioSourceGuardTest {
     fun applyIsOneExplicitAtomicMutationAndFailureRequiresRefetch() {
         val studio = readSource("src/main/java/com/papi/nova/ui/NovaArtworkStudio.kt")
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val updater = readSource("src/main/java/com/papi/nova/ui/NovaArtworkLibraryUpdater.kt")
         val stateReducer = studio.section(
             "fun reduce(action: NovaArtworkStudioAction)",
@@ -309,7 +317,9 @@ class NovaArtworkStudioSourceGuardTest {
     fun resetAndCancelDiscardDraftLocallyWithoutServerMutation() {
         val studio = readSource("src/main/java/com/papi/nova/ui/NovaArtworkStudio.kt")
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val resetButton = studio.section(
             "text = stringResource(R.string.nova_artwork_studio_reset)",
             "text = stringResource(R.string.nova_artwork_studio_apply)",
@@ -334,7 +344,9 @@ class NovaArtworkStudioSourceGuardTest {
     @Test
     fun ordinaryDetailAndLibraryLoadingCannotStartChoiceOrProviderMutationTraffic() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val detailLoad = detail.section(
             "private fun loadArtworkState(",
@@ -351,7 +363,9 @@ class NovaArtworkStudioSourceGuardTest {
     @Test
     fun studioRefreshUsesTheRetainedPerGameMutationCoordinator() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
-            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
+            readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val updater = readSource("src/main/java/com/papi/nova/ui/NovaArtworkLibraryUpdater.kt")
 
