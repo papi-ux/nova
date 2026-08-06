@@ -284,8 +284,14 @@ internal fun NovaGameDetailContent(
             activeSession = activeSession,
             onResumeSession = onResumeSession,
             onEndSession = onEndSession,
-            // While a destination is open the Overview is scenery. Without this, a d-pad
-            // press walks out of the panel onto a control dimmed behind the scrim.
+            // While a destination is open the Overview is scenery: it cannot be walked
+            // onto, and its chrome recedes to a texture so the translucent destination
+            // reads against artwork rather than against ghosted text.
+            chromeAlpha = if (destination == NovaGameDetailDestination.OVERVIEW) {
+                1f
+            } else {
+                NOVA_DETAIL_SCENERY_CHROME_ALPHA
+            },
             modifier = if (destination == NovaGameDetailDestination.OVERVIEW) {
                 Modifier
             } else {
@@ -453,6 +459,9 @@ internal fun NovaGameDetailContent(
         }
     }
 }
+
+/** Enough to read as texture behind a translucent destination, not as text. */
+private const val NOVA_DETAIL_SCENERY_CHROME_ALPHA = 0.16f
 
 @Composable
 private fun NovaGameDetailScrollableContent(

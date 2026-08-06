@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -141,6 +142,16 @@ internal fun NovaGameDetailOverview(
     activeSession: NovaLibraryActiveSessionUiState?,
     onResumeSession: () -> Unit,
     onEndSession: () -> Unit,
+    /**
+     * How strongly the chrome reads while something is open over it.
+     *
+     * A destination that spans the width is translucent so the game stays present, but
+     * "the game" means the artwork -- the Overview's own title, gauge, status line and
+     * rail are high-contrast text, and ghosting them behind more text is noise rather
+     * than context. Only the chrome fades; the backdrop is left alone, because it is the
+     * thing worth seeing through to.
+     */
+    chromeAlpha: Float = 1f,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
@@ -169,6 +180,7 @@ internal fun NovaGameDetailOverview(
         Column(
             modifier = Modifier
                 .align(if (portrait) Alignment.TopStart else Alignment.BottomStart)
+                .graphicsLayer { alpha = chromeAlpha }
                 .fillMaxWidth()
                 .then(if (portrait) Modifier.padding(top = 176.dp) else Modifier)
                 .windowInsetsPadding(WindowInsets.safeContent)
