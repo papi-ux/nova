@@ -271,6 +271,8 @@
     <string name="nova_game_detail_group_actions">Actions</string>
     <string name="nova_game_detail_group_insight">Insight</string>
     <string name="nova_game_detail_close">Close</string>
+    <string name="nova_game_detail_not_started">Not started</string>
+    <string name="nova_game_detail_to_beat">%1$s h to beat</string>
     <string name="nova_game_detail_played_hours">%1$d h played</string>
     <string name="nova_game_detail_played_minutes">%1$d min played</string>
     <string name="nova_game_detail_headless_caption">Streams without touching the physical desktop</string>

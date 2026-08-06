@@ -37,7 +37,9 @@ data class PolarisGame(
      * inserted beside lastLaunched where it reads best would silently shift every one of
      * them. Serialisation is by name, so position costs nothing here.
      */
-    @SerialName("play_time") val playTime: PlayTime? = null
+    @SerialName("play_time") val playTime: PlayTime? = null,
+    /** Completion estimates, or null when the host's dataset has nothing for this game. */
+    @SerialName("beat_time") val beatTime: BeatTime? = null
 ) {
     @Serializable
     data class ArtworkManifest(
@@ -50,6 +52,26 @@ data class PolarisGame(
         @SerialName("override") val override: ArtworkOverride? = null
     ) {
         fun asset(kind: String): ArtworkAsset? = assets.asset(kind)
+    }
+
+    /**
+     * What the host's dataset says about finishing this game.
+     *
+     * Every figure is optional on its own: a catalogue that knows the main story but not
+     * the completionist run should say so rather than pad the gap with a zero.
+     */
+    @Serializable
+    data class BeatTime(
+        @SerialName("main_seconds") val mainSeconds: Long = 0,
+        @SerialName("extras_seconds") val extrasSeconds: Long = 0,
+        @SerialName("completionist_seconds") val completionistSeconds: Long = 0,
+        @SerialName("matched_name") val matchedName: String = "",
+        @SerialName("url") val url: String = "",
+        @SerialName("cached_at") val cachedAt: Long = 0
+    ) {
+        /** The bar's full width, falling back through what is actually known. */
+        val longestSeconds: Long
+            get() = maxOf(completionistSeconds, extrasSeconds, mainSeconds)
     }
 
     /** What a launcher says about time spent, normalised to seconds before it travels. */

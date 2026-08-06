@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.widget.ImageView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -43,6 +44,8 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -182,26 +185,10 @@ internal fun NovaGameDetailOverview(
             // The concept's gauge needs How Long To Beat to have something to measure
             // against; until that exists it draws the played figure alone, and a game no
             // launcher owns draws nothing rather than claiming nobody has played it.
-            uiState.game.playTime?.takeIf { it.seconds > 0 }?.let { played ->
-                val minutes = played.seconds / 60
-                Text(
-                    text = if (minutes >= 60) {
-                        stringResource(R.string.nova_game_detail_played_hours, minutes / 60)
-                    } else {
-                        stringResource(R.string.nova_game_detail_played_minutes, minutes)
-                    },
-                    color = colors.textSecondary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.17.em,
-                    maxLines = 1,
-                    // these are measurements, so the digits line up rather than dance
-                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-                    modifier = Modifier
-                        .padding(top = 9.dp)
-                        .testTag("nova-game-detail-played"),
-                )
-            }
+            NovaGameDetailBeatGauge(
+                playTime = uiState.game.playTime,
+                beatTime = uiState.game.beatTime,
+            )
 
             NovaGameDetailStatusLine(
                 uiState = uiState,
@@ -488,6 +475,117 @@ private fun NovaGameDetailActions(
         }
     }
 }
+
+/**
+ * How long this has been played, against how long it takes.
+ *
+ * The concept is explicit about what each partial case draws, because a gauge that
+ * guesses is worse than one that says less:
+ *
+ *  - both        a bar whose full width is the completionist figure, notched where main
+ *                and extras fall, played hours at the left and the estimates at the right
+ *  - played only the played figure alone; there is nothing to measure it against
+ *  - estimate only "Not started", and the notches on an empty track
+ *  - neither     nothing at all, and the hairline above still separates identity from state
+ *  - past the end the bar caps and the figure keeps counting, since that is the true number
+ */
+@Composable
+private fun NovaGameDetailBeatGauge(
+    playTime: PolarisGame.PlayTime?,
+    beatTime: PolarisGame.BeatTime?,
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+
+    val playedSeconds = playTime?.seconds?.takeIf { it > 0 } ?: 0L
+    val fullWidthSeconds = beatTime?.longestSeconds?.takeIf { it > 0 } ?: 0L
+    if (playedSeconds <= 0L && fullWidthSeconds <= 0L) {
+        return
+    }
+
+    val figures = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+
+    Column(modifier = Modifier.padding(top = 9.dp).testTag("nova-game-detail-played")) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.width(NOVA_GAUGE_WIDTH),
+        ) {
+            Text(
+                text = if (playedSeconds > 0L) {
+                    val minutes = playedSeconds / 60
+                    if (minutes >= 60) {
+                        stringResource(R.string.nova_game_detail_played_hours, minutes / 60)
+                    } else {
+                        stringResource(R.string.nova_game_detail_played_minutes, minutes)
+                    }
+                } else {
+                    stringResource(R.string.nova_game_detail_not_started)
+                },
+                color = colors.textSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.17.em,
+                maxLines = 1,
+                style = figures,
+                modifier = Modifier.weight(1f),
+            )
+
+            if (beatTime != null) {
+                val estimates = listOf(
+                    beatTime.mainSeconds,
+                    beatTime.extrasSeconds,
+                    beatTime.completionistSeconds,
+                ).filter { it > 0 }.joinToString(" · ") { "${it / 3600}" }
+
+                if (estimates.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.nova_game_detail_to_beat, estimates),
+                        color = colors.textMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.17.em,
+                        maxLines = 1,
+                        style = figures,
+                    )
+                }
+            }
+        }
+
+        if (fullWidthSeconds > 0L) {
+            val track = surfaces.tileBorder
+            val fill = colors.accent
+            val notchInk = colors.textMuted
+            val played = (playedSeconds.toFloat() / fullWidthSeconds.toFloat()).coerceIn(0f, 1f)
+            val notches = listOfNotNull(
+                beatTime?.mainSeconds?.takeIf { it > 0 && it < fullWidthSeconds },
+                beatTime?.extrasSeconds?.takeIf { it > 0 && it < fullWidthSeconds },
+            ).map { it.toFloat() / fullWidthSeconds.toFloat() }
+
+            Canvas(
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .width(NOVA_GAUGE_WIDTH)
+                    .height(4.dp),
+            ) {
+                drawRect(color = track, size = size)
+                if (played > 0f) {
+                    drawRect(color = fill, size = Size(size.width * played, size.height))
+                }
+                notches.forEach { fraction ->
+                    drawRect(
+                        color = notchInk,
+                        topLeft = Offset(size.width * fraction, 0f),
+                        size = Size(NOVA_GAUGE_NOTCH.toPx(), size.height),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Matches the hairline above it, so the two read as one column. */
+private val NOVA_GAUGE_WIDTH = 330.dp
+private val NOVA_GAUGE_NOTCH = 2.dp
 
 /** Dissolves the hero band into the window colour instead of cutting against it. */
 private fun Modifier.novaFadeToGround(ground: Color): Modifier = drawWithContent {
