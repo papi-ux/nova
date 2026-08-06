@@ -251,7 +251,18 @@ class NovaGameDetailActivity : NovaActivity() {
      * Unwinds one level: an expanded review collapses, a destination returns to the
      * Overview, and only then does back leave for the library.
      */
+    /**
+     * Closes whichever row's options are showing in the comparison strip.
+     *
+     * Set from the composition, because the picker states live with the content rather
+     * than the activity. Back unwinds one level at a time, so an open picker has to be
+     * the first level: without this, B on a list of tuning profiles left the destination
+     * entirely rather than returning to the rows.
+     */
+    private var dismissActivePicker: (() -> Boolean)? = null
+
     private fun dismissActiveDetailDestination(): Boolean = when {
+        dismissActivePicker?.invoke() == true -> true
         reviewExpanded -> {
             reviewExpanded = false
             true
@@ -310,6 +321,15 @@ class NovaGameDetailActivity : NovaActivity() {
 
         fun refreshUiState(preference: String = profilePreference) {
             uiState = buildUiState(currentGame, preference)
+        }
+
+        dismissActivePicker = {
+            when {
+                launchOptionsState != null -> { launchOptionsState = null; true }
+                profileOptionsState != null -> { profileOptionsState = null; true }
+                steamLaunchOptionsState != null -> { steamLaunchOptionsState = null; true }
+                else -> false
+            }
         }
 
         /**

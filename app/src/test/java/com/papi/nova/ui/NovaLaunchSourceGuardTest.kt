@@ -361,9 +361,10 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val quickContent = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
         val planner = readSource("src/main/java/com/papi/nova/ui/NovaDisplayResolutionPlanner.kt")
+        val playSetup = readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt")
         val optionSheet = detail.section(
-            "private fun NovaLaunchOptionsSheet(",
-            "@Composable\nprivate fun NovaProfilePreferenceSheet"
+            "private fun showLaunchOptions(",
+            "private fun optionLabel("
         )
 
         assertTrue(
@@ -373,10 +374,13 @@ class NovaLaunchSourceGuardTest {
                 detail.contains("NovaDisplayResolutionPlanner.buildLaunchOptimizationOverride(")
         )
         assertTrue(
-            "Planner choices should keep DPAD focus on meaningful cards rather than redundant Press A badges",
-            optionSheet.contains("NovaFocusableCard(") &&
-                optionSheet.contains("option.caption") &&
-                !optionSheet.contains("Press A") &&
+            "Planner choices keep D-pad focus on meaningful cards rather than redundant Press A " +
+                "badges. They moved from the option sheet into the comparison strip, which is " +
+                "focusable in place and carries each option's caption as its consequence",
+            playSetup.contains(".focusable(enabled = actionable)") &&
+                detail.contains("launchOptionsState != null -> NovaPlaySetupComparison(") &&
+                detail.contains("option.caption") &&
+                !detail.contains("Press A") &&
                 planner.contains("takeUnless { it.equals(\"Press A\", ignoreCase = true) }")
         )
         assertTrue(

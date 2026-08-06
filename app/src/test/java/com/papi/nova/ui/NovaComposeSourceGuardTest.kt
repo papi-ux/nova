@@ -2731,10 +2731,13 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "Launch Options runs from the Compose game detail sheet and must not use raw AlertDialog.Builder; Retroid Portable Chrome routes this through Nova glass option panels",
+            "the launch settings are chosen without a dialog and without a sheet, for the " +
+                "same reason as the tuning preference: a glass panel over the destination is " +
+                "still a modal on the launch path",
             !launchOptions.contains("AlertDialog.Builder(") &&
                 detail.contains("data class NovaLaunchOptionsState") &&
-                detail.contains("private fun NovaLaunchOptionsSheet(")
+                !detail.contains("private fun NovaLaunchOptionsSheet(") &&
+                detail.contains("launchOptionsState != null -> NovaPlaySetupComparison(")
         )
     }
 
@@ -2750,10 +2753,15 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "AI Preference/Profile selector runs from the Compose game detail sheet and must not use raw AlertDialog.Builder on Retroid Portable Chrome",
+            "the tuning preference is chosen without a dialog and without a sheet. It used " +
+                "to be routed through a Nova glass panel raised over the destination, which " +
+                "was better than an AlertDialog and still a modal on the launch path; the " +
+                "options are stated as consequences in the comparison strip now",
             !profileOptions.contains("AlertDialog.Builder(") &&
                 detail.contains("data class NovaProfilePreferenceOptionsState") &&
-                detail.contains("private fun NovaProfilePreferenceSheet(")
+                !detail.contains("private fun NovaProfilePreferenceSheet(") &&
+                detail.contains("profileOptionsState != null -> NovaPlaySetupComparison(") &&
+                detail.contains("consequence = novaProfilePreferenceConsequence(option.value)")
         )
     }
 
