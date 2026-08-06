@@ -18,6 +18,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -320,6 +321,13 @@ internal fun NovaGameDetailContent(
             activeSession = activeSession,
             onResumeSession = onResumeSession,
             onEndSession = onEndSession,
+            // While a destination is open the Overview is scenery. Without this, a d-pad
+            // press walks out of the panel onto a control dimmed behind the scrim.
+            modifier = if (destination == NovaGameDetailDestination.OVERVIEW) {
+                Modifier
+            } else {
+                Modifier.focusGroup().focusProperties { canFocus = false }
+            },
         )
 
         when (destination) {
