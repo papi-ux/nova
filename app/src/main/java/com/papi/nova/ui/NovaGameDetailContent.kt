@@ -213,6 +213,8 @@ internal fun NovaGameDetailContent(
     onDismissProfileOptions: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    /** Opens the host scope. Null where no host settings surface is reachable. */
+    onOpenHostSettings: (() -> Unit)? = null,
     steamLaunchOptionsState: NovaSteamLaunchModeOptionsState? = null,
     onSteamLaunchMode: () -> Unit,
     onSteamLaunchModeSelected: (NovaSteamLaunchModeItem) -> Unit = {},
@@ -338,6 +340,36 @@ internal fun NovaGameDetailContent(
                             askedKey = stringResource(R.string.nova_play_setup_fact_asked),
                             profileKey = stringResource(R.string.nova_play_setup_fact_profile),
                             grantedFormat = stringResource(R.string.nova_play_setup_granted_format),
+                            hostFacts = buildList {
+                                if (uiState.hostStreamDisplayModeLabel.isNotBlank()) {
+                                    add(
+                                        NovaPlaySetupFact(
+                                            key = stringResource(R.string.nova_play_setup_fact_host_default),
+                                            value = uiState.hostStreamDisplayModeLabel,
+                                            detail = stringResource(
+                                                if (uiState.overridesHostMode) {
+                                                    R.string.nova_play_setup_host_overridden
+                                                } else {
+                                                    R.string.nova_play_setup_host_followed
+                                                },
+                                            ),
+                                            tone = if (uiState.overridesHostMode) {
+                                                NovaPlaySetupTone.WARN
+                                            } else {
+                                                NovaPlaySetupTone.PLAIN
+                                            },
+                                        ),
+                                    )
+                                }
+                                if (uiState.hostProfileLabel.isNotBlank()) {
+                                    add(
+                                        NovaPlaySetupFact(
+                                            key = stringResource(R.string.nova_play_setup_fact_host_profile),
+                                            value = uiState.hostProfileLabel,
+                                        ),
+                                    )
+                                }
+                            },
                         ),
                         rows = {
                             NovaSteamChoiceRow(
@@ -371,6 +403,19 @@ internal fun NovaGameDetailContent(
                                 onRetryHighFps = onRetryHighFps,
                                 onResetProfile = onResetProfile,
                             )
+                            // The host scope. Changing it still happens in Polaris Sync,
+                            // which owns settings loading and the handlers that write to
+                            // the host; this is a way in from where the per-game choice
+                            // is made rather than only from four items down System.
+                            if (onOpenHostSettings != null) {
+                                NovaSteamChoiceRow(
+                                    label = stringResource(R.string.nova_play_setup_every_game),
+                                    caption = stringResource(R.string.nova_play_setup_every_game_caption),
+                                    enabled = true,
+                                    onClick = onOpenHostSettings,
+                                    value = uiState.hostStreamDisplayModeLabel,
+                                )
+                            }
                         },
                         comparison = {
                             NovaPlaySetupComparison(

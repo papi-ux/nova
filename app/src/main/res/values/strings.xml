@@ -278,6 +278,12 @@
     <string name="nova_play_setup_fact_profile">Profile</string>
     <string name="nova_play_setup_granted_format">Granted: %1$s</string>
     <string name="nova_play_setup_compare_where">If you changed where it runs</string>
+    <string name="nova_play_setup_fact_host_default">Host default</string>
+    <string name="nova_play_setup_fact_host_profile">Host profile</string>
+    <string name="nova_play_setup_host_overridden">This game overrides it. Every other game follows the host.</string>
+    <string name="nova_play_setup_host_followed">This game follows it.</string>
+    <string name="nova_play_setup_every_game">Every Game</string>
+    <string name="nova_play_setup_every_game_caption">Host defaults, profile and Auto Quality for every game</string>
     <string name="nova_play_setup_compare_private">Its own display, made for this session. The desk keeps its own screen.</string>
     <string name="nova_play_setup_compare_virtual">Uses the host\'s virtual display driver. Advanced, and needs SudoVDA on the host.</string>
     <string name="nova_game_detail_group_state">State</string>

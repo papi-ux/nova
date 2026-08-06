@@ -361,6 +361,7 @@ internal fun novaPlaySetupPlan(
     askedKey: String,
     profileKey: String,
     grantedFormat: String,
+    hostFacts: List<NovaPlaySetupFact> = emptyList(),
 ): NovaPlaySetupPlan {
     val facts = mutableListOf<NovaPlaySetupFact>()
     if (summary != null) {
@@ -403,6 +404,9 @@ internal fun novaPlaySetupPlan(
             facts += NovaPlaySetupFact(key = profileKey, value = it)
         }
     }
+    // The host's answer sits beside the game's, because the per-game choice outranks it
+    // and a hierarchy is only legible when both ends are on screen.
+    facts += hostFacts
     return NovaPlaySetupPlan(mode = modeLabel, lines = lines, facts = facts)
 }
 

@@ -15,6 +15,50 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class NovaGameDetailUiStateTest {
     @Test
+    fun agreeingWithTheHostIsNotAnOverride() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                launchMode = PolarisGame.LaunchModeContract(
+                    preferredMode = "headless",
+                    allowedModes = listOf("headless", "virtual_display")
+                )
+            ),
+            defaultToVirtualDisplay = false,
+            // The host says headless in its own spelling; the game resolves to the
+            // contract's. These are two vocabularies for one answer, and comparing them
+            // raw reported an override on every game -- including the ones that agree.
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = "headless_stream")
+            ),
+            profilePreference = "quality"
+        )
+
+        assertEquals("headless", state.playMode)
+        assertFalse("agreeing with the host is not overriding it", state.overridesHostMode)
+    }
+
+    @Test
+    fun choosingSomewhereElseThanTheHostIsAnOverride() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                launchMode = PolarisGame.LaunchModeContract(
+                    preferredMode = "headless",
+                    allowedModes = listOf("headless", "virtual_display")
+                )
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = "headless_stream")
+            ),
+            profilePreference = "quality",
+            launchModeOverride = "virtual_display",
+        )
+
+        assertEquals("virtual_display", state.playMode)
+        assertTrue(state.overridesHostMode)
+    }
+
+    @Test
     fun virtualRecommendedModeUsesVirtualPlayMode() {
         val state = NovaGameDetailUiState.from(
             game = game(

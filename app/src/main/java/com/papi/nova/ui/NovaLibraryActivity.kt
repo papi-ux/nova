@@ -790,6 +790,10 @@ class NovaLibraryActivity : NovaActivity() {
                 httpsPort = streamHttpsPort,
                 serverCert = streamServerCert,
                 defaultToVirtualDisplay = preferences.useVirtualDisplay,
+                // Carried so the host settings opened from the detail window are the same
+                // surface, with the same auto-match state, as the one in the System drawer.
+                serverName = streamPcName.ifBlank { streamHost },
+                serverUuid = streamPcUuid,
             ),
         )
         NovaThemeManager.applyForwardTransition(this)
