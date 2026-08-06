@@ -715,6 +715,11 @@ class NovaLaunchSourceGuardTest {
         return sync.contains("isDraggable = false")
     }
 
-    private fun String.section(startMarker: String, endMarker: String): String =
-        substring(indexOf(startMarker), indexOf(endMarker))
+    private fun String.section(startMarker: String, endMarker: String): String {
+        val start = indexOf(startMarker)
+        require(start >= 0) { "Missing start marker: $startMarker" }
+        val end = indexOf(endMarker, start)
+        require(end >= 0) { "Missing end marker: $endMarker" }
+        return substring(start, end)
+    }
 }
