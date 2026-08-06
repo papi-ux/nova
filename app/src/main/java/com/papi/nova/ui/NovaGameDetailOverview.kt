@@ -190,6 +190,7 @@ internal fun NovaGameDetailOverview(
             // against; until that exists it draws the played figure alone, and a game no
             // launcher owns draws nothing rather than claiming nobody has played it.
             NovaGameDetailBeatGauge(
+                gameName = uiState.game.name,
                 playTime = uiState.game.playTime,
                 beatTime = uiState.game.beatTime,
             )
@@ -500,6 +501,7 @@ private fun NovaGameDetailActions(
  */
 @Composable
 private fun NovaGameDetailBeatGauge(
+    gameName: String,
     playTime: PolarisGame.PlayTime?,
     beatTime: PolarisGame.BeatTime?,
 ) {
@@ -660,7 +662,37 @@ private fun NovaGameDetailBeatGauge(
                 }
             }
         }
+
+        // A fuzzy match that went wrong looks exactly like one that went right, so the
+        // name it actually found is shown whenever it is not plainly the same game.
+        val matched = beatTime?.matchedName.orEmpty()
+        if (matched.isNotBlank() && novaSameTitle(matched, gameName).not()) {
+            Text(
+                text = stringResource(R.string.nova_game_detail_matched_as, matched),
+                color = colors.textMuted,
+                fontSize = 10.sp,
+                letterSpacing = 0.06.em,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .padding(top = 5.dp)
+                    .width(NOVA_GAUGE_WIDTH),
+            )
+        }
     }
+}
+
+/**
+ * Whether two titles are the same game as far as a reader cares.
+ *
+ * Punctuation and case disagree constantly between a launcher and a catalogue, and
+ * saying so every time would bury the cases that matter under noise.
+ */
+private fun novaSameTitle(left: String, right: String): Boolean {
+    fun fold(value: String) = buildString {
+        value.forEach { if (it.isLetterOrDigit()) append(it.lowercaseChar()) }
+    }
+    return fold(left) == fold(right)
 }
 
 /** Matches the hairline above it, so the two read as one column. */
