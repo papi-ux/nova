@@ -39,16 +39,21 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -129,6 +134,7 @@ internal fun NovaGameDetailPanel(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .novaFadeAtCut()
                     .novaHoldsFirstFocus()
                     .verticalScroll(scrollState),
                 content = { content() },
@@ -152,6 +158,29 @@ private fun Modifier.novaHoldsFirstFocus(): Modifier {
     }
     return focusRequester(requester).focusGroup()
 }
+
+/**
+ * Dissolves the last band of a scrolling body, so what passes under the hint bar reads
+ * as continuing rather than as clipped. It erases content alpha instead of painting a
+ * ground: the panel is translucent, and a solid band would stripe window colour across
+ * the artwork showing through it.
+ */
+private fun Modifier.novaFadeAtCut(): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val fade = NOVA_DETAIL_BOTTOM_FADE.toPx().coerceAtMost(size.height)
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(Color.Black, Color.Transparent),
+                startY = size.height - fade,
+                endY = size.height,
+            ),
+            topLeft = Offset(0f, size.height - fade),
+            size = Size(size.width, fade),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 
 /** A tap target that swallows the gesture, with no ripple to imply a button. */
 private fun Modifier.novaDismissOnTap(onDismiss: () -> Unit): Modifier = composed {
@@ -203,6 +232,7 @@ internal fun NovaGameDetailFullScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .novaFadeAtCut()
                     .novaHoldsFirstFocus()
                     .verticalScroll(scrollState),
                 content = { content() },
@@ -548,6 +578,9 @@ private val NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp
 
 /** The focused row grows a bar at its edge instead of a border that moves it. */
 private val NOVA_DETAIL_ROW_FOCUS_BAR = 3.dp
+
+/** The body dissolves over this much before the hint bar, marking the cut. */
+private val NOVA_DETAIL_BOTTOM_FADE = 52.dp
 
 /**
  * A scrim is a shadow, not a surface, so it does not follow the theme. Painting it in
