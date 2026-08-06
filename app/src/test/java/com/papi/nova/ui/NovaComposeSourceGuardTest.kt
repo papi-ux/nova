@@ -1036,7 +1036,7 @@ class NovaComposeSourceGuardTest {
         val detail = readNovaGameDetail()
         val detailsPanel = detail.section(
             "private fun GameDetailsPanel(",
-            "@Composable\nprivate fun LaunchControls("
+            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
         )
         val launchFooter = detail.section(
             "internal fun NovaGameDetailLaunchFooter(",
@@ -1095,11 +1095,18 @@ class NovaComposeSourceGuardTest {
                 detail.contains("heightIn(min = NovaGameDetailActionHeight)")
         )
         assertTrue(
-            "the rail is gated rather than decorative: Launch mode appears only when there is a real choice, and a review replaces the rail with its own answers",
-            actions.contains("if (showLaunchModeAction)") &&
+            "the rail is a fixed three, so a D-pad walk cannot find a different number of " +
+                "nodes on a different game; a review still replaces it with its own answers",
+            actions.contains("NovaGameDetailDestination.PLAY_SETUP") &&
+                actions.contains("NovaGameDetailDestination.ARTWORK") &&
                 actions.contains("if (reviewExpanded)") &&
                 actions.contains("onRetryHighFps") &&
                 actions.contains("onResetProfile")
+        )
+        assertFalse(
+            "nothing gates a rail node any more: what showLaunchModeAction used to remove " +
+                "is a row inside Play Setup rather than an action beside it",
+            actions.contains("if (showLaunchModeAction)")
         )
         assertFalse(
             "the primary launch button must not sit inside a scrolling body",
@@ -1108,44 +1115,32 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun gameDetailLaunchModeUsesSingleInlineSelectorInsteadOfDuplicateOptionsDrawer() {
+    fun playSetupKeepsModeChoiceInlineAndHoldsTheProfileControlsToo() {
         val detail = readNovaGameDetail()
-        val launchControls = detail.section(
-            "private fun LaunchControls(",
-            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
-        )
 
         assertTrue(
-            "Headless/Virtual should be directly selectable from the destination, as rows carrying their standing",
-            launchControls.contains("NovaSteamChoiceRow(") &&
-                launchControls.contains("onClick = { onLaunchModeSelected(\"headless\") }") &&
-                launchControls.contains("onClick = { onLaunchModeSelected(\"virtual_display\") }") &&
-                !launchControls.contains("LaunchModeChoicePill(")
+            "Headless/Virtual stay one press away and say what they would do while you pick. " +
+                "They moved from rows into the comparison strip, which is still inline: a picker " +
+                "raised over the destination would cost a press and re-introduce the options " +
+                "drawer that inline selection was added to remove",
+            detail.contains("NovaPlaySetupComparison(") &&
+                detail.contains("onSelect = { onLaunchModeSelected(\"headless\") }") &&
+                detail.contains("onSelect = { onLaunchModeSelected(\"virtual_display\") }") &&
+                detail.contains("consequence = stringResource(")
         )
         assertTrue(
-            "Launch Options should remain a secondary path after inline Headless/Virtual choices",
-            detail.contains("private fun showLaunchOptions(") &&
-                detail.contains("onLaunchOptions = {") &&
-                launchControls.contains("label = launchOptionsLabel") &&
-                launchControls.indexOf("label = headlessModeLabel") in
-                0 until launchControls.indexOf("label = launchOptionsLabel")
+            "one destination holds the whole decision: where it runs, the launch settings, the " +
+                "tuning profile and Steam launch. Splitting these across two drawers is what " +
+                "made each of them carry half of the other's subject",
+            detail.contains("onClick = onLaunchOptions,") &&
+                detail.contains("onClick = onProfilePreference,") &&
+                detail.contains("SteamLaunchModeCard(") &&
+                detail.contains("LaunchProfileSummaryActions(")
         )
-        assertTrue(
-            "launch mode should answer where it runs and leave the profile alone: preference, summary and reset are Tune's",
-            !launchControls.contains("profilePreferenceLabel") &&
-                !launchControls.contains("LaunchProfileSummaryInline(") &&
-                !launchControls.contains("resetProfileLabel")
-        )
-        assertTrue(
-            "Tune should hold the profile controls launch mode gave up, and stay the way into the preference picker",
-            detail.contains("onClick = onProfilePreference,") &&
-                detail.contains("LaunchProfileSummaryActions(") &&
-                detail.contains("R.string.nova_game_detail_group_actions")
-        )
-        assertTrue(
-            "launch mode should name itself once: the destination header already does, and the pills say which is recommended",
-            !launchControls.contains("text = launchModeTitle") &&
-                !launchControls.contains("text = recommendedBadge")
+        assertFalse(
+            "LaunchControls served the destination that no longer exists; leaving it behind " +
+                "would leave a second way to draw the same choice",
+            detail.contains("private fun LaunchControls(")
         )
     }
 
@@ -1162,10 +1157,11 @@ class NovaComposeSourceGuardTest {
             sheetContent.contains("MangoHudCard(")
         )
         assertTrue(
-            "when MangoHUD is already enabled, the drawer should show only a passive status after launch controls",
+            "when MangoHUD is already enabled, Play Setup shows only a passive status, and it " +
+                "comes after the choices rather than competing with them",
             sheetContent.contains("if (mangoHudEnabled) {") &&
                 sheetContent.contains("MangoHudPassiveStatus(") &&
-                sheetContent.indexOf("LaunchControls(") in
+                sheetContent.indexOf("NovaPlaySetupBody(") in
                 0 until sheetContent.indexOf("MangoHudPassiveStatus(")
         )
     }
@@ -1175,7 +1171,7 @@ class NovaComposeSourceGuardTest {
         val source = readNovaGameDetail()
         val detailsPanel = source.section(
             "private fun GameDetailsPanel(",
-            "@Composable\nprivate fun LaunchControls("
+            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
         )
 
         assertTrue(
@@ -2702,15 +2698,13 @@ class NovaComposeSourceGuardTest {
         readSource("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt")
 
     @Test
-    fun gameDetailLaunchOptionsUseActionableModeState() {
-        val launchControls = readNovaGameDetail().section(
-            "private fun LaunchControls(",
-            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
-        )
+    fun playSetupLaunchSettingsRowReadsActionableModeState() {
+        val detail = readNovaGameDetail()
 
-        assertTrue(launchControls.contains("uiState.showLaunchOptionsButton"))
-        assertTrue(launchControls.contains("uiState.showLaunchModeSummary"))
-        assertFalse(launchControls.contains("uiState.launchOptionsEnabled"))
+        // The state this asked of LaunchControls is now asked of the row that replaced
+        // it: what the launch settings offer is derived, never assumed enabled.
+        assertTrue(detail.contains("uiState.showLaunchOptionsButton"))
+        assertFalse(detail.contains("uiState.launchOptionsEnabled"))
     }
 
     @Test
@@ -2760,8 +2754,13 @@ class NovaComposeSourceGuardTest {
     private fun String.containsRegex(pattern: String): Boolean =
         Regex(pattern).containsMatchIn(this)
 
-    private fun String.section(startMarker: String, endMarker: String): String =
-        substring(indexOf(startMarker), indexOf(endMarker))
+    private fun String.section(startMarker: String, endMarker: String): String {
+        val start = indexOf(startMarker)
+        require(start >= 0) { "Missing start marker: $startMarker" }
+        val end = indexOf(endMarker, start)
+        require(end >= 0) { "Missing end marker: $endMarker" }
+        return substring(start, end)
+    }
 
     private fun String.blockStartingAt(startMarker: String): String {
         val markerIndex = indexOf(startMarker)

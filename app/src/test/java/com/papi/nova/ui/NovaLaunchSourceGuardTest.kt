@@ -60,7 +60,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "the desktop Steam choice belongs in the Launch mode destination, not a sheet or an alert raised over the artwork",
-            detail.contains("destination = NovaGameDetailDestination.LAUNCH_MODE") &&
+            detail.contains("destination = NovaGameDetailDestination.PLAY_SETUP") &&
                 detail.contains("steamDecision = desktopSteamDecision") &&
                 !detail.contains("BottomSheetDialog(") &&
                 !detail.contains("AlertDialog.Builder")

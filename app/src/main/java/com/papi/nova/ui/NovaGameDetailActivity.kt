@@ -497,11 +497,11 @@ class NovaGameDetailActivity : NovaActivity() {
                             optimizationState.rawOptimization
                         )
                         when {
-                            // A choice of where to run belongs in the destination named that,
-                            // not in a sheet raised over the artwork.
+                            // A choice of where to run belongs in the destination that
+                            // owns where it runs, not in a sheet raised over the artwork.
                             decision.required -> {
                                 steamDecision = decision
-                                destination = NovaGameDetailDestination.LAUNCH_MODE
+                                destination = NovaGameDetailDestination.PLAY_SETUP
                             }
                             // The review is a statement about the profile, and the status
                             // line is where the profile lives, so it expands in place.
@@ -570,7 +570,7 @@ class NovaGameDetailActivity : NovaActivity() {
                             // Same destination the primary action routes to; picking an
                             // explicit option does not change where the choice belongs.
                             steamDecision = desktopSteamDecision
-                            destination = NovaGameDetailDestination.LAUNCH_MODE
+                            destination = NovaGameDetailDestination.PLAY_SETUP
                         } else {
                             launchSelected(mirrorDesktop = false)
                         }

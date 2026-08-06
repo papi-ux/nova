@@ -296,62 +296,108 @@ internal fun NovaGameDetailContent(
         when (destination) {
             NovaGameDetailDestination.OVERVIEW -> Unit
 
-            NovaGameDetailDestination.LAUNCH_MODE -> NovaGameDetailPanel(
-                eyebrow = stringResource(R.string.nova_library_launch_mode_title),
-                headline = stringResource(R.string.nova_game_detail_where_it_runs),
-                readout = if (steamDecision != null) {
-                    stringResource(R.string.nova_desktop_steam_title)
-                } else {
-                    optimizationState.profileSummary?.selectedLine.orEmpty()
-                },
+            NovaGameDetailDestination.PLAY_SETUP -> NovaGameDetailFullScreen(
+                eyebrow = stringResource(R.string.nova_play_setup_title),
+                headline = uiState.game.name,
                 scrollState = verticalScroll,
                 onDismiss = onDismissDestination,
             ) {
                 val decision = steamDecision
                 if (decision != null) {
+                    // A blocked three-way choice is the one moment nothing else on the
+                    // screen matters, so it keeps the body to itself.
                     NovaDesktopSteamLaunchDecisionRows(
                         decision = decision,
                         onChoice = onSteamChoice,
                     )
                 } else {
-                    LaunchControls(
-                        uiState = uiState,
-                        launchIntro = launchIntro,
-                        launchModeTitle = launchModeTitle,
-                        launchOptionsLabel = launchOptionsLabel,
-                        profileSummary = optimizationState.profileSummary,
-                        headlessModeLabel = headlessModeLabel,
-                        virtualDisplayModeLabel = virtualDisplayModeLabel,
-                        playFocusRequester = playFocusRequester,
-                        detailsFocusRequester = detailsFocusRequester,
-                        onLaunchOptions = onLaunchOptions,
-                        onLaunchModeSelected = onLaunchModeSelected,
+                    val summary = optimizationState.profileSummary
+                    NovaPlaySetupBody(
+                        plan = novaPlaySetupPlan(
+                            modeLabel = launchModeTitle,
+                            lines = listOfNotNull(
+                                summary?.primaryLaunchLabel?.takeIf { it.isNotBlank() },
+                                launchIntro.takeIf { it.isNotBlank() },
+                            ),
+                            summary = summary,
+                            lastSessionKey = stringResource(R.string.nova_play_setup_fact_last_session),
+                            limitedByKey = stringResource(R.string.nova_play_setup_fact_limited_by),
+                            askedKey = stringResource(R.string.nova_play_setup_fact_asked),
+                            profileKey = stringResource(R.string.nova_play_setup_fact_profile),
+                            grantedFormat = stringResource(R.string.nova_play_setup_granted_format),
+                        ),
+                        rows = {
+                            NovaSteamChoiceRow(
+                                label = launchOptionsLabel,
+                                caption = stringResource(R.string.nova_play_setup_settings_caption),
+                                enabled = true,
+                                onClick = onLaunchOptions,
+                                value = summary?.selectedLine?.let(::novaPlaySetupValue).orEmpty(),
+                            )
+                            NovaSteamChoiceRow(
+                                label = stringResource(R.string.nova_game_detail_profile_label),
+                                caption = stringResource(R.string.nova_game_detail_profile_caption),
+                                enabled = true,
+                                onClick = onProfilePreference,
+                                value = stringResource(
+                                    AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
+                                ),
+                            )
+                            SteamLaunchModeCard(
+                                visible = uiState.showSteamLaunchMode,
+                                label = steamLaunchLabel,
+                                modeLabel = steamLaunchModeLabel,
+                                caption = steamLaunchCaption,
+                                warning = uiState.steamLaunchWarning,
+                                onClick = onSteamLaunchMode
+                            )
+                            LaunchProfileSummaryActions(
+                                summary = summary,
+                                resetProfileLabel = resetProfileLabel,
+                                resetProfileWorking = resetProfileWorking,
+                                onRetryHighFps = onRetryHighFps,
+                                onResetProfile = onResetProfile,
+                            )
+                        },
+                        comparison = {
+                            NovaPlaySetupComparison(
+                                title = stringResource(R.string.nova_game_detail_where_it_runs),
+                                options = listOf(
+                                    NovaPlaySetupOption(
+                                        label = headlessModeLabel,
+                                        consequence = stringResource(R.string.nova_play_setup_compare_private),
+                                        current = uiState.playMode == "headless",
+                                        onSelect = { onLaunchModeSelected("headless") },
+                                    ),
+                                    NovaPlaySetupOption(
+                                        label = virtualDisplayModeLabel,
+                                        consequence = stringResource(R.string.nova_play_setup_compare_virtual),
+                                        current = uiState.playMode == "virtual_display",
+                                        onSelect = { onLaunchModeSelected("virtual_display") },
+                                    ),
+                                ),
+                            )
+                        },
                     )
-                    launchOptionsState?.let {
-                        NovaLaunchOptionsSheet(
-                            state = it,
-                            onLaunch = onLaunchOptionSelected,
-                            onDismiss = onDismissLaunchOptions
+                    if (mangoHudEnabled) {
+                        MangoHudPassiveStatus(
+                            label = mangoHudStatusLabel,
+                            caption = mangoHudStatusCaption,
+                            warning = mangoHudWarning
                         )
                     }
                 }
-            }
 
-            NovaGameDetailDestination.TUNE -> NovaGameDetailPanel(
-                eyebrow = stringResource(R.string.nova_game_detail_tune),
-                headline = stringResource(
-                    AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
-                ),
-                readout = listOf(
-                    optimizationState.profileSummary?.selectedLine,
-                    optimizationState.profileSummary?.freshnessLine,
-                ).filter { !it.isNullOrBlank() }.joinToString("  ·  "),
-                scrollState = verticalScroll,
-                onDismiss = onDismissDestination,
-            ) {
-                // A picker is what you are doing with the destination while it is
-                // open, not a row inside one of its groups, so it spans the body,
-                // above the groups rather than below the fold they push it past.
+                // The pickers still raise over the destination rather than sitting in
+                // it: a picker is what you are doing with the destination while it is
+                // open, not a row inside one of its columns.
+                launchOptionsState?.let {
+                    NovaLaunchOptionsSheet(
+                        state = it,
+                        onLaunch = onLaunchOptionSelected,
+                        onDismiss = onDismissLaunchOptions
+                    )
+                }
                 profileOptionsState?.let {
                     NovaProfilePreferenceSheet(
                         state = it,
@@ -366,50 +412,10 @@ internal fun NovaGameDetailContent(
                         onDismiss = onDismissSteamLaunchModeOptions
                     )
                 }
-
-                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_state))
-                // The concept leads State with the profile itself, and it is the only way
-                // into the preference picker now that launch mode no longer carries a
-                // second copy of Tune's controls.
-                NovaSteamChoiceRow(
-                    label = stringResource(R.string.nova_game_detail_profile_label),
-                    caption = stringResource(R.string.nova_game_detail_profile_caption),
-                    enabled = true,
-                    onClick = onProfilePreference,
-                    value = stringResource(
-                        AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
-                    ),
-                )
-                SteamLaunchModeCard(
-                    visible = uiState.showSteamLaunchMode,
-                    label = steamLaunchLabel,
-                    modeLabel = steamLaunchModeLabel,
-                    caption = steamLaunchCaption,
-                    warning = uiState.steamLaunchWarning,
-                    onClick = onSteamLaunchMode
-                )
-                if (mangoHudEnabled) {
-                    MangoHudPassiveStatus(
-                        label = mangoHudStatusLabel,
-                        caption = mangoHudStatusCaption,
-                        warning = mangoHudWarning
-                    )
-                }
-                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_actions))
-                LaunchProfileSummaryActions(
-                    summary = optimizationState.profileSummary,
-                    resetProfileLabel = resetProfileLabel,
-                    resetProfileWorking = resetProfileWorking,
-                    onRetryHighFps = onRetryHighFps,
-                    onResetProfile = onResetProfile,
-                )
-                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_insight))
-                optimizationState.ai?.let { InsightCard(card = it) }
-                optimizationState.stability?.let { InsightCard(card = it) }
             }
 
             // The studio opens with a Row of weighted Columns, so it needs the window
-            // rather than the 438dp panel the other two destinations use.
+            // rather than the panel Play Setup uses.
             NovaGameDetailDestination.ARTWORK -> NovaGameDetailFullScreen(
                 eyebrow = stringResource(R.string.nova_artwork_studio_title),
                 headline = uiState.game.name,
@@ -1008,109 +1014,6 @@ private fun GenresRow(genres: List<String>) {
             NovaBadge(
                 text = genre,
                 color = LocalNovaComposeColors.current.textMuted
-            )
-        }
-    }
-}
-
-@Composable
-private fun LaunchControls(
-    uiState: NovaGameDetailUiState,
-    launchIntro: String,
-    launchModeTitle: String,
-    launchOptionsLabel: String,
-    profileSummary: NovaLaunchProfileSummary?,
-    headlessModeLabel: String,
-    virtualDisplayModeLabel: String,
-    playFocusRequester: FocusRequester,
-    detailsFocusRequester: FocusRequester,
-    onLaunchOptions: () -> Unit,
-    onLaunchModeSelected: (String) -> Unit,
-) {
-    val colors = LocalNovaComposeColors.current
-
-    Column {
-        Text(
-            text = launchIntro,
-            modifier = Modifier.padding(horizontal = NovaGameDetailInset),
-            color = if (uiState.virtualDisplayUnavailable) colors.warning else colors.textSecondary,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        if (uiState.showLaunchModeSummary) {
-            val launchModeSummary = when {
-                uiState.showVirtualUnavailableHint && uiState.virtualDisplayUnavailableReason.isNotBlank() ->
-                    virtualDisplayModeLabel + " unavailable: " + uiState.virtualDisplayUnavailableReason
-                uiState.showVirtualUnavailableHint ->
-                    virtualDisplayModeLabel + " unavailable"
-                uiState.playMode == "virtual_display" -> launchModeTitle + ": " + virtualDisplayModeLabel
-                uiState.playMode == "headless" -> launchModeTitle + ": " + headlessModeLabel
-                else -> launchModeTitle
-            }
-            Text(
-                text = launchModeSummary,
-                modifier = Modifier.padding(top = 6.dp),
-                color = if (uiState.showVirtualUnavailableHint) colors.warning else colors.textMuted,
-                fontSize = 10.sp,
-                lineHeight = 12.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        profileSummary?.let {
-            LaunchProfilePrimaryNotice(
-                summary = it,
-                detailsFocusRequester = detailsFocusRequester,
-                playFocusRequester = playFocusRequester
-            )
-        }
-
-        if (uiState.showLaunchOptionsButton || uiState.showVirtualUnavailableHint) {
-            // The two modes are a list of choices, so they read as rows like the rest of
-            // the drawer, each carrying its standing as the value.
-            NovaSteamChoiceRow(
-                label = headlessModeLabel,
-                caption = stringResource(R.string.nova_game_detail_headless_caption),
-                enabled = uiState.headlessAllowed,
-                onClick = { onLaunchModeSelected("headless") },
-                value = when {
-                    uiState.playMode == "headless" -> "Selected"
-                    uiState.hasRecommendation && uiState.recommendedMode == "headless" &&
-                        uiState.headlessAllowed -> "Recommended"
-                    uiState.headlessAllowed -> "Available"
-                    else -> "Unavailable"
-                },
-            )
-            NovaSteamChoiceRow(
-                label = virtualDisplayModeLabel,
-                caption = if (uiState.showVirtualUnavailableHint) {
-                    uiState.virtualDisplayUnavailableReason
-                } else {
-                    stringResource(R.string.nova_game_detail_virtual_caption)
-                },
-                enabled = uiState.virtualDisplayAllowed && !uiState.virtualDisplayUnavailable,
-                onClick = { onLaunchModeSelected("virtual_display") },
-                value = when {
-                    uiState.virtualDisplayUnavailable -> "Unavailable"
-                    uiState.playMode == "virtual_display" -> "Selected"
-                    uiState.hasRecommendation && uiState.recommendedMode == "virtual_display" &&
-                        uiState.virtualDisplayAllowed -> "Recommended"
-                    uiState.virtualDisplayAllowed -> "Available"
-                    else -> "Unavailable"
-                },
-            )
-        }
-
-        if (uiState.showLaunchOptionsButton) {
-            NovaSteamChoiceRow(
-                label = launchOptionsLabel,
-                caption = stringResource(R.string.nova_game_detail_more_settings_caption),
-                enabled = true,
-                onClick = onLaunchOptions,
             )
         }
     }

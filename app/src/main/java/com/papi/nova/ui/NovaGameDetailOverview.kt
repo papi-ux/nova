@@ -74,7 +74,14 @@ import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 
 /** Where the detail window currently is. Back unwinds one level before leaving. */
-internal enum class NovaGameDetailDestination { OVERVIEW, LAUNCH_MODE, TUNE, ARTWORK }
+/**
+ * Where the detail window can go.
+ *
+ * LAUNCH_MODE and TUNE were one decision behind two doors, each holding half of the
+ * other's subject, so they are now PLAY_SETUP. Artwork stays its own destination:
+ * curating images is a different job from deciding how to play.
+ */
+internal enum class NovaGameDetailDestination { OVERVIEW, PLAY_SETUP, ARTWORK }
 
 /** Content insets shared by the Overview and the destinations that sit beside it. */
 internal val NovaGameDetailInset = 28.dp
@@ -480,17 +487,12 @@ private fun NovaGameDetailActions(
                 modifier = itemWidth,
             )
         } else {
-            if (showLaunchModeAction) {
-                NovaGameDetailAction(
-                    text = stringResource(R.string.nova_library_launch_mode_title),
-                    onClick = { onDestination(NovaGameDetailDestination.LAUNCH_MODE) },
-                    mark = "\u229E",
-                    modifier = itemWidth,
-                )
-            }
+            // Three nodes, always. `showLaunchModeAction` used to decide whether a
+            // fourth existed, so the lane changed length depending on the game; what it
+            // gated is now a row inside Play Setup rather than an action beside it.
             NovaGameDetailAction(
-                text = stringResource(R.string.nova_game_detail_tune),
-                onClick = { onDestination(NovaGameDetailDestination.TUNE) },
+                text = stringResource(R.string.nova_play_setup_title),
+                onClick = { onDestination(NovaGameDetailDestination.PLAY_SETUP) },
                 mark = "\u2699",
                 modifier = itemWidth,
             )
