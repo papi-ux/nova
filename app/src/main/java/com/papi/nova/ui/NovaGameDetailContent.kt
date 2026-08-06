@@ -1106,56 +1106,45 @@ private fun LaunchControls(
         }
 
         if (uiState.showLaunchOptionsButton || uiState.showVirtualUnavailableHint) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                LaunchModeChoicePill(
-                    label = headlessModeLabel,
-                    status = when {
-                        uiState.playMode == "headless" -> "Selected"
-                        uiState.recommendedMode == "headless" && uiState.headlessAllowed -> "Recommended"
-                        uiState.headlessAllowed -> "Available"
-                        else -> "Unavailable"
-                    },
-                    recommended = uiState.recommendedMode == "headless" && uiState.headlessAllowed,
-                    selected = uiState.playMode == "headless",
-                    unavailable = !uiState.headlessAllowed,
-                    onClick = { onLaunchModeSelected("headless") },
-                    modifier = Modifier.weight(1f)
-                )
-                LaunchModeChoicePill(
-                    label = virtualDisplayModeLabel,
-                    status = when {
-                        uiState.virtualDisplayUnavailable -> "Unavailable"
-                        uiState.playMode == "virtual_display" -> "Selected"
-                        uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed -> "Recommended"
-                        uiState.virtualDisplayAllowed -> "Available"
-                        else -> "Unavailable"
-                    },
-                    recommended = uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed,
-                    selected = uiState.playMode == "virtual_display",
-                    unavailable = uiState.virtualDisplayUnavailable || !uiState.virtualDisplayAllowed,
-                    onClick = { onLaunchModeSelected("virtual_display") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            // The two modes are a list of choices, so they read as rows like the rest of
+            // the drawer, each carrying its standing as the value.
+            NovaSteamChoiceRow(
+                label = headlessModeLabel,
+                caption = stringResource(R.string.nova_game_detail_headless_caption),
+                enabled = uiState.headlessAllowed,
+                onClick = { onLaunchModeSelected("headless") },
+                value = when {
+                    uiState.playMode == "headless" -> "Selected"
+                    uiState.recommendedMode == "headless" && uiState.headlessAllowed -> "Recommended"
+                    uiState.headlessAllowed -> "Available"
+                    else -> "Unavailable"
+                },
+            )
+            NovaSteamChoiceRow(
+                label = virtualDisplayModeLabel,
+                caption = if (uiState.showVirtualUnavailableHint) {
+                    uiState.virtualDisplayUnavailableReason
+                } else {
+                    stringResource(R.string.nova_game_detail_virtual_caption)
+                },
+                enabled = uiState.virtualDisplayAllowed && !uiState.virtualDisplayUnavailable,
+                onClick = { onLaunchModeSelected("virtual_display") },
+                value = when {
+                    uiState.virtualDisplayUnavailable -> "Unavailable"
+                    uiState.playMode == "virtual_display" -> "Selected"
+                    uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed -> "Recommended"
+                    uiState.virtualDisplayAllowed -> "Available"
+                    else -> "Unavailable"
+                },
+            )
         }
 
         if (uiState.showLaunchOptionsButton) {
-            NovaActionButton(
-                text = launchOptionsLabel,
+            NovaSteamChoiceRow(
+                label = launchOptionsLabel,
+                caption = stringResource(R.string.nova_game_detail_more_settings_caption),
+                enabled = true,
                 onClick = onLaunchOptions,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 9.dp),
-                contentDescription = launchOptionsLabel,
-                minHeight = 42.dp,
-                cornerRadius = 10.dp,
-                fontSize = 12.sp,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             )
         }
     }
@@ -1252,52 +1241,6 @@ internal fun LaunchProfilePrimaryNotice(
                 lineHeight = 15.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(top = 5.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun LaunchModeChoicePill(
-    label: String,
-    status: String,
-    recommended: Boolean,
-    selected: Boolean,
-    unavailable: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = LocalNovaComposeColors.current
-    val statusColor = when {
-        unavailable -> colors.warning
-        selected || recommended -> colors.accent
-        else -> colors.textMuted
-    }
-
-    NovaFocusableCard(
-        modifier = modifier.heightIn(min = 52.dp),
-        onClick = onClick,
-        enabled = !unavailable,
-        contentDescription = "$label. $status",
-        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-    ) {
-        Column {
-            Text(
-                text = label,
-                color = colors.textPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = status,
-                modifier = Modifier.padding(top = 3.dp),
-                color = statusColor,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
             )
         }
     }

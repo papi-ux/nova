@@ -1042,11 +1042,6 @@ class NovaComposeSourceGuardTest {
             "internal fun NovaGameDetailLaunchFooter(",
             "@Composable\nprivate fun NovaDetailPanel("
         )
-        val launchModePill = detail.section(
-            "private fun LaunchModeChoicePill(",
-            "@Composable\nprivate fun ProfileSummaryText("
-        )
-
         assertTrue(
             "Retroid landscape first paint should keep either Hero or Poster identity inside the compact launch header ceiling",
             detailsPanel.contains(".heightIn(min = 136.dp)") &&
@@ -1066,7 +1061,7 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "pinned primary launch and mode choice controls should stay compact enough for Retroid landscape",
             launchFooter.contains("minHeight = 48.dp") &&
-                launchModePill.contains("modifier = modifier.heightIn(min = 52.dp)")
+                detail.contains("NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp")
         )
     }
 
@@ -1121,17 +1116,18 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "Headless/Virtual should be directly selectable from the detail sheet before launching",
-            launchControls.contains("LaunchModeChoicePill(") &&
+            "Headless/Virtual should be directly selectable from the destination, as rows carrying their standing",
+            launchControls.contains("NovaSteamChoiceRow(") &&
                 launchControls.contains("onClick = { onLaunchModeSelected(\"headless\") }") &&
-                launchControls.contains("onClick = { onLaunchModeSelected(\"virtual_display\") }")
+                launchControls.contains("onClick = { onLaunchModeSelected(\"virtual_display\") }") &&
+                !launchControls.contains("LaunchModeChoicePill(")
         )
         assertTrue(
             "Launch Options should remain a secondary path after inline Headless/Virtual choices",
             detail.contains("private fun showLaunchOptions(") &&
                 detail.contains("onLaunchOptions = {") &&
-                launchControls.contains("text = launchOptionsLabel") &&
-                launchControls.indexOf("text = launchOptionsLabel") > launchControls.indexOf("LaunchModeChoicePill(")
+                launchControls.contains("label = launchOptionsLabel") &&
+                launchControls.indexOf("label = launchOptionsLabel") > launchControls.indexOf("label = headlessModeLabel")
         )
         assertTrue(
             "launch mode should answer where it runs and leave the profile alone: preference, summary and reset are Tune's",
@@ -2707,7 +2703,7 @@ class NovaComposeSourceGuardTest {
     fun gameDetailLaunchOptionsUseActionableModeState() {
         val launchControls = readNovaGameDetail().section(
             "private fun LaunchControls(",
-            "@Composable\nprivate fun LaunchModeChoicePill("
+            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
         )
 
         assertTrue(launchControls.contains("uiState.showLaunchOptionsButton"))
