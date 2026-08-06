@@ -59,6 +59,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -1189,9 +1191,12 @@ internal fun LaunchProfilePrimaryNotice(
         ) {
             NovaBadge(
                 text = badgeLabel,
-                color = toneColor,
-                backgroundColor = surfaces.control.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current),
-                borderColor = toneColor.copy(alpha = 0.35f),
+                // A badge is a surface, not media: translucent control over a ground
+                // already tinted with this tone put amber on amber. Opaque tone, with
+                // ink picked from the tone itself, reads in every theme.
+                color = if (toneColor.luminance() > 0.5f) Color.Black else Color.White,
+                backgroundColor = toneColor,
+                borderColor = Color.Transparent,
                 fontWeight = FontWeight.SemiBold
             )
             Text(

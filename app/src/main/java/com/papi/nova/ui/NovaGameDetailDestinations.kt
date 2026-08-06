@@ -49,6 +49,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -454,7 +455,16 @@ internal fun NovaSteamChoiceRow(
     val accentBar = colors.accent
     val hairline = colors.divider.copy(alpha = 0.45f)
     val barWidth = NOVA_DETAIL_ROW_FOCUS_BAR
-    val tint = colors.accent.copy(alpha = 0.16f)
+    // The accent is light on a dark surface and dark on a light one, so the same alpha
+    // is a whisper in one theme and an inverted block in the other. Scale it by the
+    // polarity; the bar, not the fill, is what says this row has focus.
+    //
+    // Polarity comes from the text rather than colors.window, because under Portable
+    // Chrome the panel takes its lightness from surfaces.panel layered over the window,
+    // so the window is the wrong ground to ask and the tint stayed at full strength.
+    val tint = colors.accent.copy(
+        alpha = if (colors.textPrimary.luminance() < 0.5f) 0.07f else 0.16f,
+    )
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
