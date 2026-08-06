@@ -11,6 +11,8 @@ data class NovaGameDetailUiState(
     val launchChoice: PolarisGame.LaunchModeChoice,
     val preferredMode: String,
     val recommendedMode: String,
+    /** Whether anything actually recommended it, rather than it echoing the preference. */
+    val hasRecommendation: Boolean,
     val headlessAllowed: Boolean,
     val virtualDisplayAllowed: Boolean,
     val virtualDisplayUnavailable: Boolean,
@@ -43,10 +45,22 @@ data class NovaGameDetailUiState(
             game: PolarisGame,
             defaultToVirtualDisplay: Boolean,
             clientSettings: PolarisClientSettings?,
-            profilePreference: String
+            profilePreference: String,
+            /** A mode chosen for this game on this client, which outranks the host default. */
+            launchModeOverride: String? = null,
         ): NovaGameDetailUiState {
             val choice = game.resolveLaunchModeChoice(defaultToVirtualDisplay, clientSettings)
+            // Only a deliberate choice reaches here, so it answers before the host does.
+            // The contract's preferredMode stays below the host, as it means the app's own
+            // default rather than anyone's decision.
+            val chosen = launchModeOverride
+                ?.takeIf { it.isNotBlank() }
+                ?.let { PolarisGame.resolveLaunchMode(it, choice.headlessAllowed, choice.virtualDisplayAllowed) }
             val playMode = when {
+                chosen == "virtual_display" && choice.virtualDisplayAllowed &&
+                    !choice.virtualDisplayUnavailable -> "virtual_display"
+                chosen == "headless" && choice.headlessAllowed -> "headless"
+
                 choice.recommendedMode == "virtual_display" && choice.virtualDisplayAllowed -> "virtual_display"
                 choice.recommendedMode == "headless" && choice.headlessAllowed -> "headless"
                 choice.headlessAllowed -> "headless"
@@ -84,6 +98,10 @@ data class NovaGameDetailUiState(
                 launchChoice = choice,
                 preferredMode = choice.preferredMode,
                 recommendedMode = choice.recommendedMode,
+                // The resolver falls back to the preference when neither the host nor
+                // the contract recommends anything, so ask whether either did.
+                hasRecommendation = choice.hostDefaultMode.isNotBlank() ||
+                    !game.launchMode?.recommendedMode.isNullOrBlank(),
                 headlessAllowed = choice.headlessAllowed,
                 virtualDisplayAllowed = choice.virtualDisplayAllowed,
                 virtualDisplayUnavailable = choice.virtualDisplayUnavailable,

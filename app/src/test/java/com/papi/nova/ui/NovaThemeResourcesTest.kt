@@ -184,7 +184,9 @@ class NovaThemeResourcesTest {
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val appView = File("src/main/java/com/papi/nova/AppView.kt").readText()
         val gameDetail = File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText() +
-            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText()
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
         val polarisSync = File("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt").readText()
         val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
         val contextSheet = File("src/main/res/layout/nova_app_context_sheet.xml").readText()
@@ -257,7 +259,9 @@ class NovaThemeResourcesTest {
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
         val composeTheme = File("src/main/java/com/papi/nova/ui/compose/NovaComposeTheme.kt").readText()
         val gameDetail = File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText() +
-            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText()
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
 
         assertTrue("native sheet chrome must expose a named glass alpha contract", sheetChrome.contains("SHEET_GLASS_ALPHA"))
         assertTrue("native sheet backgrounds should preserve theme color while applying the absolute outer opacity", sheetChrome.contains("ColorUtils.setAlphaComponent") && sheetChrome.contains("NovaMenuPreferences.outerSurfaceAlpha"))
@@ -390,7 +394,9 @@ class NovaThemeResourcesTest {
         val lifecycle = File("src/main/java/com/papi/nova/ui/NovaStreamOverlayContent.kt").readText()
         val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
         val gameDetail = File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText() +
-            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText()
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
         val settings = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
         val focusComponents = File("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt").readText()
         val settingsViewModel = File("src/main/java/com/papi/nova/preferences/NovaSettingsViewModel.kt").readText()
@@ -453,14 +459,19 @@ class NovaThemeResourcesTest {
     @Test
     fun requiredNativeAlertsUseSharedOpacityAndBlurChrome() {
         val gameDetail = File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText() +
-            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText()
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
         val legacySlider = File("src/main/java/com/papi/nova/preferences/SeekBarPreference.kt").readText()
         val sessionDialog = File("src/main/java/com/papi/nova/utils/Dialog.kt").readText()
 
         val preflight = gameDetail
             .substringAfter("private fun showPreflightReview(")
             .substringBefore("private fun showDesktopSteamLaunchDecision(")
-        assertTrue("game-detail preflight should use shared literal-opacity alert chrome", preflight.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert"))
+        assertTrue(
+            "the game detail window raises no legacy alert at all: the preflight review expands the status line in place instead",
+            !preflight.contains("AlertDialog.Builder") && preflight.contains("reviewExpanded")
+        )
         assertTrue("legacy sliders, including Menu & Drawer Opacity, should use shared literal-opacity alert chrome", legacySlider.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)"))
         assertTrue("session termination/error alerts should use shared literal-opacity alert chrome", sessionDialog.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdAlert)"))
     }
@@ -547,7 +558,9 @@ class NovaThemeResourcesTest {
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val appView = File("src/main/java/com/papi/nova/AppView.kt").readText()
         val gameDetail = File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText() +
-            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText()
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt").readText() +
+            File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
         val manager = File("src/main/java/com/papi/nova/ui/NovaThemeManager.kt").readText()
         val particles = File("src/main/java/com/papi/nova/ui/SpaceParticleView.kt").readText()
 

@@ -153,6 +153,17 @@ class NovaGameDetailActivity : NovaActivity() {
 
     private val onGameUpdated: ((PolarisGame) -> Unit)? = { game -> updatedGame = game }
 
+    /** Resume and End need stream credentials this window does not carry, so it asks. */
+    private fun finishWithSessionRequest(request: String) {
+        setResult(
+            RESULT_OK,
+            Intent()
+                .putExtra(EXTRA_RESULT_SESSION, request)
+                .putExtra(EXTRA_RESULT_GAME, updatedGame?.let { PolarisGameJson.encode(it) }),
+        )
+        finish()
+    }
+
     private val onRefreshArtwork: ((PolarisGame, (NovaArtworkMutationResult) -> Unit) -> Unit)? =
         { game, onResult -> artworkViewModel.refreshArtwork(game = game, onResult = onResult) }
 
@@ -175,6 +186,20 @@ class NovaGameDetailActivity : NovaActivity() {
 
     /** Artwork and MangoHUD edits made here; handed back so the library can merge them. */
     private var updatedGame: PolarisGame? = null
+
+    private var destination by mutableStateOf(NovaGameDetailDestination.OVERVIEW)
+
+    /**
+     * Set when Polaris reports desktop Steam active. It turns Launch mode into the
+     * three-way choice that used to be a bottom sheet raised over the content.
+     */
+    private var steamDecision by mutableStateOf<NovaDesktopSteamLaunchDecision?>(null)
+
+    /** The preflight review, expanded on the Overview rather than raised as an alert. */
+    private var reviewExpanded by mutableStateOf(false)
+
+    /** The host's session, when it is this game's. Null means nothing is running. */
+    private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
@@ -206,6 +231,7 @@ class NovaGameDetailActivity : NovaActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
+                    if (dismissActiveDetailDestination()) return
                     publishGameUpdate()
                     finish()
                 }
@@ -213,6 +239,40 @@ class NovaGameDetailActivity : NovaActivity() {
         )
 
         setUpDetail(game, apiClient)
+        refreshActiveSession(game)
+    }
+
+    /**
+     * Unwinds one level: an expanded review collapses, a destination returns to the
+     * Overview, and only then does back leave for the library.
+     */
+    private fun dismissActiveDetailDestination(): Boolean = when {
+        reviewExpanded -> {
+            reviewExpanded = false
+            true
+        }
+        destination != NovaGameDetailDestination.OVERVIEW -> {
+            destination = NovaGameDetailDestination.OVERVIEW
+            steamDecision = null
+            true
+        }
+        else -> false
+    }
+
+    /**
+     * Polaris reports one session at a time, so it only matters here when it is this
+     * game's. Matched on the UUID Polaris uses, falling back to the numeric app id.
+     */
+    private fun refreshActiveSession(game: PolarisGame) {
+        lifecycleScope.launch {
+            val session = withContext(Dispatchers.IO) {
+                runCatching { NovaLibraryActiveSessionUiState.from(apiClient.getSessionStatus()) }
+                    .getOrNull()
+            }
+            activeSession = session?.takeIf {
+                it.gameUuid.equals(game.id, ignoreCase = true) || it.gameId == game.appId
+            }
+        }
     }
 
     /** Carries artwork or MangoHUD edits back even when the window closes without launching. */
@@ -355,9 +415,34 @@ class NovaGameDetailActivity : NovaActivity() {
                 allowedModes = allowedModes
             )
             currentGame = currentGame.copy(launchMode = updatedLaunchMode)
+            NovaLaunchModeOverrides.save(this@NovaGameDetailActivity, currentGame, mode)
             refreshUiState()
             optimizationState = NovaGameDetailOptimizationState()
             loadOptimization(profilePreference, usesVirtualDisplay = mode == "virtual_display")
+        }
+
+        fun launchConfirmed(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
+            onLaunch?.invoke(
+                currentGame.copy(mangohud = mangoHudEnabled),
+                uiState.playUsesVirtualDisplay,
+                mirrorDesktop,
+                forcePrivateAfterSteamClose,
+                profilePreference,
+                optimizationState.rawOptimization
+            )
+            finish()
+        }
+
+        fun resetProfile() {
+            resetWorking = true
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) {
+                    apiClient.clearOptimizerProfile(deviceName, currentGame.name)
+                }
+                optimizationState = NovaGameDetailOptimizationState()
+                loadOptimization(profilePreference)
+                resetWorking = false
+            }
         }
 
         setContentView(
@@ -407,47 +492,43 @@ class NovaGameDetailActivity : NovaActivity() {
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
                     onPrimaryLaunch = {
                         if (!uiState.playEnabled) return@NovaGameDetailContent
-                        fun launchConfirmed(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
-                            onLaunch?.invoke(
-                                currentGame.copy(mangohud = mangoHudEnabled),
-                                uiState.playUsesVirtualDisplay,
-                                mirrorDesktop,
-                                forcePrivateAfterSteamClose,
-                                profilePreference,
-                                optimizationState.rawOptimization
-                            )
-                            finish()
-                        }
-                        val desktopSteamDecision = NovaDesktopSteamLaunchDecision.from(
+                        val decision = NovaDesktopSteamLaunchDecision.from(
                             uiState,
                             optimizationState.rawOptimization
                         )
-                        if (desktopSteamDecision.required) {
-                            showDesktopSteamLaunchDecision(
-                                decision = desktopSteamDecision,
-                                onPrivateStream = { launchConfirmed(mirrorDesktop = false, forcePrivateAfterSteamClose = false) },
-                                onMirrorDesktop = { launchConfirmed(mirrorDesktop = true, forcePrivateAfterSteamClose = false) },
-                                onForcePrivateAfterSteamClose = { launchConfirmed(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }
-                            )
-                        } else if (optimizationState.reviewRequired) {
-                            showPreflightReview(
-                                optimizationState = optimizationState,
-                                onLaunchConfirmed = { launchConfirmed(false) },
-                                onRetryHighFps = { retryHighFpsTrial() },
-                                onResetProfile = {
-                                    resetWorking = true
-                                    lifecycleScope.launch {
-                                        withContext(Dispatchers.IO) {
-                                            apiClient.clearOptimizerProfile(deviceName, currentGame.name)
-                                        }
-                                        optimizationState = NovaGameDetailOptimizationState()
-                                        loadOptimization(profilePreference)
-                                        resetWorking = false
-                                    }
-                                }
-                            )
-                        } else {
-                            launchConfirmed(false)
+                        when {
+                            // A choice of where to run belongs in the destination named that,
+                            // not in a sheet raised over the artwork.
+                            decision.required -> {
+                                steamDecision = decision
+                                destination = NovaGameDetailDestination.LAUNCH_MODE
+                            }
+                            // The review is a statement about the profile, and the status
+                            // line is where the profile lives, so it expands in place.
+                            optimizationState.reviewRequired && !reviewExpanded -> {
+                                reviewExpanded = true
+                            }
+                            else -> launchConfirmed(false)
+                        }
+                    },
+                    destination = destination,
+                    steamDecision = steamDecision,
+                    reviewExpanded = reviewExpanded,
+                    apiClient = apiClient,
+                    sourceLabel = currentGame.sourceLabel,
+                    onDestination = { next -> destination = next },
+                    onDismissDestination = { dismissActiveDetailDestination() },
+                    activeSession = activeSession,
+                    onResumeSession = { finishWithSessionRequest(RESULT_SESSION_RESUME) },
+                    onEndSession = { finishWithSessionRequest(RESULT_SESSION_END) },
+                    onSteamChoice = { choice ->
+                        when (choice) {
+                            NovaSteamLaunchChoice.PRIVATE_STREAM ->
+                                launchConfirmed(mirrorDesktop = false, forcePrivateAfterSteamClose = false)
+                            NovaSteamLaunchChoice.MIRROR_DESKTOP ->
+                                launchConfirmed(mirrorDesktop = true, forcePrivateAfterSteamClose = false)
+                            NovaSteamLaunchChoice.CLOSE_STEAM_THEN_PRIVATE ->
+                                launchConfirmed(mirrorDesktop = false, forcePrivateAfterSteamClose = true)
                         }
                     },
                     onLaunchOptions = {
@@ -459,7 +540,13 @@ class NovaGameDetailActivity : NovaActivity() {
                             profileOptionsState = null
                         }
                     },
-                    onLaunchModeSelected = ::selectLaunchMode,
+                    onLaunchModeSelected = { mode ->
+                        // The concept: choosing sets the mode and returns to the Overview,
+                        // whose readout reflects it. Staying put left the pill showing the
+                        // previous mode until the window was opened again.
+                        selectLaunchMode(mode)
+                        destination = NovaGameDetailDestination.OVERVIEW
+                    },
                     onLaunchOptionSelected = { option ->
                         fun launchSelected(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
                             val selectedLaunchOptimization = option.launchOptimization ?: optimizationState.rawOptimization
@@ -480,12 +567,10 @@ class NovaGameDetailActivity : NovaActivity() {
                             usesVirtualDisplay = option.usesVirtualDisplay
                         )
                         if (desktopSteamDecision.required) {
-                            showDesktopSteamLaunchDecision(
-                                decision = desktopSteamDecision,
-                                onPrivateStream = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = false) },
-                                onMirrorDesktop = { launchSelected(mirrorDesktop = true, forcePrivateAfterSteamClose = false) },
-                                onForcePrivateAfterSteamClose = { launchSelected(mirrorDesktop = false, forcePrivateAfterSteamClose = true) }
-                            )
+                            // Same destination the primary action routes to; picking an
+                            // explicit option does not change where the choice belongs.
+                            steamDecision = desktopSteamDecision
+                            destination = NovaGameDetailDestination.LAUNCH_MODE
                         } else {
                             launchSelected(mirrorDesktop = false)
                         }
@@ -733,7 +818,8 @@ class NovaGameDetailActivity : NovaActivity() {
             game = game,
             defaultToVirtualDisplay = defaultToVirtualDisplay,
             clientSettings = clientSettings,
-            profilePreference = profilePreference
+            profilePreference = profilePreference,
+            launchModeOverride = NovaLaunchModeOverrides.load(this@NovaGameDetailActivity, game),
         )
     }
 
@@ -919,74 +1005,7 @@ class NovaGameDetailActivity : NovaActivity() {
         )
     }
 
-    private fun showPreflightReview(
-        optimizationState: NovaGameDetailOptimizationState,
-        onLaunchConfirmed: () -> Unit,
-        onRetryHighFps: () -> Unit,
-        onResetProfile: () -> Unit
-    ) {
-        val reason = optimizationState.reviewReason.ifBlank { "fps_override" }
-        val dialog = AlertDialog.Builder(this@NovaGameDetailActivity)
-            .setTitle(R.string.nova_library_preflight_review_title)
-            .setMessage(getString(R.string.nova_library_preflight_review_message, reason))
-            .setPositiveButton(R.string.nova_library_preflight_launch) { _, _ -> onLaunchConfirmed() }
-            .setNeutralButton(R.string.nova_library_retry_high_fps) { _, _ -> onRetryHighFps() }
-            .setNegativeButton(R.string.nova_library_reset_game_profile) { _, _ -> onResetProfile() }
-            .create()
-        NovaSheetChrome.applyMenuOpacityToLegacyAlert(dialog)
-        dialog.show()
-    }
 
-    private fun showDesktopSteamLaunchDecision(
-        decision: NovaDesktopSteamLaunchDecision,
-        onPrivateStream: () -> Unit,
-        onMirrorDesktop: () -> Unit,
-        onForcePrivateAfterSteamClose: () -> Unit
-    ) {
-        val sheet = BottomSheetDialog(this@NovaGameDetailActivity)
-        val composeView = ComposeView(this@NovaGameDetailActivity).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-            background = NovaSheetChrome.createSheetBackground(this@NovaGameDetailActivity)
-            setContent {
-                NovaComposeTheme {
-                    NovaDesktopSteamLaunchDecisionContent(
-                        title = stringResource(R.string.nova_desktop_steam_title),
-                        message = decision.reason.ifBlank {
-                            stringResource(R.string.nova_desktop_steam_message)
-                        },
-                        privateStreamLabel = stringResource(R.string.nova_desktop_steam_private_stream),
-                        privateStreamUnavailableReason = decision.privateStreamUnavailableReason,
-                        privateStreamEnabled = decision.privateStreamEnabled,
-                        mirrorDesktopLabel = stringResource(R.string.nova_desktop_steam_mirror_desktop),
-                        mirrorDesktopEnabled = decision.mirrorDesktopEnabled,
-                        mirrorDesktopCaption = stringResource(R.string.nova_desktop_steam_mirror_caption),
-                        forcePrivateLabel = decision.forcePrivateAfterSteamCloseLabel.ifBlank {
-                            stringResource(R.string.nova_desktop_steam_force_private)
-                        },
-                        forcePrivateEnabled = decision.forcePrivateAfterSteamCloseEnabled,
-                        forcePrivateCaption = stringResource(R.string.nova_desktop_steam_force_private_caption),
-                        cancelLabel = stringResource(R.string.nova_desktop_steam_cancel),
-                        onPrivateStream = {
-                            sheet.dismiss()
-                            onPrivateStream()
-                        },
-                        onMirrorDesktop = {
-                            sheet.dismiss()
-                            onMirrorDesktop()
-                        },
-                        onForcePrivateAfterSteamClose = {
-                            sheet.dismiss()
-                            onForcePrivateAfterSteamClose()
-                        },
-                        onCancel = { sheet.dismiss() }
-                    )
-                }
-            }
-        }
-        sheet.setContentView(composeView)
-        sheet.setOnShowListener { expandBottomSheet(sheet, composeView) }
-        sheet.show()
-    }
 
     private fun expandBottomSheet(bottomSheetDialog: BottomSheetDialog?, contentView: View) {
         val sheet = bottomSheetDialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
@@ -1206,7 +1225,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 ""
             }
             val sourceText = listOf(
-                stateLabel.takeIf { it.isNotBlank() },
+                stateLabel.takeIf { it.isNotBlank() && stateLabel != titleLabel },
                 profileState?.optString("preference_label", "")?.takeIf { it.isNotBlank() },
                 lastResultText.takeIf { it.isNotBlank() },
                 sourceLabel.takeIf { it.isNotBlank() && sourceLabel != titleLabel },
@@ -1359,6 +1378,9 @@ class NovaGameDetailActivity : NovaActivity() {
         const val EXTRA_DEFAULT_VIRTUAL_DISPLAY = "nova.detail.defaultVirtualDisplay"
         const val EXTRA_RESULT_LAUNCH = "nova.detail.result.launch"
         const val EXTRA_RESULT_LAUNCH_GAME = "nova.detail.result.launchGame"
+        const val EXTRA_RESULT_SESSION = "nova.detail.result.session"
+        const val RESULT_SESSION_RESUME = "resume"
+        const val RESULT_SESSION_END = "end"
         const val EXTRA_RESULT_GAME = "nova.detail.result.game"
 
         const val RESULT_KEY_VIRTUAL_DISPLAY = "virtualDisplay"

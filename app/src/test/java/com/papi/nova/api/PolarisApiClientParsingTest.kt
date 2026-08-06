@@ -991,4 +991,26 @@ class PolarisApiClientParsingTest {
         assertEquals("big-picture", body.getString("mode"))
     }
 
+    @Test
+    fun playTimeIsCarriedFromTheHostAndAbsentIsNotZero() {
+        val played = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                """{id:abc,name:Control,play_time:{seconds:143520,source:steam,read_at:1754470000}}"""
+            )
+        )
+        assertEquals(143520L, played.playTime?.seconds)
+        assertEquals("steam", played.playTime?.source)
+
+        // No launcher owns the answer: null, so the gauge can be omitted rather than
+        // drawn claiming nobody has played it.
+        val unowned = PolarisGameJsonAdapter.fromJson(JSONObject("""{id:abc,name:Control}"""))
+        assertNull(unowned.playTime)
+
+        // Owned, but never played, is a different answer and keeps its object.
+        val untouched = PolarisGameJsonAdapter.fromJson(
+            JSONObject("""{id:abc,name:Control,play_time:{seconds:0,source:steam}}""")
+        )
+        assertNotNull(untouched.playTime)
+        assertEquals(0L, untouched.playTime?.seconds)
+    }
 }
