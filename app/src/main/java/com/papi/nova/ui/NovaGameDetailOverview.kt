@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -461,6 +462,24 @@ private fun NovaGameDetailActions(
                 .focusRequester(playFocusRequester)
                 .testTag("nova-game-detail-primary"),
         )
+
+        // Play holds first focus, and it has to be asked for here.
+        //
+        // The request used to live in NovaGameDetailLaunchFooter, which lost its last
+        // caller when this window replaced the bottom sheet, so nothing had requested
+        // focus since. Focus fell to whichever node happened to be focusable first, and
+        // the primary is not focusable until the launch profile arrives -- so on a slow
+        // profile the d-pad started on the destination beside Play instead of on Play.
+        //
+        // Keyed on enabled, because that is the moment the primary becomes reachable.
+        // The request is allowed to fail: while a destination is open the Overview is a
+        // focusProperties { canFocus = false } group, and asking then must not throw.
+        val playFocusable = uiState.playEnabled || activeSession != null
+        LaunchedEffect(playFocusable) {
+            if (playFocusable) {
+                runCatching { playFocusRequester.requestFocus() }
+            }
+        }
 
         if (activeSession != null && !activeSession.watchOnly) {
             NovaGameDetailAction(

@@ -296,7 +296,7 @@ internal fun NovaGameDetailContent(
         when (destination) {
             NovaGameDetailDestination.OVERVIEW -> Unit
 
-            NovaGameDetailDestination.PLAY_SETUP -> NovaGameDetailFullScreen(
+            NovaGameDetailDestination.PLAY_SETUP -> NovaGameDetailWidePanel(
                 eyebrow = stringResource(R.string.nova_play_setup_title),
                 headline = uiState.game.name,
                 scrollState = verticalScroll,
@@ -314,9 +314,16 @@ internal fun NovaGameDetailContent(
                     val summary = optimizationState.profileSummary
                     NovaPlaySetupBody(
                         plan = novaPlaySetupPlan(
-                            modeLabel = launchModeTitle,
+                            // The resolved mode, not the name of the control that sets
+                            // it: this is the one line the column exists to state.
+                            modeLabel = when (uiState.playMode) {
+                                "virtual_display" -> virtualDisplayModeLabel
+                                else -> headlessModeLabel
+                            },
                             lines = listOfNotNull(
-                                summary?.primaryLaunchLabel?.takeIf { it.isNotBlank() },
+                                summary?.selectedLine
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?.let(::novaPlaySetupValue),
                                 launchIntro.takeIf { it.isNotBlank() },
                             ),
                             summary = summary,
@@ -481,57 +488,6 @@ private fun novaGameDetailControllerHints(): List<NovaControllerHint> = listOf(
         label = stringResource(R.string.nova_controller_hint_profile)
     )
 )
-
-@Composable
-internal fun NovaGameDetailLaunchFooter(
-    playLabel: String,
-    enabled: Boolean,
-    onPrimaryLaunch: () -> Unit,
-    playFocusRequester: FocusRequester,
-    detailsFocusRequester: FocusRequester,
-    contentInsets: WindowInsets,
-    modifier: Modifier = Modifier
-) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-
-    LaunchedEffect(enabled) {
-        if (enabled) {
-            playFocusRequester.requestFocus()
-        }
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(surfaces.panel)
-            .windowInsetsPadding(contentInsets)
-            .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 18.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 1.dp, max = 1.dp)
-                .background(colors.divider.copy(alpha = 0.55f))
-        )
-        NovaActionButton(
-            text = playLabel,
-            onClick = onPrimaryLaunch,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(playFocusRequester)
-                .focusProperties { up = detailsFocusRequester }
-                .padding(top = 6.dp),
-            enabled = enabled,
-            primary = true,
-            contentDescription = playLabel,
-            minHeight = 48.dp,
-            cornerRadius = 12.dp,
-            fontSize = 16.sp,
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-        )
-    }
-}
 
 @Composable
 private fun NovaDetailPanel(

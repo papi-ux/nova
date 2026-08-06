@@ -1038,10 +1038,6 @@ class NovaComposeSourceGuardTest {
             "private fun GameDetailsPanel(",
             "@Composable\ninternal fun LaunchProfilePrimaryNotice("
         )
-        val launchFooter = detail.section(
-            "internal fun NovaGameDetailLaunchFooter(",
-            "@Composable\nprivate fun NovaDetailPanel("
-        )
         assertTrue(
             "Retroid landscape first paint should keep either Hero or Poster identity inside the compact launch header ceiling",
             detailsPanel.contains(".heightIn(min = 136.dp)") &&
@@ -1059,8 +1055,11 @@ class NovaComposeSourceGuardTest {
                 detailsPanel.contains("fontSize = 22.sp")
         )
         assertTrue(
-            "pinned primary launch and mode choice controls should stay compact enough for Retroid landscape",
-            launchFooter.contains("minHeight = 48.dp") &&
+            "the primary launch and the mode choices stay compact enough for Retroid landscape. " +
+                "This used to measure the pinned footer, which the window replaced with the " +
+                "action rail; the floor now lives on the rail's own action height",
+            detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
+                detail.contains("heightIn(min = NovaGameDetailActionHeight)") &&
                 detail.contains("NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp")
         )
     }
@@ -1083,6 +1082,19 @@ class NovaComposeSourceGuardTest {
                 actions.contains(".focusRequester(playFocusRequester)") &&
                 actions.contains("primary = activeSession?.watchOnly != true") &&
                 !overview.contains("verticalScroll")
+        )
+        assertTrue(
+            "something has to actually ask. This guard used to pin only the wiring -- the " +
+                "requester existed and was attached -- while the requestFocus() call sat in a " +
+                "composable that had lost its last caller when this window replaced the bottom " +
+                "sheet, so nothing requested focus at all and the d-pad started wherever the " +
+                "first focusable happened to be. The ask lives beside the button it names.",
+            actions.contains("LaunchedEffect(playFocusable)") &&
+                actions.contains("runCatching { playFocusRequester.requestFocus() }")
+        )
+        assertFalse(
+            "and the composable that stranded it is gone rather than left to strand another",
+            detail.contains("internal fun NovaGameDetailLaunchFooter(")
         )
         assertTrue(
             "the action lane is one row, so a D-pad walk never leaves it",

@@ -115,8 +115,11 @@ private fun NovaPlaySetupReadColumn(plan: NovaPlaySetupPlan, modifier: Modifier 
                 // whether anything outside this game is about to be touched.
                 color = if (index == plan.lines.lastIndex) colors.textMuted else colors.textSecondary,
                 fontSize = 14.sp,
+                lineHeight = 19.sp,
                 modifier = Modifier.padding(top = 7.dp),
-                maxLines = 1,
+                // These are sentences when Polaris has something to explain, so they wrap
+                // rather than losing the end of the explanation mid-word.
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
         }

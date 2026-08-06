@@ -192,6 +192,64 @@ private fun Modifier.novaDismissOnTap(onDismiss: () -> Unit): Modifier = compose
 }
 
 /**
+ * A drill-in that takes the full width and still lets the game through.
+ *
+ * Play Setup needs the width -- the decision is comparative and a 53% lane cannot put two
+ * things side by side -- but it must not become a second screen. Deciding how to play
+ * while looking at the thing you are deciding about is the reason this window is
+ * cinematic at all, and an opaque full-width panel throws that away.
+ *
+ * So: a scrim to separate, and a translucent ground over it. This is the difference
+ * between this and [NovaGameDetailFullScreen], which is solid on purpose because the
+ * studio has no outside worth revealing.
+ */
+@Composable
+internal fun NovaGameDetailWidePanel(
+    eyebrow: String,
+    headline: String,
+    scrollState: ScrollState,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val shortViewport = maxHeight < NOVA_DETAIL_SHORT_VIEWPORT
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(NovaGameDetailScrim.copy(alpha = NOVA_DETAIL_SCRIM_ALPHA))
+                .background(colors.window.copy(alpha = NOVA_DETAIL_WIDE_PANEL_ALPHA))
+                .background(surfaces.panel)
+                .windowInsetsPadding(WindowInsets.safeContent)
+                .padding(
+                    horizontal = NovaGameDetailInset,
+                    vertical = if (shortViewport) 10.dp else 20.dp,
+                )
+                .testTag("nova-game-detail-wide-panel"),
+        ) {
+            NovaGameDetailDestinationHeader(
+                eyebrow = eyebrow,
+                headline = headline,
+                readout = "",
+                compact = shortViewport,
+                onDismiss = onDismiss,
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .novaFadeAtCut()
+                    .novaHoldsFirstFocus()
+                    .verticalScroll(scrollState),
+                content = { content() },
+            )
+            NovaGameDetailDestinationHints()
+        }
+    }
+}
+
+/**
  * A drill-in that needs the window. Used by Artwork, whose studio lays itself out as a
  * Row of weighted Columns and cannot fold into a panel.
  */
@@ -607,6 +665,12 @@ private val NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp
 
 /** The focused row grows a bar at its edge instead of a border that moves it. */
 private val NOVA_DETAIL_ROW_FOCUS_BAR = 3.dp
+
+/**
+ * Lighter than the side panel's 0.80, because this one covers the whole window: at the
+ * side-panel alpha a full-width sheet reads as opaque and the hero is gone.
+ */
+private const val NOVA_DETAIL_WIDE_PANEL_ALPHA = 0.86f
 
 /** Cards need air between them where hairline rows did not. */
 private val NOVA_DETAIL_ROW_GAP = 6.dp
