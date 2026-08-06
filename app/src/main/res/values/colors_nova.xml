@@ -6,14 +6,17 @@
     <color name="nova_twilight">#FF4c5265</color>
     <color name="nova_storm">#FF687b81</color>
     <color name="nova_silver">#FFa8b0b8</color>
-    <color name="nova_ice">#FFd4dde8</color>
+    <color name="nova_ice">#FFC8D6E5</color>
 
-    <!-- Polaris Aurora (default) — Nova brand navy with restrained violet/cyan energy. -->
-    <color name="nova_bg_primary">#FF1a1a2e</color>
-    <color name="nova_bg_card">#CC232340</color>
-    <color name="nova_bg_elevated">#E6303050</color>
-    <color name="nova_bg_input">#FF232340</color>
-    <color name="nova_bg_window">#FF1a1a2e</color>
+    <!-- Polaris (default) — the brand palette from the 2026 style guide, p8.
+         02 Indigo #2A2840 is the ground; the card and elevated surfaces are that same
+         Indigo lifted rather than a separate navy, so nothing on screen is a near-miss
+         of the brand colour. -->
+    <color name="nova_bg_primary">#FF2A2840</color>
+    <color name="nova_bg_card">#CC343150</color>
+    <color name="nova_bg_elevated">#E63E3A5E</color>
+    <color name="nova_bg_input">#FF343150</color>
+    <color name="nova_bg_window">#FF2A2840</color>
 
     <color name="nova_badge_bg">#33687b81</color>
 
@@ -73,14 +76,17 @@
     <color name="nova_hc_accent">#FF60a5fa</color>
     <color name="nova_hc_accent_surface">#3360a5fa</color>
 
-    <color name="nova_text_primary">#FFd4dde8</color>
+    <!-- 01 Light Cyan -->
+    <color name="nova_text_primary">#FFC8D6E5</color>
     <color name="nova_text_secondary">#FFa8b0b8</color>
     <color name="nova_text_muted">#FF7a8e95</color>
 
-    <color name="nova_polaris_accent">#FF78A6FF</color>
-    <color name="nova_polaris_accent_glow">#3378A6FF</color>
-    <color name="nova_polaris_accent_surface">#1A78A6FF</color>
-    <color name="nova_polaris_ripple">#2278A6FF</color>
+    <!-- 04 Medium Purple. The blue this replaces was never the brand accent, and the
+         detail window had ended up drawing both at once. -->
+    <color name="nova_polaris_accent">#FF7C73FF</color>
+    <color name="nova_polaris_accent_glow">#337C73FF</color>
+    <color name="nova_polaris_accent_surface">#1A7C73FF</color>
+    <color name="nova_polaris_ripple">#227C73FF</color>
 
     <color name="nova_portable_bg_window">#FFA2ADBA</color>
     <color name="nova_portable_bg_card">#FFC4CDD8</color>
@@ -108,7 +114,8 @@
     <color name="nova_warning">#FFfbbf24</color>
     <color name="nova_error">#FFf87171</color>
 
-    <color name="nova_divider">#FF393c51</color>
+    <!-- 03 Dim Gray -->
+    <color name="nova_divider">#FF4C5265</color>
     <color name="nova_ripple">@color/nova_polaris_ripple</color>
 
     <!-- Dialog / popup colors -->

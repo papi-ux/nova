@@ -66,6 +66,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
+import com.papi.nova.ui.compose.NovaChromeFamily
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
@@ -83,7 +84,24 @@ internal val NovaGameDetailFloor = 58.dp
 internal val NovaGameDetailActionHeight = 48.dp
 
 /** Matches the library's surface radius; the sharp edge was a deliberate choice there. */
-internal val NovaGameDetailCornerRadius = 8.dp
+/**
+ * One radius scale, chosen by control size rather than by which surface it sits on.
+ *
+ * The window had drifted to a single 8dp for everything from a close chip to a full
+ * notice card, which is why some selectable things read as cards and others as squares.
+ * Three steps, taken from the concept at 2.30625px per dp: 10px, 14px, 18px.
+ */
+internal object NovaGameDetailRadius {
+    /** chips, tabs, the scope switch — anything under roughly 24dp tall */
+    val chip = 4.dp
+    /** every selectable row, card and artwork tile */
+    val row = 6.dp
+    /** the primary action, the panels, notice cards */
+    val hero = 8.dp
+}
+
+/** Kept as the hero step's name, which is what every existing call site meant. */
+internal val NovaGameDetailCornerRadius = NovaGameDetailRadius.hero
 
 /**
  * The landing screen of the detail window.
@@ -160,6 +178,7 @@ internal fun NovaGameDetailOverview(
                 text = novaGameDetailIdentityLine(sourceLabel, lastPlayedText, game).uppercase(),
                 color = colors.textSecondary,
                 fontSize = 11.sp,
+                fontFamily = NovaChromeFamily,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.17.em,
                 maxLines = 1,
@@ -281,7 +300,8 @@ private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
             text = stringResource(R.string.nova_polaris_wordmark),
             color = colors.textMuted,
             fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
+            fontFamily = NovaChromeFamily,
+            fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.20.em,
         )
     }
@@ -362,8 +382,10 @@ private fun NovaGameDetailStatusLine(
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.11.em,
-            // these are measurements, so the digits line up rather than dance
+            // Measurements, so the digits line up rather than dance. Space Grotesk's
+            // digits are proportional by default, so this is load-bearing here.
             style = LocalTextStyle.current.copy(
+                fontFamily = NovaChromeFamily,
                 fontFeatureSettings = "tnum",
             ),
             maxLines = 1,
@@ -517,7 +539,10 @@ private fun NovaGameDetailBeatGauge(
         return
     }
 
-    val figures = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+    val figures = LocalTextStyle.current.copy(
+        fontFamily = NovaChromeFamily,
+        fontFeatureSettings = "tnum",
+    )
     var estimateFocused by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(top = 10.dp).testTag("nova-game-detail-played")) {
