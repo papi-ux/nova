@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
@@ -72,7 +73,7 @@ internal fun NovaGameDetailPanel(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.window.copy(alpha = NOVA_DETAIL_SCRIM_ALPHA))
+            .background(NovaGameDetailScrim.copy(alpha = NOVA_DETAIL_SCRIM_ALPHA))
             // The dimmed area beside the panel is the game you came from, so tapping it
             // is the same gesture as pressing back.
             .novaDismissOnTap(onDismiss)
@@ -475,8 +476,14 @@ private fun NovaSteamChoiceRow(
  */
 private const val NOVA_DETAIL_PANEL_WIDTH_FRACTION = 0.60f
 
+/**
+ * A scrim is a shadow, not a surface, so it does not follow the theme. Painting it in
+ * the window colour turned into a white veil under Portable Chrome.
+ */
+private val NovaGameDetailScrim = Color.Black
+
 /** Enough of the game stays visible for the panel to read as a layer over it. */
-private const val NOVA_DETAIL_SCRIM_ALPHA = 0.72f
+private const val NOVA_DETAIL_SCRIM_ALPHA = 0.62f
 
 /** Translucent enough to show artwork, opaque enough to keep body text legible. */
 private const val NOVA_DETAIL_PANEL_ALPHA = 0.80f
