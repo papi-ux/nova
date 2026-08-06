@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -346,109 +347,142 @@ fun NovaArtworkStudio(
         }
 
         if (expanded) {
-            Column(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
             ) {
-                NovaArtworkStudioMatchSummary(state)
-                NovaArtworkStudioComparison(
-                    state = state,
-                    currentArtworkPresentationKey = currentArtworkPresentationKey,
-                    currentArtworkLoader = currentArtworkLoader,
-                    choicePreviewLoader = choicePreviewLoader,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    NovaActionButton(
-                        text = stringResource(R.string.nova_artwork_refresh),
-                        onClick = onRefresh,
-                        modifier = Modifier.weight(1f),
-                        enabled = !state.working && state.loadingKinds.isEmpty(),
-                        contentDescription = stringResource(R.string.nova_artwork_refresh_description),
-                    )
-                    if (state.overrideActive) {
-                        NovaActionButton(
-                            text = stringResource(R.string.nova_artwork_clear_match),
-                            onClick = onClear,
-                            modifier = Modifier.weight(1f),
-                            enabled = !state.working && state.loadingKinds.isEmpty(),
-                            contentDescription = stringResource(R.string.nova_artwork_clear_match_description),
+                val twoColumn = maxWidth >= NOVA_STUDIO_TWO_COLUMN_MIN
+
+                // What the entry is: its identity, and which image is chosen per kind.
+                val identityColumn: @Composable ColumnScope.() -> Unit = {
+                    NovaArtworkStudioMatchSummary(state)
+                    if (state.selectedCandidate == null) {
+                        NovaArtworkIdentityPicker(
+                            state = state,
+                            query = query,
+                            onQueryChanged = { candidate ->
+                                if (
+                                    candidate.toByteArray(Charsets.UTF_8).size <= 160 &&
+                                    candidate.none { it.code < 0x20 || it.code in 0x7f..0x9f }
+                                ) query = candidate
+                            },
+                            onSearch = { onSearch(query.trim()) },
+                            onIdentitySelected = onIdentitySelected,
+                            candidatePreviewLoader = candidatePreviewLoader,
+                        )
+                    } else {
+                        NovaArtworkChoicePicker(
+                            state = state,
+                            onChangeIdentity = onChangeIdentity,
+                            onKindSelected = onKindSelected,
+                            onChoiceSelected = onChoiceSelected,
+                            choicePreviewLoader = choicePreviewLoader,
                         )
                     }
-                }
-
-                if (NovaArtworkKinds.LOGO in state.currentKinds) {
-                    NovaArtworkLogoTransformControls(state, onTransform)
-                }
-
-                state.error?.let {
-                    Text(
-                        text = it,
-                        color = colors.warning,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
-
-                if (state.selectedCandidate == null) {
-                    NovaArtworkIdentityPicker(
-                        state = state,
-                        query = query,
-                        onQueryChanged = { candidate ->
-                            if (
-                                candidate.toByteArray(Charsets.UTF_8).size <= 160 &&
-                                candidate.none { it.code < 0x20 || it.code in 0x7f..0x9f }
-                            ) query = candidate
-                        },
-                        onSearch = { onSearch(query.trim()) },
-                        onIdentitySelected = onIdentitySelected,
-                        candidatePreviewLoader = candidatePreviewLoader,
-                    )
-                } else {
-                    NovaArtworkChoicePicker(
-                        state = state,
-                        onChangeIdentity = onChangeIdentity,
-                        onKindSelected = onKindSelected,
-                        onChoiceSelected = onChoiceSelected,
-                        choicePreviewLoader = choicePreviewLoader,
-                    )
+                    // Refresh belongs at the floor of the column it refreshes, not third
+                    // from the top between two things it is not about.
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         NovaActionButton(
-                            text = stringResource(R.string.nova_artwork_studio_reset),
-                            onClick = { onReset(NovaArtworkStudioAction.EditingReset) },
+                            text = stringResource(R.string.nova_artwork_refresh),
+                            onClick = onRefresh,
                             modifier = Modifier.weight(1f),
-                            enabled = !state.working,
+                            enabled = !state.working && state.loadingKinds.isEmpty(),
+                            contentDescription = stringResource(R.string.nova_artwork_refresh_description),
                         )
-                        NovaActionButton(
-                            text = stringResource(R.string.nova_artwork_studio_apply),
-                            onClick = { onApply(state.selectedCandidate, state.selections) },
-                            modifier = Modifier.weight(1f),
-                            enabled = state.canApply,
-                            primary = true,
-                            contentDescription = stringResource(R.string.nova_artwork_studio_apply_description),
+                        if (state.overrideActive) {
+                            NovaActionButton(
+                                text = stringResource(R.string.nova_artwork_clear_match),
+                                onClick = onClear,
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.working && state.loadingKinds.isEmpty(),
+                                contentDescription = stringResource(R.string.nova_artwork_clear_match_description),
+                            )
+                        }
+                    }
+                }
+
+                // What that looks like: the live preview, and the transform on it.
+                val previewColumn: @Composable ColumnScope.() -> Unit = {
+                    NovaArtworkStudioComparison(
+                        state = state,
+                        currentArtworkPresentationKey = currentArtworkPresentationKey,
+                        currentArtworkLoader = currentArtworkLoader,
+                        choicePreviewLoader = choicePreviewLoader,
+                    )
+                    if (NovaArtworkKinds.LOGO in state.currentKinds) {
+                        NovaArtworkLogoTransformControls(state, onTransform)
+                    }
+                }
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (twoColumn) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(NOVA_STUDIO_GUTTER),
+                        ) {
+                            Column(modifier = Modifier.weight(1f), content = identityColumn)
+                            Column(modifier = Modifier.weight(1f), content = previewColumn)
+                        }
+                    } else {
+                        Column(modifier = Modifier.fillMaxWidth(), content = identityColumn)
+                        Column(modifier = Modifier.fillMaxWidth(), content = previewColumn)
+                    }
+
+                    state.error?.let {
+                        Text(
+                            text = it,
+                            color = colors.warning,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 8.dp),
                         )
-                        NovaActionButton(
-                            text = stringResource(R.string.cancel),
-                            onClick = {
-                                onCancel(NovaArtworkStudioAction.EditingCancelled)
-                                expanded = false
-                            },
-                            modifier = Modifier.weight(1f),
-                            enabled = !state.working,
-                            contentDescription = stringResource(R.string.nova_artwork_studio_cancel_description),
-                        )
+                    }
+
+                    // Pinned below both columns, so the apply target stops moving as
+                    // candidates load in above it.
+                    if (state.selectedCandidate != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            NovaActionButton(
+                                text = stringResource(R.string.nova_artwork_studio_reset),
+                                onClick = { onReset(NovaArtworkStudioAction.EditingReset) },
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.working,
+                            )
+                            NovaActionButton(
+                                text = stringResource(R.string.nova_artwork_studio_apply),
+                                onClick = { onApply(state.selectedCandidate, state.selections) },
+                                modifier = Modifier.weight(1f),
+                                enabled = state.canApply,
+                                primary = true,
+                                contentDescription = stringResource(R.string.nova_artwork_studio_apply_description),
+                            )
+                            NovaActionButton(
+                                text = stringResource(R.string.cancel),
+                                onClick = {
+                                    onCancel(NovaArtworkStudioAction.EditingCancelled)
+                                    expanded = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.working,
+                                contentDescription = stringResource(R.string.nova_artwork_studio_cancel_description),
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
+/** Below this there is no room for two, and stacking keeps the same reading order. */
+private val NOVA_STUDIO_TWO_COLUMN_MIN = 620.dp
+private val NOVA_STUDIO_GUTTER = 16.dp
 
 @Composable
 private fun NovaArtworkStudioMatchSummary(state: NovaArtworkStudioState) {
