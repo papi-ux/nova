@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -61,19 +62,24 @@ internal fun NovaGameDetailPanel(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.window.copy(alpha = 0.58f))) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(colors.window.copy(alpha = 0.58f))) {
+        // The panel exists so the game stays visible beside what you are changing. In
+        // portrait there is nothing to sit beside, so it takes the window instead of
+        // squeezing a phone-width column inside a phone.
+        val widthFraction = if (maxHeight > maxWidth) 1f else NOVA_DETAIL_PANEL_WIDTH_FRACTION
+        val shortViewport = maxHeight < NOVA_DETAIL_SHORT_VIEWPORT
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .fillMaxWidth(NOVA_DETAIL_PANEL_WIDTH_FRACTION)
+                .fillMaxWidth(widthFraction)
                 .background(colors.window)
                 .background(surfaces.panel)
                 .windowInsetsPadding(WindowInsets.safeContent)
-                .padding(horizontal = NovaGameDetailInset, vertical = 20.dp)
+                .padding(horizontal = NovaGameDetailInset, vertical = if (shortViewport) 10.dp else 20.dp)
                 .testTag("nova-game-detail-panel"),
         ) {
-            NovaGameDetailDestinationHeader(eyebrow, headline, readout)
+            NovaGameDetailDestinationHeader(eyebrow, headline, readout, compact = shortViewport)
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -108,7 +114,7 @@ internal fun NovaGameDetailFullScreen(
             .padding(horizontal = NovaGameDetailInset, vertical = 20.dp)
             .testTag("nova-game-detail-fullscreen"),
     ) {
-        NovaGameDetailDestinationHeader(eyebrow, headline, readout = "")
+        NovaGameDetailDestinationHeader(eyebrow, headline, readout = "", compact = false)
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -140,26 +146,33 @@ private fun NovaGameDetailDestinationHints() {
 }
 
 @Composable
-private fun NovaGameDetailDestinationHeader(eyebrow: String, headline: String, readout: String) {
+private fun NovaGameDetailDestinationHeader(
+    eyebrow: String,
+    headline: String,
+    readout: String,
+    compact: Boolean = false,
+) {
     val colors = LocalNovaComposeColors.current
-    Column(modifier = Modifier.padding(bottom = 14.dp)) {
+    Column(modifier = Modifier.padding(bottom = if (compact) 6.dp else 14.dp)) {
+        if (!compact) {
+            Text(
+                text = eyebrow,
+                color = colors.textMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.22.em,
+            )
+        }
         Text(
-            text = eyebrow,
-            color = colors.textMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.22.em,
-        )
-        Text(
-            text = headline,
+            text = if (compact) "$eyebrow · $headline" else headline,
             color = colors.textPrimary,
-            fontSize = 22.sp,
+            fontSize = if (compact) 15.sp else 22.sp,
             fontWeight = FontWeight.Bold,
-            maxLines = 2,
+            maxLines = if (compact) 1 else 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 3.dp),
+            modifier = Modifier.padding(top = if (compact) 0.dp else 3.dp),
         )
-        if (readout.isNotBlank()) {
+        if (readout.isNotBlank() && !compact) {
             Text(
                 text = readout,
                 color = colors.textSecondary,
@@ -343,3 +356,6 @@ private fun NovaSteamChoiceRow(
  * truncated at 53%, and still narrow enough to keep the game present beside it.
  */
 private const val NOVA_DETAIL_PANEL_WIDTH_FRACTION = 0.60f
+
+/** Below this a phone in landscape has no height to spare for chrome. */
+private val NOVA_DETAIL_SHORT_VIEWPORT = 500.dp

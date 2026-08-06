@@ -373,7 +373,9 @@ internal fun NovaGameDetailContent(
 
             NovaGameDetailDestination.TUNE -> NovaGameDetailPanel(
                 eyebrow = stringResource(R.string.nova_game_detail_tune),
-                headline = profilePreferenceLabel,
+                headline = stringResource(
+                    AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
+                ),
                 readout = listOf(
                     optimizationState.profileSummary?.selectedLine,
                     optimizationState.profileSummary?.freshnessLine,
@@ -1739,7 +1741,7 @@ private fun SteamLaunchModeCard(
                     color = if (warning) colors.warning else colors.textSecondary,
                     fontSize = 9.sp,
                     lineHeight = 12.sp,
-                    maxLines = 2,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -1796,19 +1798,26 @@ private fun InsightCard(card: NovaGameDetailInsightCard) {
         contentPadding = PaddingValues(12.dp)
     ) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = card.label,
+                color = if (card.isWarning) colors.warning else colors.accent,
+                fontSize = if (card.isWarning) 13.sp else 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (card.source.isNotBlank()) {
+                // Six facts joined by separators is a metadata line, not a tag; in a chip
+                // it could only ellipsise, so it wraps under the title instead.
                 Text(
-                    text = card.label,
-                    color = if (card.isWarning) colors.warning else colors.accent,
-                    fontSize = if (card.isWarning) 13.sp else 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
+                    text = card.source,
+                    modifier = Modifier.padding(top = 2.dp),
+                    color = colors.textMuted,
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (card.source.isNotBlank()) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    NovaBadge(text = card.source, color = colors.textMuted)
-                }
             }
             Text(
                 text = card.settings,
@@ -1827,7 +1836,7 @@ private fun InsightCard(card: NovaGameDetailInsightCard) {
                     color = colors.textMuted,
                     fontSize = 10.sp,
                     lineHeight = 13.sp,
-                    maxLines = 3,
+                    maxLines = 5,
                     overflow = TextOverflow.Ellipsis
                 )
             }

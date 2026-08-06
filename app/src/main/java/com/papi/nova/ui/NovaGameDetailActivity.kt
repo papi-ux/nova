@@ -1216,7 +1216,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 ""
             }
             val sourceText = listOf(
-                stateLabel.takeIf { it.isNotBlank() },
+                stateLabel.takeIf { it.isNotBlank() && stateLabel != titleLabel },
                 profileState?.optString("preference_label", "")?.takeIf { it.isNotBlank() },
                 lastResultText.takeIf { it.isNotBlank() },
                 sourceLabel.takeIf { it.isNotBlank() && sourceLabel != titleLabel },
