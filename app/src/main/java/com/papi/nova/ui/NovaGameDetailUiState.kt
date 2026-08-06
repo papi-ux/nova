@@ -43,10 +43,22 @@ data class NovaGameDetailUiState(
             game: PolarisGame,
             defaultToVirtualDisplay: Boolean,
             clientSettings: PolarisClientSettings?,
-            profilePreference: String
+            profilePreference: String,
+            /** A mode chosen for this game on this client, which outranks the host default. */
+            launchModeOverride: String? = null,
         ): NovaGameDetailUiState {
             val choice = game.resolveLaunchModeChoice(defaultToVirtualDisplay, clientSettings)
+            // Only a deliberate choice reaches here, so it answers before the host does.
+            // The contract's preferredMode stays below the host, as it means the app's own
+            // default rather than anyone's decision.
+            val chosen = launchModeOverride
+                ?.takeIf { it.isNotBlank() }
+                ?.let { PolarisGame.resolveLaunchMode(it, choice.headlessAllowed, choice.virtualDisplayAllowed) }
             val playMode = when {
+                chosen == "virtual_display" && choice.virtualDisplayAllowed &&
+                    !choice.virtualDisplayUnavailable -> "virtual_display"
+                chosen == "headless" && choice.headlessAllowed -> "headless"
+
                 choice.recommendedMode == "virtual_display" && choice.virtualDisplayAllowed -> "virtual_display"
                 choice.recommendedMode == "headless" && choice.headlessAllowed -> "headless"
                 choice.headlessAllowed -> "headless"

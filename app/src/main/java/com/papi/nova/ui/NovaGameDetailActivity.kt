@@ -415,6 +415,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 allowedModes = allowedModes
             )
             currentGame = currentGame.copy(launchMode = updatedLaunchMode)
+            NovaLaunchModeOverrides.save(this@NovaGameDetailActivity, currentGame, mode)
             refreshUiState()
             optimizationState = NovaGameDetailOptimizationState()
             loadOptimization(profilePreference, usesVirtualDisplay = mode == "virtual_display")
@@ -817,7 +818,8 @@ class NovaGameDetailActivity : NovaActivity() {
             game = game,
             defaultToVirtualDisplay = defaultToVirtualDisplay,
             clientSettings = clientSettings,
-            profilePreference = profilePreference
+            profilePreference = profilePreference,
+            launchModeOverride = NovaLaunchModeOverrides.load(this@NovaGameDetailActivity, game),
         )
     }
 
