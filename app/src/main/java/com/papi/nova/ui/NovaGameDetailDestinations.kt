@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.width
@@ -114,8 +116,10 @@ internal fun NovaGameDetailPanel(
                 .background(surfaces.panel)
                 // Taps inside the panel are not taps outside it.
                 .novaDismissOnTap {}
-                .windowInsetsPadding(WindowInsets.safeContent)
-                .padding(horizontal = NovaGameDetailInset, vertical = if (shortViewport) 10.dp else 20.dp)
+                // Vertical only. A cutout must not eat text, but it need not stop a row
+                // background from reaching the edge it is drawn against.
+                .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Vertical))
+                .padding(vertical = if (shortViewport) 10.dp else 20.dp)
                 .testTag("nova-game-detail-panel"),
         ) {
             NovaGameDetailDestinationHeader(
@@ -252,7 +256,11 @@ private fun NovaGameDetailDestinationHints() {
             ),
         ),
         compact = true,
-        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
+            .padding(horizontal = NovaGameDetailInset)
+            .padding(top = 10.dp),
     )
 }
 
@@ -267,7 +275,11 @@ private fun NovaGameDetailDestinationHeader(
     val colors = LocalNovaComposeColors.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(bottom = if (compact) 6.dp else 14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
+            .padding(horizontal = NovaGameDetailInset)
+            .padding(bottom = if (compact) 6.dp else 14.dp),
     ) {
     Column(modifier = Modifier.weight(1f)) {
         if (!compact) {
@@ -341,7 +353,11 @@ internal fun NovaGameDetailGroupLabel(text: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
+            .padding(horizontal = NovaGameDetailInset)
+            .padding(top = 16.dp, bottom = 6.dp),
     ) {
         Text(
             text = text.uppercase(),
@@ -518,7 +534,8 @@ internal fun NovaSteamChoiceRow(
                     size = Size(size.width, 1f),
                 )
             }
-            .padding(start = 12.dp, end = 2.dp, top = 9.dp, bottom = 9.dp)
+            .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
+            .padding(start = NovaGameDetailInset, end = NovaGameDetailInset, top = 9.dp, bottom = 9.dp)
             .semantics { contentDescription = if (value.isBlank()) label else "$label. $value" },
     ) {
         Column(modifier = Modifier.weight(1f)) {

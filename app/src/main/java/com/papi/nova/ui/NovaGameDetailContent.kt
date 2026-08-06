@@ -1032,6 +1032,7 @@ private fun LaunchControls(
     Column {
         Text(
             text = launchIntro,
+            modifier = Modifier.padding(horizontal = NovaGameDetailInset),
             color = if (uiState.virtualDisplayUnavailable) colors.warning else colors.textSecondary,
             fontSize = 11.sp,
             lineHeight = 14.sp,
@@ -1140,6 +1141,7 @@ internal fun LaunchProfilePrimaryNotice(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = NovaGameDetailInset)
             .padding(top = 8.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(toneColor.copy(alpha = 0.14f))
@@ -1482,6 +1484,7 @@ private fun InsightCard(card: NovaGameDetailInsightCard) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = NovaGameDetailInset)
             .padding(top = 12.dp, bottom = 2.dp),
     ) {
         Column {
