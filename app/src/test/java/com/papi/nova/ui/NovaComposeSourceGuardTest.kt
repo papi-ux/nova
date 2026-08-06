@@ -2780,4 +2780,119 @@ class NovaComposeSourceGuardTest {
         }
         error("Unbalanced block after: $startMarker")
     }
+
+    @Test
+    fun gameDetailGaugeMeasuresPlayedAgainstTheLongestEstimate() {
+        val gauge = readNovaGameDetail().section(
+            "private fun NovaGameDetailBeatGauge(",
+            "/**\n * Whether two titles are the same game"
+        )
+
+        assertTrue(
+            "the bar's full width is the completionist figure, falling back to whatever is actually known",
+            gauge.contains("beatTime?.longestSeconds?.takeIf { it > 0 }")
+        )
+        assertTrue(
+            "played past the end caps the bar, because a bar cannot say more than full",
+            gauge.contains("(playedSeconds.toFloat() / fullWidthSeconds.toFloat()).coerceIn(0f, 1f)")
+        )
+        assertFalse(
+            "the played figure is not clamped with the bar: the hours someone actually spent " +
+                "stay true past the end of an estimate",
+            gauge.contains("playedSeconds.coerceAtMost")
+        )
+    }
+
+    @Test
+    fun gameDetailGaugeCutsItsNotchesThroughTheBarRatherThanOntoIt() {
+        val gauge = readNovaGameDetail().section(
+            "private fun NovaGameDetailBeatGauge(",
+            "/**\n * Whether two titles are the same game"
+        )
+
+        // Overhang top and bottom is the whole difference between a notch in the bar and
+        // a mark sitting on it, and it is visible only in the drawing, never in the prose.
+        assertTrue(
+            "the canvas is taller than the bar so the notches can overhang it",
+            gauge.contains(".height(NOVA_GAUGE_BAR + NOVA_GAUGE_NOTCH_OVERHANG * 2)") &&
+                gauge.contains("val barTop = NOVA_GAUGE_NOTCH_OVERHANG.toPx()")
+        )
+        assertTrue(
+            "a notch is drawn in the ground colour over a lighter ring, which is what reads as a cut",
+            gauge.contains("val notchInk = colors.window") &&
+                gauge.contains("val notchRing = colors.textPrimary.copy(alpha = 0.34f)")
+        )
+        assertTrue(
+            "a notch at or past the full width would sit on the end cap and say nothing",
+            gauge.contains("it > 0 && it < fullWidthSeconds")
+        )
+    }
+
+    @Test
+    fun gameDetailGaugeSaysWhichEstimateIsWhich() {
+        val gauge = readNovaGameDetail().section(
+            "private fun NovaGameDetailBeatGauge(",
+            "/**\n * Whether two titles are the same game"
+        )
+
+        assertTrue(
+            "three bare numbers do not say which is the main story and which is everything",
+            gauge.contains("R.string.nova_game_detail_beat_main") &&
+                gauge.contains("R.string.nova_game_detail_beat_extras") &&
+                gauge.contains("R.string.nova_game_detail_beat_complete")
+        )
+        assertTrue(
+            "the played figure leads and the estimates follow it, so the row has a reading order",
+            gauge.indexOf("color = colors.textPrimary,") in
+                0 until gauge.indexOf("color = colors.textSecondary,")
+        )
+    }
+
+    @Test
+    fun gameDetailGaugeDrawsNothingItCannotBack() {
+        val gauge = readNovaGameDetail().section(
+            "private fun NovaGameDetailBeatGauge(",
+            "/**\n * Whether two titles are the same game"
+        )
+
+        assertTrue(
+            "with neither a duration nor an estimate the block is absent entirely",
+            gauge.contains("if (playedSeconds <= 0L && fullWidthSeconds <= 0L)")
+        )
+        assertTrue(
+            "an estimate with nothing played reads Not started rather than zero hours",
+            gauge.contains("R.string.nova_game_detail_not_started")
+        )
+        assertTrue(
+            "the bar only appears once there is something to measure against",
+            gauge.contains("if (fullWidthSeconds > 0L) {")
+        )
+    }
+
+    @Test
+    fun gameDetailGaugeSurfacesAWrongMatchAndLeadsToItsFix() {
+        val detail = readNovaGameDetail()
+        val gauge = detail.section(
+            "private fun NovaGameDetailBeatGauge(",
+            "/**\n * Whether two titles are the same game"
+        )
+
+        assertTrue(
+            "a fuzzy match that went wrong looks exactly like one that went right, so the name " +
+                "it found is shown when it is not plainly the same game",
+            gauge.contains("novaSameTitle(matched, gameName).not()") &&
+                gauge.contains("R.string.nova_game_detail_matched_as")
+        )
+        assertTrue(
+            "punctuation and case disagree constantly between a launcher and a catalogue, and " +
+                "saying so every time would bury the mismatches that matter",
+            detail.contains("private fun novaSameTitle(") &&
+                detail.contains("value.forEach { if (it.isLetterOrDigit()) append(it.lowercaseChar()) }")
+        )
+        assertTrue(
+            "seeing the mismatch is half of it: the line is the way to the studio that fixes the identity",
+            gauge.contains("onCorrectMatch") &&
+                detail.contains("onCorrectMatch = { onDestination(NovaGameDetailDestination.ARTWORK) }")
+        )
+    }
 }
