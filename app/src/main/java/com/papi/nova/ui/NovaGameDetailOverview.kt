@@ -7,12 +7,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -110,13 +113,31 @@ internal fun NovaGameDetailOverview(
     val colors = LocalNovaComposeColors.current
     val game = uiState.game
 
-    Box(modifier = modifier.fillMaxSize().testTag("nova-game-detail-overview")) {
-        NovaLibraryCinematicBackdrop(game = game, apiClient = apiClient, strength = 1f)
+    BoxWithConstraints(modifier = modifier.fillMaxSize().testTag("nova-game-detail-overview")) {
+        val portrait = maxHeight > maxWidth
+
+        if (portrait) {
+            // A 3:1 hero cropped to a phone's aspect shows a slice, not a subject, so it
+            // gets a 16:9 band and dissolves into the ground rather than filling behind.
+            NovaLibraryCinematicBackdrop(
+                game = game,
+                apiClient = apiClient,
+                strength = 1f,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .novaFadeToGround(colors.window),
+            )
+        } else {
+            NovaLibraryCinematicBackdrop(game = game, apiClient = apiClient, strength = 1f)
+        }
 
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(if (portrait) Alignment.TopStart else Alignment.BottomStart)
                 .fillMaxWidth()
+                .then(if (portrait) Modifier.padding(top = 176.dp) else Modifier)
                 .windowInsetsPadding(WindowInsets.safeContent)
                 .padding(start = NovaGameDetailInset, end = NovaGameDetailInset, bottom = 10.dp),
         ) {
@@ -171,6 +192,7 @@ internal fun NovaGameDetailOverview(
             }
 
             NovaGameDetailActions(
+                stacked = portrait,
                 uiState = uiState,
                 optimizationState = optimizationState,
                 playLabel = playLabel,
@@ -187,7 +209,20 @@ internal fun NovaGameDetailOverview(
                 modifier = Modifier.padding(top = 16.dp),
             )
 
-            NovaGameDetailFooter(modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
+            if (!portrait) {
+                NovaGameDetailFooter(modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
+            }
+        }
+
+        // On a tall screen the floor belongs at the bottom, not trailing the actions.
+        if (portrait) {
+            NovaGameDetailFooter(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeContent)
+                    .padding(horizontal = NovaGameDetailInset, vertical = 10.dp),
+            )
         }
 
     }
@@ -326,6 +361,7 @@ private fun NovaGameDetailStatusLine(
  */
 @Composable
 private fun NovaGameDetailActions(
+    stacked: Boolean,
     uiState: NovaGameDetailUiState,
     optimizationState: NovaGameDetailOptimizationState,
     playLabel: String,
@@ -341,11 +377,27 @@ private fun NovaGameDetailActions(
     onEndSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier,
-    ) {
+    val lane: @Composable (@Composable () -> Unit) -> Unit = { content ->
+        if (stacked) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = modifier.fillMaxWidth(),
+                content = { content() },
+            )
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = modifier,
+                content = { content() },
+            )
+        }
+    }
+
+    // Stacked buttons sized to their own labels look ragged; in a column they share a width.
+    val itemWidth: Modifier = if (stacked) Modifier.fillMaxWidth() else Modifier
+
+    lane {
         // Precedence: someone else's session, then yours, then the ordinary launch.
         // Launching over a session another device owns would take their display.
         NovaGameDetailAction(
@@ -358,7 +410,7 @@ private fun NovaGameDetailActions(
             enabled = uiState.playEnabled || activeSession != null,
             primary = activeSession?.watchOnly != true,
             glyph = stringResource(R.string.nova_controller_hint_a),
-            modifier = Modifier
+            modifier = itemWidth
                 .focusRequester(playFocusRequester)
                 .testTag("nova-game-detail-primary"),
         )
@@ -368,6 +420,7 @@ private fun NovaGameDetailActions(
                 text = stringResource(R.string.nova_game_detail_end_session),
                 onClick = onEndSession,
                 mark = "◼",
+                modifier = itemWidth,
             )
         }
 
@@ -377,12 +430,14 @@ private fun NovaGameDetailActions(
                     text = stringResource(R.string.nova_library_retry_high_fps),
                     onClick = onRetryHighFps,
                     mark = "\u25B2",
+                    modifier = itemWidth,
                 )
             }
             NovaGameDetailAction(
                 text = stringResource(R.string.nova_library_reset_game_profile),
                 onClick = onResetProfile,
                 mark = "\u21BA",
+                modifier = itemWidth,
             )
         } else {
             if (showLaunchModeAction) {
@@ -390,20 +445,36 @@ private fun NovaGameDetailActions(
                     text = stringResource(R.string.nova_library_launch_mode_title),
                     onClick = { onDestination(NovaGameDetailDestination.LAUNCH_MODE) },
                     mark = "\u229E",
+                    modifier = itemWidth,
                 )
             }
             NovaGameDetailAction(
                 text = stringResource(R.string.nova_game_detail_tune),
                 onClick = { onDestination(NovaGameDetailDestination.TUNE) },
                 mark = "\u2699",
+                modifier = itemWidth,
             )
             NovaGameDetailAction(
                 text = stringResource(R.string.nova_artwork_studio_title),
                 onClick = { onDestination(NovaGameDetailDestination.ARTWORK) },
                 mark = "\u25C8",
+                modifier = itemWidth,
             )
         }
     }
+}
+
+/** Dissolves the hero band into the window colour instead of cutting against it. */
+private fun Modifier.novaFadeToGround(ground: Color): Modifier = drawWithContent {
+    drawContent()
+    drawRect(
+        brush = Brush.verticalGradient(
+            colorStops = arrayOf(
+                0.62f to Color.Transparent,
+                1.0f to ground,
+            ),
+        ),
+    )
 }
 
 /**
