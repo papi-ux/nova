@@ -1,21 +1,9 @@
 package com.papi.nova.ui
 
-import android.app.Dialog
-import android.content.Context
-import android.content.res.Configuration
-import android.os.Bundle
-import android.text.format.DateUtils
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
 import android.widget.ImageView
-import android.widget.ScrollView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.focusGroup
@@ -26,11 +14,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,7 +23,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -46,7 +30,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,8 +49,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -76,41 +57,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
-import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisArtworkChoice
 import com.papi.nova.api.PolarisArtworkMatchCandidate
-import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
-import com.papi.nova.manager.StreamSyncManager
-import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
-import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaFocusableCard
-import com.papi.nova.utils.DeviceUtils
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.round
 
 internal fun canPublishArtworkMutationUiForState(state: Lifecycle.State?): Boolean =
     state?.isAtLeast(Lifecycle.State.CREATED) == true
