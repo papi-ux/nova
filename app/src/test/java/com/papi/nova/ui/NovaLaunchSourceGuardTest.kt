@@ -55,7 +55,7 @@ class NovaLaunchSourceGuardTest {
         val nvHttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
         val decisionRows = detail.section(
             "internal fun NovaDesktopSteamLaunchDecisionRows(",
-            "private fun NovaSteamChoiceRow("
+            "internal fun NovaSteamChoiceRow("
         )
 
         assertTrue(

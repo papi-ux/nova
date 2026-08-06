@@ -1036,7 +1036,7 @@ class NovaComposeSourceGuardTest {
         val detail = readNovaGameDetail()
         val detailsPanel = detail.section(
             "private fun GameDetailsPanel(",
-            "@Composable\nprivate fun LaunchControlsPanel("
+            "@Composable\nprivate fun LaunchControls("
         )
         val launchFooter = detail.section(
             "internal fun NovaGameDetailLaunchFooter(",
@@ -1117,7 +1117,7 @@ class NovaComposeSourceGuardTest {
         val detail = readNovaGameDetail()
         val launchControls = detail.section(
             "private fun LaunchControls(",
-            "@Composable\nprivate fun LaunchProfileSummaryInline("
+            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
         )
 
         assertTrue(
@@ -1134,10 +1134,21 @@ class NovaComposeSourceGuardTest {
                 launchControls.indexOf("text = launchOptionsLabel") > launchControls.indexOf("LaunchModeChoicePill(")
         )
         assertTrue(
-            "non-duplicative tuning should remain available separately from launch mode selection",
-            launchControls.contains("text = profilePreferenceLabel") &&
-                launchControls.indexOf("text = profilePreferenceLabel") > launchControls.indexOf("LaunchModeChoicePill(") &&
-                launchControls.split("LaunchProfileSummaryInline(").size == 2
+            "launch mode should answer where it runs and leave the profile alone: preference, summary and reset are Tune's",
+            !launchControls.contains("profilePreferenceLabel") &&
+                !launchControls.contains("LaunchProfileSummaryInline(") &&
+                !launchControls.contains("resetProfileLabel")
+        )
+        assertTrue(
+            "Tune should hold the profile controls launch mode gave up, and stay the way into the preference picker",
+            detail.contains("onClick = onProfilePreference,") &&
+                detail.contains("LaunchProfileSummaryActions(") &&
+                detail.contains("R.string.nova_game_detail_group_actions")
+        )
+        assertTrue(
+            "launch mode should name itself once: the destination header already does, and the pills say which is recommended",
+            !launchControls.contains("text = launchModeTitle") &&
+                !launchControls.contains("text = recommendedBadge")
         )
     }
 
@@ -1157,7 +1168,7 @@ class NovaComposeSourceGuardTest {
             "when MangoHUD is already enabled, the drawer should show only a passive status after launch controls",
             sheetContent.contains("if (mangoHudEnabled) {") &&
                 sheetContent.contains("MangoHudPassiveStatus(") &&
-                sheetContent.indexOf("MangoHudPassiveStatus(") > sheetContent.indexOf("LaunchControlsPanel(")
+                sheetContent.indexOf("MangoHudPassiveStatus(") > sheetContent.indexOf("LaunchControls(")
         )
     }
 
@@ -1166,7 +1177,7 @@ class NovaComposeSourceGuardTest {
         val source = readNovaGameDetail()
         val detailsPanel = source.section(
             "private fun GameDetailsPanel(",
-            "@Composable\nprivate fun LaunchControlsPanel("
+            "@Composable\nprivate fun LaunchControls("
         )
 
         assertTrue(

@@ -343,25 +343,18 @@ internal fun NovaGameDetailContent(
                         onChoice = onSteamChoice,
                     )
                 } else {
-                    LaunchControlsPanel(
+                    LaunchControls(
                         uiState = uiState,
                         launchIntro = launchIntro,
                         launchModeTitle = launchModeTitle,
-                        recommendedBadge = recommendedBadge,
                         launchOptionsLabel = launchOptionsLabel,
-                        profilePreferenceLabel = profilePreferenceLabel,
                         profileSummary = optimizationState.profileSummary,
-                        resetProfileLabel = resetProfileLabel,
-                        resetProfileWorking = resetProfileWorking,
                         headlessModeLabel = headlessModeLabel,
                         virtualDisplayModeLabel = virtualDisplayModeLabel,
                         playFocusRequester = playFocusRequester,
                         detailsFocusRequester = detailsFocusRequester,
                         onLaunchOptions = onLaunchOptions,
                         onLaunchModeSelected = onLaunchModeSelected,
-                        onProfilePreference = onProfilePreference,
-                        onRetryHighFps = onRetryHighFps,
-                        onResetProfile = onResetProfile
                     )
                     launchOptionsState?.let {
                         NovaLaunchOptionsSheet(
@@ -385,18 +378,38 @@ internal fun NovaGameDetailContent(
                 scrollState = verticalScroll,
                 onDismiss = onDismissDestination,
             ) {
+                // A picker is what you are doing with the destination while it is
+                // open, not a row inside one of its groups, so it spans the body,
+                // above the groups rather than below the fold they push it past.
+                profileOptionsState?.let {
+                    NovaProfilePreferenceSheet(
+                        state = it,
+                        onSelected = onProfilePreferenceSelected,
+                        onDismiss = onDismissProfileOptions
+                    )
+                }
+                steamLaunchOptionsState?.let { state ->
+                    NovaSteamLaunchModeSheet(
+                        state = state,
+                        onSelected = onSteamLaunchModeSelected,
+                        onDismiss = onDismissSteamLaunchModeOptions
+                    )
+                }
+
                 NovaGameDetailColumns(
                     left = {
                         NovaGameDetailGroupLabel(
                             stringResource(R.string.nova_game_detail_group_state),
                         )
-                        profileOptionsState?.let {
-                            NovaProfilePreferenceSheet(
-                                state = it,
-                                onSelected = onProfilePreferenceSelected,
-                                onDismiss = onDismissProfileOptions
-                            )
-                        }
+                        // The concept leads State with the profile itself. It is also the
+                        // only way into the preference picker, now that launch mode no
+                        // longer carries a second copy of Tune's controls.
+                        NovaSteamChoiceRow(
+                            label = profilePreferenceLabel,
+                            caption = stringResource(R.string.nova_game_detail_profile_caption),
+                            enabled = true,
+                            onClick = onProfilePreference,
+                        )
                         SteamLaunchModeCard(
                             visible = uiState.showSteamLaunchMode,
                             label = steamLaunchLabel,
@@ -405,13 +418,6 @@ internal fun NovaGameDetailContent(
                             warning = uiState.steamLaunchWarning,
                             onClick = onSteamLaunchMode
                         )
-                        steamLaunchOptionsState?.let { state ->
-                            NovaSteamLaunchModeSheet(
-                                state = state,
-                                onSelected = onSteamLaunchModeSelected,
-                                onDismiss = onDismissSteamLaunchModeOptions
-                            )
-                        }
                         if (mangoHudEnabled) {
                             MangoHudPassiveStatus(
                                 label = mangoHudStatusLabel,
@@ -1009,58 +1015,6 @@ private fun NovaGameDetailIdentity(
 }
 
 @Composable
-private fun LaunchControlsPanel(
-    uiState: NovaGameDetailUiState,
-    launchIntro: String,
-    launchModeTitle: String,
-    recommendedBadge: String,
-    launchOptionsLabel: String,
-    profilePreferenceLabel: String,
-    profileSummary: NovaLaunchProfileSummary?,
-    resetProfileLabel: String,
-    resetProfileWorking: Boolean,
-    headlessModeLabel: String,
-    virtualDisplayModeLabel: String,
-    playFocusRequester: FocusRequester,
-    detailsFocusRequester: FocusRequester,
-    onLaunchOptions: () -> Unit,
-    onLaunchModeSelected: (String) -> Unit,
-    onProfilePreference: () -> Unit,
-    onRetryHighFps: () -> Unit,
-    onResetProfile: () -> Unit
-) {
-    NovaDetailPanel(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 10.dp),
-        contentDescription = "Launch controls",
-        accent = true,
-        contentPadding = PaddingValues(12.dp)
-    ) {
-        LaunchControls(
-            uiState = uiState,
-            launchIntro = launchIntro,
-            launchModeTitle = launchModeTitle,
-            recommendedBadge = recommendedBadge,
-            launchOptionsLabel = launchOptionsLabel,
-            profilePreferenceLabel = profilePreferenceLabel,
-            profileSummary = profileSummary,
-            resetProfileLabel = resetProfileLabel,
-            resetProfileWorking = resetProfileWorking,
-            headlessModeLabel = headlessModeLabel,
-            virtualDisplayModeLabel = virtualDisplayModeLabel,
-            playFocusRequester = playFocusRequester,
-            detailsFocusRequester = detailsFocusRequester,
-            onLaunchOptions = onLaunchOptions,
-            onLaunchModeSelected = onLaunchModeSelected,
-            onProfilePreference = onProfilePreference,
-            onRetryHighFps = onRetryHighFps,
-            onResetProfile = onResetProfile
-        )
-    }
-}
-
-@Composable
 private fun MetadataBadges(game: PolarisGame) {
     val horizontalScroll = rememberScrollState()
     Row(
@@ -1102,59 +1056,24 @@ private fun LaunchControls(
     uiState: NovaGameDetailUiState,
     launchIntro: String,
     launchModeTitle: String,
-    recommendedBadge: String,
     launchOptionsLabel: String,
-    profilePreferenceLabel: String,
     profileSummary: NovaLaunchProfileSummary?,
-    resetProfileLabel: String,
-    resetProfileWorking: Boolean,
     headlessModeLabel: String,
     virtualDisplayModeLabel: String,
     playFocusRequester: FocusRequester,
     detailsFocusRequester: FocusRequester,
     onLaunchOptions: () -> Unit,
     onLaunchModeSelected: (String) -> Unit,
-    onProfilePreference: () -> Unit,
-    onRetryHighFps: () -> Unit,
-    onResetProfile: () -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
 
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = launchModeTitle,
-                modifier = Modifier.weight(1f),
-                color = colors.textPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (uiState.showRecommendedModeBadge) {
-                Spacer(modifier = Modifier.width(8.dp))
-                NovaBadge(
-                    text = recommendedBadge,
-                    color = colors.onAccent,
-                    backgroundColor = colors.accent.copy(alpha = 0.86f),
-                    borderColor = colors.accent,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
-                )
-            }
-        }
-
         Text(
             text = launchIntro,
-            modifier = Modifier.padding(top = 6.dp),
             color = if (uiState.virtualDisplayUnavailable) colors.warning else colors.textSecondary,
             fontSize = 11.sp,
-            lineHeight = 13.sp,
-            maxLines = 2,
+            lineHeight = 14.sp,
+            maxLines = 4,
             overflow = TextOverflow.Ellipsis
         )
 
@@ -1226,56 +1145,20 @@ private fun LaunchControls(
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (uiState.showLaunchOptionsButton) {
-                NovaActionButton(
-                    text = launchOptionsLabel,
-                    onClick = onLaunchOptions,
-                    modifier = Modifier.weight(1f),
-                    contentDescription = launchOptionsLabel,
-                    minHeight = 42.dp,
-                    cornerRadius = 10.dp,
-                    fontSize = 12.sp,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-                )
-            }
+        if (uiState.showLaunchOptionsButton) {
             NovaActionButton(
-                text = profilePreferenceLabel,
-                onClick = onProfilePreference,
-                modifier = if (uiState.showLaunchOptionsButton) Modifier.weight(1f) else Modifier.fillMaxWidth(),
-                contentDescription = profilePreferenceLabel,
+                text = launchOptionsLabel,
+                onClick = onLaunchOptions,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 9.dp),
+                contentDescription = launchOptionsLabel,
                 minHeight = 42.dp,
                 cornerRadius = 10.dp,
                 fontSize = 12.sp,
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             )
         }
-
-        profileSummary?.let {
-            LaunchProfileSummaryInline(
-                summary = it,
-                onRetryHighFps = onRetryHighFps
-            )
-        }
-
-        NovaActionButton(
-            text = resetProfileLabel,
-            onClick = onResetProfile,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            enabled = !resetProfileWorking,
-            contentDescription = resetProfileLabel,
-            minHeight = 36.dp,
-            cornerRadius = 10.dp,
-            fontSize = 11.sp,
-            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp)
-        )
     }
 }
 
@@ -1370,76 +1253,6 @@ internal fun LaunchProfilePrimaryNotice(
                 lineHeight = 15.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(top = 5.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun LaunchProfileSummaryInline(
-    summary: NovaLaunchProfileSummary,
-    onRetryHighFps: () -> Unit
-) {
-    val colors = LocalNovaComposeColors.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp)
-            .semantics { contentDescription = "Launch profile summary" }
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp)
-                .heightIn(min = 1.dp, max = 1.dp)
-                .background(colors.divider.copy(alpha = 0.55f))
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Launch Profile",
-                    color = colors.accent,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                ProfileSummaryText(summary.selectedLine, topPadding = 4)
-                ProfileSummaryText(summary.requestedLine)
-                ProfileSummaryText(summary.limitingLine)
-                ProfileSummaryText(summary.reasonLine)
-            }
-        }
-
-        if (summary.historyLines.isNotEmpty()) {
-            Text(
-                text = summary.historyLines.first(),
-                modifier = Modifier.padding(top = 4.dp),
-                color = colors.textMuted,
-                fontSize = 10.sp,
-                lineHeight = 13.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        } else {
-            ProfileSummaryText(summary.freshnessLine)
-        }
-
-        if (summary.showRetryHighFps) {
-            NovaActionButton(
-                text = summary.retryHighFpsLabel,
-                onClick = onRetryHighFps,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                contentDescription = summary.retryHighFpsLabel,
-                minHeight = 36.dp,
-                cornerRadius = 8.dp,
-                fontSize = 11.sp,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
             )
         }
     }

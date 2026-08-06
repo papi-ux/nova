@@ -539,7 +539,13 @@ class NovaGameDetailActivity : NovaActivity() {
                             profileOptionsState = null
                         }
                     },
-                    onLaunchModeSelected = ::selectLaunchMode,
+                    onLaunchModeSelected = { mode ->
+                        // The concept: choosing sets the mode and returns to the Overview,
+                        // whose readout reflects it. Staying put left the pill showing the
+                        // previous mode until the window was opened again.
+                        selectLaunchMode(mode)
+                        destination = NovaGameDetailDestination.OVERVIEW
+                    },
                     onLaunchOptionSelected = { option ->
                         fun launchSelected(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
                             val selectedLaunchOptimization = option.launchOptimization ?: optimizationState.rawOptimization

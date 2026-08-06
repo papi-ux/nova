@@ -437,7 +437,7 @@ internal fun NovaDesktopSteamLaunchDecisionRows(
 }
 
 @Composable
-private fun NovaSteamChoiceRow(
+internal fun NovaSteamChoiceRow(
     label: String,
     caption: String,
     enabled: Boolean,
