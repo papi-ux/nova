@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import android.widget.ImageView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,6 +37,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +49,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -479,15 +483,20 @@ private fun NovaGameDetailActions(
 /**
  * How long this has been played, against how long it takes.
  *
- * The concept is explicit about what each partial case draws, because a gauge that
- * guesses is worse than one that says less:
+ * Drawn as the concept draws it: the played figure bright at the left, the three
+ * estimates dimmer at the right and labelled so a number means something, and a bar
+ * whose full width is the completionist figure with the other two cut through it as
+ * notches — ground-coloured with a light ring, overhanging top and bottom, so they read
+ * as gaps in the bar rather than marks on top of it.
  *
- *  - both        a bar whose full width is the completionist figure, notched where main
- *                and extras fall, played hours at the left and the estimates at the right
- *  - played only the played figure alone; there is nothing to measure it against
- *  - estimate only "Not started", and the notches on an empty track
- *  - neither     nothing at all, and the hairline above still separates identity from state
- *  - past the end the bar caps and the figure keeps counting, since that is the true number
+ * The partial cases are the concept's own answers, because a gauge that guesses is worse
+ * than one that says less:
+ *
+ *  - both          bar, notches, figure and estimates
+ *  - played only   the figure alone; there is nothing to measure it against
+ *  - estimate only "Not started" over an empty track
+ *  - neither       nothing, and the hairline above still separates identity from state
+ *  - past the end  the bar caps and the figure keeps counting, which is the true number
  */
 @Composable
 private fun NovaGameDetailBeatGauge(
@@ -496,6 +505,7 @@ private fun NovaGameDetailBeatGauge(
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
+    val uriHandler = LocalUriHandler.current
 
     val playedSeconds = playTime?.seconds?.takeIf { it > 0 } ?: 0L
     val fullWidthSeconds = beatTime?.longestSeconds?.takeIf { it > 0 } ?: 0L
@@ -504,8 +514,9 @@ private fun NovaGameDetailBeatGauge(
     }
 
     val figures = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+    var estimateFocused by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.padding(top = 9.dp).testTag("nova-game-detail-played")) {
+    Column(modifier = Modifier.padding(top = 10.dp).testTag("nova-game-detail-played")) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.width(NOVA_GAUGE_WIDTH),
@@ -520,41 +531,84 @@ private fun NovaGameDetailBeatGauge(
                     }
                 } else {
                     stringResource(R.string.nova_game_detail_not_started)
-                },
-                color = colors.textSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.17.em,
+                }.uppercase(),
+                color = colors.textPrimary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.12.em,
                 maxLines = 1,
                 style = figures,
-                modifier = Modifier.weight(1f),
             )
 
-            if (beatTime != null) {
-                val estimates = listOf(
-                    beatTime.mainSeconds,
-                    beatTime.extrasSeconds,
-                    beatTime.completionistSeconds,
-                ).filter { it > 0 }.joinToString(" · ") { "${it / 3600}" }
+            Spacer(modifier = Modifier.weight(1f))
 
-                if (estimates.isNotEmpty()) {
+            val parts = listOfNotNull(
+                beatTime?.mainSeconds?.takeIf { it > 0 }
+                    ?.let { stringResource(R.string.nova_game_detail_beat_main, it / 3600) },
+                beatTime?.extrasSeconds?.takeIf { it > 0 }
+                    ?.let { stringResource(R.string.nova_game_detail_beat_extras, it / 3600) },
+                beatTime?.completionistSeconds?.takeIf { it > 0 }
+                    ?.let { stringResource(R.string.nova_game_detail_beat_complete, it / 3600) },
+            )
+
+            if (parts.isNotEmpty()) {
+                val page = beatTime?.url.orEmpty()
+                val linked = page.isNotBlank()
+                val ring = if (estimateFocused && linked) colors.accent else Color.Transparent
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(NOVA_GAUGE_CHIP_RADIUS))
+                        .background(
+                            if (estimateFocused && linked) {
+                                colors.accent.copy(alpha = 0.14f)
+                            } else {
+                                Color.Transparent
+                            }
+                        )
+                        .border(1.dp, ring, RoundedCornerShape(NOVA_GAUGE_CHIP_RADIUS))
+                        .then(
+                            // A page makes this a control; without one it is a readout and
+                            // has no business in the focus lane.
+                            if (linked) {
+                                Modifier
+                                    .onFocusChanged { estimateFocused = it.isFocused || it.hasFocus }
+                                    .clickable(role = Role.Button) { uriHandler.openUri(page) }
+                                    .focusable()
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                ) {
                     Text(
-                        text = stringResource(R.string.nova_game_detail_to_beat, estimates),
-                        color = colors.textMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.17.em,
+                        text = parts.joinToString("  ·  ").uppercase(),
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.10.em,
                         maxLines = 1,
                         style = figures,
                     )
+                    if (linked) {
+                        Text(
+                            text = "\u2197",
+                            color = if (estimateFocused) colors.accent else colors.textMuted,
+                            fontSize = 10.sp,
+                        )
+                    }
                 }
             }
         }
 
         if (fullWidthSeconds > 0L) {
-            val track = surfaces.tileBorder
-            val fill = colors.accent
-            val notchInk = colors.textMuted
+            val track = colors.textPrimary.copy(alpha = 0.10f)
+            val fillEnd = colors.accent
+            val fillStart = lerp(colors.accent, Color.White, 0.28f)
+            val notchInk = colors.window
+            val notchRing = colors.textPrimary.copy(alpha = 0.34f)
             val played = (playedSeconds.toFloat() / fullWidthSeconds.toFloat()).coerceIn(0f, 1f)
             val notches = listOfNotNull(
                 beatTime?.mainSeconds?.takeIf { it > 0 && it < fullWidthSeconds },
@@ -565,17 +619,43 @@ private fun NovaGameDetailBeatGauge(
                 modifier = Modifier
                     .padding(top = 6.dp)
                     .width(NOVA_GAUGE_WIDTH)
-                    .height(4.dp),
+                    .height(NOVA_GAUGE_BAR + NOVA_GAUGE_NOTCH_OVERHANG * 2),
             ) {
-                drawRect(color = track, size = size)
+                val barTop = NOVA_GAUGE_NOTCH_OVERHANG.toPx()
+                val barHeight = NOVA_GAUGE_BAR.toPx()
+                val radius = CornerRadius(barHeight / 2f, barHeight / 2f)
+
+                drawRoundRect(
+                    color = track,
+                    topLeft = Offset(0f, barTop),
+                    size = Size(size.width, barHeight),
+                    cornerRadius = radius,
+                )
                 if (played > 0f) {
-                    drawRect(color = fill, size = Size(size.width * played, size.height))
+                    drawRoundRect(
+                        brush = Brush.horizontalGradient(listOf(fillStart, fillEnd)),
+                        topLeft = Offset(0f, barTop),
+                        size = Size(size.width * played, barHeight),
+                        cornerRadius = radius,
+                    )
                 }
+
+                val notchWidth = NOVA_GAUGE_NOTCH.toPx()
+                val ringWidth = notchWidth + 2f
                 notches.forEach { fraction ->
-                    drawRect(
+                    val centre = size.width * fraction
+                    // The ring first, so the notch reads as a gap cut through the bar.
+                    drawRoundRect(
+                        color = notchRing,
+                        topLeft = Offset(centre - ringWidth / 2f, 0f),
+                        size = Size(ringWidth, size.height),
+                        cornerRadius = CornerRadius(ringWidth / 2f, ringWidth / 2f),
+                    )
+                    drawRoundRect(
                         color = notchInk,
-                        topLeft = Offset(size.width * fraction, 0f),
-                        size = Size(NOVA_GAUGE_NOTCH.toPx(), size.height),
+                        topLeft = Offset(centre - notchWidth / 2f, 1f),
+                        size = Size(notchWidth, size.height - 2f),
+                        cornerRadius = CornerRadius(notchWidth / 2f, notchWidth / 2f),
                     )
                 }
             }
@@ -585,7 +665,11 @@ private fun NovaGameDetailBeatGauge(
 
 /** Matches the hairline above it, so the two read as one column. */
 private val NOVA_GAUGE_WIDTH = 330.dp
-private val NOVA_GAUGE_NOTCH = 2.dp
+private val NOVA_GAUGE_BAR = 4.dp
+private val NOVA_GAUGE_NOTCH = 1.5.dp
+/** The notches overhang the bar, which is what makes them read as cuts through it. */
+private val NOVA_GAUGE_NOTCH_OVERHANG = 2.dp
+private val NOVA_GAUGE_CHIP_RADIUS = 5.dp
 
 /** Dissolves the hero band into the window colour instead of cutting against it. */
 private fun Modifier.novaFadeToGround(ground: Color): Modifier = drawWithContent {
