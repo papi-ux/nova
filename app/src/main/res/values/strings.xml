@@ -272,7 +272,7 @@
     <string name="nova_game_detail_group_insight">Insight</string>
     <string name="nova_game_detail_close">Close</string>
     <string name="nova_game_detail_not_started">Not started</string>
-    <string name="nova_game_detail_matched_as">Estimate for %1$s</string>
+    <string name="nova_game_detail_matched_as">Estimate for %1$s · fix in Artwork</string>
     <string name="nova_game_detail_beat_main">Main %1$d h</string>
     <string name="nova_game_detail_beat_extras">Extras %1$d h</string>
     <string name="nova_game_detail_beat_complete">100%% %1$d h</string>
