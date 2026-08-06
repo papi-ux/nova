@@ -11,6 +11,8 @@ data class NovaGameDetailUiState(
     val launchChoice: PolarisGame.LaunchModeChoice,
     val preferredMode: String,
     val recommendedMode: String,
+    /** Whether anything actually recommended it, rather than it echoing the preference. */
+    val hasRecommendation: Boolean,
     val headlessAllowed: Boolean,
     val virtualDisplayAllowed: Boolean,
     val virtualDisplayUnavailable: Boolean,
@@ -96,6 +98,10 @@ data class NovaGameDetailUiState(
                 launchChoice = choice,
                 preferredMode = choice.preferredMode,
                 recommendedMode = choice.recommendedMode,
+                // The resolver falls back to the preference when neither the host nor
+                // the contract recommends anything, so ask whether either did.
+                hasRecommendation = choice.hostDefaultMode.isNotBlank() ||
+                    !game.launchMode?.recommendedMode.isNullOrBlank(),
                 headlessAllowed = choice.headlessAllowed,
                 virtualDisplayAllowed = choice.virtualDisplayAllowed,
                 virtualDisplayUnavailable = choice.virtualDisplayUnavailable,

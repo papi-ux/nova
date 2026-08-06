@@ -1079,7 +1079,8 @@ private fun LaunchControls(
                 onClick = { onLaunchModeSelected("headless") },
                 value = when {
                     uiState.playMode == "headless" -> "Selected"
-                    uiState.recommendedMode == "headless" && uiState.headlessAllowed -> "Recommended"
+                    uiState.hasRecommendation && uiState.recommendedMode == "headless" &&
+                        uiState.headlessAllowed -> "Recommended"
                     uiState.headlessAllowed -> "Available"
                     else -> "Unavailable"
                 },
@@ -1096,7 +1097,8 @@ private fun LaunchControls(
                 value = when {
                     uiState.virtualDisplayUnavailable -> "Unavailable"
                     uiState.playMode == "virtual_display" -> "Selected"
-                    uiState.recommendedMode == "virtual_display" && uiState.virtualDisplayAllowed -> "Recommended"
+                    uiState.hasRecommendation && uiState.recommendedMode == "virtual_display" &&
+                        uiState.virtualDisplayAllowed -> "Recommended"
                     uiState.virtualDisplayAllowed -> "Available"
                     else -> "Unavailable"
                 },
