@@ -544,11 +544,11 @@ class NovaLaunchSourceGuardTest {
         assertTrue(
             "session lifecycle copy should distinguish disconnecting the client from ending the running host session",
             strings.contains("<string name=\"nova_library_resume_ready\">Game still running</string>") &&
-                strings.contains("<string name=\"applist_menu_resume\">Resume stream</string>") &&
-                strings.contains("<string name=\"applist_menu_watch\">Watch stream</string>") &&
+                strings.contains("<string name=\"applist_menu_resume\">Resume Stream</string>") &&
+                strings.contains("<string name=\"applist_menu_watch\">Watch Stream</string>") &&
                 strings.contains("<string name=\"game_menu_disconnect\">Disconnect</string>") &&
-                strings.contains("<string name=\"nova_quick_menu_end_stream\">End session</string>") &&
-                strings.contains("<string name=\"applist_menu_quit\">End session</string>")
+                strings.contains("<string name=\"nova_quick_menu_end_stream\">End Session</string>") &&
+                strings.contains("<string name=\"applist_menu_quit\">End Session</string>")
         )
     }
 

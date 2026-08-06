@@ -353,8 +353,8 @@ class NovaThemeResourcesTest {
         assertTrue("connection spinner message should mention video/audio/input readiness", strings.contains("Preparing video, audio, and controller input"))
         assertTrue("quit title should be Nova-session language, not raw stream-control wording", strings.contains("""<string name="game_dialog_title_quit_confirm">End this Nova session?</string>"""))
         assertTrue("quit message should distinguish ending the host app from disconnect/resume", strings.contains("This closes the host app and the resumable stream"))
-        assertTrue("quit destructive action should say End session", strings.contains("""<string name="game_dialog_action_end_session">End session</string>"""))
-        assertTrue("quit safe action should say Stay in game", strings.contains("""<string name="game_dialog_action_stay_in_game">Stay in game</string>"""))
+        assertTrue("quit destructive action should say End session", strings.contains("""<string name="game_dialog_action_end_session">End Session</string>"""))
+        assertTrue("quit safe action should say Stay in game", strings.contains("""<string name="game_dialog_action_stay_in_game">Stay in Game</string>"""))
         assertFalse("old Keep streaming / End stream labels should not remain in the quit dialog copy", strings.contains("Keep streaming") || strings.contains("End stream and quit app?") || strings.contains("game_dialog_action_end_stream"))
     }
 

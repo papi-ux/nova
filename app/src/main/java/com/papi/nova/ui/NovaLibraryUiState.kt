@@ -418,7 +418,7 @@ object NovaLibraryUiStateMapper {
                     subtitle = "Your library has ${games.size} games ready.",
                     caption = "Launch any game once and it will appear in Continue.",
                     eyebrow = "Continue when ready",
-                    actionLabel = "View all games",
+                    actionLabel = "View All Games",
                     badges = emptyList(),
                     reason = NovaLibraryHeroReason.EMPTY,
                     primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
@@ -433,7 +433,7 @@ object NovaLibraryUiStateMapper {
                     subtitle = "Your library has ${games.size} games ready.",
                     caption = "Clear the source filter or manage your Polaris library.",
                     eyebrow = "Source filter",
-                    actionLabel = "Clear source",
+                    actionLabel = "Clear Source",
                     badges = emptyList(),
                     reason = NovaLibraryHeroReason.EMPTY,
                     primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
@@ -448,7 +448,7 @@ object NovaLibraryUiStateMapper {
                     subtitle = "Clear search or filters to browse your full library.",
                     caption = "No match for the current search or filters.",
                     eyebrow = "Filtered library",
-                    actionLabel = "Clear filters",
+                    actionLabel = "Clear Filters",
                     badges = emptyList(),
                     reason = NovaLibraryHeroReason.EMPTY,
                     primaryAction = NovaLibraryHeroPrimaryAction.CLEAR_FILTERS,
@@ -494,7 +494,7 @@ object NovaLibraryUiStateMapper {
             subtitle = "Connect Polaris to bring your games into Nova.",
             caption = "Manage Library in Polaris to add games and launch metadata.",
             eyebrow = "No games yet",
-            actionLabel = "Manage library",
+            actionLabel = "Manage Library",
             badges = listOf("Polaris ready"),
             reason = NovaLibraryHeroReason.EMPTY,
             primaryAction = NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY,
@@ -539,7 +539,7 @@ object NovaLibraryUiStateMapper {
                 "Watch-only view; owner stays in control."
             },
             eyebrow = if (session.ownedByClient) "Resume your stream" else "Watch active stream",
-            actionLabel = if (session.ownedByClient) "Resume stream" else "Watch stream",
+            actionLabel = if (session.ownedByClient) "Resume Stream" else "Watch Stream",
             badges = badges,
             reason = NovaLibraryHeroReason.ACTIVE_SESSION,
             primaryAction = if (session.ownedByClient) {
@@ -552,7 +552,7 @@ object NovaLibraryUiStateMapper {
             artworkFallbackSubtitle = listOf("Active session", ownerDetail)
                 .filter { it.isNotBlank() }
                 .joinToString(" • "),
-            secondaryActionLabel = if (session.ownedByClient) "End session" else null,
+            secondaryActionLabel = if (session.ownedByClient) "End Session" else null,
             secondaryAction = if (session.ownedByClient) {
                 NovaLibraryHeroSecondaryAction.END_SESSION
             } else {
@@ -737,14 +737,14 @@ object NovaLibraryUiStateMapper {
                 eyebrow = "Library state",
                 title = "No games yet",
                 message = "Polaris is reachable, but this host does not have any games in the Nova library yet.",
-                primaryActionLabel = "Manage library",
+                primaryActionLabel = "Manage Library",
                 primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY
             )
             NovaLibraryEmptyState.RECENT -> NovaLibraryRecoveryUiState(
                 eyebrow = "Continue empty",
                 title = "No recent games",
                 message = "Your library has $gameCount ready. Launch one once and it will appear in Continue.",
-                primaryActionLabel = "View all games",
+                primaryActionLabel = "View All Games",
                 primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
             )
             NovaLibraryEmptyState.SOURCE -> {
@@ -753,7 +753,7 @@ object NovaLibraryUiStateMapper {
                     eyebrow = "Source empty",
                     title = "No $sourceLabel games",
                     message = "That source has no games in this Polaris library view. Clear it to return to $gameCount.",
-                    primaryActionLabel = "Clear source",
+                    primaryActionLabel = "Clear Source",
                     primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
                 )
             }
@@ -761,7 +761,7 @@ object NovaLibraryUiStateMapper {
                 eyebrow = "No matches",
                 title = "No matches",
                 message = "Search or filters returned nothing. Clear constraints to return to $gameCount.",
-                primaryActionLabel = "Clear filters",
+                primaryActionLabel = "Clear Filters",
                 primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS
             )
         }
@@ -808,7 +808,7 @@ object NovaLibraryUiStateMapper {
                 eyebrow = "Polaris",
                 title = "Polaris unavailable",
                 message = "The host answered, but the Polaris library API did not. Start or repair Polaris, then return to Nova.",
-                primaryActionLabel = "Manage server",
+                primaryActionLabel = "Manage Server",
                 primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
                 detail = detail
             )
@@ -829,7 +829,7 @@ object NovaLibraryUiStateMapper {
             eyebrow = "Launch recovery",
             title = "Launch blocked",
             message = "Nova could not start the stream before leaving Library. Review host and library setup, then try again.",
-            primaryActionLabel = "Manage server",
+            primaryActionLabel = "Manage Server",
             primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
             detail = message.takeIf { it.isNotBlank() }
         )

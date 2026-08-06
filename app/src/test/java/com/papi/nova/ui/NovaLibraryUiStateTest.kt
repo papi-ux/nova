@@ -192,7 +192,7 @@ class NovaLibraryUiStateTest {
         assertEquals("No matching games", model.hero.title)
         assertEquals(NovaLibraryHeroReason.EMPTY, model.hero.reason)
         assertEquals("No match for the current search or filters.", model.hero.caption)
-        assertEquals("Clear filters", model.hero.actionLabel)
+        assertEquals("Clear Filters", model.hero.actionLabel)
         assertEquals(NovaLibraryHeroPrimaryAction.CLEAR_FILTERS, model.hero.primaryAction)
         assertTrue(model.hero.badges.isEmpty())
         assertEquals(NovaLibraryEmptyState.FILTERED, model.emptyState)
@@ -229,8 +229,8 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroReason.ACTIVE_SESSION, hero.reason)
         assertEquals(NovaLibraryHeroPrimaryAction.RESUME, hero.primaryAction)
         assertEquals("Retroid Pocket", hero.subtitle)
-        assertEquals("Resume stream", hero.actionLabel)
-        assertEquals("End session", hero.secondaryActionLabel)
+        assertEquals("Resume Stream", hero.actionLabel)
+        assertEquals("End Session", hero.secondaryActionLabel)
         assertEquals("Resume • Retroid Pocket • 1920×1080 60fps", hero.supportingLine)
         assertEquals("Active Game", hero.artworkFallbackTitle)
         assertEquals("Active session • Retroid Pocket", hero.artworkFallbackSubtitle)
@@ -290,7 +290,7 @@ class NovaLibraryUiStateTest {
         assertEquals("Continue when ready", model.hero.eyebrow)
         assertEquals("Your library has 2 games ready.", model.hero.subtitle)
         assertEquals("Launch any game once and it will appear in Continue.", model.hero.caption)
-        assertEquals("View all games", model.hero.actionLabel)
+        assertEquals("View All Games", model.hero.actionLabel)
         assertTrue(model.hero.badges.isEmpty())
     }
 
@@ -318,7 +318,7 @@ class NovaLibraryUiStateTest {
         assertEquals("Source filter", model.hero.eyebrow)
         assertEquals("Your library has 2 games ready.", model.hero.subtitle)
         assertEquals("Clear the source filter or manage your Polaris library.", model.hero.caption)
-        assertEquals("Clear source", model.hero.actionLabel)
+        assertEquals("Clear Source", model.hero.actionLabel)
         assertTrue(model.hero.badges.isEmpty())
     }
 
@@ -347,7 +347,7 @@ class NovaLibraryUiStateTest {
         assertEquals("Desktop", hero.title)
         assertEquals(NovaLibraryHeroReason.ACTIVE_SESSION, hero.reason)
         assertEquals(NovaLibraryHeroPrimaryAction.WATCH, hero.primaryAction)
-        assertEquals("Watch stream", hero.actionLabel)
+        assertEquals("Watch Stream", hero.actionLabel)
         assertEquals("Watch-only view; owner stays in control.", hero.caption)
         assertEquals("Watch • Pixel • 2 viewers", hero.supportingLine)
         assertEquals("Active session • Pixel", hero.artworkFallbackSubtitle)
@@ -480,22 +480,22 @@ class NovaLibraryUiStateTest {
         )
 
         assertEquals("No games yet", default.title)
-        assertEquals("Manage library", default.primaryActionLabel)
+        assertEquals("Manage Library", default.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, default.primaryAction)
         assertNull(default.secondaryActionLabel)
 
         assertEquals("No recent games", recent.title)
-        assertEquals("View all games", recent.primaryActionLabel)
+        assertEquals("View All Games", recent.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.CLEAR_FILTERS, recent.primaryAction)
         assertNull(recent.secondaryActionLabel)
 
         assertEquals("No Steam games", source.title)
-        assertEquals("Clear source", source.primaryActionLabel)
+        assertEquals("Clear Source", source.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.CLEAR_FILTERS, source.primaryAction)
         assertNull(source.secondaryActionLabel)
 
         assertEquals("No matches", filtered.title)
-        assertEquals("Clear filters", filtered.primaryActionLabel)
+        assertEquals("Clear Filters", filtered.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.CLEAR_FILTERS, filtered.primaryAction)
         assertNull(filtered.secondaryActionLabel)
     }
@@ -513,7 +513,7 @@ class NovaLibraryUiStateTest {
         assertNull(offline.secondaryActionLabel)
 
         assertEquals("Polaris unavailable", unavailable.title)
-        assertEquals("Manage server", unavailable.primaryActionLabel)
+        assertEquals("Manage Server", unavailable.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, unavailable.primaryAction)
         assertEquals("HTTP 404 polaris/v1/games", unavailable.detail)
         assertNull(unavailable.secondaryActionLabel)
@@ -530,7 +530,7 @@ class NovaLibraryUiStateTest {
         val state = NovaLibraryUiStateMapper.launchFailureRecoveryState("Missing Polaris session details")
 
         assertEquals("Launch blocked", state.title)
-        assertEquals("Manage server", state.primaryActionLabel)
+        assertEquals("Manage Server", state.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, state.primaryAction)
         assertEquals("Missing Polaris session details", state.detail)
         assertNull(state.secondaryActionLabel)
@@ -566,7 +566,7 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroReason.EMPTY, emptyHero.reason)
         assertEquals(NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY, emptyHero.primaryAction)
         assertEquals("Build your library", emptyHero.title)
-        assertEquals("Manage library", emptyHero.actionLabel)
+        assertEquals("Manage Library", emptyHero.actionLabel)
         assertEquals("Manage Library in Polaris to add games and launch metadata.", emptyHero.caption)
     }
 

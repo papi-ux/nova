@@ -123,6 +123,6 @@ class NovaCompanionCommandDeckSourceTest {
         )
         names.forEach { name -> assertTrue(strings.contains("name=\"$name\"")) }
         assertTrue(strings.contains(">Disconnect</string>"))
-        assertTrue(strings.contains(">End session</string>"))
+        assertTrue(strings.contains(">End Session</string>"))
     }
 }

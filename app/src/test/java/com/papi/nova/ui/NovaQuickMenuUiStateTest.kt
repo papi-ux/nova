@@ -158,7 +158,7 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Command Center", state.title)
         assertEquals("Quick keys and controls for Private Stream", state.subtitle)
         assertEquals("Disconnect", state.disconnectAction.label)
-        assertEquals("End session", state.endAction.label)
+        assertEquals("End Session", state.endAction.label)
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_ESC && it.label == "ESC" })
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_CTRL_V && it.label == "Ctrl + V" })
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_INSERT && it.label == "Insert" })

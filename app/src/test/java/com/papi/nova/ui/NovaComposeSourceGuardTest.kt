@@ -148,12 +148,12 @@ class NovaComposeSourceGuardTest {
                 strings.contains("name=\"nova_library_options_sort_name_asc\">Name A-Z") &&
                 strings.contains("name=\"nova_library_options_sort_name_desc\">Name Z-A") &&
                 strings.contains("name=\"nova_library_options_sort_source\">Source") &&
-                strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR first") &&
+                strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR First") &&
                 strings.contains("name=\"nova_library_options_layout_stage\">Stage") &&
                 strings.contains("name=\"nova_library_options_layout_grid\">Grid") &&
                 strings.contains("name=\"nova_library_options_layout_compact\">Compact") &&
-                strings.contains("name=\"nova_library_options_poster_titles_title\">Poster titles") &&
-                strings.contains("name=\"nova_library_options_poster_titles_hide\">Plain artwork")
+                strings.contains("name=\"nova_library_options_poster_titles_title\">Poster Titles") &&
+                strings.contains("name=\"nova_library_options_poster_titles_hide\">Plain Artwork")
         )
     }
 
@@ -397,10 +397,10 @@ class NovaComposeSourceGuardTest {
             "system menu strings should keep the GameNative-inspired top level short and self-hosted",
             strings.contains("name=\"nova_system_menu_title\">System") &&
                 strings.contains("name=\"nova_system_menu_host_named_format\"") &&
-                strings.contains("name=\"nova_system_menu_switch_host\">Switch host") &&
+                strings.contains("name=\"nova_system_menu_switch_host\">Switch Host") &&
                 strings.contains("name=\"nova_system_menu_settings\">Settings") &&
-                strings.contains("name=\"nova_system_menu_polaris_sync\">Polaris sync") &&
-                strings.contains("name=\"nova_system_menu_manage_server\">Manage server") &&
+                strings.contains("name=\"nova_system_menu_polaris_sync\">Polaris Sync") &&
+                strings.contains("name=\"nova_system_menu_manage_server\">Manage Server") &&
                 strings.contains("name=\"nova_system_menu_help_diagnostics\">Help / diagnostics") &&
                 strings.contains("name=\"nova_system_menu_about\">About Nova") &&
                 strings.contains("name=\"nova_system_menu_about_toast\">%1\$s")
@@ -656,26 +656,26 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "default no-games empty state should make Manage library the one primary recovery action",
             mapper.contains("NovaLibraryEmptyState.DEFAULT -> NovaLibraryRecoveryUiState(") &&
-                mapper.contains("primaryActionLabel = \"Manage library\"") &&
+                mapper.contains("primaryActionLabel = \"Manage Library\"") &&
                 mapper.contains("primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY")
         )
         assertTrue(
             "recent-empty state should invite users back to the full library instead of sounding like an error",
             mapper.contains("NovaLibraryEmptyState.RECENT -> NovaLibraryRecoveryUiState(") &&
-                mapper.contains("primaryActionLabel = \"View all games\"") &&
+                mapper.contains("primaryActionLabel = \"View All Games\"") &&
                 mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS")
         )
         assertTrue(
             "source no-results should name the selected source and use one direct clear-source CTA",
             mapper.contains("title = \"No ${'$'}sourceLabel games\"") &&
-                mapper.contains("primaryActionLabel = \"Clear source\"") &&
+                mapper.contains("primaryActionLabel = \"Clear Source\"") &&
                 mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS") &&
                 mapper.contains("private fun sourceDisplayName(sourceName: String?)")
         )
         assertTrue(
             "filtered empty state should keep Clear filters as the direct escape hatch",
             mapper.contains("NovaLibraryEmptyState.FILTERED -> NovaLibraryRecoveryUiState(") &&
-                mapper.contains("primaryActionLabel = \"Clear filters\"") &&
+                mapper.contains("primaryActionLabel = \"Clear Filters\"") &&
                 mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS")
         )
         assertTrue(
@@ -684,7 +684,7 @@ class NovaComposeSourceGuardTest {
                 mapper.contains("title = \"Host offline\"") &&
                 mapper.contains("primaryActionLabel = \"Retry\"") &&
                 mapper.contains("title = \"Polaris unavailable\"") &&
-                mapper.contains("primaryActionLabel = \"Manage server\"")
+                mapper.contains("primaryActionLabel = \"Manage Server\"")
         )
     }
 
@@ -1364,7 +1364,7 @@ class NovaComposeSourceGuardTest {
             "launch recovery copy should offer one Manage server CTA with the raw failure preserved as detail",
             mapper.contains("fun launchFailureRecoveryState(message: String)") &&
                 mapper.contains("title = \"Launch blocked\"") &&
-                mapper.contains("primaryActionLabel = \"Manage server\"") &&
+                mapper.contains("primaryActionLabel = \"Manage Server\"") &&
                 mapper.contains("detail = message.takeIf { it.isNotBlank() }")
         )
         assertTrue(
@@ -2158,7 +2158,7 @@ class NovaComposeSourceGuardTest {
 
         assertTrue(
             "owned active-session hero should expose a direct End session recovery action for stale host/game sessions",
-            mapper.contains("secondaryActionLabel = if (session.ownedByClient) \"End session\" else null") &&
+            mapper.contains("secondaryActionLabel = if (session.ownedByClient) \"End Session\" else null") &&
                 mapper.contains("Resume this stream, or end it if the host game is stale.")
         )
         assertTrue(
@@ -2424,7 +2424,7 @@ class NovaComposeSourceGuardTest {
                 optionsSheet.contains("R.string.nova_artwork_library_update_retry")
         )
         assertTrue(
-            strings.contains("name=\"nova_artwork_library_update_title\">Update artwork library") &&
+            strings.contains("name=\"nova_artwork_library_update_title\">Update Artwork Library") &&
                 strings.contains("name=\"nova_artwork_library_update_policy\"") &&
                 strings.contains("name=\"nova_artwork_library_update_preserve_custom\"") &&
                 strings.contains("name=\"nova_artwork_library_update_cancel\"") &&
