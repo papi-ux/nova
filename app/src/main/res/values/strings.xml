@@ -271,6 +271,7 @@
     <string name="nova_game_detail_group_actions">Actions</string>
     <string name="nova_game_detail_group_insight">Insight</string>
     <string name="nova_game_detail_close">Close</string>
+    <string name="nova_game_detail_profile_label">Optimization profile</string>
     <string name="nova_game_detail_profile_caption">How Polaris picks quality for this game</string>
     <string name="nova_polaris_wordmark" translatable="false">✦ POLARIS</string>
     <string name="nova_controller_hint_a">A</string>

@@ -404,51 +404,42 @@ internal fun NovaGameDetailContent(
                     )
                 }
 
-                NovaGameDetailColumns(
-                    left = {
-                        NovaGameDetailGroupLabel(
-                            stringResource(R.string.nova_game_detail_group_state),
-                        )
-                        // The concept leads State with the profile itself. It is also the
-                        // only way into the preference picker, now that launch mode no
-                        // longer carries a second copy of Tune's controls.
-                        NovaSteamChoiceRow(
-                            label = profilePreferenceLabel,
-                            caption = stringResource(R.string.nova_game_detail_profile_caption),
-                            enabled = true,
-                            onClick = onProfilePreference,
-                        )
-                        SteamLaunchModeCard(
-                            visible = uiState.showSteamLaunchMode,
-                            label = steamLaunchLabel,
-                            modeLabel = steamLaunchModeLabel,
-                            caption = steamLaunchCaption,
-                            warning = uiState.steamLaunchWarning,
-                            onClick = onSteamLaunchMode
-                        )
-                        if (mangoHudEnabled) {
-                            MangoHudPassiveStatus(
-                                label = mangoHudStatusLabel,
-                                caption = mangoHudStatusCaption,
-                                warning = mangoHudWarning
-                            )
-                        }
-                    },
-                    right = {
-                        NovaGameDetailGroupLabel(
-                            stringResource(R.string.nova_game_detail_group_actions),
-                        )
-                        LaunchProfileSummaryActions(
-                            summary = optimizationState.profileSummary,
-                            resetProfileLabel = resetProfileLabel,
-                            resetProfileWorking = resetProfileWorking,
-                            onRetryHighFps = onRetryHighFps,
-                            onResetProfile = onResetProfile,
-                        )
-                    },
+                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_state))
+                // The concept leads State with the profile itself, and it is the only way
+                // into the preference picker now that launch mode no longer carries a
+                // second copy of Tune's controls.
+                NovaSteamChoiceRow(
+                    label = stringResource(R.string.nova_game_detail_profile_label),
+                    caption = stringResource(R.string.nova_game_detail_profile_caption),
+                    enabled = true,
+                    onClick = onProfilePreference,
+                    value = stringResource(
+                        AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
+                    ),
                 )
-                // Prose, not cards: half a body is not enough to read these without
-                // wrapping every line, so they keep the full width.
+                SteamLaunchModeCard(
+                    visible = uiState.showSteamLaunchMode,
+                    label = steamLaunchLabel,
+                    modeLabel = steamLaunchModeLabel,
+                    caption = steamLaunchCaption,
+                    warning = uiState.steamLaunchWarning,
+                    onClick = onSteamLaunchMode
+                )
+                if (mangoHudEnabled) {
+                    MangoHudPassiveStatus(
+                        label = mangoHudStatusLabel,
+                        caption = mangoHudStatusCaption,
+                        warning = mangoHudWarning
+                    )
+                }
+                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_actions))
+                LaunchProfileSummaryActions(
+                    summary = optimizationState.profileSummary,
+                    resetProfileLabel = resetProfileLabel,
+                    resetProfileWorking = resetProfileWorking,
+                    onRetryHighFps = onRetryHighFps,
+                    onResetProfile = onResetProfile,
+                )
                 NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_insight))
                 optimizationState.ai?.let { InsightCard(card = it) }
                 optimizationState.stability?.let { InsightCard(card = it) }
@@ -1553,40 +1544,13 @@ private fun SteamLaunchModeCard(
 ) {
     if (!visible) return
 
-    val colors = LocalNovaComposeColors.current
-    NovaFocusableCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 10.dp)
-            .heightIn(min = 58.dp),
+    NovaSteamChoiceRow(
+        label = label,
+        caption = caption,
+        enabled = true,
         onClick = onClick,
-        contentDescription = "$label. $modeLabel. $caption",
-        contentPadding = PaddingValues(start = 12.dp, top = 9.dp, end = 12.dp, bottom = 9.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    color = colors.textPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = caption,
-                    modifier = Modifier.padding(top = 2.dp),
-                    color = if (warning) colors.warning else colors.textSecondary,
-                    fontSize = 9.sp,
-                    lineHeight = 12.sp,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            NovaBadge(text = modeLabel, color = if (warning) colors.warning else colors.textSecondary)
-        }
-    }
+        value = modeLabel,
+    )
 }
 
 @Composable
@@ -1595,46 +1559,21 @@ private fun MangoHudPassiveStatus(
     caption: String,
     warning: Boolean
 ) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 8.dp)
-            .semantics { contentDescription = "$label. $caption" },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        NovaBadge(
-            text = label,
-            color = if (warning) colors.warning else colors.textSecondary,
-            backgroundColor = surfaces.control.copy(alpha = 0.56f * LocalNovaMenuOpacityScale.current),
-            borderColor = if (warning) colors.warning.copy(alpha = 0.44f) else surfaces.tileBorder,
-            fontSize = 10.sp,
-            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 4.dp)
-        )
-        Text(
-            text = caption,
-            modifier = Modifier.weight(1f),
-            color = colors.textMuted,
-            fontSize = 10.sp,
-            lineHeight = 13.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
+    // A readout, not an action: same row, no chevron to imply otherwise.
+    NovaSteamChoiceRow(
+        label = label,
+        caption = caption,
+        enabled = !warning,
+    )
 }
 
 @Composable
 private fun InsightCard(card: NovaGameDetailInsightCard) {
     val colors = LocalNovaComposeColors.current
-    NovaDetailPanel(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp),
-        accent = !card.isWarning,
-        warning = card.isWarning,
-        contentPadding = PaddingValues(12.dp)
+            .padding(top = 12.dp, bottom = 2.dp),
     ) {
         Column {
             Text(

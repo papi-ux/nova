@@ -4,6 +4,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.width
@@ -24,21 +26,32 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,7 +102,6 @@ internal fun NovaGameDetailPanel(
         // squeezing a phone-width column inside a phone.
         val widthFraction = if (maxHeight > maxWidth) 1f else NOVA_DETAIL_PANEL_WIDTH_FRACTION
         val shortViewport = maxHeight < NOVA_DETAIL_SHORT_VIEWPORT
-        val bodyWidth = maxWidth * widthFraction - NovaGameDetailInset * 2
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -112,18 +124,14 @@ internal fun NovaGameDetailPanel(
                 compact = shortViewport,
                 onDismiss = onDismiss,
             )
-            CompositionLocalProvider(
-                LocalNovaDetailWideBody provides (bodyWidth >= NOVA_DETAIL_TWO_COLUMN_MIN),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .novaHoldsFirstFocus()
-                        .verticalScroll(scrollState),
-                    content = { content() },
-                )
-            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .novaHoldsFirstFocus()
+                    .verticalScroll(scrollState),
+                content = { content() },
+            )
             NovaGameDetailDestinationHints()
         }
     }
@@ -151,37 +159,6 @@ private fun Modifier.novaDismissOnTap(onDismiss: () -> Unit): Modifier = compose
         indication = null,
         onClick = onDismiss,
     )
-}
-
-/**
- * True when the destination body has room for two readable columns. Provided by the
- * panel because only the panel knows how much of the window it took.
- */
-internal val LocalNovaDetailWideBody = staticCompositionLocalOf { false }
-
-/**
- * Two columns when there is width for them, stacked when there is not. Wide, this stops
- * a 500dp body running one narrow column with everything else below the fold.
- */
-@Composable
-internal fun NovaGameDetailColumns(
-    left: @Composable () -> Unit,
-    right: @Composable () -> Unit,
-) {
-    if (LocalNovaDetailWideBody.current) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.weight(1f), content = { left() })
-            Column(modifier = Modifier.weight(1f), content = { right() })
-        }
-    } else {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            left()
-            right()
-        }
-    }
 }
 
 /**
@@ -279,7 +256,7 @@ private fun NovaGameDetailDestinationHeader(
         Text(
             text = if (compact) "$eyebrow · $headline" else headline,
             color = colors.textPrimary,
-            fontSize = if (compact) 15.sp else 22.sp,
+            fontSize = if (compact) 17.sp else 27.sp,
             fontWeight = FontWeight.Bold,
             maxLines = if (compact) 1 else 2,
             overflow = TextOverflow.Ellipsis,
@@ -343,7 +320,7 @@ internal fun NovaGameDetailGroupLabel(text: String) {
         Text(
             text = text.uppercase(),
             color = colors.textMuted,
-            fontSize = 10.sp,
+            fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.22.em,
         )
@@ -458,26 +435,65 @@ internal fun NovaDesktopSteamLaunchDecisionRows(
     }
 }
 
+/**
+ * One row of a drawer. Full bleed rather than a card: the panel already supplies the
+ * inset, so a rounded box inside it only adds air. The value sits at the right in
+ * tabular figures, and focus is an inset bar and a tint, so the row never moves.
+ */
 @Composable
 internal fun NovaSteamChoiceRow(
     label: String,
     caption: String,
     enabled: Boolean,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
+    value: String = "",
 ) {
     val colors = LocalNovaComposeColors.current
-    NovaFocusableCard(
-        onClick = onClick,
-        enabled = enabled,
-        contentDescription = label,
-        modifier = Modifier.fillMaxWidth(),
+    var focused by remember { mutableStateOf(false) }
+    val actionable = onClick != null && enabled
+    val accentBar = colors.accent
+    val hairline = colors.divider.copy(alpha = 0.45f)
+    val barWidth = NOVA_DETAIL_ROW_FOCUS_BAR
+    val tint = colors.accent.copy(alpha = 0.16f)
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = NOVA_DETAIL_ROW_MIN_HEIGHT)
+            .onFocusChanged { focused = it.isFocused || it.hasFocus }
+            .then(
+                if (actionable) {
+                    Modifier.clickable(role = Role.Button) { onClick?.invoke() }
+                } else {
+                    Modifier
+                }
+            )
+            // Explicit, like every other focusable in the app: clickable alone did not
+            // register the row as a focus target and the d-pad had nothing to reach.
+            .focusable(enabled = actionable)
+            .background(if (focused && actionable) tint else Color.Transparent)
+            .drawBehind {
+                if (focused && actionable) {
+                    drawRect(color = accentBar, size = Size(barWidth.toPx(), size.height))
+                }
+                drawRect(
+                    color = hairline,
+                    topLeft = Offset(0f, size.height - 1f),
+                    size = Size(size.width, 1f),
+                )
+            }
+            .padding(start = 12.dp, end = 2.dp, top = 9.dp, bottom = 9.dp)
+            .semantics { contentDescription = if (value.isBlank()) label else "$label. $value" },
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
                 color = if (enabled) colors.textPrimary else colors.textMuted,
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             if (caption.isNotBlank()) {
                 Text(
@@ -485,18 +501,43 @@ internal fun NovaSteamChoiceRow(
                     color = colors.textMuted,
                     fontSize = 11.sp,
                     lineHeight = 14.sp,
-                    modifier = Modifier.padding(top = 3.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
+        }
+        if (value.isNotBlank()) {
+            Text(
+                text = value,
+                color = if (enabled) colors.textSecondary else colors.textMuted,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                // a value read against other values, so the digits line up
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                maxLines = 1,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+        if (actionable) {
+            Text(
+                text = "\u203a",
+                color = colors.textMuted,
+                fontSize = 17.sp,
+                modifier = Modifier.padding(start = 10.dp, end = 4.dp),
+            )
         }
     }
 }
 
-/**
- * Wide enough for the insight cards, which carry a single-line profile badge that
- * truncated at 53%, and still narrow enough to keep the game present beside it.
- */
-private const val NOVA_DETAIL_PANEL_WIDTH_FRACTION = 0.60f
+/** 438dp of an 832dp landscape shell, as drawn. */
+private const val NOVA_DETAIL_PANEL_WIDTH_FRACTION = 0.53f
+
+/** Every row is at least a full action's worth of height. */
+private val NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp
+
+/** The focused row grows a bar at its edge instead of a border that moves it. */
+private val NOVA_DETAIL_ROW_FOCUS_BAR = 3.dp
 
 /**
  * A scrim is a shadow, not a surface, so it does not follow the theme. Painting it in
@@ -505,13 +546,10 @@ private const val NOVA_DETAIL_PANEL_WIDTH_FRACTION = 0.60f
 private val NovaGameDetailScrim = Color.Black
 
 /** Enough of the game stays visible for the panel to read as a layer over it. */
-private const val NOVA_DETAIL_SCRIM_ALPHA = 0.62f
+private const val NOVA_DETAIL_SCRIM_ALPHA = 0.58f
 
 /** Translucent enough to show artwork, opaque enough to keep body text legible. */
 private const val NOVA_DETAIL_PANEL_ALPHA = 0.80f
-
-/** Two columns need this much body width before either becomes too narrow to read. */
-private val NOVA_DETAIL_TWO_COLUMN_MIN = 440.dp
 
 /** Long enough for the body to be laid out, so the focus request has a target. */
 private const val NOVA_DETAIL_FOCUS_SETTLE_MS = 75L
