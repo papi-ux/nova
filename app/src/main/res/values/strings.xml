@@ -271,6 +271,8 @@
     <string name="nova_game_detail_group_actions">Actions</string>
     <string name="nova_game_detail_group_insight">Insight</string>
     <string name="nova_game_detail_close">Close</string>
+    <string name="nova_game_detail_played_hours">%1$d h played</string>
+    <string name="nova_game_detail_played_minutes">%1$d min played</string>
     <string name="nova_game_detail_headless_caption">Streams without touching the physical desktop</string>
     <string name="nova_game_detail_virtual_caption">A dedicated display on the host, at your resolution</string>
     <string name="nova_game_detail_more_settings_caption">Resolution, bitrate and codec for this launch</string>

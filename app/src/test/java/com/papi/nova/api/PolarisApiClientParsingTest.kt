@@ -992,22 +992,25 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun playtimeMinutesAreCarriedFromTheHostAndNeverNegative() {
-        val game = PolarisGameJsonAdapter.fromJson(
+    fun playTimeIsCarriedFromTheHostAndAbsentIsNotZero() {
+        val played = PolarisGameJsonAdapter.fromJson(
             JSONObject(
-                """{id:abc,app_id:1,name:Control,playtime_minutes:1684}"""
+                """{id:abc,name:Control,play_time:{seconds:143520,source:steam,read_at:1754470000}}"""
             )
         )
-        assertEquals(1684L, game.playtimeMinutes)
+        assertEquals(143520L, played.playTime?.seconds)
+        assertEquals("steam", played.playTime?.source)
 
-        // A host that says nothing, and one that says something impossible, both mean
-        // there is no duration to show rather than a negative one.
-        val silent = PolarisGameJsonAdapter.fromJson(JSONObject("""{id:abc,name:Control}"""))
-        assertEquals(0L, silent.playtimeMinutes)
+        // No launcher owns the answer: null, so the gauge can be omitted rather than
+        // drawn claiming nobody has played it.
+        val unowned = PolarisGameJsonAdapter.fromJson(JSONObject("""{id:abc,name:Control}"""))
+        assertNull(unowned.playTime)
 
-        val nonsense = PolarisGameJsonAdapter.fromJson(
-            JSONObject("""{id:abc,name:Control,playtime_minutes:-5}""")
+        // Owned, but never played, is a different answer and keeps its object.
+        val untouched = PolarisGameJsonAdapter.fromJson(
+            JSONObject("""{id:abc,name:Control,play_time:{seconds:0,source:steam}}""")
         )
-        assertEquals(0L, nonsense.playtimeMinutes)
+        assertNotNull(untouched.playTime)
+        assertEquals(0L, untouched.playTime?.seconds)
     }
 }

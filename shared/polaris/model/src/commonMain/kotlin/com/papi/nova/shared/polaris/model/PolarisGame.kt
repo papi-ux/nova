@@ -28,13 +28,16 @@ data class PolarisGame(
     @SerialName("display_planner") val displayPlanner: DisplayPlannerContract? = null,
     @SerialName("artwork") val artwork: ArtworkManifest? = null,
     /**
-     * Minutes the owning launcher says this has been played; 0 when nothing local knows.
+     * How long the owning launcher says this has been played, or null when none can say.
+     *
+     * Null rather than zero: a game nobody has played and a game no launcher owns are
+     * different answers, and only one of them should read "Not started".
      *
      * Last in the list on purpose. Sixteen places build this positionally, so a field
      * inserted beside lastLaunched where it reads best would silently shift every one of
      * them. Serialisation is by name, so position costs nothing here.
      */
-    @SerialName("playtime_minutes") val playtimeMinutes: Long = 0
+    @SerialName("play_time") val playTime: PlayTime? = null
 ) {
     @Serializable
     data class ArtworkManifest(
@@ -48,6 +51,14 @@ data class PolarisGame(
     ) {
         fun asset(kind: String): ArtworkAsset? = assets.asset(kind)
     }
+
+    /** What a launcher says about time spent, normalised to seconds before it travels. */
+    @Serializable
+    data class PlayTime(
+        @SerialName("seconds") val seconds: Long = 0,
+        @SerialName("source") val source: String = "",
+        @SerialName("read_at") val readAt: Long = 0
+    )
 
     @Serializable
     data class ArtworkMatch(

@@ -178,6 +178,31 @@ internal fun NovaGameDetailOverview(
                     ),
             )
 
+            // A duration is a number, so it sits below the hairline with the rest of them.
+            // The concept's gauge needs How Long To Beat to have something to measure
+            // against; until that exists it draws the played figure alone, and a game no
+            // launcher owns draws nothing rather than claiming nobody has played it.
+            uiState.game.playTime?.takeIf { it.seconds > 0 }?.let { played ->
+                val minutes = played.seconds / 60
+                Text(
+                    text = if (minutes >= 60) {
+                        stringResource(R.string.nova_game_detail_played_hours, minutes / 60)
+                    } else {
+                        stringResource(R.string.nova_game_detail_played_minutes, minutes)
+                    },
+                    color = colors.textSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.17.em,
+                    maxLines = 1,
+                    // these are measurements, so the digits line up rather than dance
+                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                    modifier = Modifier
+                        .padding(top = 9.dp)
+                        .testTag("nova-game-detail-played"),
+                )
+            }
+
             NovaGameDetailStatusLine(
                 uiState = uiState,
                 optimizationState = optimizationState,
