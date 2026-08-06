@@ -130,6 +130,7 @@ class NovaGameDetailComposeTest {
                         activeSession = null,
                         onResumeSession = {},
                         onEndSession = {},
+                        onDismissDestination = {},
                     )
                 }
             }

@@ -1227,7 +1227,15 @@ class NovaComposeSourceGuardTest {
         )
 
         val panel = readSource("src/main/java/com/papi/nova/ui/NovaArtworkStudio.kt")
-        assertTrue("artwork preferences should start collapsed", panel.contains("var expanded by remember(initialQuery) { mutableStateOf(false) }"))
+        assertTrue(
+            "artwork preferences should start collapsed wherever the studio is one row among many",
+            panel.contains("initiallyExpanded: Boolean = false") &&
+                panel.contains("var expanded by remember(initialQuery) { mutableStateOf(initiallyExpanded) }")
+        )
+        assertTrue(
+            "the destination that is nothing but the studio should open it, not cost a tap and leave the window empty",
+            content.contains("NovaArtworkStudio(\n                    initiallyExpanded = true,")
+        )
         assertTrue("artwork header should toggle expansion", panel.contains("clickable { expanded = !expanded }") && panel.contains("if (expanded)"))
         assertTrue("Studio should show persisted identity and composition beside the live draft", panel.contains("R.string.nova_artwork_current_match") && panel.contains("R.string.nova_artwork_current_composition") && panel.contains("R.string.nova_artwork_live_preview"))
         assertTrue("Studio should render Poster, Hero, Logo, and Icon composition layers", NovaArtworkKinds.ALL.all { kind -> panel.contains("kind = NovaArtworkKinds.${kind.uppercase()}") })

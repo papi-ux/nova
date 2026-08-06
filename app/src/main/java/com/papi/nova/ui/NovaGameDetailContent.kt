@@ -292,6 +292,7 @@ internal fun NovaGameDetailContent(
     activeSession: NovaLibraryActiveSessionUiState?,
     onResumeSession: () -> Unit,
     onEndSession: () -> Unit,
+    onDismissDestination: () -> Unit,
 ) {
     val verticalScroll = rememberScrollState()
     val playFocusRequester = remember { FocusRequester() }
@@ -333,6 +334,7 @@ internal fun NovaGameDetailContent(
                     optimizationState.profileSummary?.selectedLine.orEmpty()
                 },
                 scrollState = verticalScroll,
+                onDismiss = onDismissDestination,
             ) {
                 val decision = steamDecision
                 if (decision != null) {
@@ -381,47 +383,61 @@ internal fun NovaGameDetailContent(
                     optimizationState.profileSummary?.freshnessLine,
                 ).filter { !it.isNullOrBlank() }.joinToString("  ·  "),
                 scrollState = verticalScroll,
+                onDismiss = onDismissDestination,
             ) {
-                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_state))
-                profileOptionsState?.let {
-                    NovaProfilePreferenceSheet(
-                        state = it,
-                        onSelected = onProfilePreferenceSelected,
-                        onDismiss = onDismissProfileOptions
-                    )
-                }
-                SteamLaunchModeCard(
-                    visible = uiState.showSteamLaunchMode,
-                    label = steamLaunchLabel,
-                    modeLabel = steamLaunchModeLabel,
-                    caption = steamLaunchCaption,
-                    warning = uiState.steamLaunchWarning,
-                    onClick = onSteamLaunchMode
+                NovaGameDetailColumns(
+                    left = {
+                        NovaGameDetailGroupLabel(
+                            stringResource(R.string.nova_game_detail_group_state),
+                        )
+                        profileOptionsState?.let {
+                            NovaProfilePreferenceSheet(
+                                state = it,
+                                onSelected = onProfilePreferenceSelected,
+                                onDismiss = onDismissProfileOptions
+                            )
+                        }
+                        SteamLaunchModeCard(
+                            visible = uiState.showSteamLaunchMode,
+                            label = steamLaunchLabel,
+                            modeLabel = steamLaunchModeLabel,
+                            caption = steamLaunchCaption,
+                            warning = uiState.steamLaunchWarning,
+                            onClick = onSteamLaunchMode
+                        )
+                        steamLaunchOptionsState?.let { state ->
+                            NovaSteamLaunchModeSheet(
+                                state = state,
+                                onSelected = onSteamLaunchModeSelected,
+                                onDismiss = onDismissSteamLaunchModeOptions
+                            )
+                        }
+                        if (mangoHudEnabled) {
+                            MangoHudPassiveStatus(
+                                label = mangoHudStatusLabel,
+                                caption = mangoHudStatusCaption,
+                                warning = mangoHudWarning
+                            )
+                        }
+                    },
+                    right = {
+                        NovaGameDetailGroupLabel(
+                            stringResource(R.string.nova_game_detail_group_actions),
+                        )
+                        LaunchProfileSummaryActions(
+                            summary = optimizationState.profileSummary,
+                            resetProfileLabel = resetProfileLabel,
+                            resetProfileWorking = resetProfileWorking,
+                            onRetryHighFps = onRetryHighFps,
+                            onResetProfile = onResetProfile,
+                        )
+                    },
                 )
-                steamLaunchOptionsState?.let { state ->
-                    NovaSteamLaunchModeSheet(
-                        state = state,
-                        onSelected = onSteamLaunchModeSelected,
-                        onDismiss = onDismissSteamLaunchModeOptions
-                    )
-                }
-                if (mangoHudEnabled) {
-                    MangoHudPassiveStatus(
-                        label = mangoHudStatusLabel,
-                        caption = mangoHudStatusCaption,
-                        warning = mangoHudWarning
-                    )
-                }
+                // Prose, not cards: half a body is not enough to read these without
+                // wrapping every line, so they keep the full width.
+                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_insight))
                 optimizationState.ai?.let { InsightCard(card = it) }
                 optimizationState.stability?.let { InsightCard(card = it) }
-                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_actions))
-                LaunchProfileSummaryActions(
-                    summary = optimizationState.profileSummary,
-                    resetProfileLabel = resetProfileLabel,
-                    resetProfileWorking = resetProfileWorking,
-                    onRetryHighFps = onRetryHighFps,
-                    onResetProfile = onResetProfile,
-                )
             }
 
             // The studio opens with a Row of weighted Columns, so it needs the window
@@ -430,8 +446,10 @@ internal fun NovaGameDetailContent(
                 eyebrow = stringResource(R.string.nova_artwork_studio_title),
                 headline = uiState.game.name,
                 scrollState = verticalScroll,
+                onDismiss = onDismissDestination,
             ) {
                 NovaArtworkStudio(
+                    initiallyExpanded = true,
                     state = artworkState,
                     initialQuery = uiState.game.name,
                     onRefresh = onRefreshArtwork,
@@ -1792,7 +1810,7 @@ private fun InsightCard(card: NovaGameDetailInsightCard) {
     NovaDetailPanel(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 10.dp),
+            .padding(top = 10.dp),
         accent = !card.isWarning,
         warning = card.isWarning,
         contentPadding = PaddingValues(12.dp)

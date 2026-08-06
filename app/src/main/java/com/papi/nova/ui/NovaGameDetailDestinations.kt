@@ -2,6 +2,8 @@ package com.papi.nova.ui
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,8 +25,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -57,37 +63,101 @@ internal fun NovaGameDetailPanel(
     headline: String,
     readout: String,
     scrollState: ScrollState,
+    onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(colors.window.copy(alpha = 0.58f))) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.window.copy(alpha = NOVA_DETAIL_SCRIM_ALPHA))
+            // The dimmed area beside the panel is the game you came from, so tapping it
+            // is the same gesture as pressing back.
+            .novaDismissOnTap(onDismiss)
+            .testTag("nova-game-detail-scrim"),
+    ) {
         // The panel exists so the game stays visible beside what you are changing. In
         // portrait there is nothing to sit beside, so it takes the window instead of
         // squeezing a phone-width column inside a phone.
         val widthFraction = if (maxHeight > maxWidth) 1f else NOVA_DETAIL_PANEL_WIDTH_FRACTION
         val shortViewport = maxHeight < NOVA_DETAIL_SHORT_VIEWPORT
+        val bodyWidth = maxWidth * widthFraction - NovaGameDetailInset * 2
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
                 .fillMaxWidth(widthFraction)
-                .background(colors.window)
+                // Translucent, so the game reads underneath and the panel is a layer over
+                // it rather than another screen. Separation comes from the outside scrim.
+                .background(colors.window.copy(alpha = NOVA_DETAIL_PANEL_ALPHA))
                 .background(surfaces.panel)
+                // Taps inside the panel are not taps outside it.
+                .novaDismissOnTap {}
                 .windowInsetsPadding(WindowInsets.safeContent)
                 .padding(horizontal = NovaGameDetailInset, vertical = if (shortViewport) 10.dp else 20.dp)
                 .testTag("nova-game-detail-panel"),
         ) {
-            NovaGameDetailDestinationHeader(eyebrow, headline, readout, compact = shortViewport)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(scrollState),
-                content = { content() },
+            NovaGameDetailDestinationHeader(
+                eyebrow = eyebrow,
+                headline = headline,
+                readout = readout,
+                compact = shortViewport,
+                onDismiss = onDismiss,
             )
+            CompositionLocalProvider(
+                LocalNovaDetailWideBody provides (bodyWidth >= NOVA_DETAIL_TWO_COLUMN_MIN),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState),
+                    content = { content() },
+                )
+            }
             NovaGameDetailDestinationHints()
+        }
+    }
+}
+
+/** A tap target that swallows the gesture, with no ripple to imply a button. */
+private fun Modifier.novaDismissOnTap(onDismiss: () -> Unit): Modifier = composed {
+    clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+        onClick = onDismiss,
+    )
+}
+
+/**
+ * True when the destination body has room for two readable columns. Provided by the
+ * panel because only the panel knows how much of the window it took.
+ */
+internal val LocalNovaDetailWideBody = staticCompositionLocalOf { false }
+
+/**
+ * Two columns when there is width for them, stacked when there is not. Wide, this stops
+ * a 500dp body running one narrow column with everything else below the fold.
+ */
+@Composable
+internal fun NovaGameDetailColumns(
+    left: @Composable () -> Unit,
+    right: @Composable () -> Unit,
+) {
+    if (LocalNovaDetailWideBody.current) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.weight(1f), content = { left() })
+            Column(modifier = Modifier.weight(1f), content = { right() })
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            left()
+            right()
         }
     }
 }
@@ -101,28 +171,43 @@ internal fun NovaGameDetailFullScreen(
     eyebrow: String,
     headline: String,
     scrollState: ScrollState,
+    onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.window)
-            .background(surfaces.panel)
-            .windowInsetsPadding(WindowInsets.safeContent)
-            .padding(horizontal = NovaGameDetailInset, vertical = 20.dp)
-            .testTag("nova-game-detail-fullscreen"),
-    ) {
-        NovaGameDetailDestinationHeader(eyebrow, headline, readout = "", compact = false)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val shortViewport = maxHeight < NOVA_DETAIL_SHORT_VIEWPORT
         Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(scrollState),
-            content = { content() },
-        )
-        NovaGameDetailDestinationHints()
+                .fillMaxSize()
+                // Solid: there is no outside here, so translucency would only print the
+                // Overview through the studio rather than reveal anything new.
+                .background(colors.window)
+                .background(surfaces.panel)
+                .windowInsetsPadding(WindowInsets.safeContent)
+                .padding(
+                    horizontal = NovaGameDetailInset,
+                    vertical = if (shortViewport) 10.dp else 20.dp,
+                )
+                .testTag("nova-game-detail-fullscreen"),
+        ) {
+            NovaGameDetailDestinationHeader(
+                eyebrow = eyebrow,
+                headline = headline,
+                readout = "",
+                compact = shortViewport,
+                onDismiss = onDismiss,
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState),
+                content = { content() },
+            )
+            NovaGameDetailDestinationHints()
+        }
     }
 }
 
@@ -151,9 +236,14 @@ private fun NovaGameDetailDestinationHeader(
     headline: String,
     readout: String,
     compact: Boolean = false,
+    onDismiss: () -> Unit = {},
 ) {
     val colors = LocalNovaComposeColors.current
-    Column(modifier = Modifier.padding(bottom = if (compact) 6.dp else 14.dp)) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(bottom = if (compact) 6.dp else 14.dp),
+    ) {
+    Column(modifier = Modifier.weight(1f)) {
         if (!compact) {
             Text(
                 text = eyebrow,
@@ -183,6 +273,34 @@ private fun NovaGameDetailDestinationHeader(
                 modifier = Modifier.padding(top = 5.dp),
             )
         }
+    }
+        // Portrait and the studio have no outside to tap, so the way out is always here.
+        NovaGameDetailCloseControl(onDismiss)
+    }
+}
+
+/** The touch equivalent of back, for the destinations that fill the window. */
+@Composable
+private fun NovaGameDetailCloseControl(onDismiss: () -> Unit) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .padding(start = 12.dp)
+            .clip(RoundedCornerShape(NovaGameDetailCornerRadius))
+            .background(surfaces.control)
+            .border(1.dp, colors.divider.copy(alpha = 0.6f), RoundedCornerShape(NovaGameDetailCornerRadius))
+            .novaDismissOnTap(onDismiss)
+            .padding(horizontal = 12.dp, vertical = 7.dp)
+            .testTag("nova-game-detail-close"),
+    ) {
+        Text(
+            text = stringResource(R.string.nova_game_detail_close),
+            color = colors.textSecondary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -356,6 +474,15 @@ private fun NovaSteamChoiceRow(
  * truncated at 53%, and still narrow enough to keep the game present beside it.
  */
 private const val NOVA_DETAIL_PANEL_WIDTH_FRACTION = 0.60f
+
+/** Enough of the game stays visible for the panel to read as a layer over it. */
+private const val NOVA_DETAIL_SCRIM_ALPHA = 0.72f
+
+/** Translucent enough to show artwork, opaque enough to keep body text legible. */
+private const val NOVA_DETAIL_PANEL_ALPHA = 0.80f
+
+/** Two columns need this much body width before either becomes too narrow to read. */
+private val NOVA_DETAIL_TWO_COLUMN_MIN = 440.dp
 
 /** Below this a phone in landscape has no height to spare for chrome. */
 private val NOVA_DETAIL_SHORT_VIEWPORT = 500.dp

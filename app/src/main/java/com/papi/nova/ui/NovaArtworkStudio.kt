@@ -288,10 +288,12 @@ fun NovaArtworkStudio(
     choicePreviewLoader: (ImageView, PolarisArtworkChoice) -> Unit,
     currentArtworkPresentationKey: (String) -> String,
     currentArtworkLoader: (ImageView, String) -> Unit,
+    /** True when the studio is the destination rather than a row inside one. */
+    initiallyExpanded: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    var expanded by remember(initialQuery) { mutableStateOf(false) }
+    var expanded by remember(initialQuery) { mutableStateOf(initiallyExpanded) }
     var query by remember(initialQuery) { mutableStateOf(initialQuery) }
     val title = stringResource(R.string.nova_artwork_studio_title)
     val summary = stringResource(R.string.nova_artwork_studio_summary)

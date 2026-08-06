@@ -516,6 +516,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     apiClient = apiClient,
                     sourceLabel = currentGame.sourceLabel,
                     onDestination = { next -> destination = next },
+                    onDismissDestination = { dismissActiveDetailDestination() },
                     activeSession = activeSession,
                     onResumeSession = { finishWithSessionRequest(RESULT_SESSION_RESUME) },
                     onEndSession = { finishWithSessionRequest(RESULT_SESSION_END) },
