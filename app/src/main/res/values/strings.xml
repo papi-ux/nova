@@ -264,14 +264,14 @@
     <string name="nova_controller_hint_system">System</string>
     <string name="nova_game_detail_resume">Resume</string>
     <string name="nova_game_detail_watch">Watch</string>
-    <string name="nova_game_detail_end_session">End session</string>
+    <string name="nova_game_detail_end_session">End Session</string>
     <string name="nova_game_detail_tune">Tune</string>
-    <string name="nova_game_detail_where_it_runs">Where it runs</string>
+    <string name="nova_game_detail_where_it_runs">Where It Runs</string>
     <string name="nova_game_detail_group_state">State</string>
     <string name="nova_game_detail_group_actions">Actions</string>
     <string name="nova_game_detail_group_insight">Insight</string>
     <string name="nova_game_detail_close">Close</string>
-    <string name="nova_game_detail_not_started">Not started</string>
+    <string name="nova_game_detail_not_started">Not Started</string>
     <string name="nova_game_detail_matched_as">Estimate for %1$s · fix in Artwork</string>
     <string name="nova_game_detail_beat_main">Main %1$d h</string>
     <string name="nova_game_detail_beat_extras">Extras %1$d h</string>
@@ -281,7 +281,7 @@
     <string name="nova_game_detail_headless_caption">Streams without touching the physical desktop</string>
     <string name="nova_game_detail_virtual_caption">A dedicated display on the host, at your resolution</string>
     <string name="nova_game_detail_more_settings_caption">Resolution, bitrate and codec for this launch</string>
-    <string name="nova_game_detail_profile_label">Optimization profile</string>
+    <string name="nova_game_detail_profile_label">Optimization Profile</string>
     <string name="nova_game_detail_profile_caption">How Polaris picks quality for this game</string>
     <string name="nova_polaris_wordmark" translatable="false">✦ POLARIS</string>
     <string name="nova_controller_hint_a">A</string>
@@ -322,7 +322,7 @@
     <string name="nova_library_meta_last_played">Played %1$s</string>
     <string name="nova_library_meta_ready_to_play">Ready to play</string>
     <string name="nova_library_launch_mode_title">Launch Mode</string>
-    <string name="nova_library_launch_headless">Private stream</string>
+    <string name="nova_library_launch_headless">Private Stream</string>
     <string name="nova_library_launch_virtual_display">Host Virtual Display</string>
     <string name="nova_library_launch_virtual_short">Host Virtual</string>
     <string name="nova_library_launch_desktop_display">Mirror Desktop</string>

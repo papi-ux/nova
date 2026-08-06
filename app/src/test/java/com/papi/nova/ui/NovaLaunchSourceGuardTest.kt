@@ -534,7 +534,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "launch mode copy should make Private Stream the default, demote GPU-native to a capability/status, and treat desktop mirroring as advanced",
-            strings.contains("<string name=\"nova_library_launch_headless\">Private stream</string>") &&
+            strings.contains("<string name=\"nova_library_launch_headless\">Private Stream</string>") &&
                 strings.contains("nova_library_launch_virtual_display" + 34.toChar() + ">Host Virtual Display</string>") &&
                 strings.contains("nova_library_launch_desktop_display" + 34.toChar() + ">Mirror Desktop</string>") &&
                 strings.contains("nova_library_launch_gpu_native_test" + 34.toChar() + ">Private Stream (GPU-native)</string>") &&

@@ -363,7 +363,7 @@ class PolarisApiClientParsingTest {
         val status = PolarisApiClient.parseSessionStatusResponse(json)
 
         assertTrue(status.isHostRenderLimited)
-        assertEquals("Host render", status.healthToneLabel)
+        assertEquals("Host Render", status.healthToneLabel)
         assertEquals("host_render_limited", status.health.primaryIssue)
         assertEquals(4.0, status.health.renderFpsGap, 0.01)
         assertTrue(status.health.autoMode)

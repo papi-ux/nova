@@ -74,7 +74,21 @@ class NovaThemeResourcesTest {
         assertTrue(manager.contains("psp"))
         assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF2F64B3"))
         assertTrue(colors.contains("<color name=\"nova_accent\">@color/nova_polaris_accent</color>"))
-        assertTrue(!colors.lowercase().contains("7c73ff"))
+
+        // The contract bans purple in Portable Chrome, and bans Material's default purple
+        // leaking through unthemed surfaces. Neither is the brand accent. This used to be
+        // enforced by asserting the hex appeared nowhere in the file at all, which is a
+        // proxy broad enough to outlaw Polaris' own colour — so say what is meant instead.
+        assertTrue(
+            "the Polaris accent is the brand's Medium Purple, style guide 2026 p8",
+            colors.contains("<color name=\"nova_polaris_accent\">#FF7C73FF</color>")
+        )
+        assertTrue(
+            "Portable Chrome stays cross-blue; the brand purple must not reach its tokens",
+            colors.lines()
+                .filter { it.contains("nova_portable") }
+                .none { it.lowercase().contains("7c73ff") }
+        )
     }
 
 

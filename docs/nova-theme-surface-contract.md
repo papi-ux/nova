@@ -24,6 +24,13 @@ This contract makes the Nova side of the Nova/Polaris cockpit requirements expli
 - High Contrast may be more opaque for readability, but PSP Chrome / Portable Chrome and Miami Nebula should keep a transparent/glass feel rather than becoming opaque slabs.
 - Avoid clipped selected strokes, square-vs-round drift, mixed purple overlays, or per-callsite sheet backgrounds that bypass shared theme tokens.
 
+## Polaris Aurora palette
+
+- Polaris Aurora takes its colours from the 2026 Polaris brand style guide: Light Cyan `#C8D6E5` for primary text, Indigo `#2A2840` for the window and its lifted surfaces, Dim Gray `#4C5265` for dividers, and Medium Purple `#7C73FF` as the single accent.
+- The accent was blue `#78A6FF` until the brand guide settled it. That blue was never the brand colour, and the game-detail window had reached a state where it drew the blue on the primary action while drawing the brand purple on every focus ring and selection tint — two accents on screen at once, neither chosen deliberately.
+- Purple/violet accents must not appear in PSP Chrome / Portable Chrome chrome. That rule is about Portable Chrome, and it is unaffected: Portable Chrome stays cross-blue.
+- Mixed purple overlays remain banned. That rule is about Material's default purple leaking through a surface that was never themed, which is a different thing from Nova choosing purple. It gets harder to spot by eye now that the brand accent is also violet, so unthemed-surface regressions should be caught by the shared-chrome guards rather than by noticing the colour.
+
 ## PSP Chrome / Portable Chrome palette
 
 - Portable Chrome should read as smoked graphite/dim moonlight grey/silver shell chrome, and subtle portable chrome playstation symbol accents.

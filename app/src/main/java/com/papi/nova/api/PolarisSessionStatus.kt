@@ -405,7 +405,7 @@ data class PolarisSessionStatus(
             (isHdrDowngraded && isHeadlessMode)
     val hasHealthConcerns get() = health.grade.equals("watch", ignoreCase = true) || health.grade.equals("degraded", ignoreCase = true)
     val healthToneLabel get() = when {
-        isHostRenderLimited -> "Host render"
+        isHostRenderLimited -> "Host Render"
         health.grade.equals("degraded", ignoreCase = true) -> "Degraded"
         health.grade.equals("watch", ignoreCase = true) -> "Watch"
         else -> "Stable"

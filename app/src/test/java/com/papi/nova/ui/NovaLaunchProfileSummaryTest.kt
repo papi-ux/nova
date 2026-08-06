@@ -49,7 +49,7 @@ class NovaLaunchProfileSummaryTest {
         assertEquals("Launch Recovery profile 40 FPS", summary.primaryLaunchLabel)
         assertEquals("Requested: High FPS stream / 120 FPS", summary.requestedLine)
         assertEquals("Selected: Recovery profile / 40 FPS", summary.selectedLine)
-        assertEquals("Limited by: Decoder path", summary.limitingLine)
+        assertEquals("Limited by: Decoder Path", summary.limitingLine)
         assertEquals(
             "Last stream: 58.5/60 FPS. The client decoder missed frames, which can cause stutter or uneven motion.",
             summary.noticeDetail
@@ -62,7 +62,7 @@ class NovaLaunchProfileSummaryTest {
         assertEquals("Try 120 FPS once", summary.retryHighFpsLabel)
         assertTrue(summary.showRetryHighFps)
         assertTrue(summary.historyLines.contains("Last: grade B at 58.5/60 FPS"))
-        assertTrue(summary.historyLines.contains("Issue: Decoder path"))
+        assertTrue(summary.historyLines.contains("Issue: Decoder Path"))
         assertTrue(summary.historyLines.contains("Next: one clean launch can release recovery, or reset this game profile."))
     }
 
@@ -92,7 +92,7 @@ class NovaLaunchProfileSummaryTest {
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
-        assertEquals("Limited by: Host render", summary.limitingLine)
+        assertEquals("Limited by: Host Render", summary.limitingLine)
         assertEquals(
             "Last stream: 54/60 FPS. The host missed the stream target, which can cause repeated frames or uneven motion.",
             summary.noticeDetail
@@ -123,7 +123,7 @@ class NovaLaunchProfileSummaryTest {
 
         requireNotNull(summary)
         assertEquals(
-            "Last stream: 60/60 FPS. Polaris reported Thermal throttle for the last session.",
+            "Last stream: 60/60 FPS. Polaris reported Thermal Throttle for the last session.",
             summary.noticeDetail
         )
         assertFalse(summary.noticeDetail.contains("did not meet"))
@@ -327,7 +327,7 @@ class NovaLaunchProfileSummaryTest {
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
-        assertEquals("Limited by: Host render", summary.limitingLine)
+        assertEquals("Limited by: Host Render", summary.limitingLine)
         assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
     }
 
@@ -350,7 +350,7 @@ class NovaLaunchProfileSummaryTest {
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
-        assertEquals("Limited by: Host render", summary.limitingLine)
+        assertEquals("Limited by: Host Render", summary.limitingLine)
         assertFalse(summary.noticeRecommendation.contains("No recovery adjustment"))
     }
 
@@ -434,7 +434,7 @@ class NovaLaunchProfileSummaryTest {
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
-        assertEquals("Limited by: Host render", summary.limitingLine)
+        assertEquals("Limited by: Host Render", summary.limitingLine)
     }
 
     @Test
@@ -453,7 +453,7 @@ class NovaLaunchProfileSummaryTest {
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
-        assertEquals("Limited by: Host render", summary.limitingLine)
+        assertEquals("Limited by: Host Render", summary.limitingLine)
     }
 
     @Test
