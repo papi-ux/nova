@@ -991,4 +991,23 @@ class PolarisApiClientParsingTest {
         assertEquals("big-picture", body.getString("mode"))
     }
 
+    @Test
+    fun playtimeMinutesAreCarriedFromTheHostAndNeverNegative() {
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                """{id:abc,app_id:1,name:Control,playtime_minutes:1684}"""
+            )
+        )
+        assertEquals(1684L, game.playtimeMinutes)
+
+        // A host that says nothing, and one that says something impossible, both mean
+        // there is no duration to show rather than a negative one.
+        val silent = PolarisGameJsonAdapter.fromJson(JSONObject("""{id:abc,name:Control}"""))
+        assertEquals(0L, silent.playtimeMinutes)
+
+        val nonsense = PolarisGameJsonAdapter.fromJson(
+            JSONObject("""{id:abc,name:Control,playtime_minutes:-5}""")
+        )
+        assertEquals(0L, nonsense.playtimeMinutes)
+    }
 }

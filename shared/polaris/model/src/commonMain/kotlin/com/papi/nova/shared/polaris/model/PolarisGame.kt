@@ -26,7 +26,15 @@ data class PolarisGame(
     @SerialName("launch_mode") val launchMode: LaunchModeContract? = null,
     @SerialName("steam_launch") val steamLaunch: SteamLaunchContract? = null,
     @SerialName("display_planner") val displayPlanner: DisplayPlannerContract? = null,
-    @SerialName("artwork") val artwork: ArtworkManifest? = null
+    @SerialName("artwork") val artwork: ArtworkManifest? = null,
+    /**
+     * Minutes the owning launcher says this has been played; 0 when nothing local knows.
+     *
+     * Last in the list on purpose. Sixteen places build this positionally, so a field
+     * inserted beside lastLaunched where it reads best would silently shift every one of
+     * them. Serialisation is by name, so position costs nothing here.
+     */
+    @SerialName("playtime_minutes") val playtimeMinutes: Long = 0
 ) {
     @Serializable
     data class ArtworkManifest(

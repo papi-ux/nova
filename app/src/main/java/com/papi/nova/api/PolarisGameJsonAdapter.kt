@@ -43,6 +43,7 @@ object PolarisGameJsonAdapter {
             coverUrl = json.optString("cover_url", ""),
             genres = fetchStringArray(json.optJSONArray("genres")),
             lastLaunched = json.optLong("last_launched", 0),
+            playtimeMinutes = json.optLong("playtime_minutes", 0).coerceAtLeast(0),
             mangohud = json.optBoolean("mangohud", false),
             hdrSupported = json.optBoolean("hdr_supported", false),
             launchMode = launchMode,
