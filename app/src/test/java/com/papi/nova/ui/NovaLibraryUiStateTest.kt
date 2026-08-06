@@ -265,7 +265,7 @@ class NovaLibraryUiStateTest {
         assertEquals("match", model.hero.game?.id)
         assertEquals(NovaLibraryHeroReason.FIRST_FILTERED, model.hero.reason)
         assertEquals("Filtered library", model.hero.eyebrow)
-        assertEquals("Launch", model.hero.actionLabel)
+        assertEquals("the hero opens the game's window rather than starting a stream", "Open", model.hero.actionLabel)
         assertEquals("Filters active - clear to browse every game.", model.hero.caption)
     }
 
@@ -423,7 +423,7 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroReason.LAST_PLAYED, hero.reason)
         assertEquals(NovaLibraryHeroPrimaryAction.OPEN_DETAIL, hero.primaryAction)
         assertEquals("Continue playing", hero.eyebrow)
-        assertEquals("Launch", hero.actionLabel)
+        assertEquals("the hero opens the game's window rather than starting a stream", "Open", hero.actionLabel)
         assertNull(hero.secondaryActionLabel)
         assertEquals("Continue • Steam", hero.supportingLine)
         assertEquals("Recent Game", hero.artworkFallbackTitle)
@@ -560,7 +560,7 @@ class NovaLibraryUiStateTest {
         assertEquals(NovaLibraryHeroPrimaryAction.OPEN_DETAIL, hero.primaryAction)
         assertEquals("Heroic", hero.subtitle)
         assertEquals("Ready when you are", hero.eyebrow)
-        assertEquals("Launch", hero.actionLabel)
+        assertEquals("the hero opens the game's window rather than starting a stream", "Open", hero.actionLabel)
         assertEquals("Choose profile, display, and stream settings.", hero.caption)
 
         assertEquals(NovaLibraryHeroReason.EMPTY, emptyHero.reason)

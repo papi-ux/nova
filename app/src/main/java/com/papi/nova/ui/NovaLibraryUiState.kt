@@ -611,7 +611,11 @@ object NovaLibraryUiStateMapper {
             subtitle = subtitle,
             caption = caption,
             eyebrow = eyebrow,
-            actionLabel = "Launch",
+            // This opens the game's window; it does not start a stream. It said
+            // "Launch" while its action was OPEN_DETAIL -- the one hero whose label
+            // disagreed with what it does. The action is the deliberate half: the
+            // detail window is where you decide how to play, so the hero gets you there.
+            actionLabel = "Open",
             badges = badges,
             reason = reason,
             primaryAction = NovaLibraryHeroPrimaryAction.OPEN_DETAIL,

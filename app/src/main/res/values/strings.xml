@@ -334,10 +334,6 @@
     <string name="nova_library_empty_hint_source">Clear the source filter or manage your Polaris library.</string>
     <string name="nova_library_empty_title_filtered">No matches</string>
     <string name="nova_library_empty_hint_filtered">Try a different filter or search term.</string>
-    <string name="nova_library_empty_action_manage">Manage Library</string>
-    <string name="nova_library_empty_action_recent">View All Games</string>
-    <string name="nova_library_empty_action_source">Clear Source</string>
-    <string name="nova_library_empty_action_clear">Clear Filters</string>
     <string name="nova_library_error_eyebrow">Recovery</string>
     <string name="nova_library_error_title">Couldn\'t load library</string>
     <string name="nova_library_error_hint">Check Polaris and try again.</string>
