@@ -1127,7 +1127,8 @@ class NovaComposeSourceGuardTest {
             detail.contains("private fun showLaunchOptions(") &&
                 detail.contains("onLaunchOptions = {") &&
                 launchControls.contains("label = launchOptionsLabel") &&
-                launchControls.indexOf("label = launchOptionsLabel") > launchControls.indexOf("label = headlessModeLabel")
+                launchControls.indexOf("label = headlessModeLabel") in
+                0 until launchControls.indexOf("label = launchOptionsLabel")
         )
         assertTrue(
             "launch mode should answer where it runs and leave the profile alone: preference, summary and reset are Tune's",
@@ -1164,7 +1165,8 @@ class NovaComposeSourceGuardTest {
             "when MangoHUD is already enabled, the drawer should show only a passive status after launch controls",
             sheetContent.contains("if (mangoHudEnabled) {") &&
                 sheetContent.contains("MangoHudPassiveStatus(") &&
-                sheetContent.indexOf("MangoHudPassiveStatus(") > sheetContent.indexOf("LaunchControls(")
+                sheetContent.indexOf("LaunchControls(") in
+                0 until sheetContent.indexOf("MangoHudPassiveStatus(")
         )
     }
 
