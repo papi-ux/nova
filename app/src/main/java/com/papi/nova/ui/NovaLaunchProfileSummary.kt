@@ -454,12 +454,17 @@ private fun selectedLabelFromState(state: String): String {
 
 private fun issueLabel(issue: String): String {
     return when (normalized(issue)) {
-        "host_render", "host_render_limited" -> "Host render"
-        "decoder", "decoder_path" -> "Decoder path"
+        "host_render", "host_render_limited" -> "Host Render"
+        "decoder", "decoder_path" -> "Decoder Path"
         "network" -> "Network"
         "encoder" -> "Encoder"
-        "pacing", "frame_pacing" -> "Frame pacing"
-        else -> issue.replace('_', ' ').replaceFirstChar { it.uppercase() }
+        "pacing", "frame_pacing" -> "Frame Pacing"
+        // These are names of a limiting factor, not sentences about one, so an issue
+        // Polaris starts reporting tomorrow should read like the five above rather than
+        // capitalising only its first word and sitting oddly beside them.
+        else -> issue.split('_')
+            .filter { it.isNotEmpty() }
+            .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
     }
 }
 

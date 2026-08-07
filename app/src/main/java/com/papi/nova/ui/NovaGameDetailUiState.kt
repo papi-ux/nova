@@ -6,6 +6,24 @@ import com.papi.nova.api.resolveLaunchModeChoice
 import com.papi.nova.shared.polaris.model.PolarisGame
 import org.json.JSONObject
 
+/**
+ * @brief The host's own profile, or blank when it has not set one.
+ *
+ * Desired rather than effective: this answers "what would the host do", and effective is
+ * what it managed this session, which is a different question and already has its own row.
+ */
+private fun hostProfileLabel(settings: PolarisClientSettings?): String {
+    val desired = settings?.desired ?: return ""
+    val mode = desired.displayMode.trim()
+    val mbps = desired.targetBitrateKbps.takeIf { it > 0 }?.let { it / 1000 }
+    return when {
+        mode.isNotBlank() && mbps != null -> "$mode \u00b7 $mbps Mbps"
+        mode.isNotBlank() -> mode
+        mbps != null -> "$mbps Mbps"
+        else -> ""
+    }
+}
+
 data class NovaGameDetailUiState(
     val game: PolarisGame,
     val launchChoice: PolarisGame.LaunchModeChoice,
@@ -32,8 +50,29 @@ data class NovaGameDetailUiState(
     val steamLaunchMode: String,
     val steamLaunchWarning: Boolean,
     val hostStreamDisplayMode: String,
-    val hostStreamDisplayModeLabel: String
+    val hostStreamDisplayModeLabel: String,
+    /**
+     * The profile the host would use for anything that does not ask for its own, as
+     * "1920x1080@60 · 20 Mbps". Blank when the host has no profile set.
+     */
+    val hostProfileLabel: String,
 ) {
+    /**
+     * Whether this game is running somewhere other than where the host would put it.
+     *
+     * The per-game choice outranks the host default, which is only legible if both are
+     * on screen and the disagreement is named.
+     */
+    val overridesHostMode: Boolean
+        get() = hostStreamDisplayMode.isNotBlank() &&
+            playMode.isNotBlank() &&
+            // Both sides, because these are two vocabularies for the same thing: playMode
+            // speaks the contract's "headless" while the host mode has already been
+            // normalised to MODE_HEADLESS_STREAM. Comparing them raw reports an override
+            // on every game, including the ones that agree with the host.
+            PolarisStreamDisplayMode.normalize(playMode) !=
+            PolarisStreamDisplayMode.normalize(hostStreamDisplayMode)
+
     enum class MangoHudRisk {
         NONE,
         STEAM,
@@ -121,7 +160,8 @@ data class NovaGameDetailUiState(
                 steamLaunchMode = steamLaunchMode,
                 steamLaunchWarning = steamLaunchWarning,
                 hostStreamDisplayMode = hostStreamDisplayMode,
-                hostStreamDisplayModeLabel = hostStreamDisplayModeLabel
+                hostStreamDisplayModeLabel = hostStreamDisplayModeLabel,
+                hostProfileLabel = hostProfileLabel(clientSettings),
             )
         }
     }

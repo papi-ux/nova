@@ -60,7 +60,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "the desktop Steam choice belongs in the Launch mode destination, not a sheet or an alert raised over the artwork",
-            detail.contains("destination = NovaGameDetailDestination.LAUNCH_MODE") &&
+            detail.contains("destination = NovaGameDetailDestination.PLAY_SETUP") &&
                 detail.contains("steamDecision = desktopSteamDecision") &&
                 !detail.contains("BottomSheetDialog(") &&
                 !detail.contains("AlertDialog.Builder")
@@ -361,9 +361,10 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val quickContent = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
         val planner = readSource("src/main/java/com/papi/nova/ui/NovaDisplayResolutionPlanner.kt")
+        val playSetup = readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt")
         val optionSheet = detail.section(
-            "private fun NovaLaunchOptionsSheet(",
-            "@Composable\nprivate fun NovaProfilePreferenceSheet"
+            "private fun showLaunchOptions(",
+            "private fun optionLabel("
         )
 
         assertTrue(
@@ -373,10 +374,13 @@ class NovaLaunchSourceGuardTest {
                 detail.contains("NovaDisplayResolutionPlanner.buildLaunchOptimizationOverride(")
         )
         assertTrue(
-            "Planner choices should keep DPAD focus on meaningful cards rather than redundant Press A badges",
-            optionSheet.contains("NovaFocusableCard(") &&
-                optionSheet.contains("option.caption") &&
-                !optionSheet.contains("Press A") &&
+            "Planner choices keep D-pad focus on meaningful cards rather than redundant Press A " +
+                "badges. They moved from the option sheet into the comparison strip, which is " +
+                "focusable in place and carries each option's caption as its consequence",
+            playSetup.contains(".focusable(enabled = actionable)") &&
+                detail.contains("launchOptionsState != null -> NovaPlaySetupComparison(") &&
+                detail.contains("option.caption") &&
+                !detail.contains("Press A") &&
                 planner.contains("takeUnless { it.equals(\"Press A\", ignoreCase = true) }")
         )
         assertTrue(
@@ -534,7 +538,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "launch mode copy should make Private Stream the default, demote GPU-native to a capability/status, and treat desktop mirroring as advanced",
-            strings.contains("<string name=\"nova_library_launch_headless\">Private stream</string>") &&
+            strings.contains("<string name=\"nova_library_launch_headless\">Private Stream</string>") &&
                 strings.contains("nova_library_launch_virtual_display" + 34.toChar() + ">Host Virtual Display</string>") &&
                 strings.contains("nova_library_launch_desktop_display" + 34.toChar() + ">Mirror Desktop</string>") &&
                 strings.contains("nova_library_launch_gpu_native_test" + 34.toChar() + ">Private Stream (GPU-native)</string>") &&
@@ -544,11 +548,11 @@ class NovaLaunchSourceGuardTest {
         assertTrue(
             "session lifecycle copy should distinguish disconnecting the client from ending the running host session",
             strings.contains("<string name=\"nova_library_resume_ready\">Game still running</string>") &&
-                strings.contains("<string name=\"applist_menu_resume\">Resume stream</string>") &&
-                strings.contains("<string name=\"applist_menu_watch\">Watch stream</string>") &&
+                strings.contains("<string name=\"applist_menu_resume\">Resume Stream</string>") &&
+                strings.contains("<string name=\"applist_menu_watch\">Watch Stream</string>") &&
                 strings.contains("<string name=\"game_menu_disconnect\">Disconnect</string>") &&
-                strings.contains("<string name=\"nova_quick_menu_end_stream\">End session</string>") &&
-                strings.contains("<string name=\"applist_menu_quit\">End session</string>")
+                strings.contains("<string name=\"nova_quick_menu_end_stream\">End Session</string>") &&
+                strings.contains("<string name=\"applist_menu_quit\">End Session</string>")
         )
     }
 
@@ -711,6 +715,11 @@ class NovaLaunchSourceGuardTest {
         return sync.contains("isDraggable = false")
     }
 
-    private fun String.section(startMarker: String, endMarker: String): String =
-        substring(indexOf(startMarker), indexOf(endMarker))
+    private fun String.section(startMarker: String, endMarker: String): String {
+        val start = indexOf(startMarker)
+        require(start >= 0) { "Missing start marker: $startMarker" }
+        val end = indexOf(endMarker, start)
+        require(end >= 0) { "Missing end marker: $endMarker" }
+        return substring(start, end)
+    }
 }

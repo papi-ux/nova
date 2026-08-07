@@ -404,6 +404,55 @@ class NovaArtworkStudioSourceGuardTest {
         }
     }
 
+    @Test
+    fun studioLaysOutAsTwoColumnsWithItsActionsPinnedBelowThem() {
+        val studio = readSource("src/main/java/com/papi/nova/ui/NovaArtworkStudio.kt")
+
+        // Nothing guarded the studio's layout until now -- this file's other test covers
+        // the API client, so eight stages could be rearranged into two columns without a
+        // single assertion noticing.
+        assertTrue(
+            "the studio splits by what each half is for: what the entry is, and what that " +
+                "looks like. It is one Row of two weighted Columns above the threshold",
+            studio.contains("val identityColumn: @Composable ColumnScope.() -> Unit") &&
+                studio.contains("val previewColumn: @Composable ColumnScope.() -> Unit") &&
+                studio.contains("Column(modifier = Modifier.weight(1f), content = identityColumn)") &&
+                studio.contains("Column(modifier = Modifier.weight(1f), content = previewColumn)")
+        )
+        assertTrue(
+            "and stacks in the same reading order where there is no room for two",
+            studio.contains("val twoColumn = maxWidth >= NOVA_STUDIO_TWO_COLUMN_MIN") &&
+                studio.contains("if (twoColumn) {")
+        )
+        assertTrue(
+            "the preview sits beside the picker that changes it, not above it, so choosing " +
+                "an image does not scroll the result away",
+            studio.indexOf("val identityColumn") in
+                0 until studio.indexOf("val previewColumn") &&
+                studio.section("val previewColumn", "Column(modifier = Modifier.fillMaxWidth())")
+                    .contains("NovaArtworkStudioComparison(")
+        )
+        assertTrue(
+            "refresh belongs to the column it refreshes. The needle carries `text =` because " +
+                "the bare id is also a prefix of nova_artwork_refresh_description, which sits " +
+                "in the same column -- so the loose version held even after refresh moved out",
+            studio.section("val identityColumn", "val previewColumn")
+                .contains("text = stringResource(R.string.nova_artwork_refresh),")
+        )
+        assertFalse(
+            "apply/reset/cancel are pinned below both columns rather than nested in the " +
+                "branch that draws choices, which is what made the apply target move as " +
+                "candidates loaded in above it",
+            studio.section("val identityColumn", "val previewColumn")
+                .contains("R.string.nova_artwork_studio_apply")
+        )
+        assertTrue(
+            studio.contains("if (state.selectedCandidate != null) {") &&
+                studio.section("Column(modifier = Modifier.fillMaxWidth())", "private fun NovaArtworkStudioMatchSummary")
+                    .contains("R.string.nova_artwork_studio_apply")
+        )
+    }
+
     private fun String.propagatesCancellation(): Boolean =
         contains("catch (e: CancellationException)") && contains("throw e")
 

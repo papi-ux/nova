@@ -148,12 +148,12 @@ class NovaComposeSourceGuardTest {
                 strings.contains("name=\"nova_library_options_sort_name_asc\">Name A-Z") &&
                 strings.contains("name=\"nova_library_options_sort_name_desc\">Name Z-A") &&
                 strings.contains("name=\"nova_library_options_sort_source\">Source") &&
-                strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR first") &&
+                strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR First") &&
                 strings.contains("name=\"nova_library_options_layout_stage\">Stage") &&
                 strings.contains("name=\"nova_library_options_layout_grid\">Grid") &&
                 strings.contains("name=\"nova_library_options_layout_compact\">Compact") &&
-                strings.contains("name=\"nova_library_options_poster_titles_title\">Poster titles") &&
-                strings.contains("name=\"nova_library_options_poster_titles_hide\">Plain artwork")
+                strings.contains("name=\"nova_library_options_poster_titles_title\">Poster Titles") &&
+                strings.contains("name=\"nova_library_options_poster_titles_hide\">Plain Artwork")
         )
     }
 
@@ -397,10 +397,10 @@ class NovaComposeSourceGuardTest {
             "system menu strings should keep the GameNative-inspired top level short and self-hosted",
             strings.contains("name=\"nova_system_menu_title\">System") &&
                 strings.contains("name=\"nova_system_menu_host_named_format\"") &&
-                strings.contains("name=\"nova_system_menu_switch_host\">Switch host") &&
+                strings.contains("name=\"nova_system_menu_switch_host\">Switch Host") &&
                 strings.contains("name=\"nova_system_menu_settings\">Settings") &&
-                strings.contains("name=\"nova_system_menu_polaris_sync\">Polaris sync") &&
-                strings.contains("name=\"nova_system_menu_manage_server\">Manage server") &&
+                strings.contains("name=\"nova_system_menu_polaris_sync\">Polaris Sync") &&
+                strings.contains("name=\"nova_system_menu_manage_server\">Manage Server") &&
                 strings.contains("name=\"nova_system_menu_help_diagnostics\">Help / diagnostics") &&
                 strings.contains("name=\"nova_system_menu_about\">About Nova") &&
                 strings.contains("name=\"nova_system_menu_about_toast\">%1\$s")
@@ -656,26 +656,26 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "default no-games empty state should make Manage library the one primary recovery action",
             mapper.contains("NovaLibraryEmptyState.DEFAULT -> NovaLibraryRecoveryUiState(") &&
-                mapper.contains("primaryActionLabel = \"Manage library\"") &&
+                mapper.contains("primaryActionLabel = \"Manage Library\"") &&
                 mapper.contains("primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY")
         )
         assertTrue(
             "recent-empty state should invite users back to the full library instead of sounding like an error",
             mapper.contains("NovaLibraryEmptyState.RECENT -> NovaLibraryRecoveryUiState(") &&
-                mapper.contains("primaryActionLabel = \"View all games\"") &&
+                mapper.contains("primaryActionLabel = \"View All Games\"") &&
                 mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS")
         )
         assertTrue(
             "source no-results should name the selected source and use one direct clear-source CTA",
             mapper.contains("title = \"No ${'$'}sourceLabel games\"") &&
-                mapper.contains("primaryActionLabel = \"Clear source\"") &&
+                mapper.contains("primaryActionLabel = \"Clear Source\"") &&
                 mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS") &&
                 mapper.contains("private fun sourceDisplayName(sourceName: String?)")
         )
         assertTrue(
             "filtered empty state should keep Clear filters as the direct escape hatch",
             mapper.contains("NovaLibraryEmptyState.FILTERED -> NovaLibraryRecoveryUiState(") &&
-                mapper.contains("primaryActionLabel = \"Clear filters\"") &&
+                mapper.contains("primaryActionLabel = \"Clear Filters\"") &&
                 mapper.contains("primaryAction = NovaLibraryRecoveryAction.CLEAR_FILTERS")
         )
         assertTrue(
@@ -684,7 +684,7 @@ class NovaComposeSourceGuardTest {
                 mapper.contains("title = \"Host offline\"") &&
                 mapper.contains("primaryActionLabel = \"Retry\"") &&
                 mapper.contains("title = \"Polaris unavailable\"") &&
-                mapper.contains("primaryActionLabel = \"Manage server\"")
+                mapper.contains("primaryActionLabel = \"Manage Server\"")
         )
     }
 
@@ -1036,11 +1036,7 @@ class NovaComposeSourceGuardTest {
         val detail = readNovaGameDetail()
         val detailsPanel = detail.section(
             "private fun GameDetailsPanel(",
-            "@Composable\nprivate fun LaunchControls("
-        )
-        val launchFooter = detail.section(
-            "internal fun NovaGameDetailLaunchFooter(",
-            "@Composable\nprivate fun NovaDetailPanel("
+            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
         )
         assertTrue(
             "Retroid landscape first paint should keep either Hero or Poster identity inside the compact launch header ceiling",
@@ -1059,8 +1055,11 @@ class NovaComposeSourceGuardTest {
                 detailsPanel.contains("fontSize = 22.sp")
         )
         assertTrue(
-            "pinned primary launch and mode choice controls should stay compact enough for Retroid landscape",
-            launchFooter.contains("minHeight = 48.dp") &&
+            "the primary launch and the mode choices stay compact enough for Retroid landscape. " +
+                "This used to measure the pinned footer, which the window replaced with the " +
+                "action rail; the floor now lives on the rail's own action height",
+            detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
+                detail.contains("heightIn(min = NovaGameDetailActionHeight)") &&
                 detail.contains("NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp")
         )
     }
@@ -1085,6 +1084,19 @@ class NovaComposeSourceGuardTest {
                 !overview.contains("verticalScroll")
         )
         assertTrue(
+            "something has to actually ask. This guard used to pin only the wiring -- the " +
+                "requester existed and was attached -- while the requestFocus() call sat in a " +
+                "composable that had lost its last caller when this window replaced the bottom " +
+                "sheet, so nothing requested focus at all and the d-pad started wherever the " +
+                "first focusable happened to be. The ask lives beside the button it names.",
+            actions.contains("LaunchedEffect(playFocusable)") &&
+                actions.contains("runCatching { playFocusRequester.requestFocus() }")
+        )
+        assertFalse(
+            "and the composable that stranded it is gone rather than left to strand another",
+            detail.contains("internal fun NovaGameDetailLaunchFooter(")
+        )
+        assertTrue(
             "the action lane is one row, so a D-pad walk never leaves it",
             actions.contains("Row(") &&
                 actions.contains("horizontalArrangement = Arrangement.spacedBy(10.dp)")
@@ -1095,11 +1107,18 @@ class NovaComposeSourceGuardTest {
                 detail.contains("heightIn(min = NovaGameDetailActionHeight)")
         )
         assertTrue(
-            "the rail is gated rather than decorative: Launch mode appears only when there is a real choice, and a review replaces the rail with its own answers",
-            actions.contains("if (showLaunchModeAction)") &&
+            "the rail is a fixed three, so a D-pad walk cannot find a different number of " +
+                "nodes on a different game; a review still replaces it with its own answers",
+            actions.contains("NovaGameDetailDestination.PLAY_SETUP") &&
+                actions.contains("NovaGameDetailDestination.ARTWORK") &&
                 actions.contains("if (reviewExpanded)") &&
                 actions.contains("onRetryHighFps") &&
                 actions.contains("onResetProfile")
+        )
+        assertFalse(
+            "nothing gates a rail node any more: what showLaunchModeAction used to remove " +
+                "is a row inside Play Setup rather than an action beside it",
+            actions.contains("if (showLaunchModeAction)")
         )
         assertFalse(
             "the primary launch button must not sit inside a scrolling body",
@@ -1108,44 +1127,32 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun gameDetailLaunchModeUsesSingleInlineSelectorInsteadOfDuplicateOptionsDrawer() {
+    fun playSetupKeepsModeChoiceInlineAndHoldsTheProfileControlsToo() {
         val detail = readNovaGameDetail()
-        val launchControls = detail.section(
-            "private fun LaunchControls(",
-            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
-        )
 
         assertTrue(
-            "Headless/Virtual should be directly selectable from the destination, as rows carrying their standing",
-            launchControls.contains("NovaSteamChoiceRow(") &&
-                launchControls.contains("onClick = { onLaunchModeSelected(\"headless\") }") &&
-                launchControls.contains("onClick = { onLaunchModeSelected(\"virtual_display\") }") &&
-                !launchControls.contains("LaunchModeChoicePill(")
+            "Headless/Virtual stay one press away and say what they would do while you pick. " +
+                "They moved from rows into the comparison strip, which is still inline: a picker " +
+                "raised over the destination would cost a press and re-introduce the options " +
+                "drawer that inline selection was added to remove",
+            detail.contains("NovaPlaySetupComparison(") &&
+                detail.contains("onSelect = { onLaunchModeSelected(\"headless\") }") &&
+                detail.contains("onSelect = { onLaunchModeSelected(\"virtual_display\") }") &&
+                detail.contains("consequence = stringResource(")
         )
         assertTrue(
-            "Launch Options should remain a secondary path after inline Headless/Virtual choices",
-            detail.contains("private fun showLaunchOptions(") &&
-                detail.contains("onLaunchOptions = {") &&
-                launchControls.contains("label = launchOptionsLabel") &&
-                launchControls.indexOf("label = headlessModeLabel") in
-                0 until launchControls.indexOf("label = launchOptionsLabel")
+            "one destination holds the whole decision: where it runs, the launch settings, the " +
+                "tuning profile and Steam launch. Splitting these across two drawers is what " +
+                "made each of them carry half of the other's subject",
+            detail.contains("onClick = onLaunchOptions,") &&
+                detail.contains("onClick = onProfilePreference,") &&
+                detail.contains("SteamLaunchModeCard(") &&
+                detail.contains("LaunchProfileSummaryActions(")
         )
-        assertTrue(
-            "launch mode should answer where it runs and leave the profile alone: preference, summary and reset are Tune's",
-            !launchControls.contains("profilePreferenceLabel") &&
-                !launchControls.contains("LaunchProfileSummaryInline(") &&
-                !launchControls.contains("resetProfileLabel")
-        )
-        assertTrue(
-            "Tune should hold the profile controls launch mode gave up, and stay the way into the preference picker",
-            detail.contains("onClick = onProfilePreference,") &&
-                detail.contains("LaunchProfileSummaryActions(") &&
-                detail.contains("R.string.nova_game_detail_group_actions")
-        )
-        assertTrue(
-            "launch mode should name itself once: the destination header already does, and the pills say which is recommended",
-            !launchControls.contains("text = launchModeTitle") &&
-                !launchControls.contains("text = recommendedBadge")
+        assertFalse(
+            "LaunchControls served the destination that no longer exists; leaving it behind " +
+                "would leave a second way to draw the same choice",
+            detail.contains("private fun LaunchControls(")
         )
     }
 
@@ -1162,10 +1169,11 @@ class NovaComposeSourceGuardTest {
             sheetContent.contains("MangoHudCard(")
         )
         assertTrue(
-            "when MangoHUD is already enabled, the drawer should show only a passive status after launch controls",
+            "when MangoHUD is already enabled, Play Setup shows only a passive status, and it " +
+                "comes after the choices rather than competing with them",
             sheetContent.contains("if (mangoHudEnabled) {") &&
                 sheetContent.contains("MangoHudPassiveStatus(") &&
-                sheetContent.indexOf("LaunchControls(") in
+                sheetContent.indexOf("NovaPlaySetupBody(") in
                 0 until sheetContent.indexOf("MangoHudPassiveStatus(")
         )
     }
@@ -1175,7 +1183,7 @@ class NovaComposeSourceGuardTest {
         val source = readNovaGameDetail()
         val detailsPanel = source.section(
             "private fun GameDetailsPanel(",
-            "@Composable\nprivate fun LaunchControls("
+            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
         )
 
         assertTrue(
@@ -1364,7 +1372,7 @@ class NovaComposeSourceGuardTest {
             "launch recovery copy should offer one Manage server CTA with the raw failure preserved as detail",
             mapper.contains("fun launchFailureRecoveryState(message: String)") &&
                 mapper.contains("title = \"Launch blocked\"") &&
-                mapper.contains("primaryActionLabel = \"Manage server\"") &&
+                mapper.contains("primaryActionLabel = \"Manage Server\"") &&
                 mapper.contains("detail = message.takeIf { it.isNotBlank() }")
         )
         assertTrue(
@@ -2158,7 +2166,7 @@ class NovaComposeSourceGuardTest {
 
         assertTrue(
             "owned active-session hero should expose a direct End session recovery action for stale host/game sessions",
-            mapper.contains("secondaryActionLabel = if (session.ownedByClient) \"End session\" else null") &&
+            mapper.contains("secondaryActionLabel = if (session.ownedByClient) \"End Session\" else null") &&
                 mapper.contains("Resume this stream, or end it if the host game is stale.")
         )
         assertTrue(
@@ -2424,7 +2432,7 @@ class NovaComposeSourceGuardTest {
                 optionsSheet.contains("R.string.nova_artwork_library_update_retry")
         )
         assertTrue(
-            strings.contains("name=\"nova_artwork_library_update_title\">Update artwork library") &&
+            strings.contains("name=\"nova_artwork_library_update_title\">Update Artwork Library") &&
                 strings.contains("name=\"nova_artwork_library_update_policy\"") &&
                 strings.contains("name=\"nova_artwork_library_update_preserve_custom\"") &&
                 strings.contains("name=\"nova_artwork_library_update_cancel\"") &&
@@ -2702,15 +2710,13 @@ class NovaComposeSourceGuardTest {
         readSource("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt")
 
     @Test
-    fun gameDetailLaunchOptionsUseActionableModeState() {
-        val launchControls = readNovaGameDetail().section(
-            "private fun LaunchControls(",
-            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
-        )
+    fun playSetupLaunchSettingsRowReadsActionableModeState() {
+        val detail = readNovaGameDetail()
 
-        assertTrue(launchControls.contains("uiState.showLaunchOptionsButton"))
-        assertTrue(launchControls.contains("uiState.showLaunchModeSummary"))
-        assertFalse(launchControls.contains("uiState.launchOptionsEnabled"))
+        // The state this asked of LaunchControls is now asked of the row that replaced
+        // it: what the launch settings offer is derived, never assumed enabled.
+        assertTrue(detail.contains("uiState.showLaunchOptionsButton"))
+        assertFalse(detail.contains("uiState.launchOptionsEnabled"))
     }
 
     @Test
@@ -2725,10 +2731,13 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "Launch Options runs from the Compose game detail sheet and must not use raw AlertDialog.Builder; Retroid Portable Chrome routes this through Nova glass option panels",
+            "the launch settings are chosen without a dialog and without a sheet, for the " +
+                "same reason as the tuning preference: a glass panel over the destination is " +
+                "still a modal on the launch path",
             !launchOptions.contains("AlertDialog.Builder(") &&
                 detail.contains("data class NovaLaunchOptionsState") &&
-                detail.contains("private fun NovaLaunchOptionsSheet(")
+                !detail.contains("private fun NovaLaunchOptionsSheet(") &&
+                detail.contains("launchOptionsState != null -> NovaPlaySetupComparison(")
         )
     }
 
@@ -2744,10 +2753,15 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "AI Preference/Profile selector runs from the Compose game detail sheet and must not use raw AlertDialog.Builder on Retroid Portable Chrome",
+            "the tuning preference is chosen without a dialog and without a sheet. It used " +
+                "to be routed through a Nova glass panel raised over the destination, which " +
+                "was better than an AlertDialog and still a modal on the launch path; the " +
+                "options are stated as consequences in the comparison strip now",
             !profileOptions.contains("AlertDialog.Builder(") &&
                 detail.contains("data class NovaProfilePreferenceOptionsState") &&
-                detail.contains("private fun NovaProfilePreferenceSheet(")
+                !detail.contains("private fun NovaProfilePreferenceSheet(") &&
+                detail.contains("profileOptionsState != null -> NovaPlaySetupComparison(") &&
+                detail.contains("consequence = novaProfilePreferenceConsequence(option.value)")
         )
     }
 
@@ -2760,8 +2774,13 @@ class NovaComposeSourceGuardTest {
     private fun String.containsRegex(pattern: String): Boolean =
         Regex(pattern).containsMatchIn(this)
 
-    private fun String.section(startMarker: String, endMarker: String): String =
-        substring(indexOf(startMarker), indexOf(endMarker))
+    private fun String.section(startMarker: String, endMarker: String): String {
+        val start = indexOf(startMarker)
+        require(start >= 0) { "Missing start marker: $startMarker" }
+        val end = indexOf(endMarker, start)
+        require(end >= 0) { "Missing end marker: $endMarker" }
+        return substring(start, end)
+    }
 
     private fun String.blockStartingAt(startMarker: String): String {
         val markerIndex = indexOf(startMarker)

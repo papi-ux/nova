@@ -213,6 +213,8 @@ internal fun NovaGameDetailContent(
     onDismissProfileOptions: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    /** Opens the host scope. Null where no host settings surface is reachable. */
+    onOpenHostSettings: (() -> Unit)? = null,
     steamLaunchOptionsState: NovaSteamLaunchModeOptionsState? = null,
     onSteamLaunchMode: () -> Unit,
     onSteamLaunchModeSelected: (NovaSteamLaunchModeItem) -> Unit = {},
@@ -284,8 +286,14 @@ internal fun NovaGameDetailContent(
             activeSession = activeSession,
             onResumeSession = onResumeSession,
             onEndSession = onEndSession,
-            // While a destination is open the Overview is scenery. Without this, a d-pad
-            // press walks out of the panel onto a control dimmed behind the scrim.
+            // While a destination is open the Overview is scenery: it cannot be walked
+            // onto, and its chrome recedes to a texture so the translucent destination
+            // reads against artwork rather than against ghosted text.
+            chromeAlpha = if (destination == NovaGameDetailDestination.OVERVIEW) {
+                1f
+            } else {
+                NOVA_DETAIL_SCENERY_CHROME_ALPHA
+            },
             modifier = if (destination == NovaGameDetailDestination.OVERVIEW) {
                 Modifier
             } else {
@@ -296,120 +304,199 @@ internal fun NovaGameDetailContent(
         when (destination) {
             NovaGameDetailDestination.OVERVIEW -> Unit
 
-            NovaGameDetailDestination.LAUNCH_MODE -> NovaGameDetailPanel(
-                eyebrow = stringResource(R.string.nova_library_launch_mode_title),
-                headline = stringResource(R.string.nova_game_detail_where_it_runs),
-                readout = if (steamDecision != null) {
-                    stringResource(R.string.nova_desktop_steam_title)
-                } else {
-                    optimizationState.profileSummary?.selectedLine.orEmpty()
-                },
+            NovaGameDetailDestination.PLAY_SETUP -> NovaGameDetailWidePanel(
+                eyebrow = stringResource(R.string.nova_play_setup_title),
+                headline = uiState.game.name,
                 scrollState = verticalScroll,
                 onDismiss = onDismissDestination,
             ) {
                 val decision = steamDecision
                 if (decision != null) {
+                    // A blocked three-way choice is the one moment nothing else on the
+                    // screen matters, so it keeps the body to itself.
                     NovaDesktopSteamLaunchDecisionRows(
                         decision = decision,
                         onChoice = onSteamChoice,
                     )
                 } else {
-                    LaunchControls(
-                        uiState = uiState,
-                        launchIntro = launchIntro,
-                        launchModeTitle = launchModeTitle,
-                        launchOptionsLabel = launchOptionsLabel,
-                        profileSummary = optimizationState.profileSummary,
-                        headlessModeLabel = headlessModeLabel,
-                        virtualDisplayModeLabel = virtualDisplayModeLabel,
-                        playFocusRequester = playFocusRequester,
-                        detailsFocusRequester = detailsFocusRequester,
-                        onLaunchOptions = onLaunchOptions,
-                        onLaunchModeSelected = onLaunchModeSelected,
+                    val summary = optimizationState.profileSummary
+                    NovaPlaySetupBody(
+                        plan = novaPlaySetupPlan(
+                            // The resolved mode, not the name of the control that sets
+                            // it: this is the one line the column exists to state.
+                            modeLabel = when (uiState.playMode) {
+                                "virtual_display" -> virtualDisplayModeLabel
+                                else -> headlessModeLabel
+                            },
+                            lines = listOfNotNull(
+                                summary?.selectedLine
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?.let(::novaPlaySetupValue),
+                                launchIntro.takeIf { it.isNotBlank() },
+                            ),
+                            summary = summary,
+                            lastSessionKey = stringResource(R.string.nova_play_setup_fact_last_session),
+                            limitedByKey = stringResource(R.string.nova_play_setup_fact_limited_by),
+                            askedKey = stringResource(R.string.nova_play_setup_fact_asked),
+                            profileKey = stringResource(R.string.nova_play_setup_fact_profile),
+                            grantedFormat = stringResource(R.string.nova_play_setup_granted_format),
+                            hostFacts = buildList {
+                                if (uiState.hostStreamDisplayModeLabel.isNotBlank()) {
+                                    add(
+                                        NovaPlaySetupFact(
+                                            key = stringResource(R.string.nova_play_setup_fact_host_default),
+                                            value = uiState.hostStreamDisplayModeLabel,
+                                            detail = stringResource(
+                                                if (uiState.overridesHostMode) {
+                                                    R.string.nova_play_setup_host_overridden
+                                                } else {
+                                                    R.string.nova_play_setup_host_followed
+                                                },
+                                            ),
+                                            tone = if (uiState.overridesHostMode) {
+                                                NovaPlaySetupTone.WARN
+                                            } else {
+                                                NovaPlaySetupTone.PLAIN
+                                            },
+                                        ),
+                                    )
+                                }
+                                if (uiState.hostProfileLabel.isNotBlank()) {
+                                    add(
+                                        NovaPlaySetupFact(
+                                            key = stringResource(R.string.nova_play_setup_fact_host_profile),
+                                            value = uiState.hostProfileLabel,
+                                        ),
+                                    )
+                                }
+                            },
+                        ),
+                        rows = {
+                            NovaSteamChoiceRow(
+                                label = launchOptionsLabel,
+                                caption = stringResource(R.string.nova_play_setup_settings_caption),
+                                enabled = true,
+                                onClick = onLaunchOptions,
+                                value = summary?.selectedLine?.let(::novaPlaySetupValue).orEmpty(),
+                            )
+                            NovaSteamChoiceRow(
+                                label = stringResource(R.string.nova_game_detail_profile_label),
+                                caption = stringResource(R.string.nova_game_detail_profile_caption),
+                                enabled = true,
+                                onClick = onProfilePreference,
+                                value = stringResource(
+                                    AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
+                                ),
+                            )
+                            SteamLaunchModeCard(
+                                visible = uiState.showSteamLaunchMode,
+                                label = steamLaunchLabel,
+                                modeLabel = steamLaunchModeLabel,
+                                caption = steamLaunchCaption,
+                                warning = uiState.steamLaunchWarning,
+                                onClick = onSteamLaunchMode
+                            )
+                            LaunchProfileSummaryActions(
+                                summary = summary,
+                                resetProfileLabel = resetProfileLabel,
+                                resetProfileWorking = resetProfileWorking,
+                                onRetryHighFps = onRetryHighFps,
+                                onResetProfile = onResetProfile,
+                            )
+                            // The host scope. Changing it still happens in Polaris Sync,
+                            // which owns settings loading and the handlers that write to
+                            // the host; this is a way in from where the per-game choice
+                            // is made rather than only from four items down System.
+                            if (onOpenHostSettings != null) {
+                                NovaSteamChoiceRow(
+                                    label = stringResource(R.string.nova_play_setup_every_game),
+                                    caption = stringResource(R.string.nova_play_setup_every_game_caption),
+                                    enabled = true,
+                                    onClick = onOpenHostSettings,
+                                    value = uiState.hostStreamDisplayModeLabel,
+                                )
+                            }
+                        },
+                        comparison = {
+                            // Whichever row is open fills the strip. With nothing open it
+                            // shows where the game runs, which is the decision this
+                            // destination is named for.
+                            when {
+                                launchOptionsState != null -> NovaPlaySetupComparison(
+                                    title = launchOptionsState.title,
+                                    options = launchOptionsState.options.map { option ->
+                                        NovaPlaySetupOption(
+                                            label = option.label,
+                                            consequence = listOf(option.caption, option.badge)
+                                                .filter { it.isNotBlank() }
+                                                .joinToString("  \u00b7  "),
+                                            current = option.usesVirtualDisplay ==
+                                                uiState.playUsesVirtualDisplay,
+                                            onSelect = { onLaunchOptionSelected(option) },
+                                        )
+                                    },
+                                )
+
+                                profileOptionsState != null -> NovaPlaySetupComparison(
+                                    title = profileOptionsState.title,
+                                    options = profileOptionsState.options.map { option ->
+                                        NovaPlaySetupOption(
+                                            label = option.label,
+                                            consequence = novaProfilePreferenceConsequence(option.value),
+                                            current = option.selected,
+                                            onSelect = { onProfilePreferenceSelected(option) },
+                                        )
+                                    },
+                                )
+
+                                steamLaunchOptionsState != null -> NovaPlaySetupComparison(
+                                    title = steamLaunchOptionsState.title,
+                                    options = steamLaunchOptionsState.options.map { option ->
+                                        NovaPlaySetupOption(
+                                            label = option.label,
+                                            consequence = novaSteamLaunchConsequence(option.value),
+                                            current = option.selected,
+                                            onSelect = { onSteamLaunchModeSelected(option) },
+                                        )
+                                    },
+                                )
+
+                                else -> NovaPlaySetupComparison(
+                                    title = stringResource(R.string.nova_game_detail_where_it_runs),
+                                    options = listOf(
+                                        NovaPlaySetupOption(
+                                            label = headlessModeLabel,
+                                            consequence = stringResource(R.string.nova_play_setup_compare_private),
+                                            current = uiState.playMode == "headless",
+                                            onSelect = { onLaunchModeSelected("headless") },
+                                        ),
+                                        NovaPlaySetupOption(
+                                            label = virtualDisplayModeLabel,
+                                            consequence = stringResource(R.string.nova_play_setup_compare_virtual),
+                                            current = uiState.playMode == "virtual_display",
+                                            onSelect = { onLaunchModeSelected("virtual_display") },
+                                        ),
+                                    ),
+                                )
+                            }
+                        },
                     )
-                    launchOptionsState?.let {
-                        NovaLaunchOptionsSheet(
-                            state = it,
-                            onLaunch = onLaunchOptionSelected,
-                            onDismiss = onDismissLaunchOptions
+                    if (mangoHudEnabled) {
+                        MangoHudPassiveStatus(
+                            label = mangoHudStatusLabel,
+                            caption = mangoHudStatusCaption,
+                            warning = mangoHudWarning
                         )
                     }
                 }
-            }
 
-            NovaGameDetailDestination.TUNE -> NovaGameDetailPanel(
-                eyebrow = stringResource(R.string.nova_game_detail_tune),
-                headline = stringResource(
-                    AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
-                ),
-                readout = listOf(
-                    optimizationState.profileSummary?.selectedLine,
-                    optimizationState.profileSummary?.freshnessLine,
-                ).filter { !it.isNullOrBlank() }.joinToString("  ·  "),
-                scrollState = verticalScroll,
-                onDismiss = onDismissDestination,
-            ) {
-                // A picker is what you are doing with the destination while it is
-                // open, not a row inside one of its groups, so it spans the body,
-                // above the groups rather than below the fold they push it past.
-                profileOptionsState?.let {
-                    NovaProfilePreferenceSheet(
-                        state = it,
-                        onSelected = onProfilePreferenceSelected,
-                        onDismiss = onDismissProfileOptions
-                    )
-                }
-                steamLaunchOptionsState?.let { state ->
-                    NovaSteamLaunchModeSheet(
-                        state = state,
-                        onSelected = onSteamLaunchModeSelected,
-                        onDismiss = onDismissSteamLaunchModeOptions
-                    )
-                }
-
-                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_state))
-                // The concept leads State with the profile itself, and it is the only way
-                // into the preference picker now that launch mode no longer carries a
-                // second copy of Tune's controls.
-                NovaSteamChoiceRow(
-                    label = stringResource(R.string.nova_game_detail_profile_label),
-                    caption = stringResource(R.string.nova_game_detail_profile_caption),
-                    enabled = true,
-                    onClick = onProfilePreference,
-                    value = stringResource(
-                        AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
-                    ),
-                )
-                SteamLaunchModeCard(
-                    visible = uiState.showSteamLaunchMode,
-                    label = steamLaunchLabel,
-                    modeLabel = steamLaunchModeLabel,
-                    caption = steamLaunchCaption,
-                    warning = uiState.steamLaunchWarning,
-                    onClick = onSteamLaunchMode
-                )
-                if (mangoHudEnabled) {
-                    MangoHudPassiveStatus(
-                        label = mangoHudStatusLabel,
-                        caption = mangoHudStatusCaption,
-                        warning = mangoHudWarning
-                    )
-                }
-                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_actions))
-                LaunchProfileSummaryActions(
-                    summary = optimizationState.profileSummary,
-                    resetProfileLabel = resetProfileLabel,
-                    resetProfileWorking = resetProfileWorking,
-                    onRetryHighFps = onRetryHighFps,
-                    onResetProfile = onResetProfile,
-                )
-                NovaGameDetailGroupLabel(stringResource(R.string.nova_game_detail_group_insight))
-                optimizationState.ai?.let { InsightCard(card = it) }
-                optimizationState.stability?.let { InsightCard(card = it) }
+                // No sheets. Every one of these choices is made in the strip above,
+                // which is the rule this window already had for the preflight review:
+                // expand the lane rather than raise a dialog.
             }
 
             // The studio opens with a Row of weighted Columns, so it needs the window
-            // rather than the 438dp panel the other two destinations use.
+            // rather than the panel Play Setup uses.
             NovaGameDetailDestination.ARTWORK -> NovaGameDetailFullScreen(
                 eyebrow = stringResource(R.string.nova_artwork_studio_title),
                 headline = uiState.game.name,
@@ -440,6 +527,34 @@ internal fun NovaGameDetailContent(
         }
     }
 }
+
+/** Enough to read as texture behind a translucent destination, not as text. */
+private const val NOVA_DETAIL_SCENERY_CHROME_ALPHA = 0.16f
+
+/**
+ * @brief What choosing this tuning preference would mean.
+ *
+ * The picker these came from listed four names with nothing to choose between them. A
+ * name is only a choice if you already know what it does.
+ */
+@Composable
+private fun novaProfilePreferenceConsequence(value: String): String = stringResource(
+    when (value.trim().lowercase()) {
+        "quality" -> R.string.nova_play_setup_pref_quality
+        "balanced" -> R.string.nova_play_setup_pref_balanced
+        "high_fps" -> R.string.nova_play_setup_pref_high_fps
+        else -> R.string.nova_play_setup_pref_auto
+    },
+)
+
+/** The same, for the two ways Steam can be handed the game. */
+@Composable
+private fun novaSteamLaunchConsequence(value: String): String = stringResource(
+    when (value.trim().lowercase()) {
+        "big_picture", "bigpicture" -> R.string.nova_play_setup_steam_big_picture
+        else -> R.string.nova_play_setup_steam_direct
+    },
+)
 
 @Composable
 private fun NovaGameDetailScrollableContent(
@@ -475,57 +590,6 @@ private fun novaGameDetailControllerHints(): List<NovaControllerHint> = listOf(
         label = stringResource(R.string.nova_controller_hint_profile)
     )
 )
-
-@Composable
-internal fun NovaGameDetailLaunchFooter(
-    playLabel: String,
-    enabled: Boolean,
-    onPrimaryLaunch: () -> Unit,
-    playFocusRequester: FocusRequester,
-    detailsFocusRequester: FocusRequester,
-    contentInsets: WindowInsets,
-    modifier: Modifier = Modifier
-) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-
-    LaunchedEffect(enabled) {
-        if (enabled) {
-            playFocusRequester.requestFocus()
-        }
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(surfaces.panel)
-            .windowInsetsPadding(contentInsets)
-            .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 18.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 1.dp, max = 1.dp)
-                .background(colors.divider.copy(alpha = 0.55f))
-        )
-        NovaActionButton(
-            text = playLabel,
-            onClick = onPrimaryLaunch,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(playFocusRequester)
-                .focusProperties { up = detailsFocusRequester }
-                .padding(top = 6.dp),
-            enabled = enabled,
-            primary = true,
-            contentDescription = playLabel,
-            minHeight = 48.dp,
-            cornerRadius = 12.dp,
-            fontSize = 16.sp,
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-        )
-    }
-}
 
 @Composable
 private fun NovaDetailPanel(
@@ -1014,109 +1078,6 @@ private fun GenresRow(genres: List<String>) {
 }
 
 @Composable
-private fun LaunchControls(
-    uiState: NovaGameDetailUiState,
-    launchIntro: String,
-    launchModeTitle: String,
-    launchOptionsLabel: String,
-    profileSummary: NovaLaunchProfileSummary?,
-    headlessModeLabel: String,
-    virtualDisplayModeLabel: String,
-    playFocusRequester: FocusRequester,
-    detailsFocusRequester: FocusRequester,
-    onLaunchOptions: () -> Unit,
-    onLaunchModeSelected: (String) -> Unit,
-) {
-    val colors = LocalNovaComposeColors.current
-
-    Column {
-        Text(
-            text = launchIntro,
-            modifier = Modifier.padding(horizontal = NovaGameDetailInset),
-            color = if (uiState.virtualDisplayUnavailable) colors.warning else colors.textSecondary,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        if (uiState.showLaunchModeSummary) {
-            val launchModeSummary = when {
-                uiState.showVirtualUnavailableHint && uiState.virtualDisplayUnavailableReason.isNotBlank() ->
-                    virtualDisplayModeLabel + " unavailable: " + uiState.virtualDisplayUnavailableReason
-                uiState.showVirtualUnavailableHint ->
-                    virtualDisplayModeLabel + " unavailable"
-                uiState.playMode == "virtual_display" -> launchModeTitle + ": " + virtualDisplayModeLabel
-                uiState.playMode == "headless" -> launchModeTitle + ": " + headlessModeLabel
-                else -> launchModeTitle
-            }
-            Text(
-                text = launchModeSummary,
-                modifier = Modifier.padding(top = 6.dp),
-                color = if (uiState.showVirtualUnavailableHint) colors.warning else colors.textMuted,
-                fontSize = 10.sp,
-                lineHeight = 12.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        profileSummary?.let {
-            LaunchProfilePrimaryNotice(
-                summary = it,
-                detailsFocusRequester = detailsFocusRequester,
-                playFocusRequester = playFocusRequester
-            )
-        }
-
-        if (uiState.showLaunchOptionsButton || uiState.showVirtualUnavailableHint) {
-            // The two modes are a list of choices, so they read as rows like the rest of
-            // the drawer, each carrying its standing as the value.
-            NovaSteamChoiceRow(
-                label = headlessModeLabel,
-                caption = stringResource(R.string.nova_game_detail_headless_caption),
-                enabled = uiState.headlessAllowed,
-                onClick = { onLaunchModeSelected("headless") },
-                value = when {
-                    uiState.playMode == "headless" -> "Selected"
-                    uiState.hasRecommendation && uiState.recommendedMode == "headless" &&
-                        uiState.headlessAllowed -> "Recommended"
-                    uiState.headlessAllowed -> "Available"
-                    else -> "Unavailable"
-                },
-            )
-            NovaSteamChoiceRow(
-                label = virtualDisplayModeLabel,
-                caption = if (uiState.showVirtualUnavailableHint) {
-                    uiState.virtualDisplayUnavailableReason
-                } else {
-                    stringResource(R.string.nova_game_detail_virtual_caption)
-                },
-                enabled = uiState.virtualDisplayAllowed && !uiState.virtualDisplayUnavailable,
-                onClick = { onLaunchModeSelected("virtual_display") },
-                value = when {
-                    uiState.virtualDisplayUnavailable -> "Unavailable"
-                    uiState.playMode == "virtual_display" -> "Selected"
-                    uiState.hasRecommendation && uiState.recommendedMode == "virtual_display" &&
-                        uiState.virtualDisplayAllowed -> "Recommended"
-                    uiState.virtualDisplayAllowed -> "Available"
-                    else -> "Unavailable"
-                },
-            )
-        }
-
-        if (uiState.showLaunchOptionsButton) {
-            NovaSteamChoiceRow(
-                label = launchOptionsLabel,
-                caption = stringResource(R.string.nova_game_detail_more_settings_caption),
-                enabled = true,
-                onClick = onLaunchOptions,
-            )
-        }
-    }
-}
-
-@Composable
 internal fun LaunchProfilePrimaryNotice(
     summary: NovaLaunchProfileSummary,
     detailsFocusRequester: FocusRequester,
@@ -1232,94 +1193,6 @@ private fun ProfileSummaryText(text: String, topPadding: Int = 3) {
 
 
 @Composable
-private fun NovaLaunchOptionsSheet(
-    state: NovaLaunchOptionsState,
-    onLaunch: (NovaLaunchOptionItem) -> Unit,
-    onDismiss: () -> Unit
-) {
-    NovaOptionPanel(
-        title = state.title,
-        subtitle = state.gameName,
-        closeLabel = state.closeLabel,
-        onDismiss = onDismiss
-    ) {
-        state.options.forEach { option ->
-            NovaFocusableCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                onClick = { onLaunch(option) },
-                contentDescription = listOf(option.label, option.badge, option.caption).filter { it.isNotBlank() }.joinToString(". "),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = option.label,
-                            color = LocalNovaComposeColors.current.textPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (option.caption.isNotBlank()) {
-                            Text(
-                                text = option.caption,
-                                modifier = Modifier.padding(top = 3.dp),
-                                color = LocalNovaComposeColors.current.textMuted,
-                                fontSize = 10.sp,
-                                lineHeight = 13.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    if (option.recommended || option.badge.isNotBlank()) {
-                        NovaBadge(
-                            text = option.badge.ifBlank { stringResource(R.string.nova_library_filter_selected) },
-                            color = if (option.recommended) LocalNovaComposeColors.current.onAccent else LocalNovaComposeColors.current.textSecondary,
-                            backgroundColor = if (option.recommended) LocalNovaComposeColors.current.accent else LocalNovaLibrarySurfaces.current.control,
-                            borderColor = if (option.recommended) LocalNovaComposeColors.current.accent else LocalNovaLibrarySurfaces.current.tileBorder,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NovaProfilePreferenceSheet(
-    state: NovaProfilePreferenceOptionsState,
-    onSelected: (NovaProfilePreferenceItem) -> Unit,
-    onDismiss: () -> Unit
-) {
-    NovaOptionPanel(
-        title = state.title,
-        subtitle = "Auto Quality",
-        closeLabel = state.closeLabel,
-        onDismiss = onDismiss
-    ) {
-        state.options.forEach { option ->
-            NovaActionButton(
-                text = if (option.selected) option.label + " · Selected" else option.label,
-                onClick = { onSelected(option) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                primary = option.selected,
-                contentDescription = option.label,
-                minHeight = 44.dp,
-                cornerRadius = 10.dp,
-                fontSize = 13.sp,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
-            )
-        }
-    }
-}
-
-@Composable
 private fun NovaOptionPanel(
     title: String,
     subtitle: String,
@@ -1372,77 +1245,6 @@ private fun NovaOptionPanel(
             )
         }
         content()
-    }
-}
-
-@Composable
-private fun NovaSteamLaunchModeSheet(
-    state: NovaSteamLaunchModeOptionsState,
-    onSelected: (NovaSteamLaunchModeItem) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val colors = LocalNovaComposeColors.current
-    NovaDetailPanel(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 10.dp),
-        contentDescription = state.title,
-        accent = true,
-        contentPadding = PaddingValues(12.dp)
-    ) {
-        Text(
-            text = state.title,
-            color = colors.textPrimary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = state.subtitle,
-            color = colors.textMuted,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(top = 2.dp)
-        )
-        Column(
-            modifier = Modifier.padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            state.options.forEach { item ->
-                NovaFocusableCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { onSelected(item) },
-                    contentDescription = item.label,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = item.label,
-                            color = colors.textPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (item.selected) {
-                            NovaBadge(
-                                text = stringResource(R.string.nova_library_filter_selected),
-                                color = colors.onAccent,
-                                backgroundColor = colors.accent,
-                                borderColor = colors.accent,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        NovaActionButton(
-            text = state.closeLabel,
-            onClick = onDismiss,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp),
-            minHeight = 36.dp,
-            fontSize = 12.sp
-        )
     }
 }
 

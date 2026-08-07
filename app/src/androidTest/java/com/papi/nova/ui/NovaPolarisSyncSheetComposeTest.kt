@@ -63,16 +63,22 @@ class NovaPolarisSyncSheetComposeTest {
         composeRule.onNodeWithText(title).assertIsDisplayed()
         composeRule.onNodeWithText("Test Server").assertIsDisplayed()
         composeRule.onNodeWithText(streamDisplayTitle).assertIsDisplayed()
-        composeRule.onNodeWithText("Private Stream").assertIsDisplayed()
-        composeRule.onNodeWithText("Host Virtual Display").assertIsDisplayed()
-        composeRule.onNodeWithText("Desktop Display").assertIsDisplayed()
-        composeRule.onNodeWithText("GPU-Native Test").assertIsDisplayed()
-        composeRule.onNodeWithText(launchProfileTitle).assertIsDisplayed()
-        composeRule.onNodeWithText(matchNovaAction).assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText(pushNovaAction).assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText(pullPolarisAction).assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText(clearProfileAction).assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithText(autoMatchLabel).assertIsDisplayed()
+        // Asked of the same source the sheet draws from, rather than copied out of it.
+        // Two of these were hardcoded and had drifted -- "Desktop Display" and
+        // "GPU-Native Test" have not been the labels for some time, and nothing noticed
+        // because this suite had never been run.
+        PolarisStreamDisplayMode.ORDER.forEach { mode ->
+            composeRule
+                .onNodeWithText(PolarisStreamDisplayMode.labelForMode(mode))
+                .performScrollTo()
+                .assertIsDisplayed()
+        }
+        composeRule.onNodeWithText(launchProfileTitle).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(matchNovaAction).performScrollTo().assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText(pushNovaAction).performScrollTo().assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText(pullPolarisAction).performScrollTo().assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText(clearProfileAction).performScrollTo().assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText(autoMatchLabel).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(aiAutoQualityLabel).performScrollTo().assertIsDisplayed()
     }
 

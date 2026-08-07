@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.papi.nova.R
+import com.papi.nova.ui.compose.NovaChromeFamily
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaControllerHint
@@ -191,6 +192,64 @@ private fun Modifier.novaDismissOnTap(onDismiss: () -> Unit): Modifier = compose
 }
 
 /**
+ * A drill-in that takes the full width and still lets the game through.
+ *
+ * Play Setup needs the width -- the decision is comparative and a 53% lane cannot put two
+ * things side by side -- but it must not become a second screen. Deciding how to play
+ * while looking at the thing you are deciding about is the reason this window is
+ * cinematic at all, and an opaque full-width panel throws that away.
+ *
+ * So: a scrim to separate, and a translucent ground over it. This is the difference
+ * between this and [NovaGameDetailFullScreen], which is solid on purpose because the
+ * studio has no outside worth revealing.
+ */
+@Composable
+internal fun NovaGameDetailWidePanel(
+    eyebrow: String,
+    headline: String,
+    scrollState: ScrollState,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val shortViewport = maxHeight < NOVA_DETAIL_SHORT_VIEWPORT
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(NovaGameDetailScrim.copy(alpha = NOVA_DETAIL_SCRIM_ALPHA))
+                .background(colors.window.copy(alpha = NOVA_DETAIL_WIDE_PANEL_ALPHA))
+                .background(surfaces.panel)
+                .windowInsetsPadding(WindowInsets.safeContent)
+                .padding(
+                    horizontal = NovaGameDetailInset,
+                    vertical = if (shortViewport) 10.dp else 20.dp,
+                )
+                .testTag("nova-game-detail-wide-panel"),
+        ) {
+            NovaGameDetailDestinationHeader(
+                eyebrow = eyebrow,
+                headline = headline,
+                readout = "",
+                compact = shortViewport,
+                onDismiss = onDismiss,
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .novaFadeAtCut()
+                    .novaHoldsFirstFocus()
+                    .verticalScroll(scrollState),
+                content = { content() },
+            )
+            NovaGameDetailDestinationHints()
+        }
+    }
+}
+
+/**
  * A drill-in that needs the window. Used by Artwork, whose studio lays itself out as a
  * Row of weighted Columns and cannot fold into a panel.
  */
@@ -287,7 +346,8 @@ private fun NovaGameDetailDestinationHeader(
                 text = eyebrow,
                 color = colors.textMuted,
                 fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
+                fontFamily = NovaChromeFamily,
+                fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.22.em,
             )
         }
@@ -326,9 +386,9 @@ private fun NovaGameDetailCloseControl(onDismiss: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .padding(start = 12.dp)
-            .clip(RoundedCornerShape(NovaGameDetailCornerRadius))
+            .clip(RoundedCornerShape(NovaGameDetailRadius.chip))
             .background(surfaces.control)
-            .border(1.dp, colors.divider.copy(alpha = 0.6f), RoundedCornerShape(NovaGameDetailCornerRadius))
+            .border(1.dp, colors.divider.copy(alpha = 0.6f), RoundedCornerShape(NovaGameDetailRadius.chip))
             .novaDismissOnTap(onDismiss)
             .padding(horizontal = 12.dp, vertical = 7.dp)
             .testTag("nova-game-detail-close"),
@@ -363,7 +423,8 @@ internal fun NovaGameDetailGroupLabel(text: String) {
             text = text.uppercase(),
             color = colors.textMuted,
             fontSize = 8.sp,
-            fontWeight = FontWeight.Bold,
+            fontFamily = NovaChromeFamily,
+            fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.22.em,
         )
         Box(
@@ -478,9 +539,18 @@ internal fun NovaDesktopSteamLaunchDecisionRows(
 }
 
 /**
- * One row of a drawer. Full bleed rather than a card: the panel already supplies the
- * inset, so a rounded box inside it only adds air. The value sits at the right in
- * tabular figures, and focus is an inset bar and a tint, so the row never moves.
+ * One selectable row. A bordered card at the row radius, which is the shape the option
+ * cards in this window already used -- drawing rows full bleed here and as cards there
+ * meant two shapes for one kind of control.
+ *
+ * @param selected this row holds the current value. Drawn as a tint.
+ *
+ * Focus is drawn as a ring, and the two compose: a focused row that is not the current
+ * value gets the ring alone. That state is the most common one on a d-pad and it had no
+ * drawing at all while selection and focus shared one.
+ *
+ * The row never moves on focus. Scaling or offsetting a focused cell is what caused the
+ * #183 regression.
  */
 @Composable
 internal fun NovaSteamChoiceRow(
@@ -489,13 +559,15 @@ internal fun NovaSteamChoiceRow(
     enabled: Boolean,
     onClick: (() -> Unit)? = null,
     value: String = "",
+    selected: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
     val actionable = onClick != null && enabled
     val accentBar = colors.accent
-    val hairline = colors.divider.copy(alpha = 0.45f)
     val barWidth = NOVA_DETAIL_ROW_FOCUS_BAR
+    val shape = RoundedCornerShape(NovaGameDetailRadius.row)
     // The accent is light on a dark surface and dark on a light one, so the same alpha
     // is a whisper in one theme and an inverted block in the other. Scale it by the
     // polarity; the bar, not the fill, is what says this row has focus.
@@ -507,10 +579,12 @@ internal fun NovaSteamChoiceRow(
         alpha = if (colors.textPrimary.luminance() < 0.5f) 0.07f else 0.16f,
     )
 
+    val ringing = focused && actionable
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .padding(bottom = NOVA_DETAIL_ROW_GAP)
             .heightIn(min = NOVA_DETAIL_ROW_MIN_HEIGHT)
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
             .then(
@@ -523,19 +597,20 @@ internal fun NovaSteamChoiceRow(
             // Explicit, like every other focusable in the app: clickable alone did not
             // register the row as a focus target and the d-pad had nothing to reach.
             .focusable(enabled = actionable)
-            .background(if (focused && actionable) tint else Color.Transparent)
+            .clip(shape)
+            .background(if (selected) tint else surfaces.tile)
+            .border(
+                1.dp,
+                if (ringing || selected) colors.accent.copy(alpha = 0.72f) else surfaces.tileBorder,
+                shape,
+            )
             .drawBehind {
-                if (focused && actionable) {
+                if (selected) {
                     drawRect(color = accentBar, size = Size(barWidth.toPx(), size.height))
                 }
-                drawRect(
-                    color = hairline,
-                    topLeft = Offset(0f, size.height - 1f),
-                    size = Size(size.width, 1f),
-                )
             }
-            .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
-            .padding(start = NovaGameDetailInset, end = NovaGameDetailInset, top = 9.dp, bottom = 9.dp)
+            .then(if (ringing) Modifier.border(NOVA_DETAIL_FOCUS_RING, surfaces.focusRing, shape) else Modifier)
+            .padding(horizontal = 14.dp, vertical = 9.dp)
             .semantics { contentDescription = if (value.isBlank()) label else "$label. $value" },
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -590,6 +665,18 @@ private val NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp
 
 /** The focused row grows a bar at its edge instead of a border that moves it. */
 private val NOVA_DETAIL_ROW_FOCUS_BAR = 3.dp
+
+/**
+ * Lighter than the side panel's 0.80, because this one covers the whole window: at the
+ * side-panel alpha a full-width sheet reads as opaque and the hero is gone.
+ */
+private const val NOVA_DETAIL_WIDE_PANEL_ALPHA = 0.86f
+
+/** Cards need air between them where hairline rows did not. */
+private val NOVA_DETAIL_ROW_GAP = 6.dp
+
+/** The ring is focus. It sits outside whatever the selected state already drew. */
+private val NOVA_DETAIL_FOCUS_RING = 2.dp
 
 /** The body dissolves over this much before the hint bar, marking the cut. */
 private val NOVA_DETAIL_BOTTOM_FADE = 52.dp

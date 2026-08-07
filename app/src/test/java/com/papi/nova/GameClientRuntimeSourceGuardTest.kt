@@ -29,13 +29,22 @@ class GameClientRuntimeSourceGuardTest {
             "client runtime reports should carry the same provenance into the client_runtime payload",
             reportSnapshot.contains("lastClientProfileProvenance") &&
                 reportSnapshot.contains("buildClientRuntime(") &&
-                reportSnapshot.indexOf("lastClientProfileProvenance") < reportSnapshot.indexOf("reportClientSettings(")
+                // `in 0 until` rather than `<`: a missing first needle is -1, which is
+                // less than any real position, so the loose form passes precisely when the
+                // thing it is ordering has been deleted.
+                reportSnapshot.indexOf("lastClientProfileProvenance") in
+                0 until reportSnapshot.indexOf("reportClientSettings(")
         )
     }
 
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
 
-    private fun String.section(startMarker: String, endMarker: String): String =
-        substring(indexOf(startMarker), indexOf(endMarker))
+    private fun String.section(startMarker: String, endMarker: String): String {
+        val start = indexOf(startMarker)
+        require(start >= 0) { "Missing start marker: $startMarker" }
+        val end = indexOf(endMarker, start)
+        require(end >= 0) { "Missing end marker: $endMarker" }
+        return substring(start, end)
+    }
 }

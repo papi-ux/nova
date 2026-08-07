@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.papi.nova.R
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.compose.ui.test.performClick
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -73,28 +74,44 @@ class NovaLibraryActivityComposeTest {
             composeRule.waitForIdle()
             val serverName = "Test Server"
             val searchHint = context.getString(R.string.nova_library_search_hint)
-            val libraryTitle = context.getString(R.string.nova_library_title)
             val optionsTitle = context.getString(R.string.nova_library_options_title)
             val systemTitle = context.getString(R.string.nova_system_menu_title)
             val filterAll = context.getString(R.string.nova_library_filter_all)
             val filterHdr = context.getString(R.string.nova_library_filter_hdr)
 
+            // The toolbar leads with the host. "Library" is deliberately not drawn in the
+            // cinematic layout -- it restates what the whole screen already is -- so this
+            // used to assert the pre-cinematic toolbar and had been failing unseen.
             composeRule.onNodeWithText(serverName, substring = false).assertIsDisplayed()
-            composeRule.onNodeWithContentDescription(searchHint).assertIsDisplayed()
-            composeRule.onNodeWithText(libraryTitle, substring = false).assertIsDisplayed()
-            composeRule.onNodeWithText(optionsTitle)
+
+            // Options carries its name as a content description; its text is the
+            // controller hint, so asking for it by text asks for the wrong node.
+            composeRule.onNodeWithContentDescription(optionsTitle)
                 .assertIsDisplayed()
                 .assertHasClickAction()
             composeRule.onNodeWithText(systemTitle)
                 .assertIsDisplayed()
                 .assertHasClickAction()
-            composeRule.onNode(hasContentDescription("$filterAll. ", substring = true))
+            // Everything below lives inside Options, not on the shell: search and the
+            // filter chips both moved there. Asserting them without opening the drawer
+            // was asserting a drawer nobody had opened, which is why all three failed in
+            // turn once the one before them was fixed.
+            composeRule.onNodeWithContentDescription(optionsTitle).performClick()
+            composeRule.waitForIdle()
+            composeRule.onNodeWithText(optionsTitle, substring = false).assertIsDisplayed()
+
+            composeRule.onNodeWithContentDescription(searchHint)
                 .performScrollTo()
                 .assertIsDisplayed()
+            // No performScrollTo on these two. They sit in a horizontally scrolling row
+            // that recomposes as it scrolls, so scrolling to the first one detached the
+            // second from the tree mid-assertion. They are on screen already; what is
+            // worth asserting is that they exist and can be pressed.
+            composeRule.onNode(hasContentDescription("$filterAll. ", substring = true))
+                .assertExists()
                 .assertHasClickAction()
             composeRule.onNode(hasContentDescription("$filterHdr. ", substring = true))
-                .performScrollTo()
-                .assertIsDisplayed()
+                .assertExists()
                 .assertHasClickAction()
         }
     }

@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -66,6 +68,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
+import com.papi.nova.ui.compose.NovaChromeFamily
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
@@ -73,7 +76,14 @@ import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 
 /** Where the detail window currently is. Back unwinds one level before leaving. */
-internal enum class NovaGameDetailDestination { OVERVIEW, LAUNCH_MODE, TUNE, ARTWORK }
+/**
+ * Where the detail window can go.
+ *
+ * LAUNCH_MODE and TUNE were one decision behind two doors, each holding half of the
+ * other's subject, so they are now PLAY_SETUP. Artwork stays its own destination:
+ * curating images is a different job from deciding how to play.
+ */
+internal enum class NovaGameDetailDestination { OVERVIEW, PLAY_SETUP, ARTWORK }
 
 /** Content insets shared by the Overview and the destinations that sit beside it. */
 internal val NovaGameDetailInset = 28.dp
@@ -83,7 +93,24 @@ internal val NovaGameDetailFloor = 58.dp
 internal val NovaGameDetailActionHeight = 48.dp
 
 /** Matches the library's surface radius; the sharp edge was a deliberate choice there. */
-internal val NovaGameDetailCornerRadius = 8.dp
+/**
+ * One radius scale, chosen by control size rather than by which surface it sits on.
+ *
+ * The window had drifted to a single 8dp for everything from a close chip to a full
+ * notice card, which is why some selectable things read as cards and others as squares.
+ * Three steps, taken from the concept at 2.30625px per dp: 10px, 14px, 18px.
+ */
+internal object NovaGameDetailRadius {
+    /** chips, tabs, the scope switch — anything under roughly 24dp tall */
+    val chip = 4.dp
+    /** every selectable row, card and artwork tile */
+    val row = 6.dp
+    /** the primary action, the panels, notice cards */
+    val hero = 8.dp
+}
+
+/** Kept as the hero step's name, which is what every existing call site meant. */
+internal val NovaGameDetailCornerRadius = NovaGameDetailRadius.hero
 
 /**
  * The landing screen of the detail window.
@@ -115,6 +142,16 @@ internal fun NovaGameDetailOverview(
     activeSession: NovaLibraryActiveSessionUiState?,
     onResumeSession: () -> Unit,
     onEndSession: () -> Unit,
+    /**
+     * How strongly the chrome reads while something is open over it.
+     *
+     * A destination that spans the width is translucent so the game stays present, but
+     * "the game" means the artwork -- the Overview's own title, gauge, status line and
+     * rail are high-contrast text, and ghosting them behind more text is noise rather
+     * than context. Only the chrome fades; the backdrop is left alone, because it is the
+     * thing worth seeing through to.
+     */
+    chromeAlpha: Float = 1f,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
@@ -143,6 +180,7 @@ internal fun NovaGameDetailOverview(
         Column(
             modifier = Modifier
                 .align(if (portrait) Alignment.TopStart else Alignment.BottomStart)
+                .graphicsLayer { alpha = chromeAlpha }
                 .fillMaxWidth()
                 .then(if (portrait) Modifier.padding(top = 176.dp) else Modifier)
                 .windowInsetsPadding(WindowInsets.safeContent)
@@ -160,6 +198,7 @@ internal fun NovaGameDetailOverview(
                 text = novaGameDetailIdentityLine(sourceLabel, lastPlayedText, game).uppercase(),
                 color = colors.textSecondary,
                 fontSize = 11.sp,
+                fontFamily = NovaChromeFamily,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.17.em,
                 maxLines = 1,
@@ -281,7 +320,8 @@ private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
             text = stringResource(R.string.nova_polaris_wordmark),
             color = colors.textMuted,
             fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
+            fontFamily = NovaChromeFamily,
+            fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.20.em,
         )
     }
@@ -362,8 +402,10 @@ private fun NovaGameDetailStatusLine(
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.11.em,
-            // these are measurements, so the digits line up rather than dance
+            // Measurements, so the digits line up rather than dance. Space Grotesk's
+            // digits are proportional by default, so this is load-bearing here.
             style = LocalTextStyle.current.copy(
+                fontFamily = NovaChromeFamily,
                 fontFeatureSettings = "tnum",
             ),
             maxLines = 1,
@@ -433,6 +475,24 @@ private fun NovaGameDetailActions(
                 .testTag("nova-game-detail-primary"),
         )
 
+        // Play holds first focus, and it has to be asked for here.
+        //
+        // The request used to live in NovaGameDetailLaunchFooter, which lost its last
+        // caller when this window replaced the bottom sheet, so nothing had requested
+        // focus since. Focus fell to whichever node happened to be focusable first, and
+        // the primary is not focusable until the launch profile arrives -- so on a slow
+        // profile the d-pad started on the destination beside Play instead of on Play.
+        //
+        // Keyed on enabled, because that is the moment the primary becomes reachable.
+        // The request is allowed to fail: while a destination is open the Overview is a
+        // focusProperties { canFocus = false } group, and asking then must not throw.
+        val playFocusable = uiState.playEnabled || activeSession != null
+        LaunchedEffect(playFocusable) {
+            if (playFocusable) {
+                runCatching { playFocusRequester.requestFocus() }
+            }
+        }
+
         if (activeSession != null && !activeSession.watchOnly) {
             NovaGameDetailAction(
                 text = stringResource(R.string.nova_game_detail_end_session),
@@ -458,17 +518,12 @@ private fun NovaGameDetailActions(
                 modifier = itemWidth,
             )
         } else {
-            if (showLaunchModeAction) {
-                NovaGameDetailAction(
-                    text = stringResource(R.string.nova_library_launch_mode_title),
-                    onClick = { onDestination(NovaGameDetailDestination.LAUNCH_MODE) },
-                    mark = "\u229E",
-                    modifier = itemWidth,
-                )
-            }
+            // Three nodes, always. `showLaunchModeAction` used to decide whether a
+            // fourth existed, so the lane changed length depending on the game; what it
+            // gated is now a row inside Play Setup rather than an action beside it.
             NovaGameDetailAction(
-                text = stringResource(R.string.nova_game_detail_tune),
-                onClick = { onDestination(NovaGameDetailDestination.TUNE) },
+                text = stringResource(R.string.nova_play_setup_title),
+                onClick = { onDestination(NovaGameDetailDestination.PLAY_SETUP) },
                 mark = "\u2699",
                 modifier = itemWidth,
             )
@@ -517,7 +572,10 @@ private fun NovaGameDetailBeatGauge(
         return
     }
 
-    val figures = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+    val figures = LocalTextStyle.current.copy(
+        fontFamily = NovaChromeFamily,
+        fontFeatureSettings = "tnum",
+    )
     var estimateFocused by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(top = 10.dp).testTag("nova-game-detail-played")) {

@@ -126,6 +126,8 @@ class NovaGameDetailActivity : NovaActivity() {
     private lateinit var artworkViewModel: NovaArtworkLibraryUpdateViewModel
     private var defaultToVirtualDisplay: Boolean = false
     private var clientSettings: PolarisClientSettings? = null
+    private var serverName: String = ""
+    private var serverUuid: String? = null
 
     /**
      * The sheet took these as constructor lambdas. Keeping the names and the nullable
@@ -216,6 +218,9 @@ class NovaGameDetailActivity : NovaActivity() {
         }
         defaultToVirtualDisplay = intent.getBooleanExtra(EXTRA_DEFAULT_VIRTUAL_DISPLAY, false)
 
+        serverName = intent.getStringExtra(EXTRA_SERVER_NAME).orEmpty().ifBlank { host }
+        serverUuid = intent.getStringExtra(EXTRA_SERVER_UUID)
+
         apiClient = PolarisApiClient(this, host, httpsPort, serverCert)
         artworkViewModel = ViewModelProvider(
             this,
@@ -246,7 +251,18 @@ class NovaGameDetailActivity : NovaActivity() {
      * Unwinds one level: an expanded review collapses, a destination returns to the
      * Overview, and only then does back leave for the library.
      */
+    /**
+     * Closes whichever row's options are showing in the comparison strip.
+     *
+     * Set from the composition, because the picker states live with the content rather
+     * than the activity. Back unwinds one level at a time, so an open picker has to be
+     * the first level: without this, B on a list of tuning profiles left the destination
+     * entirely rather than returning to the rows.
+     */
+    private var dismissActivePicker: (() -> Boolean)? = null
+
     private fun dismissActiveDetailDestination(): Boolean = when {
+        dismissActivePicker?.invoke() == true -> true
         reviewExpanded -> {
             reviewExpanded = false
             true
@@ -305,6 +321,52 @@ class NovaGameDetailActivity : NovaActivity() {
 
         fun refreshUiState(preference: String = profilePreference) {
             uiState = buildUiState(currentGame, preference)
+        }
+
+        dismissActivePicker = {
+            when {
+                launchOptionsState != null -> { launchOptionsState = null; true }
+                profileOptionsState != null -> { profileOptionsState = null; true }
+                steamLaunchOptionsState != null -> { steamLaunchOptionsState = null; true }
+                else -> false
+            }
+        }
+
+        /**
+         * The host scope, reached from the surface where the per-game choice is made.
+         *
+         * Polaris Sync owns settings loading and six handlers that write to the host, so
+         * it stays where those changes happen. What it did not have was a way in from the
+         * decision it is the default for -- it sat four items down the System drawer.
+         * Settings it returns are kept, so the host facts drawn beside the game's own
+         * answer stay current after a change.
+         */
+        // The host's own answer, so it can be stated beside the game's. Until now these
+        // settings only arrived during launch preflight, which is after the moment they
+        // would have been worth reading -- so the host default had no value to show at
+        // the point someone is deciding whether to override it.
+        lifecycleScope.launch {
+            val settings = withContext(Dispatchers.IO) {
+                runCatching { apiClient.getClientSettings() }
+                    .onFailure { LimeLog.warning("Nova: Failed to load client settings: ${it.message}") }
+                    .getOrNull()
+            }
+            if (settings != null) {
+                clientSettings = settings
+                refreshUiState()
+            }
+        }
+
+        fun openHostSettings() {
+            NovaPolarisSyncSheet.newInstance(
+                apiClient = apiClient,
+                serverName = serverName,
+                serverUuid = serverUuid,
+                initialSettings = clientSettings,
+            ) { settings ->
+                clientSettings = settings
+                refreshUiState()
+            }.show(supportFragmentManager, "polaris_sync")
         }
 
         fun acceptArtwork(manifest: PolarisGame.ArtworkManifest) {
@@ -497,11 +559,11 @@ class NovaGameDetailActivity : NovaActivity() {
                             optimizationState.rawOptimization
                         )
                         when {
-                            // A choice of where to run belongs in the destination named that,
-                            // not in a sheet raised over the artwork.
+                            // A choice of where to run belongs in the destination that
+                            // owns where it runs, not in a sheet raised over the artwork.
                             decision.required -> {
                                 steamDecision = decision
-                                destination = NovaGameDetailDestination.LAUNCH_MODE
+                                destination = NovaGameDetailDestination.PLAY_SETUP
                             }
                             // The review is a statement about the profile, and the status
                             // line is where the profile lives, so it expands in place.
@@ -570,7 +632,7 @@ class NovaGameDetailActivity : NovaActivity() {
                             // Same destination the primary action routes to; picking an
                             // explicit option does not change where the choice belongs.
                             steamDecision = desktopSteamDecision
-                            destination = NovaGameDetailDestination.LAUNCH_MODE
+                            destination = NovaGameDetailDestination.PLAY_SETUP
                         } else {
                             launchSelected(mirrorDesktop = false)
                         }
@@ -594,6 +656,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         profileOptionsState = null
                     },
                     onRetryHighFps = { retryHighFpsTrial() },
+                    onOpenHostSettings = { openHostSettings() },
                     onResetProfile = {
                         resetWorking = true
                         lifecycleScope.launch {
@@ -1374,6 +1437,15 @@ class NovaGameDetailActivity : NovaActivity() {
         const val EXTRA_HOST = "nova.detail.host"
         const val EXTRA_HTTPS_PORT = "nova.detail.httpsPort"
         const val EXTRA_SERVER_CERT = "nova.detail.serverCert"
+
+        /**
+         * The server's display name and uuid.
+         *
+         * The uuid is what auto-match is stored against, so opening the host settings
+         * without it would silently disable that toggle rather than fail visibly.
+         */
+        const val EXTRA_SERVER_NAME = "nova.detail.serverName"
+        const val EXTRA_SERVER_UUID = "nova.detail.serverUuid"
         const val EXTRA_GAME = "nova.detail.game"
         const val EXTRA_DEFAULT_VIRTUAL_DISPLAY = "nova.detail.defaultVirtualDisplay"
         const val EXTRA_RESULT_LAUNCH = "nova.detail.result.launch"
@@ -1398,10 +1470,14 @@ class NovaGameDetailActivity : NovaActivity() {
             httpsPort: Int,
             serverCert: ByteArray?,
             defaultToVirtualDisplay: Boolean,
+            serverName: String = "",
+            serverUuid: String? = null,
         ): Intent = Intent(context, NovaGameDetailActivity::class.java)
             .putExtra(EXTRA_HOST, host)
             .putExtra(EXTRA_HTTPS_PORT, httpsPort)
             .putExtra(EXTRA_SERVER_CERT, serverCert)
+            .putExtra(EXTRA_SERVER_NAME, serverName)
+            .putExtra(EXTRA_SERVER_UUID, serverUuid)
             .putExtra(EXTRA_GAME, PolarisGameJson.encode(game))
             .putExtra(EXTRA_DEFAULT_VIRTUAL_DISPLAY, defaultToVirtualDisplay)
     }
