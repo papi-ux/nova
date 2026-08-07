@@ -125,6 +125,7 @@ import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGameJson
+import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
 import org.json.JSONObject
@@ -2164,19 +2165,17 @@ class NovaLibraryActivity : NovaActivity() {
     private fun NovaStatusPill(text: String, enabled: Boolean) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        val fill = if (enabled) surfaces.selectedControl else surfaces.control
-        val stroke = if (enabled) colors.accent.copy(alpha = 0.68f) else surfaces.tileBorder
-        Text(
+        // A status pill reports state; it is never focused and never selected. Its enabled
+        // fill used to be selectedControl, which is the focus fill, so an enabled pill sat on
+        // screen looking like the thing the d-pad was on. The accent stroke below was already
+        // saying "enabled" correctly, so the fill just had to stop contradicting it.
+        NovaBadge(
             text = text,
             color = if (enabled) colors.accent else colors.textSecondary,
+            backgroundColor = if (enabled) colors.accentSurface else surfaces.control,
+            borderColor = if (enabled) colors.accent.copy(alpha = 0.68f) else surfaces.tileBorder,
             fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .clip(RoundedCornerShape(NovaRadius.pill))
-                .background(fill)
-                .border(1.dp, stroke, RoundedCornerShape(NovaRadius.pill))
-                .padding(horizontal = 9.dp, vertical = 5.dp)
+            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 5.dp)
         )
     }
 
@@ -2601,17 +2600,15 @@ class NovaLibraryActivity : NovaActivity() {
     @Composable
     private fun NovaMiniBadge(text: String, modifier: Modifier = Modifier) {
         val surfaces = LocalNovaLibrarySurfaces.current
-        Text(
+        NovaBadge(
             text = text,
+            modifier = modifier,
             color = surfaces.onMedia,
+            backgroundColor = surfaces.mediaScrimBottom.copy(alpha = 0.60f),
+            borderColor = surfaces.onMedia.copy(alpha = 0.20f),
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
-            lineHeight = 9.sp,
-            modifier = modifier
-                .clip(RoundedCornerShape(NovaRadius.pill))
-                .background(surfaces.mediaScrimBottom.copy(alpha = 0.60f))
-                .border(1.dp, surfaces.onMedia.copy(alpha = 0.20f), RoundedCornerShape(NovaRadius.pill))
-                .padding(horizontal = 5.dp, vertical = 1.dp)
+            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp)
         )
     }
 

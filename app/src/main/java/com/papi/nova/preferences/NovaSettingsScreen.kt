@@ -76,6 +76,7 @@ import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
+import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaMenuBackdropBlur
@@ -874,21 +875,18 @@ private fun NovaSettingRow(
 @Composable
 private fun NovaSettingOverrideBadge(alpha: Float) {
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = NovaSettingsChipShape
-    Text(
+    // This is a static label -- it cannot be focused and cannot be selected -- and it used to
+    // paint itself with the focus fill over a focus-ring border, wearing both of the signals
+    // that are supposed to mean the d-pad is here. It is an accent badge, so it says accent.
+    NovaBadge(
         text = "Override",
         color = colors.textPrimary.copy(alpha = alpha),
-        fontSize = 10.sp,
-        lineHeight = 11.sp,
+        backgroundColor = colors.accentSurface.copy(
+            alpha = colors.accentSurface.alpha * alpha * LocalNovaMenuOpacityScale.current
+        ),
+        borderColor = colors.accent.copy(alpha = 0.72f * alpha),
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .clip(shape)
-            .background(surfaces.selectedControl.copy(alpha = alpha * LocalNovaMenuOpacityScale.current))
-            .border(1.dp, surfaces.focusRing.copy(alpha = alpha), shape)
-            .padding(horizontal = 7.dp, vertical = 3.dp),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+        contentPadding = PaddingValues(horizontal = 7.dp, vertical = 3.dp)
     )
 }
 
@@ -1230,15 +1228,13 @@ private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette
 @Composable
 private fun NovaSettingCurrentBadge() {
     val colors = LocalNovaComposeColors.current
-    Text(
+    NovaBadge(
         text = "Current",
         color = colors.onAccent,
+        backgroundColor = colors.accent,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .clip(NovaSettingsChipShape)
-            .background(colors.accent)
-            .padding(horizontal = 10.dp, vertical = 5.dp)
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
     )
 }
 

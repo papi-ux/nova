@@ -845,7 +845,7 @@
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
     <string name="nova_mangohud_detail_label">MangoHud Overlay</string>
     <string name="nova_mangohud_enabled_status">MangoHUD enabled</string>
-    <string name="nova_mangohud_novahud_caption">NovaHUD stays available in-stream from Command Center.</string>
+    <string name="nova_mangohud_novahud_caption">Nova HUD stays available in-stream from Command Center.</string>
     <string name="nova_mangohud_detail_caption">Next launch only</string>
     <string name="nova_mangohud_detail_caption_risky">Next launch only · Risky on Steam/Proton</string>
     <string name="nova_mangohud_detail_caption_big_picture">Next launch only · Avoid on Big Picture</string>
@@ -898,7 +898,7 @@
     <string name="nova_quick_menu_menu_opacity_caption">Adjust Nova menus, drawers, options, and session glass without dimming text or focus cues.</string>
     <string name="nova_quick_menu_menu_opacity_preset_cd">Set menu opacity to %1$d percent</string>
     <string name="nova_quick_menu_hud_opacity">HUD Opacity</string>
-    <string name="nova_quick_menu_hud_opacity_caption">Adjust NovaHUD glass without dimming telemetry text.</string>
+    <string name="nova_quick_menu_hud_opacity_caption">Adjust Nova HUD glass without dimming telemetry text.</string>
     <string name="nova_quick_menu_hud_opacity_disabled_caption">Enable Nova HUD first to change glass opacity.</string>
     <string name="nova_quick_menu_hud_opacity_preset_cd">Set HUD opacity to %1$d percent</string>
     <string name="nova_quick_menu_hud_opacity_selected">Selected</string>
@@ -1364,7 +1364,7 @@
     <string name="companion_deck_android_keyboard">Android keyboard</string>
     <string name="companion_deck_nova_keyboard">Nova keyboard</string>
     <string name="companion_deck_quick_keys">Quick Keys</string>
-    <string name="companion_deck_nova_hud">NovaHUD</string>
+    <string name="companion_deck_nova_hud">Nova HUD</string>
     <string name="companion_deck_zoom_pan">Zoom and pan</string>
     <string name="companion_deck_command_center">Command Center</string>
     <string name="companion_deck_disconnect">Disconnect</string>
