@@ -247,7 +247,11 @@ internal fun NovaPlaySetupComparison(title: String, options: List<NovaPlaySetupO
                         .onFocusChanged { focused = it.isFocused || it.hasFocus }
                         .then(
                             if (actionable) {
-                                Modifier.clickable(role = Role.Button) { option.onSelect?.invoke() }
+                                // clickable alone leaves this reachable by touch only, which
+                                // is the same defect the sync sheet's mode buttons had.
+                                Modifier
+                                    .clickable(role = Role.Button) { option.onSelect?.invoke() }
+                                    .focusable()
                             } else {
                                 Modifier
                             }

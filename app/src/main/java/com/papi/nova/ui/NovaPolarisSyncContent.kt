@@ -299,6 +299,9 @@ private fun NovaModeButton(
                 role = Role.Button,
                 onClick = onClick
             )
+            // Without this the whole stream-display selector is touch-only: a d-pad walks
+            // straight past all four modes to the buttons below, and the focus branch above
+            // can never fire because onFocusChanged is never called.
             .focusable(enabled = mode.enabled)
             .padding(horizontal = 8.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
