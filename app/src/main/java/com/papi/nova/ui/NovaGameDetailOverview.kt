@@ -479,22 +479,25 @@ private fun NovaGameDetailActions(
             )
         }
 
-        if (reviewExpanded) {
-            if (optimizationState.profileSummary?.showRetryHighFps == true) {
-                NovaGameDetailAction(
-                    text = stringResource(R.string.nova_library_retry_high_fps),
-                    onClick = onRetryHighFps,
-                    mark = "\u25B2",
-                    modifier = itemWidth,
-                )
-            }
+        // Reset is on the rail whatever the review is doing. It used to be drawn only
+        // while a review was expanded, which made Play Setup's copy the only one anybody
+        // could reach the rest of the time -- and the copy is what a four-row Play Setup
+        // has no room for.
+        if (reviewExpanded && optimizationState.profileSummary?.showRetryHighFps == true) {
             NovaGameDetailAction(
-                text = stringResource(R.string.nova_library_reset_game_profile),
-                onClick = onResetProfile,
-                mark = "\u21BA",
+                text = stringResource(R.string.nova_library_retry_high_fps),
+                onClick = onRetryHighFps,
+                mark = "\u25B2",
                 modifier = itemWidth,
             )
-        } else {
+        }
+        NovaGameDetailAction(
+            text = stringResource(R.string.nova_library_reset_game_profile),
+            onClick = onResetProfile,
+            mark = "\u21BA",
+            modifier = itemWidth,
+        )
+        if (!reviewExpanded) {
             // Three nodes, always. `showLaunchModeAction` used to decide whether a
             // fourth existed, so the lane changed length depending on the game; what it
             // gated is now a row inside Play Setup rather than an action beside it.

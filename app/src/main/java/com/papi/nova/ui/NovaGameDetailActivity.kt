@@ -720,7 +720,9 @@ class NovaGameDetailActivity : NovaActivity() {
                 stripTitle = getString(R.string.nova_play_setup_strip_tuning),
                 options = AutoQualityProfilePreferences.values().map { value ->
                     NovaPlaySetupOption(
-                        label = getString(AutoQualityProfilePreferences.labelRes(value)),
+                        // shortLabelRes, not labelRes: the long form is "AI Preference: X",
+                        // and four cards of it ellipsize to four identical words.
+                        label = getString(AutoQualityProfilePreferences.shortLabelRes(value)),
                         consequence = getString(novaProfilePreferenceConsequenceRes(value)),
                         current = value == profilePreference,
                         onSelect = { selectProfilePreference(value) },

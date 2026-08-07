@@ -136,7 +136,7 @@ internal fun NovaGameDetailPanel(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .novaFadeAtCut()
+                    .novaFadeAtCut(scrollState.canScrollForward)
                     .novaHoldsFirstFocus()
                     .verticalScroll(scrollState),
                 content = { content() },
@@ -152,7 +152,7 @@ internal fun NovaGameDetailPanel(
  * ground: the panel is translucent, and a solid band would stripe window colour across
  * the artwork showing through it.
  */
-private fun Modifier.novaFadeAtCut(): Modifier = this
+private fun Modifier.novaFadeAtCut(active: Boolean = true): Modifier = if (!active) this else this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
         drawContent()
@@ -226,7 +226,7 @@ internal fun NovaGameDetailWidePanel(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .novaFadeAtCut()
+                    .novaFadeAtCut(scrollState.canScrollForward)
                     .novaHoldsFirstFocus()
                     .verticalScroll(scrollState),
                 content = { content() },
@@ -277,7 +277,7 @@ internal fun NovaGameDetailFullScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .novaFadeAtCut()
+                    .novaFadeAtCut(scrollState.canScrollForward)
                     .novaHoldsFirstFocus()
                     .verticalScroll(scrollState),
                 content = { content() },
@@ -508,6 +508,15 @@ internal fun NovaSteamChoiceRow(
     value: String = "",
     selected: Boolean = false,
     onFocused: (() -> Unit)? = null,
+    /**
+     * Claim focus when the panel opens.
+     *
+     * Set on the first row rather than left to traversal order. Adding one focusable below
+     * the strip was enough to make the panel open scrolled to the bottom with the cursor on
+     * a recovery button, because "whatever the group hands focus to" is not a stable answer
+     * when the group's contents change.
+     */
+    autoFocus: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -528,12 +537,23 @@ internal fun NovaSteamChoiceRow(
     )
 
     val ringing = focused && actionable
+    // A tap has to move the focus ring as well as act, or the row you pressed and the row
+    // the panel says you are on are two different rows.
+    val focusRequester = remember { FocusRequester() }
+    if (autoFocus) {
+        // After the panel's own first-focus pass, so this is the answer that sticks.
+        LaunchedEffect(Unit) {
+            delay(NOVA_DETAIL_FIRST_ROW_FOCUS_DELAY_MS)
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = NOVA_DETAIL_ROW_GAP)
             .heightIn(min = NOVA_DETAIL_ROW_MIN_HEIGHT)
+            .focusRequester(focusRequester)
             .onFocusChanged { state ->
                 val gained = state.isFocused || state.hasFocus
                 if (gained && !focused) onFocused?.invoke()
@@ -541,7 +561,10 @@ internal fun NovaSteamChoiceRow(
             }
             .then(
                 if (actionable) {
-                    Modifier.clickable(role = Role.Button) { onClick?.invoke() }
+                    Modifier.clickable(role = Role.Button) {
+                        runCatching { focusRequester.requestFocus() }
+                        onClick?.invoke()
+                    }
                 } else {
                     Modifier
                 }
@@ -650,3 +673,6 @@ private const val NOVA_DETAIL_FOCUS_SETTLE_MS = 75L
 
 /** Below this a phone in landscape has no height to spare for chrome. */
 private val NOVA_DETAIL_SHORT_VIEWPORT = 500.dp
+
+/** Long enough to land after novaHoldsFirstFocus rather than race it. */
+private const val NOVA_DETAIL_FIRST_ROW_FOCUS_DELAY_MS = 140L

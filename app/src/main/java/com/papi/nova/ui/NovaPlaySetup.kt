@@ -165,7 +165,10 @@ private fun NovaPlaySetupFact(fact: NovaPlaySetupFact) {
             color = colors.textMuted,
             style = NovaChromeType.label(fontSize = 9.sp),
             lineHeight = 13.sp,
-            modifier = Modifier.width(NOVA_PLAY_SETUP_FACT_KEY).padding(top = 3.dp),
+            // Two lines rather than one, because a key that runs past its column prints
+            // itself over the value it is labelling.
+            maxLines = 2,
+            modifier = Modifier.width(NOVA_PLAY_SETUP_FACT_KEY).padding(top = 3.dp, end = 6.dp),
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -368,7 +371,7 @@ private val NOVA_PLAY_SETUP_TWO_COLUMN_MIN = 640.dp
 /** The read column is fixed so the choice rows keep a stable width as values change. */
 private val NOVA_PLAY_SETUP_READ_WIDTH = 246.dp
 private val NOVA_PLAY_SETUP_GUTTER = 22.dp
-private val NOVA_PLAY_SETUP_FACT_KEY = 86.dp
+private val NOVA_PLAY_SETUP_FACT_KEY = 104.dp
 
 /**
  * Turn the launch profile summary into what the left column reads.

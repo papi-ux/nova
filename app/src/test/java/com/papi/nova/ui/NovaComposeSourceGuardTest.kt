@@ -1106,14 +1106,23 @@ class NovaComposeSourceGuardTest {
             detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
                 detail.contains("heightIn(min = NovaGameDetailActionHeight)")
         )
+        // A fixed four now rather than three. Reset used to be drawn only while a review
+        // was expanded, so outside that case the only way to reach it was a copy inside
+        // Play Setup -- and a Play Setup held to four rows has no room to keep one. What
+        // the guard is really protecting is unchanged: the count must not vary by game.
         assertTrue(
-            "the rail is a fixed three, so a D-pad walk cannot find a different number of " +
-                "nodes on a different game; a review still replaces it with its own answers",
+            "the rail is a fixed four, so a D-pad walk cannot find a different number of " +
+                "nodes on a different game; only an expanded review adds to it",
             actions.contains("NovaGameDetailDestination.PLAY_SETUP") &&
                 actions.contains("NovaGameDetailDestination.ARTWORK") &&
-                actions.contains("if (reviewExpanded)") &&
+                actions.contains("if (!reviewExpanded) {") &&
                 actions.contains("onRetryHighFps") &&
                 actions.contains("onResetProfile")
+        )
+        assertFalse(
+            "reset must not be gated on a review being open: that left it unreachable in the " +
+                "ordinary case once Play Setup stopped carrying its own copy",
+            actions.contains("if (reviewExpanded) {\n            if (optimizationState.profileSummary?.showRetryHighFps == true) {")
         )
         assertFalse(
             "nothing gates a rail node any more: what showLaunchModeAction used to remove " +

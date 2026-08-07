@@ -379,8 +379,9 @@ internal fun NovaGameDetailContent(
                             // Four rows, drawn in a fixed order. Each advances its own value
                             // on A or a tap, and points the strip at itself on focus, so the
                             // explanation follows the cursor without being a stop on it.
-                            playSetupRows.forEach { rowState ->
+                            playSetupRows.forEachIndexed { index, rowState ->
                                 NovaSteamChoiceRow(
+                                    autoFocus = index == 0,
                                     label = rowState.label,
                                     caption = rowState.caption,
                                     enabled = rowState.enabled,
