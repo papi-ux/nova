@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -313,7 +314,7 @@ internal fun NovaGameDetailContent(
                 headline = uiState.game.name,
                 scrollState = verticalScroll,
                 onDismiss = onDismissDestination,
-            ) {
+            ) { bodyHeight ->
                 val decision = steamDecision
                 if (decision != null) {
                     // A blocked three-way choice is the one moment nothing else on the
@@ -324,6 +325,10 @@ internal fun NovaGameDetailContent(
                     )
                 } else {
                     val summary = optimizationState.profileSummary
+                    // Spend the room that is there rather than a number picked in advance:
+                    // a host with a display planner has a fourth row and so less of it.
+                    val consequenceLines =
+                        novaPlaySetupConsequenceLines(bodyHeight, playSetupRows.size)
                     NovaPlaySetupBody(
                         plan = novaPlaySetupPlan(
                             // The resolved mode, not the name of the control that sets
@@ -375,6 +380,10 @@ internal fun NovaGameDetailContent(
                                 }
                             },
                         ),
+                        introMaxLines = novaPlaySetupIntroLines(
+                            bodyHeight,
+                            factCount = summary?.let { 4 } ?: 2,
+                        ),
                         rows = {
                             // Four rows, drawn in a fixed order. Each advances its own value
                             // on A or a tap, and points the strip at itself on focus, so the
@@ -403,7 +412,7 @@ internal fun NovaGameDetailContent(
                                 NovaPlaySetupComparison(
                                     title = explained.stripTitle,
                                     options = explained.options,
-                                    consequenceMaxLines = if (playSetupRows.size > 3) 1 else 2,
+                                    consequenceMaxLines = consequenceLines,
                                 )
                             }
                         },

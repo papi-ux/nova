@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -70,6 +71,7 @@ internal fun NovaPlaySetupBody(
     plan: NovaPlaySetupPlan,
     rows: @Composable () -> Unit,
     comparison: (@Composable () -> Unit)? = null,
+    introMaxLines: Int = 2,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // A phone in portrait has no room for two columns, and stacking them keeps the
@@ -77,7 +79,7 @@ internal fun NovaPlaySetupBody(
         val stacked = maxWidth < NOVA_PLAY_SETUP_TWO_COLUMN_MIN
         if (stacked) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                NovaPlaySetupReadColumn(plan, Modifier.fillMaxWidth())
+                NovaPlaySetupReadColumn(plan, introMaxLines, Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(18.dp))
                 NovaPlaySetupActColumn(rows, comparison, Modifier.fillMaxWidth())
             }
@@ -85,6 +87,7 @@ internal fun NovaPlaySetupBody(
             Row(modifier = Modifier.fillMaxWidth()) {
                 NovaPlaySetupReadColumn(
                     plan = plan,
+                    introMaxLines = introMaxLines,
                     modifier = Modifier.width(NOVA_PLAY_SETUP_READ_WIDTH).fillMaxHeight(),
                 )
                 Spacer(modifier = Modifier.width(NOVA_PLAY_SETUP_GUTTER))
@@ -96,7 +99,11 @@ internal fun NovaPlaySetupBody(
 
 /** What will happen, and where each part of it came from. Read, never operated. */
 @Composable
-private fun NovaPlaySetupReadColumn(plan: NovaPlaySetupPlan, modifier: Modifier = Modifier) {
+private fun NovaPlaySetupReadColumn(
+    plan: NovaPlaySetupPlan,
+    introMaxLines: Int,
+    modifier: Modifier = Modifier,
+) {
     val colors = LocalNovaComposeColors.current
     Column(modifier = modifier) {
         NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_what_will_happen))
@@ -118,9 +125,7 @@ private fun NovaPlaySetupReadColumn(plan: NovaPlaySetupPlan, modifier: Modifier 
                 fontSize = 14.sp,
                 lineHeight = 19.sp,
                 modifier = Modifier.padding(top = 6.dp),
-                // Two, not three. In landscape the whole panel has to fit without
-                // scrolling, and a third line here is a line the legend loses.
-                maxLines = 2,
+                maxLines = introMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -144,7 +149,7 @@ private fun NovaPlaySetupActColumn(
         NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_what_you_can_change))
         rows()
         if (comparison != null) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             comparison()
         }
     }
@@ -214,7 +219,7 @@ private fun NovaPlaySetupColumnHead(text: String) {
         text = text.uppercase(),
         color = colors.textMuted,
         style = NovaChromeType.label(fontSize = 9.sp),
-        modifier = Modifier.padding(bottom = 8.dp),
+        modifier = Modifier.padding(bottom = 6.dp),
     )
 }
 
@@ -286,7 +291,7 @@ internal fun NovaPlaySetupComparison(
                             },
                             shape,
                         )
-                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                         .semantics {
                             contentDescription = "${'$'}{option.label}. ${'$'}{option.consequence}"
                             if (option.current) selected = true
@@ -381,6 +386,57 @@ internal data class NovaPlaySetupRowState(
      */
     val overridden: Boolean = false,
 )
+
+/**
+ * How much of the legend the column can afford, and how much prose the plan can.
+ *
+ * Both are a function of how many rows the host produced: a host advertising a display
+ * planner adds Resolution, and those 53dp come out of whatever is below. Rather than pick
+ * one answer for every case and truncate the rest, the panel measures its body and this
+ * spends what is actually there -- three lines of consequence where there is room for
+ * three, one where there is room for one.
+ */
+internal fun novaPlaySetupConsequenceLines(availableHeight: Dp, rowCount: Int): Int {
+    if (availableHeight <= 0.dp) return 2
+    val used = NOVA_PLAY_SETUP_COLUMN_HEAD +
+        (NOVA_PLAY_SETUP_ROW_STRIDE * rowCount) +
+        NOVA_PLAY_SETUP_LEGEND_GAP +
+        NOVA_PLAY_SETUP_COLUMN_HEAD +
+        NOVA_PLAY_SETUP_CARD_CHROME +
+        NOVA_PLAY_SETUP_SLACK
+    val room = availableHeight - used
+    if (room <= 0.dp) return 1
+    return (room / NOVA_PLAY_SETUP_CONSEQUENCE_LINE).toInt().coerceIn(1, 3)
+}
+
+/** The plan's opening sentences get the same treatment, from the same measurement. */
+internal fun novaPlaySetupIntroLines(availableHeight: Dp, factCount: Int): Int {
+    if (availableHeight <= 0.dp) return 2
+    val used = NOVA_PLAY_SETUP_COLUMN_HEAD + NOVA_PLAY_SETUP_MODE_LINE +
+        NOVA_PLAY_SETUP_RULE_BLOCK + (NOVA_PLAY_SETUP_FACT * factCount)
+    val room = availableHeight - used
+    if (room <= 0.dp) return 1
+    return (room / NOVA_PLAY_SETUP_INTRO_LINE).toInt().coerceIn(1, 4)
+}
+
+/** Drawn heights, kept beside the drawing so the two cannot drift apart unnoticed. */
+private val NOVA_PLAY_SETUP_COLUMN_HEAD = 16.dp
+private val NOVA_PLAY_SETUP_ROW_STRIDE = 53.dp
+private val NOVA_PLAY_SETUP_LEGEND_GAP = 4.dp
+private val NOVA_PLAY_SETUP_CARD_CHROME = 40.dp
+/**
+ * Slack, so the budget aims to fit rather than to just fit.
+ *
+ * Without it the four-row case landed a few dp over, which turns the bottom fade on --
+ * and the fade exists to say there is more below, so a layout that overflows by 4dp
+ * dissolves 52dp of itself saying so. Being wrong in this direction is much cheaper.
+ */
+private val NOVA_PLAY_SETUP_SLACK = 12.dp
+private val NOVA_PLAY_SETUP_CONSEQUENCE_LINE = 14.dp
+private val NOVA_PLAY_SETUP_MODE_LINE = 35.dp
+private val NOVA_PLAY_SETUP_RULE_BLOCK = 22.dp
+private val NOVA_PLAY_SETUP_FACT = 34.dp
+private val NOVA_PLAY_SETUP_INTRO_LINE = 19.dp
 
 /** Below this the two columns stack; a phone has no room to put them side by side. */
 private val NOVA_PLAY_SETUP_TWO_COLUMN_MIN = 640.dp

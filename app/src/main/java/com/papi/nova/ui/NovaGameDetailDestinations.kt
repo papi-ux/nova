@@ -58,6 +58,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -196,7 +197,15 @@ internal fun NovaGameDetailWidePanel(
     headline: String,
     scrollState: ScrollState,
     onDismiss: () -> Unit,
-    content: @Composable () -> Unit,
+    /**
+     * Given the height its body actually has.
+     *
+     * Play Setup is built to fit rather than to scroll, and how much of the legend it can
+     * afford depends on how many rows the host gave it. Deriving that from constants was
+     * arithmetic that had already been wrong once -- the source said 374-393dp, the device
+     * says 444dp -- so the panel measures and says.
+     */
+    content: @Composable (bodyHeight: Dp) -> Unit,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -222,15 +231,20 @@ internal fun NovaGameDetailWidePanel(
                 compact = shortViewport,
                 onDismiss = onDismiss,
             )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .novaFadeAtCut(scrollState.canScrollForward)
-                    .novaHoldsFirstFocus()
-                    .verticalScroll(scrollState),
-                content = { content() },
-            )
+            // The scroll stays as the fallback for a font scale or an inset that makes the
+            // content genuinely taller than the window. Measuring outside it is what lets
+            // the body lay itself out to fit in the ordinary case.
+            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                val bodyHeight = maxHeight
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .novaFadeAtCut(scrollState.canScrollForward)
+                        .novaHoldsFirstFocus()
+                        .verticalScroll(scrollState),
+                    content = { content(bodyHeight) },
+                )
+            }
             NovaGameDetailDestinationHints()
         }
     }
