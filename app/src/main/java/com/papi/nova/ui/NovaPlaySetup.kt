@@ -117,10 +117,10 @@ private fun NovaPlaySetupReadColumn(plan: NovaPlaySetupPlan, modifier: Modifier 
                 color = if (index == plan.lines.lastIndex) colors.textMuted else colors.textSecondary,
                 fontSize = 14.sp,
                 lineHeight = 19.sp,
-                modifier = Modifier.padding(top = 7.dp),
-                // These are sentences when Polaris has something to explain, so they wrap
-                // rather than losing the end of the explanation mid-word.
-                maxLines = 3,
+                modifier = Modifier.padding(top = 6.dp),
+                // Two, not three. In landscape the whole panel has to fit without
+                // scrolling, and a third line here is a line the legend loses.
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -144,7 +144,7 @@ private fun NovaPlaySetupActColumn(
         NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_what_you_can_change))
         rows()
         if (comparison != null) {
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             comparison()
         }
     }
@@ -159,7 +159,7 @@ private fun NovaPlaySetupActColumn(
 @Composable
 private fun NovaPlaySetupFact(fact: NovaPlaySetupFact) {
     val colors = LocalNovaComposeColors.current
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
         Text(
             text = fact.key.uppercase(),
             color = colors.textMuted,
@@ -214,7 +214,7 @@ private fun NovaPlaySetupColumnHead(text: String) {
         text = text.uppercase(),
         color = colors.textMuted,
         style = NovaChromeType.label(fontSize = 9.sp),
-        modifier = Modifier.padding(bottom = 12.dp),
+        modifier = Modifier.padding(bottom = 8.dp),
     )
 }
 
@@ -238,7 +238,20 @@ private fun NovaPlaySetupColumnHead(text: String) {
  * there is no precedence to get wrong.
  */
 @Composable
-internal fun NovaPlaySetupComparison(title: String, options: List<NovaPlaySetupOption>) {
+internal fun NovaPlaySetupComparison(
+    title: String,
+    options: List<NovaPlaySetupOption>,
+    /**
+     * One line rather than two once the column carries a fourth row.
+     *
+     * The panel has to fit a ~325dp landscape viewport without scrolling. Four rows at the
+     * 48dp accessible floor plus their gaps is 212dp of it, and the legend has to live in
+     * what is left. A host advertising a display planner is exactly the case that adds that
+     * fourth row, so the legend gives up its second line rather than the panel giving up
+     * fitting.
+     */
+    consequenceMaxLines: Int = 2,
+) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -273,7 +286,7 @@ internal fun NovaPlaySetupComparison(title: String, options: List<NovaPlaySetupO
                             },
                             shape,
                         )
-                        .padding(horizontal = 12.dp, vertical = 11.dp)
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
                         .semantics {
                             contentDescription = "${'$'}{option.label}. ${'$'}{option.consequence}"
                             if (option.current) selected = true
@@ -291,8 +304,12 @@ internal fun NovaPlaySetupComparison(title: String, options: List<NovaPlaySetupO
                         text = option.consequence,
                         color = colors.textMuted,
                         fontSize = 11.sp,
-                        lineHeight = 15.sp,
-                        modifier = Modifier.padding(top = 5.dp),
+                        lineHeight = 14.sp,
+                        // Bounded, so a long consequence cannot push the card past the cut.
+                        // The sentence is a hint at what a choice means, not the contract.
+                        maxLines = consequenceMaxLines,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }

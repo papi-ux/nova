@@ -585,7 +585,10 @@ internal fun NovaSteamChoiceRow(
                 }
             }
             .then(if (ringing) Modifier.border(NOVA_DETAIL_FOCUS_RING, surfaces.focusRing, shape) else Modifier)
-            .padding(horizontal = 14.dp, vertical = 9.dp)
+            // 6dp, so a row with a caption lands exactly on the 48dp accessible floor
+            // rather than 6dp above it. Four rows plus a legend has to clear a 325dp
+            // landscape viewport, and four times six is most of the difference.
+            .padding(horizontal = 14.dp, vertical = 6.dp)
             .semantics { contentDescription = if (value.isBlank()) label else "$label. $value" },
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -648,7 +651,7 @@ private val NOVA_DETAIL_ROW_FOCUS_BAR = 3.dp
 private const val NOVA_DETAIL_WIDE_PANEL_ALPHA = 0.86f
 
 /** Cards need air between them where hairline rows did not. */
-private val NOVA_DETAIL_ROW_GAP = 6.dp
+private val NOVA_DETAIL_ROW_GAP = 5.dp
 
 /** The ring is focus. It sits outside whatever the selected state already drew. */
 private val NOVA_DETAIL_FOCUS_RING = 2.dp

@@ -403,6 +403,7 @@ internal fun NovaGameDetailContent(
                                 NovaPlaySetupComparison(
                                     title = explained.stripTitle,
                                     options = explained.options,
+                                    consequenceMaxLines = if (playSetupRows.size > 3) 1 else 2,
                                 )
                             }
                         },
@@ -477,8 +478,12 @@ internal fun novaProfilePreferenceConsequenceRes(value: String): Int =
 
 /** The same, for the two ways Steam can be handed the game. */
 internal fun novaSteamLaunchConsequenceRes(value: String): Int =
+    // "big-picture" with the hyphen is what SteamLaunchContract.normalizeMode returns, and
+    // it was the one spelling missing here -- so Big Picture described itself as Direct.
+    // Invisible while the two were never on screen together, which they now always are.
     when (value.trim().lowercase()) {
-        "big_picture", "bigpicture" -> R.string.nova_play_setup_steam_big_picture
+        "big-picture", "big_picture", "bigpicture", "gamepadui" ->
+            R.string.nova_play_setup_steam_big_picture
         else -> R.string.nova_play_setup_steam_direct
     }
 
