@@ -20,43 +20,52 @@ object NovaSnackbar {
     private var activeSnackbar: Snackbar? = null
 
     @JvmOverloads
-    fun show(activity: Activity, message: String, duration: Int = Snackbar.LENGTH_SHORT) {
+    fun show(
+        activity: Activity,
+        message: String,
+        duration: Int = Snackbar.LENGTH_SHORT,
+        anchor: View? = null
+    ) {
         showStyled(
             activity = activity,
             message = message,
             duration = duration,
             textColor = NovaThemeManager.getTextPrimaryColor(activity),
-            surfaceAlpha = SurfaceAlpha
+            surfaceAlpha = SurfaceAlpha,
+            anchor = anchor
         )
     }
 
-    fun showQuiet(activity: Activity, message: String) {
+    fun showQuiet(activity: Activity, message: String, anchor: View? = null) {
         showStyled(
             activity = activity,
             message = message,
             duration = Snackbar.LENGTH_SHORT,
             textColor = NovaThemeManager.getTextSecondaryColor(activity),
-            surfaceAlpha = QuietSurfaceAlpha
+            surfaceAlpha = QuietSurfaceAlpha,
+            anchor = anchor
         )
     }
 
-    fun showError(activity: Activity, message: String) {
+    fun showError(activity: Activity, message: String, anchor: View? = null) {
         showStyled(
             activity = activity,
             message = message,
             duration = Snackbar.LENGTH_LONG,
             textColor = activity.getColor(R.color.nova_error),
-            surfaceAlpha = SurfaceAlpha
+            surfaceAlpha = SurfaceAlpha,
+            anchor = anchor
         )
     }
 
-    fun showSuccess(activity: Activity, message: String) {
+    fun showSuccess(activity: Activity, message: String, anchor: View? = null) {
         showStyled(
             activity = activity,
             message = message,
             duration = Snackbar.LENGTH_SHORT,
             textColor = activity.getColor(R.color.nova_success),
-            surfaceAlpha = SurfaceAlpha
+            surfaceAlpha = SurfaceAlpha,
+            anchor = anchor
         )
     }
 
@@ -65,9 +74,19 @@ object NovaSnackbar {
         message: String,
         duration: Int,
         textColor: Int,
-        surfaceAlpha: Int
+        surfaceAlpha: Int,
+        anchor: View? = null
     ) {
-        val rootView = activity.findViewById<View>(android.R.id.content) ?: return
+        // A Snackbar is drawn inside the window of the view it is given. The activity's
+        // content view is the wrong window whenever a Dialog is up -- the in-stream Command
+        // Center is a full-screen one -- and the snackbar would be hidden behind it.
+        //
+        // Callers inside a dialog pass their own view. A dismissed Dialog detaches its
+        // content, so isAttachedToWindow answers "is that dialog still showing?" and the
+        // same call site works whether it fires before or after the dialog closes.
+        val rootView = anchor?.takeIf { it.isAttachedToWindow }
+            ?: activity.findViewById<View>(android.R.id.content)
+            ?: return
         activeSnackbar?.dismiss()
         val snackbar = Snackbar.make(rootView, message, duration)
         activeSnackbar = snackbar

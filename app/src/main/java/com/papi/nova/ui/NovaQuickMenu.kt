@@ -8,7 +8,6 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.Window
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -17,6 +16,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.preference.PreferenceManager
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.google.android.material.snackbar.Snackbar
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
 import com.papi.nova.R
@@ -191,11 +191,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             onEndStream = {
                 haptic {
                     if (sessionStatus?.isViewer != true && sessionStatus?.isShuttingDown == true) {
-                        Toast.makeText(game, R.string.nova_quick_menu_shutdown_already_running, Toast.LENGTH_SHORT).show()
+                        NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_shutdown_already_running), anchor = composeView)
                         return@haptic
                     }
                     if (sessionStatus?.isViewer != true && sessionStatus?.canQuit == false) {
-                        Toast.makeText(game, R.string.nova_quick_menu_host_session_unavailable, Toast.LENGTH_SHORT).show()
+                        NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_host_session_unavailable), anchor = composeView)
                         return@haptic
                     }
                     dismiss()
@@ -227,7 +227,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     if (!shouldLowerBitrate && !shouldEnableAutoQuality) {
                         if (!qualityBlocked && (status.autoQuality.relaunchRequired || status.health.relaunchRecommended)) {
                             dismiss()
-                            Toast.makeText(game, R.string.nova_quick_menu_relaunching_auto_quality, Toast.LENGTH_SHORT).show()
+                            NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_relaunching_auto_quality), anchor = composeView)
                             game.relaunchStream()
                         }
                         return@haptic
@@ -248,18 +248,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         game.runOnMainIfRuntimeActive {
                             if (!success) {
                                 stabilityApplied = false
-                                Toast.makeText(game, R.string.nova_quick_menu_stability_failed, Toast.LENGTH_SHORT).show()
+                                NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_stability_failed), anchor = composeView)
                             } else {
                                 stabilityApplied = true
-                                Toast.makeText(
+                                NovaSnackbar.showSuccess(
                                     game,
                                     if (status.health.relaunchRecommended) {
                                         game.getString(R.string.nova_quick_menu_live_fallback_applied)
                                     } else {
                                         game.getString(R.string.nova_quick_menu_stability_applied)
                                     },
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                    anchor = composeView
+                                )
                             }
                             refreshState()
                         }
@@ -271,7 +271,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     if (apiClient == null) return@haptic
                     if (sessionStatus?.syncStatus?.needsRelaunch == true) {
                         dismiss()
-                        Toast.makeText(game, R.string.nova_quick_menu_relaunching_sync, Toast.LENGTH_SHORT).show()
+                        NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_relaunching_sync), anchor = composeView)
                         game.relaunchStream()
                         return@haptic
                     }
@@ -309,7 +309,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         game.runOnMainIfRuntimeActive {
                             if (!success) {
                                 aiEnabled = !next
-                                Toast.makeText(game, R.string.nova_quick_menu_ai_toggle_failed, Toast.LENGTH_SHORT).show()
+                                NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_ai_toggle_failed), anchor = composeView)
                             }
                             refreshState()
                         }
@@ -338,7 +338,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                                 false -> R.string.nova_library_reset_game_profile_empty
                                 null -> R.string.nova_library_reset_game_profile_failed
                             }
-                            Toast.makeText(game, message, Toast.LENGTH_SHORT).show()
+                            NovaSnackbar.show(game, game.getString(message), anchor = composeView)
                             refreshState()
                         }
                     }
@@ -355,7 +355,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     mangoHudEnabled = next
                     refreshState()
                     if (next && status.game.equals("Steam Big Picture", ignoreCase = true)) {
-                        Toast.makeText(game, R.string.nova_mangohud_warning_big_picture, Toast.LENGTH_LONG).show()
+                        NovaSnackbar.show(
+                            game,
+                            game.getString(R.string.nova_mangohud_warning_big_picture),
+                            Snackbar.LENGTH_LONG,
+                            anchor = composeView
+                        )
                     }
                     game.launchRuntimeIo("NovaQuickMenuMangoHud") {
                         val success = apiClient.setMangoHud(gameUuid, next)
@@ -366,7 +371,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         game.runOnMainIfRuntimeActive {
                             if (!success) {
                                 mangoHudEnabled = !next
-                                Toast.makeText(game, R.string.nova_quick_menu_mangohud_failed, Toast.LENGTH_SHORT).show()
+                                NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_mangohud_failed), anchor = composeView)
                             }
                             refreshState()
                         }
@@ -377,11 +382,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 haptic {
                     val gameName = currentProfileGameName() ?: return@haptic
                     AutoQualityProfilePreferences.save(game, gameName, preference)
-                    Toast.makeText(
+                    NovaSnackbar.showSuccess(
                         game,
-                        R.string.nova_quick_menu_profile_preference_saved,
-                        Toast.LENGTH_SHORT
-                    ).show()
+                        game.getString(R.string.nova_quick_menu_profile_preference_saved),
+                        anchor = composeView
+                    )
                     refreshState()
                 }
             },
