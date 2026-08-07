@@ -270,7 +270,6 @@
     <string name="nova_play_setup_title">Play Setup</string>
     <string name="nova_play_setup_what_will_happen">What will happen</string>
     <string name="nova_play_setup_what_you_can_change">What you can change</string>
-    <string name="nova_play_setup_where_caption">Which display Polaris makes for this session</string>
     <string name="nova_play_setup_settings_caption">Resolution, frame rate, codec and bitrate</string>
     <string name="nova_play_setup_fact_last_session">Last session</string>
     <string name="nova_play_setup_fact_limited_by">Limited by</string>
@@ -290,6 +289,17 @@
     <string name="nova_play_setup_steam_direct">Launches the game itself. Nothing else opens.</string>
     <string name="nova_play_setup_steam_big_picture">Opens Big Picture first, which takes the controller until the game starts.</string>
     <string name="nova_play_setup_every_game_caption">Host defaults, profile and Auto Quality for every game</string>
+    <!-- Play Setup's four rows. The strip titles are conditional sentences rather than
+         nouns, because the strip explains a change not yet made. -->
+    <string name="nova_play_setup_where_caption">Which display Polaris makes for this session</string>
+    <string name="nova_play_setup_strip_where">If you changed where it runs</string>
+    <string name="nova_play_setup_resolution">Resolution</string>
+    <string name="nova_play_setup_resolution_caption">The display is made to match this handheld</string>
+    <string name="nova_play_setup_resolution_chosen">Chosen here \u00b7 applies at launch</string>
+    <string name="nova_play_setup_strip_resolution">If you changed the resolution</string>
+    <string name="nova_play_setup_tuning">Tuning</string>
+    <string name="nova_play_setup_strip_tuning">If you changed the tuning</string>
+    <string name="nova_play_setup_strip_steam">If you changed how Steam starts</string>
     <string name="nova_play_setup_compare_private">Its own display, made for this session. The desk keeps its own screen.</string>
     <string name="nova_play_setup_compare_virtual">Uses the host\'s virtual display driver. Advanced, and needs SudoVDA on the host.</string>
     <string name="nova_game_detail_group_state">State</string>
@@ -352,6 +362,9 @@
     <string name="nova_library_play_mode">Launch %1$s</string>
     <string name="nova_library_play_unavailable">Launch Unavailable</string>
     <string name="nova_library_review_and_launch">Review &amp; Launch</string>
+    <!-- Play was pressed while the preflight that decides whether desktop Steam is in the
+         way is still on the wire. The press is held, not dropped. -->
+    <string name="nova_game_detail_launch_checking_host">Checking the Host…</string>
     <string name="nova_library_preflight_review_title">Review Launch Profile</string>
     <string name="nova_library_preflight_review_message">Polaris selected a different launch profile: %1$s</string>
     <string name="nova_library_preflight_launch">Launch</string>

@@ -13,8 +13,11 @@ class NovaLaunchSourceGuardTest {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
         // launchConfirmed is shared by the primary action, the option picker and the
         // expanded review, so the MangoHUD state is asserted where they all pass through.
-        val launchConfirmed = detail.section("fun launchConfirmed(", "fun resetProfile(")
-        val launchModeSelection = detail.section("fun selectLaunchMode(", "fun launchConfirmed(")
+        // launchConfirmed and attemptLaunch moved above the preflight loader, which has to
+        // be able to replay a held launch, so these markers follow the declaration order
+        // rather than the old one.
+        val launchConfirmed = detail.section("fun launchConfirmed(", "fun attemptLaunch(")
+        val launchModeSelection = detail.section("fun selectLaunchMode(", "fun resetProfile(")
 
         assertTrue(
             "every launch path should pass the selected MangoHUD state into the launch request",
@@ -61,7 +64,7 @@ class NovaLaunchSourceGuardTest {
         assertTrue(
             "the desktop Steam choice belongs in the Launch mode destination, not a sheet or an alert raised over the artwork",
             detail.contains("destination = NovaGameDetailDestination.PLAY_SETUP") &&
-                detail.contains("steamDecision = desktopSteamDecision") &&
+                detail.contains("steamDecision = decision") &&
                 !detail.contains("BottomSheetDialog(") &&
                 !detail.contains("AlertDialog.Builder")
         )
@@ -76,10 +79,15 @@ class NovaLaunchSourceGuardTest {
             decisionRows.contains("enabled = decision.privateStreamEnabled") &&
                 decisionRows.contains("caption = decision.privateStreamUnavailableReason")
         )
+        // This asserted on the option path's own copy of the decision. It had one, which was
+        // the problem: two launch paths meant two places for the guard to be got round, and
+        // only one of them was ever watched. There is one now, and the option's display mode
+        // is what it is judged on.
         assertTrue(
             "Launch Options must not bypass desktop-Steam safety for selected private headless launches",
-            detail.contains("usesVirtualDisplay = option.usesVirtualDisplay") &&
-                detail.contains("steamDecision = desktopSteamDecision")
+            detail.contains("fun attemptLaunch() {") &&
+                detail.contains("val optimization = launchOptimization()") &&
+                detail.contains("steamDecision = decision")
         )
         assertTrue(
             "Mirror Desktop must be carried as an explicit launch override through the stream launch path",
@@ -110,14 +118,35 @@ class NovaLaunchSourceGuardTest {
             "private fun showNovaLaunchIssueSheet"
         )
 
+        // Pinned on the rows that actually render. This asserted onForcePrivateAfterSteamClose
+        // until it was noticed that the only declaration of that parameter lived in a
+        // composable nothing called, so the guard was green off dead code while the live
+        // path went unwatched.
         assertTrue(
-            "desktop Steam sheet should expose an explicit force-private path that closes desktop Steam before private launch",
-            detail.contains("onForcePrivateAfterSteamClose") &&
+            "desktop Steam decision should expose an explicit force-private path that closes desktop Steam before private launch",
+            detail.contains("decision.forcePrivateAfterSteamCloseEnabled") &&
+                detail.contains("onChoice(NovaSteamLaunchChoice.CLOSE_STEAM_THEN_PRIVATE)") &&
                 detail.contains("nova_desktop_steam_force_private") &&
                 serverHelper.contains("Game.EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE") &&
                 game.contains("EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE") &&
                 nvHttp.contains("closeDesktopSteamForPrivate=1") &&
                 nvHttp.contains("launchMode=force_private_stream")
+        )
+        assertTrue(
+            "a launch must wait for the preflight the desktop Steam guard is read from, rather than taking a null blob as consent",
+            detail.contains("val preflightInFlight: Boolean = false") &&
+                detail.contains("NovaGameDetailOptimizationState(preflightInFlight = true)") &&
+                detail.contains("if (optimization == null && optimizationState.preflightInFlight) {") &&
+                detail.contains("if (pendingLaunch) attemptLaunch()")
+        )
+        assertTrue(
+            "every launch path must come through the one gate, so a second path cannot go round the guard the first one gained",
+            detail.contains("onPrimaryLaunch = { attemptLaunch() }") &&
+                !detail.contains("fun launchSelected(") &&
+                // A settle that fires late must not let a launch through on the previous
+                // value, so it marks in flight now and the launch flushes it early.
+                detail.contains("optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)\n            settleJob?.cancel()") &&
+                detail.contains("flushSettled()")
         )
         assertTrue(
             "Game connection failures should route through the Nova themed launch issue drawer instead of legacy square Dialog.displayDialog",
@@ -363,7 +392,7 @@ class NovaLaunchSourceGuardTest {
         val planner = readSource("src/main/java/com/papi/nova/ui/NovaDisplayResolutionPlanner.kt")
         val playSetup = readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt")
         val optionSheet = detail.section(
-            "private fun showLaunchOptions(",
+            "private fun resolutionPlanner(",
             "private fun optionLabel("
         )
 
@@ -374,12 +403,12 @@ class NovaLaunchSourceGuardTest {
                 detail.contains("NovaDisplayResolutionPlanner.buildLaunchOptimizationOverride(")
         )
         assertTrue(
-            "Planner choices keep D-pad focus on meaningful cards rather than redundant Press A " +
-                "badges. They moved from the option sheet into the comparison strip, which is " +
-                "focusable in place and carries each option's caption as its consequence",
-            playSetup.contains(".focusable(enabled = actionable)") &&
-                detail.contains("launchOptionsState != null -> NovaPlaySetupComparison(") &&
-                detail.contains("option.caption") &&
+            "Planner choices are a row with a value rather than redundant Press A badges. The " +
+                "d-pad stops on the row, and the strip states what each choice would mean without " +
+                "being a stop of its own",
+            playSetup.contains("enum class NovaPlaySetupRow") &&
+                detail.contains("row = NovaPlaySetupRow.RESOLUTION,") &&
+                detail.contains("onSelect = { chooseResolution(choice) },") &&
                 !detail.contains("Press A") &&
                 planner.contains("takeUnless { it.equals(\"Press A\", ignoreCase = true) }")
         )
@@ -683,13 +712,16 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
         val selection = detail.section(
-            "onSteamLaunchModeSelected = { selected ->",
-            "},\n                    onDismissSteamLaunchModeOptions"
+            "fun selectSteamLaunchMode(value: String) {",
+            "fun resetProfile() {"
         )
 
         assertTrue(!selection.contains("dismiss()"))
         assertTrue(!selection.contains("onLaunch?.invoke"))
         assertTrue(selection.contains("apiClient.setSteamLaunchMode"))
+        // The row advances on every press, so the host is told once the presses stop.
+        // Writing per press turned a cycle through two values into two round-trips.
+        assertTrue(selection.contains("settleThen {"))
     }
 
     @Test
@@ -702,7 +734,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(api.contains("fun setSteamLaunchMode(gameId: String, mode: String): String?"))
         assertTrue(api.contains("json.optString(\"mode\", normalizedMode)"))
-        assertTrue(detail.contains("steamLaunchOptionsState = steamLaunchModeOptionsState(currentGame)"))
+        assertTrue(detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,"))
         assertTrue(detail.contains("confirmedMode != null"))
     }
 

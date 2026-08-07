@@ -295,7 +295,12 @@ class NovaThemeResourcesTest {
         assertTrue("shared scrim should be light enough for NovaHUD/game context to remain visible", sheetChrome.contains("const val SCRIM_ALPHA = 0.22f"))
         assertTrue("default action row state should remain transparent glass, not an opaque mini slab", sheetChrome.contains("fillAccentBlend = 0f") && sheetChrome.contains("Color.TRANSPARENT"))
         assertTrue("Compose library surfaces should reuse shared glass alpha language", composeTheme.contains("NovaSheetChrome.SHEET_GLASS_ALPHA"))
-        assertTrue("game detail Compose drawer should reuse the shared native sheet radius token", gameDetail.contains("NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp"))
+        // There was an assertion here that the game detail window reuses the sheet radius
+        // token. It contradicted that window's own rule -- it raises no sheet, and
+        // NovaLaunchSourceGuardTest asserts as much -- and it passed only because a
+        // composable nothing ever called still mentioned the token. The window's radii come
+        // from NovaRadius; the sheet token belongs to surfaces that are actually sheets.
+        assertTrue("game detail must not reach for sheet chrome, since it raises no sheet", !gameDetail.contains("NovaSheetChrome.SHEET_CORNER_RADIUS_DP"))
     }
 
 

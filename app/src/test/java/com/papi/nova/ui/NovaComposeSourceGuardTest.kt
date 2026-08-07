@@ -1106,14 +1106,23 @@ class NovaComposeSourceGuardTest {
             detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
                 detail.contains("heightIn(min = NovaGameDetailActionHeight)")
         )
+        // A fixed four now rather than three. Reset used to be drawn only while a review
+        // was expanded, so outside that case the only way to reach it was a copy inside
+        // Play Setup -- and a Play Setup held to four rows has no room to keep one. What
+        // the guard is really protecting is unchanged: the count must not vary by game.
         assertTrue(
-            "the rail is a fixed three, so a D-pad walk cannot find a different number of " +
-                "nodes on a different game; a review still replaces it with its own answers",
+            "the rail is a fixed four, so a D-pad walk cannot find a different number of " +
+                "nodes on a different game; only an expanded review adds to it",
             actions.contains("NovaGameDetailDestination.PLAY_SETUP") &&
                 actions.contains("NovaGameDetailDestination.ARTWORK") &&
-                actions.contains("if (reviewExpanded)") &&
+                actions.contains("if (!reviewExpanded) {") &&
                 actions.contains("onRetryHighFps") &&
                 actions.contains("onResetProfile")
+        )
+        assertFalse(
+            "reset must not be gated on a review being open: that left it unreachable in the " +
+                "ordinary case once Play Setup stopped carrying its own copy",
+            actions.contains("if (reviewExpanded) {\n            if (optimizationState.profileSummary?.showRetryHighFps == true) {")
         )
         assertFalse(
             "nothing gates a rail node any more: what showLaunchModeAction used to remove " +
@@ -1131,23 +1140,35 @@ class NovaComposeSourceGuardTest {
         val detail = readNovaGameDetail()
 
         assertTrue(
-            "Headless/Virtual stay one press away and say what they would do while you pick. " +
-                "They moved from rows into the comparison strip, which is still inline: a picker " +
-                "raised over the destination would cost a press and re-introduce the options " +
-                "drawer that inline selection was added to remove",
-            detail.contains("NovaPlaySetupComparison(") &&
-                detail.contains("onSelect = { onLaunchModeSelected(\"headless\") }") &&
-                detail.contains("onSelect = { onLaunchModeSelected(\"virtual_display\") }") &&
-                detail.contains("consequence = stringResource(")
+            "one destination holds the whole decision, as four rows in a fixed order: where it " +
+                "runs, the resolution, the tuning and how Steam starts. Splitting these across " +
+                "two drawers is what made each of them carry half of the other's subject",
+            detail.contains("enum class NovaPlaySetupRow { WHERE_IT_RUNS, RESOLUTION, TUNING, STEAM_LAUNCH }") &&
+                detail.contains("row = NovaPlaySetupRow.WHERE_IT_RUNS,") &&
+                detail.contains("row = NovaPlaySetupRow.RESOLUTION,") &&
+                detail.contains("row = NovaPlaySetupRow.TUNING,") &&
+                detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,")
         )
         assertTrue(
-            "one destination holds the whole decision: where it runs, the launch settings, the " +
-                "tuning profile and Steam launch. Splitting these across two drawers is what " +
-                "made each of them carry half of the other's subject",
-            detail.contains("onClick = onLaunchOptions,") &&
-                detail.contains("onClick = onProfilePreference,") &&
-                detail.contains("SteamLaunchModeCard(") &&
-                detail.contains("LaunchProfileSummaryActions(")
+            "the strip is a legend for whichever row holds focus, not a picker with a state of " +
+                "its own. Three picker states ranked by a when is what made Steam Launch work " +
+                "from a fresh panel and go dead once either other row had been touched",
+            detail.contains("onFocused = { onExplainPlaySetupRow(rowState.row) },") &&
+                detail.contains("it.row == explainedPlaySetupRow") &&
+                detail.contains("onClick = { onAdvancePlaySetupRow(rowState.row) },")
+        )
+        assertFalse(
+            "no picker state may come back: each one is a rank in a chain, and a chain needs " +
+                "every link to clear its siblings for any link to be reliable",
+            detail.contains("launchOptionsState") ||
+                detail.contains("profileOptionsState") ||
+                detail.contains("steamLaunchOptionsState")
+        )
+        assertFalse(
+            "the comparison strip must not be a focus target. It explains the row under the " +
+                "cursor, so stopping on it means stopping on the explanation of the thing you " +
+                "just stopped on, and it costs two more presses on every trip down the column",
+            playSetupComparison().contains(".focusable(")
         )
         assertFalse(
             "LaunchControls served the destination that no longer exists; leaving it behind " +
@@ -1155,6 +1176,13 @@ class NovaComposeSourceGuardTest {
             detail.contains("private fun LaunchControls(")
         )
     }
+
+    /** Just the strip, so a focusable anywhere else in Play Setup cannot satisfy the check. */
+    private fun playSetupComparison(): String =
+        readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt").section(
+            "internal fun NovaPlaySetupComparison(",
+            "/** The resolved plan, as one readable statement plus the facts behind it. */",
+        )
 
     @Test
     fun gameDetailKeepsMangoHudOutOfPrimaryLaunchDrawer() {
@@ -2712,6 +2740,7 @@ class NovaComposeSourceGuardTest {
         readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
 
     private fun readNovaGameDetail(): String =
+        readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt") +
         readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
@@ -2739,19 +2768,20 @@ class NovaComposeSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
-        val launchOptions = detail.section(
-            "private fun showLaunchOptions(",
+        val planner = detail.section(
+            "private fun resolutionPlanner(",
             "private fun optionLabel("
         )
 
         assertTrue(
-            "the launch settings are chosen without a dialog and without a sheet, for the " +
-                "same reason as the tuning preference: a glass panel over the destination is " +
-                "still a modal on the launch path",
-            !launchOptions.contains("AlertDialog.Builder(") &&
-                detail.contains("data class NovaLaunchOptionsState") &&
+            "the resolution is chosen without a dialog and without a sheet, for the same " +
+                "reason as the tuning: a glass panel over the destination is still a modal on " +
+                "the launch path. It is a row with a value now rather than a list of items " +
+                "that each started the stream on the way past",
+            !planner.contains("AlertDialog.Builder(") &&
                 !detail.contains("private fun NovaLaunchOptionsSheet(") &&
-                detail.contains("launchOptionsState != null -> NovaPlaySetupComparison(")
+                detail.contains("row = NovaPlaySetupRow.RESOLUTION,") &&
+                detail.contains("onSelect = { chooseResolution(choice) },")
         )
     }
 
@@ -2761,21 +2791,15 @@ class NovaComposeSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
-        val profileOptions = detail.section(
-            "private fun showProfilePreferenceOptions(",
-            "private fun steamLaunchModeOptionsState("
-        )
-
         assertTrue(
             "the tuning preference is chosen without a dialog and without a sheet. It used " +
                 "to be routed through a Nova glass panel raised over the destination, which " +
                 "was better than an AlertDialog and still a modal on the launch path; the " +
                 "options are stated as consequences in the comparison strip now",
-            !profileOptions.contains("AlertDialog.Builder(") &&
-                detail.contains("data class NovaProfilePreferenceOptionsState") &&
+            !detail.contains("AlertDialog.Builder(") &&
                 !detail.contains("private fun NovaProfilePreferenceSheet(") &&
-                detail.contains("profileOptionsState != null -> NovaPlaySetupComparison(") &&
-                detail.contains("consequence = novaProfilePreferenceConsequence(option.value)")
+                detail.contains("row = NovaPlaySetupRow.TUNING,") &&
+                detail.contains("consequence = getString(novaProfilePreferenceConsequenceRes(value)),")
         )
     }
 
