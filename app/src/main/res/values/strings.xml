@@ -1486,4 +1486,7 @@
     <string name="nova_library_launch_missing_id">This game entry is missing a launch ID</string>
     <string name="nova_library_launch_missing_session">Missing Polaris session details for launch</string>
     <string name="nova_library_resume_missing_session">Missing Polaris session details for resume</string>
+    <!-- Were English literals in PcView.handleQrScanResult. -->
+    <string name="nova_qr_invalid_code">Invalid QR code — expected a Polaris pairing code</string>
+    <string name="nova_qr_missing_pairing_data">QR code is missing pairing data</string>
 </resources>
