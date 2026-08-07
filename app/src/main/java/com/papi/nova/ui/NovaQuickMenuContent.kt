@@ -32,10 +32,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -140,6 +142,21 @@ fun NovaQuickMenuDrawer(
     }
     val drawerWidthPx = with(density) { drawerWidth.toPx().coerceAtLeast(1f) }
 
+    // One collector follows the finger, conflated to a frame's pace. The drag used to
+    // launch a coroutine per pointer-move event — sixty to a hundred and twenty a
+    // second, each stopping whatever the one before it had started — to do what a
+    // single snapTo per frame does.
+    val dragInProgress = remember { mutableStateOf(false) }
+    val dragProgress = remember { mutableFloatStateOf(1f) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { if (dragInProgress.value) dragProgress.floatValue else Float.NaN }
+            .collect { target ->
+                if (!target.isNaN()) {
+                    drawerProgress.snapTo(target)
+                }
+            }
+    }
+
     suspend fun animateDrawerTo(target: Float) {
         drawerProgress.animateTo(
             targetValue = target.coerceIn(0f, 1f),
@@ -207,22 +224,22 @@ fun NovaQuickMenuDrawer(
                 .pointerInput(drawerWidthPx) {
                     detectHorizontalDragGestures(
                         onDragStart = {
+                            dragProgress.floatValue = drawerProgress.value
+                            dragInProgress.value = true
                             scope.launch { drawerProgress.stop() }
                         },
                         onDragCancel = {
+                            dragInProgress.value = false
                             scope.launch { animateDrawerTo(1f) }
                         },
                         onDragEnd = {
+                            dragInProgress.value = false
                             settleDrawerAfterDrag()
                         },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
-                            val nextProgress = (drawerProgress.value + dragAmount / drawerWidthPx)
-                                .coerceIn(0f, 1f)
-                            scope.launch {
-                                drawerProgress.stop()
-                                drawerProgress.snapTo(nextProgress)
-                            }
+                            dragProgress.floatValue =
+                                (dragProgress.floatValue + dragAmount / drawerWidthPx).coerceIn(0f, 1f)
                         }
                     )
                 }
