@@ -202,7 +202,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("Recovering bitrate", state.label)
+        assertEquals("Recovering Bitrate", state.label)
         assertTrue(state.recovering)
         assertTrue(state.targetSummary.contains("12 Mbps live / 30 Mbps limit"))
     }
@@ -220,7 +220,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.UPGRADE_AVAILABLE, state.state)
-        assertEquals("Higher quality ready", state.label)
+        assertEquals("Higher Quality Ready", state.label)
         assertEquals("UP", state.compactLabel)
     }
 

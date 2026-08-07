@@ -135,16 +135,28 @@ class NovaThemeResourcesTest {
     }
 
     @Test
-    fun pcViewThemePickerExposesPortableChrome() {
+    fun pcViewThemePickerReadsTheSharedThemeList() {
         val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
-        val picker = source.substringAfter("private fun showThemePicker(")
-            .substringBefore("private fun applyThemeSelection")
+        val builder = source.substringAfter("private fun buildThemePickerThemes(")
+            .substringBefore("private fun createThemePickerRow")
 
-        assertTrue(picker.contains("NovaThemeManager.THEME_PORTABLE_CHROME"))
+        // This used to assert that the picker listed Polaris, then Portable Chrome, then
+        // OLED, by comparing indexOf positions in the source of showThemePicker. Once the
+        // list moved into R.array.nova_theme_values, THEME_POLARIS stopped appearing in that
+        // range, indexOf returned -1, and `-1 < somethingElse` is true -- so it passed while
+        // checking nothing at all.
+        //
+        // Which themes exist and in what order is the array's job, and
+        // themeArraysExposeMiamiInPredictableOrder above pins that by value. What is left
+        // here is the wiring.
         assertTrue(
-            "Portable Chrome should sit between Polaris and OLED in the dashboard picker",
-            picker.indexOf("NovaThemeManager.THEME_POLARIS") < picker.indexOf("NovaThemeManager.THEME_PORTABLE_CHROME") &&
-                picker.indexOf("NovaThemeManager.THEME_PORTABLE_CHROME") < picker.indexOf("NovaThemeManager.THEME_OLED")
+            "the dashboard picker reads the shared theme array",
+            builder.contains("R.array.nova_theme_values")
+        )
+        assertFalse(
+            "and does not keep a second copy of the theme list in Kotlin, which would let a " +
+                "newly added theme appear in settings and silently not on the dashboard",
+            builder.contains("THEME_POLARIS") || builder.contains("THEME_OLED")
         )
     }
 

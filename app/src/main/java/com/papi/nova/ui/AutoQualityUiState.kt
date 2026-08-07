@@ -44,7 +44,7 @@ data class AutoQualityUiState(
             if (status == null) {
                 return AutoQualityUiState(
                     state = State.WATCHING,
-                    label = "Auto Quality checking",
+                    label = "Auto Quality Checking",
                     compactLabel = "AUTO",
                     detail = "Waiting for Polaris session status",
                     targetSummary = "",
@@ -119,7 +119,7 @@ data class AutoQualityUiState(
             if (status.isHdrDowngraded) {
                 return AutoQualityUiState(
                     state = State.NEEDS_ATTENTION,
-                    label = "HDR downgraded",
+                    label = "HDR Downgraded",
                     compactLabel = "HDR",
                     detail = "Polaris is sending 10-bit SDR, not HDR. Use an HDR-capable display path for true HDR.",
                     targetSummary = streamPolicy.targetSummary,
@@ -148,7 +148,7 @@ data class AutoQualityUiState(
             if (manualOverride && manualNeedsAttention) {
                 return AutoQualityUiState(
                     state = State.NEEDS_ATTENTION,
-                    label = "Sync attention",
+                    label = "Sync Attention",
                     compactLabel = "MAN",
                     detail = status.syncStatus.message.takeIf { it.isNotBlank() }
                         ?: status.health.summary.takeIf { it.isNotBlank() }
@@ -217,7 +217,7 @@ data class AutoQualityUiState(
             if (hostRenderLimited) {
                 return AutoQualityUiState(
                     state = State.BLOCKED,
-                    label = "Host render limited",
+                    label = "Host Render Limited",
                     compactLabel = "HOST",
                     detail = status.health.summary.takeIf { it.isNotBlank() }
                         ?: "Holding quality until the host render path reaches the stream FPS target",
@@ -252,7 +252,7 @@ data class AutoQualityUiState(
             if (autoPolicy.isRecoveringBitrate) {
                 return AutoQualityUiState(
                     state = State.RECOVERING,
-                    label = "Recovering bitrate",
+                    label = "Recovering Bitrate",
                     compactLabel = streamPolicy.adaptiveTargetLabel
                         .takeIf { it.isNotBlank() }
                         ?.replace(" Mbps", "M")
@@ -270,7 +270,7 @@ data class AutoQualityUiState(
             if (autoPolicy.isUpgradeAvailable) {
                 return AutoQualityUiState(
                     state = State.UPGRADE_AVAILABLE,
-                    label = "Higher quality ready",
+                    label = "Higher Quality Ready",
                     compactLabel = "UP",
                     detail = autoPolicy.summary.takeIf { it.isNotBlank() }
                         ?: if (autoPolicy.relaunchRequired) {
@@ -295,7 +295,7 @@ data class AutoQualityUiState(
             ) {
                 return AutoQualityUiState(
                     state = State.OPTIMIZING,
-                    label = "Auto Quality optimizing",
+                    label = "Auto Quality Optimizing",
                     compactLabel = "AUTO",
                     detail = "Selecting the best launch profile",
                     targetSummary = streamPolicy.targetSummary,

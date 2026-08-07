@@ -898,17 +898,16 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     private fun buildThemePickerThemes(): List<String> {
-        val themes = mutableListOf(
-            NovaThemeManager.THEME_POLARIS,
-            NovaThemeManager.THEME_PORTABLE_CHROME,
-            NovaThemeManager.THEME_OLED,
-            NovaThemeManager.THEME_MIAMI,
-            NovaThemeManager.THEME_HIGH_CONTRAST,
-        )
-        if (NovaThemeManager.isMaterialYouAvailable()) {
-            themes.add(NovaThemeManager.THEME_MATERIAL_YOU)
-        }
-        return themes
+        // The set of themes and their order live in R.array.nova_theme_values, which the
+        // Compose settings screen and the legacy preference screen already read. This kept a
+        // second copy in Kotlin, so a theme added to the array would not have appeared here
+        // and nothing would have said so -- the order below happened to match, which is
+        // exactly how a duplicate survives long enough to drift.
+        return resources.getStringArray(R.array.nova_theme_values)
+            .filter { theme ->
+                theme != NovaThemeManager.THEME_MATERIAL_YOU ||
+                    NovaThemeManager.isMaterialYouAvailable()
+            }
     }
 
     private fun createThemePickerRow(
