@@ -61,10 +61,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
 import kotlinx.coroutines.delay
 import com.papi.nova.R
-import com.papi.nova.ui.compose.NovaChromeFamily
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaControllerHint
@@ -346,10 +346,7 @@ private fun NovaGameDetailDestinationHeader(
             Text(
                 text = eyebrow,
                 color = colors.textMuted,
-                fontSize = 10.sp,
-                fontFamily = NovaChromeFamily,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.22.em,
+                style = NovaChromeType.label(fontSize = 10.sp),
             )
         }
         Text(
@@ -423,10 +420,7 @@ internal fun NovaGameDetailGroupLabel(text: String) {
         Text(
             text = text.uppercase(),
             color = colors.textMuted,
-            fontSize = 8.sp,
-            fontFamily = NovaChromeFamily,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.22.em,
+            style = NovaChromeType.label(fontSize = 8.sp),
         )
         Box(
             modifier = Modifier

@@ -41,7 +41,7 @@ import androidx.compose.ui.res.stringResource
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
-import com.papi.nova.ui.compose.NovaChromeFamily
+import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
 
 /**
@@ -163,10 +163,7 @@ private fun NovaPlaySetupFact(fact: NovaPlaySetupFact) {
         Text(
             text = fact.key.uppercase(),
             color = colors.textMuted,
-            fontSize = 9.sp,
-            fontFamily = NovaChromeFamily,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.12.em,
+            style = NovaChromeType.label(fontSize = 9.sp),
             lineHeight = 13.sp,
             modifier = Modifier.width(NOVA_PLAY_SETUP_FACT_KEY).padding(top = 3.dp),
         )
@@ -213,10 +210,7 @@ private fun NovaPlaySetupColumnHead(text: String) {
     Text(
         text = text.uppercase(),
         color = colors.textMuted,
-        fontSize = 9.sp,
-        fontFamily = NovaChromeFamily,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.22.em,
+        style = NovaChromeType.label(fontSize = 9.sp),
         modifier = Modifier.padding(bottom = 12.dp),
     )
 }

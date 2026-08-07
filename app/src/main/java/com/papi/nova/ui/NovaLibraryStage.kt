@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
 import kotlinx.coroutines.Job
 import com.papi.nova.R
@@ -626,10 +627,8 @@ private fun NovaLibraryStageHero(
                 Text(
                     text = heroMetadata,
                     color = heroColors.textSecondary,
-                    fontSize = if (compact) 9.sp else 10.sp,
+                    style = NovaChromeType.label(fontSize = if (compact) 9.sp else 10.sp, letterSpacing = 0.16.em),
                     lineHeight = if (compact) 11.sp else 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.16.em,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier

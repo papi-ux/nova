@@ -68,10 +68,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
-import com.papi.nova.ui.compose.NovaChromeFamily
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
+import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaRadius
@@ -186,10 +186,7 @@ internal fun NovaGameDetailOverview(
             Text(
                 text = novaGameDetailIdentityLine(sourceLabel, lastPlayedText, game).uppercase(),
                 color = colors.textSecondary,
-                fontSize = 11.sp,
-                fontFamily = NovaChromeFamily,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.17.em,
+                style = NovaChromeType.label(fontSize = 11.sp, letterSpacing = 0.17.em),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 11.dp),
@@ -308,10 +305,7 @@ private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
         Text(
             text = stringResource(R.string.nova_polaris_wordmark),
             color = colors.textMuted,
-            fontSize = 9.sp,
-            fontFamily = NovaChromeFamily,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.20.em,
+            style = NovaChromeType.label(fontSize = 9.sp),
         )
     }
 }
@@ -388,15 +382,9 @@ private fun NovaGameDetailStatusLine(
         Text(
             text = novaGameDetailStatusText(uiState, summary).uppercase(),
             color = colors.textPrimary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.11.em,
             // Measurements, so the digits line up rather than dance. Space Grotesk's
             // digits are proportional by default, so this is load-bearing here.
-            style = LocalTextStyle.current.copy(
-                fontFamily = NovaChromeFamily,
-                fontFeatureSettings = "tnum",
-            ),
+            style = NovaChromeType.label(fontSize = 11.sp).copy(fontFeatureSettings = "tnum"),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -561,10 +549,10 @@ private fun NovaGameDetailBeatGauge(
         return
     }
 
-    val figures = LocalTextStyle.current.copy(
-        fontFamily = NovaChromeFamily,
-        fontFeatureSettings = "tnum",
-    )
+    // Both readouts below are chrome labels that happen to contain numbers, so they take
+    // the shared label style and add tabular figures on top: Space Grotesk's digits are
+    // proportional, and these change while you watch them.
+    val figures = NovaChromeType.label(fontSize = 10.sp).copy(fontFeatureSettings = "tnum")
     var estimateFocused by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(top = 10.dp).testTag("nova-game-detail-played")) {
@@ -584,11 +572,8 @@ private fun NovaGameDetailBeatGauge(
                     stringResource(R.string.nova_game_detail_not_started)
                 }.uppercase(),
                 color = colors.textPrimary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.12.em,
                 maxLines = 1,
-                style = figures,
+                style = figures.copy(letterSpacing = 0.12.em),
             )
 
             Spacer(modifier = Modifier.weight(1f))
@@ -637,11 +622,8 @@ private fun NovaGameDetailBeatGauge(
                     Text(
                         text = parts.joinToString("  ·  ").uppercase(),
                         color = colors.textSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.10.em,
                         maxLines = 1,
-                        style = figures,
+                        style = figures.copy(letterSpacing = 0.10.em),
                     )
                     if (linked) {
                         Text(

@@ -125,6 +125,7 @@ import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGameJson
+import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
 import org.json.JSONObject
 import com.papi.nova.api.PolarisClientSettings
@@ -2716,9 +2717,7 @@ class NovaLibraryActivity : NovaActivity() {
                 Text(
                     text = eyebrow.uppercase(Locale.getDefault()),
                     color = colors.accent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.7.sp,
+                    style = NovaChromeType.label(fontSize = 11.sp),
                     textAlign = TextAlign.Center
                 )
                 Text(
@@ -3172,9 +3171,7 @@ class NovaLibraryActivity : NovaActivity() {
                         Text(
                             text = stringResource(R.string.nova_controller_hint_filters),
                             color = colors.textSecondary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.7.sp,
+                            style = NovaChromeType.label(fontSize = 10.sp),
                             modifier = Modifier.weight(1f)
                         )
                         NovaActionButton(
@@ -3220,9 +3217,7 @@ class NovaLibraryActivity : NovaActivity() {
                     Text(
                         text = stringResource(R.string.nova_library_options_sort_title),
                         color = colors.textSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.7.sp
+                        style = NovaChromeType.label(fontSize = 10.sp),
                     )
                     NovaLibrarySortMode.entries.forEach { sortMode ->
                         NovaSelectableChip(
@@ -3236,9 +3231,7 @@ class NovaLibraryActivity : NovaActivity() {
                     Text(
                         text = stringResource(R.string.nova_library_options_layout_title),
                         color = colors.textSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.7.sp,
+                        style = NovaChromeType.label(fontSize = 10.sp),
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     NovaLibraryLayoutMode.entries.forEach { layoutMode ->
@@ -3253,9 +3246,7 @@ class NovaLibraryActivity : NovaActivity() {
                     Text(
                         text = stringResource(R.string.nova_library_options_poster_titles_title),
                         color = colors.textSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.7.sp,
+                        style = NovaChromeType.label(fontSize = 10.sp),
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     NovaSelectableChip(
