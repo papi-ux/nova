@@ -24,6 +24,7 @@ class NovaCompanionCommandDeckStateTest {
                 NovaCompanionCommandActionId.NOVA_HUD,
                 NovaCompanionCommandActionId.ZOOM_PAN,
                 NovaCompanionCommandActionId.COMMAND_CENTER,
+                NovaCompanionCommandActionId.HIDE_COMPANION,
                 NovaCompanionCommandActionId.DISCONNECT,
                 NovaCompanionCommandActionId.END_SESSION,
             ),
@@ -31,8 +32,31 @@ class NovaCompanionCommandDeckStateTest {
         )
         assertEquals(NovaCompanionCommandActionId.ANDROID_KEYBOARD, state.initialFocusActionId())
         assertNotEquals(NovaCompanionCommandActionId.END_SESSION, state.initialFocusActionId())
+        assertFalse(state.actions.first { it.id == NovaCompanionCommandActionId.HIDE_COMPANION }.destructive)
         assertFalse(state.actions.first { it.id == NovaCompanionCommandActionId.DISCONNECT }.destructive)
         assertTrue(state.actions.first { it.id == NovaCompanionCommandActionId.END_SESSION }.destructive)
+    }
+
+    @Test
+    fun hideActionAvailabilityTracksTheExplicitReopenAuthority() {
+        val disabled = NovaCompanionCommandDeckState.from(
+            hud = NovaHudUiState.empty(),
+            sessionState = "streaming",
+            displayRole = "Companion",
+            unavailableLabel = "Unavailable",
+            hideCompanionEnabled = false,
+        )
+        val enabled = NovaCompanionCommandDeckState.from(
+            hud = NovaHudUiState.empty(),
+            sessionState = "streaming",
+            displayRole = "Companion",
+            unavailableLabel = "Unavailable",
+            hideCompanionEnabled = true,
+        )
+
+        assertFalse(disabled.actions.single { it.id == NovaCompanionCommandActionId.HIDE_COMPANION }.enabled)
+        assertTrue(enabled.actions.single { it.id == NovaCompanionCommandActionId.HIDE_COMPANION }.enabled)
+        assertTrue(disabled.actions.single { it.id == NovaCompanionCommandActionId.DISCONNECT }.enabled)
     }
 
     @Test

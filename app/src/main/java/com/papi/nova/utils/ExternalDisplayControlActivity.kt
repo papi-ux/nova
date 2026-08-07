@@ -16,7 +16,6 @@ import android.view.Window
 import android.view.WindowManager
 import com.papi.nova.Game
 import com.papi.nova.R
-import com.papi.nova.StartExternalDisplayControlReceiver
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.ui.NovaCompanionCommandDeckState
 
@@ -195,12 +194,6 @@ class ExternalDisplayControlActivity : Activity(),
         window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
     }
 
-    override fun releaseCommandDeckFocus() {
-        if (softKeyboardFocusLeaseActive) return
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-    }
-
     override fun prepareForSoftKeyboard() {
         if (softKeyboardFocusLeaseActive) return
         softKeyboardFocusLeaseActive = true
@@ -221,8 +214,7 @@ class ExternalDisplayControlActivity : Activity(),
         if (!softKeyboardFocusLeaseActive) return
         softKeyboardFocusLeaseActive = false
         softKeyboardWasVisible = false
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
     }
 
     override fun toggleKeyboard() {

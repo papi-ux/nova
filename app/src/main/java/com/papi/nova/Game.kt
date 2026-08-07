@@ -58,6 +58,7 @@ import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.DisplayFocusTelemetry
 import com.papi.nova.utils.CompanionControlHostPolicy
 import com.papi.nova.utils.CompanionControlLifecyclePolicy
+import com.papi.nova.utils.CompanionControlReopenGeneration
 import com.papi.nova.utils.DualScreenQuickMenuPolicy
 import com.papi.nova.utils.ExternalDisplayControlActivity
 import com.papi.nova.utils.ExternalDisplayControlHost
@@ -237,6 +238,8 @@ private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
 private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
 private var companionControlHasWindowFocus:Boolean = false
+private var companionControlsDismissedByUser = false
+private val companionControlReopenGeneration = CompanionControlReopenGeneration()
 private var lastQuickMenuInteractionDisplayId:Int = INVALID_DISPLAY_ID
 private var isTopResumedActivity:Boolean = false
 private var externalDisplayControlPresentation:ExternalDisplayControlHost? = null
@@ -493,6 +496,7 @@ sparklineSamples = emptyList(),
 sessionState = sessionState,
 displayRole = getString(R.string.companion_deck_display_role),
 unavailableLabel = getString(R.string.companion_deck_status_unavailable),
+hideCompanionEnabled = ExternalDisplayControlPresentation.canUseCompanionControlsNotification(this),
 )
 externalDisplayControlPresentation?.updateCommandDeckState(state)
 }
@@ -560,19 +564,87 @@ listenForExternalDisplayRemoval()
 }
 }
 
-fun showCompanionControls() {
+fun beginExplicitCompanionControlsReopen(): Long {
+val requestGeneration = companionControlReopenGeneration.beginRequest()
 runOnUiThread {
-if (!CompanionControlLifecyclePolicy.canShow(isStreamActive, isFinishing(), isDestroyed)) {
-LimeLog.info("Nova: Skipping companion controls for inactive Game lifecycle active=$isStreamActive finishing=${isFinishing()} destroyed=$isDestroyed")
-closeCompanionControls()
+if (companionControlReopenGeneration.isCurrent(requestGeneration)) {
+companionControlsDismissedByUser = false
+}
+}
+return requestGeneration
+}
+
+fun hideCompanionControlsForSession() {
+runOnUiThread {
+val reopenAvailable = ExternalDisplayControlPresentation.canUseCompanionControlsNotification(this)
+if (!CompanionControlLifecyclePolicy.canHide(reopenAvailable)) {
+updateCompanionCommandDeck()
+Toast.makeText(
+this,
+getString(R.string.companion_deck_hide_requires_notifications),
+Toast.LENGTH_SHORT,
+).show()
 return@runOnUiThread
+}
+companionControlReopenGeneration.invalidatePendingRequests()
+ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+companionControlsDismissedByUser = true
+externalDisplayControlPresentation?.dismissAfterCurrentCallback()
+LimeLog.info("Nova: Android companion controls hidden for current stream session")
+}
+}
+
+fun showCompanionControls(
+explicitUserRequest: Boolean = false,
+requestGeneration: Long? = null,
+) {
+runOnUiThread {
+if (
+explicitUserRequest &&
+(requestGeneration == null || !companionControlReopenGeneration.isCurrent(requestGeneration))
+) {
+LimeLog.info("Nova: Ignoring stale companion reopen request generation=$requestGeneration")
+return@runOnUiThread
+}
+val reopenAvailable = ExternalDisplayControlPresentation.canUseCompanionControlsNotification(this)
+if (CompanionControlLifecyclePolicy.shouldRestoreDismissedCompanion(
+companionControlsDismissedByUser,
+reopenAvailable,
+)) {
+companionControlsDismissedByUser = false
+LimeLog.info("Nova: Restoring companion controls because the notification reopen path is unavailable")
+}
+val canShow = CompanionControlLifecyclePolicy.canShow(
+isStreamActive,
+isFinishing(),
+isDestroyed,
+companionControlsDismissedByUser,
+explicitUserRequest,
+)
+if (!canShow) {
+LimeLog.info("Nova: Skipping companion controls active=$isStreamActive finishing=${isFinishing()} destroyed=$isDestroyed dismissed_by_user=$companionControlsDismissedByUser explicit_request=$explicitUserRequest")
+if (!isStreamActive || isFinishing() || isDestroyed) {
+closeCompanionControls()
+} else if (companionControlsDismissedByUser && shouldLaunchCompanionControls()) {
+ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+}
+return@runOnUiThread
+}
+if (explicitUserRequest) {
+companionControlsDismissedByUser = false
 }
 launchCompanionControlsIfAvailable()
 }
 }
 
 fun attachExternalDisplayControlActivity(activity:ExternalDisplayControlActivity):Boolean {
-if (!CompanionControlLifecyclePolicy.canShow(isStreamActive, isFinishing(), isDestroyed))
+if (!CompanionControlLifecyclePolicy.canShow(
+isStreamActive,
+isFinishing(),
+isDestroyed,
+companionControlsDismissedByUser,
+explicitUserRequest = false,
+))
 {
 return false
 }
@@ -1700,9 +1772,16 @@ gameMenuCallbacks?.showMenu(null)
 LimeLog.info("Nova: Android companion quick menu migrated to stream after companion close stream_display_id=$streamingDisplayId")
 }
 
-private fun closeCompanionControls(migrateOpenMenuToStream:Boolean = false) {
+private fun closeCompanionControls(
+migrateOpenMenuToStream:Boolean = false,
+preserveReopenNotification:Boolean = false,
+) {
+if (preserveReopenNotification) {
+ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+} else {
 NotificationManagerCompat.from(baseContext)
 .cancel(ExternalDisplayControlPresentation.SECONDARY_SCREEN_NOTIFICATION_ID)
+}
 val presentation:ExternalDisplayControlHost? = externalDisplayControlPresentation
 val shouldMigrateOpenMenu = migrateOpenMenuToStream &&
 DualScreenQuickMenuPolicy.shouldMigrateCompanionMenu(
@@ -1727,17 +1806,28 @@ showQuickMenuOnStreamAfterCompanionClose()
 }
 }
 
+private fun closeCompanionControlsForDisplayRemoval() {
+val preserveReopenNotification = CompanionControlLifecyclePolicy.shouldPreserveReopenNotification(
+streamActive = isStreamActive,
+dismissedByUser = companionControlsDismissedByUser,
+)
+closeCompanionControls(
+migrateOpenMenuToStream = true,
+preserveReopenNotification = preserveReopenNotification,
+)
+}
+
 private fun handleDisplayRemoved(removedDisplayId:Int) {
 when {
 removedDisplayId == streamingDisplayId -> {
 closeCompanionControls()
 finish()
 }
-removedDisplayId == companionControlDisplayId -> closeCompanionControls(migrateOpenMenuToStream = true)
+removedDisplayId == companionControlDisplayId -> closeCompanionControlsForDisplayRemoval()
 else -> {
 if (getCompanionControlDisplay() == null)
 {
-closeCompanionControls(migrateOpenMenuToStream = true)
+closeCompanionControlsForDisplayRemoval()
 }
 }
 }
@@ -2804,6 +2894,14 @@ return
 }
 }
 setIntent(intent)
+}
+
+override fun onResume() {
+super.onResume()
+if (companionControlsDismissedByUser && isStreamActive && !isFinishing()) {
+showCompanionControls()
+}
+updateCompanionCommandDeck()
 }
 
 override fun onPause() {
@@ -5053,11 +5151,13 @@ novaProgressOverlay?.dismiss()
 }
 }, NOVA_PROGRESS_READY_DISMISS_DELAY_MS)
 
+companionControlReopenGeneration.invalidatePendingRequests()
+companionControlsDismissedByUser = false
 handleStreamStartedState()
 
 if (!Objects.equals(appUUID, NvApp.REMOTE_INPUT_UUID))
 {
-launchCompanionControlsIfAvailable()
+showCompanionControls()
 }
 
  // Show Nova Stream HUD if enabled

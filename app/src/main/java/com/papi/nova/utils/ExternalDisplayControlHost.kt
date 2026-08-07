@@ -37,7 +37,6 @@ interface ExternalDisplayControlHost {
     fun updateCommandDeckState(state: NovaCompanionCommandDeckState)
 
     fun prepareForCommandDeckFocus() = Unit
-    fun releaseCommandDeckFocus() = Unit
     fun prepareForSoftKeyboard() = Unit
     fun onSoftKeyboardVisibilityChanged(imeVisible: Boolean) = Unit
     fun releaseSoftKeyboardFocus() = Unit

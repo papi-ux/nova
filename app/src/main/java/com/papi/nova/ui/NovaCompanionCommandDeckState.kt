@@ -7,6 +7,7 @@ enum class NovaCompanionCommandActionId {
     NOVA_HUD,
     ZOOM_PAN,
     COMMAND_CENTER,
+    HIDE_COMPANION,
     DISCONNECT,
     END_SESSION,
 }
@@ -64,6 +65,7 @@ data class NovaCompanionCommandDeckState(
             NovaCompanionCommandAction(NovaCompanionCommandActionId.NOVA_HUD),
             NovaCompanionCommandAction(NovaCompanionCommandActionId.ZOOM_PAN),
             NovaCompanionCommandAction(NovaCompanionCommandActionId.COMMAND_CENTER),
+            NovaCompanionCommandAction(NovaCompanionCommandActionId.HIDE_COMPANION),
             NovaCompanionCommandAction(NovaCompanionCommandActionId.DISCONNECT),
             NovaCompanionCommandAction(
                 id = NovaCompanionCommandActionId.END_SESSION,
@@ -76,6 +78,7 @@ data class NovaCompanionCommandDeckState(
             sessionState: String,
             displayRole: String,
             unavailableLabel: String,
+            hideCompanionEnabled: Boolean = true,
         ): NovaCompanionCommandDeckState {
             val hasRuntimeProjection =
                 hud.fpsLabel != EMPTY_VALUE ||
@@ -97,7 +100,13 @@ data class NovaCompanionCommandDeckState(
                     ?: unavailableLabel,
                 session = sessionState.toDisplayLabel(unavailableLabel),
                 displayRole = displayRole.trim().ifBlank { unavailableLabel },
-                actions = orderedActions,
+                actions = orderedActions.map { action ->
+                    if (action.id == NovaCompanionCommandActionId.HIDE_COMPANION) {
+                        action.copy(enabled = hideCompanionEnabled)
+                    } else {
+                        action
+                    }
+                },
             )
         }
 

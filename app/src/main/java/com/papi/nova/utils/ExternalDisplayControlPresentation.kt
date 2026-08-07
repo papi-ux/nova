@@ -21,6 +21,7 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.papi.nova.Game
 import com.papi.nova.R
@@ -159,10 +160,6 @@ class ExternalDisplayControlPresentation(
         return controller.isGameMenuOpen()
     }
 
-    override fun releaseCommandDeckFocus() {
-        StartExternalDisplayControlReceiver.requestFocusToGameActivity(false)
-    }
-
     override fun toggleKeyboard() {
         controller.toggleKeyboard()
     }
@@ -186,6 +183,29 @@ class ExternalDisplayControlPresentation(
         const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
 
         @JvmStatic
+        fun canUseCompanionControlsNotification(context: Context): Boolean {
+            if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                return false
+            }
+            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                return false
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val notificationManager =
+                    context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                val channel = notificationManager.getNotificationChannel(NOTIFICATION_CHANNEL_ID)
+                if (channel?.importance == NotificationManager.IMPORTANCE_NONE) {
+                    return false
+                }
+            }
+            return true
+        }
+
+        @JvmStatic
         fun ensureCompanionControlsNotification(game: Game) {
             if (
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -197,6 +217,9 @@ class ExternalDisplayControlPresentation(
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                     NOTIFICATION_PERMISSION_REQUEST_CODE,
                 )
+                return
+            }
+            if (!canUseCompanionControlsNotification(game)) {
                 return
             }
             postCompanionControlsNotification(game)
