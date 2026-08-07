@@ -1494,4 +1494,10 @@
     <!-- Were English literals in StreamSettings. -->
     <string name="nova_settings_opening_legacy">Opening legacy settings for %1$s</string>
     <string name="nova_language_reset_restart">Language has been reset to default, please restart the app!</string>
+    <!-- Were English literals in Game.kt, shown while a stream is being set up. -->
+    <string name="nova_hdr_display_unsupported">Display does not support HDR10. Nova will request a 10-bit SDR stream.</string>
+    <string name="nova_hdr_requires_android_n">HDR requires Android 7.0 or later</string>
+    <string name="nova_hdr_decoder_unsupported">Decoder does not support HDR10 profile</string>
+    <string name="nova_decoder_no_hevc">No HEVC decoder found</string>
+    <string name="nova_decoder_no_av1">No AV1 decoder found</string>
 </resources>

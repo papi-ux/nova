@@ -1,6 +1,7 @@
 package com.papi.nova
 
 
+import com.google.android.material.snackbar.Snackbar
 import com.papi.nova.utils.ServerHelper.getActiveDisplay
 import com.papi.nova.utils.ServerHelper.getAndroidCompanionDisplay
 
@@ -1115,7 +1116,7 @@ Build.VERSION.SDK_INT,
 displaySupportsHdr10
 ))
 {
-Toast.makeText(this, "Display does not support HDR10. Nova will request a 10-bit SDR stream.", Toast.LENGTH_LONG).show()
+NovaSnackbar.show(this, getString(R.string.nova_hdr_display_unsupported), Snackbar.LENGTH_LONG)
 }
 else if (shouldShowHdrRequiresAndroidNToast(
 prefConfig!!.enableHdr,
@@ -1123,7 +1124,7 @@ isOnExternalDisplay,
 Build.VERSION.SDK_INT
 ))
 {
-Toast.makeText(this, "HDR requires Android 7.0 or later", Toast.LENGTH_LONG).show()
+NovaSnackbar.show(this, getString(R.string.nova_hdr_requires_android_n), Snackbar.LENGTH_LONG)
 }
 
  // Check if the user has enabled performance stats overlay
@@ -1226,18 +1227,18 @@ catch (ignored:Throwable) {}
         if (willStreamHdr && !decoderRenderer!!.isHevcMain10Hdr10Supported && !decoderRenderer!!.isAv1Main10Supported)
 {
 willStreamHdr = false
-Toast.makeText(this, "Decoder does not support HDR10 profile", Toast.LENGTH_LONG).show()
+NovaSnackbar.showError(this, getString(R.string.nova_hdr_decoder_unsupported))
 }
  // Display a message to the user if HEVC was forced on but we still didn't find a decoder
         if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_HEVC && !decoderRenderer!!.isHevcSupported)
 {
-Toast.makeText(this, "No HEVC decoder found", Toast.LENGTH_LONG).show()
+NovaSnackbar.showError(this, getString(R.string.nova_decoder_no_hevc))
 }
 
  // Display a message to the user if AV1 was forced on but we still didn't find a decoder
         if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_AV1 && !decoderRenderer!!.isAv1Supported)
 {
-Toast.makeText(this, "No AV1 decoder found", Toast.LENGTH_LONG).show()
+NovaSnackbar.showError(this, getString(R.string.nova_decoder_no_av1))
 }
 
  // H.264 is always supported
@@ -4915,7 +4916,7 @@ LimeLog.severe(stage + " failed: " + errorCode)
                     var currentSurface:Surface? = streamContainer!!.getSurface()
 if (stage.contains("video") && currentSurface != null && currentSurface!!.isValid())
 {
-Toast.makeText(this@Game, getResources().getText(R.string.video_decoder_init_failed), Toast.LENGTH_LONG).show()
+NovaSnackbar.showError(this@Game, getString(R.string.video_decoder_init_failed))
 }
 
 var dialogText:String = getResources().getString(R.string.conn_error_msg) + " " + stage + " (error " + errorCode + ")"
