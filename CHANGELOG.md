@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+## 1.3.4 - 2026-08-07
+
+Nova 1.3.4 rebuilds the game detail window as a destination of its own and then holds the rest of the app to the standard it set. It replaces the launch-path modals with a single Play Setup screen, puts Nova on the Polaris brand palette and typeface, makes Portable Chrome mean what its contract always said, and fixes a set of controller defects that compiled and tested cleanly while being unusable in the hand.
+
+### Highlights
+
+- Rebuilds the **game detail window** around its artwork and opens it as its own window rather than a bottom sheet, with the launch path collapsed into a single **Play Setup** destination — the last three modals become a contextual strip, and the host's answer is shown beside the game's so a per-game override and the host default are no longer a screen apart.
+- Puts Nova on the **Polaris brand palette and typeface**, adding Space Grotesk as the chrome face with a subset that keeps tabular figures, and takes Title Case app-wide for names while leaving prose in sentence case.
+- Makes **Portable Chrome** literal. The contract has said "smoked graphite / dim moonlight grey / silver shell chrome" since it was written; what shipped was an `#A2ADBA` window with dark text, the only always-light theme in Nova. The reference is a silver PSP-1000: the shell is silver, the screen is not. Every contrast ratio is measured rather than judged by eye.
+- Reduces **thirteen corner values to three steps and a pill**, and moves sixteen uppercase chrome labels onto one typeface — they had been spelling out eleven trackings across three units, seven of them with no font family at all and so rendering in Roboto beside Space Grotesk.
+- **Separates focus from selection.** Six components drew them identically, and the damage ran the direction that is easy to miss: an unfocused *selected* item was painted with the focus fill, so two things on screen claimed to be where you are.
+- Fixes controls that **watched focus but could never receive it**. The Polaris Sync stream display selector could not be reached with a controller at all — changing it required touching the screen, on a handheld.
+- Gives surfaces that opened with **focus left behind** somewhere to land: Polaris Sync opens on the stream display modes, Settings on the category rail rather than on Back, where the first press used to leave the screen you had just opened.
+- Fixes the **settings search field trapping the d-pad**: it was a plain text field, so once focused the direction keys went into the text and there was no way off it without a touchscreen.
+- Keeps the **companion window focusable** instead of clearing focus from the companion display, which had left Android's input dispatcher with no focused window and timing out on controller input, and adds a reversible Hide Companion action driven from the notification.
+- Makes a **wrong completion estimate correctable** and guards the gauge that shows it.
+- Replaces the raw toasts drawn **over a running game** with themed, differentiated feedback, so a failure no longer looks exactly like a success.
+
+### Compatibility and behavior
+
+- Preserves every Library mode, the theme set, minSdk 21, targetSdk 36, existing database and routing authorities, Moonlight-compatible hosts, Polaris integration, and signed in-place upgrades.
+- Portable Chrome changes polarity from light to dark. Its surfaces, focus alphas, particle density and error colour all move with it; the previous error colour was a dark maroon that fails the 4.5:1 gate on dark cards, where the fallback is silent.
+- Sheets keep their own 26dp corner: a sheet reads as an edge of the screen rather than as a card on it.
+- Six sentences that had been hardcoded English became string resources. Three of them were also assigned to the library's on-screen error state, so the same untranslated sentence was appearing twice at once.
+- The dashboard theme picker now reads the shared theme array instead of keeping a second copy in Kotlin, so a theme added to the array can no longer appear in Settings and silently not on the dashboard.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.4 and versionCode 36.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
+
+### Validation notes
+
+- Verified on a Retroid Pocket 6 against a Polaris host: library, game detail, Play Setup, artwork studio, Settings, the System and Options drawers, the theme picker, the Polaris Sync sheet, and the in-stream Command Center.
+- `connectedNonRoot_gameDebugAndroidTest` passes 36/36 on that device; the JVM suite is green, as are `lintNonRoot_gameRelease` with `-PlintFailOnError=true`, both release and androidTest assembles, and the helper and onboarding tests.
+- Two changes are **not** verified on hardware and are called out rather than implied: the drawer-anchored snackbar placement inside the in-stream Command Center, and HUD theming under the graphite Portable Chrome. Both need a live stream to observe, and both fall back to previously shipped behaviour.
+- The first-focus request lands after a settle delay, so an input arriving inside that window is overwritten when the request completes. This is a race between the delay and the user rather than a wrong destination, and it wants measuring on hardware.
+- Roughly ninety raw toasts remain, all in files that host dialogs. Each needs the same question answered individually — is a window above the activity when this fires — because a naive conversion hides the message rather than restyling it. Three of them pass an application context and cannot become snackbars without moving where the message is raised.
+- Issues #177 and #178 stay open until physical AYN Thor results are captured; the companion focus lifecycle work here is not itself proof of that validation.
+
 ## 1.3.3 - 2026-07-30
 
 Nova 1.3.3 turns the Library and dual-screen experience into a controller-first command surface. It adds Spotlight Row, explicit Follow / Stream / Companion display roles, the Thor companion command deck, broader Material You semantics, and focused navigation, lifecycle, and API 33 reliability fixes.

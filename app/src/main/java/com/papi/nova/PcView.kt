@@ -1337,7 +1337,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (computerObject != null) {
                 maybeProbeLibraryReadiness(computerObject)
             }
-            Toast.makeText(this, R.string.pcview_library_checking, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.show(this, getString(R.string.pcview_library_checking))
             return
         }
 
@@ -1460,7 +1460,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (::viewModel.isInitialized) viewModel.computersLiveData.value else null,
         )
         if (selected == null) {
-            Toast.makeText(this, R.string.pcview_library_no_server, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, getString(R.string.pcview_library_no_server))
             return
         }
         doNovaLibrary(selected.details)
@@ -1471,7 +1471,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (::viewModel.isInitialized) viewModel.computersLiveData.value else null,
         )
         if (selected == null) {
-            Toast.makeText(this, R.string.pcview_polaris_start_no_server, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_no_server))
             return
         }
         startPolarisFromNova(selected.details)
@@ -2123,7 +2123,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private fun handleQrScanResult(contents: String) {
         val uri = Uri.parse(contents)
         if (uri.scheme != "art") {
-            Toast.makeText(this, "Invalid QR code — expected Polaris pairing code", Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, getString(R.string.nova_qr_invalid_code))
             return
         }
 
@@ -2133,13 +2133,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         val port = if (uri.port != -1) uri.port else NvHTTP.DEFAULT_HTTP_PORT
 
         if (pin == null || passphrase == null || host == null) {
-            Toast.makeText(this, "QR code is missing pairing data", Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, getString(R.string.nova_qr_missing_pairing_data))
             return
         }
 
         val binder = managerBinder
         if (binder == null) {
-            Toast.makeText(this, getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show()
+            NovaSnackbar.showError(this, getString(R.string.error_manager_not_running))
             return
         }
 
@@ -2410,11 +2410,11 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private fun startPolarisFromNova(computer: ComputerDetails) {
         val binder = managerBinder
         if (binder == null) {
-            Toast.makeText(this, resources.getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show()
+            NovaSnackbar.showError(this, getString(R.string.error_manager_not_running))
             return
         }
         if (needsPairing(computer)) {
-            Toast.makeText(this, R.string.pcview_polaris_start_pair_first, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_pair_first))
             return
         }
         val uuid = computer.uuid
@@ -2517,11 +2517,11 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     private fun doAppList(computer: ComputerDetails, newlyPaired: Boolean, showHiddenGames: Boolean) {
         if (computer.state == ComputerDetails.State.OFFLINE) {
-            Toast.makeText(this, resources.getString(R.string.error_pc_offline), Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, getString(R.string.error_pc_offline))
             return
         }
         if (managerBinder == null) {
-            Toast.makeText(this, resources.getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show()
+            NovaSnackbar.showError(this, getString(R.string.error_manager_not_running))
             return
         }
 
@@ -2537,12 +2537,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private fun doNovaLibrary(computer: ComputerDetails) {
         val activeAddress = computer.activeAddress
         if (computer.state == ComputerDetails.State.OFFLINE || activeAddress == null) {
-            Toast.makeText(this, resources.getString(R.string.error_pc_offline), Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, getString(R.string.error_pc_offline))
             return
         }
         val binder = managerBinder
         if (binder == null) {
-            Toast.makeText(this, resources.getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show()
+            NovaSnackbar.showError(this, getString(R.string.error_manager_not_running))
             return
         }
 

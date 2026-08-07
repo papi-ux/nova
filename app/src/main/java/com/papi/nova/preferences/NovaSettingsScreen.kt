@@ -83,6 +83,7 @@ import com.papi.nova.ui.compose.NovaMenuBackdropBlur
 import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.NovaSearchTextField
 import com.papi.nova.ui.compose.novaFocusMotion
+import com.papi.nova.ui.compose.novaHoldsFirstFocus
 import kotlin.math.roundToInt
 
 @Composable
@@ -274,10 +275,15 @@ private fun NovaSettingsContent(
                     .fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.wideColumnSpacingDp().dp)
             ) {
+                // Settings opened on whatever Android's traversal picked first, which is
+                // Back — so the first press on a controller left the screen you had just
+                // asked for. It lands on the rail instead, where the next press moves
+                // between categories.
                 NovaSettingsCategoryRail(
                     state = state,
                     onCategory = onCategory,
                     modifier = Modifier
+                        .novaHoldsFirstFocus()
                         .width(NovaSettingsMetrics.categoryRailWidthDp().dp)
                         .fillMaxHeight()
                 )

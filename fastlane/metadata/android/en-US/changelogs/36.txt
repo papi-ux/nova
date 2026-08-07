@@ -1,0 +1,7 @@
+Nova 1.3.4
+
+- Rebuilds the game detail window as its own screen and collapses the launch path into one Play Setup destination.
+- Puts Nova on the Polaris brand palette and typeface, with Title Case for names.
+- Portable Chrome becomes the dark graphite handheld theme its contract described.
+- Fixes controls a controller could not reach, including the Polaris Sync display selector.
+- Settings and Polaris Sync now open with focus somewhere useful instead of on Back.
