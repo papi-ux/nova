@@ -25,7 +25,7 @@ class SpaceParticleView @JvmOverloads constructor(
 
     private val bgColor: Int = NovaThemeManager.getActivityWindowSurfaceColor(context)
     private val starRgb: Int = NovaThemeManager.getTextPrimaryColor(context) and 0x00FFFFFF
-    private val accentColor: Int = NovaThemeManager.getAccentColor(context)
+    private val ambientAccents: IntArray = NovaThemeManager.getAmbientAccentColors(context)
 
     var dense = false
         set(value) { field = value; rebuild() }
@@ -103,15 +103,19 @@ class SpaceParticleView @JvmOverloads constructor(
         )
     }
 
-    private fun createNebula(): Nebula {
+    private fun createNebula(index: Int): Nebula {
         val w = width.toFloat().coerceAtLeast(1f)
         val h = height.toFloat().coerceAtLeast(1f)
+        // One accent means every node is that accent, which is what this did before the
+        // palette existed. Portable Chrome supplies four, so the nodes cycle them and no
+        // two consecutive nebulae share a hue.
+        val tint = ambientAccents[index % ambientAccents.size]
         return Nebula(
             x = Random.nextFloat() * w, y = Random.nextFloat() * h,
             radius = Random.nextFloat() * 200f + 100f,
-            r = Color.red(accentColor),
-            g = Color.green(accentColor),
-            b = Color.blue(accentColor),
+            r = Color.red(tint),
+            g = Color.green(tint),
+            b = Color.blue(tint),
             opacity = Random.nextFloat() * 0.03f + 0.01f,
             drift = (Random.nextFloat() - 0.5f) * 0.02f
         )
@@ -120,7 +124,7 @@ class SpaceParticleView @JvmOverloads constructor(
     private fun rebuild() {
         val count = if (dense) 300 else 120
         stars = MutableList(count) { createStar() }
-        nebulae = if (dense) MutableList(6) { createNebula() } else mutableListOf()
+        nebulae = if (dense) MutableList(6) { createNebula(it) } else mutableListOf()
         shootingStars.clear()
     }
 

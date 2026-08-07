@@ -319,6 +319,29 @@ object NovaThemeManager {
     }
 
     /** Returns the correct accent color for the current theme */
+    /**
+     * The colours the ambient particle field is allowed to glint with.
+     *
+     * Every theme returns its single accent. Portable Chrome returns the four face-button
+     * hues instead, because the surface contract asks it for "subtle portable chrome
+     * playstation symbol accents" and those four tokens had been declared without a single
+     * reference anywhere in the app.
+     *
+     * Kept here rather than as an isPortableChrome branch inside the view: the view asks
+     * what it may tint with, and the theme answers.
+     */
+    fun getAmbientAccentColors(context: Context): IntArray {
+        if (!isPortableChrome(context)) {
+            return intArrayOf(getAccentColor(context))
+        }
+        return intArrayOf(
+            ContextCompat.getColor(context, R.color.nova_portable_cross_accent),
+            ContextCompat.getColor(context, R.color.nova_portable_square_accent),
+            ContextCompat.getColor(context, R.color.nova_portable_circle_accent),
+            ContextCompat.getColor(context, R.color.nova_portable_triangle_accent)
+        )
+    }
+
     fun getAccentColor(context: Context): Int {
         val theme = getTheme(context)
         if (theme == THEME_MATERIAL_YOU && isMaterialYouAvailable()) {
