@@ -53,6 +53,32 @@ class NovaRadiusScaleTest {
     }
 
     @Test
+    fun cornerArgumentsAndDefaultsAlsoComeFromTheScale() {
+        // The first version of this guard parsed only RoundedCornerShape(...), and so reported
+        // the sweep finished while twenty-two corner values were still sitting in parameter
+        // defaults and in `cornerRadius = 12.dp` arguments to NovaActionButton, HudPanel and
+        // the focus-halo modifier. A guard that pins one spelling of a decision only moves the
+        // decision to a different spelling.
+        val offenders = mutableListOf<String>()
+
+        for (file in sourceFiles()) {
+            file.readText().split("\n").forEachIndexed { i, line ->
+                if (CORNER_LITERAL.containsMatchIn(line)) {
+                    offenders += file.name + ":" + (i + 1) + "  " + line.trim()
+                }
+            }
+        }
+
+        assertEquals(
+            "Corner radii passed as arguments or declared as parameter defaults come from " +
+                "NovaRadius too, not only the ones written inside RoundedCornerShape(...).\n" +
+                offenders.joinToString("\n"),
+            emptyList<String>(),
+            offenders
+        )
+    }
+
+    @Test
     fun theScaleIsOrderedAndSmall() {
         // Three steps and a pill. The ordering is the part worth pinning: chip < row < hero
         // is what lets a call site pick by role rather than by measuring.
@@ -89,5 +115,17 @@ class NovaRadiusScaleTest {
          * lookbehind rejects it.
          */
         val BARE_DP = Regex("""(?<![\w.])\d+(?:\.\d+)?\.dp""")
+
+        /**
+         * A corner value spelled as an argument or a parameter default rather than inside a
+         * RoundedCornerShape: `cornerRadius = 12.dp`, `cornerRadius: Dp = 14.dp`, and
+         * `val NovaPosterCornerRadius = 6.dp` all match.
+         *
+         * The View-layer GradientDrawable API also has a `cornerRadius`, but it takes a float
+         * of pixels rather than a Dp, so it does not match and is not in scope here.
+         */
+        val CORNER_LITERAL = Regex(
+            """(?i)corner[a-z]*\s*(?::\s*Dp\s*)?=\s*\d+(?:\.\d+)?\.dp"""
+        )
     }
 }

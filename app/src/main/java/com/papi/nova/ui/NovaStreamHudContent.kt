@@ -74,7 +74,7 @@ private fun rememberHudOpacityScale(opacityScale: Float): Float {
 private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
         modifier = modifier.width(236.dp),
-        cornerRadius = 18.dp,
+        cornerRadius = NovaRadius.hero,
         padding = 10.dp
     ) {
         Row(
@@ -173,7 +173,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
 private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
         modifier = modifier.widthIn(max = 320.dp),
-        cornerRadius = 16.dp,
+        cornerRadius = NovaRadius.hero,
         padding = 8.dp
     ) {
         HudPerformancePrimaryRow(state)
@@ -275,7 +275,7 @@ private fun HudPerformanceDetailRow(state: NovaHudUiState) {
 private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
         modifier = modifier.width(148.dp),
-        cornerRadius = 18.dp,
+        cornerRadius = NovaRadius.hero,
         padding = 7.dp
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -709,7 +709,7 @@ internal fun NovaDesktopSteamLaunchDecisionContent(
             enabled = privateStreamEnabled,
             contentDescription = privateStreamLabel,
             minHeight = 46.dp,
-            cornerRadius = 12.dp,
+            cornerRadius = NovaRadius.hero,
             fontSize = 14.sp
         )
         NovaActionButton(
@@ -722,7 +722,7 @@ internal fun NovaDesktopSteamLaunchDecisionContent(
             primary = false,
             contentDescription = forcePrivateLabel,
             minHeight = 46.dp,
-            cornerRadius = 12.dp,
+            cornerRadius = NovaRadius.hero,
             fontSize = 14.sp
         )
         Text(
@@ -742,7 +742,7 @@ internal fun NovaDesktopSteamLaunchDecisionContent(
             primary = true,
             contentDescription = mirrorDesktopLabel,
             minHeight = 48.dp,
-            cornerRadius = 12.dp,
+            cornerRadius = NovaRadius.hero,
             fontSize = 15.sp
         )
         NovaActionButton(
@@ -753,7 +753,7 @@ internal fun NovaDesktopSteamLaunchDecisionContent(
                 .padding(top = 8.dp),
             contentDescription = cancelLabel,
             minHeight = 42.dp,
-            cornerRadius = 10.dp,
+            cornerRadius = NovaRadius.hero,
             fontSize = 13.sp
         )
     }
@@ -1150,7 +1150,7 @@ internal fun LaunchProfilePrimaryNotice(
                     },
                     stateDescription = if (noticeExpanded) "Expanded" else "Collapsed",
                     minHeight = 32.dp,
-                    cornerRadius = 9.dp,
+                    cornerRadius = NovaRadius.hero,
                     fontSize = 10.sp,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                 )
@@ -1240,7 +1240,7 @@ private fun NovaOptionPanel(
                 modifier = Modifier.width(104.dp),
                 contentDescription = closeLabel,
                 minHeight = 36.dp,
-                cornerRadius = 10.dp,
+                cornerRadius = NovaRadius.hero,
                 fontSize = 11.sp,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 7.dp)
             )

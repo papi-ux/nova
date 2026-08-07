@@ -415,7 +415,7 @@ private fun NovaQuickMenuHeaderButton(
         modifier = modifier.widthIn(min = 84.dp),
         enabled = action.enabled,
         primary = !action.destructive,
-        cornerRadius = 12.dp,
+        cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
         fontSize = 12.sp,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
@@ -436,7 +436,7 @@ private fun NovaQuickMenuCloseButton(
             .focusRequester(initialFocusRequester)
             .semantics { contentDescription = "Close Command Center" },
         primary = false,
-        cornerRadius = 12.dp,
+        cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
         fontSize = 12.sp,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
@@ -652,7 +652,7 @@ private fun NovaQuickMenuPreferenceButton(
         modifier = modifier,
         enabled = option.enabled,
         primary = option.selected,
-        cornerRadius = 9.dp,
+        cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
         fontSize = 10.sp,
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 7.dp)
@@ -711,7 +711,7 @@ private fun NovaQuickKeys(actions: List<NovaQuickMenuAction>, callbacks: NovaQui
                         onClick = { callbacks.perform(action) },
                         modifier = Modifier.weight(1f),
                         enabled = action.enabled,
-                        cornerRadius = 9.dp,
+                        cornerRadius = NovaRadius.hero,
                         minHeight = 36.dp,
                         fontSize = 11.sp,
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
@@ -885,7 +885,7 @@ private fun NovaQuickMenuMenuOpacityControl(
                             R.string.nova_quick_menu_hud_opacity_not_selected
                         }
                     ),
-                    cornerRadius = 9.dp,
+                    cornerRadius = NovaRadius.hero,
                     minHeight = 44.dp,
                     fontSize = 10.sp,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
@@ -962,7 +962,7 @@ private fun NovaQuickMenuHudOpacityControl(
                             R.string.nova_quick_menu_hud_opacity_not_selected
                         }
                     ),
-                    cornerRadius = 9.dp,
+                    cornerRadius = NovaRadius.hero,
                     minHeight = 44.dp,
                     fontSize = 10.sp,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)

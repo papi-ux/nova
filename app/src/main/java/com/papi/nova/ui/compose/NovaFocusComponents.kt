@@ -77,7 +77,7 @@ internal fun Modifier.novaFocusMotion(
     focusedScale: Float = NovaFocusMotionSpec.CardFocusedScale,
     pressedScale: Float = NovaFocusMotionSpec.ButtonPressedScale,
     haloAlpha: Float = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-    cornerRadius: Dp = 14.dp
+    cornerRadius: Dp = NovaRadius.row
 ): Modifier = composed {
     val surfaces = LocalNovaLibrarySurfaces.current
     val targetScale = when {
@@ -250,7 +250,7 @@ fun NovaFocusableCard(
                 focused = focused,
                 enabled = enabled,
                 haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-                cornerRadius = 14.dp
+                cornerRadius = NovaRadius.row
             )
             .clip(shape)
             .background(surfaces.tile)
@@ -275,7 +275,7 @@ fun NovaActionButton(
     selected: Boolean = false,
     stateDescription: String? = null,
     minHeight: Dp = 38.dp,
-    cornerRadius: Dp = 14.dp,
+    cornerRadius: Dp = NovaRadius.hero,
     fontSize: TextUnit = 13.sp,
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
 ) {

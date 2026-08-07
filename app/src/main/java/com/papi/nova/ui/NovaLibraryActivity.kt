@@ -3001,7 +3001,7 @@ class NovaLibraryActivity : NovaActivity() {
                     focused = focused,
                     focusedScale = NovaFocusMotionSpec.ButtonFocusedScale,
                     haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
-                    cornerRadius = 16.dp
+                    cornerRadius = NovaRadius.row
                 )
                 .clip(RoundedCornerShape(NovaRadius.row))
                 .background(if (focused) surfaces.selectedControl else surfaces.control)
@@ -3567,7 +3567,7 @@ class NovaLibraryActivity : NovaActivity() {
                     focused = focused,
                     focusedScale = NovaFocusMotionSpec.CardFocusedScale,
                     haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
-                    cornerRadius = 14.dp
+                    cornerRadius = NovaRadius.chip
                 )
                 .clip(RoundedCornerShape(NovaRadius.chip))
                 .background(
@@ -3735,7 +3735,7 @@ class NovaLibraryActivity : NovaActivity() {
         private const val CONTROLLER_AXIS_INTENT_THRESHOLD = 0.35f
         /** One corner radius for library surfaces, so panels, the continue-playing row and
          *  the bar keep the same edge whichever layout is showing. */
-        private val NovaLibrarySurfaceCornerRadius = 8.dp
+        private val NovaLibrarySurfaceCornerRadius = NovaRadius.hero
 
         /** The poster wall owns the screen in grid layouts, so the shared backdrop reads
          *  as atmosphere behind it rather than competing with twenty covers. */
