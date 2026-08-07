@@ -1970,18 +1970,28 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     private fun compactStatusModeLabel(settings: PolarisClientSettings?): String? {
-        val mode = settings?.effective?.streamDisplayMode
-            ?.ifBlank { settings.desired.streamDisplayMode }
-            .orEmpty()
-        return when (mode) {
-            PolarisClientSettings.MODE_HEADLESS_STREAM, "headless" -> "Headless"
-            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, "virtual_display" -> "Virtual"
-            PolarisClientSettings.MODE_DESKTOP_DISPLAY -> "Desktop"
-            PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU Native"
-            else -> settings?.effectiveModeLabel
-                ?.ifBlank { settings.desiredModeLabel }
-                ?.ifBlank { null }
+        settings ?: return null
+        // Desired first — the same answer game detail gives, so a host that fell back
+        // no longer reads two ways depending on which screen asked. When the session
+        // in flight runs something else, both are said, with the arrow the sync
+        // mapper always computed and nothing ever rendered.
+        val desired = compactModeName(settings.desired.streamDisplayMode)
+            ?: settings.desiredModeLabel.ifBlank { null }
+        val effective = compactModeName(settings.effective.streamDisplayMode)
+            ?: settings.effectiveModeLabel.ifBlank { null }
+        return when {
+            desired == null -> effective
+            effective == null || effective == desired -> desired
+            else -> "$desired → $effective"
         }
+    }
+
+    private fun compactModeName(mode: String?): String? = when (mode.orEmpty()) {
+        PolarisClientSettings.MODE_HEADLESS_STREAM, "headless" -> "Headless"
+        PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, "virtual_display" -> "Virtual"
+        PolarisClientSettings.MODE_DESKTOP_DISPLAY -> "Desktop"
+        PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU Native"
+        else -> null
     }
 
     @Composable

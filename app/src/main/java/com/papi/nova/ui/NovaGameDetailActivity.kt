@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.KeyEvent
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
@@ -93,6 +94,7 @@ import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
+import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.LocalNovaComposeColors
@@ -194,6 +196,23 @@ class NovaGameDetailActivity : NovaActivity() {
     private var destination by mutableStateOf(NovaGameDetailDestination.OVERVIEW)
 
     /**
+     * Which subject Play Setup shows: this game, or the host defaults every game
+     * inherits. Y flips it while the panel is open — the first key this window claims —
+     * and the header pill does the same by touch.
+     */
+    private var playSetupScope by mutableStateOf(NovaPlaySetupScope.THIS_GAME)
+
+    /** The strip explains this row; rows point it at themselves as focus moves. */
+    private var explainedRow by mutableStateOf(NovaPlaySetupRow.WHERE_IT_RUNS)
+
+    /**
+     * The Polaris Sync sheet's engine, as Every Game's second surface. Started when
+     * that scope first opens so the panel does not poll the host for people who never
+     * flip it, and closed with the panel.
+     */
+    private var hostSyncEngine: NovaPolarisSyncEngine? = null
+
+    /**
      * Set when Polaris reports desktop Steam active. It turns Launch mode into the
      * three-way choice that used to be a bottom sheet raised over the content.
      */
@@ -265,9 +284,54 @@ class NovaGameDetailActivity : NovaActivity() {
         destination != NovaGameDetailDestination.OVERVIEW -> {
             destination = NovaGameDetailDestination.OVERVIEW
             steamDecision = null
+            // The panel reopens on the game it was opened for; host scope is a place
+            // someone flips to, not a place the panel should quietly resume in.
+            playSetupScope = NovaPlaySetupScope.THIS_GAME
+            explainedRow = NovaPlaySetupRow.WHERE_IT_RUNS
+            hostSyncEngine?.close()
             true
         }
         else -> false
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Y is unclaimed everywhere else in this window, so the scope flip takes
+        // nothing from anyone. Claimed only while Play Setup is open: a key that acts
+        // on a panel that is not on screen is a key that does something invisible.
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_Y && destination == NovaGameDetailDestination.PLAY_SETUP) {
+            selectPlaySetupScope(
+                if (playSetupScope == NovaPlaySetupScope.THIS_GAME) {
+                    NovaPlaySetupScope.EVERY_GAME
+                } else {
+                    NovaPlaySetupScope.THIS_GAME
+                }
+            )
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun selectPlaySetupScope(scope: NovaPlaySetupScope) {
+        if (playSetupScope == scope) {
+            return
+        }
+        playSetupScope = scope
+        explainedRow = if (scope == NovaPlaySetupScope.EVERY_GAME) {
+            NovaPlaySetupRow.HOST_DEFAULT_DISPLAY
+        } else {
+            NovaPlaySetupRow.WHERE_IT_RUNS
+        }
+        if (scope == NovaPlaySetupScope.EVERY_GAME) {
+            hostSyncEngine?.let { engine ->
+                engine.start(clientSettings)
+                engine.refresh()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        hostSyncEngine?.close()
+        super.onDestroy()
     }
 
     /**
@@ -313,7 +377,7 @@ class NovaGameDetailActivity : NovaActivity() {
         // Which row the comparison strip is explaining. It follows focus, and a tap sets
         // it too -- touch has no cursor for the strip to follow, and a finger that lands
         // on a row should get the same explanation a d-pad would.
-        var explainedRow by mutableStateOf(NovaPlaySetupRow.WHERE_IT_RUNS)
+        explainedRow = NovaPlaySetupRow.WHERE_IT_RUNS
         // An explicit resolution, held until launch rather than launching on the spot.
         // Picking one used to start the game immediately, which is why the row that owned
         // it could not be a setting: there was nothing to set.
@@ -374,6 +438,24 @@ class NovaGameDetailActivity : NovaActivity() {
                 refreshUiState()
             }.show(supportFragmentManager, "polaris_sync")
         }
+
+        hostSyncEngine = NovaPolarisSyncEngine(
+            context = this,
+            apiClient = apiClient,
+            serverUuid = serverUuid,
+            scope = lifecycleScope,
+            onSettingsChanged = { settings ->
+                clientSettings = settings
+                refreshUiState()
+            },
+            onMessage = { messageRes, isError ->
+                if (isError) {
+                    NovaSnackbar.showError(this, getString(messageRes))
+                } else {
+                    NovaSnackbar.showSuccess(this, getString(messageRes))
+                }
+            },
+        )
 
         fun acceptArtwork(manifest: PolarisGame.ArtworkManifest) {
             val nextChoiceGeneration = artworkState.choiceGeneration + 1
@@ -769,6 +851,85 @@ class NovaGameDetailActivity : NovaActivity() {
             next.onSelect?.invoke()
         }
 
+        /** The sheet's mapper, fed from the engine, so panel and sheet read alike. */
+        fun hostScopeUiState(): NovaPolarisSyncUiState {
+            val engine = hostSyncEngine
+            val prefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            return NovaPolarisSyncUiStateMapper.build(
+                settings = engine?.currentSettings ?: clientSettings,
+                busy = engine?.busy == true,
+                settingsUnavailable = engine?.settingsUnavailable == true,
+                autoSyncEnabled = engine?.autoSyncEnabled == true,
+                hasServerUuid = !serverUuid.isNullOrBlank(),
+                novaDisplayMode = PreferenceConfiguration.formatStreamingDisplayMode(
+                    prefs.width,
+                    prefs.height,
+                    prefs.fps
+                ),
+                novaBitrateKbps = prefs.bitrate,
+                loadingLabel = getString(R.string.nova_polaris_sync_loading),
+                unavailableLabel = getString(R.string.nova_polaris_sync_unavailable),
+                unsetLabel = getString(R.string.nova_polaris_sync_unset),
+            )
+        }
+
+        fun hostPolarisProfileValue(sync: NovaPolarisSyncUiState): String {
+            if (sync.profileState == PolarisProfileSync.ProfileState.MATCHED) {
+                return getString(R.string.nova_play_setup_host_profile_matched)
+            }
+            val settings = hostSyncEngine?.currentSettings ?: clientSettings
+            val profile = settings?.let { PolarisProfileSync.polarisOverrideProfile(it) }
+            return when {
+                profile == null -> getString(R.string.nova_polaris_sync_unset)
+                profile.bitrateKbps > 0 ->
+                    "${profile.displayMode.ifBlank { getString(R.string.nova_polaris_sync_unset) }} · ${profile.bitrateKbps / 1000} Mbps"
+                else -> profile.displayMode
+            }
+        }
+
+        fun hostActions() = NovaPlaySetupHostActions(
+            onSelectMode = { hostSyncEngine?.setStreamDisplayMode(it) },
+            onMatchNova = { hostSyncEngine?.matchNova() },
+            onSendNova = { hostSyncEngine?.sendNova() },
+            onUsePolaris = { hostSyncEngine?.usePolarisProfile() },
+            onClearProfile = { hostSyncEngine?.clearProfile() },
+            onAutoQuality = { hostSyncEngine?.setAiAutoQuality(it) },
+            onKeepInStep = { hostSyncEngine?.setAutoSync(it) },
+        )
+
+        fun buildHostPlaySetupRows(): List<NovaPlaySetupRowState> {
+            val sync = hostScopeUiState()
+            return buildNovaPlaySetupHostRows(
+                sync = sync,
+                polarisProfileValue = hostPolarisProfileValue(sync),
+                getString = { resId -> getString(resId) },
+                actions = hostActions(),
+            )
+        }
+
+        fun advanceHostPlaySetupRow(row: NovaPlaySetupRow) {
+            explainedRow = row
+            val sync = hostScopeUiState()
+            advanceNovaPlaySetupHostRow(
+                row = row,
+                rows = buildNovaPlaySetupHostRows(
+                    sync = sync,
+                    polarisProfileValue = hostPolarisProfileValue(sync),
+                    getString = { resId -> getString(resId) },
+                    actions = hostActions(),
+                ),
+                sync = sync,
+                actions = hostActions(),
+            )
+        }
+
+        fun hostPlaySetupPlan(sync: NovaPolarisSyncUiState): NovaPlaySetupPlan =
+            novaPlaySetupHostPlan(
+                sync = sync,
+                polarisProfileValue = hostPolarisProfileValue(sync),
+                getString = { resId -> getString(resId) },
+            )
+
         fun resetProfile() {
             resetWorking = true
             lifecycleScope.launch {
@@ -812,6 +973,18 @@ class NovaGameDetailActivity : NovaActivity() {
                     optimizationState = optimizationState,
                     playSetupRows = buildPlaySetupRows(),
                     explainedPlaySetupRow = explainedRow,
+                    playSetupScope = playSetupScope,
+                    onPlaySetupScopeSelected = { selectPlaySetupScope(it) },
+                    hostPlaySetupRows = if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
+                        buildHostPlaySetupRows()
+                    } else {
+                        emptyList()
+                    },
+                    hostPlaySetupPlan = if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
+                        hostPlaySetupPlan(hostScopeUiState())
+                    } else {
+                        null
+                    },
                     playLabel = if (pendingLaunch) {
                         // The press landed and is being held, so say so. A button that
                         // looks untouched for the length of an HTTP round-trip reads as
@@ -831,7 +1004,13 @@ class NovaGameDetailActivity : NovaActivity() {
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
                     onPrimaryLaunch = { attemptLaunch() },
                     onExplainPlaySetupRow = { row -> explainedRow = row },
-                    onAdvancePlaySetupRow = { row -> advancePlaySetupRow(row) },
+                    onAdvancePlaySetupRow = { row ->
+                        if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
+                            advanceHostPlaySetupRow(row)
+                        } else {
+                            advancePlaySetupRow(row)
+                        }
+                    },
                     destination = destination,
                     steamDecision = steamDecision,
                     reviewExpanded = reviewExpanded,
