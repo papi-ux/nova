@@ -193,6 +193,7 @@ internal fun NovaGameDetailOverview(
                 gameName = uiState.game.name,
                 playTime = uiState.game.playTime,
                 beatTime = uiState.game.beatTime,
+                onCorrectMatch = { onDestination(NovaGameDetailDestination.ARTWORK) },
             )
 
             NovaGameDetailStatusLine(
@@ -504,6 +505,7 @@ private fun NovaGameDetailBeatGauge(
     gameName: String,
     playTime: PolarisGame.PlayTime?,
     beatTime: PolarisGame.BeatTime?,
+    onCorrectMatch: () -> Unit,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -667,15 +669,21 @@ private fun NovaGameDetailBeatGauge(
         // name it actually found is shown whenever it is not plainly the same game.
         val matched = beatTime?.matchedName.orEmpty()
         if (matched.isNotBlank() && novaSameTitle(matched, gameName).not()) {
+            var correctionFocused by remember { mutableStateOf(false) }
             Text(
                 text = stringResource(R.string.nova_game_detail_matched_as, matched),
-                color = colors.textMuted,
+                // The estimate follows whatever identity the studio settled on, so the
+                // admission of a mismatch is also the way to the place that fixes it.
+                color = if (correctionFocused) colors.accent else colors.textMuted,
                 fontSize = 10.sp,
                 letterSpacing = 0.06.em,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .padding(top = 5.dp)
+                    .onFocusChanged { correctionFocused = it.isFocused || it.hasFocus }
+                    .clickable(role = Role.Button, onClick = onCorrectMatch)
+                    .focusable()
                     .width(NOVA_GAUGE_WIDTH),
             )
         }
