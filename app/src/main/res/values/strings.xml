@@ -1478,4 +1478,7 @@
     <!-- Were hardcoded English literals inside the settings search field. -->
     <string name="nova_settings_search_hint">Search Settings</string>
     <string name="nova_settings_search_clear">Clear</string>
+    <!-- Was "Mouse emulation is: ON" built by string concatenation in ControllerHandler. -->
+    <string name="nova_mouse_emulation_on">Mouse Emulation On</string>
+    <string name="nova_mouse_emulation_off">Mouse Emulation Off</string>
 </resources>
