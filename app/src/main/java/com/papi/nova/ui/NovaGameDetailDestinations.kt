@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -197,6 +198,8 @@ internal fun NovaGameDetailWidePanel(
     headline: String,
     scrollState: ScrollState,
     onDismiss: () -> Unit,
+    /** Drawn in the header between the title and Close; Play Setup's scope pill. */
+    headerAccessory: (@Composable () -> Unit)? = null,
     /**
      * Given the height its body actually has.
      *
@@ -230,6 +233,7 @@ internal fun NovaGameDetailWidePanel(
                 readout = "",
                 compact = shortViewport,
                 onDismiss = onDismiss,
+                accessory = headerAccessory,
             )
             // The scroll stays as the fallback for a font scale or an inset that makes the
             // content genuinely taller than the window. Measuring outside it is what lets
@@ -331,6 +335,7 @@ private fun NovaGameDetailDestinationHeader(
     readout: String,
     compact: Boolean = false,
     onDismiss: () -> Unit = {},
+    accessory: (@Composable () -> Unit)? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     Row(
@@ -370,6 +375,10 @@ private fun NovaGameDetailDestinationHeader(
             )
         }
     }
+        if (accessory != null) {
+            accessory()
+            Spacer(modifier = Modifier.width(12.dp))
+        }
         // Portrait and the studio have no outside to tap, so the way out is always here.
         NovaGameDetailCloseControl(onDismiss)
     }

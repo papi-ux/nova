@@ -3,15 +3,10 @@ package com.papi.nova.ui
 import android.app.Dialog
 import android.content.res.Configuration
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -19,21 +14,19 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.manager.PolarisProfileSync
-import com.papi.nova.manager.PolarisSettingsSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.NovaComposeTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Host-aware Polaris settings surface for the currently selected server.
+ *
+ * The update discipline lives in [NovaPolarisSyncEngine], shared with Play Setup's
+ * Every Game scope; what stays here is the sheet itself — chrome, sizing, and the
+ * Toast feedback a modal sheet can anchor where a panel cannot.
  */
 class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
 
@@ -43,13 +36,7 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
     private var initialSettings: PolarisClientSettings? = null
     private var onSettingsChanged: ((PolarisClientSettings) -> Unit)? = null
 
-    private var settingsSync: PolarisSettingsSyncManager? = null
-    private var currentSettings by mutableStateOf<PolarisClientSettings?>(null)
-    private var busy by mutableStateOf(false)
-    private var settingsUnavailable by mutableStateOf(false)
-    private var autoSyncEnabled by mutableStateOf(false)
-    private var profileRevision by mutableIntStateOf(0)
-    private var lastAutoSyncAt = 0L
+    private var engine: NovaPolarisSyncEngine? = null
 
     companion object {
         @JvmStatic
@@ -98,13 +85,23 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        currentSettings = initialSettings
-        autoSyncEnabled = PolarisProfileSync.isAutoSyncEnabled(requireContext(), serverUuid)
+        val engine = NovaPolarisSyncEngine(
+            context = requireContext(),
+            apiClient = apiClient,
+            serverUuid = serverUuid,
+            scope = lifecycleScope,
+            onSettingsChanged = { onSettingsChanged?.invoke(it) },
+            onMessage = { messageRes, _ ->
+                Toast.makeText(requireContext(), messageRes, Toast.LENGTH_SHORT).show()
+            },
+        ).also { this.engine = it }
+        engine.start(initialSettings)
+
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 NovaComposeTheme {
-                    val profileVersion = profileRevision
+                    val profileVersion = engine.profileRevision
                     val prefs = PreferenceConfiguration.readPreferences(requireContext())
                     val novaDisplayMode = PreferenceConfiguration.formatStreamingDisplayMode(
                         prefs.width,
@@ -112,10 +109,10 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                         prefs.fps
                     )
                     val uiState = NovaPolarisSyncUiStateMapper.build(
-                        settings = currentSettings,
-                        busy = busy,
-                        settingsUnavailable = settingsUnavailable,
-                        autoSyncEnabled = autoSyncEnabled,
+                        settings = engine.currentSettings,
+                        busy = engine.busy,
+                        settingsUnavailable = engine.settingsUnavailable,
+                        autoSyncEnabled = engine.autoSyncEnabled,
                         hasServerUuid = !serverUuid.isNullOrBlank(),
                         novaDisplayMode = novaDisplayMode,
                         novaBitrateKbps = prefs.bitrate,
@@ -128,26 +125,14 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                             serverName = serverName,
                             uiState = uiState,
                             novaProfileText = novaProfileText(novaDisplayMode, prefs.bitrate),
-                            polarisProfileText = polarisProfileText(currentSettings),
-                            onModeSelected = { updatePolarisSettings(streamDisplayMode = it) },
-                            onMatchNova = { pushNovaProfile(R.string.nova_polaris_sync_matched_to_nova) },
-                            onSendNova = { sendNovaProfile() },
-                            onUsePolaris = { usePolarisProfile() },
-                            onClearProfile = {
-                                updatePolarisSettings(
-                                    clearDisplayMode = true,
-                                    clearTargetBitrate = true,
-                                    successMessage = R.string.nova_polaris_sync_cleared
-                                )
-                            },
-                            onAutoSyncChange = { checked ->
-                                PolarisProfileSync.setAutoSyncEnabled(requireContext(), serverUuid, checked)
-                                autoSyncEnabled = PolarisProfileSync.isAutoSyncEnabled(requireContext(), serverUuid)
-                                if (checked) {
-                                    currentSettings?.let { maybeAutoSync(it) }
-                                }
-                            },
-                            onAiChange = { updatePolarisSettings(aiAutoQualityEnabled = it) }
+                            polarisProfileText = polarisProfileText(engine.currentSettings),
+                            onModeSelected = { engine.setStreamDisplayMode(it) },
+                            onMatchNova = { engine.matchNova() },
+                            onSendNova = { engine.sendNova() },
+                            onUsePolaris = { engine.usePolarisProfile() },
+                            onClearProfile = { engine.clearProfile() },
+                            onAutoSyncChange = { engine.setAutoSync(it) },
+                            onAiChange = { engine.setAiAutoQuality(it) }
                         )
                     }
                 }
@@ -170,28 +155,9 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
         }
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        val client = apiClient ?: run {
-            settingsUnavailable = true
-            return
-        }
-
-        settingsSync = PolarisSettingsSyncManager(client) { settings ->
-            if (settings != null) {
-                settingsUnavailable = false
-                currentSettings = settings
-                onSettingsChanged?.invoke(settings)
-            } else if (currentSettings == null) {
-                settingsUnavailable = true
-            }
-            settings?.let { maybeAutoSync(it) }
-        }.also { it.start(immediate = true) }
-    }
-
     override fun onDestroyView() {
-        settingsSync?.close()
-        settingsSync = null
+        engine?.close()
+        engine = null
         super.onDestroyView()
     }
 
@@ -221,122 +187,6 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                 getString(R.string.nova_polaris_sync_polaris_profile) + ": " + polarisProfile.displayMode
             )
         }
-    }
-
-    private fun sendNovaProfile() {
-        pushNovaProfile(R.string.nova_polaris_sync_saved_to_polaris)
-    }
-
-    private fun pushNovaProfile(successMessage: Int, showToast: Boolean = true) {
-        val prefs = PreferenceConfiguration.readPreferences(requireContext())
-        updatePolarisSettings(
-            displayMode = PreferenceConfiguration.formatStreamingDisplayMode(prefs.width, prefs.height, prefs.fps),
-            targetBitrateKbps = prefs.bitrate,
-            successMessage = successMessage,
-            showToast = showToast
-        )
-    }
-
-    private fun usePolarisProfile() {
-        val settings = currentSettings ?: return
-        val polarisProfile = PolarisProfileSync.polarisOverrideProfile(settings)
-        if (polarisProfile == null ||
-            !PreferenceConfiguration.applyPolarisStreamingProfile(
-                requireContext(),
-                polarisProfile.displayMode,
-                polarisProfile.bitrateKbps
-            )
-        ) {
-            Toast.makeText(requireContext(), R.string.nova_polaris_sync_failed, Toast.LENGTH_SHORT).show()
-            return
-        }
-        profileRevision++
-        Toast.makeText(requireContext(), R.string.nova_polaris_sync_saved_to_nova, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun updatePolarisSettings(
-        streamDisplayMode: String? = null,
-        displayMode: String? = null,
-        clearDisplayMode: Boolean = false,
-        targetBitrateKbps: Int? = null,
-        clearTargetBitrate: Boolean = false,
-        adaptiveBitrateEnabled: Boolean? = null,
-        aiOptimizerEnabled: Boolean? = null,
-        aiAutoQualityEnabled: Boolean? = null,
-        successMessage: Int = R.string.nova_polaris_sync_saved_to_polaris,
-        showToast: Boolean = true
-    ) {
-        val client = apiClient ?: return
-        val previousSettings = currentSettings
-        val requestedMode = PolarisStreamDisplayMode.normalize(streamDisplayMode)
-        if (requestedMode.isNotBlank()) {
-            currentSettings = previousSettings?.copy(
-                desired = previousSettings.desired.copy(
-                    streamDisplayMode = requestedMode,
-                    streamDisplayModeLabel = PolarisStreamDisplayMode.labelForMode(requestedMode)
-                ),
-                relaunchRequired = previousSettings.effective.streamDisplayMode.isNotBlank() &&
-                    PolarisStreamDisplayMode.normalize(previousSettings.effective.streamDisplayMode) != requestedMode
-            )
-        }
-        updateBusyState(true)
-        lifecycleScope.launch {
-            val confirmed = withContext(Dispatchers.IO) {
-                try {
-                    client.updateClientSettings(
-                        streamDisplayMode = streamDisplayMode,
-                        displayMode = displayMode,
-                        clearDisplayMode = clearDisplayMode,
-                        targetBitrateKbps = targetBitrateKbps,
-                        clearTargetBitrate = clearTargetBitrate,
-                        adaptiveBitrateEnabled = adaptiveBitrateEnabled,
-                        aiOptimizerEnabled = aiOptimizerEnabled,
-                        aiAutoQualityEnabled = aiAutoQualityEnabled
-                    )
-                } catch (e: Exception) {
-                    LimeLog.warning("Nova: Polaris sync update failed: ${e.message}")
-                    null
-                }
-            }
-            updateBusyState(false)
-            if (confirmed == null) {
-                currentSettings = previousSettings
-                Toast.makeText(requireContext(), R.string.nova_polaris_sync_failed, Toast.LENGTH_SHORT).show()
-                return@launch
-            }
-
-            currentSettings = confirmed
-            onSettingsChanged?.invoke(confirmed)
-            settingsSync?.refresh()
-            if (showToast) {
-                Toast.makeText(requireContext(), successMessage, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun maybeAutoSync(settings: PolarisClientSettings) {
-        if (busy || !PolarisProfileSync.isAutoSyncEnabled(requireContext(), serverUuid)) {
-            return
-        }
-        val prefs = PreferenceConfiguration.readPreferences(requireContext())
-        val novaDisplayMode = PreferenceConfiguration.formatStreamingDisplayMode(prefs.width, prefs.height, prefs.fps)
-        val profileState = PolarisProfileSync.compare(novaDisplayMode, prefs.bitrate, settings)
-        if (profileState != PolarisProfileSync.ProfileState.DIFFERENT &&
-            profileState != PolarisProfileSync.ProfileState.POLARIS_UNSET
-        ) {
-            return
-        }
-
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastAutoSyncAt < PolarisProfileSync.AUTO_SYNC_MIN_INTERVAL_MS) {
-            return
-        }
-        lastAutoSyncAt = now
-        pushNovaProfile(R.string.nova_polaris_sync_matched_to_nova, showToast = false)
-    }
-
-    private fun updateBusyState(value: Boolean) {
-        busy = value
     }
 
     private fun expandBottomSheet(bottomSheetDialog: BottomSheetDialog?) {

@@ -211,6 +211,12 @@ internal fun NovaGameDetailContent(
     playSetupRows: List<NovaPlaySetupRowState>,
     /** Which row the comparison strip is currently explaining. */
     explainedPlaySetupRow: NovaPlaySetupRow,
+    /** Which subject Play Setup is showing; the header pill and Y both flip it. */
+    playSetupScope: NovaPlaySetupScope,
+    onPlaySetupScopeSelected: (NovaPlaySetupScope) -> Unit,
+    /** Host-scope rows and plan; empty and null while This Game is showing. */
+    hostPlaySetupRows: List<NovaPlaySetupRowState>,
+    hostPlaySetupPlan: NovaPlaySetupPlan?,
     playLabel: String,
     launchModeTitle: String,
     headlessModeLabel: String,
@@ -314,6 +320,18 @@ internal fun NovaGameDetailContent(
                 headline = uiState.game.name,
                 scrollState = verticalScroll,
                 onDismiss = onDismissDestination,
+                headerAccessory = if (steamDecision == null) {
+                    {
+                        NovaPlaySetupScopePill(
+                            scope = playSetupScope,
+                            onSelected = onPlaySetupScopeSelected,
+                        )
+                    }
+                } else {
+                    // The blocked three-way choice owns the panel; a scope flip mid-choice
+                    // would swap the question out from under the person answering it.
+                    null
+                },
             ) { bodyHeight ->
                 val decision = steamDecision
                 if (decision != null) {
@@ -322,6 +340,51 @@ internal fun NovaGameDetailContent(
                     NovaDesktopSteamLaunchDecisionRows(
                         decision = decision,
                         onChoice = onSteamChoice,
+                    )
+                } else if (playSetupScope == NovaPlaySetupScope.EVERY_GAME && hostPlaySetupPlan != null) {
+                    // The same four-row shape, absorbing the Polaris Sync sheet's three
+                    // sections. The subject changed; how to read the panel did not.
+                    val consequenceLines =
+                        novaPlaySetupConsequenceLines(bodyHeight, hostPlaySetupRows.size)
+                    NovaPlaySetupBody(
+                        plan = hostPlaySetupPlan,
+                        readTitle = stringResource(R.string.nova_play_setup_host_read_title),
+                        introMaxLines = novaPlaySetupIntroLines(
+                            bodyHeight,
+                            factCount = hostPlaySetupPlan.facts.size,
+                        ),
+                        rows = {
+                            hostPlaySetupRows.forEachIndexed { index, rowState ->
+                                NovaSteamChoiceRow(
+                                    autoFocus = index == 0,
+                                    label = rowState.label,
+                                    caption = rowState.caption,
+                                    enabled = rowState.enabled,
+                                    value = rowState.value,
+                                    selected = rowState.overridden,
+                                    onClick = { onAdvancePlaySetupRow(rowState.row) },
+                                    onFocused = { onExplainPlaySetupRow(rowState.row) },
+                                )
+                            }
+                        },
+                        comparison = {
+                            val explained = hostPlaySetupRows.firstOrNull { it.row == explainedPlaySetupRow }
+                                ?: hostPlaySetupRows.firstOrNull()
+                            if (explained != null && explained.options.size > 1) {
+                                NovaPlaySetupComparison(
+                                    title = explained.stripTitle,
+                                    options = explained.options,
+                                    consequenceMaxLines = consequenceLines,
+                                    // The 2x2 the sync sheet taught: four mode names in
+                                    // one row leave no room for their status lines.
+                                    perRow = if (explained.row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY) {
+                                        2
+                                    } else {
+                                        Int.MAX_VALUE
+                                    },
+                                )
+                            }
+                        },
                     )
                 } else {
                     val summary = optimizationState.profileSummary

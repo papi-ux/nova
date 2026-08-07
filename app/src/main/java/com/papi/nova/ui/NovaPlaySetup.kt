@@ -72,6 +72,8 @@ internal fun NovaPlaySetupBody(
     rows: @Composable () -> Unit,
     comparison: (@Composable () -> Unit)? = null,
     introMaxLines: Int = 2,
+    /** The read column's head; host scope reads differently than a game does. */
+    readTitle: String? = null,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // A phone in portrait has no room for two columns, and stacking them keeps the
@@ -79,7 +81,7 @@ internal fun NovaPlaySetupBody(
         val stacked = maxWidth < NOVA_PLAY_SETUP_TWO_COLUMN_MIN
         if (stacked) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                NovaPlaySetupReadColumn(plan, introMaxLines, Modifier.fillMaxWidth())
+                NovaPlaySetupReadColumn(plan, introMaxLines, Modifier.fillMaxWidth(), readTitle)
                 Spacer(modifier = Modifier.height(18.dp))
                 NovaPlaySetupActColumn(rows, comparison, Modifier.fillMaxWidth())
             }
@@ -89,6 +91,7 @@ internal fun NovaPlaySetupBody(
                     plan = plan,
                     introMaxLines = introMaxLines,
                     modifier = Modifier.width(NOVA_PLAY_SETUP_READ_WIDTH).fillMaxHeight(),
+                    readTitle = readTitle,
                 )
                 Spacer(modifier = Modifier.width(NOVA_PLAY_SETUP_GUTTER))
                 NovaPlaySetupActColumn(rows, comparison, Modifier.weight(1f))
@@ -103,10 +106,11 @@ private fun NovaPlaySetupReadColumn(
     plan: NovaPlaySetupPlan,
     introMaxLines: Int,
     modifier: Modifier = Modifier,
+    readTitle: String? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     Column(modifier = modifier) {
-        NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_what_will_happen))
+        NovaPlaySetupColumnHead(readTitle ?: stringResource(R.string.nova_play_setup_what_will_happen))
         Text(
             text = plan.mode,
             color = colors.textPrimary,
@@ -256,69 +260,95 @@ internal fun NovaPlaySetupComparison(
      * fitting.
      */
     consequenceMaxLines: Int = 2,
+    /**
+     * Cards per strip row. The default keeps one row; host scope's Default Display puts
+     * its four modes in the 2x2 the Polaris Sync sheet taught people, because four
+     * mode names crushed into one row leave no room for their status lines.
+     */
+    perRow: Int = Int.MAX_VALUE,
 ) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
     Column(modifier = Modifier.fillMaxWidth()) {
         NovaPlaySetupColumnHead(title)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            options.forEach { option ->
-                val shape = RoundedCornerShape(NovaRadius.row)
-                val actionable = option.onSelect != null && option.enabled
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .then(
-                            if (actionable) {
-                                // Touch only, and deliberately so -- see the note above.
-                                // This used to carry two focusable modifiers as well, which
-                                // cost the d-pad two presses to cross one card and left the
-                                // inner of the two stops with no click on it at all.
-                                Modifier.clickable(role = Role.Button) { option.onSelect?.invoke() }
-                            } else {
-                                Modifier
-                            }
-                        )
-                        .heightIn(min = NovaGameDetailActionHeight)
-                        .clip(shape)
-                        .background(if (option.current) colors.accentSurface else surfaces.tile)
-                        .border(
-                            1.dp,
-                            if (option.current) {
-                                colors.accent.copy(alpha = 0.58f)
-                            } else {
-                                surfaces.tileBorder
-                            },
-                            shape,
-                        )
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .semantics {
-                            contentDescription = "${'$'}{option.label}. ${'$'}{option.consequence}"
-                            if (option.current) selected = true
-                        },
-                ) {
-                    Text(
-                        text = option.label,
-                        color = if (option.enabled) colors.textPrimary else colors.textMuted,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = option.consequence,
-                        color = colors.textMuted,
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp,
-                        // Bounded, so a long consequence cannot push the card past the cut.
-                        // The sentence is a hint at what a choice means, not the contract.
-                        maxLines = consequenceMaxLines,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp),
+        options.chunked(perRow.coerceAtLeast(1)).forEachIndexed { chunkIndex, chunk ->
+            if (chunkIndex > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                chunk.forEach { option ->
+                    NovaPlaySetupComparisonCard(
+                        option = option,
+                        consequenceMaxLines = consequenceMaxLines,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NovaPlaySetupComparisonCard(
+    option: NovaPlaySetupOption,
+    consequenceMaxLines: Int,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val shape = RoundedCornerShape(NovaRadius.row)
+    val actionable = option.onSelect != null && option.enabled
+    Column(
+        modifier = modifier
+            .then(
+                if (actionable) {
+                    // Touch only, and deliberately so -- see the note above.
+                    // This used to carry two focusable modifiers as well, which
+                    // cost the d-pad two presses to cross one card and left the
+                    // inner of the two stops with no click on it at all.
+                    Modifier.clickable(role = Role.Button) { option.onSelect?.invoke() }
+                } else {
+                    Modifier
+                }
+            )
+            .heightIn(min = NovaGameDetailActionHeight)
+            .clip(shape)
+            .background(if (option.current) colors.accentSurface else surfaces.tile)
+            .border(
+                1.dp,
+                when {
+                    option.current -> colors.accent.copy(alpha = 0.58f)
+                    // What the host is actually doing right now, as against what it is
+                    // set to do — the same two-state drawing the sync sheet's mode grid
+                    // uses, so a fallback reads the same on both surfaces.
+                    option.active -> colors.accent.copy(alpha = 0.34f)
+                    else -> surfaces.tileBorder
+                },
+                shape,
+            )
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .semantics {
+                contentDescription = "${'$'}{option.label}. ${'$'}{option.consequence}"
+                if (option.current) selected = true
+            },
+    ) {
+        Text(
+            text = option.label,
+            color = if (option.enabled) colors.textPrimary else colors.textMuted,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = option.consequence,
+            color = if (option.active && !option.current) colors.accent else colors.textMuted,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            // Bounded, so a long consequence cannot push the card past the cut.
+            // The sentence is a hint at what a choice means, not the contract.
+            maxLines = consequenceMaxLines,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 
@@ -343,25 +373,121 @@ internal data class NovaPlaySetupOption(
     val consequence: String,
     val current: Boolean = false,
     val enabled: Boolean = true,
+    /**
+     * In effect this session without being the saved choice — the host fell back or a
+     * relaunch is pending. Drawn as an accent edge, never as the selection tint.
+     */
+    val active: Boolean = false,
     /** Null makes the card explanatory rather than selectable. */
     val onSelect: (() -> Unit)? = null,
 )
 
 /**
+ * Which subject Play Setup is showing: the game the panel opened for, or the host
+ * defaults every game inherits. One panel, two scopes, flipped by the header pill or Y —
+ * because the Every Game answer used to live in a sheet behind a row, where the person
+ * comparing "this game" against "everything else" could not see both at once.
+ */
+internal enum class NovaPlaySetupScope { THIS_GAME, EVERY_GAME }
+
+/**
  * The things Play Setup can change, in the order they are drawn.
  *
- * Four, and fixed at four. The act column has to fit a landscape viewport that is roughly
- * 230-275dp once the panel's chrome and the bottom fade are taken out, and the strip below
- * the rows used to start at 272dp in the lightest case and 332dp for a Steam game -- so the
- * strip every control on this screen wrote to was off the bottom of the window at the
+ * Four per scope, and fixed at four. The act column has to fit a landscape viewport that is
+ * roughly 230-275dp once the panel's chrome and the bottom fade are taken out, and the strip
+ * below the rows used to start at 272dp in the lightest case and 332dp for a Steam game -- so
+ * the strip every control on this screen wrote to was off the bottom of the window at the
  * moment it was written, with nothing scrolling to it. A fifth row would put it back there.
  *
  * More Launch Settings is not among them. It held resolution, and behind it codec and
  * bitrate -- which are consequences of a resolution, not choices anyone makes separately.
  * Resolution is a row of its own now, and the rest is stated in the read column where the
  * other consequences already are.
+ *
+ * The HOST_ rows are Every Game's four: the Polaris Sync sheet's sections in the same
+ * shape, so the scope pill changes the subject and nothing else.
  */
-internal enum class NovaPlaySetupRow { WHERE_IT_RUNS, RESOLUTION, TUNING, STEAM_LAUNCH }
+internal enum class NovaPlaySetupRow {
+    WHERE_IT_RUNS,
+    RESOLUTION,
+    TUNING,
+    STEAM_LAUNCH,
+    HOST_DEFAULT_DISPLAY,
+    HOST_PROFILE,
+    HOST_AUTO_QUALITY,
+    HOST_KEEP_IN_STEP,
+}
+
+/**
+ * This Game | Every Game, at the panel header's edge. Touch takes a segment directly;
+ * Y flips, and its glyph rides with the pill because the key exists only while this
+ * panel is open — the bottom hint bar names the keys every screen has, not this one.
+ */
+@Composable
+internal fun NovaPlaySetupScopePill(
+    scope: NovaPlaySetupScope,
+    onSelected: (NovaPlaySetupScope) -> Unit,
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = stringResource(R.string.nova_play_setup_scope_key),
+            color = colors.textMuted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(NovaRadius.pill))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.pill))
+                .padding(horizontal = 7.dp, vertical = 3.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(NovaRadius.pill))
+                .background(surfaces.tile)
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.pill)),
+        ) {
+            NovaPlaySetupScopeSegment(
+                label = stringResource(R.string.nova_play_setup_scope_this_game),
+                isSelected = scope == NovaPlaySetupScope.THIS_GAME,
+                onClick = { onSelected(NovaPlaySetupScope.THIS_GAME) },
+            )
+            NovaPlaySetupScopeSegment(
+                label = stringResource(R.string.nova_play_setup_every_game),
+                isSelected = scope == NovaPlaySetupScope.EVERY_GAME,
+                onClick = { onSelected(NovaPlaySetupScope.EVERY_GAME) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun NovaPlaySetupScopeSegment(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val description = stringResource(R.string.nova_play_setup_scope_cd, label)
+    Text(
+        text = label,
+        color = if (isSelected) colors.onAccent else colors.textSecondary,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(NovaRadius.pill))
+            .background(if (isSelected) colors.accent else surfaces.tile)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics {
+                contentDescription = description
+                if (isSelected) selected = true
+            }
+            .padding(horizontal = 11.dp, vertical = 5.dp),
+    )
+}
 
 /**
  * One row: what it is called, what it currently reads, and what the alternatives mean.

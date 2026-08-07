@@ -1139,15 +1139,39 @@ class NovaComposeSourceGuardTest {
     fun playSetupKeepsModeChoiceInlineAndHoldsTheProfileControlsToo() {
         val detail = readNovaGameDetail()
 
+        val rowDeclaration = detail.indexOf("internal enum class NovaPlaySetupRow {")
+        val rowDeclarationBlock = if (rowDeclaration >= 0) {
+            detail.substring(rowDeclaration, detail.indexOf('}', rowDeclaration))
+        } else {
+            ""
+        }
         assertTrue(
-            "one destination holds the whole decision, as four rows in a fixed order: where it " +
-                "runs, the resolution, the tuning and how Steam starts. Splitting these across " +
-                "two drawers is what made each of them carry half of the other's subject",
-            detail.contains("enum class NovaPlaySetupRow { WHERE_IT_RUNS, RESOLUTION, TUNING, STEAM_LAUNCH }") &&
+            "one destination holds the whole decision, as four rows in a fixed order per scope: " +
+                "where it runs, the resolution, the tuning and how Steam starts for this game; " +
+                "the host's default display, profile, Auto Quality and Keep in Step for every " +
+                "game. Splitting these across drawers is what made each of them carry half of " +
+                "the other's subject",
+            rowDeclaration >= 0 &&
+                listOf(
+                    "WHERE_IT_RUNS",
+                    "RESOLUTION",
+                    "TUNING",
+                    "STEAM_LAUNCH",
+                    "HOST_DEFAULT_DISPLAY",
+                    "HOST_PROFILE",
+                    "HOST_AUTO_QUALITY",
+                    "HOST_KEEP_IN_STEP",
+                ).windowed(2).all { (before, after) ->
+                    rowDeclarationBlock.indexOf(before) in 0 until rowDeclarationBlock.indexOf(after)
+                } &&
                 detail.contains("row = NovaPlaySetupRow.WHERE_IT_RUNS,") &&
                 detail.contains("row = NovaPlaySetupRow.RESOLUTION,") &&
                 detail.contains("row = NovaPlaySetupRow.TUNING,") &&
-                detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,")
+                detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,") &&
+                detail.contains("row = NovaPlaySetupRow.HOST_DEFAULT_DISPLAY,") &&
+                detail.contains("row = NovaPlaySetupRow.HOST_PROFILE,") &&
+                detail.contains("row = NovaPlaySetupRow.HOST_AUTO_QUALITY,") &&
+                detail.contains("row = NovaPlaySetupRow.HOST_KEEP_IN_STEP,")
         )
         assertTrue(
             "the strip is a legend for whichever row holds focus, not a picker with a state of " +
@@ -2741,6 +2765,7 @@ class NovaComposeSourceGuardTest {
 
     private fun readNovaGameDetail(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt") +
+        readSource("src/main/java/com/papi/nova/ui/NovaPlaySetupHostScope.kt") +
         readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
