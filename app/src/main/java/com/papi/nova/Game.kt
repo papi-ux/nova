@@ -3469,14 +3469,14 @@ if (!httpConn!!.sendClipboard(clipboardText))
 {
 if (prefConfig!!.smartClipboardSyncToast)
 {
-this@Game.runOnUiThread({ Toast.makeText(this@Game, getString(R.string.clipboard_sync_unsupported), Toast.LENGTH_SHORT).show() })
+this@Game.runOnUiThread({ NovaSnackbar.showError(this@Game, getString(R.string.clipboard_sync_unsupported)) })
 }
 }
 else
 {
 if (prefConfig!!.smartClipboardSyncToast)
 {
-this@Game.runOnUiThread({ Toast.makeText(this@Game, getString(R.string.send_clipboard_success), Toast.LENGTH_SHORT).show() })
+this@Game.runOnUiThread({ NovaSnackbar.showSuccess(this@Game, getString(R.string.send_clipboard_success)) })
 }
 }
 }
@@ -3484,7 +3484,7 @@ catch (e:Exception) {
 e!!.printStackTrace()
 if (prefConfig!!.smartClipboardSyncToast)
 {
-this@Game.runOnUiThread({ Toast.makeText(this@Game, getString(R.string.send_clipboard_failed) + e!!.message, Toast.LENGTH_SHORT).show() })
+this@Game.runOnUiThread({ NovaSnackbar.showError(this@Game, getString(R.string.send_clipboard_failed) + e!!.message) })
 }
 }
 
@@ -3542,14 +3542,14 @@ clipDescription!!.setExtras(newExtras)
 clipboardManager!!.setPrimaryClip(clipData!!)
 if (prefConfig!!.smartClipboardSyncToast)
 {
-this@Game.runOnUiThread({ Toast.makeText(this@Game, getString(R.string.get_clipboard_success), Toast.LENGTH_SHORT).show() })
+this@Game.runOnUiThread({ NovaSnackbar.showSuccess(this@Game, getString(R.string.get_clipboard_success)) })
 }
 }
 catch (e:Exception) {
 e!!.printStackTrace()
 if (prefConfig!!.smartClipboardSyncToast)
 {
-this@Game.runOnUiThread({ Toast.makeText(this@Game, getString(R.string.get_clipboard_failed) + e!!.message, Toast.LENGTH_SHORT).show() })
+this@Game.runOnUiThread({ NovaSnackbar.showError(this@Game, getString(R.string.get_clipboard_failed) + e!!.message) })
 }
 }
 
@@ -5429,11 +5429,11 @@ conn!!.sendExecServerCmd(cmdId)
 this.isZoomModeEnabled = !this.isZoomModeEnabled
 if (this.isZoomModeEnabled)
 {
-Toast.makeText(this, getString(R.string.pan_zoom_mode_enabled), Toast.LENGTH_SHORT).show()
+NovaSnackbar.show(this, getString(R.string.pan_zoom_mode_enabled))
 }
 else
 {
-Toast.makeText(this, getString(R.string.pan_zoom_mode_disabled), Toast.LENGTH_SHORT).show()
+NovaSnackbar.show(this, getString(R.string.pan_zoom_mode_disabled))
 }
 updateZoomButtonAppearance()
 
