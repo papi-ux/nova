@@ -870,6 +870,10 @@ class NovaGameDetailActivity : NovaActivity() {
                 loadingLabel = getString(R.string.nova_polaris_sync_loading),
                 unavailableLabel = getString(R.string.nova_polaris_sync_unavailable),
                 unsetLabel = getString(R.string.nova_polaris_sync_unset),
+                savedAfterRelaunchLabel = getString(R.string.nova_polaris_sync_status_saved_relaunch),
+                selectedLabel = getString(R.string.nova_polaris_sync_status_selected),
+                activeNowLabel = getString(R.string.nova_polaris_sync_status_active_now),
+                availableLabel = getString(R.string.nova_polaris_sync_status_available),
             )
         }
 

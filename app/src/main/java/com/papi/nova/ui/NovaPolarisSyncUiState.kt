@@ -44,6 +44,9 @@ data class NovaPolarisSyncUiState(
 )
 
 object NovaPolarisSyncUiStateMapper {
+    // Every label arrives from the caller, none defaults to English here: a default
+    // is a string that ships in every locale unnoticed, which is exactly how the
+    // status labels below lived in Kotlin for a year.
     fun build(
         settings: PolarisClientSettings?,
         busy: Boolean,
@@ -52,9 +55,13 @@ object NovaPolarisSyncUiStateMapper {
         hasServerUuid: Boolean,
         novaDisplayMode: String,
         novaBitrateKbps: Int,
-        loadingLabel: String = "Loading",
-        unavailableLabel: String = "Unavailable",
-        unsetLabel: String = "Unset"
+        loadingLabel: String,
+        unavailableLabel: String,
+        unsetLabel: String,
+        savedAfterRelaunchLabel: String,
+        selectedLabel: String,
+        activeNowLabel: String,
+        availableLabel: String
     ): NovaPolarisSyncUiState {
         val fallback = if (settingsUnavailable) unavailableLabel else loadingLabel
         val desiredMode = PolarisStreamDisplayMode.normalize(settings?.desired?.streamDisplayMode)
@@ -116,11 +123,11 @@ object NovaPolarisSyncUiStateMapper {
                     reason = option?.reason.orEmpty(),
                     restartRequired = option?.restartRequired ?: true,
                     statusLabel = when {
-                        desiredSelected && relaunchRequired && !effectiveSelected -> "Saved — applies after relaunch"
-                        desiredSelected -> "Selected"
-                        effectiveSelected -> "Active now"
-                        available -> "Available"
-                        else -> "Unavailable"
+                        desiredSelected && relaunchRequired && !effectiveSelected -> savedAfterRelaunchLabel
+                        desiredSelected -> selectedLabel
+                        effectiveSelected -> activeNowLabel
+                        available -> availableLabel
+                        else -> unavailableLabel
                     }
                 )
             },

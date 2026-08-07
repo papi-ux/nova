@@ -474,6 +474,12 @@
     <string name="nova_polaris_sync_nova_profile">Nova</string>
     <string name="nova_polaris_sync_polaris_profile">Polaris</string>
     <string name="nova_polaris_sync_unset">Unset</string>
+    <string name="nova_polaris_sync_close">Close</string>
+    <string name="nova_polaris_sync_close_cd">Close Polaris Sync</string>
+    <string name="nova_polaris_sync_status_saved_relaunch">Saved — applies after relaunch</string>
+    <string name="nova_polaris_sync_status_selected">Selected</string>
+    <string name="nova_polaris_sync_status_active_now">Active now</string>
+    <string name="nova_polaris_sync_status_available">Available</string>
     <string name="nova_polaris_sync_profile_format">%1$s · %2$d Mbps</string>
     <string name="nova_polaris_sync_profile_no_bitrate">%1$s · no bitrate override</string>
     <string name="nova_polaris_sync_desired_format">Desired: %1$s</string>
