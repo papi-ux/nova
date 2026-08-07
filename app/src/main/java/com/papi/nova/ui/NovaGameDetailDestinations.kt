@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.novaHoldsFirstFocus
 import kotlinx.coroutines.delay
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
@@ -143,21 +144,6 @@ internal fun NovaGameDetailPanel(
             NovaGameDetailDestinationHints()
         }
     }
-}
-
-/**
- * Takes focus for its first focusable child once it has been laid out. Without this a
- * destination opens with focus left behind on the Overview, so the d-pad has nothing to
- * move. The delay is the same one the library uses: the request only lands after layout.
- */
-@Composable
-private fun Modifier.novaHoldsFirstFocus(): Modifier {
-    val requester = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        delay(NOVA_DETAIL_FOCUS_SETTLE_MS)
-        runCatching { requester.requestFocus() }
-    }
-    return focusRequester(requester).focusGroup()
 }
 
 /**

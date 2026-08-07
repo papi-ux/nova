@@ -42,6 +42,7 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.novaHoldsFirstFocus
 
 @Composable
 fun NovaPolarisSyncContent(
@@ -113,7 +114,13 @@ fun NovaPolarisSyncContent(
                 color = colors.textMuted,
                 fontSize = 12.sp
             )
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // The sheet opened with no focus ring at all, so the first d-pad press went
+            // nowhere useful. It lands on the modes: they are what this sheet is for, and
+            // until this branch they could not be reached by controller at all.
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.novaHoldsFirstFocus()
+            ) {
                 uiState.modes.chunked(2).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { mode ->
