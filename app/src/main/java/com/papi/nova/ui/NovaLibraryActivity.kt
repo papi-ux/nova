@@ -125,6 +125,7 @@ import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGameJson
+import com.papi.nova.ui.compose.NovaRadius
 import org.json.JSONObject
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
@@ -1711,7 +1712,7 @@ class NovaLibraryActivity : NovaActivity() {
         }
 
         val surfaces = LocalNovaLibrarySurfaces.current
-        val shape = RoundedCornerShape(if (compact) 14.dp else 18.dp)
+        val shape = RoundedCornerShape(if (compact) NovaRadius.row else NovaRadius.hero)
         Box(
             modifier = Modifier
                 .width(if (compact) 58.dp else 108.dp)
@@ -1757,7 +1758,7 @@ class NovaLibraryActivity : NovaActivity() {
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        val shape = RoundedCornerShape(if (compact) 14.dp else 18.dp)
+        val shape = RoundedCornerShape(if (compact) NovaRadius.row else NovaRadius.hero)
         Column(
             modifier = Modifier
                 .width(if (compact) 58.dp else 108.dp)
@@ -2018,7 +2019,7 @@ class NovaLibraryActivity : NovaActivity() {
         }
         val streamDetail = formatStreamProfile(session)
         val detail = listOfNotNull(ownerDetail, viewerDetail, streamDetail).joinToString(" / ")
-        val shape = RoundedCornerShape(14.dp)
+        val shape = RoundedCornerShape(NovaRadius.row)
 
         Column(
             modifier = modifier
@@ -2133,9 +2134,9 @@ class NovaLibraryActivity : NovaActivity() {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(999.dp))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.pill))
                 .semantics { contentDescription = description }
                 .padding(horizontal = 9.dp, vertical = 5.dp)
         )
@@ -2147,9 +2148,9 @@ class NovaLibraryActivity : NovaActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         Column(
             modifier = modifier
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.row))
                 .padding(horizontal = 10.dp, vertical = 9.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -2171,9 +2172,9 @@ class NovaLibraryActivity : NovaActivity() {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(fill)
-                .border(1.dp, stroke, RoundedCornerShape(999.dp))
+                .border(1.dp, stroke, RoundedCornerShape(NovaRadius.pill))
                 .padding(horizontal = 9.dp, vertical = 5.dp)
         )
     }
@@ -2248,12 +2249,12 @@ class NovaLibraryActivity : NovaActivity() {
                     detectTapGestures(onTap = { beginSearchEditing() })
                 }
                 .height(heightDp.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(surfaces.control)
                 .border(
                     width = if (focused) 3.dp else 1.dp,
                     color = if (focused) surfaces.focusRing else surfaces.tileBorder,
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(NovaRadius.row)
                 )
                 .onFocusChanged {
                     focused = it.isFocused
@@ -2606,9 +2607,9 @@ class NovaLibraryActivity : NovaActivity() {
             fontWeight = FontWeight.Bold,
             lineHeight = 9.sp,
             modifier = modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(surfaces.mediaScrimBottom.copy(alpha = 0.60f))
-                .border(1.dp, surfaces.onMedia.copy(alpha = 0.20f), RoundedCornerShape(999.dp))
+                .border(1.dp, surfaces.onMedia.copy(alpha = 0.20f), RoundedCornerShape(NovaRadius.pill))
                 .padding(horizontal = 5.dp, vertical = 1.dp)
         )
     }
@@ -2659,7 +2660,7 @@ class NovaLibraryActivity : NovaActivity() {
                 .fillMaxWidth()
                 .padding(horizontal = presentationSpec.focusGutterDp.dp)
                 .aspectRatio(NovaLibraryUiStateMapper.posterAspectRatio())
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(shimmerBrush)
         )
     }
@@ -2705,9 +2706,9 @@ class NovaLibraryActivity : NovaActivity() {
             Column(
                 modifier = Modifier
                     .widthIn(max = 360.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(NovaRadius.hero))
                     .background(surfaces.panel)
-                    .border(1.dp, surfaces.tileBorder, RoundedCornerShape(22.dp))
+                    .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero))
                     .padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -2784,7 +2785,7 @@ class NovaLibraryActivity : NovaActivity() {
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        val drawerShape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)
+        val drawerShape = RoundedCornerShape(topStart = NovaRadius.drawer, bottomStart = NovaRadius.drawer)
         val serverDisplayName = serverName?.takeIf { it.isNotBlank() && it != serverHost }
         val hostLabel = if (serverDisplayName == null) {
             stringResource(R.string.nova_system_menu_host_format, serverHost)
@@ -3003,9 +3004,9 @@ class NovaLibraryActivity : NovaActivity() {
                     haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
                     cornerRadius = 16.dp
                 )
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(if (focused) surfaces.selectedControl else surfaces.control)
-                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(16.dp))
+                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(NovaRadius.row))
                 .onFocusChanged { focused = it.isFocused || it.hasFocus }
                 .combinedClickable(
                     role = Role.Button,
@@ -3066,7 +3067,7 @@ class NovaLibraryActivity : NovaActivity() {
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        val drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+        val drawerShape = RoundedCornerShape(topEnd = NovaRadius.drawer, bottomEnd = NovaRadius.drawer)
         val drawerFocusRequester = remember { FocusRequester() }
         LaunchedEffect(Unit) {
             delay(75)
@@ -3285,7 +3286,7 @@ class NovaLibraryActivity : NovaActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         Surface(
             color = surfaces.panel.copy(alpha = 0.58f),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(NovaRadius.hero),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
@@ -3577,7 +3578,7 @@ class NovaLibraryActivity : NovaActivity() {
                     haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
                     cornerRadius = 14.dp
                 )
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(NovaRadius.chip))
                 .background(
                     when {
                         focused -> surfaces.selectedControl
@@ -3585,7 +3586,7 @@ class NovaLibraryActivity : NovaActivity() {
                         else -> surfaces.control
                     }
                 )
-                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(14.dp))
+                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(NovaRadius.chip))
                 .semantics(mergeDescendants = true) {
                     contentDescription = chipDescription
                     role = Role.Button

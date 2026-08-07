@@ -74,6 +74,7 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
+import com.papi.nova.ui.compose.NovaRadius
 
 /** Where the detail window currently is. Back unwinds one level before leaving. */
 /**
@@ -100,18 +101,6 @@ internal val NovaGameDetailActionHeight = 48.dp
  * notice card, which is why some selectable things read as cards and others as squares.
  * Three steps, taken from the concept at 2.30625px per dp: 10px, 14px, 18px.
  */
-internal object NovaGameDetailRadius {
-    /** chips, tabs, the scope switch — anything under roughly 24dp tall */
-    val chip = 4.dp
-    /** every selectable row, card and artwork tile */
-    val row = 6.dp
-    /** the primary action, the panels, notice cards */
-    val hero = 8.dp
-}
-
-/** Kept as the hero step's name, which is what every existing call site meant. */
-internal val NovaGameDetailCornerRadius = NovaGameDetailRadius.hero
-
 /**
  * The landing screen of the detail window.
  *
@@ -801,7 +790,7 @@ private fun NovaGameDetailAction(
     val surfaces = LocalNovaLibrarySurfaces.current
     val interactionSource = remember { MutableInteractionSource() }
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(NovaGameDetailCornerRadius)
+    val shape = RoundedCornerShape(NovaRadius.hero)
 
     val background = if (primary && enabled) {
         Brush.linearGradient(
@@ -892,9 +881,9 @@ private fun LaunchProfileReviewNotice(
     Column(
         modifier = modifier
             .sizeIn(maxWidth = 520.dp)
-            .clip(RoundedCornerShape(NovaGameDetailCornerRadius))
+            .clip(RoundedCornerShape(NovaRadius.hero))
             .background(colors.warning.copy(alpha = 0.13f))
-            .border(1.dp, colors.warning.copy(alpha = 0.46f), RoundedCornerShape(NovaGameDetailCornerRadius))
+            .border(1.dp, colors.warning.copy(alpha = 0.46f), RoundedCornerShape(NovaRadius.hero))
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .testTag("nova-game-detail-review"),
     ) {

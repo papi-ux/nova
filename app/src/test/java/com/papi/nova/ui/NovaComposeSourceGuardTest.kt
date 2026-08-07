@@ -1846,10 +1846,16 @@ class NovaComposeSourceGuardTest {
             content.contains(".widthIn(max = 460.dp)") &&
                 content.contains("compactDrawerWidth = (configuration.screenWidthDp * 0.92f).dp")
         )
+        // Which corners are rounded is the guarantee; how far is the shared scale's business.
+        // This used to pin 28.dp, and the negative pinned one specific bottom-sheet spelling,
+        // so a bottom sheet at any other radius would have passed.
         assertTrue(
             "left drawer should use trailing rounded corners, not a bottom-sheet top-only shape",
-            content.contains("RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)") &&
-                !content.contains("RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)")
+            content.contains("RoundedCornerShape(topEnd = NovaRadius.drawer, bottomEnd = NovaRadius.drawer)")
+        )
+        assertFalse(
+            "a topStart+topEnd pair is the bottom-sheet corner set this drawer replaced",
+            Regex("""RoundedCornerShape\(\s*topStart = [^,)]+,\s*topEnd = """).containsMatchIn(content)
         )
         assertTrue(
             "drawer surface should consume the literal shared outer panel at x=0 instead of a theme-glass multiplier",

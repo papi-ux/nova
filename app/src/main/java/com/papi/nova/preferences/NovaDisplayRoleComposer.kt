@@ -49,12 +49,13 @@ import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
+import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaFocusMotion
 import com.papi.nova.utils.AndroidDisplayCandidateAdapter
 import com.papi.nova.utils.AndroidDisplayRolePlan
 import com.papi.nova.utils.AndroidStreamDisplayTarget
 
-private val DisplayRoleCardShape = RoundedCornerShape(14.dp)
+private val DisplayRoleCardShape = RoundedCornerShape(NovaRadius.row)
 
 @Composable
 internal fun NovaDisplayRoleComposerDialog(

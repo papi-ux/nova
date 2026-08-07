@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.papi.nova.ui.compose.NovaRadius
 import kotlinx.coroutines.Job
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
@@ -121,7 +122,7 @@ internal fun NovaLibraryLandscapeToolbarContent(
 ) {
     val surfaces = LocalNovaLibrarySurfaces.current
     val largeText = LocalDensity.current.fontScale >= 1.5f
-    val shape = RoundedCornerShape(if (cinematic) 8.dp else 18.dp)
+    val shape = RoundedCornerShape(if (cinematic) NovaRadius.row else NovaRadius.hero)
     val toolbarColor = if (cinematic) {
         surfaces.panel.copy(alpha = 0.34f * LocalNovaMenuOpacityScale.current)
     } else {
@@ -200,9 +201,9 @@ internal fun NovaLibraryPortraitToolbarContent(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(NovaRadius.hero))
                 .background(surfaces.panel.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current))
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(18.dp))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero))
                 .padding(horizontal = 10.dp, vertical = 5.5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -602,7 +603,7 @@ private fun NovaLibraryStageHero(
                         },
                         modifier = Modifier
                             .size(if (compact) 32.dp else 40.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(NovaRadius.row))
                             .testTag("nova-stage-icon"),
                     )
                 }
@@ -682,7 +683,7 @@ private fun NovaStageHeroAction(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val opacityScale = LocalNovaMenuOpacityScale.current
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(NovaRadius.hero)
     val focusedScale = if (focused) 1.02f else 1f
     val baseColor = if (emphasized) colors.accent else surfaces.focusedArtworkScrim
     // The hero's primary action is not menu chrome. Folding the menu-opacity preference

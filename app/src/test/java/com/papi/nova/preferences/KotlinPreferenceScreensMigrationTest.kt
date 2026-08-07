@@ -63,8 +63,12 @@ class KotlinPreferenceScreensMigrationTest {
         assertTrue(settingsScreen.contains("NovaSettingsQuickStrip"))
         assertTrue(settingsScreen.contains(".height(NovaSettingsMetrics.quickStripHeightDp().dp)"))
         assertTrue(settingsScreen.contains(".heightIn(min = NovaSettingsMetrics.quickStripHeightDp().dp)"))
-        assertTrue(settingsScreen.contains("NovaSettingsCardShape = RoundedCornerShape(14.dp)"))
-        assertTrue(settingsScreen.contains("NovaSettingsChipShape = RoundedCornerShape(12.dp)"))
+        // The guarantee here is that settings names its two shapes once instead of inlining a
+        // corner at each call site -- not that they are any particular number. They were 14dp
+        // and 12dp, two of the thirteen values the app had accumulated; they are now the
+        // shared scale, which is the same guarantee held more tightly.
+        assertTrue(settingsScreen.contains("NovaSettingsCardShape = RoundedCornerShape(NovaRadius.row)"))
+        assertTrue(settingsScreen.contains("NovaSettingsChipShape = RoundedCornerShape(NovaRadius.chip)"))
         assertFalse(settingsScreen.contains(".height(44.dp)\n            .horizontalScroll"))
         assertFalse(settingsScreen.contains("label = { Text(\"Search settings\") }"))
     }

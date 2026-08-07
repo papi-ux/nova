@@ -79,6 +79,7 @@ import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaMenuBackdropBlur
+import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaFocusMotion
 import kotlin.math.roundToInt
 
@@ -207,8 +208,8 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-private val NovaSettingsCardShape = RoundedCornerShape(14.dp)
-private val NovaSettingsChipShape = RoundedCornerShape(12.dp)
+private val NovaSettingsCardShape = RoundedCornerShape(NovaRadius.row)
+private val NovaSettingsChipShape = RoundedCornerShape(NovaRadius.chip)
 
 private object NovaSettingsMetrics {
     fun categoryRailWidthDp(): Int = 196
@@ -1130,28 +1131,28 @@ private fun NovaThemePreviewSwatch(themeValue: String) {
         Box(
             modifier = Modifier
                 .size(width = 30.dp, height = 22.dp)
-                .clip(RoundedCornerShape(7.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(palette.window)
-                .border(1.dp, palette.border, RoundedCornerShape(7.dp))
+                .border(1.dp, palette.border, RoundedCornerShape(NovaRadius.row))
         ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(width = 17.dp, height = 10.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(NovaRadius.chip))
                     .background(palette.surface)
             )
         }
         Box(
             modifier = Modifier
                 .size(9.dp)
-                .clip(RoundedCornerShape(99.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(palette.accent)
         )
         Box(
             modifier = Modifier
                 .size(width = 18.dp, height = 4.dp)
-                .clip(RoundedCornerShape(99.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(palette.accent.copy(alpha = 0.42f))
         )
     }

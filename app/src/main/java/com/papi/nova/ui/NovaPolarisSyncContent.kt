@@ -41,6 +41,7 @@ import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
+import com.papi.nova.ui.compose.NovaRadius
 
 @Composable
 fun NovaPolarisSyncContent(
@@ -72,7 +73,7 @@ fun NovaPolarisSyncContent(
                 .padding(bottom = 4.dp)
                 .height(4.dp)
                 .fillMaxWidth(0.12f)
-                .clip(RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(colors.divider.copy(alpha = 0.75f))
         )
 
@@ -206,9 +207,9 @@ private fun NovaSyncSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(NovaRadius.hero))
             .background(surfaces.tile)
-            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(8.dp))
+            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero))
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -249,9 +250,9 @@ private fun NovaSyncStatusChip(status: NovaPolarisSyncStatus) {
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(NovaRadius.pill))
             .background(fill)
-            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(999.dp))
+            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.pill))
             .semantics { contentDescription = label }
             .padding(horizontal = 9.dp, vertical = 5.dp)
     )
@@ -266,7 +267,7 @@ private fun NovaModeButton(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(NovaRadius.row)
     val selected = mode.selectedDesired
     val activeOnly = !mode.selectedDesired && mode.selectedEffective
     val description = listOf(mode.label, mode.statusLabel, mode.reason)

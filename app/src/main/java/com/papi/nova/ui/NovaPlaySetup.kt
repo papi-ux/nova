@@ -42,6 +42,7 @@ import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaChromeFamily
+import com.papi.nova.ui.compose.NovaRadius
 
 /**
  * Play Setup: one destination for the whole question of how this game should run.
@@ -244,7 +245,7 @@ internal fun NovaPlaySetupComparison(title: String, options: List<NovaPlaySetupO
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             options.forEach { option ->
                 var focused by remember { mutableStateOf(false) }
-                val shape = RoundedCornerShape(NovaGameDetailRadius.row)
+                val shape = RoundedCornerShape(NovaRadius.row)
                 val actionable = option.onSelect != null && option.enabled
                 Column(
                     modifier = Modifier
