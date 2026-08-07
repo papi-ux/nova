@@ -13,8 +13,11 @@ class NovaLaunchSourceGuardTest {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
         // launchConfirmed is shared by the primary action, the option picker and the
         // expanded review, so the MangoHUD state is asserted where they all pass through.
-        val launchConfirmed = detail.section("fun launchConfirmed(", "fun resetProfile(")
-        val launchModeSelection = detail.section("fun selectLaunchMode(", "fun launchConfirmed(")
+        // launchConfirmed and attemptLaunch moved above the preflight loader, which has to
+        // be able to replay a held launch, so these markers follow the declaration order
+        // rather than the old one.
+        val launchConfirmed = detail.section("fun launchConfirmed(", "fun attemptLaunch(")
+        val launchModeSelection = detail.section("fun selectLaunchMode(", "fun resetProfile(")
 
         assertTrue(
             "every launch path should pass the selected MangoHUD state into the launch request",
@@ -61,7 +64,7 @@ class NovaLaunchSourceGuardTest {
         assertTrue(
             "the desktop Steam choice belongs in the Launch mode destination, not a sheet or an alert raised over the artwork",
             detail.contains("destination = NovaGameDetailDestination.PLAY_SETUP") &&
-                detail.contains("steamDecision = desktopSteamDecision") &&
+                detail.contains("steamDecision = decision") &&
                 !detail.contains("BottomSheetDialog(") &&
                 !detail.contains("AlertDialog.Builder")
         )
@@ -76,10 +79,15 @@ class NovaLaunchSourceGuardTest {
             decisionRows.contains("enabled = decision.privateStreamEnabled") &&
                 decisionRows.contains("caption = decision.privateStreamUnavailableReason")
         )
+        // This asserted on the option path's own copy of the decision. It had one, which was
+        // the problem: two launch paths meant two places for the guard to be got round, and
+        // only one of them was ever watched. There is one now, and the option's display mode
+        // is what it is judged on.
         assertTrue(
             "Launch Options must not bypass desktop-Steam safety for selected private headless launches",
-            detail.contains("usesVirtualDisplay = option.usesVirtualDisplay") &&
-                detail.contains("steamDecision = desktopSteamDecision")
+            detail.contains("onLaunchOptionSelected = { option -> attemptLaunch(option) }") &&
+                detail.contains("usesVirtualDisplay = option?.usesVirtualDisplay ?: uiState.playUsesVirtualDisplay") &&
+                detail.contains("steamDecision = decision")
         )
         assertTrue(
             "Mirror Desktop must be carried as an explicit launch override through the stream launch path",
@@ -110,14 +118,32 @@ class NovaLaunchSourceGuardTest {
             "private fun showNovaLaunchIssueSheet"
         )
 
+        // Pinned on the rows that actually render. This asserted onForcePrivateAfterSteamClose
+        // until it was noticed that the only declaration of that parameter lived in a
+        // composable nothing called, so the guard was green off dead code while the live
+        // path went unwatched.
         assertTrue(
-            "desktop Steam sheet should expose an explicit force-private path that closes desktop Steam before private launch",
-            detail.contains("onForcePrivateAfterSteamClose") &&
+            "desktop Steam decision should expose an explicit force-private path that closes desktop Steam before private launch",
+            detail.contains("decision.forcePrivateAfterSteamCloseEnabled") &&
+                detail.contains("onChoice(NovaSteamLaunchChoice.CLOSE_STEAM_THEN_PRIVATE)") &&
                 detail.contains("nova_desktop_steam_force_private") &&
                 serverHelper.contains("Game.EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE") &&
                 game.contains("EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE") &&
                 nvHttp.contains("closeDesktopSteamForPrivate=1") &&
                 nvHttp.contains("launchMode=force_private_stream")
+        )
+        assertTrue(
+            "a launch must wait for the preflight the desktop Steam guard is read from, rather than taking a null blob as consent",
+            detail.contains("val preflightInFlight: Boolean = false") &&
+                detail.contains("NovaGameDetailOptimizationState(preflightInFlight = true)") &&
+                detail.contains("if (optimization == null && optimizationState.preflightInFlight) {") &&
+                detail.contains("if (pendingLaunch) attemptLaunch(pendingLaunchOption)")
+        )
+        assertTrue(
+            "every launch path must come through the one gate, so a second path cannot go round the guard the first one gained",
+            detail.contains("onPrimaryLaunch = { attemptLaunch() }") &&
+                detail.contains("onLaunchOptionSelected = { option -> attemptLaunch(option) }") &&
+                !detail.contains("fun launchSelected(")
         )
         assertTrue(
             "Game connection failures should route through the Nova themed launch issue drawer instead of legacy square Dialog.displayDialog",

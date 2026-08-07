@@ -119,13 +119,24 @@ private fun Modifier.novaSheetHandleDrag(onDismiss: () -> Unit): Modifier = poin
     )
 }
 
+/**
+ * @property preflightInFlight A preflight is on the wire and no answer has arrived yet.
+ *
+ * A null [rawOptimization] used to carry two meanings at once: the host answered and
+ * asked for nothing, or nothing has been asked yet. The desktop-Steam guard is armed
+ * from that blob, so the two readings are not interchangeable -- changing a launch mode
+ * resets the state and reloads, and pressing Play inside that window launched with the
+ * guard silently skipped. This separates them, so a launch can wait for an answer
+ * instead of assuming one.
+ */
 data class NovaGameDetailOptimizationState(
     val ai: NovaGameDetailInsightCard? = null,
     val stability: NovaGameDetailInsightCard? = null,
     val profileSummary: NovaLaunchProfileSummary? = null,
     val rawOptimization: JSONObject? = null,
     val reviewRequired: Boolean = false,
-    val reviewReason: String = ""
+    val reviewReason: String = "",
+    val preflightInFlight: Boolean = false
 )
 
 data class NovaLaunchOptionsState(
@@ -633,131 +644,6 @@ private fun NovaDetailPanel(
     }
 }
 
-@Composable
-internal fun NovaDesktopSteamLaunchDecisionContent(
-    title: String,
-    message: String,
-    privateStreamLabel: String,
-    privateStreamUnavailableReason: String,
-    privateStreamEnabled: Boolean,
-    mirrorDesktopLabel: String,
-    mirrorDesktopEnabled: Boolean,
-    mirrorDesktopCaption: String,
-    forcePrivateLabel: String,
-    forcePrivateEnabled: Boolean,
-    forcePrivateCaption: String,
-    cancelLabel: String,
-    onPrivateStream: () -> Unit,
-    onMirrorDesktop: () -> Unit,
-    onForcePrivateAfterSteamClose: () -> Unit,
-    onCancel: () -> Unit
-) {
-    val colors = LocalNovaComposeColors.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp, topEnd = NovaSheetChrome.SHEET_CORNER_RADIUS_DP.dp))
-            .background(LocalNovaLibrarySurfaces.current.panel)
-            .padding(start = 14.dp, top = 12.dp, end = 14.dp, bottom = 16.dp)
-    ) {
-        NovaSheetDragHandle(
-            onDismiss = onCancel,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        NovaDetailPanel(
-            modifier = Modifier.fillMaxWidth(),
-            accent = true,
-            warning = true,
-            contentPadding = PaddingValues(14.dp)
-        ) {
-            Text(
-                text = title,
-                color = colors.textPrimary,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = message,
-                modifier = Modifier.padding(top = 8.dp),
-                color = colors.textSecondary,
-                fontSize = 12.sp,
-                lineHeight = 15.sp
-            )
-            if (privateStreamUnavailableReason.isNotBlank()) {
-                Text(
-                    text = privateStreamUnavailableReason,
-                    modifier = Modifier.padding(top = 8.dp),
-                    color = colors.warning,
-                    fontSize = 11.sp,
-                    lineHeight = 14.sp
-                )
-            }
-            Text(
-                text = mirrorDesktopCaption,
-                modifier = Modifier.padding(top = 8.dp),
-                color = colors.textMuted,
-                fontSize = 11.sp,
-                lineHeight = 14.sp
-            )
-        }
-        NovaActionButton(
-            text = privateStreamLabel,
-            onClick = onPrivateStream,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            enabled = privateStreamEnabled,
-            contentDescription = privateStreamLabel,
-            minHeight = 46.dp,
-            cornerRadius = NovaRadius.hero,
-            fontSize = 14.sp
-        )
-        NovaActionButton(
-            text = forcePrivateLabel,
-            onClick = onForcePrivateAfterSteamClose,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            enabled = forcePrivateEnabled,
-            primary = false,
-            contentDescription = forcePrivateLabel,
-            minHeight = 46.dp,
-            cornerRadius = NovaRadius.hero,
-            fontSize = 14.sp
-        )
-        Text(
-            text = forcePrivateCaption,
-            modifier = Modifier.padding(top = 5.dp),
-            color = colors.textMuted,
-            fontSize = 11.sp,
-            lineHeight = 14.sp
-        )
-        NovaActionButton(
-            text = mirrorDesktopLabel,
-            onClick = onMirrorDesktop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            enabled = mirrorDesktopEnabled,
-            primary = true,
-            contentDescription = mirrorDesktopLabel,
-            minHeight = 48.dp,
-            cornerRadius = NovaRadius.hero,
-            fontSize = 15.sp
-        )
-        NovaActionButton(
-            text = cancelLabel,
-            onClick = onCancel,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            contentDescription = cancelLabel,
-            minHeight = 42.dp,
-            cornerRadius = NovaRadius.hero,
-            fontSize = 13.sp
-        )
-    }
-}
 
 
 @Composable

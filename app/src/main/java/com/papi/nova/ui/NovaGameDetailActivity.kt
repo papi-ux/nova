@@ -318,6 +318,13 @@ class NovaGameDetailActivity : NovaActivity() {
         var profileOptionsState by mutableStateOf<NovaProfilePreferenceOptionsState?>(null)
         var steamLaunchOptionsState by mutableStateOf<NovaSteamLaunchModeOptionsState?>(null)
         var artworkState by mutableStateOf(loadArtworkState(game))
+        // A launch was asked for while the preflight that arms the desktop-Steam guard was
+        // still on the wire. The press is held rather than dropped: being quick should not
+        // cost you the launch, and it must not cost you the guard either. The option is
+        // carried alongside because an option card launches with its own blob and its own
+        // display mode, so replaying the press has to replay the choice, not just the intent.
+        var pendingLaunch by mutableStateOf(false)
+        var pendingLaunchOption by mutableStateOf<NovaLaunchOptionItem?>(null)
 
         fun refreshUiState(preference: String = profilePreference) {
             uiState = buildUiState(currentGame, preference)
@@ -414,6 +421,70 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
 
+        fun launchConfirmed(
+            mirrorDesktop: Boolean,
+            forcePrivateAfterSteamClose: Boolean = false,
+            option: NovaLaunchOptionItem? = null
+        ) {
+            pendingLaunch = false
+            pendingLaunchOption = null
+            onLaunch?.invoke(
+                currentGame.copy(mangohud = mangoHudEnabled),
+                option?.usesVirtualDisplay ?: uiState.playUsesVirtualDisplay,
+                mirrorDesktop,
+                forcePrivateAfterSteamClose,
+                profilePreference,
+                option?.launchOptimization ?: optimizationState.rawOptimization
+            )
+            if (option != null) launchOptionsState = null
+            finish()
+        }
+
+        /**
+         * The single way a launch starts, so the guards in front of it cannot be walked past.
+         *
+         * The desktop-Steam decision is read out of the preflight blob. While a preflight is
+         * on the wire that blob is null, which used to fall through to an unguarded launch --
+         * and since changing a mode reloads the preflight and used to return you to the Play
+         * button, the fastest route through Play Setup was also the one that skipped the guard.
+         * A press in that window is now held and replayed when the answer lands.
+         *
+         * The option cards had the same hole and a second one of their own: they launch with
+         * the blob attached to the card but decided from the activity's, so a card carrying
+         * its own answer was still judged by whatever the last preflight said. Both paths
+         * come through here now, and the blob that decides is the blob that launches.
+         */
+        fun attemptLaunch(option: NovaLaunchOptionItem? = null) {
+            if (!uiState.playEnabled) return
+            val optimization = option?.launchOptimization ?: optimizationState.rawOptimization
+            if (optimization == null && optimizationState.preflightInFlight) {
+                pendingLaunch = true
+                pendingLaunchOption = option
+                return
+            }
+            pendingLaunch = false
+            pendingLaunchOption = null
+            val decision = NovaDesktopSteamLaunchDecision.from(
+                uiState,
+                optimization,
+                usesVirtualDisplay = option?.usesVirtualDisplay ?: uiState.playUsesVirtualDisplay
+            )
+            when {
+                // A choice of where to run belongs in the destination that
+                // owns where it runs, not in a sheet raised over the artwork.
+                decision.required -> {
+                    steamDecision = decision
+                    destination = NovaGameDetailDestination.PLAY_SETUP
+                }
+                // The review is a statement about the profile, and the status
+                // line is where the profile lives, so it expands in place.
+                optimizationState.reviewRequired && !reviewExpanded -> {
+                    reviewExpanded = true
+                }
+                else -> launchConfirmed(false, option = option)
+            }
+        }
+
         fun loadOptimization(preference: String, usesVirtualDisplay: Boolean = uiState.playUsesVirtualDisplay) {
             LimeLog.info(
                 "Nova: Preflight optimization requested game=${currentGame.name} " +
@@ -423,6 +494,10 @@ class NovaGameDetailActivity : NovaActivity() {
                 "NovaPreflight",
                 "requested game=${currentGame.name} preference=$preference virtualDisplay=$usesVirtualDisplay"
             )
+            // Marked here rather than inside the coroutine. Callers used to clear the state
+            // themselves and then call this, so between those two statements it read as a
+            // settled answer of "nothing to guard" -- for as long as the round-trip took.
+            optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             lifecycleScope.launch {
                 optimizationState = try {
                     val opt = withContext(Dispatchers.IO) {
@@ -437,6 +512,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     LimeLog.warning("Nova: Preflight optimization failed: ${e.message}")
                     NovaGameDetailOptimizationState()
                 }
+                if (pendingLaunch) attemptLaunch(pendingLaunchOption)
             }
         }
 
@@ -444,6 +520,7 @@ class NovaGameDetailActivity : NovaActivity() {
             profilePreference = "high_fps"
             saveProfilePreference(currentGame, profilePreference)
             refreshUiState(profilePreference)
+            optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             lifecycleScope.launch {
                 optimizationState = try {
                     val opt = withContext(Dispatchers.IO) {
@@ -458,6 +535,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     LimeLog.warning("Nova: High FPS trial preflight failed: ${e.message}")
                     NovaGameDetailOptimizationState()
                 }
+                if (pendingLaunch) attemptLaunch(pendingLaunchOption)
             }
         }
 
@@ -479,20 +557,7 @@ class NovaGameDetailActivity : NovaActivity() {
             currentGame = currentGame.copy(launchMode = updatedLaunchMode)
             NovaLaunchModeOverrides.save(this@NovaGameDetailActivity, currentGame, mode)
             refreshUiState()
-            optimizationState = NovaGameDetailOptimizationState()
             loadOptimization(profilePreference, usesVirtualDisplay = mode == "virtual_display")
-        }
-
-        fun launchConfirmed(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
-            onLaunch?.invoke(
-                currentGame.copy(mangohud = mangoHudEnabled),
-                uiState.playUsesVirtualDisplay,
-                mirrorDesktop,
-                forcePrivateAfterSteamClose,
-                profilePreference,
-                optimizationState.rawOptimization
-            )
-            finish()
         }
 
         fun resetProfile() {
@@ -501,7 +566,6 @@ class NovaGameDetailActivity : NovaActivity() {
                 withContext(Dispatchers.IO) {
                     apiClient.clearOptimizerProfile(deviceName, currentGame.name)
                 }
-                optimizationState = NovaGameDetailOptimizationState()
                 loadOptimization(profilePreference)
                 resetWorking = false
             }
@@ -539,7 +603,12 @@ class NovaGameDetailActivity : NovaActivity() {
                     optimizationState = optimizationState,
                     launchOptionsState = launchOptionsState,
                     profileOptionsState = profileOptionsState,
-                    playLabel = if (optimizationState.reviewRequired) {
+                    playLabel = if (pendingLaunch) {
+                        // The press landed and is being held, so say so. A button that
+                        // looks untouched for the length of an HTTP round-trip reads as
+                        // one that did not register.
+                        getString(R.string.nova_game_detail_launch_checking_host)
+                    } else if (optimizationState.reviewRequired) {
                         getString(R.string.nova_library_review_and_launch)
                     } else {
                         optimizationState.profileSummary
@@ -552,27 +621,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     headlessModeLabel = modeBadgeLabel("headless"),
                     virtualDisplayModeLabel = modeBadgeLabel("virtual_display"),
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
-                    onPrimaryLaunch = {
-                        if (!uiState.playEnabled) return@NovaGameDetailContent
-                        val decision = NovaDesktopSteamLaunchDecision.from(
-                            uiState,
-                            optimizationState.rawOptimization
-                        )
-                        when {
-                            // A choice of where to run belongs in the destination that
-                            // owns where it runs, not in a sheet raised over the artwork.
-                            decision.required -> {
-                                steamDecision = decision
-                                destination = NovaGameDetailDestination.PLAY_SETUP
-                            }
-                            // The review is a statement about the profile, and the status
-                            // line is where the profile lives, so it expands in place.
-                            optimizationState.reviewRequired && !reviewExpanded -> {
-                                reviewExpanded = true
-                            }
-                            else -> launchConfirmed(false)
-                        }
-                    },
+                    onPrimaryLaunch = { attemptLaunch() },
                     destination = destination,
                     steamDecision = steamDecision,
                     reviewExpanded = reviewExpanded,
@@ -603,40 +652,19 @@ class NovaGameDetailActivity : NovaActivity() {
                         }
                     },
                     onLaunchModeSelected = { mode ->
-                        // The concept: choosing sets the mode and returns to the Overview,
-                        // whose readout reflects it. Staying put left the pill showing the
-                        // previous mode until the window was opened again.
+                        // Choosing sets the mode and stays here. Returning to the Overview
+                        // put the Play button under the thumb at the exact moment the mode
+                        // change had cleared the preflight the desktop-Steam guard is read
+                        // from, which made the quickest path through this screen the one
+                        // that skipped the guard. The readout it was returning to refresh
+                        // is on this surface too.
                         selectLaunchMode(mode)
-                        destination = NovaGameDetailDestination.OVERVIEW
                     },
-                    onLaunchOptionSelected = { option ->
-                        fun launchSelected(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
-                            val selectedLaunchOptimization = option.launchOptimization ?: optimizationState.rawOptimization
-                            onLaunch?.invoke(
-                                currentGame.copy(mangohud = mangoHudEnabled),
-                                option.usesVirtualDisplay,
-                                mirrorDesktop,
-                                forcePrivateAfterSteamClose,
-                                profilePreference,
-                                selectedLaunchOptimization
-                            )
-                            launchOptionsState = null
-                            finish()
-                        }
-                        val desktopSteamDecision = NovaDesktopSteamLaunchDecision.from(
-                            uiState,
-                            optimizationState.rawOptimization,
-                            usesVirtualDisplay = option.usesVirtualDisplay
-                        )
-                        if (desktopSteamDecision.required) {
-                            // Same destination the primary action routes to; picking an
-                            // explicit option does not change where the choice belongs.
-                            steamDecision = desktopSteamDecision
-                            destination = NovaGameDetailDestination.PLAY_SETUP
-                        } else {
-                            launchSelected(mirrorDesktop = false)
-                        }
-                    },
+                    // Through the same gate as the primary action. This used to build its own
+                    // decision and its own launch, which is how it came to decide from one
+                    // blob and launch with another, and how it kept a route past the guard
+                    // after the primary action lost its.
+                    onLaunchOptionSelected = { option -> attemptLaunch(option) },
                     onDismissLaunchOptions = {
                         launchOptionsState = null
                     },
