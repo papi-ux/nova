@@ -57,6 +57,7 @@ fun NovaPolarisSyncContent(
     onClearProfile: () -> Unit,
     onAutoSyncChange: (Boolean) -> Unit,
     onAiChange: (Boolean) -> Unit,
+    onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalNovaComposeColors.current
@@ -68,15 +69,9 @@ fun NovaPolarisSyncContent(
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(bottom = 4.dp)
-                .height(4.dp)
-                .fillMaxWidth(0.12f)
-                .clip(RoundedCornerShape(NovaRadius.pill))
-                .background(colors.divider.copy(alpha = 0.75f))
-        )
+        // No drag pill. The sheet pins itself expanded and not draggable, and the 4dp
+        // handle it drew promised a gesture that did nothing. The way out is stated
+        // instead: the Close control here, and B.
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -101,6 +96,15 @@ fun NovaPolarisSyncContent(
                 )
             }
             NovaSyncStatusChip(uiState.status)
+            if (onClose != null) {
+                NovaActionButton(
+                    text = stringResource(R.string.nova_polaris_sync_close),
+                    onClick = onClose,
+                    contentDescription = stringResource(R.string.nova_polaris_sync_close_cd),
+                    minHeight = 36.dp,
+                    fontSize = 11.sp
+                )
+            }
         }
 
         NovaSyncSection(title = stringResource(R.string.nova_polaris_sync_mode_title)) {

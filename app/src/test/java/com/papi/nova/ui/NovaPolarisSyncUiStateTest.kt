@@ -11,7 +11,7 @@ import org.junit.Test
 class NovaPolarisSyncUiStateTest {
     @Test
     fun loadingStateDisablesHostControls() {
-        val state = NovaPolarisSyncUiStateMapper.build(
+        val state = build(
             settings = null,
             busy = false,
             settingsUnavailable = false,
@@ -32,7 +32,7 @@ class NovaPolarisSyncUiStateTest {
 
     @Test
     fun availableSettingsSelectDesiredModeAndEnableActions() {
-        val state = NovaPolarisSyncUiStateMapper.build(
+        val state = build(
             settings = settings(),
             busy = false,
             settingsUnavailable = false,
@@ -58,7 +58,7 @@ class NovaPolarisSyncUiStateTest {
 
     @Test
     fun normalizedVirtualDisplayModeSelectsAndDisablesCanonicalRow() {
-        val state = NovaPolarisSyncUiStateMapper.build(
+        val state = build(
             settings = PolarisClientSettings(
                 desired = PolarisClientSettings.Desired(streamDisplayMode = "virtual_display"),
                 capabilities = PolarisClientSettings.Capabilities(
@@ -86,7 +86,7 @@ class NovaPolarisSyncUiStateTest {
 
     @Test
     fun busyStateDisablesAllMutatingActions() {
-        val state = NovaPolarisSyncUiStateMapper.build(
+        val state = build(
             settings = settings(),
             busy = true,
             settingsUnavailable = false,
@@ -107,7 +107,7 @@ class NovaPolarisSyncUiStateTest {
 
     @Test
     fun profileActionsReflectProfileComparison() {
-        val matched = NovaPolarisSyncUiStateMapper.build(
+        val matched = build(
             settings = settings(displayMode = "1920x1080@60", bitrateKbps = 30000),
             busy = false,
             settingsUnavailable = false,
@@ -116,7 +116,7 @@ class NovaPolarisSyncUiStateTest {
             novaDisplayMode = "1920x1080@60",
             novaBitrateKbps = 30000
         )
-        val different = NovaPolarisSyncUiStateMapper.build(
+        val different = build(
             settings = settings(displayMode = "2560x1440@60", bitrateKbps = 45000),
             busy = false,
             settingsUnavailable = false,
@@ -135,7 +135,7 @@ class NovaPolarisSyncUiStateTest {
 
     @Test
     fun modeMapperNormalizesCapabilitiesAndMarksPendingRelaunch() {
-        val state = NovaPolarisSyncUiStateMapper.build(
+        val state = build(
             settings = PolarisClientSettings(
                 desired = PolarisClientSettings.Desired(
                     streamDisplayMode = PolarisClientSettings.MODE_GPU_NATIVE_TEST
@@ -168,7 +168,7 @@ class NovaPolarisSyncUiStateTest {
 
     @Test
     fun unavailableHostVirtualDisplayCarriesReason() {
-        val state = NovaPolarisSyncUiStateMapper.build(
+        val state = build(
             settings = PolarisClientSettings(
                 desired = PolarisClientSettings.Desired(
                     streamDisplayMode = PolarisClientSettings.MODE_HEADLESS_STREAM
@@ -198,6 +198,36 @@ class NovaPolarisSyncUiStateTest {
         assertFalse(virtual.enabled)
         assertEquals("No virtual display backend", virtual.reason)
     }
+
+    /**
+     * The mapper takes every label from its caller now — the production text lives in
+     * strings.xml — so the routing assertions below keep pinning the exact words,
+     * em-dash included, by supplying the same ones the resources carry.
+     */
+    private fun build(
+        settings: PolarisClientSettings?,
+        busy: Boolean = false,
+        settingsUnavailable: Boolean = false,
+        autoSyncEnabled: Boolean = false,
+        hasServerUuid: Boolean = true,
+        novaDisplayMode: String = "1920x1080@60",
+        novaBitrateKbps: Int = 30000
+    ) = NovaPolarisSyncUiStateMapper.build(
+        settings = settings,
+        busy = busy,
+        settingsUnavailable = settingsUnavailable,
+        autoSyncEnabled = autoSyncEnabled,
+        hasServerUuid = hasServerUuid,
+        novaDisplayMode = novaDisplayMode,
+        novaBitrateKbps = novaBitrateKbps,
+        loadingLabel = "Loading",
+        unavailableLabel = "Unavailable",
+        unsetLabel = "Unset",
+        savedAfterRelaunchLabel = "Saved — applies after relaunch",
+        selectedLabel = "Selected",
+        activeNowLabel = "Active now",
+        availableLabel = "Available"
+    )
 
     private fun settings(
         displayMode: String = "2560x1440@60",

@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.app.Dialog
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -118,7 +119,11 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                         novaBitrateKbps = prefs.bitrate,
                         loadingLabel = getString(R.string.nova_polaris_sync_loading),
                         unavailableLabel = getString(R.string.nova_polaris_sync_unavailable),
-                        unsetLabel = getString(R.string.nova_polaris_sync_unset)
+                        unsetLabel = getString(R.string.nova_polaris_sync_unset),
+                        savedAfterRelaunchLabel = getString(R.string.nova_polaris_sync_status_saved_relaunch),
+                        selectedLabel = getString(R.string.nova_polaris_sync_status_selected),
+                        activeNowLabel = getString(R.string.nova_polaris_sync_status_active_now),
+                        availableLabel = getString(R.string.nova_polaris_sync_status_available)
                     )
                     key(profileVersion) {
                         NovaPolarisSyncContent(
@@ -132,7 +137,8 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                             onUsePolaris = { engine.usePolarisProfile() },
                             onClearProfile = { engine.clearProfile() },
                             onAutoSyncChange = { engine.setAutoSync(it) },
-                            onAiChange = { engine.setAiAutoQuality(it) }
+                            onAiChange = { engine.setAiAutoQuality(it) },
+                            onClose = { dismiss() }
                         )
                     }
                 }
@@ -144,6 +150,17 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
         return BottomSheetDialog(requireContext(), theme).apply {
             setOnShowListener {
                 expandBottomSheet(this)
+            }
+            // Dialogs map BACK out of the box but not a pad's B, so a controller had
+            // no way out of this sheet at all: not draggable, no close control, and B
+            // swallowed. B now leaves, the same direction it means everywhere else.
+            setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_BUTTON_B && event.action == KeyEvent.ACTION_UP) {
+                    dismiss()
+                    true
+                } else {
+                    false
+                }
             }
         }
     }
