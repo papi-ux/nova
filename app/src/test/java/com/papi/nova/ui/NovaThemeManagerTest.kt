@@ -13,6 +13,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -147,16 +148,24 @@ class NovaThemeManagerTest {
 
     @Test
     @Config(sdk = [33], qualifiers = "notnight")
-    fun portableChromeUsesDarkIconsOnItsMidLightSystemBars() {
+    fun portableChromeUsesLightIconsOnItsGraphiteSystemBars() {
         val controller = Robolectric.buildActivity(Activity::class.java)
         val activity = controller.get()
         NovaThemeManager.setTheme(activity, NovaThemeManager.THEME_PORTABLE_CHROME)
         NovaThemeManager.applyTheme(activity)
         controller.setup()
 
+        // configureSystemBars picks icon polarity by contrast against the window, so it
+        // flipped on its own when the shell went graphite. This asserts it landed.
         val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-        assertTrue(insetsController.isAppearanceLightStatusBars)
-        assertTrue(insetsController.isAppearanceLightNavigationBars)
+        assertFalse(
+            "graphite bars take light icons",
+            insetsController.isAppearanceLightStatusBars
+        )
+        assertFalse(
+            "graphite bars take light icons",
+            insetsController.isAppearanceLightNavigationBars
+        )
 
         controller.destroy()
     }

@@ -1,6 +1,7 @@
 package com.papi.nova.ui.compose
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaThemeManager
@@ -48,10 +49,14 @@ class NovaLibrarySurfacesTest {
 
     @Test
     fun menuOpacityUsesAbsoluteOuterPanelWhileScalingNestedChromeAndPreservingFocus() {
-        val colors = portableChromeColors()
-        val full = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 1f)
-        val half = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 0.5f)
-        val zero = colors.librarySurfaces(NovaThemeManager.THEME_PORTABLE_CHROME, menuOpacityScale = 0f)
+        // A dark-text palette, which is what these floors are about. This used to borrow
+        // Portable Chrome's, and kept passing after Portable Chrome went graphite only
+        // because the fixture was a hardcoded copy -- it was exercising a theme that no
+        // longer exists. Material You in light mode is the real dark-text case.
+        val colors = darkTextColors()
+        val full = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 1f)
+        val half = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0.5f)
+        val zero = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0f)
 
         assertEquals(
             NovaMenuPreferences.readabilityScrimAlpha(
@@ -88,16 +93,49 @@ class NovaLibrarySurfacesTest {
         assertTrue(portableChrome.particlesEnabled)
         assertEquals(portableColors.accent, portableChrome.focusRing)
         assertTrue(portableChrome.backgroundScrim.alpha >= 0.24f)
-        assertEquals(1f, portableChrome.panel.alpha, 0.001f)
         assertTrue(portableChrome.panelBorder.alpha in 0.40f..0.52f)
-        assertTrue(portableChrome.particleAlpha in 0.16f..0.28f)
-        assertTrue(portableChrome.focusHalo.alpha < 0.18f)
-        assertEquals(Color(0xFFA2ADBA), portableChrome.mediaPlaceholder)
+
+        // These were the lowest values of any theme, each tuned down because a bright shell
+        // shows everything. On graphite they would read as invisible.
+        assertTrue(
+            "particles have to be visible against graphite",
+            portableChrome.particleAlpha in 0.34f..0.54f
+        )
+        assertTrue(
+            "the focus halo is no longer the faintest in the app",
+            portableChrome.focusHalo.alpha >= 0.20f
+        )
+        // At full opacity every theme's outer panel is absolute, so the light/dark-text
+        // split only shows once the user turns menus down. Dark text floored Portable at
+        // MIN_DARK_TEXT_SURFACE_ALPHA; silver text is free to go further, which is the
+        // contract rule about not becoming an opaque slab that it had been breaking.
+        val dimmed = portableColors.librarySurfaces(
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            menuOpacityScale = 0.5f,
+        )
+        assertTrue(
+            "a turned-down Portable Chrome panel is no longer held above the dark-text floor",
+            dimmed.panel.alpha < NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA
+        )
+        assertEquals(
+            "missing artwork sits on graphite. Portable was the only theme putting its " +
+                "window colour here, because its window used to be light",
+            Color(0xFF101216),
+            portableChrome.mediaPlaceholder
+        )
     }
 
     @Test
     fun portableChromeOnAccentUsesWhiteForReadableBlueControls() {
-        assertEquals(Color.White, portableChromeColors().onAccent)
+        // This used to assert Color.White against a fixture that sets onAccent to
+        // Color.White -- a constant compared with itself, which passes no matter what the
+        // accent becomes. What must actually hold is that the label on an accent-filled
+        // control is readable against it.
+        val colors = portableChromeColors()
+        assertTrue(
+            "a label on an accent fill has to be readable against it",
+            contrastRatio(colors.accent, colors.onAccent) >= 4.5
+        )
     }
     @Test
     fun miamiLibrarySurfacesUsePlumGlassMagentaFocusAndParticles() {
@@ -132,7 +170,8 @@ class NovaLibrarySurfacesTest {
         assertEquals(Color(0xFF130817), miamiColors().onAccent)
     }
 
-    private fun portableChromeColors(): NovaComposeColors = NovaComposeColors(
+    /** The light palette the menu-opacity floors are written for. */
+    private fun darkTextColors(): NovaComposeColors = NovaComposeColors(
         window = Color(0xFFA2ADBA),
         card = Color(0xE6C4CDD8),
         dialog = Color(0xFFC0CAD5),
@@ -145,6 +184,30 @@ class NovaLibrarySurfacesTest {
         textSecondary = Color(0xFF465464),
         textMuted = Color(0xFF5A6877),
         onAccent = Color.White
+    )
+
+    /** WCAG contrast, from the relative luminance Compose already computes. */
+    private fun contrastRatio(a: Color, b: Color): Float {
+        val la = a.luminance()
+        val lb = b.luminance()
+        val lighter = maxOf(la, lb)
+        val darker = minOf(la, lb)
+        return (lighter + 0.05f) / (darker + 0.05f)
+    }
+
+    private fun portableChromeColors(): NovaComposeColors = NovaComposeColors(
+        window = Color(0xFF14161A),
+        card = Color(0xFF1E2228),
+        dialog = Color(0xFF1E2228),
+        badge = Color(0x334B6686),
+        divider = Color(0xFF3A424C),
+        accent = Color(0xFF5A93D6),
+        accentSurface = Color(0x264B6686),
+        warning = Color(0xFFFBBF24),
+        textPrimary = Color(0xFFC9D1D9),
+        textSecondary = Color(0xFF9AA4AF),
+        textMuted = Color(0xFF838D9C),
+        onAccent = Color(0xFF14161A)
     )
     private fun miamiColors(): NovaComposeColors = NovaComposeColors(
         window = Color(0xFF130817),

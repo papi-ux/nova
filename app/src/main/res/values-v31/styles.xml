@@ -84,7 +84,7 @@
         <item name="colorOnSurface">@color/nova_portable_text_primary</item>
         <item name="colorSurfaceVariant">@color/nova_portable_bg_card</item>
         <item name="colorOnSurfaceVariant">@color/nova_portable_text_secondary</item>
-        <item name="colorOnPrimary">@color/nova_ice</item>
+        <item name="colorOnPrimary">@color/nova_portable_bg_window</item>
         <item name="colorPrimaryContainer">@color/nova_portable_accent_surface</item>
         <item name="colorOnPrimaryContainer">@color/nova_portable_text_primary</item>
         <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_portable</item>

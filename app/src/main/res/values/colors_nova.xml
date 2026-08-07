@@ -88,24 +88,34 @@
     <color name="nova_polaris_accent_surface">#1A7C73FF</color>
     <color name="nova_polaris_ripple">#227C73FF</color>
 
-    <color name="nova_portable_bg_window">#FFA2ADBA</color>
-    <color name="nova_portable_bg_card">#FFC4CDD8</color>
-    <color name="nova_portable_bg_elevated">#FFCBD3DD</color>
-    <color name="nova_portable_bg_input">#FFB1BCC9</color>
-    <color name="nova_portable_dialog_bg">#FFC4CDD8</color>
-    <color name="nova_portable_divider">#FF83909F</color>
-    <color name="nova_portable_text_primary">#FF1F2A35</color>
-    <color name="nova_portable_text_secondary">#FF3B4856</color>
-    <color name="nova_portable_text_muted">#FF5E6B79</color>
-    <color name="nova_portable_accent">#FF2F64B3</color>
-    <color name="nova_portable_cross_accent">#FF2F64B3</color>
-    <color name="nova_portable_square_accent">#FF9D679D</color>
-    <color name="nova_portable_circle_accent">#FFB8575F</color>
-    <color name="nova_portable_error">#FF8B1E2D</color>
-    <color name="nova_portable_triangle_accent">#FF4F9A67</color>
-    <color name="nova_portable_accent_glow">#332F64B3</color>
-    <color name="nova_portable_accent_surface">#1A2F64B3</color>
-    <color name="nova_portable_ripple">#222F64B3</color>
+    <!-- Portable Chrome — a silver handheld with the screen off.
+         The shell is silver; the screen is not. Surfaces are smoked graphite with a blue
+         cast, and the moonlight silver the contract asks for lives in the text, the
+         dividers and the rails. Ratios against the card: text 10.35, secondary 6.32,
+         muted 4.76, accent 5.00, error 6.76 — measured, not judged by eye. -->
+    <color name="nova_portable_bg_window">#FF14161A</color>
+    <color name="nova_portable_bg_card">#FF1E2228</color>
+    <color name="nova_portable_bg_elevated">#FF262B33</color>
+    <color name="nova_portable_bg_input">#FF1A1D22</color>
+    <color name="nova_portable_dialog_bg">#FF1E2228</color>
+    <color name="nova_portable_divider">#FF3A424C</color>
+    <color name="nova_portable_text_primary">#FFC9D1D9</color>
+    <color name="nova_portable_text_secondary">#FF9AA4AF</color>
+    <color name="nova_portable_text_muted">#FF838D9C</color>
+    <!-- Cross blue, lifted for a dark ground: the old #2F64B3 was 3.1:1 on graphite,
+         too dim to carry a focus ring. -->
+    <color name="nova_portable_accent">#FF5A93D6</color>
+    <color name="nova_portable_cross_accent">#FF5A93D6</color>
+    <color name="nova_portable_square_accent">#FFB583B5</color>
+    <color name="nova_portable_circle_accent">#FFD4838A</color>
+    <!-- Light, because the dark maroon this replaces fails getErrorColor's 4.5:1 gate on
+         dark cards and that gate falls back silently — the theme would simply have lost
+         its error colour with nothing failing to say so. -->
+    <color name="nova_portable_error">#FFF28B93</color>
+    <color name="nova_portable_triangle_accent">#FF6FBF8A</color>
+    <color name="nova_portable_accent_glow">#335A93D6</color>
+    <color name="nova_portable_accent_surface">#1A5A93D6</color>
+    <color name="nova_portable_ripple">#225A93D6</color>
 
     <color name="nova_accent">@color/nova_polaris_accent</color>
     <color name="nova_accent_glow">@color/nova_polaris_accent_glow</color>
@@ -132,7 +142,8 @@
     <color name="nova_online">#FF7FA38D</color>
     <!-- Tonal pill pressed-state overlays: 20% of each theme's on-container text role. -->
     <color name="nova_tonal_pill_pressed_polaris">#33D4DDE8</color>
-    <color name="nova_tonal_pill_pressed_portable">#331F2A35</color>
+    <!-- 20% of the on-container text role, which is now silver rather than ink. -->
+    <color name="nova_tonal_pill_pressed_portable">#33C9D1D9</color>
     <color name="nova_tonal_pill_pressed_oled">#33E0E6ED</color>
     <color name="nova_tonal_pill_pressed_miami">#33FFF1F7</color>
     <color name="nova_tonal_pill_pressed_high_contrast">#33FFFFFF</color>
