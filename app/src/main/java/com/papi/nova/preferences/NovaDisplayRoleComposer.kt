@@ -302,9 +302,12 @@ internal fun NovaDisplayRoleCard(
             R.string.display_role_selection_state_not_selected
         },
     )
+    // This component had the split right before the others did; it just spelled the
+    // selected tint as its own alpha rather than as the shared token, and put selection
+    // ahead of focus so a focused selected role lost its focus fill.
     val background = when {
-        selected -> colors.accent.copy(alpha = 0.20f)
         focused -> surfaces.selectedControl
+        selected -> colors.accentSurface
         else -> surfaces.control.copy(alpha = 0.76f * LocalNovaMenuOpacityScale.current)
     }
 
@@ -315,8 +318,19 @@ internal fun NovaDisplayRoleCard(
             .novaFocusMotion(focused = focused, pressed = false)
             .background(background)
             .border(
-                width = if (focused || selected) 3.dp else 1.dp,
-                color = if (focused || selected) surfaces.focusRing else surfaces.tileBorder,
+                // Hue cannot separate these two: focusRing is defined as accent. Selection
+                // is drawn at 0.72 alpha, the way NovaSelectableChip already drew it, and
+                // width carries the rest of the distinction.
+                width = when {
+                    focused -> 3.dp
+                    selected -> 2.dp
+                    else -> 1.dp
+                },
+                color = when {
+                    focused -> surfaces.focusRing
+                    selected -> colors.accent.copy(alpha = 0.72f)
+                    else -> surfaces.tileBorder
+                },
                 shape = DisplayRoleCardShape,
             )
             .onFocusChanged { focused = it.isFocused || it.hasFocus }
@@ -403,14 +417,25 @@ internal fun NovaDisplayRoleActionButton(
             .novaFocusMotion(focused = focused, pressed = false)
             .background(
                 when {
-                    selected -> colors.accent.copy(alpha = 0.20f)
                     focused -> surfaces.selectedControl
+                    selected -> colors.accentSurface
                     else -> surfaces.control.copy(alpha = 0.70f * LocalNovaMenuOpacityScale.current)
                 },
             )
+            // The border was the plainest statement of the problem in the app: a selected
+            // card wore the focus ring, at focus width, while focus was somewhere else. The
+            // ring now means focus and nothing else, and selection is drawn in the accent.
             .border(
-                width = if (focused || selected) 3.dp else 1.dp,
-                color = if (focused || selected) surfaces.focusRing else surfaces.tileBorder,
+                width = when {
+                    focused -> 3.dp
+                    selected -> 2.dp
+                    else -> 1.dp
+                },
+                color = when {
+                    focused -> surfaces.focusRing
+                    selected -> colors.accent.copy(alpha = 0.72f)
+                    else -> surfaces.tileBorder
+                },
                 shape = DisplayRoleCardShape,
             )
             .onFocusChanged { focused = it.isFocused || it.hasFocus }

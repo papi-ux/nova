@@ -642,8 +642,11 @@ private fun NovaCategoryRow(
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
     val shape = NovaSettingsCardShape
+    // `selected || focused` was one branch for two different states, which made a
+    // selected card indistinguishable from the card the d-pad happens to be on.
     val background = when {
-        selected || focused -> surfaces.selectedControl
+        focused -> surfaces.selectedControl
+        selected -> colors.accentSurface
         else -> surfaces.control
     }
     Column(
@@ -1086,7 +1089,19 @@ private fun NovaSettingsSelectOptionRow(
             .clip(shape)
             .novaFocusMotion(focused = focused, pressed = false)
             .background(background)
-            .border(if (focused || selected)3.dp else 1.dp, if (focused || selected)surfaces.focusRing else surfaces.tileBorder, shape)
+            .border(
+                when {
+                    focused -> 3.dp
+                    selected -> 2.dp
+                    else -> 1.dp
+                },
+                when {
+                    focused -> surfaces.focusRing
+                    selected -> colors.accent.copy(alpha = 0.72f)
+                    else -> surfaces.tileBorder
+                },
+                shape
+            )
             .onFocusChanged {focused = it.isFocused || it.hasFocus }
             .clickable(onClick = onClick)
             .focusable()

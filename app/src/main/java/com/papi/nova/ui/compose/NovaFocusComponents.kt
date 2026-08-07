@@ -290,6 +290,11 @@ fun NovaActionButton(
         pressed && enabled -> surfaces.selectedControl.copy(alpha = surfaces.selectedControl.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
         primary && enabled -> colors.accent
         focused -> surfaces.selectedControl
+        // `selected` used to reach the semantics tree and no colour branch, so a selected
+        // button looked exactly like an unselected one. Call sites worked around that by
+        // passing `primary = true` to mean "selected", which is why that flag ended up
+        // carrying two meanings.
+        selected && enabled -> colors.accentSurface
         else -> surfaces.control
     }
     val container by animateColorAsState(

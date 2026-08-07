@@ -3571,9 +3571,13 @@ class NovaLibraryActivity : NovaActivity() {
                 )
                 .clip(RoundedCornerShape(NovaRadius.chip))
                 .background(
+                    // These were two branches returning one colour, so an unfocused selected
+                    // chip was painted with the focus fill and read as focused. Selection is
+                    // still legible without it: the label goes accent and SemiBold, and the
+                    // border below goes accent too.
                     when {
                         focused -> surfaces.selectedControl
-                        selected -> surfaces.selectedControl
+                        selected -> colors.accentSurface
                         else -> surfaces.control
                     }
                 )

@@ -1038,7 +1038,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 else -> surface
             },
         )
-        card.strokeColor = if (focused || selected) rowAccent else divider
+        // The fill blend above and the stroke width below already separate these two, so
+        // only the shared stroke colour needed splitting. Selection sits at 0.72 alpha, which
+        // is what the Compose side uses -- the accent and the focus ring are one colour, so
+        // alpha is what is left to say this is chosen rather than where you are.
+        card.strokeColor = when {
+            focused -> rowAccent
+            selected -> ColorUtils.setAlphaComponent(rowAccent, 184)
+            else -> divider
+        }
         card.strokeWidth = dp(
             when {
                 focused -> 4
