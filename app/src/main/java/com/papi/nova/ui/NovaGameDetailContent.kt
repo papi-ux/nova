@@ -206,31 +206,23 @@ internal fun NovaGameDetailContent(
     steamLaunchModeLabel: String,
     steamLaunchCaption: String,
     optimizationState: NovaGameDetailOptimizationState,
-    launchOptionsState: NovaLaunchOptionsState?,
-    profileOptionsState: NovaProfilePreferenceOptionsState?,
+    /** The four rows of the act column, already resolved, in draw order. */
+    playSetupRows: List<NovaPlaySetupRowState>,
+    /** Which row the comparison strip is currently explaining. */
+    explainedPlaySetupRow: NovaPlaySetupRow,
     playLabel: String,
-    launchOptionsLabel: String,
     launchModeTitle: String,
     headlessModeLabel: String,
     virtualDisplayModeLabel: String,
     coverContentDescription: String,
     modifier: Modifier = Modifier,
     onPrimaryLaunch: () -> Unit,
-    onLaunchOptions: () -> Unit,
-    onLaunchModeSelected: (String) -> Unit,
-    onLaunchOptionSelected: (NovaLaunchOptionItem) -> Unit,
-    onDismissLaunchOptions: () -> Unit,
-    onProfilePreference: () -> Unit,
-    onProfilePreferenceSelected: (NovaProfilePreferenceItem) -> Unit,
-    onDismissProfileOptions: () -> Unit,
+    onExplainPlaySetupRow: (NovaPlaySetupRow) -> Unit,
+    onAdvancePlaySetupRow: (NovaPlaySetupRow) -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
     /** Opens the host scope. Null where no host settings surface is reachable. */
     onOpenHostSettings: (() -> Unit)? = null,
-    steamLaunchOptionsState: NovaSteamLaunchModeOptionsState? = null,
-    onSteamLaunchMode: () -> Unit,
-    onSteamLaunchModeSelected: (NovaSteamLaunchModeItem) -> Unit = {},
-    onDismissSteamLaunchModeOptions: () -> Unit = {},
     artworkState: NovaArtworkStudioState,
     onRefreshArtwork: () -> Unit,
     onSearchArtwork: (String) -> Unit,
@@ -384,111 +376,32 @@ internal fun NovaGameDetailContent(
                             },
                         ),
                         rows = {
-                            NovaSteamChoiceRow(
-                                label = launchOptionsLabel,
-                                caption = stringResource(R.string.nova_play_setup_settings_caption),
-                                enabled = true,
-                                onClick = onLaunchOptions,
-                                value = summary?.selectedLine?.let(::novaPlaySetupValue).orEmpty(),
-                            )
-                            NovaSteamChoiceRow(
-                                label = stringResource(R.string.nova_game_detail_profile_label),
-                                caption = stringResource(R.string.nova_game_detail_profile_caption),
-                                enabled = true,
-                                onClick = onProfilePreference,
-                                value = stringResource(
-                                    AutoQualityProfilePreferences.shortLabelRes(uiState.profilePreference),
-                                ),
-                            )
-                            SteamLaunchModeCard(
-                                visible = uiState.showSteamLaunchMode,
-                                label = steamLaunchLabel,
-                                modeLabel = steamLaunchModeLabel,
-                                caption = steamLaunchCaption,
-                                warning = uiState.steamLaunchWarning,
-                                onClick = onSteamLaunchMode
-                            )
-                            LaunchProfileSummaryActions(
-                                summary = summary,
-                                resetProfileLabel = resetProfileLabel,
-                                resetProfileWorking = resetProfileWorking,
-                                onRetryHighFps = onRetryHighFps,
-                                onResetProfile = onResetProfile,
-                            )
-                            // The host scope. Changing it still happens in Polaris Sync,
-                            // which owns settings loading and the handlers that write to
-                            // the host; this is a way in from where the per-game choice
-                            // is made rather than only from four items down System.
-                            if (onOpenHostSettings != null) {
+                            // Four rows, drawn in a fixed order. Each advances its own value
+                            // on A or a tap, and points the strip at itself on focus, so the
+                            // explanation follows the cursor without being a stop on it.
+                            playSetupRows.forEach { rowState ->
                                 NovaSteamChoiceRow(
-                                    label = stringResource(R.string.nova_play_setup_every_game),
-                                    caption = stringResource(R.string.nova_play_setup_every_game_caption),
-                                    enabled = true,
-                                    onClick = onOpenHostSettings,
-                                    value = uiState.hostStreamDisplayModeLabel,
+                                    label = rowState.label,
+                                    caption = rowState.caption,
+                                    enabled = rowState.enabled,
+                                    value = rowState.value,
+                                    selected = rowState.overridden,
+                                    onClick = { onAdvancePlaySetupRow(rowState.row) },
+                                    onFocused = { onExplainPlaySetupRow(rowState.row) },
                                 )
                             }
                         },
                         comparison = {
-                            // Whichever row is open fills the strip. With nothing open it
-                            // shows where the game runs, which is the decision this
-                            // destination is named for.
-                            when {
-                                launchOptionsState != null -> NovaPlaySetupComparison(
-                                    title = launchOptionsState.title,
-                                    options = launchOptionsState.options.map { option ->
-                                        NovaPlaySetupOption(
-                                            label = option.label,
-                                            consequence = listOf(option.caption, option.badge)
-                                                .filter { it.isNotBlank() }
-                                                .joinToString("  \u00b7  "),
-                                            current = option.usesVirtualDisplay ==
-                                                uiState.playUsesVirtualDisplay,
-                                            onSelect = { onLaunchOptionSelected(option) },
-                                        )
-                                    },
-                                )
-
-                                profileOptionsState != null -> NovaPlaySetupComparison(
-                                    title = profileOptionsState.title,
-                                    options = profileOptionsState.options.map { option ->
-                                        NovaPlaySetupOption(
-                                            label = option.label,
-                                            consequence = novaProfilePreferenceConsequence(option.value),
-                                            current = option.selected,
-                                            onSelect = { onProfilePreferenceSelected(option) },
-                                        )
-                                    },
-                                )
-
-                                steamLaunchOptionsState != null -> NovaPlaySetupComparison(
-                                    title = steamLaunchOptionsState.title,
-                                    options = steamLaunchOptionsState.options.map { option ->
-                                        NovaPlaySetupOption(
-                                            label = option.label,
-                                            consequence = novaSteamLaunchConsequence(option.value),
-                                            current = option.selected,
-                                            onSelect = { onSteamLaunchModeSelected(option) },
-                                        )
-                                    },
-                                )
-
-                                else -> NovaPlaySetupComparison(
-                                    title = stringResource(R.string.nova_game_detail_where_it_runs),
-                                    options = listOf(
-                                        NovaPlaySetupOption(
-                                            label = headlessModeLabel,
-                                            consequence = stringResource(R.string.nova_play_setup_compare_private),
-                                            current = uiState.playMode == "headless",
-                                            onSelect = { onLaunchModeSelected("headless") },
-                                        ),
-                                        NovaPlaySetupOption(
-                                            label = virtualDisplayModeLabel,
-                                            consequence = stringResource(R.string.nova_play_setup_compare_virtual),
-                                            current = uiState.playMode == "virtual_display",
-                                            onSelect = { onLaunchModeSelected("virtual_display") },
-                                        ),
-                                    ),
+                            // A legend for whichever row holds focus, not a picker with a
+                            // state of its own. A row that has nothing to compare -- one
+                            // launch mode, or no display planner on this host -- draws
+                            // nothing rather than a strip that repeats the row above it.
+                            val explained = playSetupRows.firstOrNull { it.row == explainedPlaySetupRow }
+                                ?: playSetupRows.firstOrNull()
+                            if (explained != null && explained.options.size > 1) {
+                                NovaPlaySetupComparison(
+                                    title = explained.stripTitle,
+                                    options = explained.options,
                                 )
                             }
                         },
@@ -549,24 +462,24 @@ private const val NOVA_DETAIL_SCENERY_CHROME_ALPHA = 0.16f
  * The picker these came from listed four names with nothing to choose between them. A
  * name is only a choice if you already know what it does.
  */
-@Composable
-private fun novaProfilePreferenceConsequence(value: String): String = stringResource(
+/**
+ * Resource ids rather than resolved strings, so the row builder in the activity can reach
+ * them. These were @Composable, which put them out of reach of the only caller left.
+ */
+internal fun novaProfilePreferenceConsequenceRes(value: String): Int =
     when (value.trim().lowercase()) {
         "quality" -> R.string.nova_play_setup_pref_quality
         "balanced" -> R.string.nova_play_setup_pref_balanced
         "high_fps" -> R.string.nova_play_setup_pref_high_fps
         else -> R.string.nova_play_setup_pref_auto
-    },
-)
+    }
 
 /** The same, for the two ways Steam can be handed the game. */
-@Composable
-private fun novaSteamLaunchConsequence(value: String): String = stringResource(
+internal fun novaSteamLaunchConsequenceRes(value: String): Int =
     when (value.trim().lowercase()) {
         "big_picture", "bigpicture" -> R.string.nova_play_setup_steam_big_picture
         else -> R.string.nova_play_setup_steam_direct
-    },
-)
+    }
 
 @Composable
 private fun NovaGameDetailScrollableContent(

@@ -216,19 +216,23 @@ private fun NovaPlaySetupColumnHead(text: String) {
 }
 
 /**
- * The alternatives to the focused row, stated as consequences rather than as verbs, and
- * selectable in place.
+ * What the alternatives to the focused row would mean, stated as consequences rather than
+ * as verbs.
  *
- * This is what the full width is for, and it is also where the choice is made. An
- * earlier shape put the modes behind a picker raised over the destination, which cost a
- * press and re-introduced the options drawer that inline mode rows had deliberately
- * removed. Expanding the lane instead of raising a sheet is the rule this window already
- * follows for the preflight review, and it reads better here for the same reason: you
- * choose while looking at what each choice would do, rather than after dismissing the
- * thing that told you.
+ * This is a legend, not a picker. It describes whichever row currently holds focus, so it
+ * is deliberately **not** a focus target: making it one would mean stopping on a thing
+ * that exists only to explain the thing you just stopped on, and it would put a fifth and
+ * sixth stop in the path of every visit down the column. Left and right do nothing in this
+ * panel, which is the point -- four rows, no scrolling, nothing to hunt for.
  *
- * Selection is a tint, focus is a ring, and they compose -- so the card you are on and
- * the card you are using are never the same drawing.
+ * It stays tappable, because touch has no cursor for it to follow. A finger can take the
+ * card it wants directly instead of pressing a row until the right value comes round.
+ *
+ * The three pickers this replaces each wrote their own state into one shared strip, ranked
+ * by a `when` that always preferred the same one, and only one of the three ever cleared
+ * its siblings. Steam Launch was last in that chain, so it worked from a fresh panel and
+ * went dead the moment either other row had been touched. There is no picker state now, so
+ * there is no precedence to get wrong.
  */
 @Composable
 internal fun NovaPlaySetupComparison(title: String, options: List<NovaPlaySetupOption>) {
@@ -238,45 +242,33 @@ internal fun NovaPlaySetupComparison(title: String, options: List<NovaPlaySetupO
         NovaPlaySetupColumnHead(title)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             options.forEach { option ->
-                var focused by remember { mutableStateOf(false) }
                 val shape = RoundedCornerShape(NovaRadius.row)
                 val actionable = option.onSelect != null && option.enabled
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .onFocusChanged { focused = it.isFocused || it.hasFocus }
                         .then(
                             if (actionable) {
-                                // clickable alone leaves this reachable by touch only, which
-                                // is the same defect the sync sheet's mode buttons had.
-                                Modifier
-                                    .clickable(role = Role.Button) { option.onSelect?.invoke() }
-                                    .focusable()
+                                // Touch only, and deliberately so -- see the note above.
+                                // This used to carry two focusable modifiers as well, which
+                                // cost the d-pad two presses to cross one card and left the
+                                // inner of the two stops with no click on it at all.
+                                Modifier.clickable(role = Role.Button) { option.onSelect?.invoke() }
                             } else {
                                 Modifier
                             }
                         )
-                        // clickable alone is not a focus target; every focusable in this
-                        // app has to say so.
-                        .focusable(enabled = actionable)
                         .heightIn(min = NovaGameDetailActionHeight)
                         .clip(shape)
                         .background(if (option.current) colors.accentSurface else surfaces.tile)
                         .border(
                             1.dp,
-                            if (option.current || focused) {
+                            if (option.current) {
                                 colors.accent.copy(alpha = 0.58f)
                             } else {
                                 surfaces.tileBorder
                             },
                             shape,
-                        )
-                        .then(
-                            if (focused && actionable) {
-                                Modifier.border(2.dp, surfaces.focusRing, shape)
-                            } else {
-                                Modifier
-                            }
                         )
                         .padding(horizontal = 12.dp, vertical = 11.dp)
                         .semantics {
@@ -328,6 +320,46 @@ internal data class NovaPlaySetupOption(
     val enabled: Boolean = true,
     /** Null makes the card explanatory rather than selectable. */
     val onSelect: (() -> Unit)? = null,
+)
+
+/**
+ * The things Play Setup can change, in the order they are drawn.
+ *
+ * Four, and fixed at four. The act column has to fit a landscape viewport that is roughly
+ * 230-275dp once the panel's chrome and the bottom fade are taken out, and the strip below
+ * the rows used to start at 272dp in the lightest case and 332dp for a Steam game -- so the
+ * strip every control on this screen wrote to was off the bottom of the window at the
+ * moment it was written, with nothing scrolling to it. A fifth row would put it back there.
+ *
+ * More Launch Settings is not among them. It held resolution, and behind it codec and
+ * bitrate -- which are consequences of a resolution, not choices anyone makes separately.
+ * Resolution is a row of its own now, and the rest is stated in the read column where the
+ * other consequences already are.
+ */
+internal enum class NovaPlaySetupRow { WHERE_IT_RUNS, RESOLUTION, TUNING, STEAM_LAUNCH }
+
+/**
+ * One row: what it is called, what it currently reads, and what the alternatives mean.
+ *
+ * The options travel with the row rather than in a state the row has to open, because the
+ * strip is a legend for whatever holds focus and a legend cannot be opened or closed.
+ * [stripTitle] is a conditional sentence -- "If you changed where it runs" -- rather than a
+ * noun, so the strip reads as an explanation of a thing not yet done.
+ */
+internal data class NovaPlaySetupRowState(
+    val row: NovaPlaySetupRow,
+    val label: String,
+    val caption: String,
+    val value: String,
+    val stripTitle: String,
+    val options: List<NovaPlaySetupOption>,
+    val enabled: Boolean = true,
+    /**
+     * This row holds a choice made here rather than the answer the host would have given.
+     * Drawn as the selection tint and the accent edge, because a setting that will change
+     * the next launch should not look identical to one that is simply reporting.
+     */
+    val overridden: Boolean = false,
 )
 
 /** Below this the two columns stack; a phone has no room to put them side by side. */

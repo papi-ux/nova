@@ -417,43 +417,6 @@ internal fun NovaGameDetailGroupLabel(text: String) {
     }
 }
 
-/** Retry and reset: the two things in Tune that change something rather than report it. */
-@Composable
-internal fun LaunchProfileSummaryActions(
-    summary: NovaLaunchProfileSummary?,
-    resetProfileLabel: String,
-    resetProfileWorking: Boolean,
-    onRetryHighFps: () -> Unit,
-    onResetProfile: () -> Unit,
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        if (summary?.showRetryHighFps == true) {
-            NovaSteamChoiceRow(
-                label = summary.retryHighFpsLabel.ifBlank {
-                    stringResource(R.string.nova_library_retry_high_fps)
-                },
-                caption = "",
-                enabled = true,
-                onClick = onRetryHighFps,
-            )
-        }
-        NovaSteamChoiceRow(
-            label = resetProfileLabel,
-            caption = "",
-            enabled = !resetProfileWorking,
-            onClick = onResetProfile,
-        )
-    }
-}
-
-/**
- * The desktop-Steam choice, as rows in Launch mode rather than a sheet over the artwork.
- * A blocked option stays visible and inert: hiding it loses the reason it is blocked,
- * which is the part worth reading.
- */
 @Composable
 internal fun NovaDesktopSteamLaunchDecisionRows(
     decision: NovaDesktopSteamLaunchDecision,
@@ -525,6 +488,9 @@ internal fun NovaDesktopSteamLaunchDecisionRows(
  * meant two shapes for one kind of control.
  *
  * @param selected this row holds the current value. Drawn as a tint.
+ * @param onFocused the row has just taken focus. Play Setup uses this to point the
+ *   comparison strip at whatever is under the cursor, so the explanation follows the
+ *   d-pad without the strip having to be a stop on it.
  *
  * Focus is drawn as a ring, and the two compose: a focused row that is not the current
  * value gets the ring alone. That state is the most common one on a d-pad and it had no
@@ -541,6 +507,7 @@ internal fun NovaSteamChoiceRow(
     onClick: (() -> Unit)? = null,
     value: String = "",
     selected: Boolean = false,
+    onFocused: (() -> Unit)? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -567,7 +534,11 @@ internal fun NovaSteamChoiceRow(
             .fillMaxWidth()
             .padding(bottom = NOVA_DETAIL_ROW_GAP)
             .heightIn(min = NOVA_DETAIL_ROW_MIN_HEIGHT)
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
+            .onFocusChanged { state ->
+                val gained = state.isFocused || state.hasFocus
+                if (gained && !focused) onFocused?.invoke()
+                focused = gained
+            }
             .then(
                 if (actionable) {
                     Modifier.clickable(role = Role.Button) { onClick?.invoke() }
