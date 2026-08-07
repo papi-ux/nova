@@ -1491,4 +1491,7 @@
     <!-- Were English literals in PcView.handleQrScanResult. -->
     <string name="nova_qr_invalid_code">Invalid QR code — expected a Polaris pairing code</string>
     <string name="nova_qr_missing_pairing_data">QR code is missing pairing data</string>
+    <!-- Were English literals in StreamSettings. -->
+    <string name="nova_settings_opening_legacy">Opening legacy settings for %1$s</string>
+    <string name="nova_language_reset_restart">Language has been reset to default, please restart the app!</string>
 </resources>
