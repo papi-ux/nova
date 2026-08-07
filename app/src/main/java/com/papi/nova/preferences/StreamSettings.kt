@@ -57,6 +57,7 @@ import com.papi.nova.R
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardControllerConfigurationLoader
 import com.papi.nova.binding.video.MediaCodecHelper
 import com.papi.nova.ui.NovaSheetChrome
+import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.Dialog
@@ -204,18 +205,17 @@ class StreamSettings : NovaActivity() {
             "option_software_release" -> checkForNovaUpdate()
             "option_follow_update" -> HelpLauncher.launchUrl(this, getString(R.string.obtainium_app_url))
             else -> {
-                Toast.makeText(
+                NovaSnackbar.show(
                     this,
-                    "Opening legacy settings for ${definition.title}",
-                    Toast.LENGTH_SHORT
-                ).show()
+                    getString(R.string.nova_settings_opening_legacy, definition.title)
+                )
                 showLegacySettings()
             }
         }
     }
 
     private fun checkForNovaUpdate() {
-        Toast.makeText(this, R.string.nova_update_checking, Toast.LENGTH_SHORT).show()
+        NovaSnackbar.show(this, getString(R.string.nova_update_checking))
         lifecycleScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
@@ -378,9 +378,13 @@ class StreamSettings : NovaActivity() {
                 intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK
                 startActivity(intent, null)
             } else if (newPrefs.language == PreferenceConfiguration.DEFAULT_LANGUAGE) {
+                // Deliberately still a Toast. A Toast is a system window that outlives the
+                // process; a Snackbar lives in this activity's view hierarchy, and the
+                // System.exit below kills the process before one could ever be drawn. The
+                // message would simply vanish.
                 Toast.makeText(
                     this,
-                    "Language has been reset to default, please restart the app!",
+                    getString(R.string.nova_language_reset_restart),
                     Toast.LENGTH_LONG
                 ).show()
                 System.exit(0)
