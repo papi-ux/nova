@@ -525,11 +525,10 @@ class NovaLibraryActivity : NovaActivity() {
         }
         val nextMode = optionsState.layoutMode.next()
         selectLibraryLayoutMode(nextMode)
-        Toast.makeText(
+        NovaSnackbar.show(
             this,
-            getString(R.string.nova_library_layout_toast_format, getString(layoutModeLabelRes(nextMode))),
-            Toast.LENGTH_SHORT
-        ).show()
+            getString(R.string.nova_library_layout_toast_format, getString(layoutModeLabelRes(nextMode)))
+        )
         return true
     }
 
@@ -596,11 +595,7 @@ class NovaLibraryActivity : NovaActivity() {
                     val message = e.localizedMessage ?: e.javaClass.simpleName
                     loadErrorMessage = message
                     LimeLog.severe("Nova: Failed to load games: ${e.message}")
-                    Toast.makeText(
-                        this@NovaLibraryActivity,
-                        message,
-                        Toast.LENGTH_LONG
-                    ).show()
+                    NovaSnackbar.showError(this@NovaLibraryActivity, message)
                 }
             } finally {
                 if (ownsVisibleRefreshState) {
@@ -850,24 +845,24 @@ class NovaLibraryActivity : NovaActivity() {
         preflightOptimization: org.json.JSONObject? = null
     ) {
         if (game.appId <= 0) {
-            val message = "This game entry is missing a launch ID"
+            val message = getString(R.string.nova_library_launch_missing_id)
             launchErrorMessage = message
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, message)
             return
         }
         val uniqueId = streamUniqueId
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || pcUuid.isNullOrBlank() || serverCert == null) {
-            val message = "Missing Polaris session details for launch"
+            val message = getString(R.string.nova_library_launch_missing_session)
             launchErrorMessage = message
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, message)
             LimeLog.warning("Nova: Cannot launch from library; missing uniqueId, pcUuid, or server cert")
             return
         }
         launchErrorMessage = null
 
-        Toast.makeText(
+        NovaSnackbar.show(
             this,
             getString(
                 R.string.nova_library_launching_mode,
@@ -878,9 +873,8 @@ class NovaLibraryActivity : NovaActivity() {
                     forcePrivateAfterSteamClose -> getString(R.string.nova_desktop_steam_force_private)
                     else -> getString(R.string.nova_library_launch_headless)
                 }
-            ),
-            Toast.LENGTH_SHORT
-        ).show()
+            )
+        )
 
         lifecycleScope.launch {
             try {
@@ -955,7 +949,7 @@ class NovaLibraryActivity : NovaActivity() {
                 val message = e.localizedMessage ?: e.javaClass.simpleName
                 launchErrorMessage = message
                 LimeLog.severe("Nova: Failed to launch ${game.name}: ${e.message}")
-                Toast.makeText(this@NovaLibraryActivity, message, Toast.LENGTH_LONG).show()
+                NovaSnackbar.showError(this@NovaLibraryActivity, message)
             }
         }
     }
@@ -965,9 +959,9 @@ class NovaLibraryActivity : NovaActivity() {
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || pcUuid.isNullOrBlank() || serverCert == null) {
-            val message = "Missing Polaris session details for resume"
+            val message = getString(R.string.nova_library_resume_missing_session)
             launchErrorMessage = message
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, message)
             LimeLog.warning("Nova: Cannot resume from library; missing uniqueId, pcUuid, or server cert")
             return
         }

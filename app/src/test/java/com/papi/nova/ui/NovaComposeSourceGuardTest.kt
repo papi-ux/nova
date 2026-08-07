@@ -1377,8 +1377,11 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "missing launch prerequisites and thrown preflight exceptions should update launchErrorMessage",
+            // Pinned the English sentence itself until it became a string resource. The
+            // resource name says which branch this is without depending on its wording, and
+            // the sentence was doing double duty as on-screen error state, so it had to move.
             source.contains("launchErrorMessage = message") &&
-                source.contains("Missing Polaris session details for launch") &&
+                source.contains("R.string.nova_library_launch_missing_session") &&
                 source.contains("Failed to launch ${'$'}{game.name}")
         )
         assertTrue(

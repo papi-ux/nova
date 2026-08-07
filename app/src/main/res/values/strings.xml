@@ -1481,4 +1481,9 @@
     <!-- Was "Mouse emulation is: ON" built by string concatenation in ControllerHandler. -->
     <string name="nova_mouse_emulation_on">Mouse Emulation On</string>
     <string name="nova_mouse_emulation_off">Mouse Emulation Off</string>
+    <!-- These were English literals assigned to launchErrorMessage and shown on screen,
+         so the same untranslated sentence appeared in the banner and in the toast. -->
+    <string name="nova_library_launch_missing_id">This game entry is missing a launch ID</string>
+    <string name="nova_library_launch_missing_session">Missing Polaris session details for launch</string>
+    <string name="nova_library_resume_missing_session">Missing Polaris session details for resume</string>
 </resources>
