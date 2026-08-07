@@ -64,8 +64,72 @@ object PolarisGameJsonAdapter {
             hdrSupported = json.optBoolean("hdr_supported", false),
             launchMode = launchMode,
             steamLaunch = steamLaunch,
+            displayPlanner = parseDisplayPlanner(json.optJSONObject("display_planner")),
             artwork = parseArtworkManifest(json.optJSONObject("artwork"))
         )
+    }
+
+    /**
+     * Polaris computes this once per request from the host display and attaches the same
+     * object to every game, so absence means an older host rather than a game without a
+     * plan — and the Resolution row draws nothing rather than guessing.
+     *
+     * The function and receiver names here are recorded by name in Polaris'
+     * docs/nova-contract.json (`nova_reader` for the display_planner objects); renaming
+     * them means updating that manifest in the same change.
+     */
+    @JvmStatic
+    internal fun parseDisplayPlanner(plannerJson: JSONObject?): PolarisGame.DisplayPlannerContract? {
+        if (plannerJson == null) return null
+        return PolarisGame.DisplayPlannerContract(
+            available = plannerJson.optBoolean("available", false),
+            sourceMode = plannerJson.optString("source_mode", ""),
+            sourceAspectRatio = plannerJson.optString("source_aspect_ratio", ""),
+            sourceFps = finiteDouble(plannerJson, "source_fps", 0.0).coerceAtLeast(0.0),
+            recommendedId = plannerJson.optString("recommended_id", ""),
+            recommendedTitle = plannerJson.optString("recommended_title", ""),
+            recommendedMode = plannerJson.optString("recommended_mode", ""),
+            choices = parseDisplayPlannerChoices(plannerJson.optJSONArray("choices")),
+            advancedScaleFactors = parseDisplayPlannerScaleChoices(plannerJson.optJSONArray("advanced_scale_factors"))
+        )
+    }
+
+    private fun parseDisplayPlannerChoices(array: JSONArray?): List<PolarisGame.DisplayPlannerChoice> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { index ->
+            array.optJSONObject(index)?.let { choiceJson ->
+                PolarisGame.DisplayPlannerChoice(
+                    id = choiceJson.optString("id", ""),
+                    title = choiceJson.optString("title", ""),
+                    intent = choiceJson.optString("intent", ""),
+                    targetMode = choiceJson.optString("target_mode", ""),
+                    badge = choiceJson.optString("badge", ""),
+                    reason = choiceJson.optString("reason", ""),
+                    advanced = choiceJson.optBoolean("advanced", false),
+                    custom = choiceJson.optBoolean("custom", false),
+                    // The contract's own defaults: an entry that says nothing is safe and
+                    // visible, matching what an older serialisation would have decoded.
+                    safe = choiceJson.optBoolean("safe", true),
+                    hidden = choiceJson.optBoolean("hidden", false),
+                    scaleFactor = finiteDouble(choiceJson, "scale_factor", 1.0),
+                    aspectRatio = choiceJson.optString("aspect_ratio", "")
+                )
+            }
+        }
+    }
+
+    private fun parseDisplayPlannerScaleChoices(array: JSONArray?): List<PolarisGame.DisplayPlannerScaleChoice> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { index ->
+            array.optJSONObject(index)?.let { scaleJson ->
+                PolarisGame.DisplayPlannerScaleChoice(
+                    scaleFactor = finiteDouble(scaleJson, "scale_factor", 1.0),
+                    label = scaleJson.optString("label", ""),
+                    targetMode = scaleJson.optString("target_mode", ""),
+                    safe = scaleJson.optBoolean("safe", true)
+                )
+            }
+        }
     }
 
     @JvmStatic
