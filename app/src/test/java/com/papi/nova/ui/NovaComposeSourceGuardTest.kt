@@ -690,18 +690,18 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun librarySearchDoesNotEnterTextInputOnDpadFocus() {
-        val searchField = readNovaLibraryActivity().section(
-            "private fun NovaSearchField(",
-            "private fun NovaFilterChip("
-        )
+        // This behaviour is NovaSearchTextField's now, and both search fields call it, so
+        // this covers the settings one too -- which is the field that had none of it and is on
+        // the screen most likely to be driven with a controller.
+        val searchField = readSource("src/main/java/com/papi/nova/ui/compose/NovaSearchTextField.kt")
 
         assertTrue(
             "search should keep a browse mode before explicitly editing text",
-            searchField.contains("var searchEditing by remember { mutableStateOf(false) }")
+            searchField.contains("var editing by remember { mutableStateOf(false) }")
         )
         assertTrue(
             "search should not show the IME just because D-pad focus lands on it",
-            searchField.contains("readOnly = !searchEditing")
+            searchField.contains("readOnly = !editing")
         )
         assertTrue(
             "search should handle D-pad keys before the IME traps navigation",
@@ -713,16 +713,16 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "search should move focus down out of the field instead of trapping D-pad input",
-            searchField.contains("Key.DirectionDown -> leaveSearchEditing(FocusDirection.Down)")
+            searchField.contains("Key.DirectionDown -> leaveEditing(FocusDirection.Down)")
         )
         assertFalse(
             "search should not wait for edit mode before releasing D-pad navigation",
-            searchField.contains("Key.DirectionDown -> if (searchEditing)")
+            searchField.contains("Key.DirectionDown -> if (editing)")
         )
         assertTrue(
             "controller select should explicitly enter search edit mode on TV remotes",
             searchField.contains("Key.Enter, Key.NumPadEnter, Key.DirectionCenter ->") &&
-                searchField.contains("beginSearchEditing()")
+                searchField.contains("beginEditing()")
         )
         assertFalse(
             "controller select should not be swallowed without activating search",
@@ -1487,10 +1487,9 @@ class NovaComposeSourceGuardTest {
     @Test
     fun settingsRowsUseSharedFocusMotionAndHighContrastOutline() {
         val settings = readNovaSettingsScreen()
-        val searchField = settings.section(
-            "private fun NovaSettingsSearchField(",
-            "@Composable\nprivate fun SearchResultSummary("
-        )
+        // The settings search field is NovaSearchTextField now, so its share of this
+        // contract is checked where the code actually lives.
+        val searchField = readSource("src/main/java/com/papi/nova/ui/compose/NovaSearchTextField.kt")
         val quickPill = settings.section(
             "private fun NovaSettingPill(",
             "@Composable\nprivate fun NovaSettingsCategoryRail("
@@ -1511,7 +1510,10 @@ class NovaComposeSourceGuardTest {
             )
             assertTrue(
                 "settings focus surfaces should match the stronger 3dp controller outline",
-                section.contains(".border(if (focused) 3.dp else 1.dp")
+                // Matched ".border(if (focused) 3.dp" before, which is one spelling of the
+                // rule. The shared search field passes the same widths as named arguments and
+                // was no less compliant for it, so the check is on the widths themselves.
+                section.contains("if (focused) 3.dp else 1.dp")
             )
         }
     }

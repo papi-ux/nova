@@ -81,6 +81,7 @@ import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaMenuBackdropBlur
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.NovaSearchTextField
 import com.papi.nova.ui.compose.novaFocusMotion
 import kotlin.math.roundToInt
 
@@ -420,55 +421,48 @@ private fun NovaSettingsSearchField(
     onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // This was a plain BasicTextField: focus it with a d-pad and the direction keys went into
+    // the text rather than moving on, so there was no way off the field without a touchscreen.
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    var focused by remember { mutableStateOf(false) }
-    val shape = NovaSettingsCardShape
-    BasicTextField(
+    NovaSearchTextField(
         value = query,
         onValueChange = onQuery,
-        singleLine = true,
-        textStyle = TextStyle(color = colors.textPrimary, fontSize = 14.sp),
-        modifier = modifier
-            .height(44.dp)
-            .clip(shape)
-            .novaFocusMotion(focused = focused, pressed = false)
-            .background(if (focused) surfaces.selectedControl else surfaces.control)
-            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
-            .padding(horizontal = 12.dp),
-        decorationBox = { innerTextField ->
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
+        contentDescription = stringResource(R.string.nova_settings_search_hint),
+        modifier = modifier,
+        shape = NovaSettingsCardShape
+    ) { innerTextField ->
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
             ) {
-                Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (query.isBlank()) {
-                        Text(
-                            text = "Search settings",
-                            color = colors.textMuted,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    innerTextField()
+                if (query.isBlank()) {
+                    Text(
+                        text = stringResource(R.string.nova_settings_search_hint),
+                        color = colors.textMuted,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                if (query.isNotBlank()) {
-                    TextButton(
-                        onClick = onClear,
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Text("Clear")
-                    }
+                innerTextField()
+            }
+            if (query.isNotBlank()) {
+                TextButton(
+                    onClick = onClear,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Text(stringResource(R.string.nova_settings_search_clear))
                 }
             }
         }
-    )
+    }
 }
 
 @Composable

@@ -128,6 +128,7 @@ import com.papi.nova.api.PolarisGameJson
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.NovaSearchTextField
 import org.json.JSONObject
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
@@ -2187,103 +2188,32 @@ class NovaLibraryActivity : NovaActivity() {
         modifier: Modifier = Modifier,
         heightDp: Int = 44
     ) {
+        // The d-pad edit-mode handling that used to live here is NovaSearchTextField now,
+        // because the settings field needed the same thing and did not have it.
         val colors = LocalNovaComposeColors.current
-        val surfaces = LocalNovaLibrarySurfaces.current
-        val focusManager = LocalFocusManager.current
-        val keyboardController = LocalSoftwareKeyboardController.current
-        val searchFocusRequester = remember { FocusRequester() }
-        var focused by remember { mutableStateOf(false) }
-        var searchEditing by remember { mutableStateOf(false) }
-
-        fun beginSearchEditing() {
-            searchEditing = true
-            searchFocusRequester.requestFocus()
-            keyboardController?.show()
-        }
-
-        fun leaveSearchEditing(direction: FocusDirection? = null): Boolean {
-            searchEditing = false
-            keyboardController?.hide()
-            direction?.let { focusManager.moveFocus(it) }
-            return true
-        }
-
-        BasicTextField(
+        NovaSearchTextField(
             value = value,
             onValueChange = onValueChange,
-            readOnly = !searchEditing,
-            singleLine = true,
-            textStyle = TextStyle(color = colors.textPrimary, fontSize = 14.sp),
-            cursorBrush = SolidColor(colors.accent),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    searchEditing = false
-                    keyboardController?.hide()
-                    focusManager.clearFocus(force = true)
+            contentDescription = getString(R.string.nova_library_search_hint),
+            modifier = modifier,
+            heightDp = heightDp
+        ) { innerTextField ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isBlank()) {
+                    Text(
+                        text = stringResource(R.string.nova_library_search_hint),
+                        color = colors.textSecondary,
+                        fontSize = 14.sp
+                    )
                 }
-            ),
-            modifier = modifier
-                .focusRequester(searchFocusRequester)
-                .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) {
-                        return@onPreviewKeyEvent false
-                    }
-                    when (event.key) {
-                        Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
-                            if (!searchEditing) {
-                                beginSearchEditing()
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                        Key.DirectionDown -> leaveSearchEditing(FocusDirection.Down)
-                        Key.DirectionUp -> leaveSearchEditing(FocusDirection.Up)
-                        Key.DirectionLeft -> leaveSearchEditing(FocusDirection.Left)
-                        Key.DirectionRight -> leaveSearchEditing(FocusDirection.Right)
-                        else -> false
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { beginSearchEditing() })
-                }
-                .height(heightDp.dp)
-                .clip(RoundedCornerShape(NovaRadius.row))
-                .background(surfaces.control)
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color = if (focused) surfaces.focusRing else surfaces.tileBorder,
-                    shape = RoundedCornerShape(NovaRadius.row)
-                )
-                .onFocusChanged {
-                    focused = it.isFocused
-                    if (!it.isFocused && searchEditing) {
-                        searchEditing = false
-                        keyboardController?.hide()
-                    }
-                }
-                .semantics {
-                    contentDescription = getString(R.string.nova_library_search_hint)
-                },
-            decorationBox = { innerTextField ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (value.isBlank()) {
-                        Text(
-                            text = stringResource(R.string.nova_library_search_hint),
-                            color = colors.textSecondary,
-                            fontSize = 14.sp
-                        )
-                    }
-                    innerTextField()
-                }
+                innerTextField()
             }
-        )
+        }
     }
 
     @Composable
