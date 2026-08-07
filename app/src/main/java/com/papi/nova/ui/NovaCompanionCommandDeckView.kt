@@ -110,7 +110,17 @@ class NovaCompanionCommandDeckView(
     }
 
     fun render(state: NovaCompanionCommandDeckState) {
+        // This runs once per perf interval for as long as an external display is
+        // attached, and most intervals change nothing. Ten getString + setText calls and
+        // the layout pass they trigger are not free on a handheld that is also decoding a
+        // video stream. The state is a data class, so an unchanged interval costs one
+        // comparison.
+        val unchanged = latestState == state
         latestState = state
+        if (unchanged) {
+            requestInitialFocus(state)
+            return
+        }
         alpha = if (state.dimmed) 0.55f else 1f
         touchpadText.text = if (state.touchpadActive) {
             context.getString(R.string.companion_deck_touchpad_active)

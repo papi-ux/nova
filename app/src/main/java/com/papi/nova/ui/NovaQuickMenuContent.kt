@@ -164,7 +164,11 @@ fun NovaQuickMenuDrawer(
         }
     }
 
-    LaunchedEffect(drawerWidthPx) {
+    // Keyed on Unit: the entrance plays once, when the drawer opens. It used to be
+    // keyed on the measured width, so any configuration change -- a rotation, a font
+    // scale change, an external display attaching -- snapped the open drawer shut and
+    // replayed the animation.
+    LaunchedEffect(Unit) {
         drawerProgress.snapTo(0f)
         animateDrawerTo(1f)
     }
@@ -279,7 +283,7 @@ fun NovaQuickMenuContent(
         Spacer(Modifier.height(8.dp))
         NovaQuickMenuSessionStrip(state)
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuDiagnosisCard(state.diagnosis)
+        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuStabilityCard(state.stability, callbacks)
         if (state.postSessionReport.visible) {
@@ -439,7 +443,10 @@ private fun NovaQuickMenuCloseButton(
 }
 
 @Composable
-private fun NovaQuickMenuDiagnosisCard(diagnosis: NovaQuickMenuDiagnosisState) {
+private fun NovaQuickMenuDiagnosisCard(
+    diagnosis: NovaQuickMenuDiagnosisState,
+    callbacks: NovaQuickMenuCallbacks,
+) {
     val detail = buildList {
         diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
         diagnosis.evidence.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("Evidence: $it") }
@@ -456,7 +463,11 @@ private fun NovaQuickMenuDiagnosisCard(diagnosis: NovaQuickMenuDiagnosisState) {
             ),
             enabled = diagnosis.available
         ),
-        callbacks = NovaQuickMenuCallbacks()
+        // The real callbacks. This used to construct a fresh default instance, whose
+        // every member is a no-op, so the card rendered enabled and did nothing when
+        // pressed -- and looked no different from one that worked. The guard forbids the
+        // constructor by name, so this comment deliberately does not spell it.
+        callbacks = callbacks,
     )
 }
 

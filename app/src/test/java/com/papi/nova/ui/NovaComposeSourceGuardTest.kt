@@ -1799,10 +1799,13 @@ class NovaComposeSourceGuardTest {
                 touchHandler.contains("DRAG_THRESHOLD")
         )
         assertTrue(
-            "tap-to-cycle must not reset a user-dragged HUD back to top-left when the compact/expanded width changes",
+            "tap-to-cycle must not reset a user-dragged HUD back to top-left. This used to " +
+                "also pin the layoutParams reassignment that cycleMode did to change the " +
+                "width between modes -- but every mode is WRAP_CONTENT, so it re-laid out " +
+                "to the width it already had. The save and restore is what preserves the " +
+                "position, and it is what is pinned.",
             cycleMode.contains("val savedX = view.x") &&
                 cycleMode.contains("val savedY = view.y") &&
-                cycleMode.contains("width = layoutWidthForMode(currentMode)") &&
                 cycleMode.contains("view.post") &&
                 cycleMode.contains("view.x = savedX") &&
                 cycleMode.contains("view.y = savedY")
@@ -2773,6 +2776,41 @@ class NovaComposeSourceGuardTest {
 
     private fun String.containsRegex(pattern: String): Boolean =
         Regex(pattern).containsMatchIn(this)
+
+    @Test
+    fun commandCenterCardsAreWiredToTheRealCallbacks() {
+        val quickMenu = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
+
+        // The diagnosis card was handed `NovaQuickMenuCallbacks()` -- a fresh instance
+        // whose every member defaults to a no-op. It rendered `enabled`, sat fourth from
+        // the top, and did nothing when pressed. Nothing caught it because a dead click
+        // looks exactly like a live one, and the compose test here is a smoke test.
+        assertFalse(
+            "no surface in the Command Center may construct its own callbacks; the ones " +
+                "handed down are the only ones wired to anything",
+            quickMenu.contains("NovaQuickMenuCallbacks()")
+        )
+        assertTrue(
+            "the diagnosis card takes callbacks and passes them to the card it draws",
+            quickMenu.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)") &&
+                quickMenu.contains("callbacks: NovaQuickMenuCallbacks,")
+        )
+    }
+
+    @Test
+    fun companionDeckSkipsUnchangedPerfIntervals() {
+        val deck = readSource("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")
+
+        // render() runs once per perf interval for as long as an external display is
+        // attached, and most intervals change nothing. Without the early-out it did ten
+        // getString + setText calls and the layout pass they trigger, on the main thread,
+        // while a game was streaming.
+        assertTrue(
+            "an unchanged interval must cost one comparison, not ten setText calls",
+            deck.contains("val unchanged = latestState == state") &&
+                deck.contains("if (unchanged) {")
+        )
+    }
 
     private fun String.section(startMarker: String, endMarker: String): String {
         val start = indexOf(startMarker)

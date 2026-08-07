@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -1156,32 +1157,45 @@ private fun NovaThemePreviewSwatch(themeValue: String) {
     }
 }
 
+/**
+ * @brief The swatch reads the palette it is previewing.
+ *
+ * These were 24 hardcoded hexes, and the Polaris ones had gone stale: the swatch still
+ * advertised the pre-rebrand blue and navy after the theme moved to Medium Purple over
+ * Indigo, so the settings screen showed a colour the app no longer draws. PcView already
+ * did this correctly by reading the resources; this does the same, and cannot drift again.
+ *
+ * Material You keeps literals because there is nothing to read -- its palette comes from
+ * the wallpaper at runtime, so the swatch can only ever be an illustration of one.
+ */
+@Composable
 private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette {
     return when (themeValue) {
         NovaThemeManager.THEME_PORTABLE_CHROME -> NovaThemePreviewPalette(
-            window = Color(0xFFA2ADBA),
-            surface = Color(0xFFC4CDD8),
-            accent = Color(0xFF2F64B3),
-            border = Color(0xFF83909F)
+            window = colorResource(R.color.nova_portable_bg_window),
+            surface = colorResource(R.color.nova_portable_bg_card),
+            accent = colorResource(R.color.nova_portable_accent),
+            border = colorResource(R.color.nova_portable_divider)
         )
         NovaThemeManager.THEME_OLED -> NovaThemePreviewPalette(
-            window = Color.Black,
-            surface = Color(0xFF0A0A0E),
-            accent = Color(0xFF8B80FF),
-            border = Color(0xFF1A1A22)
+            window = colorResource(R.color.nova_oled_bg_window),
+            surface = colorResource(R.color.nova_oled_bg_card),
+            accent = colorResource(R.color.nova_oled_accent),
+            border = colorResource(R.color.nova_oled_divider)
         )
         NovaThemeManager.THEME_MIAMI -> NovaThemePreviewPalette(
-            window = Color(0xFF130817),
-            surface = Color(0xFF241429),
-            accent = Color(0xFFFF5CAB),
-            border = Color(0xFF6C3C6F)
+            window = colorResource(R.color.nova_miami_bg_window),
+            surface = colorResource(R.color.nova_miami_bg_card),
+            accent = colorResource(R.color.nova_miami_accent),
+            border = colorResource(R.color.nova_miami_divider)
         )
         NovaThemeManager.THEME_HIGH_CONTRAST -> NovaThemePreviewPalette(
-            window = Color(0xFF05070C),
-            surface = Color(0xFF0F172A),
-            accent = Color(0xFF60A5FA),
-            border = Color(0xFFDBEAFE)
+            window = colorResource(R.color.nova_hc_bg_window),
+            surface = colorResource(R.color.nova_hc_bg_card),
+            accent = colorResource(R.color.nova_hc_accent),
+            border = colorResource(R.color.nova_hc_divider)
         )
+        // Dynamic at runtime; there is no resource to read.
         NovaThemeManager.THEME_MATERIAL_YOU -> NovaThemePreviewPalette(
             window = Color(0xFF111318),
             surface = Color(0xFF1D2026),
@@ -1189,10 +1203,10 @@ private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette
             border = Color(0xFF8E9199)
         )
         else -> NovaThemePreviewPalette(
-            window = Color(0xFF1A1A2E),
-            surface = Color(0xCC232340),
-            accent = Color(0xFF78A6FF),
-            border = Color(0xFF393C51)
+            window = colorResource(R.color.nova_bg_window),
+            surface = colorResource(R.color.nova_bg_card),
+            accent = colorResource(R.color.nova_polaris_accent),
+            border = colorResource(R.color.nova_divider)
         )
     }
 }
