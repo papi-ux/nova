@@ -49,19 +49,44 @@ data class NovaHudPerfSample(
     val packetLossPct: Double? = null
 ) {
     companion object {
+        // Compiled once. These used to be built inside fromPerfText, which runs on the
+        // main thread once per perf sample for as long as a game is streaming -- seven
+        // Regex compilations per interval, for patterns that never change.
+        private const val LOCALIZED_NUMBER = """\d+(?:[.,]\d+)?"""
+
+        private val FPS_SUFFIXED = Regex(
+            """(?<![\d.,])($LOCALIZED_NUMBER)\s*(?:fps|FPS)\b""", RegexOption.IGNORE_CASE
+        )
+        private val FPS_LABELLED = Regex(
+            """FPS[:：\s]+($LOCALIZED_NUMBER)""", RegexOption.IGNORE_CASE
+        )
+        private val FPS_TRAILING_ON_FIRST_LINE = Regex(
+            """($LOCALIZED_NUMBER)\s*$""", RegexOption.MULTILINE
+        )
+        private val RESOLUTION = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""")
+        private val LATENCY = Regex(
+            """(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE
+        )
+        private val CODEC = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE)
+        private val PACKET_LOSS_LABELLED = Regex(
+            """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*($LOCALIZED_NUMBER)\s*%""",
+            RegexOption.IGNORE_CASE
+        )
+        private val PACKET_LOSS_SUFFIXED = Regex(
+            """($LOCALIZED_NUMBER)\s*%\s*(?:packet loss|netdrops)""", RegexOption.IGNORE_CASE
+        )
+
         fun fromPerfText(text: String): NovaHudPerfSample {
-            val localizedNumber = """\d+(?:[.,]\d+)?"""
-            val fpsMatch = Regex("""(?<![\d.,])($localizedNumber)\s*(?:fps|FPS)\b""", RegexOption.IGNORE_CASE).find(text)
-                ?: Regex("""FPS[:：\s]+($localizedNumber)""", RegexOption.IGNORE_CASE).find(text)
-                ?: Regex("""($localizedNumber)\s*$""", RegexOption.MULTILINE).find(text.lines().firstOrNull() ?: "")
-            val resolutionMatch = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""").find(text)
-            val latencyMatch = Regex("""(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE).find(text)
-            val codecMatch = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE).find(text)
-            val packetLossMatch = Regex(
-                """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*($localizedNumber)\s*%""",
-                RegexOption.IGNORE_CASE
-            ).find(text)
-                ?: Regex("""($localizedNumber)\s*%\s*(?:packet loss|netdrops)""", RegexOption.IGNORE_CASE).find(text)
+            // Fallback order is behaviour, not formatting: a bare "N fps" wins over a
+            // "FPS: N" label, which wins over a trailing number on the first line.
+            val fpsMatch = FPS_SUFFIXED.find(text)
+                ?: FPS_LABELLED.find(text)
+                ?: FPS_TRAILING_ON_FIRST_LINE.find(text.lines().firstOrNull() ?: "")
+            val resolutionMatch = RESOLUTION.find(text)
+            val latencyMatch = LATENCY.find(text)
+            val codecMatch = CODEC.find(text)
+            val packetLossMatch = PACKET_LOSS_LABELLED.find(text)
+                ?: PACKET_LOSS_SUFFIXED.find(text)
 
             return NovaHudPerfSample(
                 fps = fpsMatch?.localizedDouble(),

@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
+import com.papi.nova.ui.compose.NovaRadius
 
 @Composable
 fun NovaStreamHudContent(
@@ -73,7 +74,7 @@ private fun rememberHudOpacityScale(opacityScale: Float): Float {
 private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
         modifier = modifier.width(236.dp),
-        cornerRadius = 18.dp,
+        cornerRadius = NovaRadius.hero,
         padding = 10.dp
     ) {
         Row(
@@ -172,7 +173,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
 private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
         modifier = modifier.widthIn(max = 320.dp),
-        cornerRadius = 16.dp,
+        cornerRadius = NovaRadius.hero,
         padding = 8.dp
     ) {
         HudPerformancePrimaryRow(state)
@@ -274,7 +275,7 @@ private fun HudPerformanceDetailRow(state: NovaHudUiState) {
 private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
         modifier = modifier.width(148.dp),
-        cornerRadius = 18.dp,
+        cornerRadius = NovaRadius.hero,
         padding = 7.dp
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -355,7 +356,7 @@ private fun HudDiagnosticStrip(state: NovaHudUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 7.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(NovaRadius.row))
             .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
             .padding(horizontal = 7.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -417,7 +418,7 @@ private fun HudLayerChip(layer: NovaHudLayerHealth, modifier: Modifier = Modifie
     val hudOpacityScale = LocalNovaHudOpacityScale.current
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(NovaRadius.chip))
             .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
             .padding(horizontal = 6.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
@@ -461,7 +462,7 @@ private fun HudMetric(
     Column(
         modifier = modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(NovaRadius.row))
             .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
             .padding(horizontal = 7.dp, vertical = 5.dp),
         verticalArrangement = Arrangement.Center
@@ -534,7 +535,7 @@ private fun HudStatusDot(tone: NovaHudTone, height: Dp) {
         modifier = Modifier
             .width(4.dp)
             .height(height)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(NovaRadius.pill))
             .background(tone.hudColor())
     )
 }

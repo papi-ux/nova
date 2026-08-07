@@ -30,7 +30,7 @@ import android.view.InputEvent
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
-import android.widget.Toast
+import com.google.android.material.snackbar.Snackbar
 import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.R
@@ -43,6 +43,7 @@ import com.papi.nova.nvstream.input.MouseButtonPacket
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.GameGestures
+import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.utils.Vector2d
 import java.lang.reflect.InvocationTargetException
 import kotlin.math.abs
@@ -2433,15 +2434,20 @@ class ControllerHandler(
             setMouseEmulationActive(!mouseEmulationActive, true)
         }
 
-        private fun setMouseEmulationActive(active: Boolean, showToast: Boolean) {
+        private fun setMouseEmulationActive(active: Boolean, announce: Boolean) {
             mainThreadHandler.removeCallbacks(mouseEmulationRunnable)
             mouseEmulationActive = active
-            if (showToast) {
-                Toast.makeText(
+            if (announce) {
+                NovaSnackbar.show(
                     activityContext,
-                    "Mouse emulation is: " + if (mouseEmulationActive) "ON" else "OFF",
-                    Toast.LENGTH_SHORT,
-                ).show()
+                    activityContext.getString(
+                        if (mouseEmulationActive) {
+                            R.string.nova_mouse_emulation_on
+                        } else {
+                            R.string.nova_mouse_emulation_off
+                        }
+                    )
+                )
             }
 
             if (mouseEmulationActive) {
@@ -2651,11 +2657,11 @@ class ControllerHandler(
 
             val reportedType: Byte =
                 if (type != MoonBridge.LI_CTYPE_PS && sensorManager != null) {
-                    Toast.makeText(
+                    NovaSnackbar.show(
                         activityContext,
-                        activityContext.resources.getText(R.string.toast_controller_type_changed),
-                        Toast.LENGTH_LONG,
-                    ).show()
+                        activityContext.getString(R.string.toast_controller_type_changed),
+                        Snackbar.LENGTH_LONG
+                    )
                     needsClickpadEmulation = true
                     MoonBridge.LI_CTYPE_UNKNOWN
                 } else {
@@ -2766,11 +2772,11 @@ class ControllerHandler(
                     (MoonBridge.LI_CCAP_GYRO.toInt() or MoonBridge.LI_CCAP_ACCEL.toInt())) != 0
             ) {
                 activityContext.runOnUiThread {
-                    Toast.makeText(
+                    NovaSnackbar.show(
                         activityContext,
-                        activityContext.resources.getText(R.string.toast_controller_type_changed),
-                        Toast.LENGTH_LONG,
-                    ).show()
+                        activityContext.getString(R.string.toast_controller_type_changed),
+                        Snackbar.LENGTH_LONG
+                    )
                 }
             }
 

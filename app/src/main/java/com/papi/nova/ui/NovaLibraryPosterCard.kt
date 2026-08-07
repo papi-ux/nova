@@ -49,6 +49,7 @@ import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.NovaRadius
 
 private const val NovaPosterAnimationDurationMillis = 180
 internal val NovaPosterFocusedLift = 10.dp
@@ -57,7 +58,7 @@ internal val NovaPosterFocusedLift = 10.dp
  * Box art reads as box art, not as an app tile. The cinematic concept uses a 7px radius on a
  * 200px poster (~3.5% of width); 12dp on a ~90dp stage card was nearly four times that.
  */
-private val NovaPosterCornerRadius = 6.dp
+private val NovaPosterCornerRadius = NovaRadius.row
 
 @Composable
 internal fun NovaLibraryPosterCard(

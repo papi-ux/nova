@@ -104,7 +104,7 @@ fun NovaComposeColors.librarySurfaces(
         backgroundScrim = when {
             isOled -> Color.Transparent
             isMiami -> window.copy(alpha = 0.60f)
-            isPortableChrome -> window.copy(alpha = 0.34f)
+            isPortableChrome -> window.copy(alpha = 0.62f)
             isHighContrast -> Color.Black.copy(alpha = 0.72f)
             isMaterialYou -> window.copy(alpha = 0.28f)
             else -> window.copy(alpha = 0.56f)
@@ -151,7 +151,7 @@ fun NovaComposeColors.librarySurfaces(
         selectedControl = accent.copy(alpha = when {
             isHighContrast -> 0.34f
             isMiami -> 0.22f
-            isPortableChrome -> 0.16f
+            isPortableChrome -> 0.22f
             isOled -> 0.22f
             else -> 0.18f
         }),
@@ -159,14 +159,14 @@ fun NovaComposeColors.librarySurfaces(
         focusHalo = accent.copy(alpha = when {
             isHighContrast -> 0.36f
             isMiami -> 0.28f
-            isPortableChrome -> 0.14f
+            isPortableChrome -> 0.24f
             isOled -> 0.24f
             else -> 0.18f
         }),
         mediaPlaceholder = when {
             isOled -> Color(0xFF08080C)
             isMiami -> Color(0xFF2C1734)
-            isPortableChrome -> window.copy(alpha = 1f)
+            isPortableChrome -> Color(0xFF101216)
             isHighContrast -> Color(0xFF111827)
             isMaterialYou -> card.copy(alpha = 1f)
             else -> divider.copy(alpha = 1f)
@@ -182,14 +182,14 @@ fun NovaComposeColors.librarySurfaces(
         focusedArtworkAlpha = when {
             isOled -> 0.10f
             isMiami -> 0.26f
-            isPortableChrome -> 0.18f
+            isPortableChrome -> 0.24f
             isMaterialYou -> 0.18f
             else -> 0.24f
         },
         focusedArtworkScrim = Color.Black.copy(alpha = when {
             isOled -> 0.82f
             isMiami -> 0.76f
-            isPortableChrome -> 0.66f
+            isPortableChrome -> 0.78f
             else -> 0.72f
         }),
         particlesEnabled = !isOled,
@@ -197,7 +197,7 @@ fun NovaComposeColors.librarySurfaces(
             isOled -> 0f
             isHighContrast -> 0.28f
             isMiami -> 0.68f
-            isPortableChrome -> 0.22f
+            isPortableChrome -> 0.44f
             isMaterialYou -> 0.42f
             else -> 1f
         }
@@ -276,9 +276,11 @@ fun NovaComposeTheme(
     )
     val librarySurfaces = colors.librarySurfaces(theme, menuOpacityScale)
 
+    // Portable Chrome used to be pinned light here -- the only hardcoded light Material
+    // scheme in the app. Its shell is graphite now, so the exception is gone and only
+    // Material You still follows the system.
     val useDarkColorScheme = when (theme) {
         NovaThemeManager.THEME_MATERIAL_YOU -> isSystemInDarkTheme()
-        NovaThemeManager.THEME_PORTABLE_CHROME -> false
         else -> true
     }
     val colorScheme = (if (useDarkColorScheme) darkColorScheme() else lightColorScheme()).copy(

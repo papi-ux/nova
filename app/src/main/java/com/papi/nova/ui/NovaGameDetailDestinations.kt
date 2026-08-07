@@ -61,9 +61,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.papi.nova.ui.compose.NovaChromeType
+import com.papi.nova.ui.compose.NovaRadius
 import kotlinx.coroutines.delay
 import com.papi.nova.R
-import com.papi.nova.ui.compose.NovaChromeFamily
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaControllerHint
@@ -345,10 +346,7 @@ private fun NovaGameDetailDestinationHeader(
             Text(
                 text = eyebrow,
                 color = colors.textMuted,
-                fontSize = 10.sp,
-                fontFamily = NovaChromeFamily,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.22.em,
+                style = NovaChromeType.label(fontSize = 10.sp),
             )
         }
         Text(
@@ -386,9 +384,9 @@ private fun NovaGameDetailCloseControl(onDismiss: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .padding(start = 12.dp)
-            .clip(RoundedCornerShape(NovaGameDetailRadius.chip))
+            .clip(RoundedCornerShape(NovaRadius.chip))
             .background(surfaces.control)
-            .border(1.dp, colors.divider.copy(alpha = 0.6f), RoundedCornerShape(NovaGameDetailRadius.chip))
+            .border(1.dp, colors.divider.copy(alpha = 0.6f), RoundedCornerShape(NovaRadius.chip))
             .novaDismissOnTap(onDismiss)
             .padding(horizontal = 12.dp, vertical = 7.dp)
             .testTag("nova-game-detail-close"),
@@ -422,10 +420,7 @@ internal fun NovaGameDetailGroupLabel(text: String) {
         Text(
             text = text.uppercase(),
             color = colors.textMuted,
-            fontSize = 8.sp,
-            fontFamily = NovaChromeFamily,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.22.em,
+            style = NovaChromeType.label(fontSize = 8.sp),
         )
         Box(
             modifier = Modifier
@@ -487,12 +482,12 @@ internal fun NovaDesktopSteamLaunchDecisionRows(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(NovaGameDetailCornerRadius))
+                .clip(RoundedCornerShape(NovaRadius.hero))
                 .background(colors.warning.copy(alpha = 0.13f))
                 .border(
                     1.dp,
                     colors.warning.copy(alpha = 0.46f),
-                    RoundedCornerShape(NovaGameDetailCornerRadius),
+                    RoundedCornerShape(NovaRadius.hero),
                 )
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
@@ -567,7 +562,7 @@ internal fun NovaSteamChoiceRow(
     val actionable = onClick != null && enabled
     val accentBar = colors.accent
     val barWidth = NOVA_DETAIL_ROW_FOCUS_BAR
-    val shape = RoundedCornerShape(NovaGameDetailRadius.row)
+    val shape = RoundedCornerShape(NovaRadius.row)
     // The accent is light on a dark surface and dark on a light one, so the same alpha
     // is a whisper in one theme and an inverted block in the other. Scale it by the
     // polarity; the bar, not the fill, is what says this row has focus.

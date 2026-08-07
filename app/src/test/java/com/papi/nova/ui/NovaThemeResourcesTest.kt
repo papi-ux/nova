@@ -72,7 +72,7 @@ class NovaThemeResourcesTest {
         assertTrue(manager.contains("THEME_PORTABLE_CHROME"))
         assertTrue(manager.contains("portable_chrome"))
         assertTrue(manager.contains("psp"))
-        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF2F64B3"))
+        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF5A93D6"))
         assertTrue(colors.contains("<color name=\"nova_accent\">@color/nova_polaris_accent</color>"))
 
         // The contract bans purple in Portable Chrome, and bans Material's default purple
@@ -97,7 +97,7 @@ class NovaThemeResourcesTest {
         val colors = File("src/main/res/values/colors_nova.xml").readText()
         val styles = File("src/main/res/values/styles.xml").readText()
 
-        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF2F64B3"))
+        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF5A93D6"))
         assertTrue(colors.contains("<color name=\"nova_polaris_accent\">"))
         assertTrue(styles.contains("AppTheme.PortableChrome"))
         assertTrue(styles.contains("SettingsTheme.PortableChrome"))
@@ -124,27 +124,39 @@ class NovaThemeResourcesTest {
         val colors = File("src/main/res/values/colors_nova.xml").readText()
         val strings = File("src/main/res/values/strings.xml").readText()
 
-        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF2F64B3"))
-        assertTrue(colors.contains("nova_portable_cross_accent") && colors.contains("#FF2F64B3"))
-        assertTrue(colors.contains("nova_portable_square_accent") && colors.contains("#FF9D679D"))
-        assertTrue(colors.contains("nova_portable_circle_accent") && colors.contains("#FFB8575F"))
-        assertTrue(colors.contains("nova_portable_triangle_accent") && colors.contains("#FF4F9A67"))
+        assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF5A93D6"))
+        assertTrue(colors.contains("nova_portable_cross_accent") && colors.contains("#FF5A93D6"))
+        assertTrue(colors.contains("nova_portable_square_accent") && colors.contains("#FFB583B5"))
+        assertTrue(colors.contains("nova_portable_circle_accent") && colors.contains("#FFD4838A"))
+        assertTrue(colors.contains("nova_portable_triangle_accent") && colors.contains("#FF6FBF8A"))
         val oldPortableAccent = "nova_portable_accent" + 34.toChar() + ">#FF7FA38D"
         assertFalse("Portable Chrome primary accent must not stay generic muted green", colors.contains(oldPortableAccent))
         assertTrue(strings.contains("PlayStation-symbol accents"))
     }
 
     @Test
-    fun pcViewThemePickerExposesPortableChrome() {
+    fun pcViewThemePickerReadsTheSharedThemeList() {
         val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
-        val picker = source.substringAfter("private fun showThemePicker(")
-            .substringBefore("private fun applyThemeSelection")
+        val builder = source.substringAfter("private fun buildThemePickerThemes(")
+            .substringBefore("private fun createThemePickerRow")
 
-        assertTrue(picker.contains("NovaThemeManager.THEME_PORTABLE_CHROME"))
+        // This used to assert that the picker listed Polaris, then Portable Chrome, then
+        // OLED, by comparing indexOf positions in the source of showThemePicker. Once the
+        // list moved into R.array.nova_theme_values, THEME_POLARIS stopped appearing in that
+        // range, indexOf returned -1, and `-1 < somethingElse` is true -- so it passed while
+        // checking nothing at all.
+        //
+        // Which themes exist and in what order is the array's job, and
+        // themeArraysExposeMiamiInPredictableOrder above pins that by value. What is left
+        // here is the wiring.
         assertTrue(
-            "Portable Chrome should sit between Polaris and OLED in the dashboard picker",
-            picker.indexOf("NovaThemeManager.THEME_POLARIS") < picker.indexOf("NovaThemeManager.THEME_PORTABLE_CHROME") &&
-                picker.indexOf("NovaThemeManager.THEME_PORTABLE_CHROME") < picker.indexOf("NovaThemeManager.THEME_OLED")
+            "the dashboard picker reads the shared theme array",
+            builder.contains("R.array.nova_theme_values")
+        )
+        assertFalse(
+            "and does not keep a second copy of the theme list in Kotlin, which would let a " +
+                "newly added theme appear in settings and silently not on the dashboard",
+            builder.contains("THEME_POLARIS") || builder.contains("THEME_OLED")
         )
     }
 

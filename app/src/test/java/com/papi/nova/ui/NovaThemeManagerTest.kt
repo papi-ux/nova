@@ -13,6 +13,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -146,17 +147,60 @@ class NovaThemeManagerTest {
     }
 
     @Test
+    fun portableChromeGlintsWithAllFourSymbolAccentsAndOtherThemesWithOne() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_PORTABLE_CHROME)
+        val portable = NovaThemeManager.getAmbientAccentColors(context)
+
+        // The four tokens were declared and referenced nowhere. The resource guard passed
+        // throughout, because it pinned that the hexes exist -- not that anything reads
+        // them. This calls what SpaceParticleView calls, so removing the wiring fails here.
+        assertEquals("all four face-button hues reach the ambient field", 4, portable.size)
+        assertEquals(
+            "and they are four distinct hues, not one repeated",
+            4,
+            portable.toSet().size
+        )
+        assertTrue(
+            "cross blue leads, because it is also the theme accent",
+            portable[0] == NovaThemeManager.getAccentColor(context)
+        )
+
+        // Every other theme has one accent, so the cycling must not leak into them.
+        for (theme in listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_HIGH_CONTRAST
+        )) {
+            NovaThemeManager.setTheme(context, theme)
+            val ambient = NovaThemeManager.getAmbientAccentColors(context)
+            assertEquals("$theme glints with its one accent", 1, ambient.size)
+            assertEquals(theme, NovaThemeManager.getAccentColor(context), ambient[0])
+        }
+    }
+
+    @Test
     @Config(sdk = [33], qualifiers = "notnight")
-    fun portableChromeUsesDarkIconsOnItsMidLightSystemBars() {
+    fun portableChromeUsesLightIconsOnItsGraphiteSystemBars() {
         val controller = Robolectric.buildActivity(Activity::class.java)
         val activity = controller.get()
         NovaThemeManager.setTheme(activity, NovaThemeManager.THEME_PORTABLE_CHROME)
         NovaThemeManager.applyTheme(activity)
         controller.setup()
 
+        // configureSystemBars picks icon polarity by contrast against the window, so it
+        // flipped on its own when the shell went graphite. This asserts it landed.
         val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-        assertTrue(insetsController.isAppearanceLightStatusBars)
-        assertTrue(insetsController.isAppearanceLightNavigationBars)
+        assertFalse(
+            "graphite bars take light icons",
+            insetsController.isAppearanceLightStatusBars
+        )
+        assertFalse(
+            "graphite bars take light icons",
+            insetsController.isAppearanceLightNavigationBars
+        )
 
         controller.destroy()
     }

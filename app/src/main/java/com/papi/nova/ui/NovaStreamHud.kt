@@ -101,7 +101,7 @@ class NovaStreamHud(
 
             val margin = (12 * activity.resources.displayMetrics.density).toInt()
             val params = FrameLayout.LayoutParams(
-                layoutWidthForMode(currentMode),
+                HUD_LAYOUT_WIDTH,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
@@ -194,9 +194,8 @@ class NovaStreamHud(
             .edit()
             .putString("nova_polaris_hud_mode", currentMode.preferenceValue)
             .apply()
-        view.layoutParams = (view.layoutParams as FrameLayout.LayoutParams).apply {
-            width = layoutWidthForMode(currentMode)
-        }
+        // No layoutParams reassignment: every mode is WRAP_CONTENT, so this forced a
+        // re-layout to set the width to the width it already had.
         publishState()
         view.post {
             view.x = savedX
@@ -470,12 +469,13 @@ class NovaStreamHud(
                 .getBoolean("nova_polaris_hud", false)
         }
 
-        private fun layoutWidthForMode(mode: NovaHudMode): Int {
-            return when (mode) {
-                NovaHudMode.DEBUG -> ViewGroup.LayoutParams.WRAP_CONTENT
-                NovaHudMode.PERFORMANCE -> ViewGroup.LayoutParams.WRAP_CONTENT
-                NovaHudMode.MINIMAL -> ViewGroup.LayoutParams.WRAP_CONTENT
-            }
-        }
+        /**
+         * The HUD is content-sized in every mode.
+         *
+         * This was a `when` over all three modes returning WRAP_CONTENT three times,
+         * which read as though the width varied by mode. It does not, and each mode's
+         * own composable already bounds itself.
+         */
+        private const val HUD_LAYOUT_WIDTH = ViewGroup.LayoutParams.WRAP_CONTENT
     }
 }

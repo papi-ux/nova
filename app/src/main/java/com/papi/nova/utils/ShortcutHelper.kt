@@ -9,11 +9,11 @@ import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
-import android.widget.Toast
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
+import com.papi.nova.ui.NovaSnackbar
 import java.io.IOException
 import java.nio.charset.Charset
 import java.util.Collections
@@ -193,11 +193,10 @@ class ShortcutHelper(private val context: Activity) {
 
     fun exportLauncherFile(computer: ComputerDetails?, app: NvApp?) {
         if (computer == null || computer.uuid.isEmpty() || computer.name.isEmpty()) {
-            Toast.makeText(
+            NovaSnackbar.showError(
                 context,
-                R.string.export_launcher_computer_details_incomplete,
-                Toast.LENGTH_LONG,
-            ).show()
+                context.getString(R.string.export_launcher_computer_details_incomplete)
+            )
             LimeLog.warning("exportLauncherFile: Computer details incomplete.")
             return
         }
@@ -208,11 +207,10 @@ class ShortcutHelper(private val context: Activity) {
             app.appUUID == null ||
             app.appUUID!!.isEmpty()
         ) {
-            Toast.makeText(
+            NovaSnackbar.showError(
                 context,
-                R.string.export_launcher_app_details_incomplete,
-                Toast.LENGTH_LONG,
-            ).show()
+                context.getString(R.string.export_launcher_app_details_incomplete)
+            )
             LimeLog.warning("exportLauncherFile: App details incomplete.")
             return
         }
@@ -246,11 +244,10 @@ class ShortcutHelper(private val context: Activity) {
             context.startActivityForResult(intent, REQUEST_CODE_EXPORT_ART_FILE)
         } catch (e: Exception) {
             LimeLog.severe("Failed to start activity for file export: " + e.message)
-            Toast.makeText(
+            NovaSnackbar.showError(
                 context,
-                context.getString(R.string.failed_to_initiate_file_export, e.message),
-                Toast.LENGTH_LONG,
-            ).show()
+                context.getString(R.string.failed_to_initiate_file_export, e.message)
+            )
             artFileContentToExport = null
         }
     }
@@ -271,11 +268,10 @@ class ShortcutHelper(private val context: Activity) {
         fun writeArtFileToUri(activityContext: Activity, uri: Uri?) {
             if (uri == null) {
                 LimeLog.warning("writeArtFileToUri: URI is null.")
-                Toast.makeText(
+                NovaSnackbar.showError(
                     activityContext,
-                    R.string.file_export_failed_no_location_selected,
-                    Toast.LENGTH_LONG,
-                ).show()
+                    activityContext.getString(R.string.file_export_failed_no_location_selected)
+                )
                 artFileContentToExport = null
                 return
             }
@@ -283,11 +279,10 @@ class ShortcutHelper(private val context: Activity) {
             val content = artFileContentToExport
             if (content.isNullOrEmpty()) {
                 LimeLog.warning("writeArtFileToUri: No content to export.")
-                Toast.makeText(
+                NovaSnackbar.showError(
                     activityContext,
-                    R.string.file_export_failed_no_content_to_write,
-                    Toast.LENGTH_LONG,
-                ).show()
+                    activityContext.getString(R.string.file_export_failed_no_content_to_write)
+                )
                 return
             }
 
@@ -297,34 +292,30 @@ class ShortcutHelper(private val context: Activity) {
                         outputStream.write(content.toByteArray(Charset.defaultCharset()))
                         outputStream.flush()
                         LimeLog.info("Successfully wrote .art file to: $uri")
-                        Toast.makeText(
+                        NovaSnackbar.showSuccess(
                             activityContext,
-                            R.string.file_exported_successfully,
-                            Toast.LENGTH_SHORT,
-                        ).show()
+                            activityContext.getString(R.string.file_exported_successfully)
+                        )
                     } else {
                         LimeLog.severe("Failed to open output stream for URI: $uri")
-                        Toast.makeText(
+                        NovaSnackbar.showError(
                             activityContext,
-                            R.string.failed_to_open_file_for_writing,
-                            Toast.LENGTH_LONG,
-                        ).show()
+                            activityContext.getString(R.string.failed_to_open_file_for_writing)
+                        )
                     }
                 }
             } catch (e: IOException) {
                 LimeLog.severe("Error writing .art file to URI: $uri - " + e.message)
-                Toast.makeText(
+                NovaSnackbar.showError(
                     activityContext,
-                    activityContext.getString(R.string.error_writing_file, e.message),
-                    Toast.LENGTH_LONG,
-                ).show()
+                    activityContext.getString(R.string.error_writing_file, e.message)
+                )
             } catch (e: Exception) {
                 LimeLog.severe("Unexpected error writing .art file to URI: $uri - " + e.message)
-                Toast.makeText(
+                NovaSnackbar.showError(
                     activityContext,
-                    R.string.unexpected_error_during_file_export,
-                    Toast.LENGTH_LONG,
-                ).show()
+                    activityContext.getString(R.string.unexpected_error_during_file_export)
+                )
             } finally {
                 artFileContentToExport = null
             }

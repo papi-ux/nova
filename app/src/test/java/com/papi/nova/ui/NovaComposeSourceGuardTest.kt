@@ -690,18 +690,18 @@ class NovaComposeSourceGuardTest {
 
     @Test
     fun librarySearchDoesNotEnterTextInputOnDpadFocus() {
-        val searchField = readNovaLibraryActivity().section(
-            "private fun NovaSearchField(",
-            "private fun NovaFilterChip("
-        )
+        // This behaviour is NovaSearchTextField's now, and both search fields call it, so
+        // this covers the settings one too -- which is the field that had none of it and is on
+        // the screen most likely to be driven with a controller.
+        val searchField = readSource("src/main/java/com/papi/nova/ui/compose/NovaSearchTextField.kt")
 
         assertTrue(
             "search should keep a browse mode before explicitly editing text",
-            searchField.contains("var searchEditing by remember { mutableStateOf(false) }")
+            searchField.contains("var editing by remember { mutableStateOf(false) }")
         )
         assertTrue(
             "search should not show the IME just because D-pad focus lands on it",
-            searchField.contains("readOnly = !searchEditing")
+            searchField.contains("readOnly = !editing")
         )
         assertTrue(
             "search should handle D-pad keys before the IME traps navigation",
@@ -713,16 +713,16 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "search should move focus down out of the field instead of trapping D-pad input",
-            searchField.contains("Key.DirectionDown -> leaveSearchEditing(FocusDirection.Down)")
+            searchField.contains("Key.DirectionDown -> leaveEditing(FocusDirection.Down)")
         )
         assertFalse(
             "search should not wait for edit mode before releasing D-pad navigation",
-            searchField.contains("Key.DirectionDown -> if (searchEditing)")
+            searchField.contains("Key.DirectionDown -> if (editing)")
         )
         assertTrue(
             "controller select should explicitly enter search edit mode on TV remotes",
             searchField.contains("Key.Enter, Key.NumPadEnter, Key.DirectionCenter ->") &&
-                searchField.contains("beginSearchEditing()")
+                searchField.contains("beginEditing()")
         )
         assertFalse(
             "controller select should not be swallowed without activating search",
@@ -1377,8 +1377,11 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "missing launch prerequisites and thrown preflight exceptions should update launchErrorMessage",
+            // Pinned the English sentence itself until it became a string resource. The
+            // resource name says which branch this is without depending on its wording, and
+            // the sentence was doing double duty as on-screen error state, so it had to move.
             source.contains("launchErrorMessage = message") &&
-                source.contains("Missing Polaris session details for launch") &&
+                source.contains("R.string.nova_library_launch_missing_session") &&
                 source.contains("Failed to launch ${'$'}{game.name}")
         )
         assertTrue(
@@ -1487,10 +1490,9 @@ class NovaComposeSourceGuardTest {
     @Test
     fun settingsRowsUseSharedFocusMotionAndHighContrastOutline() {
         val settings = readNovaSettingsScreen()
-        val searchField = settings.section(
-            "private fun NovaSettingsSearchField(",
-            "@Composable\nprivate fun SearchResultSummary("
-        )
+        // The settings search field is NovaSearchTextField now, so its share of this
+        // contract is checked where the code actually lives.
+        val searchField = readSource("src/main/java/com/papi/nova/ui/compose/NovaSearchTextField.kt")
         val quickPill = settings.section(
             "private fun NovaSettingPill(",
             "@Composable\nprivate fun NovaSettingsCategoryRail("
@@ -1511,7 +1513,10 @@ class NovaComposeSourceGuardTest {
             )
             assertTrue(
                 "settings focus surfaces should match the stronger 3dp controller outline",
-                section.contains(".border(if (focused) 3.dp else 1.dp")
+                // Matched ".border(if (focused) 3.dp" before, which is one spelling of the
+                // rule. The shared search field passes the same widths as named arguments and
+                // was no less compliant for it, so the check is on the widths themselves.
+                section.contains("if (focused) 3.dp else 1.dp")
             )
         }
     }
@@ -1799,10 +1804,13 @@ class NovaComposeSourceGuardTest {
                 touchHandler.contains("DRAG_THRESHOLD")
         )
         assertTrue(
-            "tap-to-cycle must not reset a user-dragged HUD back to top-left when the compact/expanded width changes",
+            "tap-to-cycle must not reset a user-dragged HUD back to top-left. This used to " +
+                "also pin the layoutParams reassignment that cycleMode did to change the " +
+                "width between modes -- but every mode is WRAP_CONTENT, so it re-laid out " +
+                "to the width it already had. The save and restore is what preserves the " +
+                "position, and it is what is pinned.",
             cycleMode.contains("val savedX = view.x") &&
                 cycleMode.contains("val savedY = view.y") &&
-                cycleMode.contains("width = layoutWidthForMode(currentMode)") &&
                 cycleMode.contains("view.post") &&
                 cycleMode.contains("view.x = savedX") &&
                 cycleMode.contains("view.y = savedY")
@@ -1843,10 +1851,16 @@ class NovaComposeSourceGuardTest {
             content.contains(".widthIn(max = 460.dp)") &&
                 content.contains("compactDrawerWidth = (configuration.screenWidthDp * 0.92f).dp")
         )
+        // Which corners are rounded is the guarantee; how far is the shared scale's business.
+        // This used to pin 28.dp, and the negative pinned one specific bottom-sheet spelling,
+        // so a bottom sheet at any other radius would have passed.
         assertTrue(
             "left drawer should use trailing rounded corners, not a bottom-sheet top-only shape",
-            content.contains("RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)") &&
-                !content.contains("RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)")
+            content.contains("RoundedCornerShape(topEnd = NovaRadius.drawer, bottomEnd = NovaRadius.drawer)")
+        )
+        assertFalse(
+            "a topStart+topEnd pair is the bottom-sheet corner set this drawer replaced",
+            Regex("""RoundedCornerShape\(\s*topStart = [^,)]+,\s*topEnd = """).containsMatchIn(content)
         )
         assertTrue(
             "drawer surface should consume the literal shared outer panel at x=0 instead of a theme-glass multiplier",
@@ -2773,6 +2787,41 @@ class NovaComposeSourceGuardTest {
 
     private fun String.containsRegex(pattern: String): Boolean =
         Regex(pattern).containsMatchIn(this)
+
+    @Test
+    fun commandCenterCardsAreWiredToTheRealCallbacks() {
+        val quickMenu = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt")
+
+        // The diagnosis card was handed `NovaQuickMenuCallbacks()` -- a fresh instance
+        // whose every member defaults to a no-op. It rendered `enabled`, sat fourth from
+        // the top, and did nothing when pressed. Nothing caught it because a dead click
+        // looks exactly like a live one, and the compose test here is a smoke test.
+        assertFalse(
+            "no surface in the Command Center may construct its own callbacks; the ones " +
+                "handed down are the only ones wired to anything",
+            quickMenu.contains("NovaQuickMenuCallbacks()")
+        )
+        assertTrue(
+            "the diagnosis card takes callbacks and passes them to the card it draws",
+            quickMenu.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)") &&
+                quickMenu.contains("callbacks: NovaQuickMenuCallbacks,")
+        )
+    }
+
+    @Test
+    fun companionDeckSkipsUnchangedPerfIntervals() {
+        val deck = readSource("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")
+
+        // render() runs once per perf interval for as long as an external display is
+        // attached, and most intervals change nothing. Without the early-out it did ten
+        // getString + setText calls and the layout pass they trigger, on the main thread,
+        // while a game was streaming.
+        assertTrue(
+            "an unchanged interval must cost one comparison, not ten setText calls",
+            deck.contains("val unchanged = latestState == state") &&
+                deck.contains("if (unchanged) {")
+        )
+    }
 
     private fun String.section(startMarker: String, endMarker: String): String {
         val start = indexOf(startMarker)

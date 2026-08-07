@@ -43,6 +43,7 @@ import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
+import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
 
 private data class NovaLibraryCinematicBackdropTarget(
@@ -187,10 +188,8 @@ internal fun NovaLibraryCinematicControllerHints(
             Text(
                 text = stringResource(R.string.nova_stage_footer_brand),
                 color = colors.textSecondary.copy(alpha = 0.72f),
-                fontSize = 9.sp,
+                style = NovaChromeType.label(fontSize = 9.sp, letterSpacing = 0.18.em),
                 lineHeight = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.18.em,
                 maxLines = 1,
                 modifier = Modifier
                     .align(Alignment.CenterStart)

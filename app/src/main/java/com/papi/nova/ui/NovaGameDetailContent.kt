@@ -70,6 +70,7 @@ import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaFocusableCard
+import com.papi.nova.ui.compose.NovaRadius
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -91,7 +92,7 @@ private fun NovaSheetDragHandle(
         Box(
             modifier = Modifier
                 .size(width = 42.dp, height = 4.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(NovaRadius.chip))
                 .background(colors.divider)
         )
     }
@@ -602,7 +603,7 @@ private fun NovaDetailPanel(
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(NovaRadius.hero)
     val backgroundColor = when {
         warning -> colors.warning.copy(alpha = 0.12f)
         accent -> colors.accentSurface
@@ -708,7 +709,7 @@ internal fun NovaDesktopSteamLaunchDecisionContent(
             enabled = privateStreamEnabled,
             contentDescription = privateStreamLabel,
             minHeight = 46.dp,
-            cornerRadius = 12.dp,
+            cornerRadius = NovaRadius.hero,
             fontSize = 14.sp
         )
         NovaActionButton(
@@ -721,7 +722,7 @@ internal fun NovaDesktopSteamLaunchDecisionContent(
             primary = false,
             contentDescription = forcePrivateLabel,
             minHeight = 46.dp,
-            cornerRadius = 12.dp,
+            cornerRadius = NovaRadius.hero,
             fontSize = 14.sp
         )
         Text(
@@ -741,7 +742,7 @@ internal fun NovaDesktopSteamLaunchDecisionContent(
             primary = true,
             contentDescription = mirrorDesktopLabel,
             minHeight = 48.dp,
-            cornerRadius = 12.dp,
+            cornerRadius = NovaRadius.hero,
             fontSize = 15.sp
         )
         NovaActionButton(
@@ -752,7 +753,7 @@ internal fun NovaDesktopSteamLaunchDecisionContent(
                 .padding(top = 8.dp),
             contentDescription = cancelLabel,
             minHeight = 42.dp,
-            cornerRadius = 10.dp,
+            cornerRadius = NovaRadius.hero,
             fontSize = 13.sp
         )
     }
@@ -844,7 +845,7 @@ private fun NovaGameDetailHero(
         modifier = Modifier
             .fillMaxWidth()
             .height(136.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(NovaRadius.hero))
             .background(colors.window)
     ) {
         key(heroPresentationKey) {
@@ -939,9 +940,9 @@ private fun NovaGameDetailPosterFallback(
                 modifier = Modifier
                     .width(108.dp)
                     .aspectRatio(88f / 118f)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(NovaRadius.row))
                     .background(colors.window)
-                    .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
+                    .border(1.dp, colors.divider, RoundedCornerShape(NovaRadius.row))
                     .semantics { contentDescription = coverContentDescription }
             )
         }
@@ -1007,7 +1008,7 @@ private fun NovaGameDetailIdentity(
                     },
                     modifier = Modifier
                         .size(if (compact) 34.dp else 38.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(NovaRadius.row))
                         .semantics { contentDescription = iconContentDescription }
                 )
             }
@@ -1106,9 +1107,9 @@ internal fun LaunchProfilePrimaryNotice(
             .fillMaxWidth()
             .padding(horizontal = NovaGameDetailInset)
             .padding(top = 8.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(NovaRadius.hero))
             .background(toneColor.copy(alpha = 0.14f))
-            .border(1.dp, toneColor.copy(alpha = 0.52f), RoundedCornerShape(12.dp))
+            .border(1.dp, toneColor.copy(alpha = 0.52f), RoundedCornerShape(NovaRadius.hero))
             .padding(horizontal = 12.dp, vertical = 9.dp),
     ) {
         Row(
@@ -1149,7 +1150,7 @@ internal fun LaunchProfilePrimaryNotice(
                     },
                     stateDescription = if (noticeExpanded) "Expanded" else "Collapsed",
                     minHeight = 32.dp,
-                    cornerRadius = 9.dp,
+                    cornerRadius = NovaRadius.hero,
                     fontSize = 10.sp,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                 )
@@ -1239,7 +1240,7 @@ private fun NovaOptionPanel(
                 modifier = Modifier.width(104.dp),
                 contentDescription = closeLabel,
                 minHeight = 36.dp,
-                cornerRadius = 10.dp,
+                cornerRadius = NovaRadius.hero,
                 fontSize = 11.sp,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 7.dp)
             )

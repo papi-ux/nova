@@ -125,6 +125,10 @@ import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGameJson
+import com.papi.nova.ui.compose.NovaBadge
+import com.papi.nova.ui.compose.NovaChromeType
+import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.NovaSearchTextField
 import org.json.JSONObject
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
@@ -521,11 +525,10 @@ class NovaLibraryActivity : NovaActivity() {
         }
         val nextMode = optionsState.layoutMode.next()
         selectLibraryLayoutMode(nextMode)
-        Toast.makeText(
+        NovaSnackbar.show(
             this,
-            getString(R.string.nova_library_layout_toast_format, getString(layoutModeLabelRes(nextMode))),
-            Toast.LENGTH_SHORT
-        ).show()
+            getString(R.string.nova_library_layout_toast_format, getString(layoutModeLabelRes(nextMode)))
+        )
         return true
     }
 
@@ -592,11 +595,7 @@ class NovaLibraryActivity : NovaActivity() {
                     val message = e.localizedMessage ?: e.javaClass.simpleName
                     loadErrorMessage = message
                     LimeLog.severe("Nova: Failed to load games: ${e.message}")
-                    Toast.makeText(
-                        this@NovaLibraryActivity,
-                        message,
-                        Toast.LENGTH_LONG
-                    ).show()
+                    NovaSnackbar.showError(this@NovaLibraryActivity, message)
                 }
             } finally {
                 if (ownsVisibleRefreshState) {
@@ -846,24 +845,24 @@ class NovaLibraryActivity : NovaActivity() {
         preflightOptimization: org.json.JSONObject? = null
     ) {
         if (game.appId <= 0) {
-            val message = "This game entry is missing a launch ID"
+            val message = getString(R.string.nova_library_launch_missing_id)
             launchErrorMessage = message
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, message)
             return
         }
         val uniqueId = streamUniqueId
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || pcUuid.isNullOrBlank() || serverCert == null) {
-            val message = "Missing Polaris session details for launch"
+            val message = getString(R.string.nova_library_launch_missing_session)
             launchErrorMessage = message
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, message)
             LimeLog.warning("Nova: Cannot launch from library; missing uniqueId, pcUuid, or server cert")
             return
         }
         launchErrorMessage = null
 
-        Toast.makeText(
+        NovaSnackbar.show(
             this,
             getString(
                 R.string.nova_library_launching_mode,
@@ -874,9 +873,8 @@ class NovaLibraryActivity : NovaActivity() {
                     forcePrivateAfterSteamClose -> getString(R.string.nova_desktop_steam_force_private)
                     else -> getString(R.string.nova_library_launch_headless)
                 }
-            ),
-            Toast.LENGTH_SHORT
-        ).show()
+            )
+        )
 
         lifecycleScope.launch {
             try {
@@ -951,7 +949,7 @@ class NovaLibraryActivity : NovaActivity() {
                 val message = e.localizedMessage ?: e.javaClass.simpleName
                 launchErrorMessage = message
                 LimeLog.severe("Nova: Failed to launch ${game.name}: ${e.message}")
-                Toast.makeText(this@NovaLibraryActivity, message, Toast.LENGTH_LONG).show()
+                NovaSnackbar.showError(this@NovaLibraryActivity, message)
             }
         }
     }
@@ -961,9 +959,9 @@ class NovaLibraryActivity : NovaActivity() {
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || pcUuid.isNullOrBlank() || serverCert == null) {
-            val message = "Missing Polaris session details for resume"
+            val message = getString(R.string.nova_library_resume_missing_session)
             launchErrorMessage = message
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            NovaSnackbar.showError(this, message)
             LimeLog.warning("Nova: Cannot resume from library; missing uniqueId, pcUuid, or server cert")
             return
         }
@@ -1711,7 +1709,7 @@ class NovaLibraryActivity : NovaActivity() {
         }
 
         val surfaces = LocalNovaLibrarySurfaces.current
-        val shape = RoundedCornerShape(if (compact) 14.dp else 18.dp)
+        val shape = RoundedCornerShape(if (compact) NovaRadius.row else NovaRadius.hero)
         Box(
             modifier = Modifier
                 .width(if (compact) 58.dp else 108.dp)
@@ -1757,7 +1755,7 @@ class NovaLibraryActivity : NovaActivity() {
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        val shape = RoundedCornerShape(if (compact) 14.dp else 18.dp)
+        val shape = RoundedCornerShape(if (compact) NovaRadius.row else NovaRadius.hero)
         Column(
             modifier = Modifier
                 .width(if (compact) 58.dp else 108.dp)
@@ -2018,7 +2016,7 @@ class NovaLibraryActivity : NovaActivity() {
         }
         val streamDetail = formatStreamProfile(session)
         val detail = listOfNotNull(ownerDetail, viewerDetail, streamDetail).joinToString(" / ")
-        val shape = RoundedCornerShape(14.dp)
+        val shape = RoundedCornerShape(NovaRadius.row)
 
         Column(
             modifier = modifier
@@ -2133,9 +2131,9 @@ class NovaLibraryActivity : NovaActivity() {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(999.dp))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.pill))
                 .semantics { contentDescription = description }
                 .padding(horizontal = 9.dp, vertical = 5.dp)
         )
@@ -2147,9 +2145,9 @@ class NovaLibraryActivity : NovaActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         Column(
             modifier = modifier
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(14.dp))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.row))
                 .padding(horizontal = 10.dp, vertical = 9.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -2162,19 +2160,17 @@ class NovaLibraryActivity : NovaActivity() {
     private fun NovaStatusPill(text: String, enabled: Boolean) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        val fill = if (enabled) surfaces.selectedControl else surfaces.control
-        val stroke = if (enabled) colors.accent.copy(alpha = 0.68f) else surfaces.tileBorder
-        Text(
+        // A status pill reports state; it is never focused and never selected. Its enabled
+        // fill used to be selectedControl, which is the focus fill, so an enabled pill sat on
+        // screen looking like the thing the d-pad was on. The accent stroke below was already
+        // saying "enabled" correctly, so the fill just had to stop contradicting it.
+        NovaBadge(
             text = text,
             color = if (enabled) colors.accent else colors.textSecondary,
+            backgroundColor = if (enabled) colors.accentSurface else surfaces.control,
+            borderColor = if (enabled) colors.accent.copy(alpha = 0.68f) else surfaces.tileBorder,
             fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(fill)
-                .border(1.dp, stroke, RoundedCornerShape(999.dp))
-                .padding(horizontal = 9.dp, vertical = 5.dp)
+            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 5.dp)
         )
     }
 
@@ -2186,103 +2182,32 @@ class NovaLibraryActivity : NovaActivity() {
         modifier: Modifier = Modifier,
         heightDp: Int = 44
     ) {
+        // The d-pad edit-mode handling that used to live here is NovaSearchTextField now,
+        // because the settings field needed the same thing and did not have it.
         val colors = LocalNovaComposeColors.current
-        val surfaces = LocalNovaLibrarySurfaces.current
-        val focusManager = LocalFocusManager.current
-        val keyboardController = LocalSoftwareKeyboardController.current
-        val searchFocusRequester = remember { FocusRequester() }
-        var focused by remember { mutableStateOf(false) }
-        var searchEditing by remember { mutableStateOf(false) }
-
-        fun beginSearchEditing() {
-            searchEditing = true
-            searchFocusRequester.requestFocus()
-            keyboardController?.show()
-        }
-
-        fun leaveSearchEditing(direction: FocusDirection? = null): Boolean {
-            searchEditing = false
-            keyboardController?.hide()
-            direction?.let { focusManager.moveFocus(it) }
-            return true
-        }
-
-        BasicTextField(
+        NovaSearchTextField(
             value = value,
             onValueChange = onValueChange,
-            readOnly = !searchEditing,
-            singleLine = true,
-            textStyle = TextStyle(color = colors.textPrimary, fontSize = 14.sp),
-            cursorBrush = SolidColor(colors.accent),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    searchEditing = false
-                    keyboardController?.hide()
-                    focusManager.clearFocus(force = true)
+            contentDescription = getString(R.string.nova_library_search_hint),
+            modifier = modifier,
+            heightDp = heightDp
+        ) { innerTextField ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isBlank()) {
+                    Text(
+                        text = stringResource(R.string.nova_library_search_hint),
+                        color = colors.textSecondary,
+                        fontSize = 14.sp
+                    )
                 }
-            ),
-            modifier = modifier
-                .focusRequester(searchFocusRequester)
-                .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) {
-                        return@onPreviewKeyEvent false
-                    }
-                    when (event.key) {
-                        Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
-                            if (!searchEditing) {
-                                beginSearchEditing()
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                        Key.DirectionDown -> leaveSearchEditing(FocusDirection.Down)
-                        Key.DirectionUp -> leaveSearchEditing(FocusDirection.Up)
-                        Key.DirectionLeft -> leaveSearchEditing(FocusDirection.Left)
-                        Key.DirectionRight -> leaveSearchEditing(FocusDirection.Right)
-                        else -> false
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { beginSearchEditing() })
-                }
-                .height(heightDp.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(surfaces.control)
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color = if (focused) surfaces.focusRing else surfaces.tileBorder,
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .onFocusChanged {
-                    focused = it.isFocused
-                    if (!it.isFocused && searchEditing) {
-                        searchEditing = false
-                        keyboardController?.hide()
-                    }
-                }
-                .semantics {
-                    contentDescription = getString(R.string.nova_library_search_hint)
-                },
-            decorationBox = { innerTextField ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (value.isBlank()) {
-                        Text(
-                            text = stringResource(R.string.nova_library_search_hint),
-                            color = colors.textSecondary,
-                            fontSize = 14.sp
-                        )
-                    }
-                    innerTextField()
-                }
+                innerTextField()
             }
-        )
+        }
     }
 
     @Composable
@@ -2599,17 +2524,15 @@ class NovaLibraryActivity : NovaActivity() {
     @Composable
     private fun NovaMiniBadge(text: String, modifier: Modifier = Modifier) {
         val surfaces = LocalNovaLibrarySurfaces.current
-        Text(
+        NovaBadge(
             text = text,
+            modifier = modifier,
             color = surfaces.onMedia,
+            backgroundColor = surfaces.mediaScrimBottom.copy(alpha = 0.60f),
+            borderColor = surfaces.onMedia.copy(alpha = 0.20f),
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
-            lineHeight = 9.sp,
-            modifier = modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(surfaces.mediaScrimBottom.copy(alpha = 0.60f))
-                .border(1.dp, surfaces.onMedia.copy(alpha = 0.20f), RoundedCornerShape(999.dp))
-                .padding(horizontal = 5.dp, vertical = 1.dp)
+            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp)
         )
     }
 
@@ -2659,7 +2582,7 @@ class NovaLibraryActivity : NovaActivity() {
                 .fillMaxWidth()
                 .padding(horizontal = presentationSpec.focusGutterDp.dp)
                 .aspectRatio(NovaLibraryUiStateMapper.posterAspectRatio())
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(shimmerBrush)
         )
     }
@@ -2705,9 +2628,9 @@ class NovaLibraryActivity : NovaActivity() {
             Column(
                 modifier = Modifier
                     .widthIn(max = 360.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(NovaRadius.hero))
                     .background(surfaces.panel)
-                    .border(1.dp, surfaces.tileBorder, RoundedCornerShape(22.dp))
+                    .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero))
                     .padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -2715,9 +2638,7 @@ class NovaLibraryActivity : NovaActivity() {
                 Text(
                     text = eyebrow.uppercase(Locale.getDefault()),
                     color = colors.accent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.7.sp,
+                    style = NovaChromeType.label(fontSize = 11.sp),
                     textAlign = TextAlign.Center
                 )
                 Text(
@@ -2784,7 +2705,7 @@ class NovaLibraryActivity : NovaActivity() {
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        val drawerShape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)
+        val drawerShape = RoundedCornerShape(topStart = NovaRadius.drawer, bottomStart = NovaRadius.drawer)
         val serverDisplayName = serverName?.takeIf { it.isNotBlank() && it != serverHost }
         val hostLabel = if (serverDisplayName == null) {
             stringResource(R.string.nova_system_menu_host_format, serverHost)
@@ -3001,11 +2922,11 @@ class NovaLibraryActivity : NovaActivity() {
                     focused = focused,
                     focusedScale = NovaFocusMotionSpec.ButtonFocusedScale,
                     haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
-                    cornerRadius = 16.dp
+                    cornerRadius = NovaRadius.row
                 )
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(if (focused) surfaces.selectedControl else surfaces.control)
-                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(16.dp))
+                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(NovaRadius.row))
                 .onFocusChanged { focused = it.isFocused || it.hasFocus }
                 .combinedClickable(
                     role = Role.Button,
@@ -3066,7 +2987,7 @@ class NovaLibraryActivity : NovaActivity() {
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
-        val drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+        val drawerShape = RoundedCornerShape(topEnd = NovaRadius.drawer, bottomEnd = NovaRadius.drawer)
         val drawerFocusRequester = remember { FocusRequester() }
         LaunchedEffect(Unit) {
             delay(75)
@@ -3171,9 +3092,7 @@ class NovaLibraryActivity : NovaActivity() {
                         Text(
                             text = stringResource(R.string.nova_controller_hint_filters),
                             color = colors.textSecondary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.7.sp,
+                            style = NovaChromeType.label(fontSize = 10.sp),
                             modifier = Modifier.weight(1f)
                         )
                         NovaActionButton(
@@ -3219,9 +3138,7 @@ class NovaLibraryActivity : NovaActivity() {
                     Text(
                         text = stringResource(R.string.nova_library_options_sort_title),
                         color = colors.textSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.7.sp
+                        style = NovaChromeType.label(fontSize = 10.sp),
                     )
                     NovaLibrarySortMode.entries.forEach { sortMode ->
                         NovaSelectableChip(
@@ -3235,9 +3152,7 @@ class NovaLibraryActivity : NovaActivity() {
                     Text(
                         text = stringResource(R.string.nova_library_options_layout_title),
                         color = colors.textSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.7.sp,
+                        style = NovaChromeType.label(fontSize = 10.sp),
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     NovaLibraryLayoutMode.entries.forEach { layoutMode ->
@@ -3252,9 +3167,7 @@ class NovaLibraryActivity : NovaActivity() {
                     Text(
                         text = stringResource(R.string.nova_library_options_poster_titles_title),
                         color = colors.textSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.7.sp,
+                        style = NovaChromeType.label(fontSize = 10.sp),
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     NovaSelectableChip(
@@ -3285,7 +3198,7 @@ class NovaLibraryActivity : NovaActivity() {
         val surfaces = LocalNovaLibrarySurfaces.current
         Surface(
             color = surfaces.panel.copy(alpha = 0.58f),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(NovaRadius.hero),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
@@ -3575,17 +3488,21 @@ class NovaLibraryActivity : NovaActivity() {
                     focused = focused,
                     focusedScale = NovaFocusMotionSpec.CardFocusedScale,
                     haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
-                    cornerRadius = 14.dp
+                    cornerRadius = NovaRadius.chip
                 )
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(NovaRadius.chip))
                 .background(
+                    // These were two branches returning one colour, so an unfocused selected
+                    // chip was painted with the focus fill and read as focused. Selection is
+                    // still legible without it: the label goes accent and SemiBold, and the
+                    // border below goes accent too.
                     when {
                         focused -> surfaces.selectedControl
-                        selected -> surfaces.selectedControl
+                        selected -> colors.accentSurface
                         else -> surfaces.control
                     }
                 )
-                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(14.dp))
+                .border(if (focused) 3.dp else 1.dp, stroke, RoundedCornerShape(NovaRadius.chip))
                 .semantics(mergeDescendants = true) {
                     contentDescription = chipDescription
                     role = Role.Button
@@ -3743,7 +3660,7 @@ class NovaLibraryActivity : NovaActivity() {
         private const val CONTROLLER_AXIS_INTENT_THRESHOLD = 0.35f
         /** One corner radius for library surfaces, so panels, the continue-playing row and
          *  the bar keep the same edge whichever layout is showing. */
-        private val NovaLibrarySurfaceCornerRadius = 8.dp
+        private val NovaLibrarySurfaceCornerRadius = NovaRadius.hero
 
         /** The poster wall owns the screen in grid layouts, so the shared backdrop reads
          *  as atmosphere behind it rather than competing with twenty covers. */

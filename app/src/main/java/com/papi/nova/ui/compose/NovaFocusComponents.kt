@@ -77,7 +77,7 @@ internal fun Modifier.novaFocusMotion(
     focusedScale: Float = NovaFocusMotionSpec.CardFocusedScale,
     pressedScale: Float = NovaFocusMotionSpec.ButtonPressedScale,
     haloAlpha: Float = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-    cornerRadius: Dp = 14.dp
+    cornerRadius: Dp = NovaRadius.row
 ): Modifier = composed {
     val surfaces = LocalNovaLibrarySurfaces.current
     val targetScale = when {
@@ -121,7 +121,7 @@ fun NovaBadge(
     fontSize: TextUnit = 10.sp,
     contentPadding: PaddingValues = PaddingValues(horizontal = 8.dp, vertical = 3.dp)
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(NovaRadius.pill)
     Text(
         text = text,
         modifier = modifier
@@ -153,7 +153,7 @@ fun NovaControllerHintBar(
 
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(NovaRadius.hero)
     val hintContentDescription = semanticsDescription
         ?: hints.joinToString(separator = " · ") { hint -> "${hint.key} ${hint.label}" }
     val horizontalPadding = if (compact) 8.dp else 10.dp
@@ -184,7 +184,7 @@ fun NovaControllerHintBar(
                     fontWeight = FontWeight.Black,
                     maxLines = 1,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(NovaRadius.row))
                         .background(colors.accent.copy(alpha = 0.92f))
                         .padding(horizontal = 7.dp, vertical = 3.dp)
                 )
@@ -213,7 +213,7 @@ fun NovaFocusableCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(NovaRadius.row)
     val borderWidth by animateDpAsState(
         targetValue = if (focused && enabled) 2.dp else 1.dp,
         animationSpec = novaFocusDpTween(),
@@ -250,7 +250,7 @@ fun NovaFocusableCard(
                 focused = focused,
                 enabled = enabled,
                 haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-                cornerRadius = 14.dp
+                cornerRadius = NovaRadius.row
             )
             .clip(shape)
             .background(surfaces.tile)
@@ -275,7 +275,7 @@ fun NovaActionButton(
     selected: Boolean = false,
     stateDescription: String? = null,
     minHeight: Dp = 38.dp,
-    cornerRadius: Dp = 14.dp,
+    cornerRadius: Dp = NovaRadius.hero,
     fontSize: TextUnit = 13.sp,
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
 ) {
@@ -290,6 +290,11 @@ fun NovaActionButton(
         pressed && enabled -> surfaces.selectedControl.copy(alpha = surfaces.selectedControl.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
         primary && enabled -> colors.accent
         focused -> surfaces.selectedControl
+        // `selected` used to reach the semantics tree and no colour branch, so a selected
+        // button looked exactly like an unselected one. Call sites worked around that by
+        // passing `primary = true` to mean "selected", which is why that flag ended up
+        // carrying two meanings.
+        selected && enabled -> colors.accentSurface
         else -> surfaces.control
     }
     val container by animateColorAsState(

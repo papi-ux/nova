@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -75,9 +76,12 @@ import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
+import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaMenuBackdropBlur
+import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.NovaSearchTextField
 import com.papi.nova.ui.compose.novaFocusMotion
 import kotlin.math.roundToInt
 
@@ -206,8 +210,8 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-private val NovaSettingsCardShape = RoundedCornerShape(14.dp)
-private val NovaSettingsChipShape = RoundedCornerShape(12.dp)
+private val NovaSettingsCardShape = RoundedCornerShape(NovaRadius.row)
+private val NovaSettingsChipShape = RoundedCornerShape(NovaRadius.chip)
 
 private object NovaSettingsMetrics {
     fun categoryRailWidthDp(): Int = 196
@@ -417,55 +421,48 @@ private fun NovaSettingsSearchField(
     onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // This was a plain BasicTextField: focus it with a d-pad and the direction keys went into
+    // the text rather than moving on, so there was no way off the field without a touchscreen.
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    var focused by remember { mutableStateOf(false) }
-    val shape = NovaSettingsCardShape
-    BasicTextField(
+    NovaSearchTextField(
         value = query,
         onValueChange = onQuery,
-        singleLine = true,
-        textStyle = TextStyle(color = colors.textPrimary, fontSize = 14.sp),
-        modifier = modifier
-            .height(44.dp)
-            .clip(shape)
-            .novaFocusMotion(focused = focused, pressed = false)
-            .background(if (focused) surfaces.selectedControl else surfaces.control)
-            .border(if (focused) 3.dp else 1.dp, if (focused) surfaces.focusRing else surfaces.tileBorder, shape)
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
-            .padding(horizontal = 12.dp),
-        decorationBox = { innerTextField ->
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
+        contentDescription = stringResource(R.string.nova_settings_search_hint),
+        modifier = modifier,
+        shape = NovaSettingsCardShape
+    ) { innerTextField ->
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
             ) {
-                Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (query.isBlank()) {
-                        Text(
-                            text = "Search settings",
-                            color = colors.textMuted,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    innerTextField()
+                if (query.isBlank()) {
+                    Text(
+                        text = stringResource(R.string.nova_settings_search_hint),
+                        color = colors.textMuted,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                if (query.isNotBlank()) {
-                    TextButton(
-                        onClick = onClear,
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Text("Clear")
-                    }
+                innerTextField()
+            }
+            if (query.isNotBlank()) {
+                TextButton(
+                    onClick = onClear,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Text(stringResource(R.string.nova_settings_search_clear))
                 }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -640,8 +637,11 @@ private fun NovaCategoryRow(
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
     val shape = NovaSettingsCardShape
+    // `selected || focused` was one branch for two different states, which made a
+    // selected card indistinguishable from the card the d-pad happens to be on.
     val background = when {
-        selected || focused -> surfaces.selectedControl
+        focused -> surfaces.selectedControl
+        selected -> colors.accentSurface
         else -> surfaces.control
     }
     Column(
@@ -869,21 +869,18 @@ private fun NovaSettingRow(
 @Composable
 private fun NovaSettingOverrideBadge(alpha: Float) {
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = NovaSettingsChipShape
-    Text(
+    // This is a static label -- it cannot be focused and cannot be selected -- and it used to
+    // paint itself with the focus fill over a focus-ring border, wearing both of the signals
+    // that are supposed to mean the d-pad is here. It is an accent badge, so it says accent.
+    NovaBadge(
         text = "Override",
         color = colors.textPrimary.copy(alpha = alpha),
-        fontSize = 10.sp,
-        lineHeight = 11.sp,
+        backgroundColor = colors.accentSurface.copy(
+            alpha = colors.accentSurface.alpha * alpha * LocalNovaMenuOpacityScale.current
+        ),
+        borderColor = colors.accent.copy(alpha = 0.72f * alpha),
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .clip(shape)
-            .background(surfaces.selectedControl.copy(alpha = alpha * LocalNovaMenuOpacityScale.current))
-            .border(1.dp, surfaces.focusRing.copy(alpha = alpha), shape)
-            .padding(horizontal = 7.dp, vertical = 3.dp),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+        contentPadding = PaddingValues(horizontal = 7.dp, vertical = 3.dp)
     )
 }
 
@@ -1084,7 +1081,19 @@ private fun NovaSettingsSelectOptionRow(
             .clip(shape)
             .novaFocusMotion(focused = focused, pressed = false)
             .background(background)
-            .border(if (focused || selected)3.dp else 1.dp, if (focused || selected)surfaces.focusRing else surfaces.tileBorder, shape)
+            .border(
+                when {
+                    focused -> 3.dp
+                    selected -> 2.dp
+                    else -> 1.dp
+                },
+                when {
+                    focused -> surfaces.focusRing
+                    selected -> colors.accent.copy(alpha = 0.72f)
+                    else -> surfaces.tileBorder
+                },
+                shape
+            )
             .onFocusChanged {focused = it.isFocused || it.hasFocus }
             .clickable(onClick = onClick)
             .focusable()
@@ -1129,59 +1138,72 @@ private fun NovaThemePreviewSwatch(themeValue: String) {
         Box(
             modifier = Modifier
                 .size(width = 30.dp, height = 22.dp)
-                .clip(RoundedCornerShape(7.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(palette.window)
-                .border(1.dp, palette.border, RoundedCornerShape(7.dp))
+                .border(1.dp, palette.border, RoundedCornerShape(NovaRadius.row))
         ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(width = 17.dp, height = 10.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(NovaRadius.chip))
                     .background(palette.surface)
             )
         }
         Box(
             modifier = Modifier
                 .size(9.dp)
-                .clip(RoundedCornerShape(99.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(palette.accent)
         )
         Box(
             modifier = Modifier
                 .size(width = 18.dp, height = 4.dp)
-                .clip(RoundedCornerShape(99.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(palette.accent.copy(alpha = 0.42f))
         )
     }
 }
 
+/**
+ * @brief The swatch reads the palette it is previewing.
+ *
+ * These were 24 hardcoded hexes, and the Polaris ones had gone stale: the swatch still
+ * advertised the pre-rebrand blue and navy after the theme moved to Medium Purple over
+ * Indigo, so the settings screen showed a colour the app no longer draws. PcView already
+ * did this correctly by reading the resources; this does the same, and cannot drift again.
+ *
+ * Material You keeps literals because there is nothing to read -- its palette comes from
+ * the wallpaper at runtime, so the swatch can only ever be an illustration of one.
+ */
+@Composable
 private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette {
     return when (themeValue) {
         NovaThemeManager.THEME_PORTABLE_CHROME -> NovaThemePreviewPalette(
-            window = Color(0xFFA2ADBA),
-            surface = Color(0xFFC4CDD8),
-            accent = Color(0xFF2F64B3),
-            border = Color(0xFF83909F)
+            window = colorResource(R.color.nova_portable_bg_window),
+            surface = colorResource(R.color.nova_portable_bg_card),
+            accent = colorResource(R.color.nova_portable_accent),
+            border = colorResource(R.color.nova_portable_divider)
         )
         NovaThemeManager.THEME_OLED -> NovaThemePreviewPalette(
-            window = Color.Black,
-            surface = Color(0xFF0A0A0E),
-            accent = Color(0xFF8B80FF),
-            border = Color(0xFF1A1A22)
+            window = colorResource(R.color.nova_oled_bg_window),
+            surface = colorResource(R.color.nova_oled_bg_card),
+            accent = colorResource(R.color.nova_oled_accent),
+            border = colorResource(R.color.nova_oled_divider)
         )
         NovaThemeManager.THEME_MIAMI -> NovaThemePreviewPalette(
-            window = Color(0xFF130817),
-            surface = Color(0xFF241429),
-            accent = Color(0xFFFF5CAB),
-            border = Color(0xFF6C3C6F)
+            window = colorResource(R.color.nova_miami_bg_window),
+            surface = colorResource(R.color.nova_miami_bg_card),
+            accent = colorResource(R.color.nova_miami_accent),
+            border = colorResource(R.color.nova_miami_divider)
         )
         NovaThemeManager.THEME_HIGH_CONTRAST -> NovaThemePreviewPalette(
-            window = Color(0xFF05070C),
-            surface = Color(0xFF0F172A),
-            accent = Color(0xFF60A5FA),
-            border = Color(0xFFDBEAFE)
+            window = colorResource(R.color.nova_hc_bg_window),
+            surface = colorResource(R.color.nova_hc_bg_card),
+            accent = colorResource(R.color.nova_hc_accent),
+            border = colorResource(R.color.nova_hc_divider)
         )
+        // Dynamic at runtime; there is no resource to read.
         NovaThemeManager.THEME_MATERIAL_YOU -> NovaThemePreviewPalette(
             window = Color(0xFF111318),
             surface = Color(0xFF1D2026),
@@ -1189,10 +1211,10 @@ private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette
             border = Color(0xFF8E9199)
         )
         else -> NovaThemePreviewPalette(
-            window = Color(0xFF1A1A2E),
-            surface = Color(0xCC232340),
-            accent = Color(0xFF78A6FF),
-            border = Color(0xFF393C51)
+            window = colorResource(R.color.nova_bg_window),
+            surface = colorResource(R.color.nova_bg_card),
+            accent = colorResource(R.color.nova_polaris_accent),
+            border = colorResource(R.color.nova_divider)
         )
     }
 }
@@ -1200,15 +1222,13 @@ private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette
 @Composable
 private fun NovaSettingCurrentBadge() {
     val colors = LocalNovaComposeColors.current
-    Text(
+    NovaBadge(
         text = "Current",
         color = colors.onAccent,
+        backgroundColor = colors.accent,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .clip(NovaSettingsChipShape)
-            .background(colors.accent)
-            .padding(horizontal = 10.dp, vertical = 5.dp)
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
     )
 }
 

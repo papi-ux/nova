@@ -34,7 +34,12 @@ This contract makes the Nova side of the Nova/Polaris cockpit requirements expli
 ## PSP Chrome / Portable Chrome palette
 
 - Portable Chrome should read as smoked graphite/dim moonlight grey/silver shell chrome, and subtle portable chrome playstation symbol accents.
+- Graphite is literal. The reference is a silver PSP-1000 with the screen off: the shell is silver, the screen is not. Surfaces are near-black with a blue cast (`#14161A` window, `#1E2228` card) and the moonlight silver lives in the text, the dividers and the rails. Until this was made literal the theme shipped as a light slab — an `#A2ADBA` window with dark text, the only always-light palette in Nova, which is the opposite of what this line asked for.
+- Contrast is measured, not judged by eye: against the card, text 10.35:1, secondary 6.32, muted 4.76, accent 5.00, error 6.76. The divider is 1.57 on purpose, because it is a hairline rather than content.
+- The accent is cross-blue lifted for a dark ground (`#5A93D6`). The older `#2F64B3` was 3.1:1 on graphite, too dim to carry a focus ring, and the lift flips the other half of the pairing — a label on an accent fill is now the graphite ground, because white on the lifted blue is only 3.2:1.
 - Triangle green remains appropriate for semantic online/status states, but primary focus and selection accents should lean cross-blue with square magenta and circle coral as subtle secondary glints.
+- The glints live in the ambient nebulae. Those already carry a per-node colour and draw at 1-4% opacity behind everything else, so cycling cross blue, square magenta, circle coral and triangle green across the six nodes reads as a tint rather than as chrome. Until this landed the four tokens were declared in `colors_nova.xml` and referenced from nowhere, while the resource guard passed the whole time — it pinned that the hexes exist, which is a different fact from anything reading them.
+- `NovaThemeManager.getAmbientAccentColors` is the only reader, and it returns a single accent for every theme but Portable Chrome, so the no-leak rule below is enforced rather than only stated.
 - Purple/violet accents must not appear in PSP Chrome / Portable Chrome chrome, and Portable Chrome PlayStation-symbol accents must not leak into non-Portable selection, focus, host, or button accents.
 - Text must stay readable on all PSP panels; avoid washed-out light panels with weak dark text or bright green body text.
 

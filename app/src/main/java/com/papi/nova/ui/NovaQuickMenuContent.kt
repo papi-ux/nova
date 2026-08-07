@@ -65,6 +65,7 @@ import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaMenuBackdropBlur
 import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
 import androidx.compose.ui.res.stringResource
+import com.papi.nova.ui.compose.NovaRadius
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -164,7 +165,11 @@ fun NovaQuickMenuDrawer(
         }
     }
 
-    LaunchedEffect(drawerWidthPx) {
+    // Keyed on Unit: the entrance plays once, when the drawer opens. It used to be
+    // keyed on the measured width, so any configuration change -- a rotation, a font
+    // scale change, an external display attaching -- snapped the open drawer shut and
+    // replayed the animation.
+    LaunchedEffect(Unit) {
         drawerProgress.snapTo(0f)
         animateDrawerTo(1f)
     }
@@ -239,7 +244,7 @@ fun NovaQuickMenuContent(
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
-    val drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
+    val drawerShape = RoundedCornerShape(topEnd = NovaRadius.drawer, bottomEnd = NovaRadius.drawer)
     val quickKeysTitle = stringResource(R.string.nova_quick_menu_quick_keys)
     val overlaysTitle = stringResource(R.string.nova_quick_menu_overlays)
     val controlsTitle = stringResource(R.string.nova_quick_menu_controls)
@@ -270,7 +275,7 @@ fun NovaQuickMenuContent(
             modifier = Modifier
                 .width(44.dp)
                 .height(3.dp)
-                .clip(RoundedCornerShape(99.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(colors.accent.copy(alpha = NovaInGameOverlayAlpha.AccentHandle))
                 .align(Alignment.Start)
         )
@@ -279,7 +284,7 @@ fun NovaQuickMenuContent(
         Spacer(Modifier.height(8.dp))
         NovaQuickMenuSessionStrip(state)
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuDiagnosisCard(state.diagnosis)
+        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuStabilityCard(state.stability, callbacks)
         if (state.postSessionReport.visible) {
@@ -410,7 +415,7 @@ private fun NovaQuickMenuHeaderButton(
         modifier = modifier.widthIn(min = 84.dp),
         enabled = action.enabled,
         primary = !action.destructive,
-        cornerRadius = 12.dp,
+        cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
         fontSize = 12.sp,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
@@ -431,7 +436,7 @@ private fun NovaQuickMenuCloseButton(
             .focusRequester(initialFocusRequester)
             .semantics { contentDescription = "Close Command Center" },
         primary = false,
-        cornerRadius = 12.dp,
+        cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
         fontSize = 12.sp,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
@@ -439,7 +444,10 @@ private fun NovaQuickMenuCloseButton(
 }
 
 @Composable
-private fun NovaQuickMenuDiagnosisCard(diagnosis: NovaQuickMenuDiagnosisState) {
+private fun NovaQuickMenuDiagnosisCard(
+    diagnosis: NovaQuickMenuDiagnosisState,
+    callbacks: NovaQuickMenuCallbacks,
+) {
     val detail = buildList {
         diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
         diagnosis.evidence.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("Evidence: $it") }
@@ -456,7 +464,11 @@ private fun NovaQuickMenuDiagnosisCard(diagnosis: NovaQuickMenuDiagnosisState) {
             ),
             enabled = diagnosis.available
         ),
-        callbacks = NovaQuickMenuCallbacks()
+        // The real callbacks. This used to construct a fresh default instance, whose
+        // every member is a no-op, so the card rendered enabled and did nothing when
+        // pressed -- and looked no different from one that worked. The guard forbids the
+        // constructor by name, so this comment deliberately does not spell it.
+        callbacks = callbacks,
     )
 }
 
@@ -468,12 +480,12 @@ private fun NovaQuickMenuSessionStrip(state: NovaQuickMenuUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(NovaRadius.row))
             .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * LocalNovaMenuOpacityScale.current))
             .border(
                 1.dp,
                 surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current),
-                RoundedCornerShape(14.dp)
+                RoundedCornerShape(NovaRadius.row)
             )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -640,7 +652,7 @@ private fun NovaQuickMenuPreferenceButton(
         modifier = modifier,
         enabled = option.enabled,
         primary = option.selected,
-        cornerRadius = 9.dp,
+        cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
         fontSize = 10.sp,
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 7.dp)
@@ -699,7 +711,7 @@ private fun NovaQuickKeys(actions: List<NovaQuickMenuAction>, callbacks: NovaQui
                         onClick = { callbacks.perform(action) },
                         modifier = Modifier.weight(1f),
                         enabled = action.enabled,
-                        cornerRadius = 9.dp,
+                        cornerRadius = NovaRadius.hero,
                         minHeight = 36.dp,
                         fontSize = 11.sp,
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
@@ -726,12 +738,12 @@ private fun NovaQuickMenuPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(NovaRadius.hero))
             .background(surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile * LocalNovaMenuOpacityScale.current))
             .border(
                 1.dp,
                 surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current),
-                RoundedCornerShape(14.dp)
+                RoundedCornerShape(NovaRadius.hero)
             )
             .padding(contentPadding)
     ) {
@@ -750,9 +762,9 @@ private fun NovaQuickMenuSectionHeader(title: String) {
     val surfaces = LocalNovaLibrarySurfaces.current
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(99.dp))
+            .clip(RoundedCornerShape(NovaRadius.pill))
             .background(colors.accent.copy(alpha = 0.14f))
-            .border(1.dp, surfaces.focusRing.copy(alpha = 0.52f), RoundedCornerShape(99.dp))
+            .border(1.dp, surfaces.focusRing.copy(alpha = 0.52f), RoundedCornerShape(NovaRadius.pill))
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -760,7 +772,7 @@ private fun NovaQuickMenuSectionHeader(title: String) {
         Box(
             modifier = Modifier
                 .size(6.dp)
-                .clip(RoundedCornerShape(99.dp))
+                .clip(RoundedCornerShape(NovaRadius.pill))
                 .background(colors.accent)
         )
         Text(
@@ -873,7 +885,7 @@ private fun NovaQuickMenuMenuOpacityControl(
                             R.string.nova_quick_menu_hud_opacity_not_selected
                         }
                     ),
-                    cornerRadius = 9.dp,
+                    cornerRadius = NovaRadius.hero,
                     minHeight = 44.dp,
                     fontSize = 10.sp,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
@@ -950,7 +962,7 @@ private fun NovaQuickMenuHudOpacityControl(
                             R.string.nova_quick_menu_hud_opacity_not_selected
                         }
                     ),
-                    cornerRadius = 9.dp,
+                    cornerRadius = NovaRadius.hero,
                     minHeight = 44.dp,
                     fontSize = 10.sp,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
@@ -972,7 +984,7 @@ private fun NovaQuickMenuClickableSurface(
 ) {
     var focused by remember { mutableStateOf(false) }
     val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(if (flat) 10.dp else 14.dp)
+    val shape = RoundedCornerShape(if (flat) NovaRadius.row else NovaRadius.hero)
     val base = if (flat) Color.Transparent else surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile * LocalNovaMenuOpacityScale.current)
     val focusedBackground = if (focused) surfaces.selectedControl else base
     val borderColor = when {
@@ -1010,7 +1022,7 @@ private fun NovaQuickMenuChipView(chip: NovaQuickMenuChip) {
     val bg = toneColor(chip.tone).copy(alpha = if (chip.tone == NovaQuickMenuTone.INACTIVE) 0.16f else 0.20f)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(99.dp))
+            .clip(RoundedCornerShape(NovaRadius.pill))
             .background(bg)
             .padding(horizontal = 9.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center

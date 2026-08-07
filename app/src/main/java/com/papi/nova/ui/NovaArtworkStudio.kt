@@ -48,6 +48,7 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
+import com.papi.nova.ui.compose.NovaRadius
 
 object NovaArtworkKinds {
     const val POSTER = PolarisGame.ARTWORK_KIND_POSTER
@@ -306,9 +307,9 @@ fun NovaArtworkStudio(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 14.dp, end = 14.dp, top = 12.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(NovaRadius.hero))
             .background(surfaces.panel)
-            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(16.dp)),
+            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero)),
     ) {
         Row(
             modifier = Modifier
@@ -328,7 +329,7 @@ fun NovaArtworkStudio(
                     loader = { currentArtworkLoader(it, NovaArtworkKinds.ICON) },
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(NovaRadius.row))
                         .background(colors.window),
                 )
                 Spacer(Modifier.width(10.dp))
@@ -597,9 +598,9 @@ private fun NovaArtworkComposition(
                 .fillMaxWidth()
                 .height(156.dp)
                 .padding(top = 4.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(NovaRadius.row))
                 .background(colors.window)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(12.dp))
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.row))
                 .semantics { contentDescription = title },
         ) {
             StudioCompositionAsset(
@@ -624,8 +625,8 @@ private fun NovaArtworkComposition(
                     .align(Alignment.CenterStart)
                     .padding(10.dp)
                     .size(width = 68.dp, height = 96.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, colors.divider, RoundedCornerShape(8.dp)),
+                    .clip(RoundedCornerShape(NovaRadius.row))
+                    .border(1.dp, colors.divider, RoundedCornerShape(NovaRadius.row)),
                 scaleType = ImageView.ScaleType.CENTER_CROP,
                 contentDescription = stringResource(R.string.nova_artwork_preview_poster),
             )
@@ -661,7 +662,7 @@ private fun NovaArtworkComposition(
                     .align(Alignment.BottomEnd)
                     .padding(10.dp)
                     .size(38.dp)
-                    .clip(RoundedCornerShape(8.dp)),
+                    .clip(RoundedCornerShape(NovaRadius.row)),
                 scaleType = ImageView.ScaleType.FIT_CENTER,
                 contentDescription = stringResource(R.string.nova_artwork_preview_icon),
             )
@@ -751,7 +752,7 @@ private fun NovaArtworkIdentityPicker(
                 loader = { candidatePreviewLoader(it, candidate) },
                 modifier = Modifier
                     .size(width = 64.dp, height = 82.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(NovaRadius.row))
                     .background(colors.window),
                 scaleType = ImageView.ScaleType.CENTER_CROP,
             )
@@ -879,12 +880,12 @@ private fun NovaArtworkChoicePicker(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(if (choice.kind == NovaArtworkKinds.POSTER) 132.dp else 76.dp)
-                            .clip(RoundedCornerShape(9.dp))
+                            .clip(RoundedCornerShape(NovaRadius.row))
                             .background(colors.window)
                             .border(
                                 if (selected) 2.dp else 1.dp,
                                 if (selected) colors.accent else colors.divider,
-                                RoundedCornerShape(9.dp),
+                                RoundedCornerShape(NovaRadius.row),
                             ),
                         scaleType = if (choice.kind == NovaArtworkKinds.LOGO || choice.kind == NovaArtworkKinds.ICON) {
                             ImageView.ScaleType.FIT_CENTER
