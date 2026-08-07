@@ -32,7 +32,7 @@ class NovaThorAudioFieldTest(unittest.TestCase):
             source_process_scoped=True,
         )
 
-        self.assertEqual(report["schema_version"], 2)
+        self.assertEqual(report["schema_version"], 3)
         self.assertEqual(report["stream_display_ids"], [0])
         self.assertEqual(report["companion_display_ids"], [1])
         self.assertEqual(report["audio_context_display_ids"], [0])
@@ -47,6 +47,105 @@ class NovaThorAudioFieldTest(unittest.TestCase):
         self.assertTrue(report["checks"]["source_process_scoped"])
         self.assertTrue(report["checks"]["diagnostic_evidence_complete"])
         self.assertFalse(report["physical_audio_verified"])
+
+    def test_inventory_reports_a_second_output_device_as_a_choice(self):
+        module = load_module(self)
+        report = module.analyze_logcat(
+            """
+            Nova: Android display role stream id=0 target=largest
+            Nova: Android display audio route display_id=0 device_id=2 type=2
+            Nova: Android display audio inventory display_id=0 outputs=2 routes=0
+            Nova: Android display audio output device_id=2 type=2 address=none
+            Nova: Android display audio output device_id=9 type=9 address=hdmi-top
+            """
+        )
+
+        self.assertEqual(report["latest_audio_inventory"]["outputs"], 2)
+        self.assertEqual(
+            report["audio_outputs"],
+            [
+                {"device_id": "2", "type": "2", "address": "none"},
+                {"device_id": "9", "type": "9", "address": "hdmi-top"},
+            ],
+        )
+        self.assertTrue(report["checks"]["audio_inventory_observed"])
+        self.assertTrue(report["checks"]["audio_output_choice_exists"])
+
+    def test_single_output_device_is_reported_as_no_choice(self):
+        module = load_module(self)
+        report = module.analyze_logcat(
+            """
+            Nova: Android display role stream id=0 target=largest
+            Nova: Android display audio inventory display_id=0 outputs=1 routes=0
+            Nova: Android display audio output device_id=2 type=2 address=none
+            """
+        )
+
+        # The whole point of the capture: one output means setPreferredDevice has nowhere to aim,
+        # so this reads False rather than None. Only a missing inventory line is unknown.
+        self.assertTrue(report["checks"]["audio_inventory_observed"])
+        self.assertFalse(report["checks"]["audio_output_choice_exists"])
+
+    def test_presentation_route_carrying_live_audio_is_flagged(self):
+        module = load_module(self)
+        report = module.analyze_logcat(
+            """
+            Nova: Android display role stream id=0 target=largest
+            Nova: Android display audio inventory display_id=0 outputs=1 routes=2
+            Nova: Android display audio output device_id=2 type=2 address=none
+            Nova: Android display audio presentation index=0 live_audio=true presentation_display_id=none selected=true
+            Nova: Android display audio presentation index=1 live_audio=true presentation_display_id=1 selected=false
+            """
+        )
+
+        self.assertEqual(
+            report["audio_presentation_routes"],
+            [
+                {
+                    "index": 0,
+                    "live_audio": True,
+                    "presentation_display_id": "none",
+                    "selected": True,
+                },
+                {
+                    "index": 1,
+                    "live_audio": True,
+                    "presentation_display_id": "1",
+                    "selected": False,
+                },
+            ],
+        )
+        # A route that names a display and carries live audio is the second pre-34 lever, and it
+        # is independent of the device count -- here there is only one output device.
+        self.assertFalse(report["checks"]["audio_output_choice_exists"])
+        self.assertTrue(report["checks"]["presentation_route_offers_audio"])
+
+    def test_route_without_a_presentation_display_offers_no_affinity(self):
+        module = load_module(self)
+        report = module.analyze_logcat(
+            """
+            Nova: Android display role stream id=0 target=largest
+            Nova: Android display audio inventory display_id=0 outputs=1 routes=1
+            Nova: Android display audio presentation index=0 live_audio=true presentation_display_id=none selected=true
+            """
+        )
+
+        self.assertFalse(report["checks"]["presentation_route_offers_audio"])
+
+    def test_absent_inventory_is_unknown_rather_than_no_choices(self):
+        module = load_module(self)
+        report = module.analyze_logcat(
+            """
+            Nova: Android display role stream id=0 target=largest
+            Nova: Android display audio route display_id=0 device_id=2 type=2
+            """
+        )
+
+        # A capture from a build that predates the inventory must not be readable as "this device
+        # has one output and no routes" -- that is the exact wrong conclusion to draw from silence.
+        self.assertFalse(report["checks"]["audio_inventory_observed"])
+        self.assertIsNone(report["checks"]["audio_output_choice_exists"])
+        self.assertIsNone(report["checks"]["presentation_route_offers_audio"])
 
     def test_analyze_logcat_flags_mismatch_and_window_failures(self):
         module = load_module(self)

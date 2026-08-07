@@ -31,6 +31,18 @@ AUDIO_ROUTE_RE = re.compile(
     rf"^Nova: Android display audio route display_id={DISPLAY_ID} "
     r"device_id=(none|\d+) type=(none|\d+)$"
 )
+AUDIO_INVENTORY_RE = re.compile(
+    rf"^Nova: Android display audio inventory display_id={DISPLAY_ID} "
+    r"outputs=(\d+) routes=(\d+)$"
+)
+AUDIO_OUTPUT_RE = re.compile(
+    r"^Nova: Android display audio output device_id=(\d+) type=(\d+) "
+    r"address=(none|[A-Za-z0-9_-]{1,32})$"
+)
+AUDIO_PRESENTATION_RE = re.compile(
+    r"^Nova: Android display audio presentation index=(\d+) live_audio=(true|false) "
+    r"presentation_display_id=(none|\d+) selected=(true|false)$"
+)
 FOCUS_RE = re.compile(
     rf"^Nova: Android display focus role=(game|companion) display_id={DISPLAY_ID} "
     r"window=(true|false) game_top_resumed=(true|false)$"
@@ -68,6 +80,9 @@ def analyze_logcat(logcat: str, *, source_process_scoped: bool = False) -> dict:
     audio_stream_display_ids = []
     audio_context_display_ids = []
     audio_routes = []
+    audio_outputs = []
+    audio_presentation_routes = []
+    latest_audio_inventory = None
     focus_events = []
     runtime_errors = {kind: 0 for kind in ERROR_MARKERS}
     latest_stream_display_id = None
@@ -104,6 +119,33 @@ def analyze_logcat(logcat: str, *, source_process_scoped: bool = False) -> dict:
                 "type": match.group(3),
             }
             _append_unique(audio_routes, route)
+
+        match = _match(AUDIO_INVENTORY_RE, line)
+        if match:
+            latest_audio_inventory = {
+                "display_id": int(match.group(1)),
+                "outputs": int(match.group(2)),
+                "routes": int(match.group(3)),
+            }
+
+        match = _match(AUDIO_OUTPUT_RE, line)
+        if match:
+            output = {
+                "device_id": match.group(1),
+                "type": match.group(2),
+                "address": match.group(3),
+            }
+            _append_unique(audio_outputs, output)
+
+        match = _match(AUDIO_PRESENTATION_RE, line)
+        if match:
+            presentation = {
+                "index": int(match.group(1)),
+                "live_audio": match.group(2) == "true",
+                "presentation_display_id": match.group(3),
+                "selected": match.group(4) == "true",
+            }
+            _append_unique(audio_presentation_routes, presentation)
 
         match = _match(FOCUS_RE, line)
         if match:
@@ -176,8 +218,25 @@ def analyze_logcat(logcat: str, *, source_process_scoped: bool = False) -> dict:
         and runtime_errors_absent
     )
 
+    # The two questions the enumeration exists to answer, and they have opposite fixes.
+    # More than one output device means AudioTrack.setPreferredDevice (API 23) has somewhere to
+    # aim; a route that carries both live audio and a presentation display means MediaRouter can
+    # express the display affinity directly. Neither being true is itself the finding -- it says
+    # the platform offers no pre-34 lever and the launch-time display association is the whole
+    # story. None rather than False when no inventory line was seen at all, so "the build predates
+    # this diagnostic" cannot be read as "the device has no choices".
+    audio_output_choice_exists = len(audio_outputs) > 1 if latest_audio_inventory else None
+    presentation_route_offers_audio = (
+        any(
+            route["live_audio"] and route["presentation_display_id"] != "none"
+            for route in audio_presentation_routes
+        )
+        if latest_audio_inventory
+        else None
+    )
+
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "claim_status": (
             "diagnostic wiring only; physical speaker and AYN volume-slider routing require human confirmation"
         ),
@@ -196,6 +255,9 @@ def analyze_logcat(logcat: str, *, source_process_scoped: bool = False) -> dict:
         "latest_audio_context_display_id": latest_audio_context_display_id,
         "audio_routes": audio_routes,
         "latest_audio_route": latest_audio_route,
+        "latest_audio_inventory": latest_audio_inventory,
+        "audio_outputs": audio_outputs,
+        "audio_presentation_routes": audio_presentation_routes,
         "focus_events": focus_events,
         "latest_game_focus_event": latest_game_focus_event,
         "latest_companion_focus_event": latest_companion_focus_event,
@@ -206,6 +268,9 @@ def analyze_logcat(logcat: str, *, source_process_scoped: bool = False) -> dict:
             "companion_stream_matches_stream": companion_stream_matches,
             "audio_route_observed": bool(audio_routes),
             "audio_route_matches_stream": audio_route_matches,
+            "audio_inventory_observed": latest_audio_inventory is not None,
+            "audio_output_choice_exists": audio_output_choice_exists,
+            "presentation_route_offers_audio": presentation_route_offers_audio,
             "game_window_observed": game_window_observed,
             "game_top_resumed_observed": game_top_resumed_observed,
             "companion_window_observed": companion_window_observed,

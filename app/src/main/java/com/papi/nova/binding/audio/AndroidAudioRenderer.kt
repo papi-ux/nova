@@ -6,6 +6,7 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.media.MediaRouter
 import android.media.audiofx.AudioEffect
 import android.os.Build
 import com.papi.nova.LimeLog
@@ -173,6 +174,95 @@ class AndroidAudioRenderer(
                 LimeLog.info("Nova: Android display audio route display_id=${audioContextDisplayId()} device_id=none type=none")
             }
         }
+        logAudioOutputInventory()
+    }
+
+    /**
+     * Log every audio output the platform admits to, and every media route that names a display.
+     *
+     * The routed-device line above says where this track landed, which is not the same question as
+     * where else it could have gone. On a dual-screen host both launch paths can report the same
+     * builtin speaker while the user hears different screens, and from one line we cannot tell
+     * whether that is one device the vendor re-points below the HAL or two devices we never asked
+     * about. Only the enumeration separates those, and they have opposite fixes: a second
+     * [AudioDeviceInfo] means [AudioTrack.setPreferredDevice] (API 23) can move the audio, while a
+     * single device means nothing in the public API can and the display association at launch is
+     * the whole story.
+     *
+     * [MediaRouter.RouteInfo.getPresentationDisplay] is logged beside it because it is the only
+     * public API that maps an audio route onto a [android.view.Display], so it is the other way a
+     * pre-34 host could offer display affinity.
+     *
+     * Diagnostics only -- wrapped because a vendor audio service that throws here must not be able
+     * to take down the stream, and logged once per track for the same reason the route line is.
+     */
+    private fun logAudioOutputInventory() {
+        try {
+            val outputs = describeAudioOutputs()
+            val router = context.getSystemService(Context.MEDIA_ROUTER_SERVICE) as? MediaRouter
+            val routeCount = router?.routeCount ?: 0
+
+            LimeLog.info(
+                "Nova: Android display audio inventory display_id=${audioContextDisplayId()} " +
+                    "outputs=${outputs.size} routes=$routeCount"
+            )
+
+            outputs.forEach { LimeLog.info(it) }
+
+            val selectedLiveAudio = router?.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO)
+            for (index in 0 until routeCount) {
+                val route = router?.getRouteAt(index) ?: continue
+                val presentationDisplayId = route.presentationDisplay?.displayId
+                val liveAudio = route.supportedTypes and MediaRouter.ROUTE_TYPE_LIVE_AUDIO != 0
+                LimeLog.info(
+                    "Nova: Android display audio presentation index=$index " +
+                        "live_audio=$liveAudio " +
+                        "presentation_display_id=${presentationDisplayId ?: "none"} " +
+                        "selected=${route === selectedLiveAudio}"
+                )
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Android display audio inventory unavailable: ${e.javaClass.simpleName}")
+        }
+    }
+
+    /**
+     * Describe every output device, or nothing at all when the platform predates the enumeration.
+     *
+     * Built as strings inside a single version gate rather than returned as [android.media.AudioDeviceInfo]
+     * so that the whole API-23 surface stays behind one check. The address needs its own gate at a
+     * higher level than the rest: getId and getType arrived in 23 but getAddress only in 28, and
+     * reading the address unguarded against a minSdk of 21 is exactly the kind of thing that runs
+     * everywhere it is tested and throws on the one old device nobody has.
+     */
+    private fun describeAudioOutputs(): List<String> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return emptyList()
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            ?: return emptyList()
+        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { device ->
+            val address = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                sanitizeDeviceAddress(device.address)
+            } else {
+                "unknown"
+            }
+            "Nova: Android display audio output device_id=${device.id} type=${device.type} " +
+                "address=$address"
+        }
+    }
+
+    /**
+     * Reduce a device address to the shape a field report can carry.
+     *
+     * Vendor addresses are the discriminator worth having -- two builtin speakers are told apart by
+     * theirs and by nothing else -- but they are vendor strings rather than a documented vocabulary,
+     * so the report keeps the characters an identifier can be made of and drops the rest rather than
+     * forwarding whatever a HAL happens to put there. Route and product names are omitted entirely:
+     * those are user-visible strings and carry people's names.
+     */
+    private fun sanitizeDeviceAddress(address: String?): String {
+        if (address.isNullOrEmpty()) return "none"
+        val cleaned = address.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+        return if (cleaned.isEmpty()) "none" else cleaned.take(MAX_DEVICE_ADDRESS_CHARS)
     }
 
     override fun start() {
@@ -208,6 +298,7 @@ class AndroidAudioRenderer(
 
     companion object {
         private const val INVALID_DISPLAY_ID = -1
+        private const val MAX_DEVICE_ADDRESS_CHARS = 32
 
         @Volatile
         @JvmField

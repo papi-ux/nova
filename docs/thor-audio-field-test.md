@@ -66,7 +66,7 @@ On a hot-remove-capable setup, perform one additional removal/re-add cycle. The 
 
 A healthy wiring report should show:
 
-- `schema_version: 2`
+- `schema_version: 3`
 - `source_process_scoped: true`
 - `latest_run_marker_found: true`
 - `audio_context_matches_stream: true` (selected stream ID, audio-claimed stream ID, and audio-context display ID all agree)
@@ -78,6 +78,30 @@ A healthy wiring report should show:
 - `diagnostic_evidence_complete: true`
 
 The decisive hardware result is still human-observed: playback and physical volume control follow the top/stream display while the bottom Presentation remains visible.
+
+## What the audio inventory answers
+
+`audio_route_observed` says where the track landed. It does not say where else it could have gone,
+and on a dual-screen host those are different questions: both launch lanes can report the same
+builtin speaker while the user hears different screens. From the routed device alone we cannot tell
+whether that is one device the vendor re-points below the HAL or two devices we never asked about.
+
+The inventory separates them, and the two outcomes have opposite fixes:
+
+- `audio_output_choice_exists: true` — more than one output device is enumerated, so
+  `AudioTrack.setPreferredDevice` (public since API 23, no permission) has somewhere to aim. Read
+  `audio_outputs` for the device IDs, types and addresses to aim at.
+- `presentation_route_offers_audio: true` — some media route carries live audio *and* names a
+  display. `MediaRouter.RouteInfo.getPresentationDisplay()` is the only public API that maps an
+  audio route onto a display, so this is the other pre-34 way to express display affinity.
+- both `false` — the platform offers no pre-34 lever, and the display association fixed at launch
+  is the whole story. That is a real finding, not a failed capture.
+
+`null` on either check means no inventory line was seen at all, which is what a build predating this
+diagnostic looks like. Do not read it as "this device has no choices".
+
+Neither check feeds `diagnostic_evidence_complete`: the inventory describes the platform, it does
+not grade the wiring.
 
 ## Issue reply template
 
