@@ -1870,6 +1870,51 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun streamHudForwardsPlainTapsToTheStreamInsteadOfKeepingThem() {
+        val source = readSource("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")
+        val touchHandler = source.section(
+            "private fun setupTouchHandler(view: View)",
+            "private fun forwardTapToStream("
+        )
+        assertTrue(
+            "a press that neither dragged the HUD nor held it was aimed at the game " +
+                "underneath. The gesture's DOWN has to be claimed to recognise a drag or " +
+                "long-press at all, so the tap is replayed beneath the HUD instead of " +
+                "consumed by it — and cycling modes stays on the Command Center action " +
+                "that already does it",
+            touchHandler.contains("else -> forwardTapToStream(event)") &&
+                !touchHandler.contains("cycleMode()") &&
+                touchHandler.contains("if (forwardingTap)")
+        )
+        assertTrue(
+            "the replay dispatches through the decor with the listener standing down, " +
+                "and recycles what it obtains",
+            source.contains("root.dispatchTouchEvent(down)") &&
+                source.contains("root.dispatchTouchEvent(up)") &&
+                source.contains("down.recycle()") &&
+                source.contains("up.recycle()")
+        )
+    }
+
+    @Test
+    fun commandCenterDragSnapsThroughOneCollectorNotACoroutinePerMove() {
+        val content = readNovaQuickMenuContent()
+        val dragHandler = content.section(
+            "onHorizontalDrag = { change, dragAmount ->",
+            "NovaQuickMenuContent("
+        )
+        assertTrue(
+            "dragging the drawer used to launch a coroutine per pointer-move event — " +
+                "sixty to a hundred and twenty a second, each stopping whatever the one " +
+                "before it started. The handler writes one float; a single snapshotFlow " +
+                "collector snaps the drawer at a frame's pace",
+            !dragHandler.contains("scope.launch") &&
+                dragHandler.contains("dragProgress.floatValue =") &&
+                content.contains("snapshotFlow { if (dragInProgress.value) dragProgress.floatValue else Float.NaN }")
+        )
+    }
+
+    @Test
     fun commandCenterUsesAnchoredLeftDrawerInsteadOfBottomSheet() {
         val quickMenu = readNovaQuickMenu()
         val content = readNovaQuickMenuContent()

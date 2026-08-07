@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -69,6 +70,7 @@ class NovaStreamHud(
     private var viewStartY = 0f
     private var isDragging = false
     private var longPressTriggered = false
+    private var forwardingTap = false
     private var pendingLongPress: Runnable? = null
 
     fun show() {
@@ -127,6 +129,11 @@ class NovaStreamHud(
 
     private fun setupTouchHandler(view: View) {
         view.setOnTouchListener { touchedView, event ->
+            // Standing down while a tap is being replayed, so the dispatch in
+            // forwardTapToStream() falls through this view to the stream surface.
+            if (forwardingTap) {
+                return@setOnTouchListener false
+            }
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     dragStartX = event.rawX
@@ -156,7 +163,12 @@ class NovaStreamHud(
                     when {
                         longPressTriggered -> Unit
                         isDragging -> clampAndSaveHudPosition(touchedView)
-                        else -> cycleMode()
+                        // A tap was never the HUD's to keep: the readout sits over the
+                        // game, and a press that neither dragged it nor held it was
+                        // aimed at what is underneath. Only a drag or a long-press
+                        // claims the gesture; mode cycling stays on the Command
+                        // Center action that already does it.
+                        else -> forwardTapToStream(event)
                     }
                     true
                 }
@@ -166,6 +178,35 @@ class NovaStreamHud(
                 }
                 else -> false
             }
+        }
+    }
+
+    /**
+     * Replay a plain tap beneath the HUD.
+     *
+     * Android hands every later event of a gesture to whoever consumed its DOWN, so a
+     * listener that wants to recognise drags and long-presses has no choice but to
+     * claim the DOWN — by the time the gesture turns out to have been a tap, the game
+     * never saw it. The repair is to replay it: with the listener standing down, decor
+     * dispatch walks past this view and delivers the same coordinates to the stream
+     * surface underneath.
+     */
+    private fun forwardTapToStream(event: MotionEvent) {
+        val root = activity.window.decorView
+        forwardingTap = true
+        try {
+            val now = SystemClock.uptimeMillis()
+            val down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, event.rawX, event.rawY, 0)
+            val up = MotionEvent.obtain(now, now, MotionEvent.ACTION_UP, event.rawX, event.rawY, 0)
+            try {
+                root.dispatchTouchEvent(down)
+                root.dispatchTouchEvent(up)
+            } finally {
+                down.recycle()
+                up.recycle()
+            }
+        } finally {
+            forwardingTap = false
         }
     }
 
