@@ -1345,17 +1345,27 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun artworkRequestsUseFreshTlsStateWithoutCachingTheDerivedClient() {
+    fun artworkRequestsPoolConnectionsOnAnInstanceScopedTlsClient() {
         val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
         assertTrue(
-            "production artwork calls should rebuild policy from the fresh per-call TLS client",
-            api.contains("private fun executeArtwork(request: Request) = buildArtworkHttpClientForCall(::clientForCall).newCall(") &&
+            "production artwork calls should reuse the instance-scoped pooled client",
+            api.contains("private fun executeArtwork(request: Request) = artworkClient.newCall(request).execute()") &&
                 api.contains("SSLContext.getInstance(\"TLS\").apply") &&
                 api.contains(".sslSocketFactory(sslContext.socketFactory, trustManager)")
         )
+        assertTrue(
+            "the artwork pool must be set explicitly because newBuilder() copies the API path's no-keep-alive pool",
+            api.contains(".connectionPool(ConnectionPool(5, 30, TimeUnit.SECONDS))")
+        )
+        assertTrue(
+            "TLS-bearing clients must stay instance-scoped so re-pairing (a new PolarisApiClient) rebuilds TLS state; never cache them at companion/static scope",
+            api.contains("private val artworkClient: OkHttpClient by lazy") &&
+                api.contains("private val perCallClient: OkHttpClient by lazy")
+        )
         assertFalse(
-            "artwork client must not be cached across mTLS calls",
-            api.contains("private val artworkHttpClient")
+            "artwork fetches must not force per-request sockets",
+            api.section("private suspend fun fetchArtwork(url: String", "/**\n     * Toggle MangoHud")
+                .contains("header(\"Connection\", \"close\")")
         )
     }
 
