@@ -65,7 +65,9 @@ data class PolarisSessionStatus(
         val virtualDisplay: Boolean = false,
         val requestedHeadless: Boolean = false,
         val effectiveHeadless: Boolean = false,
-        val gpuNativeOverrideActive: Boolean = false
+        val gpuNativeOverrideActive: Boolean = false,
+        /** Why this session is not on the display the client asked for; blank when it is. */
+        val warning: String = ""
     )
 
     data class PresentationPolicy(
