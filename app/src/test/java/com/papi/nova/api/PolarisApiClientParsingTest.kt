@@ -466,10 +466,10 @@ class PolarisApiClientParsingTest {
         val launchMode = game.launchMode!!
 
         assertEquals("game-uuid", game.id)
-        assertEquals("virtual_display", launchMode.preferredMode)
-        assertEquals("headless", launchMode.recommendedMode)
-        assertTrue(launchMode.allowedModes.contains("headless"))
-        assertTrue(launchMode.allowedModes.contains("virtual_display"))
+        assertEquals("host_virtual_display", launchMode.preferredMode)
+        assertEquals("headless_stream", launchMode.recommendedMode)
+        assertTrue(launchMode.allowedModes.contains("headless_stream"))
+        assertTrue(launchMode.allowedModes.contains("host_virtual_display"))
     }
 
     @Test
@@ -483,9 +483,9 @@ class PolarisApiClientParsingTest {
         val game = PolarisGameJsonAdapter.fromJson(json)
         val launchMode = game.launchMode!!
 
-        assertEquals("headless", launchMode.preferredMode)
-        assertTrue(launchMode.allowedModes.contains("headless"))
-        assertTrue(launchMode.allowedModes.contains("virtual_display"))
+        assertEquals("headless_stream", launchMode.preferredMode)
+        assertTrue(launchMode.allowedModes.contains("headless_stream"))
+        assertTrue(launchMode.allowedModes.contains("host_virtual_display"))
     }
 
     @Test
@@ -507,8 +507,8 @@ class PolarisApiClientParsingTest {
         val game = PolarisGameJsonAdapter.fromJson(gameJson)
         val choice = game.resolveLaunchModeChoice(true, settings)
 
-        assertEquals("headless", choice.preferredMode)
-        assertEquals("headless", choice.recommendedMode)
+        assertEquals("headless_stream", choice.preferredMode)
+        assertEquals("headless_stream", choice.recommendedMode)
         assertTrue(choice.headlessAllowed)
         assertFalse(choice.virtualDisplayAllowed)
         assertTrue(choice.virtualDisplayUnavailable)
@@ -536,9 +536,9 @@ class PolarisApiClientParsingTest {
         val game = PolarisGameJsonAdapter.fromJson(gameJson)
         val choice = game.resolveLaunchModeChoice(true, settings)
 
-        assertEquals("virtual_display", choice.preferredMode)
-        assertEquals("headless", choice.recommendedMode)
-        assertEquals("headless", choice.hostDefaultMode)
+        assertEquals("host_virtual_display", choice.preferredMode)
+        assertEquals("headless_stream", choice.recommendedMode)
+        assertEquals("headless_stream", choice.hostDefaultMode)
         assertTrue(choice.virtualDisplayAllowed)
         assertFalse(choice.virtualDisplayUnavailable)
         assertEquals(

@@ -4,36 +4,38 @@ import com.papi.nova.shared.polaris.model.PolarisGame
 
 fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, clientSettings: PolarisClientSettings? = null): PolarisGame.LaunchModeChoice {
     val contract = launchMode
-    val headlessAvailable = modeAvailability(clientSettings, "headless")
-    val virtualAvailable = modeAvailability(clientSettings, "virtual_display")
-    val headlessAllowed = (contract?.allows("headless") ?: true) && headlessAvailable != false
-    val virtualDisplayAllowed = (contract?.allows("virtual_display") ?: true) && virtualAvailable != false
+    val headlessAvailable = modeAvailability(clientSettings, PolarisGame.MODE_HEADLESS_STREAM)
+    val virtualAvailable = modeAvailability(clientSettings, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
+    val headlessAllowed = (contract?.allows(PolarisGame.MODE_HEADLESS_STREAM) ?: true) && headlessAvailable != false
+    val virtualDisplayAllowed = (contract?.allows(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) ?: true) && virtualAvailable != false
     val hostRequestedMode = clientSettings?.desired?.streamDisplayMode?.takeIf { it.isNotBlank() }
         ?: clientSettings?.effective?.streamDisplayMode?.takeIf { it.isNotBlank() }
         ?: ""
     val hostDefaultMode = hostRequestedMode.takeIf { it.isNotBlank() }?.let {
         PolarisGame.resolveLaunchMode(it, headlessAllowed, virtualDisplayAllowed)
     } ?: ""
-    val fallbackMode = if (defaultToVirtualDisplay && virtualDisplayAllowed) "virtual_display" else "headless"
+    val fallbackMode = if (defaultToVirtualDisplay && virtualDisplayAllowed) PolarisGame.MODE_HOST_VIRTUAL_DISPLAY else PolarisGame.MODE_HEADLESS_STREAM
     val preferredMode = PolarisGame.resolveLaunchMode(contract?.preferredMode?.takeIf { it.isNotBlank() } ?: fallbackMode, headlessAllowed, virtualDisplayAllowed)
     val recommendedMode = PolarisGame.resolveLaunchMode(hostDefaultMode.takeIf { it.isNotBlank() } ?: contract?.recommendedMode?.takeIf { it.isNotBlank() } ?: preferredMode, headlessAllowed, virtualDisplayAllowed)
-    val virtualUnavailableReason = modeUnavailableReason(clientSettings, "virtual_display")
+    val virtualUnavailableReason = modeUnavailableReason(clientSettings, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
 
     return PolarisGame.LaunchModeChoice(
         preferredMode = preferredMode,
         recommendedMode = recommendedMode,
         headlessAllowed = headlessAllowed,
         virtualDisplayAllowed = virtualDisplayAllowed,
-        virtualDisplayUnavailable = (contract?.allows("virtual_display") ?: defaultToVirtualDisplay) && virtualAvailable == false,
+        virtualDisplayUnavailable = (contract?.allows(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) ?: defaultToVirtualDisplay) && virtualAvailable == false,
         virtualDisplayUnavailableReason = virtualUnavailableReason,
         hostDefaultMode = hostDefaultMode,
         hostModeReason = clientSettings?.desired?.streamDisplayModeReason?.takeIf { it.isNotBlank() } ?: clientSettings?.effective?.streamDisplayModeReason ?: ""
     )
 }
 
-private val HEADLESS_MODE_ALIASES = setOf("headless", PolarisClientSettings.MODE_HEADLESS_STREAM, PolarisClientSettings.MODE_DESKTOP_DISPLAY, PolarisClientSettings.MODE_GPU_NATIVE_TEST, "host_display")
-private val VIRTUAL_DISPLAY_MODE_ALIASES = setOf("virtual_display", PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY)
-
+// Canonical ids make alias sets unnecessary: normalizeLaunchMode maps every
+// legacy spelling onto one registry id, so catalog matching is plain
+// id-equality after normalization. The old alias sets deliberately lumped
+// desktop_display and windowed_stream in with "headless", which is how a host
+// reporting "GPU-native available" used to read as "headless available".
 private fun modeAvailability(clientSettings: PolarisClientSettings?, mode: String): Boolean? {
     val modes = clientSettings?.capabilities?.modes ?: return null
     val matches = matchingModes(modes, mode)
@@ -47,16 +49,6 @@ private fun modeUnavailableReason(clientSettings: PolarisClientSettings?, mode: 
 }
 
 private fun matchingModes(modes: List<PolarisClientSettings.ModeOption>, mode: String): List<PolarisClientSettings.ModeOption> {
-    val aliases = aliasesForMode(mode)
     val normalizedMode = PolarisGame.normalizeLaunchMode(mode)
-    return modes.filter { option ->
-        option.value in aliases || PolarisGame.normalizeLaunchMode(option.value) == normalizedMode
-    }
-}
-
-private fun aliasesForMode(mode: String): Set<String> {
-    return when (PolarisGame.normalizeLaunchMode(mode)) {
-        "virtual_display" -> VIRTUAL_DISPLAY_MODE_ALIASES
-        else -> HEADLESS_MODE_ALIASES
-    }
+    return modes.filter { option -> PolarisGame.normalizeLaunchMode(option.value) == normalizedMode }
 }

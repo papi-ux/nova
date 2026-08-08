@@ -274,11 +274,23 @@ data class PolarisGame(
         const val ARTWORK_KIND_SCREENSHOT = "screenshot"
         const val ARTWORK_KIND_TRAILER = "trailer"
 
+        // Canonical stream-path ids, matching Polaris' stream_path registry. The
+        // legacy 2-value vocabulary ("headless"/"virtual_display") collapsed every
+        // server mode into a pair at parse time; canonical ids preserve what the
+        // host actually said while still mapping the old aliases forward.
+        const val MODE_HEADLESS_STREAM = "headless_stream"
+        const val MODE_HOST_VIRTUAL_DISPLAY = "host_virtual_display"
+        const val MODE_DESKTOP_DISPLAY = "desktop_display"
+        const val MODE_WINDOWED_STREAM = "windowed_stream"
+        const val MODE_GAMESCOPE_STREAM = "gamescope_stream"
+        const val MODE_HEADLESS_DONGLE = "headless_dongle"
+
         fun normalizeLaunchMode(mode: String): String {
-            return when (mode.trim().lowercase()) {
-                "headless", "headless_stream", "desktop_display", "windowed_stream", "host_display" -> "headless"
-                "virtual_display", "host_virtual_display" -> "virtual_display"
-                else -> mode.trim()
+            return when (val key = mode.trim().lowercase()) {
+                "headless", MODE_HEADLESS_STREAM -> MODE_HEADLESS_STREAM
+                "virtual_display", MODE_HOST_VIRTUAL_DISPLAY -> MODE_HOST_VIRTUAL_DISPLAY
+                "host_display", MODE_DESKTOP_DISPLAY -> MODE_DESKTOP_DISPLAY
+                else -> key
             }
         }
 
@@ -286,27 +298,25 @@ data class PolarisGame(
             val normalizedModes = linkedSetOf<String>()
             modes.map { normalizeLaunchMode(it) }.filter { it.isNotBlank() }.forEach { normalizedModes.add(it) }
             if (defaultWhenEmpty && normalizedModes.isEmpty()) {
-                normalizedModes.add("headless")
-                normalizedModes.add("virtual_display")
+                normalizedModes.add(MODE_HEADLESS_STREAM)
+                normalizedModes.add(MODE_HOST_VIRTUAL_DISPLAY)
             }
             return normalizedModes.toList()
         }
 
         fun resolveLaunchMode(mode: String, headlessAllowed: Boolean, virtualDisplayAllowed: Boolean): String {
-            return when (normalizeLaunchMode(mode)) {
-                "virtual_display" -> when {
-                    virtualDisplayAllowed -> "virtual_display"
-                    headlessAllowed -> "headless"
+            return when (val key = normalizeLaunchMode(mode)) {
+                MODE_HOST_VIRTUAL_DISPLAY -> when {
+                    virtualDisplayAllowed -> MODE_HOST_VIRTUAL_DISPLAY
+                    headlessAllowed -> MODE_HEADLESS_STREAM
                     else -> ""
                 }
-                "headless" -> when {
-                    headlessAllowed -> "headless"
-                    virtualDisplayAllowed -> "virtual_display"
-                    else -> ""
-                }
+                // Canonical non-pair ids stay themselves: their availability is
+                // gated by the host catalog, not by the legacy boolean pair.
+                MODE_DESKTOP_DISPLAY, MODE_WINDOWED_STREAM, MODE_GAMESCOPE_STREAM, MODE_HEADLESS_DONGLE -> key
                 else -> when {
-                    headlessAllowed -> "headless"
-                    virtualDisplayAllowed -> "virtual_display"
+                    headlessAllowed -> MODE_HEADLESS_STREAM
+                    virtualDisplayAllowed -> MODE_HOST_VIRTUAL_DISPLAY
                     else -> ""
                 }
             }

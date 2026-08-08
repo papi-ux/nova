@@ -128,6 +128,9 @@ class NovaGameDetailComposeTest {
                         onResumeSession = {},
                         onEndSession = {},
                         onDismissDestination = {},
+                        modePicker = null,
+                        onPickMode = {},
+                        onPickHostDefault = {},
                     )
                 }
             }

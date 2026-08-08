@@ -217,6 +217,10 @@ internal fun NovaGameDetailContent(
     /** Host-scope rows and plan; empty and null while This Game is showing. */
     hostPlaySetupRows: List<NovaPlaySetupRowState>,
     hostPlaySetupPlan: NovaPlaySetupPlan?,
+    /** Full-panel mode picker; non-null while it owns the Play Setup body. */
+    modePicker: NovaPlaySetupModePickerState?,
+    onPickMode: (String) -> Unit,
+    onPickHostDefault: () -> Unit,
     playLabel: String,
     launchModeTitle: String,
     headlessModeLabel: String,
@@ -320,7 +324,7 @@ internal fun NovaGameDetailContent(
                 headline = uiState.game.name,
                 scrollState = verticalScroll,
                 onDismiss = onDismissDestination,
-                headerAccessory = if (steamDecision == null) {
+                headerAccessory = if (steamDecision == null && modePicker == null) {
                     {
                         NovaPlaySetupScopePill(
                             scope = playSetupScope,
@@ -340,6 +344,18 @@ internal fun NovaGameDetailContent(
                     NovaDesktopSteamLaunchDecisionRows(
                         decision = decision,
                         onChoice = onSteamChoice,
+                    )
+                } else if (modePicker != null) {
+                    // Choosing where a game runs owns the body the way the Steam
+                    // decision does; the rows return when a choice lands or B backs out.
+                    NovaPlaySetupModePicker(
+                        state = modePicker,
+                        onPick = onPickMode,
+                        onPickHostDefault = if (playSetupScope == NovaPlaySetupScope.THIS_GAME) {
+                            onPickHostDefault
+                        } else {
+                            null
+                        },
                     )
                 } else if (playSetupScope == NovaPlaySetupScope.EVERY_GAME && hostPlaySetupPlan != null) {
                     // The same four-row shape, absorbing the Polaris Sync sheet's three
@@ -377,8 +393,10 @@ internal fun NovaGameDetailContent(
                                     consequenceMaxLines = consequenceLines,
                                     // The 2x2 the sync sheet taught: four mode names in
                                     // one row leave no room for their status lines.
+                                    // 2x2 for the classic four; three per row once a
+                                    // six-mode catalog would otherwise stack three rows.
                                     perRow = if (explained.row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY) {
-                                        2
+                                        if (explained.options.size > 4) 3 else 2
                                     } else {
                                         Int.MAX_VALUE
                                     },
@@ -397,8 +415,11 @@ internal fun NovaGameDetailContent(
                             // The resolved mode, not the name of the control that sets
                             // it: this is the one line the column exists to state.
                             modeLabel = when (uiState.playMode) {
-                                "virtual_display" -> virtualDisplayModeLabel
-                                else -> headlessModeLabel
+                                PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> virtualDisplayModeLabel
+                                PolarisGame.MODE_HEADLESS_STREAM -> headlessModeLabel
+                                // Following a host default outside the pair: say what it
+                                // actually is instead of mislabeling it Private Stream.
+                                else -> uiState.hostStreamDisplayModeLabel.ifBlank { headlessModeLabel }
                             },
                             lines = listOfNotNull(
                                 summary?.selectedLine
