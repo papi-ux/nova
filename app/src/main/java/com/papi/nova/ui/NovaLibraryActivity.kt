@@ -905,18 +905,15 @@ class NovaLibraryActivity : NovaActivity() {
                         "displayMode=" + (preflightOptimization?.optString("display_mode", "") ?: "")
                 )
                 val syncedSettings = withContext(Dispatchers.IO) {
-                    apiClient.updateClientSettings(
-                        streamDisplayMode = if (mirrorDesktop) {
-                            PolarisClientSettings.MODE_DESKTOP_DISPLAY
-                        } else {
-                            PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings)
-                        },
-                        displayMode = com.papi.nova.preferences.PreferenceConfiguration.formatStreamingDisplayMode(
-                            launchResolution.width,
-                            launchResolution.height,
-                            launchFps
-                        ),
-                        targetBitrateKbps = preferences.bitrate.takeIf { it > 0 }
+                    NovaLaunchPreflight.push(
+                        apiClient = apiClient,
+                        clientSettings = clientSettings,
+                        usesVirtualDisplay = withVirtualDisplay,
+                        mirrorDesktop = mirrorDesktop,
+                        width = launchResolution.width,
+                        height = launchResolution.height,
+                        fps = launchFps,
+                        bitrateKbps = preferences.bitrate
                     )
                 }
                 if (syncedSettings == null) {

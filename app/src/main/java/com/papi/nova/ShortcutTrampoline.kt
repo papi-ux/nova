@@ -737,14 +737,14 @@ class ShortcutTrampoline : NovaActivity() {
         clientSettings: PolarisClientSettings?,
     ) {
         val preferences = PreferenceConfiguration.readPreferences(this)
-        val syncedSettings = apiClient.updateClientSettings(
-            streamDisplayMode = PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings),
-            displayMode = PreferenceConfiguration.formatStreamingDisplayMode(
-                preferences.width,
-                preferences.height,
-                preferences.fps,
-            ),
-            targetBitrateKbps = preferences.bitrate.takeIf { it > 0 },
+        val syncedSettings = com.papi.nova.ui.NovaLaunchPreflight.push(
+            apiClient = apiClient,
+            clientSettings = clientSettings,
+            usesVirtualDisplay = withVirtualDisplay,
+            width = preferences.width,
+            height = preferences.height,
+            fps = preferences.fps,
+            bitrateKbps = preferences.bitrate,
         )
         if (syncedSettings == null) {
             LimeLog.warning("Nova: Shortcut launch preflight client settings sync failed; continuing launch")

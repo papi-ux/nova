@@ -227,11 +227,17 @@ class NovaLaunchSourceGuardTest {
         val trampoline = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
         val displayMode = readSource("src/main/java/com/papi/nova/api/PolarisStreamDisplayMode.kt")
 
+        val preflightHelper = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
+
         assertTrue(displayMode.contains("fun preflightModeForLaunch("))
         assertTrue(displayMode.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
         assertTrue(displayMode.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
-        assertTrue(detail.contains("PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings)"))
-        assertTrue(trampoline.contains("PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings)"))
+        // All launch surfaces ride the one preflight helper, which itself resolves
+        // through preflightModeForLaunch and uses the contract constant for mirror.
+        assertTrue(preflightHelper.contains("PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings)"))
+        assertTrue(preflightHelper.contains("PolarisClientSettings.MODE_DESKTOP_DISPLAY"))
+        assertTrue(detail.contains("NovaLaunchPreflight.push("))
+        assertTrue(trampoline.contains("NovaLaunchPreflight.push("))
     }
 
     @Test
@@ -646,7 +652,7 @@ class NovaLaunchSourceGuardTest {
             "drawer launch should derive effective stream mode from preflight optimization before syncing settings",
             launchGame.contains("val launchResolution = StreamSyncManager.resolveAutoSafeResolution(") &&
                 launchGame.contains("val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(") &&
-                launchGame.indexOf("val launchResolution") < launchGame.indexOf("apiClient.updateClientSettings(")
+                launchGame.indexOf("val launchResolution") < launchGame.indexOf("NovaLaunchPreflight.push(")
         )
         assertTrue(
             "client settings and Game intent should use launchResolution and launchFps instead of saved fps only",
@@ -681,10 +687,13 @@ class NovaLaunchSourceGuardTest {
             "private fun modeLabel("
         )
 
+        val preflightHelper = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
+
         assertTrue(
             "Game detail preflight must use the full Polaris stream display mode helper, not collapse every non-virtual launch to headless_stream",
-            preflight.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
-                !preflight.contains("if (usesVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
+            preflight.contains("NovaLaunchPreflight.push") &&
+                preflightHelper.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
+                !preflightHelper.contains("if (usesVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
         )
     }
 
@@ -693,14 +702,17 @@ class NovaLaunchSourceGuardTest {
         val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val shortcut = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
 
+        val preflightHelper = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
+
         assertTrue(
             "Library launch should preserve the selected full Polaris stream display mode",
-            library.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
+            library.contains("NovaLaunchPreflight.push") &&
+                preflightHelper.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
                 !library.contains("if (withVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
         )
         assertTrue(
             "Shortcut launch should preserve the selected full Polaris stream display mode",
-            shortcut.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
+            shortcut.contains("NovaLaunchPreflight.push") &&
                 !shortcut.contains("if (withVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
         )
     }

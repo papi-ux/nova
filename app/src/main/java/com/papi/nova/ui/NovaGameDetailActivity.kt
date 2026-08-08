@@ -1322,14 +1322,14 @@ class NovaGameDetailActivity : NovaActivity() {
         clientSettings: PolarisClientSettings?
     ): PolarisClientSettings? {
         val preferences = PreferenceConfiguration.readPreferences(context)
-        return apiClient.updateClientSettings(
-            streamDisplayMode = PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings),
-            displayMode = PreferenceConfiguration.formatStreamingDisplayMode(
-                preferences.width,
-                preferences.height,
-                preferences.fps
-            ),
-            targetBitrateKbps = preferences.bitrate.takeIf { it > 0 }
+        return NovaLaunchPreflight.push(
+            apiClient = apiClient,
+            clientSettings = clientSettings,
+            usesVirtualDisplay = usesVirtualDisplay,
+            width = preferences.width,
+            height = preferences.height,
+            fps = preferences.fps,
+            bitrateKbps = preferences.bitrate
         )
     }
 
