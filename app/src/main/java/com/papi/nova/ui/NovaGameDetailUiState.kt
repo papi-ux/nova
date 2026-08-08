@@ -51,6 +51,8 @@ data class NovaGameDetailUiState(
     val steamLaunchWarning: Boolean,
     val hostStreamDisplayMode: String,
     val hostStreamDisplayModeLabel: String,
+    /** True only when this client stored a per-game launch-mode override. */
+    val hasExplicitOverride: Boolean,
     /**
      * The profile the host would use for anything that does not ask for its own, as
      * "1920x1080@60 · 20 Mbps". Blank when the host has no profile set.
@@ -64,12 +66,12 @@ data class NovaGameDetailUiState(
      * on screen and the disagreement is named.
      */
     val overridesHostMode: Boolean
-        get() = hostStreamDisplayMode.isNotBlank() &&
+        get() = hasExplicitOverride &&
+            hostStreamDisplayMode.isNotBlank() &&
             playMode.isNotBlank() &&
-            // Both sides, because these are two vocabularies for the same thing: playMode
-            // speaks the contract's "headless" while the host mode has already been
-            // normalised to MODE_HEADLESS_STREAM. Comparing them raw reports an override
-            // on every game, including the ones that agree with the host.
+            // Normalized on both sides so legacy spellings and canonical ids compare
+            // as the same mode. Without hasExplicitOverride this reported an override
+            // on every game whenever the host default sat outside the per-game pair.
             PolarisStreamDisplayMode.normalize(playMode) !=
             PolarisStreamDisplayMode.normalize(hostStreamDisplayMode)
 
@@ -96,14 +98,24 @@ data class NovaGameDetailUiState(
                 ?.takeIf { it.isNotBlank() }
                 ?.let { PolarisGame.resolveLaunchMode(it, choice.headlessAllowed, choice.virtualDisplayAllowed) }
             val playMode = when {
-                chosen == "virtual_display" && choice.virtualDisplayAllowed &&
-                    !choice.virtualDisplayUnavailable -> "virtual_display"
-                chosen == "headless" && choice.headlessAllowed -> "headless"
+                chosen == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY && choice.virtualDisplayAllowed &&
+                    !choice.virtualDisplayUnavailable -> PolarisGame.MODE_HOST_VIRTUAL_DISPLAY
+                chosen == PolarisGame.MODE_HEADLESS_STREAM && choice.headlessAllowed -> PolarisGame.MODE_HEADLESS_STREAM
+                // A deliberate override outside the legacy pair resolves to itself;
+                // the picker only offers modes the host catalog advertised.
+                !chosen.isNullOrBlank() && chosen != PolarisGame.MODE_HOST_VIRTUAL_DISPLAY &&
+                    chosen != PolarisGame.MODE_HEADLESS_STREAM -> chosen
 
-                choice.recommendedMode == "virtual_display" && choice.virtualDisplayAllowed -> "virtual_display"
-                choice.recommendedMode == "headless" && choice.headlessAllowed -> "headless"
-                choice.headlessAllowed -> "headless"
-                choice.virtualDisplayAllowed -> "virtual_display"
+                choice.recommendedMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY && choice.virtualDisplayAllowed -> PolarisGame.MODE_HOST_VIRTUAL_DISPLAY
+                choice.recommendedMode == PolarisGame.MODE_HEADLESS_STREAM && choice.headlessAllowed -> PolarisGame.MODE_HEADLESS_STREAM
+                // No override and the host default sits outside the pair: follow the
+                // host instead of quietly coercing to headless — this is what used to
+                // fire the false "This game overrides it" warning.
+                choice.recommendedMode.isNotBlank() &&
+                    choice.recommendedMode != PolarisGame.MODE_HOST_VIRTUAL_DISPLAY &&
+                    choice.recommendedMode != PolarisGame.MODE_HEADLESS_STREAM -> choice.recommendedMode
+                choice.headlessAllowed -> PolarisGame.MODE_HEADLESS_STREAM
+                choice.virtualDisplayAllowed -> PolarisGame.MODE_HOST_VIRTUAL_DISPLAY
                 else -> ""
             }
             val actionableLaunchModeCount = listOf(
@@ -147,7 +159,7 @@ data class NovaGameDetailUiState(
                 virtualDisplayUnavailableReason = choice.virtualDisplayUnavailableReason,
                 playMode = playMode,
                 playEnabled = playMode.isNotBlank(),
-                playUsesVirtualDisplay = playMode == "virtual_display",
+                playUsesVirtualDisplay = playMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
                 launchOptionsEnabled = launchOptionsEnabled,
                 actionableLaunchModeCount = actionableLaunchModeCount,
                 showLaunchOptionsButton = showLaunchOptionsButton,
@@ -161,6 +173,7 @@ data class NovaGameDetailUiState(
                 steamLaunchWarning = steamLaunchWarning,
                 hostStreamDisplayMode = hostStreamDisplayMode,
                 hostStreamDisplayModeLabel = hostStreamDisplayModeLabel,
+                hasExplicitOverride = !launchModeOverride.isNullOrBlank(),
                 hostProfileLabel = hostProfileLabel(clientSettings),
             )
         }

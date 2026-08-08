@@ -33,7 +33,7 @@ class NovaGameDetailUiStateTest {
             profilePreference = "quality"
         )
 
-        assertEquals("headless", state.playMode)
+        assertEquals("headless_stream", state.playMode)
         assertFalse("agreeing with the host is not overriding it", state.overridesHostMode)
     }
 
@@ -54,7 +54,7 @@ class NovaGameDetailUiStateTest {
             launchModeOverride = "virtual_display",
         )
 
-        assertEquals("virtual_display", state.playMode)
+        assertEquals("host_virtual_display", state.playMode)
         assertTrue(state.overridesHostMode)
     }
 
@@ -75,7 +75,7 @@ class NovaGameDetailUiStateTest {
             profilePreference = "quality"
         )
 
-        assertEquals("virtual_display", state.playMode)
+        assertEquals("host_virtual_display", state.playMode)
         assertTrue(state.playUsesVirtualDisplay)
         assertTrue(state.playEnabled)
         assertTrue(state.launchOptionsEnabled)
@@ -99,7 +99,7 @@ class NovaGameDetailUiStateTest {
             profilePreference = "auto"
         )
 
-        assertEquals("virtual_display", state.playMode)
+        assertEquals("host_virtual_display", state.playMode)
         assertTrue(state.playUsesVirtualDisplay)
         assertTrue(state.playEnabled)
     }
@@ -130,7 +130,7 @@ class NovaGameDetailUiStateTest {
             profilePreference = "invalid"
         )
 
-        assertEquals("headless", state.playMode)
+        assertEquals("headless_stream", state.playMode)
         assertFalse(state.playUsesVirtualDisplay)
         assertTrue(state.virtualDisplayUnavailable)
         assertTrue(state.showVirtualUnavailableHint)
@@ -329,7 +329,7 @@ class NovaGameDetailUiStateTest {
     }
 
     @Test
-    fun nonVirtualPolarisModesRemainPrivateLaunchFamilyButExposeHostMode() {
+    fun hostModesOutsideThePairFlowThroughAsPlayModeWithoutAnOverride() {
         val state = NovaGameDetailUiState.from(
             game = game(
                 launchMode = PolarisGame.LaunchModeContract(
@@ -347,8 +347,12 @@ class NovaGameDetailUiStateTest {
             profilePreference = "auto"
         )
 
-        assertEquals("headless", state.playMode)
+        // No override: the game follows the host's real mode instead of coercing it
+        // into the legacy pair -- the coercion is what made every game claim
+        // "This game overrides it" whenever the host ran GPU-native or Mirror.
+        assertEquals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, state.playMode)
         assertFalse(state.playUsesVirtualDisplay)
+        assertFalse("following the host is not overriding it", state.overridesHostMode)
         assertEquals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, state.hostStreamDisplayMode)
         assertEquals("Private Stream (GPU-native)", state.hostStreamDisplayModeLabel)
     }
