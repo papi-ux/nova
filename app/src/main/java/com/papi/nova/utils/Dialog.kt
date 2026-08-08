@@ -9,7 +9,9 @@ class Dialog private constructor(
     private val activity: Activity,
     private val title: String,
     private val message: String,
-    private val runOnDismiss: Runnable
+    private val runOnDismiss: Runnable,
+    private val actionText: CharSequence? = null,
+    private val action: Runnable? = null,
 ) : Runnable {
     private var alert: AlertDialog? = null
 
@@ -35,6 +37,20 @@ class Dialog private constructor(
                 createdAlert.dismiss()
             }
             runOnDismiss.run()
+        }
+        if (actionText != null && action != null) {
+            // Deliberately skips runOnDismiss: with endAfterDismiss the dismiss path calls
+            // finish(), which would race whatever the action is about to start.
+            createdAlert.setButton(
+                AlertDialog.BUTTON_NEGATIVE,
+                actionText
+            ) { _, _ ->
+                synchronized(rundownDialogs) {
+                    rundownDialogs.remove(this)
+                    createdAlert.dismiss()
+                }
+                action.run()
+            }
         }
         createdAlert.setButton(
             AlertDialog.BUTTON_NEUTRAL,
@@ -78,6 +94,18 @@ class Dialog private constructor(
 
         @JvmStatic
         fun displayDialog(activity: Activity, title: String, message: String, endAfterDismiss: Boolean) {
+            displayDialog(activity, title, message, endAfterDismiss, null, null)
+        }
+
+        @JvmStatic
+        fun displayDialog(
+            activity: Activity,
+            title: String,
+            message: String,
+            endAfterDismiss: Boolean,
+            actionText: CharSequence?,
+            action: Runnable?,
+        ) {
             activity.runOnUiThread(
                 Dialog(
                     activity,
@@ -87,7 +115,9 @@ class Dialog private constructor(
                         if (endAfterDismiss) {
                             activity.finish()
                         }
-                    }
+                    },
+                    actionText,
+                    action,
                 )
             )
         }

@@ -269,7 +269,11 @@ fun NovaQuickMenuContent(
     val initialFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        // Wait one Compose frame so the drawer content and Close button focus target are attached.
+        // Wait one Compose frame so the drawer content and the diagnosis-card focus target are
+        // attached. First focus lands on the diagnosis card, not Close: the first A-press on a
+        // menu the user deliberately opened should do something, not dismiss it. If the card is
+        // disabled the request fails silently and the first dpad press establishes focus as
+        // before.
         withFrameNanos { }
         runCatching { initialFocusRequester.requestFocus() }
     }
@@ -297,11 +301,11 @@ fun NovaQuickMenuContent(
                 .align(Alignment.Start)
         )
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuHeader(state, callbacks, initialFocusRequester)
+        NovaQuickMenuHeader(state, callbacks)
         Spacer(Modifier.height(8.dp))
         NovaQuickMenuSessionStrip(state)
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
+        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks, initialFocusRequester)
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuStabilityCard(state.stability, callbacks)
         if (state.postSessionReport.visible) {
@@ -362,8 +366,7 @@ fun NovaQuickMenuContent(
 @Composable
 private fun NovaQuickMenuHeader(
     state: NovaQuickMenuUiState,
-    callbacks: NovaQuickMenuCallbacks,
-    initialFocusRequester: FocusRequester
+    callbacks: NovaQuickMenuCallbacks
 ) {
     val configuration = LocalConfiguration.current
     val compact = configuration.screenWidthDp < 430
@@ -376,7 +379,7 @@ private fun NovaQuickMenuHeader(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     NovaQuickMenuTitleBlock(state, Modifier.weight(1f))
-                    NovaQuickMenuCloseButton(callbacks, initialFocusRequester)
+                    NovaQuickMenuCloseButton(callbacks)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NovaQuickMenuHeaderButton(state.disconnectAction, callbacks, Modifier.weight(1f))
@@ -389,7 +392,7 @@ private fun NovaQuickMenuHeader(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 NovaQuickMenuTitleBlock(state, Modifier.weight(1f))
-                NovaQuickMenuCloseButton(callbacks, initialFocusRequester)
+                NovaQuickMenuCloseButton(callbacks)
                 NovaQuickMenuHeaderButton(state.disconnectAction, callbacks)
                 NovaQuickMenuHeaderButton(state.endAction, callbacks)
             }
@@ -442,7 +445,6 @@ private fun NovaQuickMenuHeaderButton(
 @Composable
 private fun NovaQuickMenuCloseButton(
     callbacks: NovaQuickMenuCallbacks,
-    initialFocusRequester: FocusRequester,
     modifier: Modifier = Modifier
 ) {
     NovaActionButton(
@@ -450,7 +452,6 @@ private fun NovaQuickMenuCloseButton(
         onClick = callbacks.onDismiss,
         modifier = modifier
             .widthIn(min = 72.dp)
-            .focusRequester(initialFocusRequester)
             .semantics { contentDescription = "Close Command Center" },
         primary = false,
         cornerRadius = NovaRadius.hero,
@@ -464,6 +465,7 @@ private fun NovaQuickMenuCloseButton(
 private fun NovaQuickMenuDiagnosisCard(
     diagnosis: NovaQuickMenuDiagnosisState,
     callbacks: NovaQuickMenuCallbacks,
+    initialFocusRequester: FocusRequester? = null,
 ) {
     val detail = buildList {
         diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
@@ -471,6 +473,11 @@ private fun NovaQuickMenuDiagnosisCard(
         diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
     }.joinToString(" · ")
     NovaQuickMenuInfoCard(
+        modifier = if (initialFocusRequester != null) {
+            Modifier.focusRequester(initialFocusRequester)
+        } else {
+            Modifier
+        },
         action = NovaQuickMenuAction(
             id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
             label = "${diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") } ?: "DIAG"}: ${diagnosis.likelyCause}",

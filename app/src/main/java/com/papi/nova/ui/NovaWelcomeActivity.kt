@@ -31,6 +31,10 @@ class NovaWelcomeActivity : NovaActivity() {
                     .putExtra(EXTRA_WELCOME_ACTION, ACTION_SCAN_QR),
             )
         }
+
+        // Controller-first devices land here on first launch; without an initial focus the
+        // declared nextFocusDown chain is unreachable until a press is wasted establishing it.
+        findViewById<View>(R.id.welcome_discover_btn).requestFocus()
     }
 
     private fun finishWelcome(next: Intent) {
