@@ -360,6 +360,99 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun normalRiskValuesDoNotRaiseNetworkOrDecoderWarnings() {
+        // Polaris serves network_risk/decoder_risk unconditionally as "normal" | "elevated";
+        // the healthy value must not read as a warning just because it is non-blank.
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 18,
+            codec = "hevc",
+            bitrateKbps = 22000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "good",
+                    networkRisk = "normal",
+                    decoderRisk = "normal"
+                )
+            ),
+            sparklineSamples = listOf(60f)
+        )
+
+        assertEquals("Stable", state.healthReasonLabel)
+        assertEquals(NovaHudTone.STABLE, state.healthReasonTone)
+        assertEquals(
+            listOf(
+                NovaHudLayerHealth("HOST", NovaHudTone.STABLE),
+                NovaHudLayerHealth("NET", NovaHudTone.STABLE),
+                NovaHudLayerHealth("CLIENT", NovaHudTone.STABLE)
+            ),
+            state.layerHealth
+        )
+    }
+
+    @Test
+    fun elevatedNetworkRiskRaisesTheJitterWarning() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 18,
+            codec = "hevc",
+            bitrateKbps = 22000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    networkRisk = "elevated",
+                    decoderRisk = "normal"
+                )
+            ),
+            sparklineSamples = listOf(60f)
+        )
+
+        assertEquals("Network jitter", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertEquals(
+            NovaHudLayerHealth("NET", NovaHudTone.WARNING),
+            state.layerHealth[1]
+        )
+    }
+
+    @Test
+    fun elevatedDecoderRiskRaisesDecoderLate() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 18,
+            codec = "hevc",
+            bitrateKbps = 22000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    networkRisk = "normal",
+                    decoderRisk = "elevated"
+                )
+            ),
+            sparklineSamples = listOf(60f)
+        )
+
+        assertEquals("Decoder late", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertEquals(
+            NovaHudLayerHealth("CLIENT", NovaHudTone.WARNING),
+            state.layerHealth[2]
+        )
+    }
+
+    @Test
     fun hdrDowngradeUsesExplicitWarningCopyAndTenBitSdrTruth() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.PERFORMANCE,
