@@ -299,6 +299,10 @@ data class NovaHudUiState(
             else -> NovaHudTone.DANGER
         }
 
+        // Polaris serves risk fields unconditionally as "normal" | "elevated", so presence
+        // alone means nothing — only the elevated value is a warning.
+        private fun riskElevated(risk: String?): Boolean = risk.equals("elevated", ignoreCase = true)
+
         private fun buildHealthReason(
             status: PolarisSessionStatus?,
             fps: Double,
@@ -311,9 +315,9 @@ data class NovaHudUiState(
                 status?.isHdrDowngraded == true -> "HDR downgraded" to NovaHudTone.WARNING
                 status?.isHostRenderLimited == true || primaryIssue == "host_render_limited" || issues.contains("host_render_limited") ->
                     "Host capped" to NovaHudTone.WARNING
-                primaryIssue.contains("network") || status?.health?.networkRisk?.isNotBlank() == true ->
+                primaryIssue.contains("network") || riskElevated(status?.health?.networkRisk) ->
                     "Network jitter" to NovaHudTone.WARNING
-                primaryIssue.contains("decoder") || status?.health?.decoderRisk?.isNotBlank() == true ->
+                primaryIssue.contains("decoder") || riskElevated(status?.health?.decoderRisk) ->
                     "Decoder late" to NovaHudTone.WARNING
                 latencyMs > 50 -> "High latency" to NovaHudTone.DANGER
                 targetFps > 0.0 && fps > 0.0 && fps < targetFps * 0.75 ->
@@ -361,14 +365,14 @@ data class NovaHudUiState(
             }
             val networkTone = when {
                 primaryIssue.contains("network") || issues.any { it.contains("network") } ||
-                    status?.health?.networkRisk?.isNotBlank() == true -> NovaHudTone.WARNING
+                    riskElevated(status?.health?.networkRisk) -> NovaHudTone.WARNING
                 latencyMs > 50 -> NovaHudTone.DANGER
                 latencyMs > 20 -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
             val clientTone = when {
                 primaryIssue.contains("decoder") || issues.any { it.contains("decoder") } ||
-                    status?.health?.decoderRisk?.isNotBlank() == true -> NovaHudTone.WARNING
+                    riskElevated(status?.health?.decoderRisk) -> NovaHudTone.WARNING
                 status?.encoder?.targetResidency.equals("cpu", ignoreCase = true) -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
