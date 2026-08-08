@@ -20,6 +20,7 @@ class NovaPolarisSyncSheetComposeTest {
 
     @Test
     fun syncSheetContentShowsModesActionsAndToggles() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
         val state = NovaPolarisSyncUiStateMapper.build(
             settings = settings(),
             busy = false,
@@ -27,10 +28,15 @@ class NovaPolarisSyncSheetComposeTest {
             autoSyncEnabled = true,
             hasServerUuid = true,
             novaDisplayMode = "1920x1080@60",
-            novaBitrateKbps = 30000
+            novaBitrateKbps = 30000,
+            loadingLabel = context.getString(R.string.nova_polaris_sync_loading),
+            unavailableLabel = context.getString(R.string.nova_polaris_sync_unavailable),
+            unsetLabel = context.getString(R.string.nova_polaris_sync_unset),
+            savedAfterRelaunchLabel = context.getString(R.string.nova_polaris_sync_status_saved_relaunch),
+            selectedLabel = context.getString(R.string.nova_polaris_sync_status_selected),
+            activeNowLabel = context.getString(R.string.nova_polaris_sync_status_active_now),
+            availableLabel = context.getString(R.string.nova_polaris_sync_status_available)
         )
-
-        val context = ApplicationProvider.getApplicationContext<Context>()
 
         composeRule.setContent {
             NovaComposeTheme {
