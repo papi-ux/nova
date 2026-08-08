@@ -217,7 +217,7 @@ private fun NovaPlaySetupRule() {
 }
 
 @Composable
-private fun NovaPlaySetupColumnHead(text: String) {
+internal fun NovaPlaySetupColumnHead(text: String) {
     val colors = LocalNovaComposeColors.current
     Text(
         text = text.uppercase(),

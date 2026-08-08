@@ -201,6 +201,7 @@ class NovaGameDetailActivity : NovaActivity() {
      * and the header pill does the same by touch.
      */
     private var playSetupScope by mutableStateOf(NovaPlaySetupScope.THIS_GAME)
+    private var modePickerOpen by mutableStateOf(false)
 
     /** The strip explains this row; rows point it at themselves as focus moves. */
     private var explainedRow by mutableStateOf(NovaPlaySetupRow.WHERE_IT_RUNS)
@@ -281,9 +282,14 @@ class NovaGameDetailActivity : NovaActivity() {
             reviewExpanded = false
             true
         }
+        modePickerOpen -> {
+            modePickerOpen = false
+            true
+        }
         destination != NovaGameDetailDestination.OVERVIEW -> {
             destination = NovaGameDetailDestination.OVERVIEW
             steamDecision = null
+            modePickerOpen = false
             // The panel reopens on the game it was opened for; host scope is a place
             // someone flips to, not a place the panel should quietly resume in.
             playSetupScope = NovaPlaySetupScope.THIS_GAME
@@ -316,6 +322,7 @@ class NovaGameDetailActivity : NovaActivity() {
             return
         }
         playSetupScope = scope
+        modePickerOpen = false
         explainedRow = if (scope == NovaPlaySetupScope.EVERY_GAME) {
             NovaPlaySetupRow.HOST_DEFAULT_DISPLAY
         } else {
@@ -669,6 +676,68 @@ class NovaGameDetailActivity : NovaActivity() {
             settleThen { loadOptimization(profilePreference, usesVirtualDisplay = PolarisGame.normalizeLaunchMode(mode) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) }
         }
 
+        /** The sheet's mapper, fed from the engine, so panel and sheet read alike. */
+        fun hostScopeUiState(): NovaPolarisSyncUiState {
+            val engine = hostSyncEngine
+            val prefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            return NovaPolarisSyncUiStateMapper.build(
+                settings = engine?.currentSettings ?: clientSettings,
+                busy = engine?.busy == true,
+                settingsUnavailable = engine?.settingsUnavailable == true,
+                autoSyncEnabled = engine?.autoSyncEnabled == true,
+                hasServerUuid = !serverUuid.isNullOrBlank(),
+                novaDisplayMode = PreferenceConfiguration.formatStreamingDisplayMode(
+                    prefs.width,
+                    prefs.height,
+                    prefs.fps
+                ),
+                novaBitrateKbps = prefs.bitrate,
+                loadingLabel = getString(R.string.nova_polaris_sync_loading),
+                unavailableLabel = getString(R.string.nova_polaris_sync_unavailable),
+                unsetLabel = getString(R.string.nova_polaris_sync_unset),
+                savedAfterRelaunchLabel = getString(R.string.nova_polaris_sync_status_saved_relaunch),
+                selectedLabel = getString(R.string.nova_polaris_sync_status_selected),
+                activeNowLabel = getString(R.string.nova_polaris_sync_status_active_now),
+                availableLabel = getString(R.string.nova_polaris_sync_status_available),
+            )
+        }
+
+        /**
+         * How many modes the full-panel picker would offer this game: the host
+         * catalog cut to the contract's allowed list. Decides row enablement and
+         * whether a press opens the picker or cycles the classic pair in place.
+         */
+        fun gameModeCatalogSize(): Int = buildGameModePickerState(
+            modes = hostScopeUiState().modes,
+            allowedModes = currentGame.launchMode?.allowedModes.orEmpty(),
+            playMode = uiState.playMode,
+            hasExplicitOverride = uiState.hasExplicitOverride,
+            title = "",
+            hostDefaultLabel = "",
+        ).choices.size
+
+        /**
+         * A pick from the full-panel picker. The picker only offers what the host
+         * catalog allows for this game, so unlike [selectLaunchMode] there is no
+         * pair gate to re-check: the override becomes the chosen canonical id.
+         */
+        fun pickPlayMode(mode: String) {
+            modePickerOpen = false
+            NovaLaunchModeOverrides.save(this@NovaGameDetailActivity, currentGame, mode)
+            refreshUiState()
+            chosenResolution = null
+            settleThen { loadOptimization(profilePreference, usesVirtualDisplay = PolarisGame.normalizeLaunchMode(mode) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) }
+        }
+
+        /** The pinned entry: drop the override so this game follows the host again. */
+        fun pickHostDefault() {
+            modePickerOpen = false
+            NovaLaunchModeOverrides.clear(this@NovaGameDetailActivity, currentGame)
+            refreshUiState()
+            chosenResolution = null
+            settleThen { loadOptimization(profilePreference, usesVirtualDisplay = uiState.playUsesVirtualDisplay) }
+        }
+
         /**
          * Hold the resolution rather than launching with it.
          *
@@ -760,7 +829,8 @@ class NovaGameDetailActivity : NovaActivity() {
                 value = modeBadgeLabel(uiState.playMode),
                 stripTitle = getString(R.string.nova_play_setup_strip_where),
                 options = modeOptions,
-                enabled = modeOptions.count { it.enabled } > 1,
+                enabled = modeOptions.count { it.enabled } > 1 ||
+                    novaModePickerEligible(gameModeCatalogSize()),
                 overridden = uiState.overridesHostMode,
             )
 
@@ -849,32 +919,6 @@ class NovaGameDetailActivity : NovaActivity() {
             val currentIndex = selectable.indexOfFirst { it.current }
             val next = selectable[(currentIndex + 1).mod(selectable.size)]
             next.onSelect?.invoke()
-        }
-
-        /** The sheet's mapper, fed from the engine, so panel and sheet read alike. */
-        fun hostScopeUiState(): NovaPolarisSyncUiState {
-            val engine = hostSyncEngine
-            val prefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
-            return NovaPolarisSyncUiStateMapper.build(
-                settings = engine?.currentSettings ?: clientSettings,
-                busy = engine?.busy == true,
-                settingsUnavailable = engine?.settingsUnavailable == true,
-                autoSyncEnabled = engine?.autoSyncEnabled == true,
-                hasServerUuid = !serverUuid.isNullOrBlank(),
-                novaDisplayMode = PreferenceConfiguration.formatStreamingDisplayMode(
-                    prefs.width,
-                    prefs.height,
-                    prefs.fps
-                ),
-                novaBitrateKbps = prefs.bitrate,
-                loadingLabel = getString(R.string.nova_polaris_sync_loading),
-                unavailableLabel = getString(R.string.nova_polaris_sync_unavailable),
-                unsetLabel = getString(R.string.nova_polaris_sync_unset),
-                savedAfterRelaunchLabel = getString(R.string.nova_polaris_sync_status_saved_relaunch),
-                selectedLabel = getString(R.string.nova_polaris_sync_status_selected),
-                activeNowLabel = getString(R.string.nova_polaris_sync_status_active_now),
-                availableLabel = getString(R.string.nova_polaris_sync_status_available),
-            )
         }
 
         fun hostPolarisProfileValue(sync: NovaPolarisSyncUiState): String {
@@ -989,6 +1033,39 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else {
                         null
                     },
+                    modePicker = if (modePickerOpen && steamDecision == null) {
+                        if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
+                            buildHostModePickerState(
+                                modes = hostScopeUiState().modes,
+                                title = getString(R.string.nova_play_setup_host_default_display),
+                            )
+                        } else {
+                            buildGameModePickerState(
+                                modes = hostScopeUiState().modes,
+                                allowedModes = currentGame.launchMode?.allowedModes.orEmpty(),
+                                playMode = uiState.playMode,
+                                hasExplicitOverride = uiState.hasExplicitOverride,
+                                title = getString(R.string.nova_game_detail_where_it_runs),
+                                hostDefaultLabel = getString(
+                                    R.string.nova_play_setup_host_default_entry_detail,
+                                    uiState.hostStreamDisplayModeLabel.ifBlank {
+                                        getString(R.string.nova_polaris_sync_unset)
+                                    },
+                                ),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    onPickMode = { mode ->
+                        if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
+                            modePickerOpen = false
+                            hostSyncEngine?.setStreamDisplayMode(mode)
+                        } else {
+                            pickPlayMode(mode)
+                        }
+                    },
+                    onPickHostDefault = { pickHostDefault() },
                     playLabel = if (pendingLaunch) {
                         // The press landed and is being held, so say so. A button that
                         // looks untouched for the length of an HTTP round-trip reads as
@@ -1010,9 +1087,23 @@ class NovaGameDetailActivity : NovaActivity() {
                     onExplainPlaySetupRow = { row -> explainedRow = row },
                     onAdvancePlaySetupRow = { row ->
                         if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
-                            advanceHostPlaySetupRow(row)
+                            if (row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY &&
+                                novaModePickerEligible(hostScopeUiState().modes.size)
+                            ) {
+                                explainedRow = row
+                                modePickerOpen = true
+                            } else {
+                                advanceHostPlaySetupRow(row)
+                            }
                         } else {
-                            advancePlaySetupRow(row)
+                            if (row == NovaPlaySetupRow.WHERE_IT_RUNS &&
+                                novaModePickerEligible(gameModeCatalogSize())
+                            ) {
+                                explainedRow = row
+                                modePickerOpen = true
+                            } else {
+                                advancePlaySetupRow(row)
+                            }
                         }
                     },
                     destination = destination,
@@ -1393,6 +1484,8 @@ class NovaGameDetailActivity : NovaActivity() {
             PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
             PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
             PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
+            PolarisGame.MODE_GAMESCOPE_STREAM -> getString(R.string.nova_library_launch_gamescope)
+            PolarisGame.MODE_HEADLESS_DONGLE -> getString(R.string.nova_library_launch_dongle)
             else -> getString(R.string.nova_library_launch_headless)
         }
     }
@@ -1402,6 +1495,8 @@ class NovaGameDetailActivity : NovaActivity() {
             PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_short)
             PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
             PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
+            PolarisGame.MODE_GAMESCOPE_STREAM -> getString(R.string.nova_library_launch_gamescope)
+            PolarisGame.MODE_HEADLESS_DONGLE -> getString(R.string.nova_library_launch_dongle)
             else -> getString(R.string.nova_library_launch_headless)
         }
     }
