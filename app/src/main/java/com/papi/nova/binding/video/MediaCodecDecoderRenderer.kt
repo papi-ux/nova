@@ -130,6 +130,37 @@ class MediaCodecDecoderRenderer(
                 }
             }
         }
+
+        logSampledStageTiming(presentationTimeUs)
+    }
+
+    private var t3t4LogCounter = 0
+
+    // Nordstern T3->T4. presentationTimeUs is enqueueTimeMs (native - the
+    // moment reassembly completed and the frame was queued for the decoder,
+    // per moonlight-common-c's Limelight.h) converted to microseconds by
+    // queueNextInputBuffer(), with a rare +1us bump only on same-millisecond
+    // collisions. Deriving T3 from it directly, rather than from a second
+    // stored value, means this sample doesn't depend on enqueueNsByPtsUs
+    // still holding an entry, so it isn't affected by that map's eviction or
+    // by this particular frame being dropped rather than presented. T3 and
+    // System.nanoTime() (T4) share Android's CLOCK_MONOTONIC domain - the
+    // same cross-boundary assumption queueNextInputBuffer() already makes.
+    private fun logSampledStageTiming(presentationTimeUs: Long) {
+        t3t4LogCounter++
+        if (t3t4LogCounter % T3_T4_LOG_SAMPLE_INTERVAL != 0) {
+            return
+        }
+
+        val t3Ns = presentationTimeUs * 1000L
+        val t3ToT4Ms = (System.nanoTime() - t3Ns) / 1_000_000.0
+        if (t3ToT4Ms in 0.0..1000.0) {
+            LimeLog.info(
+                "Nova: stage_timing t3_to_t4_ms=" +
+                    String.format(Locale.US, "%.2f", t3ToT4Ms) +
+                    " pts_us=$presentationTimeUs",
+            )
+        }
     }
 
     fun setPreferLowerDelays(v: Boolean) {
@@ -2116,5 +2147,6 @@ class MediaCodecDecoderRenderer(
         private const val OUTPUT_BUFFER_QUEUE_LIMIT = 2
 
         private const val ENQUEUE_MAP_MAX_ENTRIES = 256
+        private const val T3_T4_LOG_SAMPLE_INTERVAL = 120
     }
 }
