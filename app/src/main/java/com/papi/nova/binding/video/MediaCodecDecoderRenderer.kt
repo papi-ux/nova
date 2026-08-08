@@ -16,7 +16,6 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Process
 import android.os.SystemClock
-import android.util.LongSparseArray
 import android.view.Choreographer
 import android.view.Surface
 import android.view.WindowManager
@@ -32,6 +31,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.ArrayList
 import java.util.Arrays
+import java.util.Collections
 import java.util.Locale
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -63,7 +63,18 @@ class MediaCodecDecoderRenderer(
         forceTightThresholds = v
     }
 
-    private val enqueueNsByPtsUs = LongSparseArray<Long>()
+    // Bounded + synchronized: put() runs on the decode-unit submission thread,
+    // get()/remove() run on the renderer thread, and android.util.LongSparseArray
+    // is neither thread-safe nor bounded. Unconsumed entries otherwise only
+    // clear on a full stream reset (resetRollingPerfStatsForNewStream), so any
+    // frame whose output is dropped rather than presented - routine under the
+    // non-BALANCED frame-pacing policies - leaked forever.
+    private val enqueueNsByPtsUs = Collections.synchronizedMap(
+        object : LinkedHashMap<Long, Long>(64, 0.75f, false) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Long>?): Boolean =
+                size > ENQUEUE_MAP_MAX_ENTRIES
+        },
+    )
 
     @Volatile
     private var preferLowerDelaysTimeoutUs = 2000
@@ -110,7 +121,7 @@ class MediaCodecDecoderRenderer(
     private fun updateDecodeLatencyStats(presentationTimeUs: Long) {
         val enqNs = enqueueNsByPtsUs[presentationTimeUs]
         if (enqNs != null) {
-            enqueueNsByPtsUs.delete(presentationTimeUs)
+            enqueueNsByPtsUs.remove(presentationTimeUs)
             val decMs = (System.nanoTime() - enqNs) / 1_000_000L
             if (decMs in 0..999) {
                 activeWindowVideoStats.decoderTimeMs += decMs
@@ -118,6 +129,37 @@ class MediaCodecDecoderRenderer(
                     activeWindowVideoStats.totalTimeMs += decMs
                 }
             }
+        }
+
+        logSampledStageTiming(presentationTimeUs)
+    }
+
+    private var t3t4LogCounter = 0
+
+    // Nordstern T3->T4. presentationTimeUs is enqueueTimeMs (native - the
+    // moment reassembly completed and the frame was queued for the decoder,
+    // per moonlight-common-c's Limelight.h) converted to microseconds by
+    // queueNextInputBuffer(), with a rare +1us bump only on same-millisecond
+    // collisions. Deriving T3 from it directly, rather than from a second
+    // stored value, means this sample doesn't depend on enqueueNsByPtsUs
+    // still holding an entry, so it isn't affected by that map's eviction or
+    // by this particular frame being dropped rather than presented. T3 and
+    // System.nanoTime() (T4) share Android's CLOCK_MONOTONIC domain - the
+    // same cross-boundary assumption queueNextInputBuffer() already makes.
+    private fun logSampledStageTiming(presentationTimeUs: Long) {
+        t3t4LogCounter++
+        if (t3t4LogCounter % T3_T4_LOG_SAMPLE_INTERVAL != 0) {
+            return
+        }
+
+        val t3Ns = presentationTimeUs * 1000L
+        val t3ToT4Ms = (System.nanoTime() - t3Ns) / 1_000_000.0
+        if (t3ToT4Ms in 0.0..1000.0) {
+            LimeLog.info(
+                "Nova: stage_timing t3_to_t4_ms=" +
+                    String.format(Locale.US, "%.2f", t3ToT4Ms) +
+                    " pts_us=$presentationTimeUs",
+            )
         }
     }
 
@@ -2103,5 +2145,8 @@ class MediaCodecDecoderRenderer(
         private const val EXCEPTION_REPORT_DELAY_MS = 3000
 
         private const val OUTPUT_BUFFER_QUEUE_LIMIT = 2
+
+        private const val ENQUEUE_MAP_MAX_ENTRIES = 256
+        private const val T3_T4_LOG_SAMPLE_INTERVAL = 120
     }
 }
