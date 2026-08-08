@@ -45,7 +45,8 @@ class LockScreenOverlayTest {
 
         val root = overlayRoot(activity)
         val button = requireNotNull(findButton(root))
-        assertEquals("Tap to unlock", button.text.toString())
+        assertEquals("Unlock host", button.text.toString())
+        assertTrue("unlock button should hold initial focus for controller-first devices", button.isFocused)
 
         root.performClick()
         shadowOf(Looper.getMainLooper()).idle()
@@ -65,7 +66,7 @@ class LockScreenOverlayTest {
         }
 
         assertTrue(button.isEnabled)
-        assertEquals("Tap to unlock", button.text.toString())
+        assertEquals("Unlock host", button.text.toString())
     }
 
     @Test

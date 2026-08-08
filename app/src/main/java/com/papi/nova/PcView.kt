@@ -2220,7 +2220,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                                 val launchedComputer = pairedComputer
                                 runOnUiThread {
                                     if (launchedComputer != null) {
-                                        NovaSnackbar.showSuccess(this@PcView, "Paired successfully via TOFU")
+                                        NovaSnackbar.showSuccess(this@PcView, getString(R.string.nova_pairing_auto_success))
                                         openBestPlaySurface(launchedComputer)
                                     } else {
                                         Toast.makeText(this@PcView, R.string.pair_fail, Toast.LENGTH_LONG).show()
@@ -2231,13 +2231,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                             }
                             LimeLog.info("TOFU: Auto-pair failed, falling back to PIN pairing")
                             runOnUiThread {
-                                NovaSnackbar.showError(this@PcView, "TOFU auto-pair failed — trying PIN pairing")
+                                NovaSnackbar.showError(this@PcView, getString(R.string.nova_pairing_auto_fallback_pin))
                             }
                             serverInfo = httpConn.getServerInfo(true)
                         } else {
                             LimeLog.info("TOFU: Server does not advertise TofuEnabled — rebuild Polaris to enable")
                             runOnUiThread {
-                                NovaSnackbar.showError(this@PcView, "Server doesn’t support TOFU — update Polaris or use OTP/PIN")
+                                NovaSnackbar.showError(this@PcView, getString(R.string.nova_pairing_auto_unsupported))
                             }
                         }
                     }

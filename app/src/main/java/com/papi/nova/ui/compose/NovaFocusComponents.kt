@@ -40,6 +40,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -264,6 +267,17 @@ fun NovaFocusableCard(
     )
 }
 
+// Shared haptic vocabulary for the gamepad-first surfaces: a light tick when focus moves,
+// a firmer confirm when a primary action fires. The platform suppresses these when the
+// user has system haptics disabled, so no Nova-level setting gates them.
+fun HapticFeedback.novaFocusTick() {
+    performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+}
+
+fun HapticFeedback.novaConfirm() {
+    performHapticFeedback(HapticFeedbackType.Confirm)
+}
+
 @Composable
 fun NovaActionButton(
     text: String,
@@ -282,6 +296,7 @@ fun NovaActionButton(
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val haptics = LocalHapticFeedback.current
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(cornerRadius)
@@ -350,13 +365,20 @@ fun NovaActionButton(
                 stateDescription?.let { this.stateDescription = it }
                 role = Role.Button
             }
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
+            .onFocusChanged {
+                val nowFocused = it.isFocused || it.hasFocus
+                if (nowFocused && !focused) haptics.novaFocusTick()
+                focused = nowFocused
+            }
             .clickable(
                 enabled = enabled,
                 interactionSource = interactionSource,
                 indication = null,
                 role = Role.Button,
-                onClick = onClick
+                onClick = {
+                    haptics.novaConfirm()
+                    onClick()
+                }
             )
             .focusable(enabled = enabled)
             .padding(contentPadding),

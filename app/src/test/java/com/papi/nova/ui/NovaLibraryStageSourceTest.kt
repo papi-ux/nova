@@ -450,7 +450,7 @@ class NovaLibraryStageSourceTest {
         assertTrue(source.contains(".semantics(mergeDescendants = true)"))
         assertTrue(source.contains("contentDescription = accessibleLabel"))
         assertTrue(source.contains("role = Role.Button"))
-        assertTrue(source.contains(".combinedClickable(") && source.contains("onClick = onOpenDetail"))
+        assertTrue(source.contains(".combinedClickable(") && source.contains("onOpenDetail()"))
         assertTrue(source.windowed(".combinedClickable(".length).count { it == ".combinedClickable(" } == 1)
         assertFalse(source.contains(".focusable()"))
         assertFalse(source.contains("import androidx.compose.foundation.focusable"))

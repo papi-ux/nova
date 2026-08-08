@@ -33,6 +33,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -50,6 +51,8 @@ import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.novaConfirm
+import com.papi.nova.ui.compose.novaFocusTick
 
 private const val NovaPosterAnimationDurationMillis = 180
 internal val NovaPosterFocusedLift = 10.dp
@@ -79,6 +82,7 @@ internal fun NovaLibraryPosterCard(
     val surfaces = LocalNovaLibrarySurfaces.current
     val posterLoaderIdentity: Any = posterLoader ?: apiClient
     var focused by remember(game.id) { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
     val scale by animateFloatAsState(
         targetValue = if (focused) presentationSpec.focusedScale else 1f,
         animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis),
@@ -128,6 +132,7 @@ internal fun NovaLibraryPosterCard(
             .testTag("nova-poster-${game.id}")
             .then(focusRequesterModifier)
             .onFocusChanged { state ->
+                if (state.isFocused && !focused) haptics.novaFocusTick()
                 focused = state.isFocused
                 onFocusChanged(state.isFocused)
                 if (state.isFocused) onFocused()
@@ -146,7 +151,10 @@ internal fun NovaLibraryPosterCard(
             }
             .combinedClickable(
                 role = Role.Button,
-                onClick = onOpenDetail,
+                onClick = {
+                    haptics.novaConfirm()
+                    onOpenDetail()
+                },
             ),
     ) {
         NovaLibraryPosterArtwork(
