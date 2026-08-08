@@ -1171,6 +1171,7 @@ willStreamHdr,
 shouldInvertDecoderResolution,
 glPrefs!!.glRenderer,
 this)
+syncPerfTextWanted()
 
  // --- Force tight thresholds (prefConfig.forceTightThresholds) ---
         try
@@ -1746,7 +1747,9 @@ LimeLog.info("Nova: Android companion display added id=$displayId stream_id=$str
 showCompanionControls()
 }
 }
-override fun onDisplayChanged(displayId:Int) = Unit
+override fun onDisplayChanged(displayId:Int) {
+decoderRenderer?.refreshDisplayParameters()
+}
 override fun onDisplayRemoved(displayId:Int) {
 handleDisplayRemoved(displayId)
 }
@@ -4831,11 +4834,13 @@ com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e!!.message)
  }
 novaHud!!.dismiss()
 novaHud = null
+syncPerfTextWanted()
 }
 else if (novaHud != null)
 {
 novaHud!!.dismiss()
 novaHud = null
+syncPerfTextWanted()
 }
  // Stop audio haptics and gyro aiming
             if (audioHapticEngine != null)
@@ -6215,6 +6220,13 @@ PreferenceManager.getDefaultSharedPreferences(this)
 fun dismissNovaHud() {
 novaHud?.dismiss()
 novaHud = null
+syncPerfTextWanted()
+}
+
+private fun syncPerfTextWanted() {
+decoderRenderer?.setPerfTextWanted(
+(::prefConfig.isInitialized && prefConfig!!.enablePerfOverlay) || novaHud?.isShowing == true
+)
 }
 
 fun copyNovaHudDiagnostics() {
@@ -6243,6 +6255,7 @@ showGameMenu(null)
 }
 novaHud = hud
 hud!!.show()
+syncPerfTextWanted()
 configureNovaHud(hud!!)
 return hud!!
 }
