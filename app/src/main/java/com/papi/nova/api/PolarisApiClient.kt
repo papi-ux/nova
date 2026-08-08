@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLPeerUnverifiedException
 import javax.net.ssl.SSLSession
 import javax.net.ssl.TrustManager
@@ -133,6 +134,28 @@ class PolarisApiClient @JvmOverloads constructor(
                 .callTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .readTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .build()
+
+        // TLS session resumption against a server that intermittently rejects it (e.g. a
+        // missing server-side session id context) surfaces as an SSLException on an
+        // otherwise-healthy link; one fresh-handshake retry is the correct recovery. Only
+        // idempotent requests may ride this helper.
+        @JvmStatic
+        internal fun <T> runWithTransientTlsRetry(
+            onTransient: () -> Unit,
+            retryDelayMs: Long = 150L,
+            attempt: () -> T
+        ): T {
+            return try {
+                attempt()
+            } catch (e: SSLException) {
+                LimeLog.warning("Nova: retrying once after transient TLS failure: ${e.javaClass.simpleName}: ${e.message}")
+                onTransient()
+                if (retryDelayMs > 0) {
+                    Thread.sleep(retryDelayMs)
+                }
+                attempt()
+            }
+        }
 
         @JvmStatic
         internal fun parseArtworkJsonBytes(bytes: ByteArray): JSONObject? {
@@ -1194,10 +1217,13 @@ class PolarisApiClient @JvmOverloads constructor(
     // Instance-scoped: the key and trust managers are assigned once in init, and re-pairing
     // constructs a new PolarisApiClient, so cached TLS state never outlives the certificate
     // material it was built from. Never cache these at companion/static scope.
-    private val perCallClient: OkHttpClient by lazy {
+    @Volatile
+    private var perCallClientCache: OkHttpClient? = null
+
+    private fun buildPerCallClient(): OkHttpClient {
         val keyManager = apiKeyManager
         val trustManager = apiTrustManager
-        if (keyManager == null || trustManager == null) {
+        return if (keyManager == null || trustManager == null) {
             client
         } else {
             val sslContext = SSLContext.getInstance("TLS").apply {
@@ -1217,7 +1243,20 @@ class PolarisApiClient @JvmOverloads constructor(
             .build()
     }
 
-    private fun clientForCall(): OkHttpClient = perCallClient
+    private fun clientForCall(): OkHttpClient =
+        perCallClientCache ?: synchronized(this) {
+            perCallClientCache ?: buildPerCallClient().also { perCallClientCache = it }
+        }
+
+    // Dropping the cached client discards its SSLContext and with it any cached TLS
+    // sessions, so the next call performs a full handshake instead of offering a
+    // resumption the server may refuse.
+    private fun resetCallClient() {
+        synchronized(this) { perCallClientCache = null }
+    }
+
+    private fun executeWithTransientRetry(request: Request): okhttp3.Response =
+        runWithTransientTlsRetry(onTransient = { resetCallClient() }) { execute(request) }
 
 	private fun execute(request: Request) = clientForCall().newCall(
 		request.newBuilder()
@@ -1234,6 +1273,9 @@ class PolarisApiClient @JvmOverloads constructor(
                 return execute(request)
             } catch (e: Exception) {
                 lastError = e
+                if (e is SSLException) {
+                    resetCallClient()
+                }
                 if (attempt == attempts - 1) {
                     throw e
                 }
@@ -1333,7 +1375,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (response.code != 200) {
                     LimeLog.warning("Nova: Client settings update rejected code=${response.code}")
@@ -1748,7 +1790,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 response.code == 200
             }
         } catch (e: Exception) {
@@ -1768,7 +1810,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (response.code != 200) {
                     LimeLog.warning("Nova: Steam launch mode update rejected code=${response.code}")
@@ -1796,7 +1838,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 response.code == 200
             }
         } catch (e: Exception) {
@@ -1818,7 +1860,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 response.code == 200
             }
         } catch (e: Exception) {
@@ -1849,7 +1891,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 response.code == 200
             }
         } catch (e: Exception) {
@@ -1871,7 +1913,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 response.code == 200
             }
         } catch (e: Exception) {
@@ -2068,7 +2110,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 if (response.code != 200) return null
                 val responseJson = JSONObject(response.body?.string() ?: "{}")
                 responseJson.optBoolean("cleared", false)
@@ -2111,7 +2153,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     JSONObject().toString()
                 ))
                 .build()
-            execute(request).use { response ->
+            executeWithTransientRetry(request).use { response ->
                 if (response.code != 200) return null
                 val responseJson = JSONObject(response.body?.string() ?: "{}")
                 responseJson.optBoolean("cleared", false)

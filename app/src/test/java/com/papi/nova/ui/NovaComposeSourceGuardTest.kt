@@ -1362,7 +1362,15 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "TLS-bearing clients must stay instance-scoped so re-pairing (a new PolarisApiClient) rebuilds TLS state; never cache them at companion/static scope",
             api.contains("private val artworkClient: OkHttpClient by lazy") &&
-                api.contains("private val perCallClient: OkHttpClient by lazy")
+                api.contains("private var perCallClientCache: OkHttpClient? = null") &&
+                api.contains("private fun buildPerCallClient(): OkHttpClient")
+        )
+        assertTrue(
+            "transient-TLS recovery must rebuild the per-call client (dropping cached TLS sessions), and only idempotent requests may ride the retry helper",
+            api.contains("private fun resetCallClient()") &&
+                api.contains("runWithTransientTlsRetry(onTransient = { resetCallClient() })") &&
+                !api.section("fun launchGame(", "fun unlockScreen(")
+                    .contains("executeWithTransientRetry")
         )
         assertFalse(
             "artwork fetches must not force per-request sockets",
