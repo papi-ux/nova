@@ -74,6 +74,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -88,6 +89,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -98,6 +100,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -2411,6 +2414,8 @@ class NovaLibraryActivity : NovaActivity() {
                             ) { game ->
                                 val focusRequester = rememberLibraryPosterFocusRequester(
                                     restoreFocus = game.id == restoreFocusGameId,
+                                    coldStartFocus = restoreFocusGameId == null &&
+                                        game.id == model.filteredGames.firstOrNull()?.id,
                                 )
                                 NovaLibraryPosterCard(
                                     game = game,
@@ -2518,13 +2523,22 @@ class NovaLibraryActivity : NovaActivity() {
     @Composable
     private fun rememberLibraryPosterFocusRequester(
         restoreFocus: Boolean,
+        coldStartFocus: Boolean = false,
     ): FocusRequester {
         val focusRequester = remember { FocusRequester() }
+        val inputModeManager = LocalInputModeManager.current
         var restoreAttempted by remember { mutableStateOf(false) }
-        LaunchedEffect(restoreFocus) {
+        LaunchedEffect(restoreFocus, coldStartFocus) {
             if (restoreFocus && !restoreAttempted) {
                 restoreAttempted = focusRequester.requestFocus()
-            } else if (!restoreFocus) {
+            } else if (coldStartFocus && !restoreAttempted) {
+                // A cold start composes with nothing focused, so the first dpad press was
+                // being consumed just establishing focus. Declare keyboard intent and land
+                // it on the first card so the ring is visible immediately.
+                withFrameNanos { }
+                inputModeManager.requestInputMode(InputMode.Keyboard)
+                restoreAttempted = focusRequester.requestFocus()
+            } else if (!restoreFocus && !coldStartFocus) {
                 restoreAttempted = false
             }
         }

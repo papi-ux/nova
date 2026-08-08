@@ -959,6 +959,7 @@
     <string name="nova_quick_menu_copy_hud_diagnostics">Copy HUD Diagnostics</string>
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>
+    <string name="nova_conn_reconnect">Reconnect</string>
     <string name="nova_quick_menu_safe">Safe</string>
     <string name="nova_quick_menu_mouse">Mouse</string>
     <string name="nova_quick_menu_controller">Touch Controls</string>

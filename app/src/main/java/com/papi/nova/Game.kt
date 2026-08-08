@@ -5096,7 +5096,9 @@ MoonBridge.stringifyPortFlags(portFlags, "\n"))
 }
 
 Dialog.displayDialog(this@Game, getResources().getString(R.string.conn_terminated_title),
-message, true)
+message, true,
+getResources().getString(R.string.nova_conn_reconnect),
+Runnable { relaunchStream() })
 }
 else
 {

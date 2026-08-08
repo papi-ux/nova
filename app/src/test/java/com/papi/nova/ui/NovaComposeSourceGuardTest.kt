@@ -16,13 +16,13 @@ class NovaComposeSourceGuardTest {
             "fun NovaQuickMenuContent(",
             "@Composable\nprivate fun NovaQuickMenuHeader("
         )
-        val header = quickMenuContent.section(
-            "private fun NovaQuickMenuHeader(",
-            "@Composable\nprivate fun NovaQuickMenuTitleBlock("
+        val diagnosisCard = quickMenuContent.section(
+            "private fun NovaQuickMenuDiagnosisCard(",
+            "@Composable\nprivate fun NovaQuickMenuSessionStrip("
         )
         val closeButton = quickMenuContent.section(
             "private fun NovaQuickMenuCloseButton(",
-            "@Composable\nprivate fun NovaQuickMenuSessionStrip("
+            "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
         )
 
         assertTrue(
@@ -36,18 +36,20 @@ class NovaComposeSourceGuardTest {
                 content.contains("runCatching { initialFocusRequester.requestFocus() }")
         )
         assertTrue(
-            "Command Center should attach that initial focus requester to the visible Close button in both compact and wide header layouts",
-            content.contains("NovaQuickMenuHeader(state, callbacks, initialFocusRequester)") &&
-                header.contains("initialFocusRequester: FocusRequester") &&
-                header.contains("NovaQuickMenuCloseButton(callbacks, initialFocusRequester)") &&
-                closeButton.contains("initialFocusRequester: FocusRequester") &&
-                closeButton.contains(".focusRequester(initialFocusRequester)")
+            "Command Center should land initial focus on the diagnosis card, not Close: the first A-press on a menu the user deliberately opened must not dismiss it",
+            content.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks, initialFocusRequester)") &&
+                diagnosisCard.contains("initialFocusRequester: FocusRequester? = null") &&
+                diagnosisCard.contains("Modifier.focusRequester(initialFocusRequester)")
         )
-        val focusRequesterIndex = closeButton.indexOf(".focusRequester(initialFocusRequester)")
-        val semanticsIndex = closeButton.indexOf(".semantics")
+        assertFalse(
+            "the Close button must not carry the initial focus requester",
+            closeButton.contains("focusRequester")
+        )
+        val requesterIndex = diagnosisCard.indexOf("Modifier.focusRequester(initialFocusRequester)")
+        val actionIndex = diagnosisCard.indexOf("action = NovaQuickMenuAction(")
         assertTrue(
-            "Close button should attach focusRequester before later modifiers so it targets the NovaActionButton focusable node",
-            focusRequesterIndex >= 0 && semanticsIndex > focusRequesterIndex
+            "the diagnosis card should pass the requester through the surface's leading modifier so it precedes the semantics/clickable chain",
+            requesterIndex >= 0 && actionIndex > requesterIndex
         )
     }
 
@@ -2907,7 +2909,7 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "the diagnosis card takes callbacks and passes them to the card it draws",
-            quickMenu.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)") &&
+            quickMenu.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks, initialFocusRequester)") &&
                 quickMenu.contains("callbacks: NovaQuickMenuCallbacks,")
         )
     }
