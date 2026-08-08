@@ -397,8 +397,11 @@ internal fun NovaGameDetailContent(
                             // The resolved mode, not the name of the control that sets
                             // it: this is the one line the column exists to state.
                             modeLabel = when (uiState.playMode) {
-                                "virtual_display" -> virtualDisplayModeLabel
-                                else -> headlessModeLabel
+                                PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> virtualDisplayModeLabel
+                                PolarisGame.MODE_HEADLESS_STREAM -> headlessModeLabel
+                                // Following a host default outside the pair: say what it
+                                // actually is instead of mislabeling it Private Stream.
+                                else -> uiState.hostStreamDisplayModeLabel.ifBlank { headlessModeLabel }
                             },
                             lines = listOfNotNull(
                                 summary?.selectedLine
