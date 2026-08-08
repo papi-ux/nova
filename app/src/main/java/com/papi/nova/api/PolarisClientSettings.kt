@@ -50,7 +50,11 @@ data class PolarisClientSettings(
         val label: String = "",
         val available: Boolean = true,
         val restartRequired: Boolean = true,
-        val reason: String = ""
+        val reason: String = "",
+        /** Registry grouping: "private" (desktop untouched) or "host" (uses/swaps the host screen). */
+        val group: String = "",
+        /** Host-supplied explanation served when available is false. */
+        val unavailableReason: String = ""
     )
 
     val desiredModeLabel: String
@@ -64,6 +68,8 @@ data class PolarisClientSettings(
         const val MODE_DESKTOP_DISPLAY = "desktop_display"
         const val MODE_HOST_VIRTUAL_DISPLAY = "host_virtual_display"
         const val MODE_GPU_NATIVE_TEST = "windowed_stream"
+        const val MODE_GAMESCOPE_STREAM = "gamescope_stream"
+        const val MODE_HEADLESS_DONGLE = "headless_dongle"
 
         @JvmStatic
         fun labelForMode(mode: String): String = when (mode) {
@@ -71,6 +77,8 @@ data class PolarisClientSettings(
             MODE_HOST_VIRTUAL_DISPLAY -> "Host Virtual Display"
             MODE_GPU_NATIVE_TEST -> "Private Stream (GPU-native)"
             MODE_DESKTOP_DISPLAY -> "Mirror Desktop"
+            MODE_GAMESCOPE_STREAM -> "Gamescope Stream"
+            MODE_HEADLESS_DONGLE -> "Headless Dongle"
             "headless" -> "Private Stream"
             "virtual_display" -> "Host Virtual Display"
             "desktop_display", "host_display" -> "Mirror Desktop"

@@ -499,7 +499,9 @@ class PolarisApiClient @JvmOverloads constructor(
                         label = mode.optString("label", ""),
                         available = mode.optBoolean("available", true),
                         restartRequired = mode.optBoolean("restart_required", true),
-                        reason = mode.optString("reason", "")
+                        reason = mode.optString("reason", ""),
+                        group = mode.optString("group", ""),
+                        unavailableReason = mode.optString("unavailable_reason", "")
                     )
                 }
             }

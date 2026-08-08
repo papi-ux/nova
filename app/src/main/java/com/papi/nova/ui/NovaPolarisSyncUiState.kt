@@ -21,7 +21,11 @@ data class NovaPolarisModeUiState(
     val available: Boolean,
     val reason: String,
     val restartRequired: Boolean,
-    val statusLabel: String
+    val statusLabel: String,
+    /** Registry grouping from the host catalog: "private" or "host"; blank on legacy hosts. */
+    val group: String = "",
+    /** Host-supplied explanation for an unavailable mode; blank when available. */
+    val unavailableReason: String = ""
 )
 
 data class NovaPolarisSyncUiState(
@@ -107,20 +111,30 @@ object NovaPolarisSyncUiStateMapper {
             },
             desiredModeLabel = desiredModeLabel,
             effectiveModeLabel = effectiveModeLabel,
-            modes = PolarisStreamDisplayMode.ORDER.map { mode ->
-                val option = availableModes?.get(mode)
+            // Server-authoritative catalog: when the host serves capabilities.modes,
+            // render exactly that list in the host order — every entry, including
+            // unavailable ones, which stay visible but disabled with the host reason.
+            // The hardcoded ORDER synthesis remains only for hosts that predate the
+            // catalog and can never offer more than the classic four.
+            modes = (settings?.capabilities?.modes?.takeIf { it.isNotEmpty() }
+                ?.map { option -> PolarisStreamDisplayMode.normalize(option.value) to option }
+                ?: PolarisStreamDisplayMode.ORDER.map { mode -> mode to availableModes?.get(mode) }
+            ).map { (mode, option) ->
                 val available = option?.available ?: true
                 val desiredSelected = selectedMode == mode
                 val effectiveSelected = effectiveMode == mode
                 NovaPolarisModeUiState(
                     mode = mode,
-                    label = PolarisStreamDisplayMode.labelForMode(mode),
+                    label = option?.label?.takeIf { it.isNotBlank() }
+                        ?: PolarisStreamDisplayMode.labelForMode(mode),
                     selected = desiredSelected,
                     selectedDesired = desiredSelected,
                     selectedEffective = effectiveSelected,
                     enabled = settings != null && available && !busy,
                     available = available,
                     reason = option?.reason.orEmpty(),
+                    group = option?.group.orEmpty(),
+                    unavailableReason = option?.unavailableReason.orEmpty(),
                     restartRequired = option?.restartRequired ?: true,
                     statusLabel = when {
                         desiredSelected && relaunchRequired && !effectiveSelected -> savedAfterRelaunchLabel
