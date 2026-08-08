@@ -1,6 +1,8 @@
 package com.papi.nova.api
 
 import com.papi.nova.shared.polaris.model.PolarisGame
+import java.util.concurrent.TimeUnit
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.io.IOException
@@ -32,21 +34,19 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun artworkHttpClientRefreshesBaseTlsStateForEveryCall() {
-        var baseCalls = 0
-        val baseForCall = {
-            baseCalls += 1
-            OkHttpClient.Builder().build()
-        }
+    fun artworkHttpClientKeepsPolicyWhenPooled() {
+        // Mirrors the production construction chain: newBuilder() copies the base's
+        // no-keep-alive pool, so the pooled override must be applied explicitly.
+        val base = OkHttpClient.Builder().connectionPool(ConnectionPool(0, 1, TimeUnit.MILLISECONDS)).build()
+        val pooled = PolarisApiClient.buildArtworkHttpClient(base)
+            .newBuilder()
+            .connectionPool(ConnectionPool(5, 30, TimeUnit.SECONDS))
+            .build()
 
-        val first = PolarisApiClient.buildArtworkHttpClientForCall(baseForCall)
-        val second = PolarisApiClient.buildArtworkHttpClientForCall(baseForCall)
-
-        assertEquals(2, baseCalls)
-        assertFalse(first.followRedirects)
-        assertFalse(second.followSslRedirects)
-        assertEquals(120_000, first.callTimeoutMillis)
-        assertEquals(120_000, second.readTimeoutMillis)
+        assertFalse(pooled.followRedirects)
+        assertFalse(pooled.followSslRedirects)
+        assertEquals(120_000, pooled.callTimeoutMillis)
+        assertEquals(120_000, pooled.readTimeoutMillis)
     }
 
     @Test

@@ -71,11 +71,11 @@ class NovaArtworkStudioSourceGuardTest {
         assertFalse(api.contains("view.tag = cacheKey"))
         assertFalse(preview.contains("candidate.posterPreviewUrl"))
 
-        assertTrue(api.contains("private fun executeArtwork(request: Request) = buildArtworkHttpClientForCall(::clientForCall).newCall("))
+        assertTrue(api.contains("private fun executeArtwork(request: Request) = artworkClient.newCall(request).execute()"))
         assertTrue(api.contains(".followRedirects(false)"))
         assertTrue(api.contains(".followSslRedirects(false)"))
         assertTrue(api.contains("private const val ARTWORK_REQUEST_TIMEOUT_SECONDS = 120L"))
-        assertFalse(api.contains("private val artworkHttpClient"))
+        assertTrue(api.contains("private val artworkClient: OkHttpClient by lazy"))
     }
 
     @Test

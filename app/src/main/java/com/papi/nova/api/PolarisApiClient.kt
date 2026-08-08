@@ -135,10 +135,6 @@ class PolarisApiClient @JvmOverloads constructor(
                 .build()
 
         @JvmStatic
-        internal fun buildArtworkHttpClientForCall(baseForCall: () -> OkHttpClient): OkHttpClient =
-            buildArtworkHttpClient(baseForCall())
-
-        @JvmStatic
         internal fun parseArtworkJsonBytes(bytes: ByteArray): JSONObject? {
             val text = bytes.toString(Charsets.UTF_8)
             if (text.isBlank()) return null
@@ -1195,16 +1191,33 @@ class PolarisApiClient @JvmOverloads constructor(
             .build()
     }
 
-    private fun clientForCall(): OkHttpClient {
-        val keyManager = apiKeyManager ?: return client
-        val trustManager = apiTrustManager ?: return client
-        val sslContext = SSLContext.getInstance("TLS").apply {
-            init(arrayOf<KeyManager>(keyManager), arrayOf<TrustManager>(trustManager), SecureRandom())
+    // Instance-scoped: the key and trust managers are assigned once in init, and re-pairing
+    // constructs a new PolarisApiClient, so cached TLS state never outlives the certificate
+    // material it was built from. Never cache these at companion/static scope.
+    private val perCallClient: OkHttpClient by lazy {
+        val keyManager = apiKeyManager
+        val trustManager = apiTrustManager
+        if (keyManager == null || trustManager == null) {
+            client
+        } else {
+            val sslContext = SSLContext.getInstance("TLS").apply {
+                init(arrayOf<KeyManager>(keyManager), arrayOf<TrustManager>(trustManager), SecureRandom())
+            }
+            client.newBuilder()
+                .sslSocketFactory(sslContext.socketFactory, trustManager)
+                .build()
         }
-        return client.newBuilder()
-            .sslSocketFactory(sslContext.socketFactory, trustManager)
+    }
+
+    // The pool must be set explicitly: newBuilder() copies the API path's no-keep-alive pool.
+    private val artworkClient: OkHttpClient by lazy {
+        buildArtworkHttpClient(clientForCall())
+            .newBuilder()
+            .connectionPool(ConnectionPool(5, 30, TimeUnit.SECONDS))
             .build()
     }
+
+    private fun clientForCall(): OkHttpClient = perCallClient
 
 	private fun execute(request: Request) = clientForCall().newCall(
 		request.newBuilder()
@@ -1212,11 +1225,7 @@ class PolarisApiClient @JvmOverloads constructor(
 			.build()
 	).execute()
 
-    private fun executeArtwork(request: Request) = buildArtworkHttpClientForCall(::clientForCall).newCall(
-        request.newBuilder()
-            .header("Connection", "close")
-            .build()
-    ).execute()
+    private fun executeArtwork(request: Request) = artworkClient.newCall(request).execute()
 
     private fun executeGetWithRetry(request: Request, attempts: Int = 3): okhttp3.Response {
         var lastError: Exception? = null
@@ -1682,7 +1691,7 @@ class PolarisApiClient @JvmOverloads constructor(
         val requestClass = artworkRequestLogLabel(url)
         repeat(3) { attempt ->
             try {
-                val request = Request.Builder().url(url).header("Connection", "close").build()
+                val request = Request.Builder().url(url).build()
                 executeArtwork(request).use { response ->
                     if (!response.isSuccessful) {
                         LimeLog.warning("Nova: artwork request failed [$requestClass] code=${response.code}")
