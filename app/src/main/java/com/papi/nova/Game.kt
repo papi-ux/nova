@@ -5977,6 +5977,26 @@ catch (ignored:Exception) {}
 
 }
 
+private var shownDisplayModeWarning = ""
+
+/**
+ * The host says when a session is not on the display the client asked for (the
+ * virtual display fell back, or the private runtime superseded the request) -
+ * the silent half of a fallback the journal alone used to know about. Shown
+ * once per distinct warning per session: a heads-up, not a nag.
+ */
+private fun maybeShowDisplayModeWarning(status:com.papi.nova.api.PolarisSessionStatus) {
+val warning = status.displayMode.warning
+if (warning.isBlank() || warning == shownDisplayModeWarning)
+{
+return
+}
+shownDisplayModeWarning = warning
+runOnUiThread {
+Toast.makeText(this, warning, Toast.LENGTH_LONG).show()
+}
+}
+
 private fun reportClientPresentationIfNeeded(status:com.papi.nova.api.PolarisSessionStatus?) {
 if (status == null || !status!!.isStreaming || novaApiClient == null)
 {
@@ -6126,6 +6146,7 @@ if (isFinishing || isDestroyed)
 return@runOnMainIfActive
 }
 novaHud?.applySessionStatus(status)
+maybeShowDisplayModeWarning(status)
 updateCompanionCommandDeck()
 }
 reportClientPresentationIfNeeded(status)

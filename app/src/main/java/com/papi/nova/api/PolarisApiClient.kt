@@ -1000,7 +1000,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     virtualDisplay = displayMode?.optBoolean("virtual_display", false) ?: false,
                     requestedHeadless = displayMode?.optBoolean("requested_headless", false) ?: false,
                     effectiveHeadless = displayMode?.optBoolean("effective_headless", false) ?: false,
-                    gpuNativeOverrideActive = displayMode?.optBoolean("gpu_native_override_active", false) ?: false
+                    gpuNativeOverrideActive = displayMode?.optBoolean("gpu_native_override_active", false) ?: false,
+                    warning = displayMode?.optString("warning", "") ?: ""
                 ),
                 presentationPolicy = PolarisSessionStatus.PresentationPolicy(
                     version = presentationPolicy?.optInt("version", 0) ?: 0,
