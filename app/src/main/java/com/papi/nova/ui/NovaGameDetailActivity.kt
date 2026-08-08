@@ -646,8 +646,8 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         fun selectLaunchMode(mode: String) {
-            val allowed = when (mode) {
-                "virtual_display" -> uiState.virtualDisplayAllowed && !uiState.virtualDisplayUnavailable
+            val allowed = when (PolarisGame.normalizeLaunchMode(mode)) {
+                PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> uiState.virtualDisplayAllowed && !uiState.virtualDisplayUnavailable
                 else -> uiState.headlessAllowed
             }
             if (!allowed || mode == uiState.playMode) return
@@ -655,7 +655,7 @@ class NovaGameDetailActivity : NovaActivity() {
             val previousLaunchMode = currentGame.launchMode
             val allowedModes = previousLaunchMode?.allowedModes
                 ?.takeIf { it.isNotEmpty() }
-                ?: listOf("headless", "virtual_display")
+                ?: listOf(PolarisGame.MODE_HEADLESS_STREAM, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
             val updatedLaunchMode = (previousLaunchMode ?: PolarisGame.LaunchModeContract()).copy(
                 preferredMode = mode,
                 allowedModes = allowedModes
@@ -666,7 +666,7 @@ class NovaGameDetailActivity : NovaActivity() {
             // A resolution was an answer to "how should this run on that display". Changing
             // the display changes the question, so the answer does not carry over.
             chosenResolution = null
-            settleThen { loadOptimization(profilePreference, usesVirtualDisplay = mode == "virtual_display") }
+            settleThen { loadOptimization(profilePreference, usesVirtualDisplay = PolarisGame.normalizeLaunchMode(mode) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) }
         }
 
         /**
@@ -734,21 +734,21 @@ class NovaGameDetailActivity : NovaActivity() {
                 if (uiState.headlessAllowed) {
                     add(
                         NovaPlaySetupOption(
-                            label = modeBadgeLabel("headless"),
+                            label = modeBadgeLabel(PolarisGame.MODE_HEADLESS_STREAM),
                             consequence = getString(R.string.nova_play_setup_compare_private),
-                            current = uiState.playMode == "headless",
-                            onSelect = { selectLaunchMode("headless") },
+                            current = uiState.playMode == PolarisGame.MODE_HEADLESS_STREAM,
+                            onSelect = { selectLaunchMode(PolarisGame.MODE_HEADLESS_STREAM) },
                         )
                     )
                 }
                 if (uiState.virtualDisplayAllowed) {
                     add(
                         NovaPlaySetupOption(
-                            label = modeBadgeLabel("virtual_display"),
+                            label = modeBadgeLabel(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY),
                             consequence = getString(R.string.nova_play_setup_compare_virtual),
-                            current = uiState.playMode == "virtual_display",
+                            current = uiState.playMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
                             enabled = !uiState.virtualDisplayUnavailable,
-                            onSelect = { selectLaunchMode("virtual_display") },
+                            onSelect = { selectLaunchMode(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) },
                         )
                     )
                 }
@@ -1003,8 +1003,8 @@ class NovaGameDetailActivity : NovaActivity() {
                             ?: primaryPlayLabel(uiState)
                     },
                     launchModeTitle = getString(R.string.nova_library_launch_mode_title),
-                    headlessModeLabel = modeBadgeLabel("headless"),
-                    virtualDisplayModeLabel = modeBadgeLabel("virtual_display"),
+                    headlessModeLabel = modeBadgeLabel(PolarisGame.MODE_HEADLESS_STREAM),
+                    virtualDisplayModeLabel = modeBadgeLabel(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY),
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
                     onPrimaryLaunch = { attemptLaunch() },
                     onExplainPlaySetupRow = { row -> explainedRow = row },
@@ -1389,15 +1389,19 @@ class NovaGameDetailActivity : NovaActivity() {
     }
 
     private fun modeLabel(mode: String): String {
-        return when (mode) {
-            "virtual_display" -> getString(R.string.nova_library_launch_virtual_display)
+        return when (PolarisGame.normalizeLaunchMode(mode)) {
+            PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
+            PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
             else -> getString(R.string.nova_library_launch_headless)
         }
     }
 
     private fun modeBadgeLabel(mode: String): String {
-        return when (mode) {
-            "virtual_display" -> getString(R.string.nova_library_launch_virtual_short)
+        return when (PolarisGame.normalizeLaunchMode(mode)) {
+            PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_short)
+            PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
             else -> getString(R.string.nova_library_launch_headless)
         }
     }
@@ -1454,7 +1458,7 @@ class NovaGameDetailActivity : NovaActivity() {
             }
             uiState.launchChoice.hostModeReason.isNotBlank() -> uiState.launchChoice.hostModeReason
             uiState.game.launchMode?.modeReason?.isNotBlank() == true -> uiState.game.launchMode?.modeReason.orEmpty()
-            uiState.recommendedMode == "virtual_display" -> getString(R.string.nova_library_launch_intro_virtual_default)
+            uiState.recommendedMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_intro_virtual_default)
             else -> getString(R.string.nova_library_launch_intro_headless_default)
         }
         return parts.joinToString(" ")

@@ -25,7 +25,7 @@ class NovaLaunchSourceGuardTest {
         )
         assertTrue(
             "inline mode selection should keep the selected MangoHUD state in preview/preflight state",
-            launchModeSelection.contains("loadOptimization(profilePreference, usesVirtualDisplay = mode == \"virtual_display\")") &&
+            launchModeSelection.contains("loadOptimization(profilePreference, usesVirtualDisplay = PolarisGame.normalizeLaunchMode(mode) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)") &&
                 launchModeSelection.contains("currentGame = currentGame.copy(launchMode = updatedLaunchMode)")
         )
     }
