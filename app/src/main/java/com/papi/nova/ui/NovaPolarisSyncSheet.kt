@@ -8,7 +8,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
@@ -18,7 +21,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.NovaComposeTheme
 
@@ -26,8 +28,11 @@ import com.papi.nova.ui.compose.NovaComposeTheme
  * Host-aware Polaris settings surface for the currently selected server.
  *
  * The update discipline lives in [NovaPolarisSyncEngine], shared with Play Setup's
- * Every Game scope; what stays here is the sheet itself — chrome, sizing, and the
- * Toast feedback a modal sheet can anchor where a panel cannot.
+ * Every Game scope — and since the sheet stopped carrying its own rendering, the
+ * rows themselves are shared too ([NovaPolarisSyncSheetBody] draws the same
+ * buildNovaPlaySetupHostRows output the panel does, mode picker included). What
+ * stays here is the sheet itself: chrome, sizing, and the Toast feedback a modal
+ * sheet can anchor where a panel cannot.
  */
 class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
 
@@ -38,6 +43,10 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
     private var onSettingsChanged: ((PolarisClientSettings) -> Unit)? = null
 
     private var engine: NovaPolarisSyncEngine? = null
+
+    // Fragment-level so the dialog's B handler can close the picker before the sheet.
+    private var pickerOpen by mutableStateOf(false)
+    private var explainedRow by mutableStateOf(NovaPlaySetupRow.HOST_DEFAULT_DISPLAY)
 
     companion object {
         @JvmStatic
@@ -125,20 +134,60 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                         activeNowLabel = getString(R.string.nova_polaris_sync_status_active_now),
                         availableLabel = getString(R.string.nova_polaris_sync_status_available)
                     )
+                    val actions = NovaPlaySetupHostActions(
+                        onSelectMode = { engine.setStreamDisplayMode(it) },
+                        onMatchNova = { engine.matchNova() },
+                        onSendNova = { engine.sendNova() },
+                        onUsePolaris = { engine.usePolarisProfile() },
+                        onClearProfile = { engine.clearProfile() },
+                        onAutoQuality = { engine.setAiAutoQuality(it) },
+                        onKeepInStep = { engine.setAutoSync(it) },
+                    )
+                    val rows = buildNovaPlaySetupHostRows(
+                        sync = uiState,
+                        polarisProfileValue = novaPlaySetupHostProfileValue(
+                            sync = uiState,
+                            settings = engine.currentSettings,
+                            getString = { resId -> getString(resId) },
+                        ),
+                        getString = { resId -> getString(resId) },
+                        actions = actions,
+                    )
                     key(profileVersion) {
-                        NovaPolarisSyncContent(
+                        NovaPolarisSyncSheetBody(
                             serverName = serverName,
-                            uiState = uiState,
-                            novaProfileText = novaProfileText(novaDisplayMode, prefs.bitrate),
-                            polarisProfileText = polarisProfileText(engine.currentSettings),
-                            onModeSelected = { engine.setStreamDisplayMode(it) },
-                            onMatchNova = { engine.matchNova() },
-                            onSendNova = { engine.sendNova() },
-                            onUsePolaris = { engine.usePolarisProfile() },
-                            onClearProfile = { engine.clearProfile() },
-                            onAutoSyncChange = { engine.setAutoSync(it) },
-                            onAiChange = { engine.setAiAutoQuality(it) },
-                            onClose = { dismiss() }
+                            status = uiState.status,
+                            rows = rows,
+                            explainedRow = explainedRow,
+                            modePicker = if (pickerOpen) {
+                                buildHostModePickerState(
+                                    modes = uiState.modes,
+                                    title = getString(R.string.nova_play_setup_host_default_display),
+                                )
+                            } else {
+                                null
+                            },
+                            onExplain = { explainedRow = it },
+                            onAdvance = { row ->
+                                if (row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY &&
+                                    novaModePickerEligible(uiState.modes.size)
+                                ) {
+                                    explainedRow = row
+                                    pickerOpen = true
+                                } else {
+                                    advanceNovaPlaySetupHostRow(
+                                        row = row,
+                                        rows = rows,
+                                        sync = uiState,
+                                        actions = actions,
+                                    )
+                                }
+                            },
+                            onPickMode = { mode ->
+                                pickerOpen = false
+                                engine.setStreamDisplayMode(mode)
+                            },
+                            onClose = { dismiss() },
                         )
                     }
                 }
@@ -153,10 +202,16 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
             }
             // Dialogs map BACK out of the box but not a pad's B, so a controller had
             // no way out of this sheet at all: not draggable, no close control, and B
-            // swallowed. B now leaves, the same direction it means everywhere else.
+            // swallowed. B now leaves, the same direction it means everywhere else —
+            // and with the picker open it backs out of the picker first, exactly as
+            // it does in the Play Setup panel.
             setOnKeyListener { _, keyCode, event ->
                 if (keyCode == KeyEvent.KEYCODE_BUTTON_B && event.action == KeyEvent.ACTION_UP) {
-                    dismiss()
+                    if (pickerOpen) {
+                        pickerOpen = false
+                    } else {
+                        dismiss()
+                    }
                     true
                 } else {
                     false
@@ -176,34 +231,6 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
         engine?.close()
         engine = null
         super.onDestroyView()
-    }
-
-    private fun novaProfileText(displayMode: String, bitrateKbps: Int): String {
-        return getString(
-            R.string.nova_polaris_sync_profile_format,
-            getString(R.string.nova_polaris_sync_nova_profile) + ": " + displayMode,
-            bitrateKbps / 1000
-        )
-    }
-
-    private fun polarisProfileText(settings: PolarisClientSettings?): String {
-        val polarisProfile = settings?.let { PolarisProfileSync.polarisOverrideProfile(it) }
-        return if (polarisProfile == null) {
-            getString(R.string.nova_polaris_sync_polaris_profile) + ": " +
-                getString(R.string.nova_polaris_sync_unset)
-        } else if (polarisProfile.bitrateKbps > 0) {
-            getString(
-                R.string.nova_polaris_sync_profile_format,
-                getString(R.string.nova_polaris_sync_polaris_profile) + ": " +
-                    polarisProfile.displayMode.ifBlank { getString(R.string.nova_polaris_sync_unset) },
-                polarisProfile.bitrateKbps / 1000
-            )
-        } else {
-            getString(
-                R.string.nova_polaris_sync_profile_no_bitrate,
-                getString(R.string.nova_polaris_sync_polaris_profile) + ": " + polarisProfile.displayMode
-            )
-        }
     }
 
     private fun expandBottomSheet(bottomSheetDialog: BottomSheetDialog?) {
