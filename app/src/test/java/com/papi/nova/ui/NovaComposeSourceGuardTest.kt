@@ -1363,7 +1363,7 @@ class NovaComposeSourceGuardTest {
     fun artworkFetchLogsUseFixedClassificationWithoutUrlsOrExceptionMessages() {
         val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
         val fetch = api.section(
-            "private fun fetchArtwork(url: String)",
+            "private suspend fun fetchArtwork(url: String",
             "/**\n     * Toggle MangoHud",
         )
         assertTrue(fetch.contains("val requestClass = artworkRequestLogLabel(url)"))

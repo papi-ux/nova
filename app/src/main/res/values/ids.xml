@@ -2,4 +2,5 @@
 <resources>
     <item name="nova_artwork_presentation_key" type="id" />
     <item name="nova_artwork_request_key" type="id" />
+    <item name="nova_artwork_job" type="id" />
 </resources>
