@@ -151,7 +151,7 @@ data class NovaSessionProgressUiState(
                 state = "host_locked",
                 title = "Host locked",
                 stageLabel = "Unlock host",
-                confidenceLabel = "Tap to unlock",
+                confidenceLabel = "Unlock host to continue",
                 confidenceDetail = "Nova is connected; unlock the host to continue into the stream.",
                 progressFraction = 0.96f,
                 aliases = setOf("locked", "screen_locked", "host screen locked")
@@ -182,7 +182,9 @@ data class NovaSessionProgressUiState(
                 stage.state == normalizedState || normalizedState in stage.aliases
             }
             val stage = stages.getOrNull(index)
-            val title = stage?.title ?: message.ifEmpty { state }
+            // An unrecognized state must never surface its raw protocol token as the
+            // headline; a non-empty host message still wins.
+            val title = stage?.title ?: message.ifEmpty { "Working on it" }
             val completed = if (index >= 0) {
                 stages.take(index).map { it.title }
             } else {

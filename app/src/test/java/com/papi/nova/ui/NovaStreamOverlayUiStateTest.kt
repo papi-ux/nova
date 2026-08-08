@@ -150,9 +150,18 @@ class NovaStreamOverlayUiStateTest {
         assertEquals("host_locked", state.state)
         assertEquals("Host locked", state.title)
         assertEquals("Unlock host", state.stageLabel)
-        assertEquals("Tap to unlock", state.confidenceLabel)
+        assertEquals("Unlock host to continue", state.confidenceLabel)
         assertEquals("Nova is connected; unlock the host to continue into the stream.", state.confidenceDetail)
         assertEquals(0.96f, state.progressFraction, 0.001f)
+    }
+
+    @Test
+    fun progressStateNeverExposesRawStateTokenAsTitleForUnknownStageWithoutMessage() {
+        val state = NovaSessionProgressUiState.from("sess_negotiate_v2")
+
+        assertEquals("sess_negotiate_v2", state.state)
+        assertEquals("Working on it", state.title)
+        assertEquals("Startup update", state.stageLabel)
     }
 
 }

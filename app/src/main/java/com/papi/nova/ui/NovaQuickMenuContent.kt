@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -65,6 +66,8 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaMenuBackdropBlur
+import com.papi.nova.ui.compose.novaConfirm
+import com.papi.nova.ui.compose.novaFocusTick
 import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
 import androidx.compose.ui.res.stringResource
 import com.papi.nova.ui.compose.NovaRadius
@@ -447,12 +450,13 @@ private fun NovaQuickMenuCloseButton(
     callbacks: NovaQuickMenuCallbacks,
     modifier: Modifier = Modifier
 ) {
+    val closeCommandCenter = stringResource(R.string.nova_quick_menu_close_command_center)
     NovaActionButton(
-        text = "Close",
+        text = stringResource(R.string.nova_quick_menu_close),
         onClick = callbacks.onDismiss,
         modifier = modifier
             .widthIn(min = 72.dp)
-            .semantics { contentDescription = "Close Command Center" },
+            .semantics { contentDescription = closeCommandCenter },
         primary = false,
         cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
@@ -549,7 +553,7 @@ private fun NovaQuickMenuPostSessionReportCard(report: NovaPostSessionReportUiSt
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(14.dp),
         contentDescription = listOf(
-            "Post-session recovery report",
+            stringResource(R.string.nova_quick_menu_post_session_report),
             report.qualityLine,
             report.issueLine,
             report.nextLaunchLine,
@@ -558,7 +562,7 @@ private fun NovaQuickMenuPostSessionReportCard(report: NovaPostSessionReportUiSt
     ) {
         Column {
             Text(
-                text = "Post-session recovery report",
+                text = stringResource(R.string.nova_quick_menu_post_session_report),
                 color = colors.textPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
@@ -1007,6 +1011,7 @@ private fun NovaQuickMenuClickableSurface(
     content: @Composable () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(if (flat) NovaRadius.row else NovaRadius.hero)
     val base = if (flat) Color.Transparent else surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile * LocalNovaMenuOpacityScale.current)
@@ -1028,11 +1033,18 @@ private fun NovaQuickMenuClickableSurface(
                 this.contentDescription = contentDescription
                 role = Role.Button
             }
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
+            .onFocusChanged {
+                val nowFocused = it.isFocused || it.hasFocus
+                if (nowFocused && !focused) haptics.novaFocusTick()
+                focused = nowFocused
+            }
             .clickable(
                 enabled = enabled,
                 role = Role.Button,
-                onClick = onClick
+                onClick = {
+                    haptics.novaConfirm()
+                    onClick()
+                }
             )
             .focusable(enabled = enabled)
             .padding(contentPadding)

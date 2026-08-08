@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.LimeLog
+import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -44,24 +45,29 @@ class LockScreenOverlay(
             val container = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setBackgroundColor(0xEE000000.toInt())
+                // Themed scrim: the active theme's window color at the overlay's old opacity,
+                // instead of a hardcoded black that ignored Portable Chrome and Miami.
+                val windowColor = NovaThemeManager.getWindowBackgroundColor(activity)
+                setBackgroundColor((windowColor and 0x00FFFFFF) or 0xEE000000.toInt())
                 setPadding(80, 80, 80, 80)
                 isClickable = true
                 isFocusable = true
             }
 
             val title = TextView(activity).apply {
-                text = "Host locked"
+                text = activity.getString(R.string.nova_lock_overlay_locked)
                 textSize = 24f
-                setTextColor(0xFFFFFFFF.toInt())
+                setTextColor(NovaThemeManager.getTextPrimaryColor(activity))
                 gravity = Gravity.CENTER
                 setPadding(0, 0, 0, 40)
             }
             container.addView(title)
 
             val unlockBtn = Button(activity).apply {
-                text = "Tap to unlock"
+                text = activity.getString(R.string.nova_lock_overlay_unlock)
                 textSize = 18f
+                setTextColor(NovaThemeManager.getTextPrimaryColor(activity))
+                background = NovaSheetChrome.createActionBackground(activity)
                 setOnClickListener {
                     requestUnlock(this)
                 }
@@ -80,6 +86,9 @@ class LockScreenOverlay(
             rootView.addView(container, params)
             container.bringToFront()
             overlayView = container
+            // Controller-first: BUTTON_A should unlock immediately without a press spent
+            // establishing focus.
+            unlockBtn.requestFocus()
 
             LimeLog.info("Nova: Lock screen overlay shown")
         }
@@ -89,7 +98,7 @@ class LockScreenOverlay(
         if (unlockInProgress) return
         unlockInProgress = true
         unlockBtn.isEnabled = false
-        unlockBtn.text = "Unlocking…"
+        unlockBtn.text = activity.getString(R.string.nova_lock_overlay_unlocking)
         LimeLog.info("Nova: Requesting unlock...")
         unlockJob?.cancel()
         unlockJob = unlockScope().launch(Dispatchers.IO + CoroutineName("NovaUnlockScreen")) {
@@ -109,8 +118,8 @@ class LockScreenOverlay(
                 } else {
                     unlockInProgress = false
                     unlockBtn.isEnabled = true
-                    unlockBtn.text = "Tap to unlock"
-                    Toast.makeText(activity, "Unlock request failed", Toast.LENGTH_SHORT).show()
+                    unlockBtn.text = activity.getString(R.string.nova_lock_overlay_unlock)
+                    Toast.makeText(activity, R.string.nova_lock_overlay_unlock_failed, Toast.LENGTH_SHORT).show()
                 }
             }
         }

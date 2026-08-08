@@ -2150,7 +2150,8 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "Command Center header should expose an explicit close affordance that invokes the same dismiss callback as scrim/back",
             header.contains("NovaQuickMenuCloseButton(callbacks") &&
-                content.contains("contentDescription = \"Close Command Center\"") &&
+                content.contains("stringResource(R.string.nova_quick_menu_close_command_center)") &&
+                content.contains("contentDescription = closeCommandCenter") &&
                 content.contains("onClick = callbacks.onDismiss")
         )
     }
@@ -2606,7 +2607,7 @@ class NovaComposeSourceGuardTest {
             "poster semantic activation must remain the detail-only path",
             card.contains("onOpenDetail: () -> Unit") &&
                 card.contains(".combinedClickable(") &&
-                card.contains("onClick = onOpenDetail")
+                card.contains("onOpenDetail()")
         )
         listOf("onLaunch", "onStream", "launchGame", "startStream").forEach { forbidden ->
             assertFalse("poster semantics must not gain launch/stream callback $forbidden", card.contains(forbidden))

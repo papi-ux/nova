@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import android.os.Build
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -364,7 +365,7 @@ private fun NovaSettingsCompactHeader(
                 contentPadding = PaddingValues(horizontal = 8.dp),
                 modifier = Modifier.height(44.dp)
             ) {
-                Text("Back")
+                Text(stringResource(R.string.nova_settings_back))
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -405,7 +406,7 @@ private fun NovaSettingsCompactHeader(
                 contentPadding = PaddingValues(horizontal = 8.dp),
                 modifier = Modifier.height(44.dp)
             ) {
-                Text("Legacy")
+                Text(stringResource(R.string.nova_settings_legacy))
             }
         }
         if (!wide) {
@@ -477,7 +478,7 @@ private fun SearchResultSummary(state: NovaSettingsUiState) {
 
     val colors = LocalNovaComposeColors.current
     Text(
-        text = "${state.searchResultCount} results",
+        text = stringResource(R.string.nova_settings_search_results, state.searchResultCount),
         color = colors.textMuted,
         fontSize = 12.sp,
         fontWeight = FontWeight.Medium,
@@ -740,7 +741,7 @@ private fun NovaHudSettingsPreview(state: NovaSettingsUiState) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Live HUD preview",
+                    text = stringResource(R.string.nova_settings_live_hud_preview),
                     color = colors.textPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -879,7 +880,7 @@ private fun NovaSettingOverrideBadge(alpha: Float) {
     // paint itself with the focus fill over a focus-ring border, wearing both of the signals
     // that are supposed to mean the d-pad is here. It is an accent badge, so it says accent.
     NovaBadge(
-        text = "Override",
+        text = stringResource(R.string.nova_settings_override_badge),
         color = colors.textPrimary.copy(alpha = alpha),
         backgroundColor = colors.accentSurface.copy(
             alpha = colors.accentSurface.alpha * alpha * LocalNovaMenuOpacityScale.current
@@ -1209,13 +1210,23 @@ private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette
             accent = colorResource(R.color.nova_hc_accent),
             border = colorResource(R.color.nova_hc_divider)
         )
-        // Dynamic at runtime; there is no resource to read.
-        NovaThemeManager.THEME_MATERIAL_YOU -> NovaThemePreviewPalette(
-            window = Color(0xFF111318),
-            surface = Color(0xFF1D2026),
-            accent = Color(0xFFADC6FF),
-            border = Color(0xFF8E9199)
-        )
+        // On 31+ the system dynamic palette is a real resource; the hardcoded swatch only
+        // remains as the pre-dynamic-color fallback, where this theme cannot activate anyway.
+        NovaThemeManager.THEME_MATERIAL_YOU -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            NovaThemePreviewPalette(
+                window = colorResource(android.R.color.system_neutral1_900),
+                surface = colorResource(android.R.color.system_neutral1_800),
+                accent = colorResource(android.R.color.system_accent1_200),
+                border = colorResource(android.R.color.system_neutral2_500)
+            )
+        } else {
+            NovaThemePreviewPalette(
+                window = Color(0xFF111318),
+                surface = Color(0xFF1D2026),
+                accent = Color(0xFFADC6FF),
+                border = Color(0xFF8E9199)
+            )
+        }
         else -> NovaThemePreviewPalette(
             window = colorResource(R.color.nova_bg_window),
             surface = colorResource(R.color.nova_bg_card),
@@ -1229,7 +1240,7 @@ private fun novaThemePreviewPalette(themeValue: String): NovaThemePreviewPalette
 private fun NovaSettingCurrentBadge() {
     val colors = LocalNovaComposeColors.current
     NovaBadge(
-        text = "Current",
+        text = stringResource(R.string.nova_settings_current_badge),
         color = colors.onAccent,
         backgroundColor = colors.accent,
         fontSize = 11.sp,
