@@ -11,7 +11,9 @@ import com.papi.nova.nvstream.http.LimelightCryptoProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.ConnectionPool
@@ -104,7 +106,7 @@ class PolarisApiClient @JvmOverloads constructor(
     private val webBaseUrl = "https://$serverAddress:$WEB_UI_HTTPS_PORT"
     private val artworkDiskCache = PolarisArtworkDiskCache(context.applicationContext, serverAddress, resolvedHttpsPort)
     private val artworkResolveOnce = ArtworkResolveOnce<PolarisGame.ArtworkManifest>()
-    private val imageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+    private val imageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(3))
     private val coverCache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
@@ -112,6 +114,9 @@ class PolarisApiClient @JvmOverloads constructor(
     companion object {
         const val WEB_UI_HTTPS_PORT = 47990
         private const val CLIENT_CERT_ALIAS = "Limelight-RSA"
+        // Poster-shaped bucket; also the fallback for studio preview cells.
+        private const val PREVIEW_TARGET_WIDTH = 512
+        private const val PREVIEW_TARGET_HEIGHT = 768
 
         @JvmStatic
         fun decodeCertificate(serverCertDer: ByteArray?): X509Certificate? {
@@ -1585,11 +1590,16 @@ class PolarisApiClient @JvmOverloads constructor(
         val requestMarker = Any()
         view.setTag(R.id.nova_artwork_request_key, requestMarker)
         view.setImageResource(R.drawable.nova_cover_placeholder)
-        imageScope.launch {
-            val fetched = fetchArtwork(url) ?: return@launch
+        (view.getTag(R.id.nova_artwork_job) as? Job)?.cancel()
+        val job = imageScope.launch {
+            val fetched = fetchArtwork(url, PREVIEW_TARGET_WIDTH, PREVIEW_TARGET_HEIGHT) ?: return@launch
             withContext(Dispatchers.Main) {
                 if (view.getTag(R.id.nova_artwork_request_key) === requestMarker) view.setImageBitmap(fetched.bitmap)
             }
+        }
+        view.setTag(R.id.nova_artwork_job, job)
+        job.invokeOnCompletion {
+            view.post { if (view.getTag(R.id.nova_artwork_job) === job) view.setTag(R.id.nova_artwork_job, null) }
         }
     }
 
@@ -1608,14 +1618,19 @@ class PolarisApiClient @JvmOverloads constructor(
         val imageUrl = manifestUrl
             ?: selectArtworkUrl(serverAddress, resolvedHttpsPort, game, normalizedKind)
         val revision = if (usesManifest) game.artwork?.revision.orEmpty() else ""
+        // The decode bucket is part of the cache key: a poster-res bitmap must never be
+        // served where the full-screen hero bucket is expected, and vice versa.
+        val (targetWidth, targetHeight) = artworkTargetSize(normalizedKind)
+        val sizeBucket = "w${targetWidth}h$targetHeight"
         val cacheKey = if (usesManifest) {
-            "polaris-artwork:${game.id}:$normalizedKind:$revision:$manifestUrl"
+            "polaris-artwork:${game.id}:$normalizedKind:$revision:$sizeBucket:$manifestUrl"
         } else {
-            "polaris-cover:${game.id}:${game.coverUrl}"
+            "polaris-cover:${game.id}:$normalizedKind:$sizeBucket:${game.coverUrl}"
         }
 
         view.setTag(R.id.nova_artwork_request_key, cacheKey)
         view.setImageResource(R.drawable.nova_cover_placeholder)
+        (view.getTag(R.id.nova_artwork_job) as? Job)?.cancel()
         if (imageUrl == null) return
 
         coverCache.get(cacheKey)?.let { cached ->
@@ -1623,12 +1638,12 @@ class PolarisApiClient @JvmOverloads constructor(
             return
         }
 
-        imageScope.launch {
+        val job = imageScope.launch {
             val exactDisk = if (usesManifest) {
-                artworkDiskCache.load(game.id, normalizedKind, revision, allowStale = false)
+                artworkDiskCache.load(game.id, normalizedKind, revision, allowStale = false, targetWidth, targetHeight)
             } else null
             val bitmap = exactDisk ?: run {
-                val fetched = fetchArtwork(imageUrl)
+                val fetched = fetchArtwork(imageUrl, targetWidth, targetHeight)
                 if (fetched != null) {
                     if (usesManifest) {
                         artworkDiskCache.store(
@@ -1641,7 +1656,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     }
                     fetched.bitmap
                 } else if (usesManifest) {
-                    artworkDiskCache.load(game.id, normalizedKind, revision, allowStale = true)
+                    artworkDiskCache.load(game.id, normalizedKind, revision, allowStale = true, targetWidth, targetHeight)
                 } else null
             }
             withContext(Dispatchers.Main) {
@@ -1655,11 +1670,15 @@ class PolarisApiClient @JvmOverloads constructor(
                 }
             }
         }
+        view.setTag(R.id.nova_artwork_job, job)
+        job.invokeOnCompletion {
+            view.post { if (view.getTag(R.id.nova_artwork_job) === job) view.setTag(R.id.nova_artwork_job, null) }
+        }
     }
 
     private data class FetchedArtwork(val bytes: ByteArray, val mimeType: String, val bitmap: Bitmap)
 
-    private fun fetchArtwork(url: String): FetchedArtwork? {
+    private suspend fun fetchArtwork(url: String, targetWidth: Int = 0, targetHeight: Int = 0): FetchedArtwork? {
         val requestClass = artworkRequestLogLabel(url)
         repeat(3) { attempt ->
             try {
@@ -1681,19 +1700,30 @@ class PolarisApiClient @JvmOverloads constructor(
                         PolarisArtworkDiskCache.readBounded(it, PolarisArtworkDiskCache.MAX_IMAGE_BYTES)
                     } ?: return null
                     if (!PolarisArtworkDiskCache.hasSupportedImageSignature(bytes, mimeType)) return null
-                    val bitmap = PolarisArtworkDiskCache.decodeBounded(bytes)
+                    val bitmap = PolarisArtworkDiskCache.decodeBounded(bytes, targetWidth, targetHeight)
                     if (bitmap != null) return FetchedArtwork(bytes, mimeType.orEmpty(), bitmap)
                     LimeLog.warning("Nova: artwork decode failed [$requestClass] bytes=${bytes.size}")
                     return null
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (attempt == 2) {
                     LimeLog.warning("Nova: artwork fetch failed [$requestClass]: ${e.javaClass.simpleName}")
                 }
-                if (attempt < 2) Thread.sleep((attempt + 1) * 150L)
+                if (attempt < 2) delay((attempt + 1) * 150L)
             }
         }
         return null
+    }
+
+    // Decode buckets are fixed per artwork kind rather than measured from the view:
+    // AndroidView cells call this before layout, and stable buckets keep cache keys stable.
+    private fun artworkTargetSize(kind: String): Pair<Int, Int> = when (kind) {
+        PolarisGame.ARTWORK_KIND_HERO -> 1920 to 1080
+        PolarisGame.ARTWORK_KIND_LOGO -> 640 to 360
+        PolarisGame.ARTWORK_KIND_ICON -> 256 to 256
+        else -> PREVIEW_TARGET_WIDTH to PREVIEW_TARGET_HEIGHT
     }
 
     /**

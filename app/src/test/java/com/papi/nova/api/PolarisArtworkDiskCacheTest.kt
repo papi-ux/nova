@@ -389,6 +389,51 @@ class PolarisArtworkDiskCacheTest {
         assertEquals(2, starts.get())
     }
 
+    @Test
+    fun sampleSizeNeverUndershootsTheTargetAndDefaultsToFullResolution() {
+        assertEquals(1, PolarisArtworkDiskCache.sampleSizeFor(2048, 3072, 0, 0))
+        assertEquals(1, PolarisArtworkDiskCache.sampleSizeFor(600, 900, 512, 768))
+        assertEquals(4, PolarisArtworkDiskCache.sampleSizeFor(2048, 3072, 512, 768))
+        assertEquals(16, PolarisArtworkDiskCache.sampleSizeFor(4096, 4096, 256, 256))
+        // Mismatched aspect ratios err toward too much resolution, never too little.
+        assertEquals(1, PolarisArtworkDiskCache.sampleSizeFor(1920, 620, 512, 768))
+    }
+
+    @Test
+    fun decodeAndLoadHonorTargetBucketWithoutDroppingBelowIt() {
+        val sampled = checkNotNull(PolarisArtworkDiskCache.decodeBounded(pngBytes(64, 96), 16, 24))
+        assertEquals(16, sampled.width)
+        assertEquals(24, sampled.height)
+        sampled.recycle()
+
+        val fullRes = checkNotNull(PolarisArtworkDiskCache.decodeBounded(pngBytes(64, 96)))
+        assertEquals(64, fullRes.width)
+        assertEquals(96, fullRes.height)
+        fullRes.recycle()
+
+        val cache = PolarisArtworkDiskCache(context, "sampled-host", 47984)
+        cache.clear()
+        assertNotNull(cache.store("game-sampled", "poster", "rev-1", pngBytes(64, 96), "image/png"))
+        val loaded = checkNotNull(
+            cache.load("game-sampled", "poster", "rev-1", allowStale = false, targetWidth = 16, targetHeight = 24)
+        )
+        assertEquals(16, loaded.width)
+        assertEquals(24, loaded.height)
+        loaded.recycle()
+        cache.clear()
+    }
+
+    @Test
+    fun boundsValidationAcceptsRealImagesAndRejectsEmptyOrOversizedHeaders() {
+        // Garbage non-image bytes are not asserted here: Robolectric's BitmapFactory
+        // fabricates bounds for them, and production rejects garbage earlier via the
+        // image-signature check before bounds validation runs.
+        assertTrue(PolarisArtworkDiskCache.validateImageBounds(pngBytes(3, 4)))
+        assertFalse(PolarisArtworkDiskCache.validateImageBounds(ByteArray(0)))
+        assertFalse(PolarisArtworkDiskCache.validateImageBounds(pngWithDeclaredDimensions(9_000, 1)))
+        assertFalse(PolarisArtworkDiskCache.validateImageBounds(pngWithDeclaredDimensions(8_000, 8_000)))
+    }
+
     private fun pngWithDeclaredDimensions(width: Int, height: Int): ByteArray {
         val bytes = pngBytes(1, 1)
         writeInt(bytes, 16, width)

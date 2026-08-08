@@ -570,7 +570,7 @@ class NovaLibraryActivity : NovaActivity() {
                         settings = settings,
                     )
                 }
-                apiClient.clearCoverCache()
+                if (forceRefresh) apiClient.clearCoverCache()
                 val published = artworkLibraryUpdateViewModel.publishRefresh(
                     token = artworkRefreshToken,
                     games = result.games,

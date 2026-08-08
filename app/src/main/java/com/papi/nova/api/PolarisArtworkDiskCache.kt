@@ -32,7 +32,14 @@ internal class PolarisArtworkDiskCache(
         sha256(listOf(host.trim().lowercase(), port.toString())),
     )
 
-    fun load(gameId: String, kind: String, revision: String, allowStale: Boolean): Bitmap? {
+    fun load(
+        gameId: String,
+        kind: String,
+        revision: String,
+        allowStale: Boolean,
+        targetWidth: Int = 0,
+        targetHeight: Int = 0,
+    ): Bitmap? {
         if (revision.isBlank()) return null
         val exact = cacheFile(gameId, kind, revision)
         val candidates = buildList {
@@ -49,7 +56,7 @@ internal class PolarisArtworkDiskCache(
             val bytes = runCatching {
                 file.inputStream().buffered().use { readBounded(it, MAX_IMAGE_BYTES) }
             }.getOrNull()
-            val bitmap = bytes?.let(::decodeBounded)
+            val bitmap = bytes?.let { decodeBounded(it, targetWidth, targetHeight) }
             if (bitmap != null) {
                 synchronized(CACHE_LOCK) {
                     if (file.isFile) file.setLastModified(System.currentTimeMillis())
@@ -69,8 +76,7 @@ internal class PolarisArtworkDiskCache(
             !isSupportedImageMime(mimeType) ||
             !hasSupportedImageSignature(bytes, mimeType)
         ) return null
-        val decoded = decodeBounded(bytes) ?: return null
-        decoded.recycle()
+        if (!validateImageBounds(bytes)) return null
 
         if (!cacheDir.isDirectory && !cacheDir.mkdirs() && !cacheDir.isDirectory) return null
         val target = cacheFile(gameId, kind, revision)
@@ -213,14 +219,9 @@ internal class PolarisArtworkDiskCache(
         }
 
         @JvmStatic
-        fun decodeBounded(bytes: ByteArray): Bitmap? {
-            if (bytes.isEmpty() || bytes.size > MAX_IMAGE_BYTES) return null
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            if (runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds) }.isFailure) return null
-            val width = bounds.outWidth
-            val height = bounds.outHeight
-            if (width !in 1..MAX_IMAGE_DIMENSION || height !in 1..MAX_IMAGE_DIMENSION) return null
-            if (width.toLong() * height.toLong() > MAX_IMAGE_PIXELS) return null
+        @JvmOverloads
+        fun decodeBounded(bytes: ByteArray, targetWidth: Int = 0, targetHeight: Int = 0): Bitmap? {
+            val bounds = readImageBounds(bytes) ?: return null
             return runCatching {
                 BitmapFactory.decodeByteArray(
                     bytes,
@@ -229,9 +230,36 @@ internal class PolarisArtworkDiskCache(
                     BitmapFactory.Options().apply {
                         inPreferredConfig = Bitmap.Config.ARGB_8888
                         inScaled = false
+                        inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, targetWidth, targetHeight)
                     },
                 )
             }.getOrNull()
+        }
+
+        @JvmStatic
+        internal fun validateImageBounds(bytes: ByteArray): Boolean = readImageBounds(bytes) != null
+
+        // Never samples below the target: halving stops as soon as either dimension would
+        // undershoot, so mismatched aspect ratios err toward too much resolution, not too little.
+        @JvmStatic
+        internal fun sampleSizeFor(sourceWidth: Int, sourceHeight: Int, targetWidth: Int, targetHeight: Int): Int {
+            if (targetWidth <= 0 || targetHeight <= 0) return 1
+            var sampleSize = 1
+            while (sourceWidth / (sampleSize * 2) >= targetWidth && sourceHeight / (sampleSize * 2) >= targetHeight) {
+                sampleSize *= 2
+            }
+            return sampleSize
+        }
+
+        private fun readImageBounds(bytes: ByteArray): BitmapFactory.Options? {
+            if (bytes.isEmpty() || bytes.size > MAX_IMAGE_BYTES) return null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            if (runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds) }.isFailure) return null
+            val width = bounds.outWidth
+            val height = bounds.outHeight
+            if (width !in 1..MAX_IMAGE_DIMENSION || height !in 1..MAX_IMAGE_DIMENSION) return null
+            if (width.toLong() * height.toLong() > MAX_IMAGE_PIXELS) return null
+            return bounds
         }
 
         @JvmStatic
