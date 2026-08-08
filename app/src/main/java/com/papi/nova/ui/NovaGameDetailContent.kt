@@ -232,8 +232,6 @@ internal fun NovaGameDetailContent(
     onAdvancePlaySetupRow: (NovaPlaySetupRow) -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
-    /** Opens the host scope. Null where no host settings surface is reachable. */
-    onOpenHostSettings: (() -> Unit)? = null,
     artworkState: NovaArtworkStudioState,
     onRefreshArtwork: () -> Unit,
     onSearchArtwork: (String) -> Unit,
@@ -370,38 +368,18 @@ internal fun NovaGameDetailContent(
                             factCount = hostPlaySetupPlan.facts.size,
                         ),
                         rows = {
-                            hostPlaySetupRows.forEachIndexed { index, rowState ->
-                                NovaSteamChoiceRow(
-                                    autoFocus = index == 0,
-                                    label = rowState.label,
-                                    caption = rowState.caption,
-                                    enabled = rowState.enabled,
-                                    value = rowState.value,
-                                    selected = rowState.overridden,
-                                    onClick = { onAdvancePlaySetupRow(rowState.row) },
-                                    onFocused = { onExplainPlaySetupRow(rowState.row) },
-                                )
-                            }
+                            NovaHostSetupRowList(
+                                rows = hostPlaySetupRows,
+                                onExplain = onExplainPlaySetupRow,
+                                onAdvance = onAdvancePlaySetupRow,
+                            )
                         },
                         comparison = {
-                            val explained = hostPlaySetupRows.firstOrNull { it.row == explainedPlaySetupRow }
-                                ?: hostPlaySetupRows.firstOrNull()
-                            if (explained != null && explained.options.size > 1) {
-                                NovaPlaySetupComparison(
-                                    title = explained.stripTitle,
-                                    options = explained.options,
-                                    consequenceMaxLines = consequenceLines,
-                                    // The 2x2 the sync sheet taught: four mode names in
-                                    // one row leave no room for their status lines.
-                                    // 2x2 for the classic four; three per row once a
-                                    // six-mode catalog would otherwise stack three rows.
-                                    perRow = if (explained.row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY) {
-                                        if (explained.options.size > 4) 3 else 2
-                                    } else {
-                                        Int.MAX_VALUE
-                                    },
-                                )
-                            }
+                            NovaHostSetupComparison(
+                                rows = hostPlaySetupRows,
+                                explainedRow = explainedPlaySetupRow,
+                                consequenceMaxLines = consequenceLines,
+                            )
                         },
                     )
                 } else {

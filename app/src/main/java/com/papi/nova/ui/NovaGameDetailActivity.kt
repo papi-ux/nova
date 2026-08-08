@@ -434,18 +434,6 @@ class NovaGameDetailActivity : NovaActivity() {
             }
         }
 
-        fun openHostSettings() {
-            NovaPolarisSyncSheet.newInstance(
-                apiClient = apiClient,
-                serverName = serverName,
-                serverUuid = serverUuid,
-                initialSettings = clientSettings,
-            ) { settings ->
-                clientSettings = settings
-                refreshUiState()
-            }.show(supportFragmentManager, "polaris_sync")
-        }
-
         hostSyncEngine = NovaPolarisSyncEngine(
             context = this,
             apiClient = apiClient,
@@ -921,19 +909,12 @@ class NovaGameDetailActivity : NovaActivity() {
             next.onSelect?.invoke()
         }
 
-        fun hostPolarisProfileValue(sync: NovaPolarisSyncUiState): String {
-            if (sync.profileState == PolarisProfileSync.ProfileState.MATCHED) {
-                return getString(R.string.nova_play_setup_host_profile_matched)
-            }
-            val settings = hostSyncEngine?.currentSettings ?: clientSettings
-            val profile = settings?.let { PolarisProfileSync.polarisOverrideProfile(it) }
-            return when {
-                profile == null -> getString(R.string.nova_polaris_sync_unset)
-                profile.bitrateKbps > 0 ->
-                    "${profile.displayMode.ifBlank { getString(R.string.nova_polaris_sync_unset) }} · ${profile.bitrateKbps / 1000} Mbps"
-                else -> profile.displayMode
-            }
-        }
+        fun hostPolarisProfileValue(sync: NovaPolarisSyncUiState): String =
+            novaPlaySetupHostProfileValue(
+                sync = sync,
+                settings = hostSyncEngine?.currentSettings ?: clientSettings,
+                getString = { resId -> getString(resId) },
+            )
 
         fun hostActions() = NovaPlaySetupHostActions(
             onSelectMode = { hostSyncEngine?.setStreamDisplayMode(it) },
@@ -1127,7 +1108,6 @@ class NovaGameDetailActivity : NovaActivity() {
                         }
                     },
                     onRetryHighFps = { retryHighFpsTrial() },
-                    onOpenHostSettings = { openHostSettings() },
                     onResetProfile = {
                         resetWorking = true
                         lifecycleScope.launch {
