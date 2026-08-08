@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
@@ -51,6 +52,8 @@ internal data class NovaPlaySetupModeChoice(
     /** In effect this session without being the saved choice (fallback or pending relaunch). */
     val active: Boolean,
     val enabled: Boolean,
+    /** The provider's advisory pick from the current optimization payload; never auto-applied. */
+    val aiRecommended: Boolean = false,
 )
 
 internal data class NovaPlaySetupModeBand(
@@ -133,6 +136,7 @@ internal fun buildGameModePickerState(
     hasExplicitOverride: Boolean,
     title: String,
     hostDefaultLabel: String,
+    aiRecommendedMode: String = "",
 ): NovaPlaySetupModePickerState {
     val allowed = allowedModes.map { PolarisGame.normalizeLaunchMode(it) }.toSet()
     return NovaPlaySetupModePickerState(
@@ -154,6 +158,8 @@ internal fun buildGameModePickerState(
                     current = hasExplicitOverride && mode.mode == playMode,
                     active = mode.mode == playMode && !hasExplicitOverride,
                     enabled = mode.available,
+                    aiRecommended = mode.available && aiRecommendedMode.isNotBlank() &&
+                        mode.mode == aiRecommendedMode,
                 )
             },
     )
@@ -278,18 +284,35 @@ private fun NovaPlaySetupModeCard(
             )
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .semantics {
-                contentDescription = "${choice.label}. ${choice.detail}"
+                contentDescription = if (choice.aiRecommended) {
+                    "${choice.label}. AI pick. ${choice.detail}"
+                } else {
+                    "${choice.label}. ${choice.detail}"
+                }
                 if (choice.current) selected = true
             },
     ) {
-        Text(
-            text = choice.label,
-            color = if (choice.enabled) colors.textPrimary else colors.textMuted,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = choice.label,
+                color = if (choice.enabled) colors.textPrimary else colors.textMuted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (choice.aiRecommended) {
+                Text(
+                    text = stringResource(R.string.nova_play_setup_ai_pick),
+                    color = colors.accent,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+        }
         Text(
             text = choice.detail,
             color = if (choice.active && !choice.current) colors.accent else colors.textMuted,

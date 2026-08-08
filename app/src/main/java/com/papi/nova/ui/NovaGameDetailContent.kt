@@ -137,7 +137,8 @@ data class NovaGameDetailOptimizationState(
     val rawOptimization: JSONObject? = null,
     val reviewRequired: Boolean = false,
     val reviewReason: String = "",
-    val preflightInFlight: Boolean = false
+    val preflightInFlight: Boolean = false,
+    val aiRecommendedMode: String = ""
 )
 
 data class NovaLaunchOptionsState(

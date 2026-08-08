@@ -577,7 +577,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, usesVirtualDisplay, clientSettings)?.let {
                             clientSettings = it
                         }
-                        apiClient.getOptimization(deviceName, currentGame.name, preference)
+                        apiClient.getOptimization(deviceName, currentGame.name, preference, mode = uiState.playMode)
                     }
                     logPreflightOptimization("Preflight optimization", opt, preference)
                     buildOptimizationState(opt, preference)
@@ -628,7 +628,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, uiState.playUsesVirtualDisplay, clientSettings)?.let {
                             clientSettings = it
                         }
-                        apiClient.getOptimization(deviceName, currentGame.name, profilePreference, "high_fps")
+                        apiClient.getOptimization(deviceName, currentGame.name, profilePreference, "high_fps", mode = uiState.playMode)
                     }
                     logPreflightOptimization("High FPS trial preflight", opt, profilePreference)
                     buildOptimizationState(opt, profilePreference)
@@ -1026,6 +1026,7 @@ class NovaGameDetailActivity : NovaActivity() {
                                 allowedModes = currentGame.launchMode?.allowedModes.orEmpty(),
                                 playMode = uiState.playMode,
                                 hasExplicitOverride = uiState.hasExplicitOverride,
+                                aiRecommendedMode = optimizationState.aiRecommendedMode,
                                 title = getString(R.string.nova_game_detail_where_it_runs),
                                 hostDefaultLabel = getString(
                                     R.string.nova_play_setup_host_default_entry_detail,
@@ -1735,7 +1736,8 @@ class NovaGameDetailActivity : NovaActivity() {
             profileSummary = buildNovaLaunchProfileSummary(opt),
             rawOptimization = opt,
             reviewRequired = StreamSyncManager.requiresLaunchPreflightReview(opt),
-            reviewReason = StreamSyncManager.launchPreflightReviewReason(opt)
+            reviewReason = StreamSyncManager.launchPreflightReviewReason(opt),
+            aiRecommendedMode = opt.optString("ai_recommended_mode", "")
         )
     }
 
