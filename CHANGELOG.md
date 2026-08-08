@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 1.3.5 - 2026-08-08
+
+Performance and polish. The library keeps its poster cache warm across visits, decodes
+artwork to per-surface size buckets (a poster-res bitmap can never serve the full-screen
+hero slot), runs image loads three-wide with cancellation of superseded requests, and
+reuses TLS state over pooled artwork connections instead of paying a handshake and an RSA
+client-cert exchange per image (#202, #203). The frame-pacing preference now actually
+reaches the renderer — the latency-profile selector had been overwriting it to Balanced
+since the setting shipped (#201) — and stream setup logs the effective mode so it is
+verifiable from logcat. The decode path stops building perf-overlay text nobody is
+displaying (including four TrafficStats kernel calls per second), hoists a per-frame
+BufferInfo allocation, and caches the per-frame vsync-offset lookup (#204). Debug builds
+now run under StrictMode.
+
+The connection-failure dialog now offers Reconnect instead of dead-ending with only OK
+(#206); it relaunches the same stream in place. First controller focus lands somewhere useful: the
+Command Center opens on the diagnosis card instead of Close, Grid/Compact cold starts
+focus the first card with the ring visible immediately, and the welcome screen pre-focuses
+its primary button (#206). The pad gets a shared haptic vocabulary — focus ticks and
+action confirms — across posters, buttons, and Command Center rows; the in-stream lock
+overlay is themed, controller-worded ("Unlock host"), and pre-focused; an unrecognized
+session-progress state can no longer print its raw protocol token as the headline; pairing
+snackbars stop saying "TOFU"; and the Material You theme-preview tile reads the real
+dynamic palette on Android 12+ (#207). The androidTest suite compiles again
+after the #195–#200 signature churn (#205).
+
+Known issue: gyro/motion sensors are not detected on some devices (#181) — under
+investigation. The audio output-device inventory added in #196 remains a diagnostic
+awaiting an AYN Thor capture, not an audio fix. Deliberately deferred: moving the library
+mapper's recovery/hero copy and the full session-stage table into resources continues the
+#200 i18n lineage as its own follow-up.
+
 ## 1.3.4 - 2026-08-07
 
 Nova 1.3.4 rebuilds the game detail window as a destination of its own and then holds the rest of the app to the standard it set. It replaces the launch-path modals with a single Play Setup screen, puts Nova on the Polaris brand palette and typeface, makes Portable Chrome mean what its contract always said, and fixes a set of controller defects that compiled and tested cleanly while being unusable in the hand.

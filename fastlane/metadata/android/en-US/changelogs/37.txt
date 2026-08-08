@@ -1,0 +1,2 @@
+Nova 1.3.5
+Faster library: posters stay warm across visits, artwork decodes to fit, and images load in parallel over pooled connections. Smoother streaming: frame pacing settings now reach the renderer, and overlay stats no longer build unless shown. The connection-failure dialog offers Reconnect. Controller polish: focus lands on content at launch, the Command Center opens on diagnostics, and buttons and posters get haptic feedback. The lock overlay matches your theme.
