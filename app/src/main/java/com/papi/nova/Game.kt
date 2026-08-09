@@ -6718,9 +6718,15 @@ companion object {
  // because it's lexically nested inside the same class body, same as
  // any other Game method.
  @JvmStatic
- fun armBenchmarkCapture(runId:String, expectedDurationNs:Long):Boolean {
+ fun armBenchmarkCapture(
+  runId:String,
+  expectedDurationNs:Long,
+  durationToleranceNs:Long,
+  drainGraceNs:Long,
+  manifestSha256:String?,
+ ):Boolean {
   val renderer = instance?.decoderRenderer ?: return false
-  renderer.armBenchmarkCapture(runId, expectedDurationNs)
+  renderer.armBenchmarkCapture(runId, expectedDurationNs, durationToleranceNs, drainGraceNs, manifestSha256)
   return true
  }
 
