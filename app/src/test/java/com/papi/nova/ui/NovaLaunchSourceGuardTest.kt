@@ -717,6 +717,13 @@ class NovaLaunchSourceGuardTest {
                 serverHelper.contains("gameIntent.putExtra(Game.EXTRA_STREAM_MODE, streamMode)") &&
                 library.contains("streamMode = resolvedMode")
         )
+
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        assertTrue(
+            "a launch sends streamMode only for an EXPLICIT per-game override; resolving the host default into the launch froze stale modes into sessions",
+            detail.contains("NovaLaunchModeOverrides.load(this@NovaGameDetailActivity, currentGame).orEmpty()") &&
+                !detail.contains("uiState.playMode,\n                launchOptimization()")
+        )
     }
 
     @Test
