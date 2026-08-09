@@ -86,6 +86,11 @@ android {
 
         buildConfigField "boolean", "FDROID_BUILD", fdroidBuild.toString()
 
+        // Nordstern P0-4A (measurement-spec-v1.md 7.1). Overridden to true
+        // only by the benchmark build type below - every other build type
+        // gets this false default, same pattern FDROID_BUILD uses.
+        buildConfigField "boolean", "BENCHMARK_BUILD", "false"
+
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes
         ndk.debugSymbolLevel = 'FULL'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -243,6 +248,26 @@ android {
             resValue "string", "app_label", "Nova Dirty"
             resValue "string", "app_label_root", "Nova Dirty (Root)"
             resValue "string", "app_label_game", "Nova Dirty (Game)"
+        }
+
+        // Nordstern P0-4A (measurement-spec-v1.md 7.1): "based on release
+        // optimization and runtime behavior... differ from release only
+        // where required to enable bounded measurement capture, accept
+        // non-persisted harness run identity, freeze and export an
+        // app-private evidence file, permit adb run-as evidence
+        // extraction." Same initWith-release + distinct applicationIdSuffix
+        // shape as preRelease/dirty above - a separate, clearly-labeled
+        // install, never colliding with a real release install on the same
+        // device. No behavior changes live here yet; BENCHMARK_BUILD is the
+        // gate later pieces build the actual capture path behind.
+        benchmark {
+            initWith release
+            applicationIdSuffix ".benchmark"
+            versionNameSuffix "-benchmark"
+            resValue "string", "app_label", "Nova Benchmark"
+            resValue "string", "app_label_root", "Nova Benchmark (Root)"
+            resValue "string", "app_label_game", "Nova Benchmark (Game)"
+            buildConfigField "boolean", "BENCHMARK_BUILD", "true"
         }
     }
 
