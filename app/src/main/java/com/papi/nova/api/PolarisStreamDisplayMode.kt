@@ -32,8 +32,19 @@ object PolarisStreamDisplayMode {
         PolarisClientSettings.MODE_GPU_NATIVE_TEST
     )
 
-    fun preflightModeForLaunch(usesVirtualDisplay: Boolean, settings: PolarisClientSettings?): String {
+    fun preflightModeForLaunch(
+        usesVirtualDisplay: Boolean,
+        settings: PolarisClientSettings?,
+        resolvedMode: String = "",
+    ): String {
         if (usesVirtualDisplay) return PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
+
+        // A launch that resolved to a concrete canonical mode pushes exactly that mode.
+        // The boolean pair above and the family fallbacks below cannot express the
+        // registry ids beyond the classic pair (gamescope_stream, headless_dongle), so
+        // those selections silently collapsed to the private-family default before.
+        val resolved = normalize(resolvedMode)
+        if (resolved.isNotEmpty()) return resolved
 
         val desired = normalize(settings?.desired?.streamDisplayMode)
         if (isPrivateFamily(desired)) return desired

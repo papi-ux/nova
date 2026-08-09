@@ -138,8 +138,8 @@ class NovaGameDetailActivity : NovaActivity() {
      * shape lets the body below stay the code that was reviewed as a bottom sheet,
      * rather than a rewrite that happens to compile.
      */
-    private val onLaunch: ((PolarisGame, Boolean, Boolean, Boolean, String, JSONObject?) -> Unit)? =
-        { game, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, preflight ->
+    private val onLaunch: ((PolarisGame, Boolean, Boolean, Boolean, String, String, JSONObject?) -> Unit)? =
+        { game, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, streamMode, preflight ->
             setResult(
                 RESULT_OK,
                 Intent().putExtra(
@@ -149,6 +149,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         .put(RESULT_KEY_MIRROR_DESKTOP, mirrorDesktop)
                         .put(RESULT_KEY_FORCE_PRIVATE, forcePrivateAfterSteamClose)
                         .put(RESULT_KEY_PROFILE_PREFERENCE, profilePreference)
+                        .put(RESULT_KEY_STREAM_MODE, streamMode)
                         .put(RESULT_KEY_PREFLIGHT, preflight ?: JSONObject.NULL)
                         .toString(),
                 )
@@ -510,6 +511,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 mirrorDesktop,
                 forcePrivateAfterSteamClose,
                 profilePreference,
+                uiState.playMode,
                 launchOptimization()
             )
             finish()
@@ -574,7 +576,7 @@ class NovaGameDetailActivity : NovaActivity() {
             lifecycleScope.launch {
                 optimizationState = try {
                     val opt = withContext(Dispatchers.IO) {
-                        syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, usesVirtualDisplay, clientSettings)?.let {
+                        syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, usesVirtualDisplay, clientSettings, uiState.playMode)?.let {
                             clientSettings = it
                         }
                         apiClient.getOptimization(deviceName, currentGame.name, preference, mode = uiState.playMode)
@@ -625,7 +627,7 @@ class NovaGameDetailActivity : NovaActivity() {
             lifecycleScope.launch {
                 optimizationState = try {
                     val opt = withContext(Dispatchers.IO) {
-                        syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, uiState.playUsesVirtualDisplay, clientSettings)?.let {
+                        syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, uiState.playUsesVirtualDisplay, clientSettings, uiState.playMode)?.let {
                             clientSettings = it
                         }
                         apiClient.getOptimization(deviceName, currentGame.name, profilePreference, "high_fps", mode = uiState.playMode)
@@ -1391,13 +1393,15 @@ class NovaGameDetailActivity : NovaActivity() {
         context: Context,
         apiClient: PolarisApiClient,
         usesVirtualDisplay: Boolean,
-        clientSettings: PolarisClientSettings?
+        clientSettings: PolarisClientSettings?,
+        resolvedMode: String = ""
     ): PolarisClientSettings? {
         val preferences = PreferenceConfiguration.readPreferences(context)
         return NovaLaunchPreflight.push(
             apiClient = apiClient,
             clientSettings = clientSettings,
             usesVirtualDisplay = usesVirtualDisplay,
+            resolvedMode = resolvedMode,
             width = preferences.width,
             height = preferences.height,
             fps = preferences.fps,
@@ -1805,6 +1809,7 @@ class NovaGameDetailActivity : NovaActivity() {
         const val RESULT_KEY_MIRROR_DESKTOP = "mirrorDesktop"
         const val RESULT_KEY_FORCE_PRIVATE = "forcePrivateAfterSteamClose"
         const val RESULT_KEY_PROFILE_PREFERENCE = "profilePreference"
+        const val RESULT_KEY_STREAM_MODE = "streamDisplayMode"
         const val RESULT_KEY_PREFLIGHT = "preflightOptimization"
 
         private const val DEFAULT_HTTPS_PORT = 47984

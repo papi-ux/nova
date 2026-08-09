@@ -22,6 +22,7 @@ object NovaLaunchPreflight {
         clientSettings: PolarisClientSettings?,
         usesVirtualDisplay: Boolean,
         mirrorDesktop: Boolean = false,
+        resolvedMode: String = "",
         width: Int,
         height: Int,
         fps: Float,
@@ -30,7 +31,7 @@ object NovaLaunchPreflight {
         streamDisplayMode = if (mirrorDesktop) {
             PolarisClientSettings.MODE_DESKTOP_DISPLAY
         } else {
-            PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings)
+            PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings, resolvedMode)
         },
         displayMode = PreferenceConfiguration.formatStreamingDisplayMode(width, height, fps),
         targetBitrateKbps = bitrateKbps?.takeIf { it > 0 },

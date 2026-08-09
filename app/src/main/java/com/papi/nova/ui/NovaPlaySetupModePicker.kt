@@ -261,12 +261,16 @@ private fun NovaPlaySetupModeCard(
                     onFocusedDetail(choice.detail)
                 }
             }
-            .focusable()
+            // One focus target per card: clickable() brings its own, and stacking a
+            // bare focusable() in front of it gave the d-pad a second, click-less stop.
+            // Focus parked there, so A/DPAD_CENTER activated nothing and traversal
+            // stepped twice per card. Disabled cards keep the plain focusable() so a
+            // controller can still read the host's reason in the footer.
             .then(
                 if (choice.enabled) {
                     Modifier.clickable(role = Role.Button) { onPick() }
                 } else {
-                    Modifier
+                    Modifier.focusable()
                 }
             )
             .heightIn(min = NovaGameDetailActionHeight)
@@ -346,7 +350,6 @@ private fun NovaPlaySetupModeHostDefaultCard(
                     onFocusedDetail(detail)
                 }
             }
-            .focusable()
             .clickable(role = Role.Button) { onPick() }
             .clip(shape)
             .background(if (current) colors.accentSurface else surfaces.tile)
