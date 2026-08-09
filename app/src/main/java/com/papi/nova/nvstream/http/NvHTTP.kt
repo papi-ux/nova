@@ -929,8 +929,17 @@ class NvHTTP @Throws(IOException::class) constructor(
 
         @Throws(HostHttpResponseException::class)
         private fun verifyResponseStatus(xpp: XmlPullParser) {
-            var statusCode = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_code").toLong().toInt()
+            // A well-formed host <root> carries status_code (and usually
+            // status_message). A missing or non-numeric status_code — seen from a
+            // truncated or otherwise malformed launch response — must NOT crash the
+            // connection thread with an NPE (getAttributeValue returns null, and the
+            // old .toLong() threw). It is just another error status, so surface it as
+            // the HostHttpResponseException the connect/launch path already catches
+            // (displayMessage + stageFailed + retry) instead of taking down the app.
             var statusMsg = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_message")
+                ?: "Unknown error (host response was missing status_message)"
+            var statusCode = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_code")?.toLongOrNull()?.toInt()
+                ?: throw HostHttpResponseException(418, "Malformed response from host (missing status_code): $statusMsg")
             if (statusCode != 200) {
                 if (statusCode == -1 && statusMsg == "Invalid") {
                     statusCode = 418
