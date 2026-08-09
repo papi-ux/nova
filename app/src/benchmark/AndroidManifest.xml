@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+             Nordstern P0-4A control path (measurement-spec-v1.md 7.2).
+             exported="true" is required - see BenchmarkControlReceiver's
+             own doc comment for the empirical reachability finding.
+             Only merged into the benchmark build type (this manifest
+             lives under src/benchmark), so it never reaches release.
+        -->
+        <receiver
+            android:name=".BenchmarkControlReceiver"
+            android:exported="true" />
+    </application>
+</manifest>
