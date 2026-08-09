@@ -166,4 +166,38 @@ class NovaPlaySetupModePickerTest {
         assertTrue(byId.getValue("host_virtual_display").current)
         assertFalse(byId.getValue("host_virtual_display").active)
     }
+
+    @Test
+    fun theAdvisoryAiPickLandsOnItsAvailableCardOnly() {
+        val state = buildGameModePickerState(
+            modes = listOf(
+                mode("headless_stream", group = "private"),
+                mode("gamescope_stream", group = "private"),
+                mode("headless_dongle", group = "private", available = false, unavailableReason = "No dongle."),
+            ),
+            allowedModes = emptyList(),
+            playMode = "headless_stream",
+            hasExplicitOverride = false,
+            title = "Where It Runs",
+            hostDefaultLabel = "Follow the host",
+            aiRecommendedMode = "gamescope_stream",
+        )
+
+        assertEquals(listOf(false, true, false), state.choices.map { it.aiRecommended })
+
+        val unavailablePick = buildGameModePickerState(
+            modes = listOf(
+                mode("headless_stream", group = "private"),
+                mode("headless_dongle", group = "private", available = false, unavailableReason = "No dongle."),
+            ),
+            allowedModes = emptyList(),
+            playMode = "headless_stream",
+            hasExplicitOverride = false,
+            title = "Where It Runs",
+            hostDefaultLabel = "Follow the host",
+            aiRecommendedMode = "headless_dongle",
+        )
+
+        assertTrue(unavailablePick.choices.none { it.aiRecommended })
+    }
 }

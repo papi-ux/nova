@@ -281,6 +281,7 @@
     <string name="nova_play_setup_band_private">Private — your desktop stays untouched</string>
     <string name="nova_play_setup_band_host">Host display — uses or swaps the host screen</string>
     <string name="nova_play_setup_host_default_entry_detail">Follow the host\'s Default Display — currently %1$s</string>
+    <string name="nova_play_setup_ai_pick">AI pick</string>
     <string name="nova_play_setup_fact_host_profile">Host profile</string>
     <string name="nova_play_setup_host_overridden">This game overrides it. Every other game follows the host.</string>
     <string name="nova_play_setup_host_followed">This game follows it.</string>

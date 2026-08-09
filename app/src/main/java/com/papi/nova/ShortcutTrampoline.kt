@@ -683,6 +683,7 @@ class ShortcutTrampoline : NovaActivity() {
                 DeviceUtils.getModel(),
                 polarisGame.name,
                 SHORTCUT_PROFILE_PREFERENCE,
+                mode = PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings),
             )
 
             launchPlan.copy(

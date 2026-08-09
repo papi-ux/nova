@@ -467,7 +467,8 @@ class PolarisApiClient @JvmOverloads constructor(
             device: String,
             game: String,
             preference: String = "",
-            trial: String = ""
+            trial: String = "",
+            mode: String = ""
         ): String {
             val preferenceParam = preference
                 .takeIf { it.isNotBlank() }
@@ -477,10 +478,16 @@ class PolarisApiClient @JvmOverloads constructor(
                 .takeIf { it.isNotBlank() }
                 ?.let { "&trial=${java.net.URLEncoder.encode(it, "UTF-8")}" }
                 ?: ""
+            // Omitted when blank: an absent mode is the host's legacy cache bucket.
+            val modeParam = mode
+                .takeIf { it.isNotBlank() }
+                ?.let { "&mode=${java.net.URLEncoder.encode(it, "UTF-8")}" }
+                ?: ""
             return "/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
                 "&game=${java.net.URLEncoder.encode(game, "UTF-8")}" +
                 preferenceParam +
-                trialParam
+                trialParam +
+                modeParam
         }
 
         private fun parseStringArray(array: org.json.JSONArray?): List<String> {
@@ -2077,10 +2084,11 @@ class PolarisApiClient @JvmOverloads constructor(
         device: String,
         game: String,
         preference: String = "",
-        trial: String = ""
+        trial: String = "",
+        mode: String = ""
     ): org.json.JSONObject? {
         return try {
-            val url = "$baseUrl${buildOptimizationPath(device, game, preference, trial)}"
+            val url = "$baseUrl${buildOptimizationPath(device, game, preference, trial, mode)}"
             val request = Request.Builder().url(url).get().build()
             LimeLog.info("Nova: Optimization query start for $url")
             executeGetWithRetry(request).use { response ->

@@ -983,6 +983,32 @@ class PolarisApiClientParsingTest {
             path
         )
     }
+
+    @Test
+    fun buildOptimizationPath_carriesTheModeBucketAndOmitsItWhenBlank() {
+        val withMode = PolarisApiClient.buildOptimizationPath(
+            device = "RetroidPocket6",
+            game = "Control Ultimate Edition",
+            preference = "auto",
+            mode = "gamescope_stream"
+        )
+
+        assertEquals(
+            "/optimize?device=RetroidPocket6&game=Control+Ultimate+Edition&preference=auto&mode=gamescope_stream",
+            withMode
+        )
+
+        val legacy = PolarisApiClient.buildOptimizationPath(
+            device = "RetroidPocket6",
+            game = "Control Ultimate Edition",
+            preference = "auto"
+        )
+
+        assertEquals(
+            "/optimize?device=RetroidPocket6&game=Control+Ultimate+Edition&preference=auto",
+            legacy
+        )
+    }
     @Test
     fun buildSteamLaunchModeUpdateBodyNormalizesAliases() {
         val body = PolarisApiClient.buildSteamLaunchModeUpdateBody("game-1", "gamepadui")
