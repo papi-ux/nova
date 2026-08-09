@@ -132,6 +132,7 @@ class MediaCodecDecoderRenderer(
         }
 
         logSampledStageTiming(presentationTimeUs)
+        recordBenchmarkSample(presentationTimeUs)
     }
 
     private var t3t4LogCounter = 0
@@ -273,6 +274,101 @@ class MediaCodecDecoderRenderer(
         minDecodeTime = Float.MAX_VALUE
         minDecodeTimeFullLog = ""
         enqueueNsByPtsUs.clear()
+    }
+
+    // Nordstern P0-4A (measurement-spec-v1.md 7.2). A single incrementing
+    // counter, bumped only at the "frame sequence restart" call site below
+    // (not at ordinary "stream setup"). stopBenchmarkCapture snapshots it
+    // as terminalStreamGeneration alongside the initialStreamGeneration
+    // captured at arm time, giving the exporter (piece 5) both
+    // initial_stream_generation/terminal_stream_generation and a
+    // generation_change_count derived from their difference, without this
+    // class tracking a third separate field.
+    private var benchmarkStreamGeneration = 0
+
+    /**
+     * One armed/active Nordstern P0-4A benchmark run. Nova's whole run
+     * lifecycle is far simpler than Polaris's own armed/active/draining/
+     * frozen/aborted/expired state machine: a run here is either being
+     * recorded into or it isn't - piece 4's adb-driven control path
+     * decides when to arm one and when to stop it.
+     *
+     * startedMonotonicNs uses System.nanoTime(), the same CLOCK_MONOTONIC
+     * domain presentationTimeUs (T3) and System.nanoTime() (T4) already
+     * share in logSampledStageTiming below - not
+     * SystemClock.elapsedRealtimeNanos(), a different Android clock
+     * (CLOCK_BOOTTIME, which includes sleep time) despite the superficially
+     * similar name.
+     */
+    private class BenchmarkRunState(
+        val runId: String,
+        val expectedDurationNs: Long,
+        val initialStreamGeneration: Int,
+    ) {
+        val capture = BenchmarkStageCapture()
+        val startedMonotonicNs: Long = System.nanoTime()
+    }
+
+    /**
+     * Frozen result of one stopped Nordstern P0-4A run: the capture buffer
+     * plus the immutable run_id and the initial/terminal stream-generation
+     * pair (measurement-spec-v1.md 7.2) the exporter (piece 5) needs to
+     * derive generation_change_count and decide whether the run aborts on
+     * a generation mismatch.
+     */
+    class BenchmarkRunResult(
+        val runId: String,
+        val capture: BenchmarkStageCapture,
+        val initialStreamGeneration: Int,
+        val terminalStreamGeneration: Int,
+    )
+
+    @Volatile
+    private var benchmarkRun: BenchmarkRunState? = null
+
+    /**
+     * Arm a new Nordstern P0-4A benchmark run (measurement-spec-v1.md 7.2).
+     * No-op outside BENCHMARK_BUILD - never reachable in a real release
+     * build. Replaces any already-armed run without freezing/exporting it
+     * first; the caller (piece 4's control path) owns sequencing arm/stop
+     * calls correctly.
+     */
+    fun armBenchmarkCapture(runId: String, expectedDurationNs: Long) {
+        if (!BuildConfig.BENCHMARK_BUILD) {
+            return
+        }
+        benchmarkRun = BenchmarkRunState(runId, expectedDurationNs, benchmarkStreamGeneration)
+    }
+
+    /**
+     * Stop the current benchmark run, if any, snapshotting
+     * terminalStreamGeneration at this moment - the spec's
+     * "terminal_stream_generation from the live stream owner after drain";
+     * Nova's simpler two-state model (see BenchmarkRunState's doc comment)
+     * has no separate drain step, so stop IS the drain point. Returns null
+     * if none was armed.
+     */
+    fun stopBenchmarkCapture(): BenchmarkRunResult? {
+        val run = benchmarkRun ?: return null
+        benchmarkRun = null
+        return BenchmarkRunResult(run.runId, run.capture, run.initialStreamGeneration, benchmarkStreamGeneration)
+    }
+
+    // Nordstern P0-4A gate-authoritative capture (measurement-spec-v1.md
+    // 7.2) - independent of logSampledStageTiming's own sampled diagnostic
+    // log below; records every accepted frame while a run is armed, not
+    // just every T3_T4_LOG_SAMPLE_INTERVAL-th one. A no-op whenever no run
+    // is armed (the overwhelmingly common case until piece 4's control path
+    // arms one), so this costs one null-check on every real frame until
+    // then.
+    private fun recordBenchmarkSample(presentationTimeUs: Long) {
+        val run = benchmarkRun ?: return
+        val t3Ns = presentationTimeUs * 1000L
+        val t4Ns = System.nanoTime()
+        val startOffsetUs = (t3Ns - run.startedMonotonicNs) / 1000L
+        val endOffsetUs = (t4Ns - run.startedMonotonicNs) / 1000L
+        val windowEndUs = run.expectedDurationNs / 1000L
+        run.capture.record(startOffsetUs, endOffsetUs, windowEndUs)
     }
 
     init {
@@ -1587,6 +1683,7 @@ class MediaCodecDecoderRenderer(
         val decodeData = decodeUnitData!!
         if (frameNumber < lastFrameNumber) {
             resetRollingPerfStatsForNewStream("frame sequence restart")
+            benchmarkStreamGeneration++
         }
 
         if (lastFrameNumber == 0) {
