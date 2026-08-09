@@ -234,7 +234,7 @@ class NovaLaunchSourceGuardTest {
         assertTrue(displayMode.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
         // All launch surfaces ride the one preflight helper, which itself resolves
         // through preflightModeForLaunch and uses the contract constant for mirror.
-        assertTrue(preflightHelper.contains("PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings)"))
+        assertTrue(preflightHelper.contains("PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings, resolvedMode)"))
         assertTrue(preflightHelper.contains("PolarisClientSettings.MODE_DESKTOP_DISPLAY"))
         assertTrue(detail.contains("NovaLaunchPreflight.push("))
         assertTrue(trampoline.contains("NovaLaunchPreflight.push("))

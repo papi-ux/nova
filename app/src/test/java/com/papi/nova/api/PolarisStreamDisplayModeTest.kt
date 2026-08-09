@@ -58,4 +58,41 @@ class PolarisStreamDisplayModeTest {
         assertTrue(PolarisStreamDisplayMode.isPrivateFamily(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
         assertTrue(PolarisStreamDisplayMode.isPrivateFamily(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
     }
+
+    @Test
+    fun preflightPushesResolvedCanonicalMode() {
+        val settings = PolarisClientSettings(
+            desired = PolarisClientSettings.Desired(streamDisplayMode = PolarisClientSettings.MODE_HEADLESS_STREAM),
+            effective = PolarisClientSettings.Effective(streamDisplayMode = PolarisClientSettings.MODE_HEADLESS_STREAM)
+        )
+
+        // Registry ids beyond the legacy pair collapsed to the private-family default
+        // before; the resolved mode must survive the preflight verbatim.
+        assertEquals(
+            PolarisClientSettings.MODE_GAMESCOPE_STREAM,
+            PolarisStreamDisplayMode.preflightModeForLaunch(
+                usesVirtualDisplay = false,
+                settings = settings,
+                resolvedMode = PolarisClientSettings.MODE_GAMESCOPE_STREAM
+            )
+        )
+        // The virtual-display flag stays the strongest signal.
+        assertEquals(
+            PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
+            PolarisStreamDisplayMode.preflightModeForLaunch(
+                usesVirtualDisplay = true,
+                settings = settings,
+                resolvedMode = PolarisClientSettings.MODE_GAMESCOPE_STREAM
+            )
+        )
+        // A blank resolved mode keeps the legacy family-preserving behavior.
+        assertEquals(
+            PolarisClientSettings.MODE_HEADLESS_STREAM,
+            PolarisStreamDisplayMode.preflightModeForLaunch(
+                usesVirtualDisplay = false,
+                settings = settings,
+                resolvedMode = ""
+            )
+        )
+    }
 }

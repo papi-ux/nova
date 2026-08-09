@@ -835,6 +835,7 @@ class NovaLibraryActivity : NovaActivity() {
             mirrorDesktop = request.optBoolean(NovaGameDetailActivity.RESULT_KEY_MIRROR_DESKTOP),
             forcePrivateAfterSteamClose = request.optBoolean(NovaGameDetailActivity.RESULT_KEY_FORCE_PRIVATE),
             profilePreference = request.optString(NovaGameDetailActivity.RESULT_KEY_PROFILE_PREFERENCE, "auto"),
+            resolvedMode = request.optString(NovaGameDetailActivity.RESULT_KEY_STREAM_MODE, ""),
             preflightOptimization = request.optJSONObject(NovaGameDetailActivity.RESULT_KEY_PREFLIGHT),
         )
     }
@@ -843,6 +844,7 @@ class NovaLibraryActivity : NovaActivity() {
         game: PolarisGame,
         withVirtualDisplay: Boolean,
         mirrorDesktop: Boolean = false,
+        resolvedMode: String = "",
         forcePrivateAfterSteamClose: Boolean = false,
         profilePreference: String = "auto",
         preflightOptimization: org.json.JSONObject? = null
@@ -910,6 +912,7 @@ class NovaLibraryActivity : NovaActivity() {
                         clientSettings = clientSettings,
                         usesVirtualDisplay = withVirtualDisplay,
                         mirrorDesktop = mirrorDesktop,
+                        resolvedMode = resolvedMode,
                         width = launchResolution.width,
                         height = launchResolution.height,
                         fps = launchFps,
