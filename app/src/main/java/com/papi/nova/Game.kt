@@ -256,6 +256,7 @@ com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfil
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
 private var mirrorDesktop:Boolean = false
+private var streamMode:String = ""
 private var forcePrivateAfterSteamClose:Boolean = false
 private var clientPresentationReportInFlight:AtomicBoolean = AtomicBoolean(false)
 private var cursorVisibilitySyncLock:Any = Any()
@@ -1037,6 +1038,7 @@ uniqueId = this@Game.getIntent().getStringExtra(EXTRA_UNIQUEID)
 vDisplay = this@Game.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false)
 var displayModeExplicit:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false)
 mirrorDesktop = this@Game.getIntent().getBooleanExtra(EXTRA_MIRROR_DESKTOP, false)
+streamMode = this@Game.getIntent().getStringExtra(EXTRA_STREAM_MODE) ?: ""
 forcePrivateAfterSteamClose = this@Game.getIntent().getBooleanExtra(EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, false)
 launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
 launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
@@ -1429,6 +1431,7 @@ displayHeight
 .setVirtualDisplay(vDisplay)
 .setDisplayModeExplicit(displayModeExplicit)
 .setMirrorDesktop(mirrorDesktop)
+.setStreamMode(streamMode)
 .setForcePrivateAfterSteamClose(forcePrivateAfterSteamClose)
 .setResolutionScaleFactor(prefConfig!!.resolutionScaleFactor)
 .setApp(app)
@@ -6763,6 +6766,7 @@ companion object {
  const val EXTRA_APP_HDR:String = "HDR"
  const val EXTRA_SERVER_CERT:String = "ServerCert"
  const val EXTRA_VDISPLAY:String = "VirtualDisplay"
+ const val EXTRA_STREAM_MODE:String = "StreamMode"
  const val EXTRA_DISPLAY_MODE_EXPLICIT:String = "DisplayModeExplicit"
  const val EXTRA_MIRROR_DESKTOP:String = "MirrorDesktop"
 const val EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE:String = "ForcePrivateAfterSteamClose"

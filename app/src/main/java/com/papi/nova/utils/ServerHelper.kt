@@ -172,6 +172,7 @@ object ServerHelper {
         launchOptimizationJson: String? = null,
         mirrorDesktop: Boolean = false,
         forcePrivateAfterSteamClose: Boolean = false,
+        streamMode: String = "",
     ): Intent {
         val prefConfig = PreferenceConfiguration.readPreferences(parent)
         val selectedAndroidDisplay = if (prefConfig.enableFullExDisplay) {
@@ -212,6 +213,9 @@ object ServerHelper {
         gameIntent.putExtra(Game.EXTRA_VDISPLAY, withVDisplay)
         gameIntent.putExtra(Game.EXTRA_DISPLAY_MODE_EXPLICIT, displayModeExplicit)
         gameIntent.putExtra(Game.EXTRA_MIRROR_DESKTOP, mirrorDesktop)
+        if (streamMode.isNotBlank()) {
+            gameIntent.putExtra(Game.EXTRA_STREAM_MODE, streamMode)
+        }
         gameIntent.putExtra(Game.EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, forcePrivateAfterSteamClose)
         gameIntent.putExtra(Game.EXTRA_WATCH_ONLY, watchOnly)
         if (streamWidth > 0 && streamHeight > 0) {
@@ -393,6 +397,7 @@ object ServerHelper {
         launchOptimizationJson: String? = null,
         mirrorDesktop: Boolean = false,
         forcePrivateAfterSteamClose: Boolean = false,
+        streamMode: String = "",
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -419,6 +424,7 @@ object ServerHelper {
             launchOptimizationJson,
             mirrorDesktop,
             forcePrivateAfterSteamClose,
+            streamMode = streamMode,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
@@ -484,6 +490,7 @@ object ServerHelper {
         launchOptimizationJson: String? = null,
         mirrorDesktop: Boolean = false,
         forcePrivateAfterSteamClose: Boolean = false,
+        streamMode: String = "",
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -507,6 +514,7 @@ object ServerHelper {
             launchOptimizationJson = launchOptimizationJson,
             mirrorDesktop = mirrorDesktop,
             forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
+            streamMode = streamMode,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
