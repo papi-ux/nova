@@ -6710,6 +6710,25 @@ companion object {
  @JvmField var instance:Game? = null
  @JvmField @Volatile var isStreamActive:Boolean = false
 
+ // Nordstern P0-4A (measurement-spec-v1.md 7.2) benchmark-only control
+ // path - BenchmarkControlReceiver (app/src/benchmark, never present in
+ // release) forwards adb-driven start/stop here. decoderRenderer is a
+ // private Game instance member, so this goes through `instance` - a
+ // companion object can reach another instance's private members
+ // because it's lexically nested inside the same class body, same as
+ // any other Game method.
+ @JvmStatic
+ fun armBenchmarkCapture(runId:String, expectedDurationNs:Long):Boolean {
+  val renderer = instance?.decoderRenderer ?: return false
+  renderer.armBenchmarkCapture(runId, expectedDurationNs)
+  return true
+ }
+
+ @JvmStatic
+ fun stopBenchmarkCapture():MediaCodecDecoderRenderer.BenchmarkRunResult? {
+  return instance?.decoderRenderer?.stopBenchmarkCapture()
+ }
+
  private const val REFERENCE_HORIZ_RES:Int = 1280
  private const val REFERENCE_VERT_RES:Int = 720
 
