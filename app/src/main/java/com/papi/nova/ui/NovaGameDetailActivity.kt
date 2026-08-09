@@ -511,7 +511,14 @@ class NovaGameDetailActivity : NovaActivity() {
                 mirrorDesktop,
                 forcePrivateAfterSteamClose,
                 profilePreference,
-                uiState.playMode,
+                // Session-scoped streamMode travels ONLY for an explicit per-game
+                // override. Passing the resolved playMode here froze a (possibly
+                // stale) host default into the launch and overrode it per-session;
+                // a host-default launch must send nothing and ride the host's
+                // current mode instead.
+                PolarisStreamDisplayMode.normalize(
+                    NovaLaunchModeOverrides.load(this@NovaGameDetailActivity, currentGame).orEmpty()
+                ),
                 launchOptimization()
             )
             finish()
