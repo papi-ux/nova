@@ -17,9 +17,10 @@ import com.papi.nova.preferences.PreferenceConfiguration
  * private compositor from spawning, and made capture fall through to the desktop and
  * hard-fail. Only per-client display/bitrate are pushed here now; mirror and virtual
  * display still travel session-scoped on the /launch URL. The per-session stream mode
- * returns via a /launch streamMode param in step 2, which is why usesVirtualDisplay,
+ * travels the same way (step 2): the resolved override rides the /launch streamMode
+ * param via ServerHelper -> Game -> NvHTTP, which is why usesVirtualDisplay,
  * mirrorDesktop, resolvedMode and clientSettings are retained in the signature (the
- * call sites also use them for the /optimize mode hint and the /launch URL today).
+ * call sites also use them for the /optimize mode hint and the /launch URL).
  */
 @Suppress("UNUSED_PARAMETER")
 object NovaLaunchPreflight {

@@ -944,7 +944,8 @@ class NovaLibraryActivity : NovaActivity() {
                     aiProfilePreference = profilePreference,
                     launchOptimizationJson = preflightOptimization?.toString(),
                     mirrorDesktop = mirrorDesktop,
-                    forcePrivateAfterSteamClose = forcePrivateAfterSteamClose
+                    forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
+                    streamMode = resolvedMode
                 )
             } catch (e: CancellationException) {
                 throw e

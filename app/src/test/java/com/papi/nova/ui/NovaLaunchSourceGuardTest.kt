@@ -704,6 +704,22 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun perGameOverrideTravelsSessionScopedOnLaunchUrl() {
+        val nvhttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
+        val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
+        val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        val streamConfig = readSource("src/main/java/com/papi/nova/nvstream/StreamConfiguration.kt")
+
+        assertTrue(
+            "step 2: a per-game override rides the /launch URL session-scoped (never client-settings)",
+            nvhttp.contains("\"&streamMode=\" + URLEncoder.encode(") &&
+                streamConfig.contains("fun getStreamMode(): String") &&
+                serverHelper.contains("gameIntent.putExtra(Game.EXTRA_STREAM_MODE, streamMode)") &&
+                library.contains("streamMode = resolvedMode")
+        )
+    }
+
+    @Test
     fun libraryAndShortcutLaunchDoNotRewriteHostStreamMode() {
         val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val shortcut = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")

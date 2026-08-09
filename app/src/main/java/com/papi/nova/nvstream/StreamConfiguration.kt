@@ -29,6 +29,7 @@ class StreamConfiguration private constructor() {
     private var forceFreshLaunch = false
     private var profilePreference = "auto"
     private var mirrorDesktop = false
+    private var streamMode = ""
     private var forcePrivateAfterSteamClose = false
 
     class Builder {
@@ -165,6 +166,12 @@ class StreamConfiguration private constructor() {
             return this
         }
 
+        fun setStreamMode(streamMode: String?): Builder {
+            // Canonical stream path registry id, or blank for the host default.
+            config.streamMode = streamMode?.trim().orEmpty()
+            return this
+        }
+
         fun setForcePrivateAfterSteamClose(enable: Boolean): Builder {
             config.forcePrivateAfterSteamClose = enable
             return this
@@ -234,6 +241,8 @@ class StreamConfiguration private constructor() {
     fun getProfilePreference(): String = profilePreference
 
     fun getMirrorDesktop(): Boolean = mirrorDesktop
+
+    fun getStreamMode(): String = streamMode
 
     fun getForcePrivateAfterSteamClose(): Boolean = forcePrivateAfterSteamClose
 

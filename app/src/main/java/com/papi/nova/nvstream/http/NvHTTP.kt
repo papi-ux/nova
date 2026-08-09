@@ -663,6 +663,13 @@ class NvHTTP @Throws(IOException::class) constructor(
             ?: ""
         val mirrorDesktop = streamConfig.getMirrorDesktop()
         val forcePrivateAfterSteamClose = streamConfig.getForcePrivateAfterSteamClose()
+        // Session-scoped stream-mode override: rides only this /launch URL, the
+        // host applies it for the session and never persists it. Blank = host
+        // default; mirrorDesktop wins on the host side.
+        val streamModeParam = streamConfig.getStreamMode()
+            .takeIf { it.isNotBlank() }
+            ?.let { "&streamMode=" + URLEncoder.encode(it, "UTF-8") }
+            ?: ""
 
         val xmlStr = openHttpConnectionToString(
             httpClientLongConnectNoReadTimeout,
@@ -683,6 +690,7 @@ class NvHTTP @Throws(IOException::class) constructor(
                 "&mirrorDesktop=" + (if (mirrorDesktop) 1 else 0) +
                 (if (mirrorDesktop) "&launchMode=mirror_desktop" else "") +
                 (if (forcePrivateAfterSteamClose) "&closeDesktopSteamForPrivate=1&launchMode=force_private_stream" else "") +
+                streamModeParam +
                 profilePreference +
                 "&localAudioPlayMode=" + (if (streamConfig.getPlayLocalAudio()) 1 else 0) +
                 "&surroundAudioInfo=" + streamConfig.getAudioConfiguration()!!.getSurroundAudioInfo() +
