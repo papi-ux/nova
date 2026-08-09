@@ -232,10 +232,16 @@ class NovaLaunchSourceGuardTest {
         assertTrue(displayMode.contains("fun preflightModeForLaunch("))
         assertTrue(displayMode.contains("PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY"))
         assertTrue(displayMode.contains("PolarisClientSettings.MODE_HEADLESS_STREAM"))
-        // All launch surfaces ride the one preflight helper, which itself resolves
-        // through preflightModeForLaunch and uses the contract constant for mirror.
-        assertTrue(preflightHelper.contains("PolarisStreamDisplayMode.preflightModeForLaunch(usesVirtualDisplay, clientSettings, resolvedMode)"))
-        assertTrue(preflightHelper.contains("PolarisClientSettings.MODE_DESKTOP_DISPLAY"))
+        // All launch surfaces ride the one preflight helper. Staged fix step 1: a
+        // per-game launch must NOT push a host stream mode (that durably clobbered the
+        // host-wide default). The helper pushes only per-client display/bitrate now; the
+        // per-session mode returns via /launch in step 2.
+        assertTrue(preflightHelper.contains("apiClient.updateClientSettings("))
+        assertTrue(preflightHelper.contains("displayMode = PreferenceConfiguration.formatStreamingDisplayMode"))
+        assertTrue(
+            "launch preflight must not push stream_display_mode",
+            !preflightHelper.contains("streamDisplayMode ="),
+        )
         assertTrue(detail.contains("NovaLaunchPreflight.push("))
         assertTrue(trampoline.contains("NovaLaunchPreflight.push("))
     }
@@ -680,7 +686,7 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
-    fun gameDetailPreflightPreservesExplicitPolarisNonVirtualMode() {
+    fun gameDetailLaunchDoesNotRewriteHostStreamMode() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
         val preflight = detail.section(
             "private fun syncLaunchPreflightSettings(",
@@ -690,28 +696,28 @@ class NovaLaunchSourceGuardTest {
         val preflightHelper = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
 
         assertTrue(
-            "Game detail preflight must use the full Polaris stream display mode helper, not collapse every non-virtual launch to headless_stream",
+            "Staged fix step 1: a game-detail launch rides the single preflight helper but must NOT push a host stream mode (that durably clobbered the host-wide default), and must not resurrect the old 2-value collapse",
             preflight.contains("NovaLaunchPreflight.push") &&
-                preflightHelper.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
+                !preflightHelper.contains("streamDisplayMode =") &&
                 !preflightHelper.contains("if (usesVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
         )
     }
 
     @Test
-    fun libraryAndShortcutLaunchPreflightPreservePolarisNonVirtualMode() {
+    fun libraryAndShortcutLaunchDoNotRewriteHostStreamMode() {
         val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val shortcut = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")
 
         val preflightHelper = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
 
         assertTrue(
-            "Library launch should preserve the selected full Polaris stream display mode",
+            "Staged fix step 1: a library launch rides the preflight helper but must NOT push a host stream mode, and must not resurrect the old 2-value collapse",
             library.contains("NovaLaunchPreflight.push") &&
-                preflightHelper.contains("PolarisStreamDisplayMode.preflightModeForLaunch") &&
+                !preflightHelper.contains("streamDisplayMode =") &&
                 !library.contains("if (withVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
         )
         assertTrue(
-            "Shortcut launch should preserve the selected full Polaris stream display mode",
+            "Staged fix step 1: a shortcut launch rides the preflight helper and must not resurrect the old 2-value collapse",
             shortcut.contains("NovaLaunchPreflight.push") &&
                 !shortcut.contains("if (withVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
         )
