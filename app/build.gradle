@@ -262,6 +262,11 @@ android {
         // gate later pieces build the actual capture path behind.
         benchmark {
             initWith release
+            // adb run-as extraction (measurement-spec-v1.md 7.2) needs a
+            // debuggable package - run-as refuses non-debuggable ones
+            // outright, confirmed empirically (run-as: package not
+            // debuggable) before adding this.
+            debuggable true
             applicationIdSuffix ".benchmark"
             versionNameSuffix "-benchmark"
             resValue "string", "app_label", "Nova Benchmark"

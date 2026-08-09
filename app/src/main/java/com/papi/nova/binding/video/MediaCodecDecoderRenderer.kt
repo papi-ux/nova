@@ -303,24 +303,46 @@ class MediaCodecDecoderRenderer(
     private class BenchmarkRunState(
         val runId: String,
         val expectedDurationNs: Long,
+        val durationToleranceNs: Long,
+        val drainGraceNs: Long,
+        val manifestSha256: String?,
         val initialStreamGeneration: Int,
     ) {
         val capture = BenchmarkStageCapture()
         val startedMonotonicNs: Long = System.nanoTime()
+
+        // measurement-spec-v1.md 7.2's started_elapsed_realtime_ns - a
+        // separate clock reading from startedMonotonicNs above.
+        // elapsedRealtimeNanos (CLOCK_BOOTTIME) is what the wire schema's
+        // *_elapsed_realtime_ns fields are named for, unlike the per-sample
+        // T3/T4 offsets which deliberately stay in System.nanoTime()'s
+        // CLOCK_MONOTONIC domain (see this class's own doc comment above).
+        // Only 3 scalar reads for the whole run (here and at stop), so the
+        // hot-path cost concern that drove that earlier choice doesn't
+        // apply to these.
+        val startedElapsedRealtimeNs: Long = SystemClock.elapsedRealtimeNanos()
     }
 
     /**
      * Frozen result of one stopped Nordstern P0-4A run: the capture buffer
-     * plus the immutable run_id and the initial/terminal stream-generation
-     * pair (measurement-spec-v1.md 7.2) the exporter (piece 5) needs to
-     * derive generation_change_count and decide whether the run aborts on
-     * a generation mismatch.
+     * plus everything the exporter (piece 5) needs to fill
+     * measurement-spec-v1.md 7.2's JSON schema - the immutable run_id,
+     * initial/terminal stream-generation pair (to derive
+     * generation_change_count and decide whether the run aborts on a
+     * mismatch), the harness-provided run parameters echoed back
+     * verbatim, and both elapsed-realtime endpoints.
      */
     class BenchmarkRunResult(
         val runId: String,
         val capture: BenchmarkStageCapture,
         val initialStreamGeneration: Int,
         val terminalStreamGeneration: Int,
+        val expectedDurationNs: Long,
+        val durationToleranceNs: Long,
+        val drainGraceNs: Long,
+        val manifestSha256: String?,
+        val startedElapsedRealtimeNs: Long,
+        val stoppedElapsedRealtimeNs: Long,
     )
 
     @Volatile
@@ -331,27 +353,55 @@ class MediaCodecDecoderRenderer(
      * No-op outside BENCHMARK_BUILD - never reachable in a real release
      * build. Replaces any already-armed run without freezing/exporting it
      * first; the caller (piece 4's control path) owns sequencing arm/stop
-     * calls correctly.
+     * calls correctly. durationToleranceNs/drainGraceNs/manifestSha256 are
+     * harness-provided and otherwise unused by this class - stored only to
+     * echo back in the frozen export (piece 5); Nova's simpler run model
+     * (see BenchmarkRunState's doc comment) has no drain step of its own,
+     * so drainGraceNs is never acted on here.
      */
-    fun armBenchmarkCapture(runId: String, expectedDurationNs: Long) {
+    fun armBenchmarkCapture(
+        runId: String,
+        expectedDurationNs: Long,
+        durationToleranceNs: Long,
+        drainGraceNs: Long,
+        manifestSha256: String?,
+    ) {
         if (!BuildConfig.BENCHMARK_BUILD) {
             return
         }
-        benchmarkRun = BenchmarkRunState(runId, expectedDurationNs, benchmarkStreamGeneration)
+        benchmarkRun = BenchmarkRunState(
+            runId,
+            expectedDurationNs,
+            durationToleranceNs,
+            drainGraceNs,
+            manifestSha256,
+            benchmarkStreamGeneration,
+        )
     }
 
     /**
      * Stop the current benchmark run, if any, snapshotting
-     * terminalStreamGeneration at this moment - the spec's
-     * "terminal_stream_generation from the live stream owner after drain";
-     * Nova's simpler two-state model (see BenchmarkRunState's doc comment)
-     * has no separate drain step, so stop IS the drain point. Returns null
-     * if none was armed.
+     * terminalStreamGeneration and stoppedElapsedRealtimeNs at this moment
+     * - the spec's "terminal_stream_generation from the live stream owner
+     * after drain"; Nova's simpler two-state model (see BenchmarkRunState's
+     * doc comment) has no separate drain step, so stop IS the drain point.
+     * Returns null if none was armed.
      */
     fun stopBenchmarkCapture(): BenchmarkRunResult? {
         val run = benchmarkRun ?: return null
         benchmarkRun = null
-        return BenchmarkRunResult(run.runId, run.capture, run.initialStreamGeneration, benchmarkStreamGeneration)
+        return BenchmarkRunResult(
+            runId = run.runId,
+            capture = run.capture,
+            initialStreamGeneration = run.initialStreamGeneration,
+            terminalStreamGeneration = benchmarkStreamGeneration,
+            expectedDurationNs = run.expectedDurationNs,
+            durationToleranceNs = run.durationToleranceNs,
+            drainGraceNs = run.drainGraceNs,
+            manifestSha256 = run.manifestSha256,
+            startedElapsedRealtimeNs = run.startedElapsedRealtimeNs,
+            stoppedElapsedRealtimeNs = SystemClock.elapsedRealtimeNanos(),
+        )
     }
 
     // Nordstern P0-4A gate-authoritative capture (measurement-spec-v1.md
