@@ -70,11 +70,13 @@ import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaRadius
+import kotlinx.coroutines.delay
 
 /** Where the detail window currently is. Back unwinds one level before leaving. */
 /**
@@ -463,9 +465,18 @@ private fun NovaGameDetailActions(
         // Keyed on enabled, because that is the moment the primary becomes reachable.
         // The request is allowed to fail: while a destination is open the Overview is a
         // focusProperties { canFocus = false } group, and asking then must not throw.
+        //
+        // Settle first, for the same reason novaHoldsFirstFocus does: when the profile
+        // is already cached, playEnabled is true on the first composition, so this
+        // effect runs before Play is placed -- the request lands on nothing, runCatching
+        // swallows it, and focus falls to the first focusable above Play (the launch-
+        // profile row). Waiting one settle lets layout happen so the request lands on
+        // Play. On the slow-profile path playEnabled flips true after layout, so the
+        // wait costs nothing there.
         val playFocusable = uiState.playEnabled || activeSession != null
         LaunchedEffect(playFocusable) {
             if (playFocusable) {
+                delay(NOVA_FIRST_FOCUS_SETTLE_MS)
                 runCatching { playFocusRequester.requestFocus() }
             }
         }
