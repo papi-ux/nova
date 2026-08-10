@@ -127,4 +127,45 @@ class NvHttpServerInfoParsingTest {
 
         assertFalse(NvHTTP.parseCurrentGameOwned(serverInfo)!!)
     }
+
+    // A <root> without a status_code used to crash the whole app with an NPE on the
+    // connection thread (verifyResponseStatus called .toLong() on the null attribute),
+    // which is how a malformed launch response took down the benchmark client. It must
+    // now surface as a HostHttpResponseException the connect/launch path already handles.
+    @Test(expected = HostHttpResponseException::class)
+    fun rootWithoutStatusCodeThrowsHostHttpResponseExceptionNotNpe() {
+        NvHTTP.getXmlString("<root><sessionUrl0>x</sessionUrl0></root>", "sessionUrl0", false)
+    }
+
+    @Test(expected = HostHttpResponseException::class)
+    fun rootWithNonNumericStatusCodeThrowsHostHttpResponseException() {
+        NvHTTP.getXmlString("<root status_code=\"not-a-number\"></root>", "sessionUrl0", false)
+    }
+
+    @Test
+    fun rootWithoutStatusCodeReportsMissingStatusCode() {
+        try {
+            NvHTTP.getXmlString("<root></root>", "sessionUrl0", false)
+            throw AssertionError("expected HostHttpResponseException")
+        } catch (e: HostHttpResponseException) {
+            assertTrue(e.getErrorMessage().contains("status_code"))
+        }
+    }
+
+    @Test
+    fun rootWithErrorStatusCodeButNoMessageStillThrowsWithoutNpe() {
+        try {
+            NvHTTP.getXmlString("<root status_code=\"401\"></root>", "sessionUrl0", false)
+            throw AssertionError("expected HostHttpResponseException")
+        } catch (e: HostHttpResponseException) {
+            assertEquals(401, e.getErrorCode())
+        }
+    }
+
+    @Test
+    fun wellFormedSuccessRootParsesTheRequestedField() {
+        val body = "<root status_code=\"200\"><sessionUrl0>rtsp://host</sessionUrl0></root>"
+
+        assertEquals("rtsp://host", NvHTTP.getXmlString(body, "sessionUrl0", false))
+    }
 }
