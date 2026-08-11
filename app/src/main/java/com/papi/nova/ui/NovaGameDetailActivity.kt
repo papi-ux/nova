@@ -1518,9 +1518,6 @@ class NovaGameDetailActivity : NovaActivity() {
 
     private fun buildLaunchIntro(uiState: NovaGameDetailUiState): String {
         val parts = mutableListOf<String>()
-        if (uiState.preferredMode != uiState.recommendedMode) {
-            parts += getString(R.string.nova_library_launch_preferred_mode_format, modeLabel(uiState.preferredMode))
-        }
         if (uiState.hostStreamDisplayMode in setOf(
                 PolarisClientSettings.MODE_DESKTOP_DISPLAY,
                 PolarisClientSettings.MODE_GPU_NATIVE_TEST
@@ -1547,6 +1544,13 @@ class NovaGameDetailActivity : NovaActivity() {
             uiState.game.launchMode?.modeReason?.isNotBlank() == true -> uiState.game.launchMode?.modeReason.orEmpty()
             uiState.recommendedMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_intro_virtual_default)
             else -> getString(R.string.nova_library_launch_intro_headless_default)
+        }
+        // The app's own preference trails the description rather than leading it: this
+        // paragraph sits under "What will happen", and opening it with a mode that will
+        // NOT happen ("App default: Host Virtual Display." over a Private Stream plan)
+        // made the headline and its first sentence contradict each other.
+        if (uiState.preferredMode != uiState.recommendedMode) {
+            parts += getString(R.string.nova_library_launch_preferred_mode_format, modeLabel(uiState.preferredMode))
         }
         return parts.joinToString(" ")
     }

@@ -440,7 +440,7 @@
     <string name="nova_desktop_steam_cancel">Cancel</string>
     <string name="nova_library_launch_mode_default_format">%1$s · Default</string>
     <string name="nova_library_launch_recommended_mode_badge">Rec. %1$s</string>
-    <string name="nova_library_launch_preferred_mode_format">App default: %1$s.</string>
+    <string name="nova_library_launch_preferred_mode_format">This app’s default is %1$s.</string>
     <string name="nova_library_launch_mode_unavailable_format">%1$s · Unavailable</string>
     <string name="nova_library_launching_mode">Launching %1$s in %2$s…</string>
     <string name="nova_steam_launch_detail_label">Steam Launch</string>
