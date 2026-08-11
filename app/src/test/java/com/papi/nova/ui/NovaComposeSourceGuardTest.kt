@@ -817,11 +817,12 @@ class NovaComposeSourceGuardTest {
                 source.contains("onPrimaryFilterFocused = { lastFocusedPrimaryFilter = it }")
         )
         assertTrue(
-            "shared poster call sites should request focus when they match the remembered game",
+            "shared poster call sites should request focus once when they match the remembered game " +
+                "(restore and cold start share the settled request path)",
             source.windowed("rememberLibraryPosterFocusRequester(".length)
                 .count { it == "rememberLibraryPosterFocusRequester(" } == 3 &&
                 posterFocus.contains("val focusRequester = remember { FocusRequester() }") &&
-                posterFocus.contains("if (restoreFocus && !restoreAttempted)") &&
+                posterFocus.contains("if ((restoreFocus || coldStartFocus) && !restoreAttempted)") &&
                 posterFocus.contains("focusRequester.requestFocus()")
         )
         assertTrue(

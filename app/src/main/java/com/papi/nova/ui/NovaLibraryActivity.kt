@@ -128,6 +128,7 @@ import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisGameJson
+import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
@@ -2530,15 +2531,26 @@ class NovaLibraryActivity : NovaActivity() {
         val inputModeManager = LocalInputModeManager.current
         var restoreAttempted by remember { mutableStateOf(false) }
         LaunchedEffect(restoreFocus, coldStartFocus) {
-            if (restoreFocus && !restoreAttempted) {
-                restoreAttempted = focusRequester.requestFocus()
-            } else if (coldStartFocus && !restoreAttempted) {
-                // A cold start composes with nothing focused, so the first dpad press was
-                // being consumed just establishing focus. Declare keyboard intent and land
-                // it on the first card so the ring is visible immediately.
-                withFrameNanos { }
+            if ((restoreFocus || coldStartFocus) && !restoreAttempted) {
+                // Settle first, for the same reason novaHoldsFirstFocus does: this effect
+                // runs on the card's first composition, before the grid has placed it, so
+                // an immediate request lands on nothing -- and a false return was recorded
+                // as "attempted" and never retried. One frame (the old cold-start wait) is
+                // not enough while the grid is still measuring a cold library.
+                delay(NOVA_FIRST_FOCUS_SETTLE_MS)
+                // Declare keyboard intent so the ring is visible immediately and the first
+                // dpad press moves focus instead of being consumed revealing it. Restores
+                // after a tap-opened detail want this just as much as a cold start does.
                 inputModeManager.requestInputMode(InputMode.Keyboard)
                 restoreAttempted = focusRequester.requestFocus()
+                // Still unplaced after the settle: give layout a few more frames rather
+                // than silently surrendering the session's first press.
+                var retriesLeft = 8
+                while (!restoreAttempted && retriesLeft > 0) {
+                    withFrameNanos { }
+                    restoreAttempted = focusRequester.requestFocus()
+                    retriesLeft--
+                }
             } else if (!restoreFocus && !coldStartFocus) {
                 restoreAttempted = false
             }
