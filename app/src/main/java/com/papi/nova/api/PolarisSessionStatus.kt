@@ -37,7 +37,7 @@ data class PolarisSessionStatus(
     val doctor: DoctorStatus = DoctorStatus()
 ) {
     data class ControlsStatus(
-        val hostTuningAllowed: Boolean = false,
+        val hostTuningAllowed: Boolean? = null,
         val quitAllowed: Boolean = false,
         val shutdownInProgress: Boolean = false,
         val clientCommandsEnabled: Boolean = false,
@@ -374,7 +374,7 @@ data class PolarisSessionStatus(
         get() = listOf(sessionModeLabel, capturePathLabel).filter { it.isNotBlank() }.joinToString(" · ")
     val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
     val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice
-    val canAdjustHostTuning get() = controls.hostTuningAllowed || (ownedByClient && !isViewer)
+    val canAdjustHostTuning get() = controls.hostTuningAllowed ?: (ownedByClient && !isViewer)
     val canQuit get() = controls.quitAllowed || (ownedByClient && !isViewer)
 
     private fun normalizeSessionModeLabel(label: String): String = when (label.trim().lowercase()) {
@@ -441,7 +441,7 @@ data class PolarisDoctorActionResult(
     val runId: String = "",
     val verificationDelaySeconds: Int = 0,
     val verificationActionId: String = "",
-    val undoAvailable: Boolean = false,
+    val undoAvailable: Boolean? = null,
     val undoActionId: String = "",
     val evidencePacketLossPct: Double? = null,
     val evidenceLatencyMs: Double? = null

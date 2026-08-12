@@ -21,6 +21,66 @@ import org.robolectric.annotation.Config
 class PolarisApiClientParsingTest {
 
     @Test
+    fun doctorActionUndoAvailabilityRequiresLiteralBoolean() {
+        fun parsed(value: String): PolarisDoctorActionResult = PolarisApiClient.parseDoctorActionResponse(
+            JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{\"available\":$value}}")
+        )
+
+        assertEquals(true, parsed("true").undoAvailable)
+        assertEquals(false, parsed("false").undoAvailable)
+        assertNull(parsed("null").undoAvailable)
+        assertNull(parsed("\"false\"").undoAvailable)
+        assertNull(
+            PolarisApiClient.parseDoctorActionResponse(
+                JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{}}")
+            ).undoAvailable
+        )
+    }
+
+    @Test
+    fun doctorActionHttpFailureIsPermanentAndSanitized() {
+        val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = "{\"status\":false,\"run_id\":\"run-1\",\"error\":\"expired\"," +
+                "\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}"
+        )
+
+        assertFalse(rejected.status)
+        assertEquals("run-1", rejected.runId)
+        assertEquals("expired", rejected.error)
+        assertEquals(false, rejected.undoAvailable)
+        assertEquals("", rejected.undoActionId)
+        assertFalse(rejected.error.contains("409"))
+    }
+
+    @Test
+    fun doctorActionHttpClientDisablesAutomaticConnectionReplay() {
+        val base = OkHttpClient.Builder().retryOnConnectionFailure(true).build()
+        val nonRetryable = PolarisApiClient.buildNonRetryableHttpClient(base)
+
+        assertTrue(base.retryOnConnectionFailure)
+        assertFalse(nonRetryable.retryOnConnectionFailure)
+        assertFalse(nonRetryable.followRedirects)
+        assertFalse(nonRetryable.followSslRedirects)
+    }
+
+    @Test
+    fun explicitHostTuningRevocationOverridesLegacyOwnershipFallback() {
+        val explicitRevocation = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject(
+                "{\"state\":\"streaming\",\"owned_by_client\":true,\"client_role\":\"owner\"," +
+                    "\"controls\":{\"host_tuning_allowed\":false}}"
+            )
+        )
+        val legacyOmission = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject("{\"state\":\"streaming\",\"owned_by_client\":true,\"client_role\":\"owner\"}")
+        )
+
+        assertFalse(explicitRevocation.canAdjustHostTuning)
+        assertTrue(legacyOmission.canAdjustHostTuning)
+    }
+
+    @Test
     fun artworkHttpClientDisablesRedirectsAndAllowsBoundedProviderWorkflows() {
         val base = OkHttpClient.Builder().build()
         val artwork = PolarisApiClient.buildArtworkHttpClient(base)
