@@ -87,6 +87,7 @@ data class NovaQuickMenuCallbacks(
     val onProfilePreference: (String) -> Unit = {},
     val onQuickKey: (NovaQuickMenuActionId) -> Unit = {},
     val onOverlayAction: (NovaQuickMenuActionId) -> Unit = {},
+    val onDoctorUndo: () -> Unit = {},
     val onHudOpacityChange: (Int) -> Unit = {},
     val onMenuOpacityChange: (Int) -> Unit = {},
     val onControlAction: (NovaQuickMenuActionId) -> Unit = {},
@@ -113,6 +114,7 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.PERF_STATS,
             NovaQuickMenuActionId.DIAGNOSE_STREAM,
             NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> onOverlayAction(action.id)
+            NovaQuickMenuActionId.DOCTOR_UNDO -> onDoctorUndo()
             NovaQuickMenuActionId.MOUSE_MODE,
             NovaQuickMenuActionId.CONTROLLER,
             NovaQuickMenuActionId.KEYBOARD -> onControlAction(action.id)
@@ -309,6 +311,13 @@ fun NovaQuickMenuContent(
         NovaQuickMenuSessionStrip(state)
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks, initialFocusRequester)
+        if (state.doctorReceiptAction.visible) {
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuInfoCard(
+                action = state.doctorReceiptAction,
+                callbacks = callbacks
+            )
+        }
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuStabilityCard(state.stability, callbacks)
         if (state.postSessionReport.visible) {

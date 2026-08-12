@@ -416,6 +416,53 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun durableDoctorReceiptStaysVisibleWithUndoAfterCommandCenterReopen() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope-a",
+            runId = "doctor-run-1",
+            state = "resolved",
+            message = "Doctor verified that network pressure cleared.",
+            undoAvailable = true,
+            undoActionId = "undo"
+        )
+
+        val state = quickState(status = status(), doctorReceipt = receipt)
+
+        assertTrue(state.doctorReceiptAction.visible)
+        assertTrue(state.doctorReceiptAction.enabled)
+        assertEquals(NovaQuickMenuActionId.DOCTOR_UNDO, state.doctorReceiptAction.id)
+        assertEquals("Verified", state.doctorReceiptAction.chip?.label)
+        assertTrue(state.doctorReceiptAction.caption.contains("restore", ignoreCase = true))
+    }
+
+    @Test
+    fun durableDoctorUndoRequiresHostActionIdAndCurrentTuningPermission() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope-a",
+            runId = "doctor-run-1",
+            state = "resolved",
+            message = "Verified",
+            undoAvailable = true,
+            undoActionId = ""
+        )
+
+        val missingAction = quickState(status = status(), doctorReceipt = receipt)
+        val viewer = quickState(
+            status = status(
+                clientRole = "viewer",
+                ownedByClient = false,
+                controls = PolarisSessionStatus.ControlsStatus(hostTuningAllowed = false)
+            ),
+            doctorReceipt = receipt.copy(undoActionId = "restore_quality")
+        )
+
+        assertTrue(missingAction.doctorReceiptAction.visible)
+        assertFalse(missingAction.doctorReceiptAction.enabled)
+        assertTrue(viewer.doctorReceiptAction.visible)
+        assertFalse(viewer.doctorReceiptAction.enabled)
+    }
+
+    @Test
     fun commandCenterStateClampsNonPresetMenuOpacityValues() {
         val state = quickState(status = status(), menuOpacityPercent = 150)
 
@@ -439,7 +486,8 @@ class NovaQuickMenuUiStateTest {
         hudShowing: Boolean = false,
         hudOpacityPercent: Int = 90,
         menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
-        fallbackTargetFps: Double = 60.0
+        fallbackTargetFps: Double = 60.0,
+        doctorReceipt: DoctorActionReceipt? = null
     ) = NovaQuickMenuUiState.from(
         context = context,
         status = status,
@@ -465,7 +513,8 @@ class NovaQuickMenuUiStateTest {
         allowChangeMouseMode = true,
         isOnExternalDisplay = false,
         fallbackBitrateKbps = 50000,
-        fallbackTargetFps = fallbackTargetFps
+        fallbackTargetFps = fallbackTargetFps,
+        doctorReceipt = doctorReceipt
     )
 
     private fun status(

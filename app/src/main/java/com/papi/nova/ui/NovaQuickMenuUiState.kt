@@ -32,6 +32,7 @@ enum class NovaQuickMenuActionId {
     NOVA_HUD,
     PERF_STATS,
     DIAGNOSE_STREAM,
+    DOCTOR_UNDO,
     COPY_HUD_DIAGNOSTICS,
     MOUSE_MODE,
     CONTROLLER,
@@ -116,6 +117,7 @@ data class NovaQuickMenuUiState(
     val advancedRows: List<NovaQuickMenuAction>,
     val quickKeys: List<NovaQuickMenuAction>,
     val diagnosis: NovaQuickMenuDiagnosisState,
+    val doctorReceiptAction: NovaQuickMenuAction,
     val postSessionReport: NovaPostSessionReportUiState,
     val hudOpacity: NovaQuickMenuHudOpacityState,
     val menuOpacity: NovaQuickMenuMenuOpacityState,
@@ -151,7 +153,8 @@ data class NovaQuickMenuUiState(
             allowChangeMouseMode: Boolean,
             isOnExternalDisplay: Boolean,
             fallbackBitrateKbps: Int,
-            fallbackTargetFps: Double
+            fallbackTargetFps: Double,
+            doctorReceipt: DoctorActionReceipt? = null
         ): NovaQuickMenuUiState {
             val viewerSession = status?.isViewer == true
             val canAdjustHostTuning = status?.canAdjustHostTuning == true
@@ -339,6 +342,11 @@ data class NovaQuickMenuUiState(
                 presets = NovaMenuPreferences.OPACITY_PRESETS
             )
             val diagnosis = diagnosisState(status)
+            val doctorReceiptAction = doctorReceiptAction(
+                context = context,
+                receipt = doctorReceipt,
+                canAdjustHostTuning = canAdjustHostTuning
+            )
 
             val overlays = listOf(
                 diagnoseAction(context, status, diagnosis),
@@ -434,6 +442,7 @@ data class NovaQuickMenuUiState(
                 advancedRows = listOf(aiRow, clearRow, mangoRow),
                 quickKeys = quickKeyActions(context),
                 diagnosis = diagnosis,
+                doctorReceiptAction = doctorReceiptAction,
                 postSessionReport = postSessionReport,
                 hudOpacity = hudOpacity,
                 menuOpacity = menuOpacity,
@@ -495,6 +504,50 @@ data class NovaQuickMenuUiState(
                 isOnExternalDisplay = false,
                 fallbackBitrateKbps = 50000,
                 fallbackTargetFps = 60.0
+            )
+        }
+
+        private fun doctorReceiptAction(
+            context: Context,
+            receipt: DoctorActionReceipt?,
+            canAdjustHostTuning: Boolean
+        ): NovaQuickMenuAction {
+            if (receipt == null) {
+                return NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.DOCTOR_UNDO,
+                    label = context.getString(R.string.nova_quick_menu_doctor_receipt_title),
+                    visible = false,
+                    enabled = false
+                )
+            }
+            val watching = !receipt.isTerminal
+            val canUndo = canAdjustHostTuning &&
+                receipt.undoAvailable &&
+                receipt.runId.isNotBlank() &&
+                receipt.undoActionId.isNotBlank()
+            val chip = when {
+                watching -> chip(context.getString(R.string.nova_quick_menu_doctor_receipt_watching), NovaQuickMenuTone.INFO)
+                receipt.state == "resolved" || receipt.state == "stable" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_verified), NovaQuickMenuTone.ACTIVE)
+                receipt.state == "needs_attention" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_attention), NovaQuickMenuTone.WARNING)
+                else -> chip(context.getString(R.string.nova_quick_menu_done), NovaQuickMenuTone.INACTIVE)
+            }
+            val caption = buildList {
+                receipt.message.takeIf { it.isNotBlank() }?.let(::add)
+                if (canUndo) add(context.getString(R.string.nova_quick_menu_doctor_receipt_undo_caption))
+            }.joinToString(" ")
+            return NovaQuickMenuAction(
+                id = NovaQuickMenuActionId.DOCTOR_UNDO,
+                label = if (canUndo) {
+                    context.getString(R.string.nova_quick_menu_doctor_undo)
+                } else {
+                    context.getString(R.string.nova_quick_menu_doctor_receipt_title)
+                },
+                caption = caption,
+                chip = chip,
+                enabled = canUndo,
+                visible = true
             )
         }
 

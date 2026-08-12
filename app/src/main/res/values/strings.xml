@@ -970,6 +970,11 @@
     <string name="nova_quick_menu_doctor_failed">Doctor could not apply this action.</string>
     <string name="nova_quick_menu_doctor_undo">Undo</string>
     <string name="nova_quick_menu_doctor_undone">Doctor restored the previous bitrate and Auto Quality state.</string>
+    <string name="nova_quick_menu_doctor_receipt_title">Doctor result</string>
+    <string name="nova_quick_menu_doctor_receipt_watching">Watching</string>
+    <string name="nova_quick_menu_doctor_receipt_verified">Verified</string>
+    <string name="nova_quick_menu_doctor_receipt_attention">Needs attention</string>
+    <string name="nova_quick_menu_doctor_receipt_undo_caption">Undo remains available here to restore the previous bitrate and Auto Quality state.</string>
     <string name="nova_quick_menu_copy_hud_diagnostics">Copy HUD Diagnostics</string>
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>

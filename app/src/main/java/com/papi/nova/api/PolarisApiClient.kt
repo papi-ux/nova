@@ -135,6 +135,14 @@ class PolarisApiClient @JvmOverloads constructor(
                 .readTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .build()
 
+        @JvmStatic
+        internal fun buildNonRetryableHttpClient(base: OkHttpClient): OkHttpClient =
+            base.newBuilder()
+                .retryOnConnectionFailure(false)
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build()
+
         // TLS session resumption against a server that intermittently rejects it (e.g. a
         // missing server-side session id context) surfaces as an SSLException on an
         // otherwise-healthy link; one fresh-handshake retry is the correct recovery. Only
@@ -930,6 +938,52 @@ class PolarisApiClient @JvmOverloads constructor(
         }
 
         @JvmStatic
+        internal fun parseDoctorActionResponse(json: JSONObject): PolarisDoctorActionResult {
+            val verification = json.optJSONObject("verification")
+            val undo = json.optJSONObject("undo")
+            val evidence = json.optJSONObject("evidence")
+            val undoAvailable = undo?.let { value ->
+                if (!value.has("available") || value.isNull("available")) {
+                    null
+                } else {
+                    value.opt("available") as? Boolean
+                }
+            }
+            return PolarisDoctorActionResult(
+                status = json.optBoolean("status", false),
+                changed = json.optBoolean("changed", false),
+                state = json.optString("state", ""),
+                message = json.optString("message", ""),
+                error = json.optString("error", ""),
+                runId = json.optString("run_id", ""),
+                verificationDelaySeconds = verification?.optInt("delay_seconds", 0) ?: 0,
+                verificationActionId = verification?.optString("action_id", "") ?: "",
+                undoAvailable = undoAvailable,
+                undoActionId = undo?.optString("action_id", "") ?: "",
+                evidencePacketLossPct = evidence?.optDouble("packet_loss_pct")?.takeIf { !it.isNaN() },
+                evidenceLatencyMs = evidence?.optDouble("latency_ms")?.takeIf { !it.isNaN() }
+            )
+        }
+
+        @JvmStatic
+        internal fun parseDoctorActionHttpResponse(
+            statusCode: Int,
+            responseBody: String
+        ): PolarisDoctorActionResult {
+            val parsed = runCatching {
+                parseDoctorActionResponse(JSONObject(responseBody.ifBlank { "{}" }))
+            }.getOrNull()
+            if (statusCode == 200 && parsed != null) return parsed
+
+            return (parsed ?: PolarisDoctorActionResult(status = false)).copy(
+                status = false,
+                error = parsed?.error?.takeIf { it.isNotBlank() } ?: "Doctor action rejected",
+                undoAvailable = false,
+                undoActionId = ""
+            )
+        }
+
+        @JvmStatic
         fun parseSessionStatusResponse(json: JSONObject): PolarisSessionStatus {
             val controls = json.optJSONObject("controls")
             val tuning = json.optJSONObject("tuning")
@@ -990,7 +1044,13 @@ class PolarisApiClient @JvmOverloads constructor(
                 aiOptimizerEnabled = json.optBoolean("ai_optimizer_enabled", false),
                 mangohudConfigured = json.optBoolean("mangohud_configured", false),
                 controls = PolarisSessionStatus.ControlsStatus(
-                    hostTuningAllowed = controls?.optBoolean("host_tuning_allowed", false) ?: false,
+                    hostTuningAllowed = controls?.let { value ->
+                        if (!value.has("host_tuning_allowed") || value.isNull("host_tuning_allowed")) {
+                            null
+                        } else {
+                            value.opt("host_tuning_allowed") as? Boolean
+                        }
+                    },
                     quitAllowed = controls?.optBoolean("quit_allowed", false) ?: false,
                     shutdownInProgress = controls?.optBoolean("shutdown_in_progress", false) ?: false,
                     clientCommandsEnabled = controls?.optBoolean("client_commands_enabled", false) ?: false,
@@ -1291,6 +1351,13 @@ class PolarisApiClient @JvmOverloads constructor(
 
     private fun executeWithTransientRetry(request: Request): okhttp3.Response =
         runWithTransientTlsRetry(onTransient = { resetCallClient() }) { execute(request) }
+
+    private fun executeNonRetryable(request: Request): okhttp3.Response =
+        buildNonRetryableHttpClient(clientForCall()).newCall(
+            request.newBuilder()
+                .header("Connection", "close")
+                .build()
+        ).execute()
 
 	private fun execute(request: Request) = clientForCall().newCall(
 		request.newBuilder()
@@ -1882,25 +1949,12 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            executeWithTransientRetry(request).use { response ->
-                if (response.code != 200) return null
-                val json = JSONObject(response.body?.string() ?: "{}")
-                val verification = json.optJSONObject("verification")
-                val undo = json.optJSONObject("undo")
-                val evidence = json.optJSONObject("evidence")
-                PolarisDoctorActionResult(
-                    status = json.optBoolean("status", false),
-                    changed = json.optBoolean("changed", false),
-                    state = json.optString("state", ""),
-                    message = json.optString("message", ""),
-                    error = json.optString("error", ""),
-                    runId = json.optString("run_id", ""),
-                    verificationDelaySeconds = verification?.optInt("delay_seconds", 0) ?: 0,
-                    verificationActionId = verification?.optString("action_id", "") ?: "",
-                    undoAvailable = undo?.optBoolean("available", false) ?: false,
-                    undoActionId = undo?.optString("action_id", "") ?: "",
-                    evidencePacketLossPct = evidence?.optDouble("packet_loss_pct")?.takeIf { !it.isNaN() },
-                    evidenceLatencyMs = evidence?.optDouble("latency_ms")?.takeIf { !it.isNaN() }
+            // Doctor apply, verification, and Undo advance host-side run state.
+            // A lost response cannot be retried safely without an idempotency key.
+            executeNonRetryable(request).use { response ->
+                parseDoctorActionHttpResponse(
+                    statusCode = response.code,
+                    responseBody = response.body?.string().orEmpty()
                 )
             }
         } catch (e: Exception) {
