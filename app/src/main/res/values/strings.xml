@@ -962,6 +962,14 @@
     <string name="nova_quick_menu_hud_opacity_not_selected">Not selected</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
     <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
+    <string name="nova_quick_menu_doctor_stable">Doctor verified the network is stable. Bitrate was left unchanged.</string>
+    <string name="nova_quick_menu_doctor_confirmed">Doctor now has enough live evidence. Press Fix and verify to apply one safe step.</string>
+    <string name="nova_quick_menu_doctor_watching">Fix applied. Doctor is watching live loss and latency.</string>
+    <string name="nova_quick_menu_doctor_resolved">Doctor verified that network pressure cleared.</string>
+    <string name="nova_quick_menu_doctor_needs_attention">One safe step did not clear the issue. Doctor stopped before changing anything else.</string>
+    <string name="nova_quick_menu_doctor_failed">Doctor could not apply this action.</string>
+    <string name="nova_quick_menu_doctor_undo">Undo</string>
+    <string name="nova_quick_menu_doctor_undone">Doctor restored the previous bitrate and Auto Quality state.</string>
     <string name="nova_quick_menu_copy_hud_diagnostics">Copy HUD Diagnostics</string>
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>

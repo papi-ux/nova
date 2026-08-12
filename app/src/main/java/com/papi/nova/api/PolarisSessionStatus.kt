@@ -254,6 +254,8 @@ data class PolarisSessionStatus(
 
     data class DoctorStatus(
         val available: Boolean = false,
+        val version: Int = 0,
+        val resultId: String = "",
         val classification: String = "UNKNOWN",
         val likelyCause: String = "",
         val evidence: List<String> = emptyList(),
@@ -261,9 +263,25 @@ data class PolarisSessionStatus(
         val confidence: String = "",
         val advancedDetail: String = "",
         val primaryIssue: String = "",
+        val actionId: String = "",
+        val actionLabel: String = "",
+        val actionKind: String = "",
+        val targetBitrateKbps: Int = 0,
+        val verificationDelaySeconds: Int = 0,
+        val undoSupported: Boolean = false,
+        val packetLossPct: Double? = null,
+        val latencyMs: Double? = null,
         val destructiveActionAllowed: Boolean = false
     ) {
         val firstTry get() = tryFirst.firstOrNull().orEmpty()
+        val networkPressureConfirmed get() =
+            (packetLossPct ?: 0.0) > 2.0 || (latencyMs ?: 0.0) >= 45.0
+        val canExecuteAction get() = when (actionId) {
+            "recheck_network" -> version >= 2
+            "lower_bitrate" -> version >= 2 && primaryIssue == "network_jitter" && networkPressureConfirmed
+            "restore_quality" -> version >= 2 && primaryIssue == "quality_capped_by_history" && targetBitrateKbps > 0
+            else -> false
+        }
     }
 
     data class HealthStatus(
@@ -413,3 +431,18 @@ data class PolarisSessionStatus(
         else -> "Stable"
     }
 }
+
+data class PolarisDoctorActionResult(
+    val status: Boolean,
+    val changed: Boolean = false,
+    val state: String = "",
+    val message: String = "",
+    val error: String = "",
+    val runId: String = "",
+    val verificationDelaySeconds: Int = 0,
+    val verificationActionId: String = "",
+    val undoAvailable: Boolean = false,
+    val undoActionId: String = "",
+    val evidencePacketLossPct: Double? = null,
+    val evidenceLatencyMs: Double? = null
+)

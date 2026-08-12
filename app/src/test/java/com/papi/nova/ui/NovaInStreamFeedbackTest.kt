@@ -51,7 +51,7 @@ class NovaInStreamFeedbackTest {
     fun theCommandCenterAnchorsToItsOwnDrawer() {
         val menu = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
 
-        val calls = Regex("""NovaSnackbar\.(show|showError|showSuccess|showQuiet)\(""")
+        val calls = Regex("""NovaSnackbar\.(show|showError|showSuccess|showSuccessWithAction|showQuiet)\(""")
             .findAll(menu).count()
         val anchored = Regex("""anchor = composeView""").findAll(menu).count()
 

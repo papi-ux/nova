@@ -849,8 +849,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 ?: health?.optString("primary_issue", "")
                 ?: ""
             val likelyCause = explanation?.optString("likely_cause", "")?.takeIf { it.isNotBlank() }
-                ?: doctor?.optString("simple_state", "")?.takeIf { it.isNotBlank() }
                 ?: doctor?.optString("summary", "")?.takeIf { it.isNotBlank() }
+                ?: doctor?.optString("simple_state", "")?.takeIf { it.isNotBlank() }
                 ?: doctor?.optString("diagnosis", "")?.takeIf { it.isNotBlank() }
                 ?: health?.optString("summary", "")
                 ?: ""
@@ -858,6 +858,9 @@ class PolarisApiClient @JvmOverloads constructor(
                 ?: parseDoctorEvidence(doctor)
             val recommendation = doctor?.optJSONObject("recommendation")
             val safeAction = doctor?.optJSONObject("safe_recovery_action")
+            val actionPayload = safeAction?.optJSONObject("payload_preview")
+            val actionVerification = safeAction?.optJSONObject("verification")
+            val actionUndo = safeAction?.optJSONObject("undo")
             val tryFirst = parseStringArray(explanation?.optJSONArray("try_first")).takeIf { it.isNotEmpty() }
                 ?: listOfNotNull(
                     recommendation?.optString("body", "")?.takeIf { it.isNotBlank() },
@@ -866,10 +869,13 @@ class PolarisApiClient @JvmOverloads constructor(
                 ).takeIf { it.isNotEmpty() }
                 ?: parseStringArray(health?.optJSONArray("recommendations"))
             val confidence = explanation?.optString("confidence", "")?.takeIf { it.isNotBlank() }
-                ?: doctor?.optString("confidence", "")?.takeIf { it.isNotBlank() }
+                ?: doctor?.optJSONObject("confidence")?.optString("level", "")?.takeIf { it.isNotBlank() }
+                ?: doctor?.optString("confidence", "")?.takeIf { it.isNotBlank() && !it.startsWith("{") }
                 ?: if (doctor != null) "deterministic" else if (primaryIssue.isNotBlank() || likelyCause.isNotBlank()) "fallback" else ""
             return PolarisSessionStatus.DoctorStatus(
                 available = doctor != null,
+                version = doctor?.optInt("version", 0) ?: 0,
+                resultId = doctor?.optString("result_id", "") ?: "",
                 classification = classifyDoctorIssue(primaryIssue),
                 likelyCause = likelyCause,
                 evidence = evidence,
@@ -879,6 +885,14 @@ class PolarisApiClient @JvmOverloads constructor(
                     ?: doctor?.optJSONObject("advanced_evidence")?.optString("summary", "")
                     ?: "",
                 primaryIssue = primaryIssue,
+                actionId = safeAction?.optString("id", "") ?: "",
+                actionLabel = safeAction?.optString("label", "") ?: "",
+                actionKind = safeAction?.optString("kind", "") ?: "",
+                targetBitrateKbps = actionPayload?.optInt("target_bitrate_kbps", 0) ?: 0,
+                verificationDelaySeconds = actionVerification?.optInt("delay_seconds", 0) ?: 0,
+                undoSupported = actionUndo?.optBoolean("supported", false) ?: false,
+                packetLossPct = parseDoctorEvidenceNumber(doctor, "packet_loss"),
+                latencyMs = parseDoctorEvidenceNumber(doctor, "latency"),
                 destructiveActionAllowed = false
             )
         }
@@ -893,6 +907,16 @@ class PolarisApiClient @JvmOverloads constructor(
                     else -> null
                 }
             }
+        }
+
+        private fun parseDoctorEvidenceNumber(doctor: JSONObject?, id: String): Double? {
+            val array = doctor?.optJSONArray("evidence") ?: return null
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                if (item.optString("id", "") != id || !item.has("value")) continue
+                return item.optDouble("value").takeIf { !it.isNaN() }
+            }
+            return null
         }
 
         private fun classifyDoctorIssue(issue: String): String {
@@ -1831,6 +1855,56 @@ class PolarisApiClient @JvmOverloads constructor(
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Steam launch mode update failed: ${errorMessage(e)}")
+            null
+        }
+    }
+
+    /**
+     * Execute an evidence-gated Doctor action on Polaris.
+     */
+    fun runDoctorAction(
+        actionId: String,
+        sourceResultId: String = "",
+        targetBitrateKbps: Int = 0,
+        runId: String = ""
+    ): PolarisDoctorActionResult? {
+        return try {
+            val body = JSONObject().apply {
+                put("action_id", actionId)
+                if (sourceResultId.isNotBlank()) put("source_result_id", sourceResultId)
+                if (targetBitrateKbps > 0) put("target_bitrate_kbps", targetBitrateKbps)
+                if (runId.isNotBlank()) put("run_id", runId)
+            }
+            val request = Request.Builder()
+                .url("$baseUrl/doctor/action")
+                .post(okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    body.toString()
+                ))
+                .build()
+            executeWithTransientRetry(request).use { response ->
+                if (response.code != 200) return null
+                val json = JSONObject(response.body?.string() ?: "{}")
+                val verification = json.optJSONObject("verification")
+                val undo = json.optJSONObject("undo")
+                val evidence = json.optJSONObject("evidence")
+                PolarisDoctorActionResult(
+                    status = json.optBoolean("status", false),
+                    changed = json.optBoolean("changed", false),
+                    state = json.optString("state", ""),
+                    message = json.optString("message", ""),
+                    error = json.optString("error", ""),
+                    runId = json.optString("run_id", ""),
+                    verificationDelaySeconds = verification?.optInt("delay_seconds", 0) ?: 0,
+                    verificationActionId = verification?.optString("action_id", "") ?: "",
+                    undoAvailable = undo?.optBoolean("available", false) ?: false,
+                    undoActionId = undo?.optString("action_id", "") ?: "",
+                    evidencePacketLossPct = evidence?.optDouble("packet_loss_pct")?.takeIf { !it.isNaN() },
+                    evidenceLatencyMs = evidence?.optDouble("latency_ms")?.takeIf { !it.isNaN() }
+                )
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Doctor action failed: ${errorMessage(e)}")
             null
         }
     }

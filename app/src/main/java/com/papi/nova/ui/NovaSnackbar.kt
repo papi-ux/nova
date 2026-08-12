@@ -69,13 +69,34 @@ object NovaSnackbar {
         )
     }
 
+    fun showSuccessWithAction(
+        activity: Activity,
+        message: String,
+        actionLabel: String,
+        anchor: View? = null,
+        onAction: () -> Unit
+    ) {
+        showStyled(
+            activity = activity,
+            message = message,
+            duration = Snackbar.LENGTH_LONG,
+            textColor = activity.getColor(R.color.nova_success),
+            surfaceAlpha = SurfaceAlpha,
+            anchor = anchor,
+            actionLabel = actionLabel,
+            onAction = onAction
+        )
+    }
+
     private fun showStyled(
         activity: Activity,
         message: String,
         duration: Int,
         textColor: Int,
         surfaceAlpha: Int,
-        anchor: View? = null
+        anchor: View? = null,
+        actionLabel: String? = null,
+        onAction: (() -> Unit)? = null
     ) {
         // A Snackbar is drawn inside the window of the view it is given. The activity's
         // content view is the wrong window whenever a Dialog is up -- the in-stream Command
@@ -98,6 +119,9 @@ object NovaSnackbar {
         )
         snackbar.setTextColor(textColor)
         snackbar.setActionTextColor(NovaThemeManager.getAccentColor(activity))
+        if (!actionLabel.isNullOrBlank() && onAction != null) {
+            snackbar.setAction(actionLabel) { onAction() }
+        }
         snackbar.view.alpha = if (surfaceAlpha < SurfaceAlpha) 0.88f else 0.94f
         snackbar.addCallback(object : Snackbar.Callback() {
             override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
