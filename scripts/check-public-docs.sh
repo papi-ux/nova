@@ -72,6 +72,7 @@ required_metadata=(
   "$metadata_dir/short_description.txt"
   "$metadata_dir/full_description.txt"
   "$metadata_dir/changelogs/16.txt"
+  "$metadata_dir/changelogs/38.txt"
   "$metadata_dir/images/icon.png"
   "docs/fdroid.md"
 )

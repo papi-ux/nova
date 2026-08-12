@@ -1,0 +1,2 @@
+Nova 1.3.6
+Play Setup and Polaris Sync now share every host launch mode, with clear availability and session-only game overrides. Doctor can apply, verify, and undo guarded fixes from Command Center. Launch, TLS, HUD, and controller-focus recovery are safer. Benchmark capture remains isolated from normal releases. Includes signed ARM64, ARMv7, and x86_64 APKs with SHA-256 checksums.
