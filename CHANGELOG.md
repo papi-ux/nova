@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 1.3.6 - 2026-08-12
+
+Nova 1.3.6 makes host intent visible and recoverable instead of making the player infer it from side effects. Doctor v2 actions now run from Command Center with evidence gating, confirmation, live verification, and Undo: Nova can recheck a suspected network condition, lower bitrate by one guarded step, or gradually restore a clean stream that an older recovery profile left capped (#230).
+
+Play Setup and Polaris Sync now share one server-authoritative launch-mode catalog, including all private and host-display modes, availability, disable reasons, and controller-selectable grouped cards (#212, #213, #221). Explicit per-game choices travel on the launch request for that session only; a game without an override follows the host default, and launching no longer rewrites Polaris' persistent stream mode (#222, #223, #224). Nova also shows one host-served display fallback warning per session and includes the resolved mode in optimization requests while keeping the AI pick advisory (#214, #215).
+
+Reliability work fixes false network/decoder HUD warnings, retries idempotent Polaris actions once after transient TLS failures, and converts malformed host launch responses into recoverable checked errors instead of app crashes (#210, #211, #225). Cached game detail, cold-start Library, and return-from-detail flows settle before requesting focus, declare controller intent, and retry placement so the visible ring and first action agree (#226, #228). Play Setup's explanatory copy now leads with the resolved action rather than a different app default (#229).
+
+A separate benchmark-only build records bounded T3-T4 decode-stage evidence, supports controlled ADB start/stop/export, and remains structurally outside normal release runtime (#209, #216-#220). The public roadmap is refreshed in #227.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.6 and versionCode 38.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
+
+### Validation notes
+
+- The exact release-prep candidate must pass JVM tests, strict lint, public hygiene, and three-ABI release assembly before merge.
+- Final publication remains gated on the exact signed ARM64 artifact: package/version identity, signer continuity, install/launch on the Retroid Pocket 6, controller focus, one explicit per-game launch override without host-default mutation, one Doctor apply/verify/undo flow, and clean stream teardown.
+- Gyro/motion sensors remain open under #181. The Thor audio-device inventory is diagnostic evidence, not a claimed routing fix.
+
 ## 1.3.5 - 2026-08-08
 
 Performance and polish. The library keeps its poster cache warm across visits, decodes

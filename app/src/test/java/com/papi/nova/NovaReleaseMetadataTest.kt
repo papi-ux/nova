@@ -17,23 +17,33 @@ class NovaReleaseMetadataTest {
         val build = File(root, "app/build.gradle").readText()
         val changelog = File(root, "CHANGELOG.md").readText()
         val readme = File(root, "README.md").readText()
+        val releaseScript = File(root, "bin/release.sh").readText()
         val storeNotes = File(
             root,
-            "fastlane/metadata/android/en-US/changelogs/37.txt"
+            "fastlane/metadata/android/en-US/changelogs/38.txt"
         )
-        val storeNotesBody = storeNotes.readText().trimEnd()
+        val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.3.5\""))
-        assertTrue(build.contains("versionCode = 37"))
-        assertTrue(changelog.contains("## 1.3.5 - 2026-08-08"))
-        assertTrue(readme.contains("## Latest release: v1.3.5"))
-        assertTrue(readme.contains("VersionCode 37"))
-        assertFalse(readme.contains("## Latest release: v1.3.4"))
+        assertTrue(build.contains("versionName \"1.3.6\""))
+        assertTrue(build.contains("versionCode = 38"))
+        assertTrue(changelog.contains("## 1.3.6 - 2026-08-12"))
+        assertTrue(readme.contains("[Latest Release](#latest-release-v136)"))
+        assertTrue(readme.contains("## Latest release: v1.3.6"))
+        assertTrue(readme.contains("VersionCode 38"))
+        assertFalse(readme.contains("## Latest release: v1.3.5"))
+        assertTrue(releaseScript.contains("-PnovaAbis=arm64-v8a,armeabi-v7a,x86_64"))
+        for (asset in listOf(
+            "Nova-Android-arm64-v8a.apk",
+            "Nova-Android-armeabi-v7a.apk",
+            "Nova-Android-x86_64.apk",
+        )) {
+            assertTrue(releaseScript.contains(asset))
+        }
         assertTrue(storeNotes.isFile)
         assertTrue(
             "Google Play release notes must be at most 500 Unicode characters",
             storeNotesBody.codePointCount(0, storeNotesBody.length) <= 500,
         )
-        assertTrue(storeNotesBody.startsWith("Nova 1.3.5"))
+        assertTrue(storeNotesBody.startsWith("Nova 1.3.6"))
     }
 }

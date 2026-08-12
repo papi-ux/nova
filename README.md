@@ -17,7 +17,7 @@ while you play, and what is safe to do when you leave.
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v133) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v136) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 **Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
 
@@ -107,19 +107,20 @@ Use Nova with any compatible host for normal streaming. Pair it with Polaris whe
 
 If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
 
-## Latest release: v1.3.5
+## Latest release: v1.3.6
 
-Nova v1.3.5 is a performance and polish release: the library stops redoing work it already did, the stream path stops paying for text nobody is reading, and the controller gets treated as the first-class input it is on the devices Nova actually runs on.
+Nova v1.3.6 makes launch intent and recovery actions explicit. Play Setup now speaks the host's complete launch-mode catalog, per-game overrides stay scoped to one session instead of rewriting the host default, and Doctor can apply, verify, and undo the safest supported correction from Command Center.
 
-- **Warm library**: the poster cache survives re-entry instead of being wiped on every load, artwork decodes to per-surface size buckets, image loads run three-wide with cancellation of superseded requests, and artwork connections reuse TLS state over a pooled client instead of a full handshake and RSA client-cert exchange per image.
-- **Frame pacing, for real**: the latency-profile selector had been silently overwriting the frame-pacing preference to Balanced since the setting shipped; the preference now reaches the renderer, and stream setup logs the effective mode.
-- **Leaner decode path**: perf-overlay text (including four TrafficStats kernel calls a second) builds only when the overlay or HUD is actually showing, a per-frame allocation is hoisted, and the per-frame vsync-offset lookup is cached.
-- **Reconnect**: the connection-failure dialog now offers Reconnect on the spot instead of dead-ending with only OK.
-- **First focus lands somewhere useful**: Grid and Compact cold starts focus the first card with the ring visible immediately, the Command Center opens on the diagnosis card instead of its own Close button, and the welcome screen pre-focuses its primary action.
-- **Feel and finish**: focus ticks and action confirms across posters, buttons, and Command Center rows; the in-stream lock overlay is themed, controller-worded, and pre-focused; pairing snackbars speak human instead of protocol jargon; the Material You preview tile reads the real dynamic palette on Android 12+.
-- **Compatibility**: preserves Grid, Compact Grid, List, existing routing and persistence authorities, minSdk 21, targetSdk 36, Polaris integration, Moonlight-compatible hosts, and signed in-place upgrades.
-- **Release packaging**: signed ARM64, ARMv7, and x86_64 APKs ship with portable SHA-256 sidecars. VersionCode 37 keeps Obtainium and manual installs on a clean upgrade path.
-- **Known issue**: gyro/motion sensors are not detected on some devices (#181). The audio output-device inventory added in v1.3.4's follow-up remains a diagnostic awaiting an AYN Thor capture, not an audio fix.
+- **Doctor that can finish the job**: evidence-gated one-click actions can recheck a suspected network problem, lower bitrate by one guarded step, restore a history-capped profile gradually, verify the result against live telemetry, and offer Undo.
+- **Every host mode, one vocabulary**: Play Setup and Polaris Sync share the same server-authoritative grouped picker, including unavailable modes and the host's reason. Controller users can reach and select every card.
+- **Session-scoped launch overrides**: an explicit per-game mode travels only on that launch. Games without an override follow the host default, and launching no longer rewrites Polaris' persistent stream mode.
+- **Clearer launch truth**: Nova surfaces one display-mode fallback warning per session, includes launch mode in optimization requests, and marks the host's advisory AI pick without selecting it for you.
+- **Reliability and focus**: idempotent Polaris actions retry once after transient TLS failures; malformed host responses no longer crash launch; cached game detail and cold-start library screens settle and visibly focus the intended controller target.
+- **Honest HUD status**: normal network and decoder risk values stay quiet instead of producing false warning chips.
+- **Benchmark tooling stays isolated**: a separate non-shipping benchmark variant records bounded client decode-stage evidence and supports controlled ADB export without changing normal release behavior.
+- **Compatibility**: preserves minSdk 21, targetSdk 36, existing routing and persistence authorities, Moonlight-compatible hosts, Polaris integration, and signed in-place upgrades.
+- **Release packaging**: signed ARM64, ARMv7, and x86_64 APKs ship with portable SHA-256 sidecars. VersionCode 38 keeps Obtainium and manual installs on a clean upgrade path.
+- **Known issue**: gyro/motion sensors are not detected on some devices (#181). The Thor audio-device inventory remains diagnostic evidence, not a claimed routing fix.
 
 See the [changelog](CHANGELOG.md) for the full release history.
 

@@ -28,7 +28,7 @@ fi
 
 bash scripts/check-public-docs.sh
 bash scripts/check-public-surface.sh
-./gradlew -PnovaAbis=arm64-v8a,x86_64 assembleNonRoot_gameRelease
+./gradlew -PnovaAbis=arm64-v8a,armeabi-v7a,x86_64 assembleNonRoot_gameRelease
 
 git push origin master
 git tag -a "$tag" -m "Nova ${tag}"
@@ -39,6 +39,7 @@ Tagged ${tag}.
 
 GitHub Actions will create or update the public release and upload:
   - Nova-Android-arm64-v8a.apk
+  - Nova-Android-armeabi-v7a.apk
   - Nova-Android-x86_64.apk
   - matching .sha256 files
 
