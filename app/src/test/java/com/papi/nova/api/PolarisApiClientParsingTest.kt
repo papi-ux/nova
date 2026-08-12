@@ -308,9 +308,14 @@ class PolarisApiClientParsingTest {
     fun parseSessionStatusResponse_includesPolarisDoctorDiagnosis() {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true," +
-                "\"doctor\":{\"simple_state\":\"Network issue detected\",\"primary_issue\":\"network_jitter\"," +
-                "\"evidence\":[{\"detail\":\"Packet loss is 3.4% over the last sample window.\"}]," +
-                "\"recommendation\":{\"body\":\"Lower bitrate one step or keep Adaptive Bitrate enabled.\",\"next_step_label\":\"Lower bitrate\"}}," +
+                "\"doctor\":{\"version\":2,\"result_id\":\"doctor-v2-needs_action-network_jitter-gpu_native\"," +
+                "\"simple_state\":\"Network issue detected\",\"primary_issue\":\"network_jitter\"," +
+                "\"confidence\":{\"level\":\"high\"}," +
+                "\"evidence\":[{\"id\":\"packet_loss\",\"value\":3.4,\"detail\":\"Packet loss is 3.4% over the last sample window.\"}," +
+                "{\"id\":\"latency\",\"value\":12.0,\"detail\":\"Latency is 12ms.\"}]," +
+                "\"recommendation\":{\"body\":\"Current evidence confirms network pressure.\",\"next_step_label\":\"Fix and verify\"}," +
+                "\"safe_recovery_action\":{\"id\":\"lower_bitrate\",\"label\":\"Fix and verify\",\"kind\":\"live_tuning\"," +
+                "\"payload_preview\":{\"target_bitrate_kbps\":16000},\"verification\":{\"delay_seconds\":8},\"undo\":{\"supported\":true}}}," +
                 "\"ai_doctor_explanation\":{\"status\":true,\"explanation\":{\"likely_cause\":\"Wi-Fi jitter is the likely bottleneck.\"," +
                 "\"evidence\":[\"3.4% packet loss\"],\"try_first\":[\"Lower bitrate\"]," +
                 "\"advanced_detail\":\"Network evidence beats encoder speculation.\",\"confidence\":\"high\",\"destructive_action_allowed\":true}}}"
@@ -324,6 +329,14 @@ class PolarisApiClientParsingTest {
         assertEquals("3.4% packet loss", status.doctor.evidence.first())
         assertEquals("Lower bitrate", status.doctor.tryFirst.first())
         assertEquals("high", status.doctor.confidence)
+        assertEquals(2, status.doctor.version)
+        assertEquals("lower_bitrate", status.doctor.actionId)
+        assertEquals("Fix and verify", status.doctor.actionLabel)
+        assertEquals(16000, status.doctor.targetBitrateKbps)
+        assertEquals(8, status.doctor.verificationDelaySeconds)
+        assertTrue(status.doctor.undoSupported)
+        assertEquals(3.4, status.doctor.packetLossPct!!, 0.01)
+        assertTrue(status.doctor.canExecuteAction)
         assertFalse(status.doctor.destructiveActionAllowed)
     }
 

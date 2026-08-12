@@ -232,24 +232,37 @@ class NovaQuickMenuUiStateTest {
             status = status(
                 doctor = PolarisSessionStatus.DoctorStatus(
                     available = true,
+                    version = 2,
+                    resultId = "doctor-v2-needs_action-network_jitter-gpu_native",
                     classification = "NET",
                     likelyCause = "Wi-Fi jitter is the likely bottleneck.",
                     evidence = listOf("3.4% packet loss"),
                     tryFirst = listOf("Lower bitrate"),
-                    confidence = "high"
+                    confidence = "high",
+                    primaryIssue = "network_jitter",
+                    actionId = "lower_bitrate",
+                    actionLabel = "Fix and verify",
+                    actionKind = "live_tuning",
+                    targetBitrateKbps = 16000,
+                    verificationDelaySeconds = 8,
+                    undoSupported = true,
+                    packetLossPct = 3.4,
+                    latencyMs = 12.0
                 )
             )
         )
 
         val diagnose = state.overlayRows.first()
         assertEquals(NovaQuickMenuActionId.DIAGNOSE_STREAM, diagnose.id)
-        assertEquals("Diagnose This Stream", diagnose.label)
+        assertEquals("Fix and verify", diagnose.label)
         assertEquals("Wi-Fi jitter is the likely bottleneck.", diagnose.caption)
         assertEquals("NET", diagnose.chip!!.label)
         assertEquals(NovaQuickMenuTone.WARNING, diagnose.chip.tone)
         assertEquals("Lower bitrate", state.diagnosis.tryFirst)
         assertEquals("3.4% packet loss", state.diagnosis.evidence.first())
         assertEquals("high", state.diagnosis.confidence)
+        assertTrue(state.diagnosis.actionExecutable)
+        assertEquals(16000, state.diagnosis.targetBitrateKbps)
     }
 
     @Test
@@ -260,6 +273,83 @@ class NovaQuickMenuUiStateTest {
         assertFalse(diagnose.enabled)
         assertEquals("N/A", diagnose.chip!!.label)
         assertEquals("Connect to Polaris for HOST / NET / CLIENT diagnostics.", diagnose.caption)
+    }
+
+    @Test
+    fun networkObservationOnlyOffersAReadOnlyRecheck() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    classification = "NET",
+                    likelyCause = "A network warning needs more live evidence before Doctor changes quality.",
+                    primaryIssue = "network_observation",
+                    actionId = "recheck_network",
+                    actionLabel = "Recheck network",
+                    actionKind = "verification",
+                    packetLossPct = 0.4,
+                    latencyMs = 20.0
+                )
+            )
+        )
+
+        assertEquals("Recheck network", state.overlayRows.first().label)
+        assertTrue(state.diagnosis.actionExecutable)
+        assertEquals(0, state.diagnosis.targetBitrateKbps)
+    }
+
+    @Test
+    fun staleNetworkLabelCannotExecuteBitrateReductionWithoutLiveEvidence() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    classification = "NET",
+                    likelyCause = "Old network warning",
+                    primaryIssue = "network_jitter",
+                    actionId = "lower_bitrate",
+                    actionLabel = "Fix and verify",
+                    actionKind = "live_tuning",
+                    targetBitrateKbps = 7580,
+                    packetLossPct = 0.0,
+                    latencyMs = 3.8
+                )
+            )
+        )
+
+        assertFalse(state.diagnosis.actionExecutable)
+        assertEquals("Diagnose This Stream", state.overlayRows.first().label)
+    }
+
+    @Test
+    fun cleanHistorySafeCapOffersOneClickQualityRestore() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-v2-needs_action-quality_capped_by_history-gpu_native",
+                    classification = "HOST",
+                    likelyCause = "An older recovery profile is limiting quality even though the live network is stable.",
+                    primaryIssue = "quality_capped_by_history",
+                    actionId = "restore_quality",
+                    actionLabel = "Restore and verify",
+                    actionKind = "live_tuning",
+                    targetBitrateKbps = 20000,
+                    verificationDelaySeconds = 8,
+                    undoSupported = true,
+                    packetLossPct = 0.0,
+                    latencyMs = 3.8
+                )
+            )
+        )
+
+        assertEquals("Restore and verify", state.overlayRows.first().label)
+        assertTrue(state.diagnosis.actionExecutable)
+        assertEquals(20000, state.diagnosis.targetBitrateKbps)
+        assertTrue(state.diagnosis.undoSupported)
     }
 
     @Test

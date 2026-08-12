@@ -91,7 +91,13 @@ data class NovaQuickMenuDiagnosisState(
     val evidence: List<String>,
     val tryFirst: String,
     val confidence: String,
-    val available: Boolean
+    val available: Boolean,
+    val actionId: String,
+    val actionLabel: String,
+    val actionExecutable: Boolean,
+    val targetBitrateKbps: Int,
+    val verificationDelaySeconds: Int,
+    val undoSupported: Boolean
 )
 
 data class NovaQuickMenuUiState(
@@ -500,7 +506,13 @@ data class NovaQuickMenuUiState(
                 evidence = doctor?.evidence ?: emptyList(),
                 tryFirst = doctor?.firstTry.orEmpty(),
                 confidence = doctor?.confidence.orEmpty(),
-                available = status != null && (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true)
+                available = status != null && (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true),
+                actionId = doctor?.actionId.orEmpty(),
+                actionLabel = doctor?.actionLabel.orEmpty(),
+                actionExecutable = doctor?.canExecuteAction == true && status?.canAdjustHostTuning == true,
+                targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
+                verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
+                undoSupported = doctor?.undoSupported == true
             )
         }
 
@@ -516,7 +528,8 @@ data class NovaQuickMenuUiState(
             }
             return NovaQuickMenuAction(
                 id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
-                label = context.getString(R.string.nova_quick_menu_diagnose_stream),
+                label = diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() }
+                    ?: context.getString(R.string.nova_quick_menu_diagnose_stream),
                 caption = diagnosis.likelyCause,
                 chip = chip(classification, tone),
                 enabled = status != null

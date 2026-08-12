@@ -22,6 +22,7 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisCapabilities
+import com.papi.nova.api.PolarisDoctorActionResult
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.KeyboardTranslator
@@ -90,6 +91,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         var advancedTuningVisible = false
         var profileClearInProgress = false
         var hostStateUnavailable = false
+        var doctorActionPending = false
 
         fun syncSessionDerivedState() {
             adaptiveEnabled = sessionStatus?.tuning?.adaptiveBitrateEnabled == true ||
@@ -178,6 +180,121 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             }
             dismiss()
             sendKeysWithFocus(quickKeys)
+        }
+
+        fun doctorResultMessage(result: PolarisDoctorActionResult): String {
+            if (result.message.isNotBlank()) return result.message
+            return when (result.state) {
+                "stable" -> game.getString(R.string.nova_quick_menu_doctor_stable)
+                "confirmed_pressure" -> game.getString(R.string.nova_quick_menu_doctor_confirmed)
+                "watching" -> game.getString(R.string.nova_quick_menu_doctor_watching)
+                "resolved" -> game.getString(R.string.nova_quick_menu_doctor_resolved)
+                "needs_attention" -> game.getString(R.string.nova_quick_menu_doctor_needs_attention)
+                "undone" -> game.getString(R.string.nova_quick_menu_doctor_undone)
+                else -> result.error.takeIf { it.isNotBlank() }
+                    ?: game.getString(R.string.nova_quick_menu_doctor_failed)
+            }
+        }
+
+        fun undoDoctorRun(runId: String) {
+            if (apiClient == null || runId.isBlank() || doctorActionPending) return
+            doctorActionPending = true
+            game.launchRuntimeIo("NovaQuickMenuDoctorUndo") {
+                val result = apiClient.runDoctorAction(actionId = "undo", runId = runId)
+                if (result?.status == true) {
+                    sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
+                    syncSessionDerivedState()
+                }
+                game.runOnMainIfRuntimeActive {
+                    doctorActionPending = false
+                    if (result?.status == true) {
+                        NovaSnackbar.showSuccess(game, doctorResultMessage(result), anchor = composeView)
+                    } else {
+                        NovaSnackbar.showError(
+                            game,
+                            result?.error?.takeIf { it.isNotBlank() }
+                                ?: game.getString(R.string.nova_quick_menu_doctor_failed),
+                            anchor = composeView
+                        )
+                    }
+                    refreshState()
+                }
+            }
+        }
+
+        fun presentDoctorResult(result: PolarisDoctorActionResult) {
+            val message = doctorResultMessage(result)
+            if (!result.status) {
+                NovaSnackbar.showError(game, message, anchor = composeView)
+                return
+            }
+            if (result.undoAvailable && result.runId.isNotBlank()) {
+                NovaSnackbar.showSuccessWithAction(
+                    activity = game,
+                    message = message,
+                    actionLabel = game.getString(R.string.nova_quick_menu_doctor_undo),
+                    anchor = composeView,
+                    onAction = { undoDoctorRun(result.runId) }
+                )
+            } else {
+                NovaSnackbar.showSuccess(game, message, anchor = composeView)
+            }
+        }
+
+        fun scheduleDoctorVerification(result: PolarisDoctorActionResult) {
+            if (!result.status || result.runId.isBlank() || result.verificationActionId.isBlank()) return
+            val delayMs = (result.verificationDelaySeconds.coerceAtLeast(1) * 1000L)
+            game.window.decorView.postDelayed({
+                if (apiClient == null) return@postDelayed
+                game.launchRuntimeIo("NovaQuickMenuDoctorVerify") {
+                    val verification = apiClient.runDoctorAction(
+                        actionId = result.verificationActionId,
+                        runId = result.runId
+                    )
+                    if (verification?.status == true) {
+                        sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
+                        syncSessionDerivedState()
+                    }
+                    game.runOnMainIfRuntimeActive {
+                        verification?.let {
+                            presentDoctorResult(it)
+                            scheduleDoctorVerification(it)
+                        }
+                        refreshState()
+                    }
+                }
+            }, delayMs)
+        }
+
+        fun runDoctorAction() {
+            val status = sessionStatus
+            val doctor = status?.doctor
+            if (apiClient == null || status == null || doctor == null || !doctor.canExecuteAction || doctorActionPending) {
+                game.copyNovaHudDiagnostics()
+                return
+            }
+            doctorActionPending = true
+            game.launchRuntimeIo("NovaQuickMenuDoctorAction") {
+                val result = apiClient.runDoctorAction(
+                    actionId = doctor.actionId,
+                    sourceResultId = doctor.resultId,
+                    targetBitrateKbps = doctor.targetBitrateKbps
+                )
+                if (result?.status == true) {
+                    sessionStatus = apiClient.getSessionStatus() ?: sessionStatus
+                    syncSessionDerivedState()
+                }
+                game.runOnMainIfRuntimeActive {
+                    doctorActionPending = false
+                    if (result == null) {
+                        NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_doctor_failed), anchor = composeView)
+                    } else {
+                        presentDoctorResult(result)
+                        scheduleDoctorVerification(result)
+                    }
+                    refreshState()
+                }
+            }
         }
 
         val callbacks = NovaQuickMenuCallbacks(
@@ -405,7 +522,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             }
                             game.toggleHUD()
                         }
-                        NovaQuickMenuActionId.DIAGNOSE_STREAM,
+                        NovaQuickMenuActionId.DIAGNOSE_STREAM -> {
+                            runDoctorAction()
+                        }
                         NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> {
                             game.copyNovaHudDiagnostics()
                         }

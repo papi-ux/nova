@@ -484,10 +484,14 @@ private fun NovaQuickMenuDiagnosisCard(
         },
         action = NovaQuickMenuAction(
             id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
-            label = "${diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") } ?: "DIAG"}: ${diagnosis.likelyCause}",
-            caption = detail.ifBlank { "HOST / NET / CLIENT self-service diagnostics" },
+            label = diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() }
+                ?: "${diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") } ?: "DIAG"}: ${diagnosis.likelyCause}",
+            caption = buildList {
+                diagnosis.likelyCause.takeIf { diagnosis.actionExecutable && it.isNotBlank() }?.let { add(it) }
+                detail.takeIf { it.isNotBlank() }?.let { add(it) }
+            }.joinToString(" · ").ifBlank { "HOST / NET / CLIENT self-service diagnostics" },
             chip = NovaQuickMenuChip(
-                label = if (diagnosis.available) "Doctor" else "Fallback",
+                label = if (diagnosis.actionExecutable) "One click" else if (diagnosis.available) "Doctor" else "Fallback",
                 tone = if (diagnosis.available) NovaQuickMenuTone.INFO else NovaQuickMenuTone.MUTED
             ),
             enabled = diagnosis.available
