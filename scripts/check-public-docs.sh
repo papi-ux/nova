@@ -124,4 +124,21 @@ if [[ "$phone_screenshot_count" -lt 4 ]]; then
   exit 1
 fi
 
+expected_github_store_url="https://github-store.org/app?repo=papi-ux/nova"
+expected_obtainium_version_regex="versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29"
+expected_obtainium_apk_regex="Nova-Android-arm64-v8a%5C%5C%5C%5C.apk%24"
+grep -Fq "$expected_github_store_url" README.md
+grep -Fq "$expected_obtainium_version_regex" README.md
+grep -Fq "$expected_obtainium_apk_regex" README.md
+
+if ! grep -Fq "https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json" README.md; then
+  echo "README must link the published provenance manifest." >&2
+  exit 1
+fi
+
+if ! grep -Fq "## AI Transparency" README.md; then
+  echo "README must keep the AI Transparency section." >&2
+  exit 1
+fi
+
 echo "Public docs and release references look clean."

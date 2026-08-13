@@ -67,6 +67,8 @@ a controller-first drawer.
 
 ![Nova Polaris Aurora Command Center over a live private stream, showing runtime truth and Doctor guidance](docs/screenshots/nova-command-center-live-aurora-v1.3.6.webp)
 
+Every capture above and across [papi-ux.com](https://papi-ux.com/nova/) comes from the tagged public release; the [pixel-level provenance manifest](https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json) ships with the site.
+
 ## Host compatibility
 
 With a standard Moonlight-compatible host, Nova supports the familiar pairing,
@@ -79,6 +81,18 @@ Those enhanced surfaces require compatible Polaris metadata; Nova falls back to
 the standard path when it is not present.
 
 ## Install and start a first stream
+
+<div align="center">
+
+[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-Get_Nova-7c73ff?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJMMi41IDcuNVYxNi41TDEyIDIybDkuNS01LjVWNy41TDEyIDJ6bTAgMi4xN2w2LjkgNHYuMDFsLTYuOSA0LTYuOS00di0uMDFMNiA4LjE3bDYtMy44M3oiLz48L3N2Zz4=&labelColor=1a1a2e)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22Nova-Android-arm64-v8a%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%7D%22%7D)
+&nbsp;
+[![Get it on GitHub Store](https://img.shields.io/badge/GitHub_Store-Get_Nova-24292f?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github-store.org/app?repo=papi-ux/nova)
+&nbsp;
+[![Get it on GitHub](https://img.shields.io/badge/GitHub-Releases-4c5265?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github.com/papi-ux/nova/releases/latest)
+&nbsp;
+[![Latest APK](https://img.shields.io/badge/Latest-ARM64_APK-4ade80?style=for-the-badge&logo=android&labelColor=1a1a2e)](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk)
+
+</div>
 
 1. Install the public APK that matches the Android device.
 2. Open **Servers**, discover or add the host, and pair.
@@ -110,6 +124,20 @@ device, architecture, codec, HDR, sensor, and host notes.
 - [Roadmap](https://papi-ux.com/docs/roadmap/) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/papi-ux/nova/releases)
 - [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Source](https://github.com/papi-ux/nova)
 - [Security policy](SECURITY.md) · [Contributing](.github/CONTRIBUTING.md)
+
+## Acknowledgments
+
+Nova builds on the moonlight-android client lineage. Thanks to the Moonlight community for the foundation Nova grew from.
+
+## AI Transparency
+
+Nova is built and released by me, with assistance from tools such as OpenAI Codex, Claude, and local models.
+
+I use those tools for documentation polish, release workflow cleanup, store-readiness checks, build/test triage, implementation review, and to compare approaches while debugging. They do not decide what Nova or Polaris are, what features ship, or what releases are published. I review, edit, build, test, and approve the changes before release, and I own the final engineering and trust-boundary decisions.
+
+## Contributing
+
+Contributions are welcome, especially focused fixes, UI polish, docs, translations, and careful feature work. Nova is still a small maintainer-led project, so the easiest pull requests to review are the ones that explain the problem clearly and keep the change scoped. See [CONTRIBUTING](.github/CONTRIBUTING.md) for the full workflow.
 
 ## License
 
