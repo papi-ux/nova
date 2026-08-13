@@ -124,4 +124,9 @@ if [[ "$phone_screenshot_count" -lt 4 ]]; then
   exit 1
 fi
 
+if ! grep -Fq "## AI Transparency" README.md; then
+  echo "README must keep the AI Transparency section." >&2
+  exit 1
+fi
+
 echo "Public docs and release references look clean."
