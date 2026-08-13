@@ -1,445 +1,117 @@
 <div align="center">
 
-<img src="docs/screenshots/Polaris_icon_1.svg" width="140" />
+<img src="docs/screenshots/Polaris_icon_1.svg" width="140" alt="Nova" />
 
 # Nova
 
 **Game streaming for Android handhelds that understands the host.**
 
-Nova streams PC games from Polaris or any Moonlight-compatible host, but it is
-built for the parts normal clients barely explain: launch modes, active sessions,
-host tuning, stream health, controller focus, and safe disconnects.
-
-With Polaris, Nova can show what will happen before you launch, what is happening
-while you play, and what is safe to do when you leave.
+Nova is an Android client for Polaris and standard Moonlight-compatible hosts.
+With Polaris it turns a basic app grid into a controller-first Library, explains
+each launch before it happens, and keeps live session controls close while you
+play.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1a1a2e)](https://github.com/papi-ux/nova/stargazers)
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1a1a2e)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=4ade80&labelColor=1a1a2e&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
-[Why Nova](#why-nova) · [Feature Matrix](#feature-matrix) · [Quick Start](#quick-start) · [Latest Release](#latest-release-v136) · [Install](#install) · [Compatibility](#compatibility) · [Launch Modes](#launch-modes-in-plain-english) · [Tour](#tour) · [Polaris](#use-with-polaris) · [Support](#support-and-bug-reports) · [FAQ](#faq) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
-
-**Support**: [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions)
-
-<br/>
-
-<picture>
-  <source srcset="docs/screenshots/nova-showcase.webp" type="image/webp" />
-  <img src="docs/screenshots/nova-showcase.gif" width="820" alt="Nova Portable Chrome dashboard, Polaris Library, launch detail sheet, and Command Center" />
-</picture>
+[**Explore Nova**](https://papi-ux.com/nova/) ·
+[**Install ARM64**](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk) ·
+[All releases](https://github.com/papi-ux/nova/releases/latest) ·
+[Quick start](https://papi-ux.com/docs/nova/quickstart/)
 
 </div>
 
 > [!IMPORTANT]
-> Nova is an Android client today. It is built and tested most heavily on handheld Android devices, Android TV, and modern phones, with the richest experience coming from [Polaris](https://github.com/papi-ux/polaris).
+> Nova is an Android app today. Android handhelds, phones, and Android TV are
+> the supported client boundary; Nova is not a Windows, macOS, iOS, or native
+> Linux client.
 
-> [!NOTE]
-> Nova still speaks the Moonlight/GameStream client path. Polaris unlocks the richer Library, launch, watch, tuning, and session-state surfaces, but standard Moonlight-compatible hosts remain usable.
+![Nova Polaris Aurora Library in Stage view with Control Ultimate Edition selected against its landscape artwork](docs/screenshots/nova-library-control-aurora-v1.3.6.webp)
 
-## Privacy and Local-First Defaults
+## A compatible client, with more context
 
-Nova is a client app. It does not require a Nova cloud account, and standard Moonlight-compatible streaming works directly between your Android device and your host.
-
-Polaris-specific features use the host you pair with: library metadata, launch recommendations, tuning state, session status, and permissions come from your Polaris box. If you use AI Auto Quality on Polaris, that provider is configured on the host side, not hidden inside Nova.
-
-## Why Nova
-
-Most game-streaming clients give you pairing, a grid, and a video stream. That is enough until you are on an Android handheld, the host is already running something, and you need to know whether pressing a button will resume, watch, relaunch, disconnect, or kill the session.
-
-Nova is built for that messy reality.
-
-- Know what will launch before you press play.
-- See whether a session is active, resumable, watchable, or owned by another device.
-- Pick Private Stream or Virtual Display when Polaris supports both.
-- Tune and inspect the stream from Command Center without leaving the session.
-- Use NovaHUD for live FPS, target FPS, host limits, and stream health.
-- Keep controller focus readable on handhelds and Android TV.
-
-| Normal streaming client | Nova with Polaris |
+| Normal compatible client | Nova with Polaris |
 |---|---|
-| Shows a flat app list | Shows a host-backed Library with cover art, filters, source badges, and launch context |
-| Starts whatever the host decides | Shows Private Stream, Virtual Display, recommendations, and availability before launch |
-| Hides session state | Shows active, resumable, watchable, and owner-aware session states |
-| Leaves tuning to guesswork | Shows Auto Quality, target FPS, host limits, and tuning provenance |
-| Treats disconnect and quit as generic actions | Separates safe disconnect from ending the host session |
-| Assumes touch or TV navigation will be good enough | Keeps handheld and D-pad focus visible first |
+| Pairs, browses apps, launches, and streams | Adds a host-backed Library with art, sources, and launch health |
+| Starts the host's configured app path | Shows Private Stream and other available display choices before launch |
+| Treats a running session as a generic state | Distinguishes active, resumable, watchable, and owner-aware sessions |
+| Offers basic disconnect or quit actions | Separates safe disconnect from ending the host session |
+| Shows client-side stream statistics | Adds server-backed runtime truth, Doctor, tuning provenance, and NovaHUD |
 
-| Browse | Decide | Control |
+Standard Moonlight-compatible hosts remain useful; Polaris supplies the richer
+metadata and controls.
+
+## Browse, decide, control
+
+### Browse
+
+Stage view puts the selected title into its landscape artwork while keeping the
+row controller-readable. Control Ultimate Edition leads the Aurora showcase;
+the [website gallery](https://papi-ux.com/nova/#themes) compares the same screen
+in Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You.
+
+### Decide
+
+Play Setup describes what will happen for this title: where it runs, the client
+resolution, tuning policy, and Steam launch behavior. A session-scoped choice
+does not silently rewrite the host default.
+
+![Nova Polaris Aurora Play Setup for Control Ultimate Edition, showing Private Stream and session choices](docs/screenshots/nova-play-setup-control-aurora-v1.3.6.webp)
+
+### Control
+
+During a stream, Command Center brings session health, Doctor guidance, tuning,
+NovaHUD, input helpers, safe disconnect, and protected end-session actions into
+a controller-first drawer.
+
+![Nova Polaris Aurora Command Center over a live private stream, showing runtime truth and Doctor guidance](docs/screenshots/nova-command-center-live-aurora-v1.3.6.webp)
+
+## Host compatibility
+
+With a standard Moonlight-compatible host, Nova supports the familiar pairing,
+Wake-on-LAN, app browsing, launch, input, and streaming path.
+
+With Polaris, Nova additionally understands the host Library, display-mode
+catalog, session owner, watch and resume behavior, per-session launch choices,
+Polaris Sync, server-backed stream health, Doctor actions, and tuning state.
+Those enhanced surfaces require compatible Polaris metadata; Nova falls back to
+the standard path when it is not present.
+
+## Install and start a first stream
+
+1. Install the public APK that matches the Android device.
+2. Open **Servers**, discover or add the host, and pair.
+3. Open the Library, review a title, and launch.
+4. During play, open Command Center with Guide/Mode + Start/Menu. Guide/Mode + Y
+   shows or cycles NovaHUD.
+
+| Architecture | Direct download | Typical devices |
 |---|---|---|
-| <img src="docs/screenshots/nova-library-grid.png" alt="Nova Library grid" width="260" /> | <img src="docs/screenshots/nova-library-detail.png" alt="Nova launch detail sheet" width="260" /> | <img src="docs/screenshots/nova-quick-menu-detail.png" alt="Nova Command Center" width="260" /> |
-| Host-backed Library with filters, art, and active-session state | Private Stream or Virtual Display choices with host recommendations | Command Center, NovaHUD, tuning, reconnect, and safe disconnect |
-
-## Feature Matrix
-
-| Feature | With Polaris | With other Moonlight-compatible hosts |
-|---|---:|---:|
-| Standard GameStream launch | Yes | Yes |
-| Pairing and app launch | Yes | Yes |
-| Wake-on-LAN | Yes | Yes, when host/network metadata allows it |
-| Polaris Library with metadata, art, source badges, and launch context | Yes | No |
-| Private Stream / Host Virtual Display / Mirror Desktop choice | Yes | No |
-| Watch or resume owner-aware active sessions | Yes | Limited or no |
-| Command Center session truth and host actions | Yes | Partial |
-| NovaHUD host-health truth and high-FPS recovery copy | Yes | Limited |
-| Polaris Sync and tuning provenance | Yes | No |
-| AI Auto Quality surfaced in the client | Yes, when enabled on Polaris | No |
-
-Use Nova with any compatible host for normal streaming. Pair it with Polaris when you want the client to understand what the host is actually about to do.
-
-## Quick Start
-
-### First stream
-
-1. Install Nova from GitHub Releases, Obtainium, or GitHub Store.
-2. Open **Servers** and add or discover a host. Polaris hosts appear automatically on the LAN when discovery is enabled.
-3. Pair with **Trusted Pair** on a trusted Polaris subnet, **QR pairing** from the Polaris web UI, or normal **manual PIN** pairing.
-4. Launch from the standard game grid or the Polaris-powered Library.
-5. During a stream, open Command Center for tuning, overlays, controller actions, and quit/disconnect controls. Guide/Mode + Start/Menu opens Command Center, and Guide/Mode + Y shows or cycles NovaHUD.
-
-### Recommended first setup
-
-| Device | Start here |
-|---|---|
-| Android handheld or phone | `Nova-Android-arm64-v8a.apk` |
-| NVIDIA Shield or ARM64 Android TV | `Nova-Android-arm64-v8a.apk` |
-| Chromecast with Google TV, Google TV Streamer, or 32-bit ARM Android TV | `Nova-Android-armeabi-v7a.apk` |
-| Android x86_64 device or emulator | `Nova-Android-x86_64.apk` |
-
-If a sleeping host does not report a MAC address, open the host menu and choose **Edit Wake-on-LAN MAC**. Nova stores that address and reuses it for future wake requests, which helps VPN and routed setups where discovery metadata is incomplete.
-
-## Latest release: v1.3.6
-
-Nova v1.3.6 makes launch intent and recovery actions explicit. Play Setup now speaks the host's complete launch-mode catalog, per-game overrides stay scoped to one session instead of rewriting the host default, and Doctor can apply, verify, and undo the safest supported correction from Command Center.
-
-- **Doctor that can finish the job**: evidence-gated one-click actions can recheck a suspected network problem, lower bitrate by one guarded step, restore a history-capped profile gradually, verify the result against live telemetry, and offer Undo.
-- **Every host mode, one vocabulary**: Play Setup and Polaris Sync share the same server-authoritative grouped picker, including unavailable modes and the host's reason. Controller users can reach and select every card.
-- **Session-scoped launch overrides**: an explicit per-game mode travels only on that launch. Games without an override follow the host default, and launching no longer rewrites Polaris' persistent stream mode.
-- **Clearer launch truth**: Nova surfaces one display-mode fallback warning per session, includes launch mode in optimization requests, and marks the host's advisory AI pick without selecting it for you.
-- **Reliability and focus**: idempotent Polaris actions retry once after transient TLS failures; malformed host responses no longer crash launch; cached game detail and cold-start library screens settle and visibly focus the intended controller target.
-- **Honest HUD status**: normal network and decoder risk values stay quiet instead of producing false warning chips.
-- **Benchmark tooling stays isolated**: a separate non-shipping benchmark variant records bounded client decode-stage evidence and supports controlled ADB export without changing normal release behavior.
-- **Compatibility**: preserves minSdk 21, targetSdk 36, existing routing and persistence authorities, Moonlight-compatible hosts, Polaris integration, and signed in-place upgrades.
-- **Release packaging**: signed ARM64, ARMv7, and x86_64 APKs ship with portable SHA-256 sidecars. VersionCode 38 keeps Obtainium and manual installs on a clean upgrade path.
-- **Known issue**: gyro/motion sensors are not detected on some devices (#181). The Thor audio-device inventory remains diagnostic evidence, not a claimed routing fix.
-
-See the [changelog](CHANGELOG.md) for the full release history.
-
-## Install
-
-<div align="center">
-
-[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-Get_Nova-7c73ff?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJMMi41IDcuNVYxNi41TDEyIDIybDkuNS01LjVWNy41TDEyIDJ6bTAgMi4xN2w2LjkgNHYuMDFsLTYuOSA0LTYuOS00di0uMDFMNiA4LjE3bDYtMy44M3oiLz48L3N2Zz4=&labelColor=1a1a2e)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22Nova-Android-arm64-v8a%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%7D%22%7D)
-&nbsp;
-[![Get it on GitHub Store](https://img.shields.io/badge/GitHub_Store-Get_Nova-24292f?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github-store.org/app?repo=papi-ux/nova)
-&nbsp;
-[![Get it on GitHub](https://img.shields.io/badge/GitHub-Releases-4c5265?style=for-the-badge&logo=github&labelColor=1a1a2e)](https://github.com/papi-ux/nova/releases/latest)
-&nbsp;
-[![Latest APK](https://img.shields.io/badge/Latest-ARM64_APK-4ade80?style=for-the-badge&logo=android&labelColor=1a1a2e)](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk)
-
-</div>
-
-Use the public release APK that matches your device:
-
-| Public release asset | Use it for |
-|---|---|
-| `Nova-Android-arm64-v8a.apk` | Recommended Android install for phones, handhelds, and ARM64 Android TV devices |
-| `Nova-Android-armeabi-v7a.apk` | Chromecast with Google TV, Google TV Streamer, and other Android TV devices that expose only 32-bit ARM app support |
-| `Nova-Android-x86_64.apk` | Android x86_64 devices and emulators |
-| `*.apk.sha256` | Integrity checks for public APKs |
-
-The Obtainium shortcut is preconfigured for the ARM64 public asset so updates resolve to one APK cleanly. Chromecast and other 32-bit ARM Android TV users should choose the `armeabi-v7a` asset manually or configure Obtainium to match `Nova-Android-armeabi-v7a.apk`.
-
-The latest direct APKs are always available through GitHub's latest-release URLs: `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk`, `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk`, and `https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk`.
-
-F-Droid and IzzyOnDroid packaging notes are tracked in [docs/fdroid.md](docs/fdroid.md), including current status, APK scan notes, and source-build blockers.
-
-If you install manually, verify the download before sideloading:
-
-```bash
-sha256sum -c Nova-Android-arm64-v8a.apk.sha256
-```
-
-> [!TIP]
-> If you distribute Nova from a private GitHub fork, Obtainium needs a Personal Access Token with `repo` scope. Public release repos do not.
-
-## Compatibility
-
-| Area | Status | Notes |
-|---|---|---|
-| Android handhelds | Primary target | Designed first for landscape handheld use |
-| Android phones and tablets | Supported | Works well, with the UX tuned most heavily for handheld play |
-| Android TV | Supported | Uses ARM64 or 32-bit ARM APKs with Leanback launcher support and D-pad/controller-friendly browsing |
-| Polaris | Best experience | Full launch-mode, watch-mode, tuning, library, profile sync, and live-session integration |
-| Other Moonlight-compatible hosts | Compatible | Standard Moonlight-compatible client flow |
-| Steam Controller 2026 | Partial Android HID support | Android may expose Bluetooth mode as a Valve keyboard/mouse HID; Nova recognizes common Valve HID names for host gamepad presence and compatible D-pad/button events |
-| Wake-on-LAN | Supported | Sends UDP magic packets directly from Android and supports manual MAC entry |
-| High refresh devices | Supported | Nova can request 90/120 Hz when the device display and host both support it |
-| Official release assets | `arm64-v8a`, `armeabi-v7a`, `x86_64` | Public GitHub Releases ship separate APKs per Android ABI |
-
-### Best-tested first setup
-
-If you want the smoothest first run, start here:
-
-- **Client device**: ARM64 Android handheld, Android TV, or modern phone. Retroid-class handheld layouts get the most attention.
-- **APK**: Nova-Android-arm64-v8a.apk for most handhelds, phones, and ARM64 TV boxes.
-- **Host**: Polaris v1.2.0 on Fedora 44 or Arch/CachyOS with NVIDIA/NVENC for the richest feature set.
-- **Launch path**: Polaris Library to Private Stream first, then try Host Virtual Display or Mirror Desktop only when you intentionally need those modes.
-- **Controller proof**: Test Command Center, NovaHUD, safe disconnect, and real physical controls after the first stream starts.
-
-## Known Limitations
-
-- Advanced launch modes, watch mode, live host tuning, richer session telemetry, and Polaris Sync are Polaris-specific.
-- Nova is not on the Play Store. The public install paths are GitHub Releases, Obtainium, and GitHub Store.
-- High refresh streaming is limited by the real display panel on the Android device, not just the selected setting in Nova.
-- Steam Controller 2026 Bluetooth support depends on the HID shape Android exposes. Nova can recognize Valve keyboard/mouse HID presentations and route compatible controller-like keys, but Android does not expose full Steam Input profiles or hidden analog controls through a standard gamepad source.
-- Today, only the Android client ships.
-
-## Use With Polaris
-
-[Polaris](https://github.com/papi-ux/polaris) is the Linux host built alongside Nova. Pair them and Nova stops guessing: the host can tell the client which launch modes are available, who owns the current session, what tuning is active, and what is safe to do next. For host setup, Polaris documents the distro tiers directly: Fedora and Arch are the recommended package paths, CachyOS starts with the Arch package, Bazzite and Ubuntu are tester paths, and openSUSE Tumbleweed has a source-build guide.
-
-| Polaris + Nova capability | What it means |
-|---|---|
-| Launch contract | Polaris tells Nova which launch modes are preferred, recommended, and currently allowed |
-| Private Stream vs Virtual Display | Nova can present both choices directly in the library instead of silently guessing |
-| 10-bit SDR | Nova can explicitly request a Main10 stream even on SDR handheld panels when the host supports it |
-| Watch Stream | A second device can join as a viewer without taking over the owner session |
-| Tuning provenance | Nova can distinguish baseline device tuning, live AI, cached AI, recovery tuning, host-adjusted recommendations, and active target profiles |
-| Polaris Sync | Push Nova stream defaults to Polaris, pull Polaris' current profile back into Nova, or keep Polaris matched to Nova defaults |
-| Live tuning | Auto Quality and MangoHud can be surfaced directly in Command Center |
-| Session state | HUD and Command Center can show live server-backed mode, role, shutdown state, and tuning state |
-
-### Launch Modes in Plain English
-
-| Mode | What Nova asks Polaris to do | Pick it when |
-|---|---|---|
-| Private Headless Stream | Launch into the isolated Polaris stream runtime | You want handheld play without touching the host desktop |
-| Host Virtual Display | Use a separate virtual-display style host path when available | You want display-backed behavior but not the physical monitor |
-| Mirror Desktop | Stream the current host desktop/session | You intentionally want to see or control the real desktop |
-| Steam Launch / Direct Launch | Start a specific Steam app or configured game path | You know exactly what should start |
-| Watch Stream | Join a compatible active session as a viewer | Another device owns the session and you do not want to steal it |
-
-Nova shows these as explicit choices instead of mystery buttons because launch intent matters. Private Stream is usually the safest first pick. Mirror Desktop is powerful, but it should be deliberate.
-
-## Tour
-
-### Handheld Dashboard
-
-Nova opens on a controller-friendly dashboard for servers, themes, help, and streaming entry points. Focus states are built to stay readable on handhelds and Android TV instead of disappearing into pretty artwork.
-
-<p align="center">
-  <picture>
-    <img src="docs/screenshots/nova-home.png" width="900" alt="Nova home dashboard with games home, continue rail, and host shortcuts" />
-  </picture>
-</p>
-
-### Polaris Library
-
-The Polaris library gives Nova the context a plain app list cannot: cover art, filters, source badges, launch modes, Continue/watch states, host recommendations, and per-game guidance before you start a stream.
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <picture>
-        <img src="docs/screenshots/nova-library-grid.png" width="100%" alt="Nova Polaris library grid with search, filters, and game artwork" />
-      </picture>
-      <p><strong>Library grid</strong><br/>Browse a real host-backed library with cover art, filters, source badges, active-session state, and D-pad focus that stays visible.</p>
-    </td>
-    <td width="50%" valign="top">
-      <picture>
-        <img src="docs/screenshots/nova-library-detail.png" width="100%" alt="Nova game detail sheet with launch modes and next-launch tuning" />
-      </picture>
-      <p><strong>Launch detail</strong><br/>Choose Private Stream or Virtual Display, review host recommendations, and see next-launch tuning before starting.</p>
-    </td>
-  </tr>
-</table>
-
-### Stream Controls
-
-During a stream, Nova shifts from browsing to operations. Command Center, HUD modes, tuning actions, reconnect state, input helpers, and disconnect controls stay reachable without leaving the session.
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <picture>
-        <img src="docs/screenshots/nova-quick-menu-detail.png" width="100%" alt="Nova Command Center with tuning, overlays, controls, and session actions" />
-      </picture>
-      <p><strong>Command Center</strong><br/>Tune, toggle overlays, inspect the active session, disconnect safely, or end the host session when you mean it.</p>
-    </td>
-    <td width="50%" valign="top">
-      <picture>
-        <img src="docs/screenshots/nova-hud-modes.gif" width="100%" alt="Nova HUD modes showing stream telemetry overlays" />
-      </picture>
-      <p><strong>NovaHUD</strong><br/>Cycle full, banner, and FPS-only telemetry with controller shortcuts.</p>
-    </td>
-  </tr>
-</table>
-
-<details>
-<summary><b>Theme system</b></summary>
-
-<p align="center">
-  <picture>
-    <img src="docs/screenshots/nova-themes.gif" width="820" alt="Nova main menu and theme system" />
-  </picture>
-</p>
-
-</details>
-
-## How It Works
-
-Nova keeps the Moonlight-compatible stream path, then layers a Kotlin Android experience around host awareness, controller-first navigation, profile-aware settings, and Polaris session metadata.
-
-The practical result: standard hosts still work, while Polaris hosts can tell Nova more about what is launching, who owns the session, what tuning is active, and what settings should apply next. The native streaming layer stays close to Moonlight lineage; the newer Nova behavior lives in the Android/Kotlin layer.
-
-For the deeper source layout and build model, see [Technical Overview](docs/technical-overview.md).
-
-## Docs
-
-| Guide | Use it for |
-|---|---|
-| [Technical Overview](docs/technical-overview.md) | Source layout, architecture, local builds, tests, APK outputs |
-| [F-Droid Packaging Notes](docs/fdroid.md) | F-Droid and IzzyOnDroid packaging status |
-| [Kotlin Optimization Audit](docs/kotlin_optimization_audit.md) | Kotlin migration and optimization notes |
-| [Video Baseline Evidence](docs/video_baseline_evidence.md) | Baseline profile and release-performance evidence |
-| [JNI Bridge Measurement](docs/jni_bridge_measurement.md) | Measurement gate for future JNI annotation work |
-| [Multi-platform Study](docs/multi_platform_monorepo.md) | Native client expansion notes |
-| [Steam Deck Native Port Study](docs/steam_deck_native_port_study.md) | Steam Deck client research |
-
-## Build From Source
-
-Clone with submodules, then build the Android APKs:
-
-```bash
-git clone --recursive https://github.com/papi-ux/nova.git
-cd nova
-./gradlew assembleNonRoot_gameDebug
-```
-
-If you cloned without `--recursive`, initialize the native streaming submodule before building:
-
-```bash
-git submodule update --init --recursive
-```
-
-Nova pins Android NDK `27.0.12077973`. Local builds produce split APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64` by default. Release builds, test commands, local ABI overrides, and the architecture diagram live in [Technical Overview](docs/technical-overview.md).
-
-Nova currently builds the checked-out native streaming tree directly. Any move to prebuilt native artifacts or AAR packaging should be handled as a separate release-engineering decision, not as a silent replacement for the source build.
-
-## FAQ
-
-<details>
-<summary><b>Does Nova work with other Moonlight-compatible hosts, not just Polaris?</b></summary>
-
-Yes. Nova is a Moonlight-compatible Android client. Polaris adds the richest integration, but Nova still works with other Moonlight-compatible servers.
-
-</details>
-
-<details>
-<summary><b>What makes Nova different from a normal Moonlight client?</b></summary>
-
-Nova keeps compatibility with the Moonlight streaming path, then adds handheld-first navigation, a host-backed Library, launch-mode awareness, watch mode, Polaris Sync, tuning provenance, NovaHUD, profile overrides, and controller shortcuts that are designed around Android handheld and TV use.
-
-</details>
-
-<details>
-<summary><b>What is Trusted Pair?</b></summary>
-
-Trusted Pair is Nova's TOFU flow for Polaris. If Polaris trusts the subnet you are on, Nova can complete first pairing without the usual PIN ceremony. You can still use QR or manual PIN pairing when you want the traditional flow.
-
-</details>
-
-<details>
-<summary><b>What is the difference between Private Stream and Virtual Display?</b></summary>
-
-Private Stream is Nova's user-facing name for Polaris' headless path: the host launches against an isolated compositor without touching your physical desktop layout. Virtual Display asks the host for a separate display-backed launch instead. Nova's Polaris library can show what the host recommends, what the app prefers, and which modes are currently allowed.
-
-</details>
-
-<details>
-<summary><b>What does Polaris Sync do?</b></summary>
-
-Polaris Sync is a bidirectional settings flow for Polaris hosts. Nova can push its local stream profile to Polaris, pull Polaris' current stream profile back into Nova, or keep the Polaris profile matched to Nova defaults so launch settings stay predictable across devices.
-
-</details>
-
-<details>
-<summary><b>Can Nova request a 10-bit stream on an SDR display?</b></summary>
-
-Yes. When you explicitly enable HDR in Nova and the server supports Main10, Nova can request a 10-bit stream even if the handheld screen itself does not advertise HDR10. This is especially useful with Polaris on handhelds such as Retroid devices.
-
-</details>
-
-<details>
-<summary><b>What does Watch Stream do?</b></summary>
-
-Watch Stream lets a second device join an already running Polaris session as a passive viewer. It does not take ownership, and viewer sessions are limited to the active stream profile rather than silently renegotiating their own version.
-
-</details>
-
-<details>
-<summary><b>Does Wake-on-LAN work over WireGuard or another VPN?</b></summary>
-
-It can, as long as the network path forwards the UDP wake packet to a host or subnet that can reach the sleeping PC. Nova sends Wake-on-LAN packets directly from Android. If the server did not provide a MAC address during discovery or pairing, use **Edit Wake-on-LAN MAC** in the host menu and enter the PC network adapter MAC address manually.
-
-</details>
-
-<details>
-<summary><b>Why does Nova warn me before enabling MangoHud?</b></summary>
-
-On Polaris-backed Steam Big Picture and Steam/Proton titles, MangoHud can crash helper processes early enough to leave the session black-screened. Nova flags those launches before you enable MangoHud so the safer choice is obvious.
-
-</details>
-
-<details>
-<summary><b>Is there a native Steam Deck or iOS client yet?</b></summary>
-
-Not today. Nova currently ships as an Android client only.
-
-</details>
-
-<details>
-<summary><b>Why can't I find Nova on the Play Store?</b></summary>
-
-Nova is distributed through GitHub Releases, Obtainium, and GitHub Store. The official public release path is GitHub first.
-
-</details>
-
-## Support and Bug Reports
-
-Useful Nova reports make it clear whether the problem is Android UI, host integration, stream transport, or input. Include as much of this as you can without posting secrets:
-
-- Device model, Android version, Nova version, and installed APK ABI.
-- Host software and version: Polaris, Sunshine, Apollo, or another Moonlight-compatible host.
-- Pairing method and launch path: standard grid, Polaris Library, Private Stream, Host Virtual Display, Mirror Desktop, watch/resume, or shortcut.
-- Controller/input device details, especially for handhelds, Bluetooth controllers, and Android TV remotes.
-- Screenshot or recording for UI/video issues, plus a bounded `adb logcat` capture around the failure when possible.
-- Whether the same host/game behaves differently in Nova and in standard Moonlight.
-
-Redact hostnames, LAN-only URLs, pairing material, and tokens. For Polaris-backed issues, matching Polaris host logs are often the fastest way to separate client symptoms from host state.
-
-## AI Transparency
-
-Nova is built and released by me, with assistance from tools such as OpenAI Codex, Claude, and local models.
-
-I use those tools for documentation polish, release workflow cleanup, store-readiness checks, build/test triage, implementation review, and to compare approaches while debugging. They do not decide what Nova or Polaris are, what features ship, or what releases are published. I review, edit, build, test, and approve the changes before release, and I own the final engineering and trust-boundary decisions.
-
-## Contributing
-
-Contributions are welcome, especially focused fixes, UI polish, docs, translations, and careful feature work. Nova is still a small maintainer-led project, so the easiest pull requests to review are the ones that explain the problem clearly and keep the change scoped.
-
-1. Fork the repo and branch from `master`.
-2. Build with `./gradlew assembleNonRoot_gameDebug`.
-3. Test on a real device or emulator.
-4. Open a pull request that explains what changed, why it helps, and what you were able to test.
-
-> [!NOTE]
-> The native streaming layer in `app/src/main/jni/moonlight-core/` is a git submodule. Run `git submodule update --init --recursive` after cloning.
-
-Nova is a fun project I build in my spare time simply because I want more people to make the switch to Linux gaming while making users safer, clearer, and easier to trust. If it becomes part of your setup, that alone makes my day.
+| ARM64 | [Nova-Android-arm64-v8a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk) | Most current handhelds, phones, Shield, and ARM64 Android TV |
+| ARMv7 | [Nova-Android-armeabi-v7a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk) | 32-bit ARM Android TV devices |
+| x86_64 | [Nova-Android-x86_64.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk) | Android x86_64 devices and emulators |
+
+The [quick-start guide](https://papi-ux.com/docs/nova/quickstart/) covers
+Obtainium, pairing methods, first-stream controls, and architecture selection.
+
+## Compatibility and platform boundaries
+
+Nova preserves Android 5.0 / API 21 support, though features and codec behavior
+depend on the device, Android build, decoder, controller mapping, network, and
+host. Android handhelds are the primary experience; Android TV and phones are
+supported with their own navigation constraints. Review the maintained [Nova
+compatibility guide](https://papi-ux.com/docs/nova/compatibility/) for current
+device, architecture, codec, HDR, sensor, and host notes.
+
+## Documentation and project links
+
+- [Nova documentation](https://papi-ux.com/docs/nova/) · [Quick start](https://papi-ux.com/docs/nova/quickstart/) · [Compatibility](https://papi-ux.com/docs/nova/compatibility/)
+- [Roadmap](https://papi-ux.com/docs/roadmap/) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/papi-ux/nova/releases)
+- [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Source](https://github.com/papi-ux/nova)
+- [Security policy](SECURITY.md) · [Contributing](.github/CONTRIBUTING.md)
 
 ## License
 
-Nova is licensed under the **GNU General Public License v3.0**. See [LICENSE.txt](LICENSE.txt) for the full text.
-
-Nova builds on [Artemis](https://github.com/ClassicOldSong/moonlight-android), [Moonlight Android](https://github.com/moonlight-stream/moonlight-android), and [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c) under GPLv3 lineage.
+Nova is free and open-source software licensed under the [GNU General Public
+License v3.0](LICENSE.txt).

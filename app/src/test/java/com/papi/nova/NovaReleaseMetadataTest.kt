@@ -1,7 +1,6 @@
 package com.papi.nova
 
 import java.io.File
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -16,7 +15,6 @@ class NovaReleaseMetadataTest {
         val root = repoRoot()
         val build = File(root, "app/build.gradle").readText()
         val changelog = File(root, "CHANGELOG.md").readText()
-        val readme = File(root, "README.md").readText()
         val releaseScript = File(root, "bin/release.sh").readText()
         val storeNotes = File(
             root,
@@ -27,10 +25,6 @@ class NovaReleaseMetadataTest {
         assertTrue(build.contains("versionName \"1.3.6\""))
         assertTrue(build.contains("versionCode = 38"))
         assertTrue(changelog.contains("## 1.3.6 - 2026-08-12"))
-        assertTrue(readme.contains("[Latest Release](#latest-release-v136)"))
-        assertTrue(readme.contains("## Latest release: v1.3.6"))
-        assertTrue(readme.contains("VersionCode 38"))
-        assertFalse(readme.contains("## Latest release: v1.3.5"))
         assertTrue(releaseScript.contains("-PnovaAbis=arm64-v8a,armeabi-v7a,x86_64"))
         for (asset in listOf(
             "Nova-Android-arm64-v8a.apk",
