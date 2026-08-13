@@ -111,6 +111,12 @@ device, architecture, codec, HDR, sensor, and host notes.
 - [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Source](https://github.com/papi-ux/nova)
 - [Security policy](SECURITY.md) · [Contributing](.github/CONTRIBUTING.md)
 
+## AI Transparency
+
+Nova is built and released by me, with assistance from tools such as OpenAI Codex, Claude, and local models.
+
+I use those tools for documentation polish, release workflow cleanup, store-readiness checks, build/test triage, implementation review, and to compare approaches while debugging. They do not decide what Nova or Polaris are, what features ship, or what releases are published. I review, edit, build, test, and approve the changes before release, and I own the final engineering and trust-boundary decisions.
+
 ## License
 
 Nova is free and open-source software licensed under the [GNU General Public
