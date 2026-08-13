@@ -46,7 +46,7 @@ class NativeSubmodulePreflightTest(unittest.TestCase):
         self.assertIn("git submodule update --init --recursive", combined_docs)
         self.assertIn("27.0.12077973", combined_docs)
         self.assertIn("moonlight-common-c", combined_docs)
-        self.assertIn("prebuilt native artifacts", combined_docs)
+        self.assertIn("prebuilt native artifacts", combined_docs.lower())
         self.assertIn("separate release-engineering decision", combined_docs)
 
 
