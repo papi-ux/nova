@@ -262,6 +262,12 @@ class GameMenu @JvmOverloads constructor(
                     ),
                 )
             }))
+            options.add(MenuOption(getString(R.string.game_menu_send_keys_ctrl_1), Runnable {
+                sendKeys(shortArrayOf(KeyboardTranslator.VK_LCONTROL.toShort(), KeyboardTranslator.VK_1.toShort()))
+            }))
+            options.add(MenuOption(getString(R.string.game_menu_send_keys_ctrl_2), Runnable {
+                sendKeys(shortArrayOf(KeyboardTranslator.VK_LCONTROL.toShort(), KeyboardTranslator.VK_2.toShort()))
+            }))
         }
 
         val preferences = game.getSharedPreferences(PREF_NAME, Activity.MODE_PRIVATE)
