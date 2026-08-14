@@ -889,6 +889,8 @@
     <string name="game_menu_send_keys_insert">Insert</string>
     <string name="game_menu_send_keys_alt_f4">Alt + F4</string>
     <string name="game_menu_send_keys_ctrl_v">Ctrl + V</string>
+    <string name="game_menu_send_keys_ctrl_1">Ctrl + 1</string>
+    <string name="game_menu_send_keys_ctrl_2">Ctrl + 2</string>
     <string name="game_menu_send_keys_win">Win (Meta)</string>
     <string name="game_menu_send_keys_win_d">Win + D</string>
     <string name="game_menu_send_keys_alt_b">ALT + B</string>

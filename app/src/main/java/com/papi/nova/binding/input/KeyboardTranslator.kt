@@ -182,6 +182,8 @@ class KeyboardTranslator(private val prefConfig: PreferenceConfiguration) : Inpu
         private const val KEY_PREFIX = 0x80
 
         const val VK_0 = 48
+        const val VK_1 = 49
+        const val VK_2 = 50
         const val VK_9 = 57
         const val VK_A = 65
         const val VK_Z = 90
