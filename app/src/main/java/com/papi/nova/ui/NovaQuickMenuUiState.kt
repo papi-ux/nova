@@ -29,6 +29,8 @@ enum class NovaQuickMenuActionId {
     QUICK_INSERT,
     QUICK_META,
     QUICK_CTRL_V,
+    QUICK_CTRL_1,
+    QUICK_CTRL_2,
     NOVA_HUD,
     PERF_STATS,
     DIAGNOSE_STREAM,
@@ -892,6 +894,14 @@ data class NovaQuickMenuUiState(
             NovaQuickMenuAction(
                 id = NovaQuickMenuActionId.QUICK_CTRL_V,
                 label = context.getString(R.string.game_menu_send_keys_ctrl_v)
+            ),
+            NovaQuickMenuAction(
+                id = NovaQuickMenuActionId.QUICK_CTRL_1,
+                label = context.getString(R.string.game_menu_send_keys_ctrl_1)
+            ),
+            NovaQuickMenuAction(
+                id = NovaQuickMenuActionId.QUICK_CTRL_2,
+                label = context.getString(R.string.game_menu_send_keys_ctrl_2)
             )
         )
 

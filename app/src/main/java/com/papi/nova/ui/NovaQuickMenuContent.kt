@@ -109,7 +109,9 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.QUICK_F11,
             NovaQuickMenuActionId.QUICK_INSERT,
             NovaQuickMenuActionId.QUICK_META,
-            NovaQuickMenuActionId.QUICK_CTRL_V -> onQuickKey(action.id)
+            NovaQuickMenuActionId.QUICK_CTRL_V,
+            NovaQuickMenuActionId.QUICK_CTRL_1,
+            NovaQuickMenuActionId.QUICK_CTRL_2 -> onQuickKey(action.id)
             NovaQuickMenuActionId.NOVA_HUD,
             NovaQuickMenuActionId.PERF_STATS,
             NovaQuickMenuActionId.DIAGNOSE_STREAM,
