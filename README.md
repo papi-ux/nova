@@ -59,7 +59,7 @@ the [website gallery](https://papi-ux.com/nova/#themes) compares the same screen
 in Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You.
 
 <p align="center">
-  <a href="https://papi-ux.com/nova/#themes"><img src="docs/screenshots/theme-cycle.webp" width="720" alt="Nova Stage view cycling through the Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You themes"></a><br>
+  <a href="https://papi-ux.com/nova/#themes"><img src="docs/screenshots/theme-cycle.webp" width="720" alt="Nova host selection cycling through the Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You themes"></a><br>
   <a href="https://papi-ux.com/nova/#themes"><img src="docs/screenshots/theme-dots.svg" height="14" alt="Theme accent colors"></a><br>
   <sub><a href="https://papi-ux.com/nova/#themes">Compare every theme in the website gallery</a></sub>
 </p>
@@ -77,8 +77,6 @@ does not silently rewrite the host default.
 During a stream, Command Center brings session health, Doctor guidance, tuning,
 NovaHUD, input helpers, safe disconnect, and protected end-session actions into
 a controller-first drawer.
-
-![Nova live private stream of Control Ultimate Edition on a Retroid Pocket 6](docs/screenshots/nova-live-rp6-aurora-v1.3.6.webp)
 
 ![Nova Polaris Aurora Command Center over a live private stream, showing runtime truth and Doctor guidance](docs/screenshots/nova-command-center-live-aurora-v1.3.6.webp)
 
