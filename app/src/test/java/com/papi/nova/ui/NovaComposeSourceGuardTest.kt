@@ -2196,10 +2196,11 @@ class NovaComposeSourceGuardTest {
             state.contains("QUICK_INSERT") &&
                 state.contains("R.string.game_menu_send_keys_insert")
         )
+        val quickKeyBucket = content.substringAfter("NovaQuickMenuActionId.QUICK_ESC,", "")
+            .substringBefore("-> onQuickKey(action.id)", "")
         assertTrue(
             "Insert quick key should route through the same Command Center quick-key callback bucket as the other special keys",
-            content.contains("NovaQuickMenuActionId.QUICK_INSERT,") &&
-                content.contains("NovaQuickMenuActionId.QUICK_CTRL_V -> onQuickKey(action.id)")
+            quickKeyBucket.contains("NovaQuickMenuActionId.QUICK_INSERT,")
         )
         assertTrue(
             "Insert quick key should route through the existing Windows VK_INSERT translator path",
