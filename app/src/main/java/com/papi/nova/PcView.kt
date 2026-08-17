@@ -1880,6 +1880,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         super.onResume()
         if (recreateForThemeChangeIfNeeded()) return
 
+        UiHelper.showCrashReportDialog(this)
         UiHelper.showDecoderCrashDialog(this)
         refreshProfileButton()
 
