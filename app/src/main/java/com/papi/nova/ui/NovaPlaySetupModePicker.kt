@@ -137,6 +137,7 @@ internal fun buildGameModePickerState(
     title: String,
     hostDefaultLabel: String,
     aiRecommendedMode: String = "",
+    hostDefaultOnlyDetail: String = "",
 ): NovaPlaySetupModePickerState {
     val allowed = allowedModes.map { PolarisGame.normalizeLaunchMode(it) }.toSet()
     return NovaPlaySetupModePickerState(
@@ -149,17 +150,20 @@ internal fun buildGameModePickerState(
                 NovaPlaySetupModeChoice(
                     id = mode.mode,
                     label = mode.label,
-                    detail = if (!mode.available && mode.unavailableReason.isNotBlank()) {
-                        mode.unavailableReason
-                    } else {
-                        mode.reason
+                    detail = when {
+                        !mode.available && mode.unavailableReason.isNotBlank() -> mode.unavailableReason
+                        // Available, but the host will not take it for one session. Saying
+                        // so beats offering a pick the host silently drops on launch.
+                        !mode.sessionOverridable && hostDefaultOnlyDetail.isNotBlank() ->
+                            hostDefaultOnlyDetail
+                        else -> mode.reason
                     },
                     group = mode.group,
                     current = hasExplicitOverride && mode.mode == playMode,
                     active = mode.mode == playMode && !hasExplicitOverride,
-                    enabled = mode.available,
-                    aiRecommended = mode.available && aiRecommendedMode.isNotBlank() &&
-                        mode.mode == aiRecommendedMode,
+                    enabled = mode.available && mode.sessionOverridable,
+                    aiRecommended = mode.available && mode.sessionOverridable &&
+                        aiRecommendedMode.isNotBlank() && mode.mode == aiRecommendedMode,
                 )
             },
     )

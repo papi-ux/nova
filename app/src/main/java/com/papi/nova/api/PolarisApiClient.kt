@@ -516,7 +516,8 @@ class PolarisApiClient @JvmOverloads constructor(
                         restartRequired = mode.optBoolean("restart_required", true),
                         reason = mode.optString("reason", ""),
                         group = mode.optString("group", ""),
-                        unavailableReason = mode.optString("unavailable_reason", "")
+                        unavailableReason = mode.optString("unavailable_reason", ""),
+                        sessionOverridable = mode.optBoolean("session_overridable", true)
                     )
                 }
             }

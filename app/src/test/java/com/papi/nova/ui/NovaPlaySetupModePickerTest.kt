@@ -21,6 +21,7 @@ class NovaPlaySetupModePickerTest {
         label: String = id,
         reason: String = "",
         unavailableReason: String = "",
+        sessionOverridable: Boolean = true,
     ) = NovaPolarisModeUiState(
         mode = id,
         label = label,
@@ -34,6 +35,7 @@ class NovaPlaySetupModePickerTest {
         statusLabel = "",
         group = group,
         unavailableReason = unavailableReason,
+        sessionOverridable = sessionOverridable,
     )
 
     @Test
@@ -199,5 +201,59 @@ class NovaPlaySetupModePickerTest {
         )
 
         assertTrue(unavailablePick.choices.none { it.aiRecommended })
+    }
+
+    @Test
+    fun perSessionPickerDisablesAModeTheHostWillNotTakeForOneSession() {
+        val modes = listOf(
+            mode("headless_stream", group = "private"),
+            mode("headless_dongle", group = "host", sessionOverridable = false),
+        )
+
+        val game = buildGameModePickerState(
+            modes = modes,
+            allowedModes = emptyList(),
+            playMode = "headless_stream",
+            hasExplicitOverride = false,
+            title = "Where It Runs",
+            hostDefaultLabel = "Host default",
+            hostDefaultOnlyDetail = "Set by the host.",
+        )
+
+        val dongle = game.choices.single { it.id == "headless_dongle" }
+        // Available, but not selectable for one launch: offering it would let the
+        // user pick something the host drops on the way through.
+        assertFalse(dongle.enabled)
+        assertEquals("Set by the host.", dongle.detail)
+
+        assertTrue(game.choices.single { it.id == "headless_stream" }.enabled)
+    }
+
+    @Test
+    fun hostDefaultPickerStillOffersIt() {
+        // Choosing the host's Default Display is exactly where this mode is valid,
+        // so the restriction must not leak into that picker.
+        val host = buildHostModePickerState(
+            modes = listOf(mode("headless_dongle", group = "host", sessionOverridable = false)),
+            title = "Default Display",
+        )
+
+        assertTrue(host.choices.single { it.id == "headless_dongle" }.enabled)
+    }
+
+    @Test
+    fun hostsThatPredateTheFlagKeepEveryModeSelectable() {
+        // The parser defaults sessionOverridable to true, so an older host behaves
+        // exactly as it does today rather than losing its whole catalog.
+        val game = buildGameModePickerState(
+            modes = listOf(mode("headless_stream"), mode("desktop_display")),
+            allowedModes = emptyList(),
+            playMode = "headless_stream",
+            hasExplicitOverride = false,
+            title = "Where It Runs",
+            hostDefaultLabel = "Host default",
+        )
+
+        assertTrue(game.choices.all { it.enabled })
     }
 }

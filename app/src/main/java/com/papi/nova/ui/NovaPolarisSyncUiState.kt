@@ -25,7 +25,9 @@ data class NovaPolarisModeUiState(
     /** Registry grouping from the host catalog: "private" or "host"; blank on legacy hosts. */
     val group: String = "",
     /** Host-supplied explanation for an unavailable mode; blank when available. */
-    val unavailableReason: String = ""
+    val unavailableReason: String = "",
+    /** Whether the host will accept this mode as a per-session override. */
+    val sessionOverridable: Boolean = true
 )
 
 data class NovaPolarisSyncUiState(
@@ -132,6 +134,7 @@ object NovaPolarisSyncUiStateMapper {
                     selectedEffective = effectiveSelected,
                     enabled = settings != null && available && !busy,
                     available = available,
+                    sessionOverridable = option?.sessionOverridable ?: true,
                     reason = option?.reason.orEmpty(),
                     group = option?.group.orEmpty(),
                     unavailableReason = option?.unavailableReason.orEmpty(),
