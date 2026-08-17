@@ -202,6 +202,10 @@ class StreamSettings : NovaActivity() {
         when (definition.key) {
             "nova_app_version" -> Unit
             "pref_debug_info" -> startActivity(Intent(this, DebugInfoActivity::class.java))
+            "nova_report_problem" -> com.papi.nova.diagnostics.SupportReportSharing.share(
+                this,
+                com.papi.nova.BuildConfig.VERSION_NAME,
+            )
             "option_software_release" -> checkForNovaUpdate()
             "option_follow_update" -> HelpLauncher.launchUrl(this, getString(R.string.obtainium_app_url))
             else -> {
@@ -1081,6 +1085,16 @@ class StreamSettings : NovaActivity() {
             findPreference<Preference>("pref_debug_info")?.setOnPreferenceClickListener {
                 val intent = Intent(requireActivity(), DebugInfoActivity::class.java)
                 requireActivity().startActivity(intent)
+                false
+            }
+
+            // Reachable at any time rather than only after a crash, because the
+            // failure worth reporting is often one where nothing crashed at all.
+            findPreference<Preference>("nova_report_problem")?.setOnPreferenceClickListener {
+                com.papi.nova.diagnostics.SupportReportSharing.share(
+                    requireActivity(),
+                    com.papi.nova.BuildConfig.VERSION_NAME,
+                )
                 false
             }
 
