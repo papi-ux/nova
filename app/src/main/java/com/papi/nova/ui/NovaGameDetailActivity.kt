@@ -1043,6 +1043,7 @@ class NovaGameDetailActivity : NovaActivity() {
                                         getString(R.string.nova_polaris_sync_unset)
                                     },
                                 ),
+                                hostDefaultOnlyDetail = getString(R.string.nova_play_setup_mode_host_default_only),
                             )
                         }
                     } else {

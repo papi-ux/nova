@@ -54,7 +54,14 @@ data class PolarisClientSettings(
         /** Registry grouping: "private" (desktop untouched) or "host" (uses/swaps the host screen). */
         val group: String = "",
         /** Host-supplied explanation served when available is false. */
-        val unavailableReason: String = ""
+        val unavailableReason: String = "",
+        /**
+         * Whether a client may select this mode for a single session. A mode can be
+         * perfectly available as the host's default and still be refused per-session,
+         * which is why this is separate from [available]. Defaults true so hosts that
+         * predate the field keep today's behaviour.
+         */
+        val sessionOverridable: Boolean = true
     )
 
     val desiredModeLabel: String
