@@ -32,7 +32,7 @@ play.
 > the supported client boundary; Nova is not a Windows, macOS, iOS, or native
 > Linux client.
 
-![Nova Polaris Aurora Library in Stage view with Control Ultimate Edition selected against its landscape artwork](docs/screenshots/nova-library-control-aurora-v1.3.6.webp)
+![Nova Polaris Aurora Library in Compact layout with Control Ultimate Edition ready to continue above a grid of twenty entries](docs/screenshots/nova-library-control-aurora-v1.3.6.webp)
 
 ## A compatible client, with more context
 
