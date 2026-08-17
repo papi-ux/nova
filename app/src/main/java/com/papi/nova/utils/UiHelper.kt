@@ -204,6 +204,36 @@ object UiHelper {
         }
     }
 
+    /**
+     * Offer the crash Nova recorded last time it went down.
+     *
+     * Separate from the decoder tombstone below, which only ever counted
+     * MediaCodec failures. An ordinary uncaught exception left the user with the
+     * system's "app has stopped" dialog and left Nova with nothing to report.
+     *
+     * The marker is consumed whether or not the user sends it, so a single crash
+     * is offered once rather than on every launch.
+     */
+    @JvmStatic
+    fun showCrashReportDialog(activity: Activity) {
+        val crash = com.papi.nova.diagnostics.NovaDiagnostics.previousCrash(activity) ?: return
+        com.papi.nova.diagnostics.NovaDiagnostics.clearPreviousCrash(activity)
+
+        Dialog.displayDialog(
+            activity,
+            activity.resources.getString(R.string.title_crash_report),
+            activity.resources.getString(R.string.message_crash_report, crash.occurredAt),
+            false,
+            activity.resources.getString(R.string.action_send_crash_report),
+            Runnable {
+                com.papi.nova.diagnostics.SupportReportSharing.share(
+                    activity,
+                    com.papi.nova.BuildConfig.VERSION_NAME,
+                )
+            },
+        )
+    }
+
     @JvmStatic
     fun showDecoderCrashDialog(activity: Activity) {
         val prefs = activity.getSharedPreferences("DecoderTombstone", 0)

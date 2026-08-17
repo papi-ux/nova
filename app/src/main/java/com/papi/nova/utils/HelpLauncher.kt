@@ -47,7 +47,7 @@ object HelpLauncher {
 
     @JvmStatic
     fun launchTroubleshooting(context: Context) {
-        launchUrl(context, "https://github.com/moonlight-stream/moonlight-docs/wiki/Troubleshooting")
+        launchUrl(context, "https://papi-ux.com/docs/troubleshooting/")
     }
 
     @JvmStatic

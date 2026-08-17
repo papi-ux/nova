@@ -957,6 +957,11 @@
             android:title="@string/title_import_special_button"
             app:iconSpaceReserved="false" />
         <Preference
+            android:key="nova_report_problem"
+            android:summary="@string/summary_report_problem"
+            android:title="@string/title_report_problem"
+            app:iconSpaceReserved="false" />
+        <Preference
             android:key="pref_debug_info"
             android:summary="@string/summary_debug_info"
             android:title="@string/title_debug_info"
