@@ -187,3 +187,149 @@ class NovaCrashHandlerTest {
         assertTrue(marker.isFile)
     }
 }
+
+class DiagnosticsRedactionParityTest {
+
+    // The same cases the host's suite uses, so the two implementations are held
+    // to one standard rather than each to its own.
+
+    @Test
+    fun redactsSeparatedCamelCaseAndRunTogetherNames() {
+        val redacted = DiagnosticsRedaction.redact(
+            "auth_token=aaa1 api-key=bbb2 apiKey=ccc3 authToken=ddd4 apikey=eee5 clientsecret=fff6 credentials=ggg7"
+        )
+
+        for (leaked in listOf("aaa1", "bbb2", "ccc3", "ddd4", "eee5", "fff6", "ggg7")) {
+            assertFalse(leaked, redacted.contains(leaked))
+        }
+    }
+
+    @Test
+    fun leavesDiagnosticsAlone() {
+        val survives = "keyboard=us monkey=banana turnkey=yes capture_path=dmabuf packet_loss=2.5 bitrate=45000"
+
+        assertEquals(survives, DiagnosticsRedaction.redact(survives))
+    }
+
+    @Test
+    fun keepsTheAuthSchemeWhileRedactingItsCredential() {
+        val redacted = DiagnosticsRedaction.redact("Authorization: Bearer ey.secret.value")
+
+        assertTrue(redacted.contains("Bearer ${DiagnosticsRedaction.REDACTED}"))
+        assertFalse(redacted.contains("ey.secret.value"))
+    }
+
+    @Test
+    fun treatsBareKeyAsALabelInFieldsAndACredentialInText() {
+        assertFalse(DiagnosticsRedaction.isSensitiveFieldName("key"))
+        assertFalse(DiagnosticsRedaction.redact("key=barevalue").contains("barevalue"))
+    }
+
+    @Test
+    fun redactsACredentialThatFollowsAnInnocentLabel() {
+        // The ordinary shape of a log line is "Something: detail". Matching the
+        // outer pair and stopping consumed the credential as someone else's value.
+        val redacted = DiagnosticsRedaction.redact(
+            "java.io.IOException: auth_token=hunter2\nError at Foo.bar: apikey=abc123\na: b: c: token=deep"
+        )
+
+        for (leaked in listOf("hunter2", "abc123", "deep")) {
+            assertFalse(leaked, redacted.contains(leaked))
+        }
+    }
+
+    @Test
+    fun redactsACredentialBehindAQuotedJsonKey() {
+        // Nova parses API responses, so it meets real JSON more than the host
+        // does. JSON always quotes its keys, and requiring the name to reach its
+        // separator directly missed every one of them.
+        val redacted = DiagnosticsRedaction.redact(
+            "{\"api_key\": \"abc123\"}\n{'apiKey': 'x9'}\n{\"auth_token\":\"t1\"}\n(client_secret): cs9"
+        )
+
+        for (leaked in listOf("abc123", "x9", "t1", "cs9")) {
+            assertFalse(leaked, redacted.contains(leaked))
+        }
+    }
+
+    @Test
+    fun redactsASensitiveNameWhoseValueIsAStructure() {
+        // Stopping early is worse than not matching: it leaves the secret behind
+        // while "auth": [redacted] reads as though the subtree was handled.
+        assertEquals(
+            "{\"auth\": ${DiagnosticsRedaction.REDACTED}}",
+            DiagnosticsRedaction.redact("{\"auth\": {\"api_key\": \"abc123\"}}")
+        )
+        assertFalse(DiagnosticsRedaction.redact("{\"cfg\": {\"auth\": {\"api_key\": \"x9\"}}}").contains("x9"))
+        assertEquals(
+            "{\"tokens\": ${DiagnosticsRedaction.REDACTED}}",
+            DiagnosticsRedaction.redact("{\"tokens\": [\"t1\", \"t2\"]}")
+        )
+    }
+
+    @Test
+    fun stillReachesACredentialNestedUnderAnInnocentName() {
+        assertEquals(
+            "{\"cfg\": {\"api_key\": ${DiagnosticsRedaction.REDACTED}}}",
+            DiagnosticsRedaction.redact("{\"cfg\": {\"api_key\": \"x\"}}")
+        )
+    }
+
+    @Test
+    fun isNotConfusedByABraceInsideAQuotedString() {
+        assertEquals(
+            "{\"auth\": ${DiagnosticsRedaction.REDACTED}}",
+            DiagnosticsRedaction.redact("{\"auth\": {\"note\": \"a } brace\", \"api_key\": \"k1\"}}")
+        )
+    }
+
+    @Test
+    fun redactsToEndOfLineWhenAStructureNeverCloses() {
+        // Degenerate input must not become a reason to leave a secret alone.
+        assertFalse(DiagnosticsRedaction.redact("api_key={\"a\": \"b\"").contains("\"b\""))
+        assertEquals("token=${DiagnosticsRedaction.REDACTED}", DiagnosticsRedaction.redact("token=["))
+    }
+
+    @Test
+    fun leavesInnocentQuotedKeysAlone() {
+        val survives = "{\"level\": \"info\", \"capture_path\": \"dmabuf\", \"keyName\": \"readable\"}"
+
+        assertEquals(survives, DiagnosticsRedaction.redact(survives))
+    }
+
+    @Test
+    fun isIdempotentAcrossRepeatedPasses() {
+        // Nova redacts before it posts and the host redacts again on export, so
+        // two passes over the same bytes is the normal path for a real report.
+        var text = "Warning: auth_token=hunter2 apiKey=abc123"
+        val passes = mutableListOf<String>()
+        repeat(5) {
+            text = DiagnosticsRedaction.redact(text)
+            passes.add(text)
+        }
+
+        assertEquals(1, passes.toSet().size)
+        assertFalse(passes[0].contains("hunter2"))
+        assertFalse(passes[0].contains("]]"))
+    }
+
+    @Test
+    fun capturesABracketedValueWhole() {
+        assertEquals("token=${DiagnosticsRedaction.REDACTED}", DiagnosticsRedaction.redact("token=[abc]"))
+        assertEquals("note=[abc]", DiagnosticsRedaction.redact("note=[abc]"))
+    }
+
+    @Test
+    fun leavesAnInnocentPairIntact() {
+        val survives = "Info: capture_path=dmabuf\nlevel: info"
+
+        assertEquals(survives, DiagnosticsRedaction.redact(survives))
+    }
+
+    @Test
+    fun doesNotTreatKeyAsACredentialWhenItLeadsTheName() {
+        assertFalse(DiagnosticsRedaction.isSensitiveFieldName("keyName"))
+        assertTrue(DiagnosticsRedaction.isSensitiveFieldName("apiKey"))
+        assertTrue(DiagnosticsRedaction.isSensitiveFieldName("publicKey"))
+    }
+}

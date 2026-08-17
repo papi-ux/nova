@@ -1404,6 +1404,37 @@ class PolarisApiClient @JvmOverloads constructor(
      * Probe the server for Polaris capabilities.
      * Returns null if the server is not a Polaris server (404) or unreachable.
      */
+    /**
+     * Post this device's half of a support report to the paired host.
+     *
+     * The host holds it alongside its own evidence so both halves land in one
+     * bundle. A streaming bug needs both, and a user should not have to export
+     * from two devices and keep the two matched.
+     *
+     * @param payload Already-redacted JSON body; see NovaSupportReport.hostPayload.
+     * @return true when the host accepted it. A host predating this endpoint
+     *         answers 404 and returns false, which is why the caller always has a
+     *         share-sheet fallback rather than treating this as the only route.
+     */
+    fun submitSupportReport(payload: String): Boolean {
+        return try {
+            val request = Request.Builder()
+                .url("$baseUrl/support/client-report")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), payload))
+                .build()
+            executeWithTransientRetry(request).use { response ->
+                if (response.code != 200) {
+                    LimeLog.warning("Nova: host rejected the support report code=${response.code}")
+                    return false
+                }
+                true
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: could not send the support report to the host: ${errorMessage(e)}")
+            false
+        }
+    }
+
     fun getCapabilities(): PolarisCapabilities? {
         return try {
             val request = Request.Builder().url("$baseUrl/capabilities").build()
