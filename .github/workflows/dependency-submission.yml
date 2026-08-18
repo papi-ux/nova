@@ -33,6 +33,6 @@ jobs:
       - name: Generate and submit dependency graph
         uses: gradle/actions/dependency-submission@v6
         with:
-          additional-arguments: -PnovaAbis=x86_64 --no-configuration-cache
-          cache-provider: basic
+          additional-arguments: -PnovaAbis=x86_64 --no-build-cache --no-configuration-cache
+          cache-disabled: true
           dependency-graph: generate-and-submit

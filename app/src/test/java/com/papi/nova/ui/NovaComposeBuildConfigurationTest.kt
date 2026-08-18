@@ -1,13 +1,96 @@
 package com.papi.nova.ui
 
+import java.io.StringReader
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.Properties
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NovaComposeBuildConfigurationTest {
+    @Test
+    fun vulnerableKotlinCachesRemainDisabledAcrossCi() {
+        val repositoryRoot = Paths.get("..").toAbsolutePath().normalize()
+        val gradleProperties = readText(repositoryRoot.resolve("gradle.properties"))
+        val workflows = Files.list(repositoryRoot.resolve(".github/workflows")).use { paths ->
+            paths.iterator().asSequence()
+                .filter { path ->
+                    Files.isRegularFile(path) &&
+                        (path.fileName.toString().endsWith(".yml") || path.fileName.toString().endsWith(".yaml"))
+                }
+                .associate { it.fileName.toString() to readText(it) }
+        }
+
+        assertPropertyDisabled(
+            gradleProperties,
+            "org.gradle.caching",
+            "Kotlin 2.3.21 must keep the Gradle build cache disabled"
+        )
+        assertPropertyDisabled(
+            gradleProperties,
+            "kapt.incremental.apt",
+            "Kotlin 2.3.21 must keep KAPT incremental local-state deserialization disabled"
+        )
+
+        workflows.forEach { (name, workflow) ->
+            assertFalse(
+                "$name must not restore or save the Gradle User Home cache",
+                Regex("(?m)^\\s*cache:\\s*['\"]?gradle['\"]?\\s*(?:#.*)?$").containsMatchIn(workflow)
+            )
+            assertFalse(
+                "$name must not enable Gradle's build cache on the command line",
+                Regex("(?:^|\\s)--build-cache(?=\\s|$)").containsMatchIn(workflow)
+            )
+            assertFalse(
+                "$name must not override the fail-closed Gradle cache properties",
+                workflow.contains("org.gradle.caching") || workflow.contains("kapt.incremental.apt")
+            )
+            assertFalse(
+                "$name must not add a Gradle cache action without extending this fail-closed contract",
+                Regex(
+                    "(?i)(?:gradle/actions/setup-gradle|gradle/gradle-build-action|" +
+                        "actions/cache(?:/restore|/save)?)@"
+                ).containsMatchIn(workflow)
+            )
+            workflow.lineSequence()
+                .filter { Regex("(?:^|\\s)(?:\\./)?gradle(?:w)?(?:\\s|$)").containsMatchIn(it) }
+                .forEach { invocation ->
+                    assertTrue(
+                        "$name Gradle invocations must fail closed with --no-build-cache: $invocation",
+                        invocation.contains("--no-build-cache")
+                    )
+                }
+        }
+
+        val dependencySubmissionSteps = workflows.flatMap { (name, workflow) ->
+            actionSteps(workflow, "gradle/actions/dependency-submission").map { name to it }
+        }
+        val dependencySubmissionReferences = workflows.values.sumOf { workflow ->
+            Regex("(?i)gradle/actions/dependency-submission@").findAll(workflow).count()
+        }
+        assertTrue("CI must retain dependency graph submission", dependencySubmissionSteps.isNotEmpty())
+        assertEquals(
+            "every dependency-submission reference must be a directly inspectable action step",
+            dependencySubmissionReferences,
+            dependencySubmissionSteps.size
+        )
+        dependencySubmissionSteps.forEach { (name, step) ->
+            assertTrue(
+                "$name dependency submission must disable its Gradle User Home cache",
+                Regex("(?m)^\\s*cache-disabled:\\s*true\\s*$").containsMatchIn(step)
+            )
+            assertTrue(
+                "$name dependency submission must pass --no-build-cache to its Gradle invocation",
+                Regex("(?m)^\\s*additional-arguments:.*(?:^|\\s)--no-build-cache(?:\\s|$)")
+                    .containsMatchIn(step)
+            )
+        }
+    }
+
     @Test
     fun gradleEnablesComposeWithKotlinCompilerPluginAndBom() {
         val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
@@ -68,16 +151,65 @@ class NovaComposeBuildConfigurationTest {
 
     @Test
     fun buildDoesNotUseKaptForNewKotlinProcessing() {
-        val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
-        val appBuild = String(Files.readAllBytes(Paths.get("build.gradle")), StandardCharsets.UTF_8)
-        val settings = String(Files.readAllBytes(Paths.get("../settings.gradle")), StandardCharsets.UTF_8)
-        val combinedBuildConfig = listOf(rootBuild, appBuild, settings).joinToString("\n")
+        val repositoryRoot = Paths.get("..").toAbsolutePath().normalize()
+        val buildFiles = Files.walk(repositoryRoot).use { paths ->
+            paths.iterator().asSequence()
+                .filter { path ->
+                    Files.isRegularFile(path) &&
+                        (path.fileName.toString().endsWith(".gradle") || path.fileName.toString().endsWith(".gradle.kts")) &&
+                        repositoryRoot.relativize(path).none { segment ->
+                            segment.toString() == ".git" ||
+                                segment.toString() == ".gradle" ||
+                                segment.toString() == "build"
+                        }
+                }
+                .toList()
+        }
 
-        assertFalse(
-            "Prefer KSP over kapt for future Kotlin annotation processors",
-            combinedBuildConfig.contains("kapt")
-        )
+        buildFiles.forEach { buildFile ->
+            assertFalse(
+                "Prefer KSP over kapt for future Kotlin annotation processors: ${repositoryRoot.relativize(buildFile)}",
+                readText(buildFile).contains("kapt", ignoreCase = true)
+            )
+        }
     }
+
+    private fun readText(path: Path): String =
+        String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+
+    private fun assertPropertyDisabled(propertiesText: String, key: String, message: String) {
+        val definitionCount = Regex(
+            "(?m)^[ \\t\\f]*${Regex.escape(key)}(?=[ \\t\\f:=])"
+        ).findAll(propertiesText).count()
+        assertEquals("$message with one unambiguous definition", 1, definitionCount)
+
+        val effectiveProperties = Properties().apply {
+            load(StringReader(propertiesText))
+        }
+        assertEquals("$message as its effective Java Properties value", "false", effectiveProperties.getProperty(key))
+    }
+
+    private fun actionSteps(workflow: String, action: String): List<String> {
+        val lines = workflow.lines()
+        return lines.indices
+            .filter {
+                Regex("(?i)^uses:\\s*['\"]?${Regex.escape(action)}@")
+                    .containsMatchIn(lines[it].trimStart().removePrefix("- "))
+            }
+            .map { usesIndex ->
+                val usesLine = lines[usesIndex]
+                val usesIndent = usesLine.indexOfFirst { !it.isWhitespace() }.coerceAtLeast(0)
+                val stepIndent = if (usesLine.trimStart().startsWith("- uses:")) usesIndent else (usesIndent - 2).coerceAtLeast(0)
+                var start = usesIndex
+                while (start > 0 && !isYamlListItem(lines[start], stepIndent)) start--
+                var end = usesIndex + 1
+                while (end < lines.size && !isYamlListItem(lines[end], stepIndent)) end++
+                lines.subList(start, end).joinToString("\n")
+            }
+    }
+
+    private fun isYamlListItem(line: String, indent: Int): Boolean =
+        line.indexOfFirst { !it.isWhitespace() } == indent && line.trimStart().startsWith("- ")
 
     @Test
     fun rootTestAggregationUsesLazyTaskRegistration() {
