@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 1.3.7 - 2026-08-18
+
+Nova 1.3.7 adds a user-controlled problem-report handoff, stops offering a per-session display choice the host cannot honor, and adds the two Steam Big Picture chords that were still unreachable from many streaming controllers.
+
+**Report a problem** is available from both Settings implementations and after a recorded crash. Nova now keeps a bounded rotating log, records an uncaught-crash marker without replacing Android's own handler, applies the same credential-name redaction cases as Polaris, and opens Android's system share sheet so the user chooses the destination every time (#241). The client transport for posting a report to a capable paired Polaris host is present, but the user-facing report action is not wired to it and does not automatically upload a report; the share sheet is the shipped path.
+
+Play Setup reads Polaris' `session_overridable` field and disables a topology-changing mode such as Headless Dongle for a one-session choice while leaving it available under Every Game/default host configuration. Older Polaris hosts omit the field and remain fully selectable (#239). Command Center Quick Keys and the classic More Keys sheet add Ctrl+1 and Ctrl+2, providing the Steam Big Picture menu and Quick Access Menu chords that many controllers cannot otherwise send; both paths were exercised during a live AYN Thor session (#237, #238).
+
+The public README refreshes its exact-release Aurora showcase, provenance pointer, store links, AI transparency, community and acknowledgments material without relabeling older captures as this release (#233-#236).
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.7 and versionCode 39.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
+
+### Validation notes
+
+- The exact release-prep candidate must pass JVM tests, strict lint, public hygiene, and three-ABI release assembly before merge.
+- Final publication remains gated on the exact signed ARM64 artifact: package/version identity, signer continuity, an in-place install and launch on the Retroid Pocket 6, controller-first focus, the restricted per-session Headless Dongle choice while Every Game remains valid, a secret-safe manual report opening the Android share sheet, one live stream, and clean teardown with the host restored.
+- Automatic upload from the user-facing report action to Polaris is not claimed in this release. Gyro/motion sensors remain open under #181, and Polaris' known 4K dummy-plug SHM performance ceiling remains a host limitation rather than a Nova regression.
+
 ## 1.3.6 - 2026-08-12
 
 Nova 1.3.6 makes host intent visible and recoverable instead of making the player infer it from side effects. Doctor v2 actions now run from Command Center with evidence gating, confirmation, live verification, and Undo: Nova can recheck a suspected network condition, lower bitrate by one guarded step, or gradually restore a clean stream that an older recovery profile left capped (#230).

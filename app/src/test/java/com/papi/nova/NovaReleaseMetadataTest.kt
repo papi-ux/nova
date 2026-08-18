@@ -18,13 +18,14 @@ class NovaReleaseMetadataTest {
         val releaseScript = File(root, "bin/release.sh").readText()
         val storeNotes = File(
             root,
-            "fastlane/metadata/android/en-US/changelogs/38.txt"
+            "fastlane/metadata/android/en-US/changelogs/39.txt"
         )
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.3.6\""))
-        assertTrue(build.contains("versionCode = 38"))
-        assertTrue(changelog.contains("## 1.3.6 - 2026-08-12"))
+        assertTrue(build.contains("versionName \"1.3.7\""))
+        assertTrue(build.contains("versionCode = 39"))
+        assertTrue(changelog.contains("## 1.3.7 - 2026-08-18"))
+        assertTrue(changelog.contains("does not automatically upload a report"))
         assertTrue(releaseScript.contains("-PnovaAbis=arm64-v8a,armeabi-v7a,x86_64"))
         for (asset in listOf(
             "Nova-Android-arm64-v8a.apk",
@@ -38,6 +39,6 @@ class NovaReleaseMetadataTest {
             "Google Play release notes must be at most 500 Unicode characters",
             storeNotesBody.codePointCount(0, storeNotesBody.length) <= 500,
         )
-        assertTrue(storeNotesBody.startsWith("Nova 1.3.6"))
+        assertTrue(storeNotesBody.startsWith("Nova 1.3.7"))
     }
 }
