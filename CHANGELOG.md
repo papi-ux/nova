@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 1.3.7 - 2026-08-18
+## 1.3.7 - 2026-08-19
 
 Nova 1.3.7 adds a user-controlled problem-report handoff, stops offering a per-session display choice the host cannot honor, and adds the two Steam Big Picture chords that were still unreachable from many streaming controllers.
 

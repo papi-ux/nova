@@ -137,7 +137,22 @@ class NovaLibraryActivitySourceTest {
         assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor_hint"))
         assertTrue(systemMenu.contains("onOpenSponsor()"))
-        assertTrue(systemMenu.contains("minHeight = 28.dp"))
+        val matrixAction = sourceBetween(
+            systemMenu,
+            "text = stringResource(R.string.nova_system_menu_matrix)",
+            "text = stringResource(R.string.nova_system_menu_sponsor)"
+        )
+        val sponsorAction = sourceBetween(
+            systemMenu,
+            "text = stringResource(R.string.nova_system_menu_sponsor)",
+            "Spacer(modifier = Modifier.height(4.dp))"
+        )
+        assertTrue(matrixAction.contains("onOpenMatrixCommunity()"))
+        assertFalse(matrixAction.contains("onOpenSponsor()"))
+        assertTrue(sponsorAction.contains("onOpenSponsor()"))
+        assertFalse(sponsorAction.contains("onOpenMatrixCommunity()"))
+        assertTrue(matrixAction.contains("minHeight = 48.dp"))
+        assertTrue(sponsorAction.contains("minHeight = 48.dp"))
         assertTrue(systemMenu.contains("fontSize = 9.sp"))
         assertTrue(source.contains("onOpenSponsor = ::openSponsor"))
         assertTrue(source.contains("onOpenMatrixCommunity = ::openMatrixCommunity"))

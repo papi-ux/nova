@@ -24,7 +24,7 @@ class NovaReleaseMetadataTest {
 
         assertTrue(build.contains("versionName \"1.3.7\""))
         assertTrue(build.contains("versionCode = 39"))
-        assertTrue(changelog.contains("## 1.3.7 - 2026-08-18"))
+        assertTrue(changelog.contains("## 1.3.7 - 2026-08-19"))
         assertTrue(changelog.contains("does not automatically upload a report"))
         assertTrue(releaseScript.contains("-PnovaAbis=arm64-v8a,armeabi-v7a,x86_64"))
         for (asset in listOf(

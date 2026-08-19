@@ -29,7 +29,13 @@ class NovaPlaySetupModePickerComposeTest {
     fun disabledCardConsumesControllerActivationWithoutPicking() {
         val picked = mutableListOf<String>()
         val escapedActivationKeys = mutableListOf<Key>()
-        val activationKeys = listOf(Key.ButtonA, Key.DirectionCenter, Key.Enter)
+        val activationKeys = listOf(
+            Key.ButtonA,
+            Key.DirectionCenter,
+            Key.Enter,
+            Key.NumPadEnter,
+            Key.Spacebar,
+        )
         val detail = "Set by the host. This mode cannot be chosen for one session."
 
         composeRule.setContent {

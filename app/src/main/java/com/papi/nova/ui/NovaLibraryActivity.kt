@@ -2960,7 +2960,7 @@ class NovaLibraryActivity : NovaActivity() {
                                 onDismiss()
                                 onOpenMatrixCommunity()
                             },
-                            minHeight = 28.dp,
+                            minHeight = 48.dp,
                             fontSize = 9.sp,
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                         )
@@ -2971,7 +2971,7 @@ class NovaLibraryActivity : NovaActivity() {
                                 onDismiss()
                                 onOpenSponsor()
                             },
-                            minHeight = 28.dp,
+                            minHeight = 48.dp,
                             fontSize = 9.sp,
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                         )
