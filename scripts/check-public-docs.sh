@@ -27,6 +27,7 @@ required_links = (
     "https://papi-ux.com/docs/nova/quickstart/",
     "https://papi-ux.com/docs/nova/compatibility/",
     "https://papi-ux.com/docs/roadmap/",
+    "https://matrix.to/#/#papi-ux:papi-ux.com",
     "https://github.com/papi-ux/nova/releases/latest",
     "CHANGELOG.md",
     "SECURITY.md",

@@ -15,11 +15,13 @@ each launch before it happens, and keeps live session controls close while you
 play.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1f1d31)](https://github.com/papi-ux/nova/stargazers)
+[![Matrix](https://img.shields.io/badge/Matrix-Join_chat-0dbd8b?style=for-the-badge&logo=matrix&logoColor=white&labelColor=1f1d31)](https://matrix.to/#/#papi-ux:papi-ux.com)
 [![License](https://img.shields.io/github/license/papi-ux/nova?style=for-the-badge&color=4c5265&labelColor=1f1d31)](LICENSE.txt)
 [![Release](https://img.shields.io/github/v/release/papi-ux/nova?style=for-the-badge&color=c8d6e5&labelColor=1f1d31&label=latest)](https://github.com/papi-ux/nova/releases/latest)
 
 [**Explore Nova**](https://papi-ux.com/nova/) ·
 [**Install ARM64**](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk) ·
+[Join the Matrix community](https://matrix.to/#/#papi-ux:papi-ux.com) ·
 [All releases](https://github.com/papi-ux/nova/releases/latest) ·
 [Quick start](https://papi-ux.com/docs/nova/quickstart/)
 
@@ -139,7 +141,7 @@ device, architecture, codec, HDR, sensor, and host notes.
 
 - [Nova documentation](https://papi-ux.com/docs/nova/) · [Quick start](https://papi-ux.com/docs/nova/quickstart/) · [Compatibility](https://papi-ux.com/docs/nova/compatibility/)
 - [Roadmap](https://papi-ux.com/docs/roadmap/) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/papi-ux/nova/releases)
-- [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Source](https://github.com/papi-ux/nova)
+- [Matrix community](https://matrix.to/#/#papi-ux:papi-ux.com) · [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Source](https://github.com/papi-ux/nova)
 - [Security policy](SECURITY.md) · [Contributing](.github/CONTRIBUTING.md)
 
 ## Acknowledgments
@@ -170,6 +172,6 @@ License v3.0](LICENSE.txt).
   <img src="docs/screenshots/Polaris_icon_1.svg" width="56" alt="Polaris mascot">
 </picture>
 
-<sub>[Website](https://papi-ux.com/nova/) · [Documentation](https://papi-ux.com/docs/nova/) · [Releases](https://github.com/papi-ux/nova/releases) · [Security](SECURITY.md)</sub>
+<sub>[Website](https://papi-ux.com/nova/) · [Matrix](https://matrix.to/#/#papi-ux:papi-ux.com) · [Documentation](https://papi-ux.com/docs/nova/) · [Releases](https://github.com/papi-ux/nova/releases) · [Security](SECURITY.md)</sub>
 
 </div>

@@ -311,6 +311,7 @@ class NovaLibraryActivity : NovaActivity() {
                         onOpenPolarisSync = ::openPolarisSync,
                         onOpenHelpDiagnostics = ::openHelpDiagnostics,
                         onOpenAbout = ::showAboutNova,
+                        onOpenMatrixCommunity = ::openMatrixCommunity,
                         onOpenSponsor = ::openSponsor,
                         onSortMode = { sortMode ->
                             updateLibraryOptions { it.copy(sortMode = sortMode) }
@@ -1085,6 +1086,10 @@ class NovaLibraryActivity : NovaActivity() {
         HelpLauncher.launchSponsor(this)
     }
 
+    private fun openMatrixCommunity() {
+        HelpLauncher.launchMatrixCommunity(this)
+    }
+
     private fun finishWithTransition() {
         finish()
         NovaThemeManager.applyBackTransition(this)
@@ -1177,6 +1182,7 @@ class NovaLibraryActivity : NovaActivity() {
         onOpenPolarisSync: () -> Unit,
         onOpenHelpDiagnostics: () -> Unit,
         onOpenAbout: () -> Unit,
+        onOpenMatrixCommunity: () -> Unit,
         onOpenSponsor: () -> Unit,
         onSortMode: (NovaLibrarySortMode) -> Unit,
         onLayoutMode: (NovaLibraryLayoutMode) -> Unit,
@@ -1470,6 +1476,7 @@ class NovaLibraryActivity : NovaActivity() {
                         onManageServer = onManageServer,
                         onOpenHelpDiagnostics = onOpenHelpDiagnostics,
                         onOpenAbout = onOpenAbout,
+                        onOpenMatrixCommunity = onOpenMatrixCommunity,
                         onOpenSponsor = onOpenSponsor
                     )
                 }
@@ -2746,6 +2753,7 @@ class NovaLibraryActivity : NovaActivity() {
         onManageServer: () -> Unit,
         onOpenHelpDiagnostics: () -> Unit,
         onOpenAbout: () -> Unit,
+        onOpenMatrixCommunity: () -> Unit,
         onOpenSponsor: () -> Unit
     ) {
         val colors = LocalNovaComposeColors.current
@@ -2941,20 +2949,33 @@ class NovaLibraryActivity : NovaActivity() {
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp)
                         )
                     }
-                    NovaActionButton(
-                        text = stringResource(R.string.nova_system_menu_sponsor),
-                        contentDescription = stringResource(R.string.nova_system_menu_sponsor_hint),
-                        onClick = {
-                            onDismiss()
-                            onOpenSponsor()
-                        },
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .widthIn(min = 120.dp),
-                        minHeight = 28.dp,
-                        fontSize = 9.sp,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        NovaActionButton(
+                            text = stringResource(R.string.nova_system_menu_matrix),
+                            contentDescription = stringResource(R.string.nova_system_menu_matrix_hint),
+                            onClick = {
+                                onDismiss()
+                                onOpenMatrixCommunity()
+                            },
+                            minHeight = 28.dp,
+                            fontSize = 9.sp,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                        NovaActionButton(
+                            text = stringResource(R.string.nova_system_menu_sponsor),
+                            contentDescription = stringResource(R.string.nova_system_menu_sponsor_hint),
+                            onClick = {
+                                onDismiss()
+                                onOpenSponsor()
+                            },
+                            minHeight = 28.dp,
+                            fontSize = 9.sp,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                 }
             }

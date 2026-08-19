@@ -10,6 +10,8 @@ Nova 1.3.7 adds a user-controlled problem-report handoff, stops offering a per-s
 
 Play Setup reads Polaris' `session_overridable` field and disables a topology-changing mode such as Headless Dongle for a one-session choice while leaving it available under Every Game/default host configuration. Older Polaris hosts omit the field and remain fully selectable (#239). Command Center Quick Keys and the classic More Keys sheet add Ctrl+1 and Ctrl+2, providing the Steam Big Picture menu and Quick Access Menu chords that many controllers cannot otherwise send; both paths were exercised during a live AYN Thor session (#237, #238).
 
+The System sheet adds compact Matrix community and GitHub Sponsor actions, and the README carries the same canonical public Space invite. CI also disables Gradle build caching and KAPT incremental annotation-processing cache paths until the Kotlin deserialization advisory can be removed by an upstream upgrade (#243, #244).
+
 The public README refreshes its exact-release Aurora showcase, provenance pointer, store links, AI transparency, community and acknowledgments material without relabeling older captures as this release (#233-#236).
 
 ### Release packaging

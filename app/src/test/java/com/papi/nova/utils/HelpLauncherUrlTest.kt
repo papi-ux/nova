@@ -45,4 +45,21 @@ class HelpLauncherUrlTest {
             sponsor.contains("https://github.com/sponsors/papi-ux")
         )
     }
+
+    @Test
+    fun matrixCommunityLaunchesTheCanonicalPapiUxSpace() {
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/utils/HelpLauncher.kt")),
+            StandardCharsets.UTF_8
+        )
+        val matrix = source.substring(
+            source.indexOf("fun launchMatrixCommunity"),
+            source.indexOf("fun launchSponsor")
+        )
+
+        assertTrue(
+            "Matrix should open the canonical papi-ux Space",
+            matrix.contains("https://matrix.to/#/#papi-ux:papi-ux.com")
+        )
+    }
 }
