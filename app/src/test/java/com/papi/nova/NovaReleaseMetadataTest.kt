@@ -16,6 +16,7 @@ class NovaReleaseMetadataTest {
         val build = File(root, "app/build.gradle").readText()
         val changelog = File(root, "CHANGELOG.md").readText()
         val releaseScript = File(root, "bin/release.sh").readText()
+        val releaseWorkflow = File(root, ".github/workflows/build.yml").readText()
         val storeNotes = File(
             root,
             "fastlane/metadata/android/en-US/changelogs/39.txt"
@@ -26,6 +27,11 @@ class NovaReleaseMetadataTest {
         assertTrue(build.contains("versionCode = 39"))
         assertTrue(changelog.contains("## 1.3.7 - 2026-08-19"))
         assertTrue(changelog.contains("does not automatically upload a report"))
+        assertTrue(releaseWorkflow.contains("python3 scripts/extract_release_notes.py"))
+        assertTrue(releaseWorkflow.contains("--notes-file \"\$release_notes\""))
+        assertTrue(releaseWorkflow.contains("gh release edit \"\${GITHUB_REF_NAME}\""))
+        assertTrue(releaseWorkflow.contains("published_notes="))
+        assertTrue(!releaseWorkflow.contains("--generate-notes"))
         assertTrue(releaseScript.contains("-PnovaAbis=arm64-v8a,armeabi-v7a,x86_64"))
         for (asset in listOf(
             "Nova-Android-arm64-v8a.apk",

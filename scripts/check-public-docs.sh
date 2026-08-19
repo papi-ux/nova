@@ -86,6 +86,15 @@ grep -Fq "$expected_latest_x86_url" README.md
 grep -Fq "arm64-v8a,armeabi-v7a,x86_64" app/build.gradle
 grep -Fq "unsigned_apks=(\"\${APK_DIR}\"/*release-unsigned.apk)" .github/workflows/build.yml
 grep -Fq 'gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber' .github/workflows/build.yml
+grep -Fq 'python3 scripts/extract_release_notes.py "${GITHUB_REF_NAME}" > "$release_notes"' .github/workflows/build.yml
+grep -Fq -- '--notes-file "$release_notes"' .github/workflows/build.yml
+grep -Fq 'gh release edit "${GITHUB_REF_NAME}"' .github/workflows/build.yml
+grep -Fq 'published_notes="$(gh release view "${GITHUB_REF_NAME}" --json body --jq .body)"' .github/workflows/build.yml
+if grep -Fq -- '--generate-notes' .github/workflows/build.yml; then
+  echo "Release workflow must publish the curated changelog section, not generated notes." >&2
+  exit 1
+fi
+python3 scripts/test_extract_release_notes.py
 grep -Fq "Nova-Android-\${abi}.apk" .github/workflows/build.yml
 grep -Fq "F-Droid and IzzyOnDroid Packaging Notes" docs/fdroid.md
 grep -Fq 'buildConfigField "boolean", "FDROID_BUILD"' app/build.gradle
