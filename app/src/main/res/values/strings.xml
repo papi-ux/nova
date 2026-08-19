@@ -261,6 +261,8 @@
     <string name="nova_system_menu_about">About Nova</string>
     <string name="nova_system_menu_about_hint">Version and client identity.</string>
     <string name="nova_system_menu_about_toast">%1$s</string>
+    <string name="nova_system_menu_sponsor">♥ Sponsor</string>
+    <string name="nova_system_menu_sponsor_hint">Support Polaris and Nova on GitHub Sponsors.</string>
     <string name="nova_controller_hint_system">System</string>
     <string name="nova_game_detail_resume">Resume</string>
     <string name="nova_game_detail_watch">Watch</string>

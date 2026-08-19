@@ -51,6 +51,11 @@ object HelpLauncher {
     }
 
     @JvmStatic
+    fun launchSponsor(context: Context) {
+        launchUrl(context, "https://github.com/sponsors/papi-ux")
+    }
+
+    @JvmStatic
     fun launchGameStreamEolFaq(context: Context) {
         launchUrl(
             context,

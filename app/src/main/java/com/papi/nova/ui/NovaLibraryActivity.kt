@@ -311,6 +311,7 @@ class NovaLibraryActivity : NovaActivity() {
                         onOpenPolarisSync = ::openPolarisSync,
                         onOpenHelpDiagnostics = ::openHelpDiagnostics,
                         onOpenAbout = ::showAboutNova,
+                        onOpenSponsor = ::openSponsor,
                         onSortMode = { sortMode ->
                             updateLibraryOptions { it.copy(sortMode = sortMode) }
                         },
@@ -1080,6 +1081,10 @@ class NovaLibraryActivity : NovaActivity() {
         ).show()
     }
 
+    private fun openSponsor() {
+        HelpLauncher.launchSponsor(this)
+    }
+
     private fun finishWithTransition() {
         finish()
         NovaThemeManager.applyBackTransition(this)
@@ -1172,6 +1177,7 @@ class NovaLibraryActivity : NovaActivity() {
         onOpenPolarisSync: () -> Unit,
         onOpenHelpDiagnostics: () -> Unit,
         onOpenAbout: () -> Unit,
+        onOpenSponsor: () -> Unit,
         onSortMode: (NovaLibrarySortMode) -> Unit,
         onLayoutMode: (NovaLibraryLayoutMode) -> Unit,
         onPosterTitlesVisible: (Boolean) -> Unit,
@@ -1463,7 +1469,8 @@ class NovaLibraryActivity : NovaActivity() {
                         onOpenPolarisSync = onOpenPolarisSync,
                         onManageServer = onManageServer,
                         onOpenHelpDiagnostics = onOpenHelpDiagnostics,
-                        onOpenAbout = onOpenAbout
+                        onOpenAbout = onOpenAbout,
+                        onOpenSponsor = onOpenSponsor
                     )
                 }
                 activeOptionsSheet -> {
@@ -2738,7 +2745,8 @@ class NovaLibraryActivity : NovaActivity() {
         onOpenPolarisSync: () -> Unit,
         onManageServer: () -> Unit,
         onOpenHelpDiagnostics: () -> Unit,
-        onOpenAbout: () -> Unit
+        onOpenAbout: () -> Unit,
+        onOpenSponsor: () -> Unit
     ) {
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
@@ -2933,6 +2941,20 @@ class NovaLibraryActivity : NovaActivity() {
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp)
                         )
                     }
+                    NovaActionButton(
+                        text = stringResource(R.string.nova_system_menu_sponsor),
+                        contentDescription = stringResource(R.string.nova_system_menu_sponsor_hint),
+                        onClick = {
+                            onDismiss()
+                            onOpenSponsor()
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .widthIn(min = 120.dp),
+                        minHeight = 28.dp,
+                        fontSize = 9.sp,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
                 }
             }
