@@ -58,6 +58,20 @@ class NovaReleaseMetadataTest {
         }
     }
 
+    private fun assertConsecutive(lines: List<String>, expected: List<String>) {
+        val width = expected.size
+        assertTrue(
+            "Missing fail-closed executable block: $expected",
+            lines.windowed(width).any { it == expected },
+        )
+    }
+
+    private fun assertNoHeredoc(lines: List<String>, context: String) {
+        assertTrue("$context must not use heredoc payloads as contract evidence", lines.none {
+            it.contains("<<")
+        })
+    }
+
     @Test
     fun versionNameCodeAndPublicReleaseMetadataStayConsistent() {
         val root = repoRoot()
@@ -120,6 +134,7 @@ class NovaReleaseMetadataTest {
 
         val tagGuard = workflowStep(buildJob, orderedSteps[0])
         val tagGuardLines = workflowRunLines(tagGuard)
+        assertNoHeredoc(tagGuardLines, "Release tag guard")
         assertTrue(tagGuard.lines().any {
             it == "          EXPECTED_SOURCE_COMMIT: \${{ needs.verify.outputs.source_commit }}"
         })
@@ -130,9 +145,28 @@ class NovaReleaseMetadataTest {
             "tag_commit=\"\$(git rev-parse \"refs/tags/\${GITHUB_REF_NAME}^{commit}\")\"",
             "if [ \"\$tag_commit\" != \"\$EXPECTED_SOURCE_COMMIT\" ]; then",
         ))
+        assertConsecutive(tagGuardLines, listOf(
+            "if [[ ! \"\${GITHUB_REF_NAME}\" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+\$ ]]; then",
+            "echo \"Release tag must match vMAJOR.MINOR.PATCH: \${GITHUB_REF_NAME}\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertConsecutive(tagGuardLines, listOf(
+            "if [ \"\$checked_out_commit\" != \"\$EXPECTED_SOURCE_COMMIT\" ]; then",
+            "echo \"Release checkout \$checked_out_commit does not match verified source \$EXPECTED_SOURCE_COMMIT\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertConsecutive(tagGuardLines, listOf(
+            "if [ \"\$tag_commit\" != \"\$EXPECTED_SOURCE_COMMIT\" ]; then",
+            "echo \"Release tag \${GITHUB_REF_NAME} moved to \$tag_commit; expected \$EXPECTED_SOURCE_COMMIT\" >&2",
+            "exit 1",
+            "fi",
+        ))
 
         val stage = workflowStep(buildJob, orderedSteps[1])
         val stageLines = workflowRunLines(stage)
+        assertNoHeredoc(stageLines, "Release staging")
         assertTrue(stage.lines().any { it == "        id: stage-release" })
         assertOrdered(stageLines, listOf(
             "gh release create \"\${GITHUB_REF_NAME}\" \\",
@@ -152,18 +186,36 @@ class NovaReleaseMetadataTest {
         } == 2)
         assertTrue(stageLines.none { it.contains("is_draft=") })
         assertTrue(stageLines.none { it.startsWith("gh release upload ") })
-        assertTrue(stageLines.none { it.contains("<<") })
+        assertTrue(stageLines.count {
+            it == "gh release create \"\${GITHUB_REF_NAME}\" \\"
+        } == 1)
+        assertTrue(stageLines.count {
+            it == "gh release edit \"\${GITHUB_REF_NAME}\" \\"
+        } == 1)
+        assertConsecutive(stageLines, listOf(
+            "if [ ! -f \"\$file\" ]; then",
+            "echo \"Missing release asset: \$file\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertConsecutive(stageLines, listOf(
+            "if [ \"\$published_notes\" != \"\$expected_notes\" ]; then",
+            "echo \"Published release notes do not match CHANGELOG.md\" >&2",
+            "exit 1",
+            "fi",
+        ))
 
         val upload = workflowStep(buildJob, orderedSteps[2])
         val uploadLines = workflowRunLines(upload)
+        assertNoHeredoc(uploadLines, "Release asset upload")
         assertTrue(uploadLines.contains(
             "gh release upload \"\${GITHUB_REF_NAME}\" \"\${release_assets[@]}\" --clobber"
         ))
         assertTrue(uploadLines.none { it.contains("published_notes=") })
-        assertTrue(uploadLines.none { it.contains("<<") })
 
         val verify = workflowStep(buildJob, orderedSteps[3])
         val verifyLines = workflowRunLines(verify)
+        assertNoHeredoc(verifyLines, "Release asset verification")
         for (asset in listOf(
             "Nova-Android-arm64-v8a.apk",
             "Nova-Android-arm64-v8a.apk.sha256",
@@ -177,7 +229,14 @@ class NovaReleaseMetadataTest {
         assertTrue(verifyLines.contains(
             "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then"
         ))
-        assertTrue(verifyLines.none { it.contains("<<") })
+        assertConsecutive(verifyLines, listOf(
+            "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then",
+            "echo \"Release assets do not match the exact six-file contract on \${GITHUB_REF_NAME}\" >&2",
+            "printf 'expected: %s\\n' \"\${expected_assets[*]}\" >&2",
+            "printf 'published: %s\\n' \"\${published_assets[*]}\" >&2",
+            "exit 1",
+            "fi",
+        ))
 
         val publish = workflowStep(buildJob, orderedSteps[4])
         assertTrue(publish.lines().any {
