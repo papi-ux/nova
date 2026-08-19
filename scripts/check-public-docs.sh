@@ -94,6 +94,7 @@ grep -Fq 'ref: ${{ github.sha }}' .github/workflows/build.yml
 grep -Fq 'EXPECTED_SOURCE_COMMIT: ${{ needs.verify.outputs.source_commit }}' .github/workflows/build.yml
 grep -Fq 'git fetch --no-tags --force origin' .github/workflows/build.yml
 grep -Fq -- '--draft' .github/workflows/build.yml
+grep -Fq -- '--draft=true' .github/workflows/build.yml
 grep -Fq -- '--draft=false' .github/workflows/build.yml
 if grep -Fq -- '--generate-notes' .github/workflows/build.yml; then
   echo "Release workflow must publish the curated changelog section, not generated notes." >&2
@@ -121,6 +122,8 @@ upload_start = positions[2]
 stage = workflow[stage_start:upload_start]
 if stage.count("--verify-tag") != 2 or "gh release upload" in stage:
     raise SystemExit("Release create and edit must verify the tag before any asset upload")
+if stage.count('echo "publish_draft=true"') != 2 or "is_draft=" in stage:
+    raise SystemExit("Both new and existing releases must remain draft until verification")
 if stage.find("published_notes=") < stage.find("gh release edit"):
     raise SystemExit("Release notes must be read back after staging")
 

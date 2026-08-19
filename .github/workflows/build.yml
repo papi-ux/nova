@@ -296,10 +296,10 @@ jobs:
           else
             gh release edit "${GITHUB_REF_NAME}" \
               --verify-tag \
+              --draft=true \
               --title "${GITHUB_REF_NAME}" \
               --notes-file "$release_notes"
-            is_draft="$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq .isDraft)"
-            echo "publish_draft=$is_draft" >> "$GITHUB_OUTPUT"
+            echo "publish_draft=true" >> "$GITHUB_OUTPUT"
           fi
 
           expected_notes="$(cat "$release_notes")"
