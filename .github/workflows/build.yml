@@ -275,16 +275,37 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
 
-          release_assets=("${APK_ASSET_DIR}"/*.apk "${APK_ASSET_DIR}"/*.apk.sha256)
-          release_notes="$RUNNER_TEMP/nova-release-notes.md"
-          python3 scripts/extract_release_notes.py "${GITHUB_REF_NAME}" > "$release_notes"
-
-          for file in "${release_assets[@]}"; do
-            if [ ! -f "$file" ]; then
-              echo "Missing release asset: $file" >&2
+          expected_asset_names=(
+            Nova-Android-arm64-v8a.apk
+            Nova-Android-arm64-v8a.apk.sha256
+            Nova-Android-armeabi-v7a.apk
+            Nova-Android-armeabi-v7a.apk.sha256
+            Nova-Android-x86_64.apk
+            Nova-Android-x86_64.apk.sha256
+          )
+          release_assets=()
+          for asset_name in "${expected_asset_names[@]}"; do
+            release_asset="${APK_ASSET_DIR}/${asset_name}"
+            if [ ! -f "$release_asset" ]; then
+              echo "Missing release asset: $release_asset" >&2
               exit 1
             fi
+            release_assets+=("$release_asset")
           done
+          mapfile -t local_asset_names < <(
+            find "${APK_ASSET_DIR}" -maxdepth 1 -type f -printf '%f\n' | sort
+          )
+          mapfile -t expected_asset_names < <(
+            printf '%s\n' "${expected_asset_names[@]}" | sort
+          )
+          if [ "${local_asset_names[*]}" != "${expected_asset_names[*]}" ]; then
+            echo "Local release assets do not match the exact six-file contract" >&2
+            printf 'expected: %s\n' "${expected_asset_names[*]}" >&2
+            printf 'local: %s\n' "${local_asset_names[*]}" >&2
+            exit 1
+          fi
+          release_notes="$RUNNER_TEMP/nova-release-notes.md"
+          python3 scripts/extract_release_notes.py "${GITHUB_REF_NAME}" > "$release_notes"
 
           if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release create "${GITHUB_REF_NAME}" \
@@ -318,7 +339,18 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
 
-          release_assets=("${APK_ASSET_DIR}"/*.apk "${APK_ASSET_DIR}"/*.apk.sha256)
+          expected_asset_names=(
+            Nova-Android-arm64-v8a.apk
+            Nova-Android-arm64-v8a.apk.sha256
+            Nova-Android-armeabi-v7a.apk
+            Nova-Android-armeabi-v7a.apk.sha256
+            Nova-Android-x86_64.apk
+            Nova-Android-x86_64.apk.sha256
+          )
+          release_assets=()
+          for asset_name in "${expected_asset_names[@]}"; do
+            release_assets+=("${APK_ASSET_DIR}/${asset_name}")
+          done
           gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber
 
       - name: Verify GitHub Release assets

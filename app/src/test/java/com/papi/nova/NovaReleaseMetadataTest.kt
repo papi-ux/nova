@@ -169,6 +169,10 @@ class NovaReleaseMetadataTest {
         assertNoHeredoc(stageLines, "Release staging")
         assertTrue(stage.lines().any { it == "        id: stage-release" })
         assertOrdered(stageLines, listOf(
+            "expected_asset_names=(",
+            "release_assets=()",
+            "for asset_name in \"\${expected_asset_names[@]}\"; do",
+            "if [ \"\${local_asset_names[*]}\" != \"\${expected_asset_names[*]}\" ]; then",
             "gh release create \"\${GITHUB_REF_NAME}\" \\",
             "--draft \\",
             "--verify-tag \\",
@@ -192,9 +196,35 @@ class NovaReleaseMetadataTest {
         assertTrue(stageLines.count {
             it == "gh release edit \"\${GITHUB_REF_NAME}\" \\"
         } == 1)
+        val stageReleaseMutations = stageLines.filter {
+            Regex("\\bgh\\s+release\\s+(create|edit|upload|delete-asset)\\b")
+                .containsMatchIn(it)
+        }
+        assertTrue(stageReleaseMutations == listOf(
+            "gh release create \"\${GITHUB_REF_NAME}\" \\",
+            "gh release edit \"\${GITHUB_REF_NAME}\" \\",
+        ))
         assertConsecutive(stageLines, listOf(
-            "if [ ! -f \"\$file\" ]; then",
-            "echo \"Missing release asset: \$file\" >&2",
+            "expected_asset_names=(",
+            "Nova-Android-arm64-v8a.apk",
+            "Nova-Android-arm64-v8a.apk.sha256",
+            "Nova-Android-armeabi-v7a.apk",
+            "Nova-Android-armeabi-v7a.apk.sha256",
+            "Nova-Android-x86_64.apk",
+            "Nova-Android-x86_64.apk.sha256",
+            ")",
+        ))
+        assertConsecutive(stageLines, listOf(
+            "if [ ! -f \"\$release_asset\" ]; then",
+            "echo \"Missing release asset: \$release_asset\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertConsecutive(stageLines, listOf(
+            "if [ \"\${local_asset_names[*]}\" != \"\${expected_asset_names[*]}\" ]; then",
+            "echo \"Local release assets do not match the exact six-file contract\" >&2",
+            "printf 'expected: %s\\n' \"\${expected_asset_names[*]}\" >&2",
+            "printf 'local: %s\\n' \"\${local_asset_names[*]}\" >&2",
             "exit 1",
             "fi",
         ))
@@ -208,7 +238,23 @@ class NovaReleaseMetadataTest {
         val upload = workflowStep(buildJob, orderedSteps[2])
         val uploadLines = workflowRunLines(upload)
         assertNoHeredoc(uploadLines, "Release asset upload")
+        assertConsecutive(uploadLines, listOf(
+            "expected_asset_names=(",
+            "Nova-Android-arm64-v8a.apk",
+            "Nova-Android-arm64-v8a.apk.sha256",
+            "Nova-Android-armeabi-v7a.apk",
+            "Nova-Android-armeabi-v7a.apk.sha256",
+            "Nova-Android-x86_64.apk",
+            "Nova-Android-x86_64.apk.sha256",
+            ")",
+        ))
         assertTrue(uploadLines.contains(
+            "gh release upload \"\${GITHUB_REF_NAME}\" \"\${release_assets[@]}\" --clobber"
+        ))
+        assertTrue(uploadLines.filter {
+            Regex("\\bgh\\s+release\\s+(create|edit|upload|delete-asset)\\b")
+                .containsMatchIn(it)
+        } == listOf(
             "gh release upload \"\${GITHUB_REF_NAME}\" \"\${release_assets[@]}\" --clobber"
         ))
         assertTrue(uploadLines.none { it.contains("published_notes=") })
@@ -216,16 +262,21 @@ class NovaReleaseMetadataTest {
         val verify = workflowStep(buildJob, orderedSteps[3])
         val verifyLines = workflowRunLines(verify)
         assertNoHeredoc(verifyLines, "Release asset verification")
-        for (asset in listOf(
+        val exactAssetNames = listOf(
             "Nova-Android-arm64-v8a.apk",
             "Nova-Android-arm64-v8a.apk.sha256",
             "Nova-Android-armeabi-v7a.apk",
             "Nova-Android-armeabi-v7a.apk.sha256",
             "Nova-Android-x86_64.apk",
             "Nova-Android-x86_64.apk.sha256",
-        )) {
+        )
+        for (asset in exactAssetNames) {
             assertTrue(verifyLines.contains(asset))
         }
+        assertConsecutive(
+            verifyLines,
+            listOf("expected_assets=(") + exactAssetNames + listOf(")"),
+        )
         assertTrue(verifyLines.contains(
             "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then"
         ))
