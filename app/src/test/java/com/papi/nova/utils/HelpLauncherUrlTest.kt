@@ -28,4 +28,21 @@ class HelpLauncherUrlTest {
             setupGuide.contains("moonlight-stream/moonlight-docs")
         )
     }
+
+    @Test
+    fun sponsorLaunchesThePapiUxGithubSponsorsPage() {
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/utils/HelpLauncher.kt")),
+            StandardCharsets.UTF_8
+        )
+        val sponsor = source.substring(
+            source.indexOf("fun launchSponsor"),
+            source.indexOf("fun launchGameStreamEolFaq")
+        )
+
+        assertTrue(
+            "Sponsor should open the papi-ux GitHub Sponsors page",
+            sponsor.contains("https://github.com/sponsors/papi-ux")
+        )
+    }
 }

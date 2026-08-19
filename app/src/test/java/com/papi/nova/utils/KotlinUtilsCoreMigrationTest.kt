@@ -30,6 +30,7 @@ class KotlinUtilsCoreMigrationTest {
         HelpLauncher::class.java.getMethod("launchUrl", Context::class.java, String::class.java)
         HelpLauncher::class.java.getMethod("launchSetupGuide", Context::class.java)
         HelpLauncher::class.java.getMethod("launchTroubleshooting", Context::class.java)
+        HelpLauncher::class.java.getMethod("launchSponsor", Context::class.java)
         HelpLauncher::class.java.getMethod("launchGameStreamEolFaq", Context::class.java)
 
         assertTrue(Runnable::class.java.isAssignableFrom(Dialog::class.java))

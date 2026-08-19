@@ -129,5 +129,14 @@ class NovaLibraryActivitySourceTest {
         assertTrue(systemMenu.contains("onManageServer: () -> Unit"))
         assertTrue(systemMenu.contains("onOpenHelpDiagnostics: () -> Unit"))
         assertTrue(systemMenu.contains("onOpenAbout: () -> Unit"))
+        assertTrue(systemMenu.contains("onOpenSponsor: () -> Unit"))
+        assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor"))
+        assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor_hint"))
+        assertTrue(systemMenu.contains("onOpenSponsor()"))
+        assertTrue(systemMenu.contains("minHeight = 28.dp"))
+        assertTrue(systemMenu.contains("fontSize = 9.sp"))
+        assertTrue(source.contains("onOpenSponsor = ::openSponsor"))
+        assertTrue(source.contains("private fun openSponsor()"))
+        assertTrue(source.contains("HelpLauncher.launchSponsor(this)"))
     }
 }
