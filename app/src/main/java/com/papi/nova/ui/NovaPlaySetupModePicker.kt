@@ -24,6 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -274,7 +277,19 @@ private fun NovaPlaySetupModeCard(
                 if (choice.enabled) {
                     Modifier.clickable(role = Role.Button) { onPick() }
                 } else {
-                    Modifier.focusable()
+                    Modifier
+                        // A disabled card remains focusable so its host-supplied reason
+                        // can be read, but activation must stop here. Otherwise Compose
+                        // bubbles the controller key to an ancestor, which can activate
+                        // the mode row underneath the full-panel picker.
+                        .onPreviewKeyEvent { event ->
+                            event.key == Key.ButtonA ||
+                                event.key == Key.DirectionCenter ||
+                                event.key == Key.Enter ||
+                                event.key == Key.NumPadEnter ||
+                                event.key == Key.Spacebar
+                        }
+                        .focusable()
                 }
             )
             .heightIn(min = NovaGameDetailActionHeight)
