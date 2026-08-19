@@ -10,13 +10,52 @@ class NovaReleaseMetadataTest {
             .first { candidate -> File(candidate, "app/build.gradle").isFile }
     }
 
-    private fun workflowStep(workflow: String, name: String): String {
-        val marker = "      - name: $name\n"
+    private fun workflowJob(workflow: String, name: String): String {
+        val marker = "  $name:\n"
         val start = workflow.indexOf(marker)
-        require(start >= 0) { "Missing workflow step: $name" }
-        val end = workflow.indexOf("\n      - name:", start + marker.length)
-            .let { if (it >= 0) it else workflow.length }
+        require(start >= 0) { "Missing workflow job: $name" }
+        val nextJob = Regex("(?m)^  [A-Za-z0-9_-]+:\\s*$")
+            .find(workflow, start + marker.length)
+        val end = nextJob?.range?.first ?: workflow.length
         return workflow.substring(start, end)
+    }
+
+    private fun workflowStep(job: String, name: String): String {
+        val marker = "      - name: $name\n"
+        val start = job.indexOf(marker)
+        require(start >= 0) { "Missing workflow step: $name" }
+        val end = job.indexOf("\n      - name:", start + marker.length)
+            .let { if (it >= 0) it else job.length }
+        return job.substring(start, end)
+    }
+
+    private fun workflowRunLines(step: String): List<String> {
+        val blockMarker = "        run: |\n"
+        val blockStart = step.indexOf(blockMarker)
+        if (blockStart >= 0) {
+            return step.substring(blockStart + blockMarker.length)
+                .lineSequence()
+                .takeWhile { it.isBlank() || it.startsWith("          ") }
+                .map { if (it.length >= 10) it.substring(10).trim() else "" }
+                .filter { it.isNotEmpty() && !it.startsWith("#") }
+                .toList()
+        }
+
+        val scalar = Regex("(?m)^        run: (.+)$").find(step)
+            ?: error("Missing workflow run command")
+        return listOf(scalar.groupValues[1].trim())
+    }
+
+    private fun assertOrdered(lines: List<String>, expected: List<String>) {
+        var cursor = 0
+        for (expectedLine in expected) {
+            val relativePosition = lines.subList(cursor, lines.size).indexOf(expectedLine)
+            assertTrue(
+                "Missing or out-of-order executable release command: $expectedLine",
+                relativePosition >= 0,
+            )
+            cursor += relativePosition + 1
+        }
     }
 
     @Test
@@ -61,6 +100,7 @@ class NovaReleaseMetadataTest {
     fun releasePublicationStaysBoundToOneVerifiedSource() {
         val root = repoRoot()
         val workflow = File(root, ".github/workflows/build.yml").readText()
+        val buildJob = workflowJob(workflow, "build")
         val orderedSteps = listOf(
             "Verify release tag matches built source",
             "Stage curated GitHub release",
@@ -68,38 +108,62 @@ class NovaReleaseMetadataTest {
             "Verify GitHub Release assets",
             "Publish verified draft release",
         )
-        val positions = orderedSteps.map { workflow.indexOf("      - name: $it\n") }
+        val positions = orderedSteps.map { buildJob.indexOf("      - name: $it\n") }
 
         assertTrue(positions.all { it >= 0 })
         assertTrue(positions == positions.sorted())
-        assertTrue(workflow.split("uses: actions/checkout@v5").size - 1 == 3)
-        assertTrue(workflow.split("ref: \${{ github.sha }}").size - 1 == 3)
-        assertTrue(workflow.contains("source_commit: \${{ steps.source.outputs.commit }}"))
+        assertTrue(workflow.lines().count { it == "      - uses: actions/checkout@v5" } == 3)
+        assertTrue(workflow.lines().count { it == "          ref: \${{ github.sha }}" } == 3)
+        assertTrue(workflow.lines().count {
+            it == "      source_commit: \${{ steps.source.outputs.commit }}"
+        } == 1)
 
-        val tagGuard = workflowStep(workflow, orderedSteps[0])
-        assertTrue(tagGuard.contains("^v[0-9]+\\.[0-9]+\\.[0-9]+\$"))
-        assertTrue(tagGuard.contains("EXPECTED_SOURCE_COMMIT: \${{ needs.verify.outputs.source_commit }}"))
-        assertTrue(tagGuard.contains("checked_out_commit=\"\$(git rev-parse HEAD)\""))
-        assertTrue(tagGuard.contains("git fetch --no-tags --force origin"))
-        assertTrue(tagGuard.contains("tag_commit=\"\$(git rev-parse"))
-        assertTrue(tagGuard.contains("if [ \"\$tag_commit\" != \"\$EXPECTED_SOURCE_COMMIT\" ]; then"))
+        val tagGuard = workflowStep(buildJob, orderedSteps[0])
+        val tagGuardLines = workflowRunLines(tagGuard)
+        assertTrue(tagGuard.lines().any {
+            it == "          EXPECTED_SOURCE_COMMIT: \${{ needs.verify.outputs.source_commit }}"
+        })
+        assertOrdered(tagGuardLines, listOf(
+            "if [[ ! \"\${GITHUB_REF_NAME}\" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+\$ ]]; then",
+            "checked_out_commit=\"\$(git rev-parse HEAD)\"",
+            "git fetch --no-tags --force origin \\",
+            "tag_commit=\"\$(git rev-parse \"refs/tags/\${GITHUB_REF_NAME}^{commit}\")\"",
+            "if [ \"\$tag_commit\" != \"\$EXPECTED_SOURCE_COMMIT\" ]; then",
+        ))
 
-        val stage = workflowStep(workflow, orderedSteps[1])
-        assertTrue(stage.contains("id: stage-release"))
-        assertTrue(stage.contains("--draft"))
-        assertTrue(stage.contains("--draft=true"))
-        assertTrue(stage.split("--verify-tag").size - 1 == 2)
-        assertTrue(stage.split("echo \"publish_draft=true\"").size - 1 == 2)
-        assertTrue(!stage.contains("is_draft="))
-        assertTrue(stage.contains("published_notes="))
-        assertTrue(stage.contains("if [ \"\$published_notes\" != \"\$expected_notes\" ]; then"))
-        assertTrue(!stage.contains("gh release upload"))
+        val stage = workflowStep(buildJob, orderedSteps[1])
+        val stageLines = workflowRunLines(stage)
+        assertTrue(stage.lines().any { it == "        id: stage-release" })
+        assertOrdered(stageLines, listOf(
+            "gh release create \"\${GITHUB_REF_NAME}\" \\",
+            "--draft \\",
+            "--verify-tag \\",
+            "echo \"publish_draft=true\" >> \"\$GITHUB_OUTPUT\"",
+            "gh release edit \"\${GITHUB_REF_NAME}\" \\",
+            "--verify-tag \\",
+            "--draft=true \\",
+            "echo \"publish_draft=true\" >> \"\$GITHUB_OUTPUT\"",
+            "published_notes=\"\$(gh release view \"\${GITHUB_REF_NAME}\" --json body --jq .body)\"",
+            "if [ \"\$published_notes\" != \"\$expected_notes\" ]; then",
+        ))
+        assertTrue(stageLines.count { it == "--verify-tag \\" } == 2)
+        assertTrue(stageLines.count {
+            it == "echo \"publish_draft=true\" >> \"\$GITHUB_OUTPUT\""
+        } == 2)
+        assertTrue(stageLines.none { it.contains("is_draft=") })
+        assertTrue(stageLines.none { it.startsWith("gh release upload ") })
+        assertTrue(stageLines.none { it.contains("<<") })
 
-        val upload = workflowStep(workflow, orderedSteps[2])
-        assertTrue(upload.contains("gh release upload"))
-        assertTrue(!upload.contains("published_notes="))
+        val upload = workflowStep(buildJob, orderedSteps[2])
+        val uploadLines = workflowRunLines(upload)
+        assertTrue(uploadLines.contains(
+            "gh release upload \"\${GITHUB_REF_NAME}\" \"\${release_assets[@]}\" --clobber"
+        ))
+        assertTrue(uploadLines.none { it.contains("published_notes=") })
+        assertTrue(uploadLines.none { it.contains("<<") })
 
-        val verify = workflowStep(workflow, orderedSteps[3])
+        val verify = workflowStep(buildJob, orderedSteps[3])
+        val verifyLines = workflowRunLines(verify)
         for (asset in listOf(
             "Nova-Android-arm64-v8a.apk",
             "Nova-Android-arm64-v8a.apk.sha256",
@@ -108,12 +172,20 @@ class NovaReleaseMetadataTest {
             "Nova-Android-x86_64.apk",
             "Nova-Android-x86_64.apk.sha256",
         )) {
-            assertTrue(verify.contains(asset))
+            assertTrue(verifyLines.contains(asset))
         }
-        assertTrue(verify.contains("if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then"))
+        assertTrue(verifyLines.contains(
+            "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then"
+        ))
+        assertTrue(verifyLines.none { it.contains("<<") })
 
-        val publish = workflowStep(workflow, orderedSteps[4])
-        assertTrue(publish.contains("steps.stage-release.outputs.publish_draft == 'true'"))
-        assertTrue(publish.contains("--verify-tag --draft=false"))
+        val publish = workflowStep(buildJob, orderedSteps[4])
+        assertTrue(publish.lines().any {
+            it == "        if: startsWith(github.ref, 'refs/tags/v') && " +
+                "steps.stage-release.outputs.publish_draft == 'true'"
+        })
+        assertTrue(workflowRunLines(publish) == listOf(
+            "gh release edit \"\${GITHUB_REF_NAME}\" --verify-tag --draft=false"
+        ))
     }
 }
