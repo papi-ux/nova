@@ -293,7 +293,7 @@
     <string name="nova_play_setup_every_game">Every Game</string>
     <string name="nova_play_setup_pref_auto">Polaris decides from how each session went.</string>
     <string name="nova_play_setup_pref_quality">Holds resolution and bitrate. Drops frames before it drops sharpness.</string>
-    <string name="nova_play_setup_pref_balanced">Gives up a little of each to keep the stream steady.</string>
+    <string name="nova_play_setup_pref_stability">Plays it safe. Holds a steadier, lower target instead of chasing peaks.</string>
     <string name="nova_play_setup_pref_high_fps">Chases frame rate. Softens the picture when the host cannot hold both.</string>
     <string name="nova_play_setup_steam_direct">Launches the game itself. Nothing else opens.</string>
     <string name="nova_play_setup_steam_big_picture">Opens Big Picture first, which takes the controller until the game starts.</string>

@@ -174,7 +174,7 @@ class NovaSettingsDefinitionsTest {
         prefs.edit()
             .putString("nova_stream_preset", StreamPreset.BALANCED.key)
             .putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, "1280x720")
-            .putString(PreferenceConfiguration.FPS_PREF_STRING, StreamPreset.BALANCED.fps)
+            .putString(PreferenceConfiguration.FPS_PREF_STRING, PreferenceConfiguration.DEFAULT_FPS)
             .putInt(PreferenceConfiguration.BITRATE_PREF_STRING, 15000)
             .putString("video_format", StreamPreset.BALANCED.codec)
             .commit()
@@ -202,7 +202,7 @@ class NovaSettingsDefinitionsTest {
             prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, null)
         )
         assertEquals(
-            StreamPreset.BALANCED.fps,
+            PreferenceConfiguration.DEFAULT_FPS,
             prefs.getString(PreferenceConfiguration.FPS_PREF_STRING, null)
         )
         assertFalse(prefs.contains("list_resolution_fps"))
@@ -214,7 +214,7 @@ class NovaSettingsDefinitionsTest {
         prefs.edit()
             .putString("nova_stream_preset", StreamPreset.PERFORMANCE.key)
             .putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, StreamPreset.PERFORMANCE.resolution)
-            .putString(PreferenceConfiguration.FPS_PREF_STRING, StreamPreset.PERFORMANCE.fps)
+            .putString(PreferenceConfiguration.FPS_PREF_STRING, PreferenceConfiguration.DEFAULT_FPS)
             .putInt(PreferenceConfiguration.BITRATE_PREF_STRING, StreamPreset.PERFORMANCE.bitrateKbps)
             .putString("video_format", StreamPreset.PERFORMANCE.codec)
             .commit()

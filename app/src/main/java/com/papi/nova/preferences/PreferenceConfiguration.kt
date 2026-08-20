@@ -668,7 +668,7 @@ class PreferenceConfiguration {
                 prefs.getString(RESOLUTION_PREF_STRING, DEFAULT_RESOLUTION) ?: DEFAULT_RESOLUTION
             }
             val fps = if (legacyResFps == "720p60") {
-                StreamPreset.BALANCED.fps
+                DEFAULT_FPS
             } else {
                 prefs.getString(FPS_PREF_STRING, DEFAULT_FPS) ?: DEFAULT_FPS
             }
@@ -684,7 +684,7 @@ class PreferenceConfiguration {
             val shouldMigrate =
                 preset == StreamPreset.BALANCED.key &&
                     resolution == LEGACY_DEFAULT_RESOLUTION &&
-                    fps == StreamPreset.BALANCED.fps &&
+                    fps == DEFAULT_FPS &&
                     isBalancedDefaultBitrate &&
                     codec == StreamPreset.BALANCED.codec
 
@@ -692,7 +692,7 @@ class PreferenceConfiguration {
                 .putBoolean(LEGACY_BALANCED_RESOLUTION_MIGRATION, true)
             if (shouldMigrate) {
                 editor.putString(RESOLUTION_PREF_STRING, StreamPreset.BALANCED.resolution)
-                editor.putString(FPS_PREF_STRING, StreamPreset.BALANCED.fps)
+                editor.putString(FPS_PREF_STRING, DEFAULT_FPS)
                 editor.remove(LEGACY_RES_FPS_PREF_STRING)
             }
             editor.apply()

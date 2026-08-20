@@ -125,10 +125,14 @@ class StreamSettings : NovaActivity() {
 
     private fun showComposeSettings() {
         legacyMode = false
+        val maxPanelFps = NovaDisplayFpsCapability.maxSupportedFps(windowManager.defaultDisplay)
+        coerceStoredFpsToPanel(maxPanelFps)
         val canonicalDefinitions = NovaSettingDefinitions.load(this)
         val definitions = NovaSettingsAvailability.filter(this, canonicalDefinitions).let { filtered ->
             filtered.copy(
-                settings = filtered.settings.filterNot { it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY }
+                settings = filtered.settings
+                    .filterNot { it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY }
+                    .map { definition -> cullFpsOptionsToPanel(definition, maxPanelFps) }
             )
         }
         val store = NovaSettingsRepository.create(this)
@@ -162,6 +166,30 @@ class StreamSettings : NovaActivity() {
         }
         setContentView(content)
         UiHelper.notifyNewRootView(this)
+    }
+
+    // The legacy fragment culls the fps ListPreference to what the panel can present
+    // (removeEntryFromListAndSetValue below); the Compose screen reads the raw XML
+    // definitions, so it applies the same panel rules here or 90/120 get offered on
+    // panels that cannot show them.
+    private fun cullFpsOptionsToPanel(
+        definition: NovaSettingDefinition,
+        maxPanelFps: Float
+    ): NovaSettingDefinition {
+        if (definition.key != PreferenceConfiguration.FPS_PREF_STRING) {
+            return definition
+        }
+        val allowed = NovaDisplayFpsCapability.allowedFpsValues(maxPanelFps).map(Int::toString)
+        return definition.copy(options = definition.options.filter { it.value in allowed })
+    }
+
+    private fun coerceStoredFpsToPanel(maxPanelFps: Float) {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val stored = prefs.getString(PreferenceConfiguration.FPS_PREF_STRING, null)?.toIntOrNull() ?: return
+        val coerced = NovaDisplayFpsCapability.coerce(stored, maxPanelFps)
+        if (coerced != stored) {
+            prefs.edit().putString(PreferenceConfiguration.FPS_PREF_STRING, coerced.toString()).apply()
+        }
     }
 
     private fun showLegacySettings() {
@@ -628,7 +656,6 @@ class StreamSettings : NovaActivity() {
                 if (preset != null) {
                     getPrefs().edit()
                         .putString("list_resolution", preset.resolution)
-                        .putString("list_fps", preset.fps)
                         .putInt("seekbar_bitrate_kbps", preset.bitrateKbps)
                         .putString("video_format", preset.codec)
                         .apply()
@@ -754,7 +781,7 @@ class StreamSettings : NovaActivity() {
             }
 
             val display = activity.windowManager.defaultDisplay
-            var maxSupportedFps = display.refreshRate
+            val maxSupportedFps = NovaDisplayFpsCapability.maxSupportedFps(display)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 var maxSupportedResW = 0
@@ -802,10 +829,6 @@ class StreamSettings : NovaActivity() {
                         maxSupportedResW = 2560
                     } else if ((width >= 1920 || height >= 1080) && maxSupportedResW < 1920) {
                         maxSupportedResW = 1920
-                    }
-
-                    if (candidate.refreshRate > maxSupportedFps) {
-                        maxSupportedFps = candidate.refreshRate
                     }
                 }
 
@@ -886,16 +909,17 @@ class StreamSettings : NovaActivity() {
                 addNativeResolutionEntries(width, height, false, false)
             }
 
-            if (maxSupportedFps < 118) {
+            val allowedFpsValues = NovaDisplayFpsCapability.allowedFpsValues(maxSupportedFps)
+            if (120 !in allowedFpsValues) {
                 removeEntryFromListAndSetValue(PreferenceConfiguration.FPS_PREF_STRING, "120", "90")
             }
-            if (maxSupportedFps < 88) {
+            if (90 !in allowedFpsValues) {
                 removeEntryFromListAndSetValue(PreferenceConfiguration.FPS_PREF_STRING, "90", "60")
             }
             addNativeFrameRateEntry(maxSupportedFps, false)
 
             findPreference<CheckBoxPreference>(PreferenceConfiguration.UNLOCK_FPS_STRING)?.let { unlockFpsPref ->
-                if (maxSupportedFps < 88) {
+                if (90 !in allowedFpsValues) {
                     unlockFpsPref.isEnabled = false
                     unlockFpsPref.summary = getString(
                         R.string.summary_unlock_fps_display_cap,

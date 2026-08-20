@@ -31,6 +31,14 @@ internal val NOVA_STREAM_UI_RESET_REMOVALS = setOf(
     "nova_polaris_hud_y"
 )
 
+// A preset never writes the fps preference: the user's frame-rate choice is
+// orthogonal and must survive preset switches.
+internal fun novaPresetSettingUpdates(preset: StreamPreset): Map<String, NovaSettingValue> = mapOf(
+    PreferenceConfiguration.RESOLUTION_PREF_STRING to NovaSettingValue.StringValue(preset.resolution),
+    PreferenceConfiguration.BITRATE_PREF_STRING to NovaSettingValue.IntValue(preset.bitrateKbps),
+    "video_format" to NovaSettingValue.StringValue(preset.codec)
+)
+
 internal suspend fun persistNovaStreamUiDefaults(
     store: NovaSettingsStore,
     definitions: NovaSettingsDefinitionSet
@@ -131,12 +139,7 @@ class NovaSettingsViewModel(
         if (definition.key != "nova_stream_preset" || value !is NovaSettingValue.StringValue) return
 
         val preset = StreamPreset.fromKey(value.value) ?: return
-        val updates = mapOf(
-            PreferenceConfiguration.RESOLUTION_PREF_STRING to NovaSettingValue.StringValue(preset.resolution),
-            PreferenceConfiguration.FPS_PREF_STRING to NovaSettingValue.StringValue(preset.fps),
-            PreferenceConfiguration.BITRATE_PREF_STRING to NovaSettingValue.IntValue(preset.bitrateKbps),
-            "video_format" to NovaSettingValue.StringValue(preset.codec)
-        )
+        val updates = novaPresetSettingUpdates(preset)
         for ((key, settingValue) in updates) {
             val presetDefinition = definitions.find(key) ?: continue
             store.set(presetDefinition, settingValue)
