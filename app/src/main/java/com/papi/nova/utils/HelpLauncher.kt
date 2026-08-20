@@ -51,6 +51,11 @@ object HelpLauncher {
     }
 
     @JvmStatic
+    fun launchMatrixCommunity(context: Context) {
+        launchUrl(context, "https://matrix.to/#/#papi-ux:papi-ux.com")
+    }
+
+    @JvmStatic
     fun launchSponsor(context: Context) {
         launchUrl(context, "https://github.com/sponsors/papi-ux")
     }

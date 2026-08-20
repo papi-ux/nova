@@ -27,6 +27,7 @@ required_links = (
     "https://papi-ux.com/docs/nova/quickstart/",
     "https://papi-ux.com/docs/nova/compatibility/",
     "https://papi-ux.com/docs/roadmap/",
+    "https://matrix.to/#/#papi-ux:papi-ux.com",
     "https://github.com/papi-ux/nova/releases/latest",
     "CHANGELOG.md",
     "SECURITY.md",
@@ -85,6 +86,62 @@ grep -Fq "$expected_latest_x86_url" README.md
 grep -Fq "arm64-v8a,armeabi-v7a,x86_64" app/build.gradle
 grep -Fq "unsigned_apks=(\"\${APK_DIR}\"/*release-unsigned.apk)" .github/workflows/build.yml
 grep -Fq 'gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber' .github/workflows/build.yml
+grep -Fq 'python3 scripts/extract_release_notes.py "${GITHUB_REF_NAME}" > "$release_notes"' .github/workflows/build.yml
+grep -Fq -- '--notes-file "$release_notes"' .github/workflows/build.yml
+grep -Fq 'gh release edit "${GITHUB_REF_NAME}"' .github/workflows/build.yml
+grep -Fq 'published_notes="$(gh release view "${GITHUB_REF_NAME}" --json body --jq .body)"' .github/workflows/build.yml
+grep -Fq 'ref: ${{ github.sha }}' .github/workflows/build.yml
+grep -Fq 'EXPECTED_SOURCE_COMMIT: ${{ needs.verify.outputs.source_commit }}' .github/workflows/build.yml
+grep -Fq 'git fetch --no-tags --force origin' .github/workflows/build.yml
+grep -Fq -- '--draft' .github/workflows/build.yml
+grep -Fq -- '--draft=true' .github/workflows/build.yml
+grep -Fq -- '--draft=false' .github/workflows/build.yml
+if grep -Fq -- '--generate-notes' .github/workflows/build.yml; then
+  echo "Release workflow must publish the curated changelog section, not generated notes." >&2
+  exit 1
+fi
+python3 - <<'PY'
+from pathlib import Path
+
+workflow = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
+steps = (
+    "Verify release tag matches built source",
+    "Stage curated GitHub release",
+    "Upload GitHub Release assets",
+    "Verify GitHub Release assets",
+    "Publish verified draft release",
+)
+positions = [workflow.find(f"      - name: {step}\n") for step in steps]
+if -1 in positions or positions != sorted(positions):
+    raise SystemExit("Release source, notes, assets, and publication steps must stay ordered")
+if workflow.count("ref: ${{ github.sha }}") != 3:
+    raise SystemExit("Every Nova build lane must check out the exact event source")
+
+stage_start = positions[1]
+upload_start = positions[2]
+stage = workflow[stage_start:upload_start]
+if stage.count("--verify-tag") != 2 or "gh release upload" in stage:
+    raise SystemExit("Release create and edit must verify the tag before any asset upload")
+if stage.count('echo "publish_draft=true"') != 2 or "is_draft=" in stage:
+    raise SystemExit("Both new and existing releases must remain draft until verification")
+if stage.find("published_notes=") < stage.find("gh release edit"):
+    raise SystemExit("Release notes must be read back after staging")
+
+expected_assets = (
+    "Nova-Android-arm64-v8a.apk",
+    "Nova-Android-arm64-v8a.apk.sha256",
+    "Nova-Android-armeabi-v7a.apk",
+    "Nova-Android-armeabi-v7a.apk.sha256",
+    "Nova-Android-x86_64.apk",
+    "Nova-Android-x86_64.apk.sha256",
+)
+verify = workflow[positions[3]:positions[4]]
+verify_lines = [line.strip() for line in verify.splitlines()]
+for asset in expected_assets:
+    if verify_lines.count(asset) != 1:
+        raise SystemExit(f"Release verification must name {asset} exactly once")
+PY
+python3 scripts/test_extract_release_notes.py
 grep -Fq "Nova-Android-\${abi}.apk" .github/workflows/build.yml
 grep -Fq "F-Droid and IzzyOnDroid Packaging Notes" docs/fdroid.md
 grep -Fq 'buildConfigField "boolean", "FDROID_BUILD"' app/build.gradle
@@ -97,6 +154,7 @@ required_metadata=(
   "$metadata_dir/full_description.txt"
   "$metadata_dir/changelogs/16.txt"
   "$metadata_dir/changelogs/38.txt"
+  "$metadata_dir/changelogs/39.txt"
   "$metadata_dir/images/icon.png"
   "docs/fdroid.md"
 )

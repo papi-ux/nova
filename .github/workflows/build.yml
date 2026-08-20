@@ -17,11 +17,18 @@ jobs:
   verify:
     name: Lint and unit test
     runs-on: ubuntu-latest
+    outputs:
+      source_commit: ${{ steps.source.outputs.commit }}
 
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.sha }}
           submodules: recursive
+
+      - name: Record exact source commit
+        id: source
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -54,6 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.sha }}
           submodules: recursive
 
       - name: Set up JDK 21
@@ -100,6 +108,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.sha }}
           submodules: recursive
 
       - name: Set up JDK 21
@@ -229,6 +238,98 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+      - name: Verify release tag matches built source
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          EXPECTED_SOURCE_COMMIT: ${{ needs.verify.outputs.source_commit }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+          checked_out_commit="$(git rev-parse HEAD)"
+          if [ "$checked_out_commit" != "$EXPECTED_SOURCE_COMMIT" ]; then
+            echo "Release checkout $checked_out_commit does not match verified source $EXPECTED_SOURCE_COMMIT" >&2
+            exit 1
+          fi
+
+          git tag -d "${GITHUB_REF_NAME}" >/dev/null 2>&1 || true
+          git fetch --no-tags --force origin \
+            "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          tag_commit="$(git rev-parse "refs/tags/${GITHUB_REF_NAME}^{commit}")"
+          if [ "$tag_commit" != "$EXPECTED_SOURCE_COMMIT" ]; then
+            echo "Release tag ${GITHUB_REF_NAME} moved to $tag_commit; expected $EXPECTED_SOURCE_COMMIT" >&2
+            exit 1
+          fi
+
+      - name: Stage curated GitHub release
+        id: stage-release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          expected_asset_names=(
+            Nova-Android-arm64-v8a.apk
+            Nova-Android-arm64-v8a.apk.sha256
+            Nova-Android-armeabi-v7a.apk
+            Nova-Android-armeabi-v7a.apk.sha256
+            Nova-Android-x86_64.apk
+            Nova-Android-x86_64.apk.sha256
+          )
+          release_assets=()
+          for asset_name in "${expected_asset_names[@]}"; do
+            release_asset="${APK_ASSET_DIR}/${asset_name}"
+            if [ ! -f "$release_asset" ]; then
+              echo "Missing release asset: $release_asset" >&2
+              exit 1
+            fi
+            release_assets+=("$release_asset")
+          done
+          mapfile -t local_asset_names < <(
+            find "${APK_ASSET_DIR}" -maxdepth 1 -type f -printf '%f\n' | sort
+          )
+          mapfile -t expected_asset_names < <(
+            printf '%s\n' "${expected_asset_names[@]}" | sort
+          )
+          if [ "${local_asset_names[*]}" != "${expected_asset_names[*]}" ]; then
+            echo "Local release assets do not match the exact six-file contract" >&2
+            printf 'expected: %s\n' "${expected_asset_names[*]}" >&2
+            printf 'local: %s\n' "${local_asset_names[*]}" >&2
+            exit 1
+          fi
+          release_notes="$RUNNER_TEMP/nova-release-notes.md"
+          python3 scripts/extract_release_notes.py "${GITHUB_REF_NAME}" > "$release_notes"
+
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --draft \
+              --verify-tag \
+              --title "${GITHUB_REF_NAME}" \
+              --notes-file "$release_notes"
+            echo "publish_draft=true" >> "$GITHUB_OUTPUT"
+          else
+            gh release edit "${GITHUB_REF_NAME}" \
+              --verify-tag \
+              --draft=true \
+              --title "${GITHUB_REF_NAME}" \
+              --notes-file "$release_notes"
+            echo "publish_draft=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          expected_notes="$(cat "$release_notes")"
+          published_notes="$(gh release view "${GITHUB_REF_NAME}" --json body --jq .body)"
+          if [ "$published_notes" != "$expected_notes" ]; then
+            echo "Published release notes do not match CHANGELOG.md" >&2
+            exit 1
+          fi
+
       - name: Upload GitHub Release assets
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -238,22 +339,18 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
 
-          release_assets=("${APK_ASSET_DIR}"/*.apk "${APK_ASSET_DIR}"/*.apk.sha256)
-
-          for file in "${release_assets[@]}"; do
-            if [ ! -f "$file" ]; then
-              echo "Missing release asset: $file" >&2
-              exit 1
-            fi
+          expected_asset_names=(
+            Nova-Android-arm64-v8a.apk
+            Nova-Android-arm64-v8a.apk.sha256
+            Nova-Android-armeabi-v7a.apk
+            Nova-Android-armeabi-v7a.apk.sha256
+            Nova-Android-x86_64.apk
+            Nova-Android-x86_64.apk.sha256
+          )
+          release_assets=()
+          for asset_name in "${expected_asset_names[@]}"; do
+            release_assets+=("${APK_ASSET_DIR}/${asset_name}")
           done
-
-          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release create "${GITHUB_REF_NAME}" \
-              --verify-tag \
-              --title "${GITHUB_REF_NAME}" \
-              --generate-notes
-          fi
-
           gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber
 
       - name: Verify GitHub Release assets
@@ -264,12 +361,28 @@ jobs:
         run: |
           set -euo pipefail
 
-          asset_count=$(gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets | length')
-          if [ "${asset_count}" -lt 6 ]; then
-            echo "Expected at least 6 release assets on ${GITHUB_REF_NAME}, found ${asset_count}" >&2
+          expected_assets=(
+            Nova-Android-arm64-v8a.apk
+            Nova-Android-arm64-v8a.apk.sha256
+            Nova-Android-armeabi-v7a.apk
+            Nova-Android-armeabi-v7a.apk.sha256
+            Nova-Android-x86_64.apk
+            Nova-Android-x86_64.apk.sha256
+          )
+          mapfile -t published_assets < <(
+            gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | sort
+          )
+          mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
+          if [ "${published_assets[*]}" != "${expected_assets[*]}" ]; then
+            echo "Release assets do not match the exact six-file contract on ${GITHUB_REF_NAME}" >&2
+            printf 'expected: %s\n' "${expected_assets[*]}" >&2
+            printf 'published: %s\n' "${published_assets[*]}" >&2
             exit 1
           fi
 
-          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'Nova-Android-arm64-v8a.apk'
-          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'Nova-Android-armeabi-v7a.apk'
-          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fx 'Nova-Android-x86_64.apk'
+      - name: Publish verified draft release
+        if: startsWith(github.ref, 'refs/tags/v') && steps.stage-release.outputs.publish_draft == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "${GITHUB_REF_NAME}" --verify-tag --draft=false
