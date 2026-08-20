@@ -798,4 +798,66 @@ class NovaLaunchProfileSummaryTest {
         )
     }
 
+    private fun recoveryHoldOptimization(): JSONObject = JSONObject(
+        "{" +
+            "\"source\":\"history_safe\"," +
+            "\"display_mode\":\"1920x1080x30\"," +
+            "\"effective_target_fps\":30," +
+            "\"preference\":\"high_fps\"," +
+            "\"preference_applied\":false," +
+            "\"preference_blocked_reason\":\"history_safe_profile\"," +
+            "\"profile_state\":{" +
+            "\"state\":\"recovering\"," +
+            "\"label\":\"Recovery\"," +
+            "\"current_profile\":{\"display_mode\":\"1920x1080x30\",\"target_fps\":30}" +
+            "}" +
+            "}"
+    )
+
+    @Test
+    fun recoveryHoldWithHigherClientAskStatesTheGapAndItsReason() {
+        val summary = buildNovaLaunchProfileSummary(
+            recoveryHoldOptimization(),
+            nowSeconds = 1780000060L,
+            clientAskedFps = 120.0
+        )
+
+        requireNotNull(summary)
+        assertEquals("Selected: Recovery profile / 30 FPS · you asked 120", summary.selectedLine)
+        assertEquals("Held by History Safe Profile", summary.grantHoldReason)
+    }
+
+    @Test
+    fun clientFpsPinOwnsTheHeadlineAndRetiresTheTrial() {
+        val summary = buildNovaLaunchProfileSummary(
+            recoveryHoldOptimization(),
+            nowSeconds = 1780000060L,
+            clientAskedFps = 120.0,
+            clientFpsPinned = true
+        )
+
+        requireNotNull(summary)
+        assertEquals("Launch 120 FPS · your pick", summary.primaryLaunchLabel)
+        assertEquals(
+            "Selected: 120 FPS pinned (host offered Recovery profile / 30 FPS)",
+            summary.selectedLine
+        )
+        // The pin already launches at the asked rate, so the one-shot trial would be noise.
+        assertFalse(summary.showRetryHighFps)
+        assertEquals("", summary.grantHoldReason)
+    }
+
+    @Test
+    fun matchingClientAskAddsNoGapSuffix() {
+        val summary = buildNovaLaunchProfileSummary(
+            recoveryHoldOptimization(),
+            nowSeconds = 1780000060L,
+            clientAskedFps = 30.0
+        )
+
+        requireNotNull(summary)
+        assertEquals("Selected: Recovery profile / 30 FPS", summary.selectedLine)
+        assertEquals("", summary.grantHoldReason)
+    }
+
 }

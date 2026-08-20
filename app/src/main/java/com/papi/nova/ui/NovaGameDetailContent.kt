@@ -548,6 +548,38 @@ internal fun novaProfilePreferenceConsequenceRes(value: String): Int =
         else -> R.string.nova_play_setup_pref_auto
     }
 
+/**
+ * What the host actually did with a saved tuning ask. Auto asks for nothing and
+ * High FPS is binding client-side, so only quality/stability have an outcome the
+ * host owns -- and a host that predates preference_applied gets Default, never a
+ * fabricated decline read off a missing field.
+ */
+internal sealed class NovaTuningOutcome {
+    object Default : NovaTuningOutcome()
+    object Applied : NovaTuningOutcome()
+    data class Declined(val reason: String) : NovaTuningOutcome()
+}
+
+internal fun novaTuningOutcome(optimization: JSONObject?, preference: String): NovaTuningOutcome {
+    if (optimization == null) return NovaTuningOutcome.Default
+    val normalized = preference.trim().lowercase()
+    if (normalized == "auto" || normalized == "high_fps") return NovaTuningOutcome.Default
+    val profileState = optimization.optJSONObject("profile_state")
+    val appliedKnown = optimization.has("preference_applied") ||
+        profileState?.has("preference_applied") == true
+    if (!appliedKnown) return NovaTuningOutcome.Default
+    val applied = optimization.optBoolean(
+        "preference_applied",
+        profileState?.optBoolean("preference_applied", false) ?: false
+    )
+    if (applied) return NovaTuningOutcome.Applied
+    val reason = optimization.optString(
+        "preference_blocked_reason",
+        profileState?.optString("preference_blocked_reason", "") ?: ""
+    )
+    return NovaTuningOutcome.Declined(if (reason.isBlank()) "" else novaLaunchIssueLabel(reason))
+}
+
 /** The same, for the two ways Steam can be handed the game. */
 internal fun novaSteamLaunchConsequenceRes(value: String): Int =
     // "big-picture" with the hyphen is what SteamLaunchContract.normalizeMode returns, and
