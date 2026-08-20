@@ -543,7 +543,7 @@ private const val NOVA_DETAIL_SCENERY_CHROME_ALPHA = 0.16f
 internal fun novaProfilePreferenceConsequenceRes(value: String): Int =
     when (value.trim().lowercase()) {
         "quality" -> R.string.nova_play_setup_pref_quality
-        "balanced" -> R.string.nova_play_setup_pref_balanced
+        "stability" -> R.string.nova_play_setup_pref_stability
         "high_fps" -> R.string.nova_play_setup_pref_high_fps
         else -> R.string.nova_play_setup_pref_auto
     }
