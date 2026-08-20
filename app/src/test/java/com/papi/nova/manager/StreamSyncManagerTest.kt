@@ -266,6 +266,52 @@ class StreamSyncManagerTest {
     }
 
     @Test
+    fun resolveAutoSafeTargetFps_pairedOverrideIsStillClampedByConfirmedRecovery() {
+        // The launch composer relies on this ordering: a composed blob that keeps the
+        // stability block gets the paired display_mode pin AND the recovery min-clamp,
+        // so a resolution pick alone can never discard the safe target.
+        val optimization = JSONObject(
+            "{\"display_mode\":\"1440x810x60\",\"safe_target_fps\":30,\"source\":\"history_safe\"," +
+                "\"paired_profile_applied\":true," +
+                "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"," +
+                "\"safe_profile\":{\"target_fps\":30}}}"
+        )
+
+        val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization)
+
+        assertEquals(30f, targetFps, 0.01f)
+    }
+
+    @Test
+    fun resolveAutoSafeTargetFps_pairedOverrideWithRelaxedFlagPinsDisplayModeFps() {
+        // And this is the composer's explicit release: safe_target_fps_relaxed on the
+        // same blob is what lets an informed fps pin win over a confirmed recovery.
+        val optimization = JSONObject(
+            "{\"display_mode\":\"1440x810x120\",\"safe_target_fps\":30,\"source\":\"history_safe\"," +
+                "\"paired_profile_applied\":true,\"safe_target_fps_relaxed\":true," +
+                "\"effective_target_fps\":120," +
+                "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"," +
+                "\"safe_profile\":{\"target_fps\":30}}}"
+        )
+
+        val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(60f, optimization)
+
+        assertEquals(120f, targetFps, 0.01f)
+    }
+
+    @Test
+    fun resolveAutoSafeBitrateKbps_pairedOverrideStaysClampedByConfirmedRecovery() {
+        val optimization = JSONObject(
+            "{\"target_bitrate_kbps\":40000,\"source\":\"history_safe\"," +
+                "\"paired_profile_applied\":true," +
+                "\"stability\":{\"mode\":\"stability_first\"," +
+                "\"safe_profile\":{\"target_bitrate_kbps\":8000}}}"
+        )
+
+        assertEquals(8000, StreamSyncManager.resolveAutoSafeBitrateKbps(20000, optimization))
+    }
+
+    @Test
     fun requiresLaunchPreflightReview_ignoresMatchingRequestedAndEffectiveFps() {
         val optimization = JSONObject(
             "{\"requested_target_fps\":120,\"effective_target_fps\":120," +

@@ -22,6 +22,8 @@ import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.nvstream.wol.WakeOnLanSender
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.AutoQualityProfilePreferences
+import com.papi.nova.ui.NovaLaunchStreamOverride
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.CacheHelper
 import com.papi.nova.utils.DeviceUtils
@@ -679,16 +681,28 @@ class ShortcutTrampoline : NovaActivity() {
 
             val clientSettings = apiClient.getClientSettings()
             syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay, clientSettings)
+            // The per-game Tuning choice, not a fixed "auto": a game pinned to High FPS
+            // in Play Setup must launch pinned from a home-screen shortcut too.
+            val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.name)
             val optimization = apiClient.getOptimization(
                 DeviceUtils.getModel(),
                 polarisGame.name,
-                SHORTCUT_PROFILE_PREFERENCE,
+                profilePreference,
                 mode = PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings),
+            )
+            val preferences = PreferenceConfiguration.readPreferences(this)
+            val composed = NovaLaunchStreamOverride.compose(
+                optimization,
+                null,
+                NovaLaunchStreamOverride.highFpsPin(profilePreference, preferences.fps),
+                preferences.width,
+                preferences.height,
+                preferences.fps.toInt(),
             )
 
             launchPlan.copy(
-                profilePreference = SHORTCUT_PROFILE_PREFERENCE,
-                launchOptimizationJson = optimization?.toString(),
+                profilePreference = profilePreference,
+                launchOptimizationJson = composed?.toString(),
             )
         } catch (e: Exception) {
             LimeLog.warning("Nova: Shortcut launch Polaris preflight failed: ${e.message}")
@@ -825,7 +839,6 @@ class ShortcutTrampoline : NovaActivity() {
 
     companion object {
         private const val MAX_ART_FILE_CHARS = 64 * 1024
-        private const val SHORTCUT_PROFILE_PREFERENCE = "auto"
         private const val TAG = "ShortcutTrampoline"
     }
 }

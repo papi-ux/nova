@@ -50,25 +50,13 @@ class NovaDisplayResolutionPlannerTest {
     }
 
     @Test
-    fun selectedPresetBuildsLaunchOptimizationOverrideForGameStartup() {
-        val choice = NovaDisplayResolutionChoice(
-            id = "performance",
-            title = "Performance",
-            targetMode = "1280x800x90",
-            badge = "0.5x downscale",
-            reason = "Favor frame pacing.",
-            advanced = false,
-            custom = false,
-            safe = true,
-            recommended = false
-        )
-
-        val json = NovaDisplayResolutionPlanner.buildLaunchOptimizationOverride(choice, source = "nova_display_planner")
-
-        assertEquals("1280x800x90", json.optString("display_mode"))
-        assertTrue(json.optBoolean("paired_profile_applied"))
-        assertEquals("nova_display_planner", json.optString("source"))
-        assertEquals("display_resolution_planner", json.optString("normalization_reason"))
+    fun resolutionLabelDropsTheHostRateAndKeepsOddModesVerbatim() {
+        // The trailing rate is the host's plan, not this row's decision; a mode the
+        // parser does not recognize is shown as served rather than mangled.
+        assertEquals("1280x800", NovaDisplayResolutionPlanner.resolutionLabel("1280x800x90"))
+        assertEquals("1920x1080", NovaDisplayResolutionPlanner.resolutionLabel("1920x1080x59.94"))
+        assertEquals("1920x1080", NovaDisplayResolutionPlanner.resolutionLabel("1920x1080"))
+        assertEquals("", NovaDisplayResolutionPlanner.resolutionLabel(""))
     }
 
     @Test

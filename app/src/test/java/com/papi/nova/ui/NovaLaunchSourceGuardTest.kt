@@ -133,10 +133,12 @@ class NovaLaunchSourceGuardTest {
                 nvHttp.contains("launchMode=force_private_stream")
         )
         assertTrue(
-            "a launch must wait for the preflight the desktop Steam guard is read from, rather than taking a null blob as consent",
+            "a launch must wait for the preflight the desktop Steam guard is read from -- guarded on the " +
+                "RAW blob, because a resolution pick or fps pin makes the composed blob non-null while " +
+                "the guard's answer is still on the wire",
             detail.contains("val preflightInFlight: Boolean = false") &&
                 detail.contains("NovaGameDetailOptimizationState(preflightInFlight = true)") &&
-                detail.contains("if (optimization == null && optimizationState.preflightInFlight) {") &&
+                detail.contains("if (optimizationState.rawOptimization == null && optimizationState.preflightInFlight) {") &&
                 detail.contains("if (pendingLaunch) attemptLaunch()")
         )
         assertTrue(
@@ -409,10 +411,12 @@ class NovaLaunchSourceGuardTest {
         )
 
         assertTrue(
-            "Launch Options should switch to Polaris display planner rows when display_planner is advertised",
+            "Launch Options should switch to Polaris display planner rows when display_planner is advertised, " +
+                "and a pick composes over the host blob rather than replacing it -- replacement is what " +
+                "silently discarded the recovery clamp",
             detail.contains("game.displayPlanner") &&
                 detail.contains("NovaDisplayResolutionPlanner.from(") &&
-                detail.contains("NovaDisplayResolutionPlanner.buildLaunchOptimizationOverride(")
+                detail.contains("NovaLaunchStreamOverride.compose(")
         )
         assertTrue(
             "Planner choices are a row with a value rather than redundant Press A badges. The " +

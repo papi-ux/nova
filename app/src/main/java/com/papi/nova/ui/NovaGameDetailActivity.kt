@@ -117,6 +117,7 @@ import org.json.JSONObject
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.round
+import kotlin.math.roundToInt
 
 
 /**
@@ -399,12 +400,23 @@ class NovaGameDetailActivity : NovaActivity() {
         var pendingLaunch by mutableStateOf(false)
 
         /**
-         * The blob this launch would go out with: the resolution chosen here if there is
-         * one, otherwise whatever the host last planned.
+         * The blob this launch would go out with: the host's plan, composed with the
+         * resolution chosen here and the High FPS pin, when either exists. Composed
+         * over the host blob rather than replacing it, so a resolution pick no longer
+         * silently discards the recovery clamp -- only the explicit fps pin releases
+         * it. The fps that launches must always be re-derivable from this blob.
          */
-        fun launchOptimization(): JSONObject? = chosenResolution
-            ?.let { NovaDisplayResolutionPlanner.buildLaunchOptimizationOverride(it, "nova_display_planner") }
-            ?: optimizationState.rawOptimization
+        fun launchOptimization(): JSONObject? {
+            val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            return NovaLaunchStreamOverride.compose(
+                raw = optimizationState.rawOptimization,
+                resolution = chosenResolution,
+                fpsOverride = NovaLaunchStreamOverride.highFpsPin(profilePreference, preferences.fps),
+                fallbackWidth = preferences.width,
+                fallbackHeight = preferences.height,
+                fallbackFps = preferences.fps.toInt(),
+            )
+        }
 
         fun refreshUiState(preference: String = profilePreference) {
             uiState = buildUiState(currentGame, preference)
@@ -541,7 +553,10 @@ class NovaGameDetailActivity : NovaActivity() {
         fun attemptLaunch() {
             if (!uiState.playEnabled) return
             val optimization = launchOptimization()
-            if (optimization == null && optimizationState.preflightInFlight) {
+            // Guarded on the RAW blob: a pick or an fps pin makes the composed blob
+            // non-null even while the preflight that arms the desktop-Steam guard is
+            // still on the wire, and a launch in that window must wait either way.
+            if (optimizationState.rawOptimization == null && optimizationState.preflightInFlight) {
                 pendingLaunch = true
                 // Whatever is waiting to settle is what this launch is waiting on, so run
                 // it now instead of holding the press for a delay that exists to absorb
@@ -795,6 +810,11 @@ class NovaGameDetailActivity : NovaActivity() {
          */
         fun buildPlaySetupRows(): List<NovaPlaySetupRowState> {
             val rows = mutableListOf<NovaPlaySetupRowState>()
+            val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            val fpsPin = NovaLaunchStreamOverride.highFpsPin(profilePreference, preferences.fps)
+            val autoSafeFps = StreamSyncManager
+                .resolveAutoSafeTargetFps(preferences.fps, optimizationState.rawOptimization)
+                .roundToInt()
 
             val modeOptions = buildList {
                 if (uiState.headlessAllowed) {
@@ -845,7 +865,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else {
                         getString(R.string.nova_play_setup_resolution_caption)
                     },
-                    value = effective?.targetMode.orEmpty(),
+                    value = NovaDisplayResolutionPlanner.resolutionLabel(effective?.targetMode.orEmpty()),
                     stripTitle = getString(R.string.nova_play_setup_strip_resolution),
                     options = planner.visibleChoices.map { choice ->
                         NovaPlaySetupOption(
@@ -864,7 +884,15 @@ class NovaGameDetailActivity : NovaActivity() {
             rows += NovaPlaySetupRowState(
                 row = NovaPlaySetupRow.TUNING,
                 label = getString(R.string.nova_play_setup_tuning),
-                caption = getString(R.string.nova_game_detail_profile_caption),
+                // High FPS is binding, so the caption states the pin -- and, when the
+                // host is holding a recovery target below it, exactly what is being
+                // overridden. The other preferences keep the host in control.
+                caption = when {
+                    fpsPin != null && autoSafeFps in 1 until fpsPin ->
+                        getString(R.string.nova_play_setup_tuning_pins_over_hold, fpsPin, autoSafeFps)
+                    fpsPin != null -> getString(R.string.nova_play_setup_tuning_pins, fpsPin)
+                    else -> getString(R.string.nova_game_detail_profile_caption)
+                },
                 value = getString(AutoQualityProfilePreferences.shortLabelRes(profilePreference)),
                 stripTitle = getString(R.string.nova_play_setup_strip_tuning),
                 options = AutoQualityProfilePreferences.values().map { value ->
@@ -877,6 +905,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         onSelect = { selectProfilePreference(value) },
                     )
                 },
+                overridden = fpsPin != null,
             )
 
             if (uiState.showSteamLaunchMode) {
@@ -1066,10 +1095,21 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else if (optimizationState.reviewRequired) {
                         getString(R.string.nova_library_review_and_launch)
                     } else {
-                        optimizationState.profileSummary
-                            ?.primaryLaunchLabel
-                            ?.takeIf { it.isNotBlank() }
-                            ?: primaryPlayLabel(uiState)
+                        // The summary's label states the host's plan; a High FPS pin
+                        // outranks that plan, so the button must state the pin instead
+                        // of promising a recovery launch it will not perform.
+                        val fpsPin = NovaLaunchStreamOverride.highFpsPin(
+                            profilePreference,
+                            PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity).fps
+                        )
+                        if (fpsPin != null) {
+                            getString(R.string.nova_play_setup_launch_pinned_fps, fpsPin)
+                        } else {
+                            optimizationState.profileSummary
+                                ?.primaryLaunchLabel
+                                ?.takeIf { it.isNotBlank() }
+                                ?: primaryPlayLabel(uiState)
+                        }
                     },
                     launchModeTitle = getString(R.string.nova_library_launch_mode_title),
                     headlessModeLabel = modeBadgeLabel(PolarisGame.MODE_HEADLESS_STREAM),
