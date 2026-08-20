@@ -2,7 +2,6 @@ package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.shared.polaris.model.PolarisGame
-import org.json.JSONObject
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -61,17 +60,15 @@ data class NovaDisplayResolutionPlanner(
             )
         }
 
-        fun buildLaunchOptimizationOverride(choice: NovaDisplayResolutionChoice, source: String): JSONObject {
-            return JSONObject().apply {
-                put("source", source)
-                put("confidence", "high")
-                put("display_mode", choice.targetMode)
-                put("paired_profile_applied", true)
-                put("normalization_reason", "display_resolution_planner")
-                put("preference", "auto")
-                put("preference_applied", true)
-                put("display_planner_choice", choice.id)
-            }
+        /**
+         * The width x height half of a planner target mode. The trailing rate is the
+         * host's own plan for that mode, not a decision this row makes -- the frame
+         * rate is owned by Tuning and the launch composer -- so the row's value must
+         * not read as one.
+         */
+        fun resolutionLabel(targetMode: String): String {
+            val parts = targetMode.trim().split('x', 'X')
+            return if (parts.size == 3) "${parts[0]}x${parts[1]}" else targetMode
         }
 
         private fun plannerTitle(choice: PolarisGame.DisplayPlannerChoice, recommendedId: String): String {

@@ -49,6 +49,7 @@ import com.papi.nova.ui.NovaHudSessionSummaryLog
 import com.papi.nova.ui.NovaCompanionCommandDeckState
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudUiState
+import com.papi.nova.ui.NovaLaunchStreamOverride
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaSheetChrome
@@ -2390,7 +2391,16 @@ if (optimizationResult != null)
 LimeLog.info(("Nova: Launch optimization loaded source=" + optimizationResult.optString("source", "unknown") +
 " mode=" + optimizationResult.optString("display_mode", "")))
 }
-return optimizationResult
+// Launches that bypass the detail screen (Continue Playing, shortcuts that lost their
+// preflight) arrive here with the raw host blob, so the High FPS pin has to be composed
+// on this path too or Tuning = High FPS would only bind when Play Setup was opened.
+return NovaLaunchStreamOverride.compose(
+optimizationResult,
+null,
+NovaLaunchStreamOverride.highFpsPin(launchProfilePreference, prefConfig.fps),
+prefConfig.width,
+prefConfig.height,
+prefConfig.fps.toInt())
 }
 
 private fun getMaxSupportedRefreshRate(display:Display?):Float {
