@@ -25,14 +25,25 @@ data class NovaLaunchProfileSummary(
     val freshnessLine: String,
     val historyLines: List<String>,
     val showRetryHighFps: Boolean,
-    val retryHighFpsLabel: String
+    val retryHighFpsLabel: String,
+    /**
+     * What is holding the granted rate below the client's ask, prettified for display
+     * ("Held by History Safe Profile"). Blank when nothing is, or when a pin outranks
+     * the hold anyway.
+     */
+    val grantHoldReason: String = ""
 )
 
 internal fun buildNovaLaunchProfileSummary(
     optimization: JSONObject?,
-    nowSeconds: Long = System.currentTimeMillis() / 1000L
+    nowSeconds: Long = System.currentTimeMillis() / 1000L,
+    /** The fps this client actually asked for (its Settings frame rate); 0 = unknown. */
+    clientAskedFps: Double = 0.0,
+    /** True when Tuning = High FPS is pinning [clientAskedFps] over the host's plan. */
+    clientFpsPinned: Boolean = false
 ): NovaLaunchProfileSummary? {
     if (optimization == null) return null
+    val pinnedFps = if (clientFpsPinned && clientAskedFps > 0.0) clientAskedFps else 0.0
 
     val profileState = optimization.optJSONObject("profile_state")
     val currentProfile = profileState?.optJSONObject("current_profile")
@@ -82,6 +93,9 @@ internal fun buildNovaLaunchProfileSummary(
     }
 
     val primaryLabel = when {
+        // A pin outranks whatever the host planned, so the verb states the pin --
+        // promising a recovery launch that will not happen is worse than saying less.
+        pinnedFps > 0.0 -> "Launch ${formatFps(pinnedFps)} FPS · your pick"
         trialProfile && effectiveFps > 0.0 -> "Try High FPS stream ${formatFps(effectiveFps)} FPS"
         selectedLabel.equals("High FPS stream", ignoreCase = true) && effectiveFps > 0.0 ->
             "Launch High FPS stream ${formatFps(effectiveFps)} FPS"
@@ -97,10 +111,22 @@ internal fun buildNovaLaunchProfileSummary(
     } else {
         "Requested: $preferenceLabel"
     }
-    val selectedLine = if (effectiveFps > 0.0) {
-        "Selected: $selectedLabel / ${formatFps(effectiveFps)} FPS"
-    } else {
-        "Selected: $selectedLabel"
+    // The ask-vs-grant gap, stated where the grant is stated. The client ask is this
+    // client's Settings frame rate -- the host's own requested_* fields cannot be
+    // trusted to echo it, and the gap between the two is the single fact the old
+    // screen never said anywhere.
+    val askedGap = pinnedFps <= 0.0 &&
+        clientAskedFps > 0.0 &&
+        effectiveFps > 0.0 &&
+        clientAskedFps > effectiveFps + 0.5
+    val selectedLine = when {
+        pinnedFps > 0.0 && effectiveFps > 0.0 && pinnedFps > effectiveFps + 0.5 ->
+            "Selected: ${formatFps(pinnedFps)} FPS pinned (host offered $selectedLabel / ${formatFps(effectiveFps)} FPS)"
+        pinnedFps > 0.0 -> "Selected: ${formatFps(pinnedFps)} FPS pinned"
+        askedGap && effectiveFps > 0.0 ->
+            "Selected: $selectedLabel / ${formatFps(effectiveFps)} FPS · you asked ${formatFps(clientAskedFps)}"
+        effectiveFps > 0.0 -> "Selected: $selectedLabel / ${formatFps(effectiveFps)} FPS"
+        else -> "Selected: $selectedLabel"
     }
 
     val reasonText = profileState
@@ -129,7 +155,7 @@ internal fun buildNovaLaunchProfileSummary(
     }
 
     val issue = if (healthyPerformance) "" else reportedIssue
-    val limitingLine = issue.takeIf { it.isNotBlank() }?.let { "Limited by: ${issueLabel(it)}" }.orEmpty()
+    val limitingLine = issue.takeIf { it.isNotBlank() }?.let { "Limited by: ${novaLaunchIssueLabel(it)}" }.orEmpty()
 
     val updatedAt = lastResult?.optLong("updated_at", 0L) ?: 0L
     val freshnessLine = when {
@@ -150,12 +176,25 @@ internal fun buildNovaLaunchProfileSummary(
         "preference_applied",
         profileState?.optBoolean("preference_applied", false) ?: false
     )
-    val showRetryHighFps = !trialProfile &&
+    // A pin makes the trial pointless: the launch already goes out at the asked rate.
+    val showRetryHighFps = pinnedFps <= 0.0 &&
+        !trialProfile &&
         highFpsHeldBelowRequest &&
         (
             actions?.optBoolean("can_retry_high_fps", false) == true ||
                 (preference == "high_fps" && !preferenceApplied)
         )
+    val blockedReason = optimization.optString(
+        "preference_blocked_reason",
+        profileState?.optString("preference_blocked_reason", "") ?: ""
+    )
+    val grantHoldReason = when {
+        !askedGap -> ""
+        blockedReason.isNotBlank() -> "Held by ${novaLaunchIssueLabel(blockedReason)}"
+        issue.isNotBlank() -> "Held by ${novaLaunchIssueLabel(issue)}"
+        selectedLabel.startsWith("Recovery", ignoreCase = true) -> "Held by the recovery profile"
+        else -> ""
+    }
     val retryLabel = if (requestedFps > effectiveFps + 0.5) {
         "Try ${formatFps(requestedFps)} FPS once"
     } else {
@@ -195,7 +234,8 @@ internal fun buildNovaLaunchProfileSummary(
         freshnessLine = freshnessLine,
         historyLines = historyLines,
         showRetryHighFps = showRetryHighFps,
-        retryHighFpsLabel = retryLabel
+        retryHighFpsLabel = retryLabel,
+        grantHoldReason = grantHoldReason
     )
 }
 
@@ -244,7 +284,7 @@ private fun buildNoticeDetail(lastResult: JSONObject?, issue: String): String {
         "pacing", "frame_pacing" ->
             "Frames arrived unevenly, which can look like judder even when average FPS is high."
         "" -> ""
-        else -> "Polaris reported ${issueLabel(issue)} for the last session."
+        else -> "Polaris reported ${novaLaunchIssueLabel(issue)} for the last session."
     }
     return listOf(evidence, impact).filter { it.isNotBlank() }.joinToString(" ")
 }
@@ -294,7 +334,7 @@ private fun buildHistoryLines(
         lines += "Last: grade $grade"
     }
     if (issue.isNotBlank()) {
-        lines += "Issue: ${issueLabel(issue)}"
+        lines += "Issue: ${novaLaunchIssueLabel(issue)}"
     }
     if (selectedLabel.startsWith("Recovery", ignoreCase = true)) {
         lines += "Next: one clean launch can release recovery, or reset this game profile."
@@ -452,7 +492,7 @@ private fun selectedLabelFromState(state: String): String {
     }
 }
 
-private fun issueLabel(issue: String): String {
+internal fun novaLaunchIssueLabel(issue: String): String {
     return when (normalized(issue)) {
         "host_render", "host_render_limited" -> "Host Render"
         "decoder", "decoder_path" -> "Decoder Path"

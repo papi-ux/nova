@@ -891,7 +891,19 @@ class NovaGameDetailActivity : NovaActivity() {
                     fpsPin != null && autoSafeFps in 1 until fpsPin ->
                         getString(R.string.nova_play_setup_tuning_pins_over_hold, fpsPin, autoSafeFps)
                     fpsPin != null -> getString(R.string.nova_play_setup_tuning_pins, fpsPin)
-                    else -> getString(R.string.nova_game_detail_profile_caption)
+                    // The row used to show only the saved ask; for the asks the host
+                    // owns, the outcome is the half that was never said anywhere.
+                    else -> when (
+                        val outcome = novaTuningOutcome(optimizationState.rawOptimization, profilePreference)
+                    ) {
+                        is NovaTuningOutcome.Applied -> getString(R.string.nova_play_setup_tuning_applied)
+                        is NovaTuningOutcome.Declined -> if (outcome.reason.isNotBlank()) {
+                            getString(R.string.nova_play_setup_tuning_declined, outcome.reason)
+                        } else {
+                            getString(R.string.nova_play_setup_tuning_declined_no_reason)
+                        }
+                        else -> getString(R.string.nova_game_detail_profile_caption)
+                    }
                 },
                 value = getString(AutoQualityProfilePreferences.shortLabelRes(profilePreference)),
                 stripTitle = getString(R.string.nova_play_setup_strip_tuning),
@@ -1095,21 +1107,11 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else if (optimizationState.reviewRequired) {
                         getString(R.string.nova_library_review_and_launch)
                     } else {
-                        // The summary's label states the host's plan; a High FPS pin
-                        // outranks that plan, so the button must state the pin instead
-                        // of promising a recovery launch it will not perform.
-                        val fpsPin = NovaLaunchStreamOverride.highFpsPin(
-                            profilePreference,
-                            PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity).fps
-                        )
-                        if (fpsPin != null) {
-                            getString(R.string.nova_play_setup_launch_pinned_fps, fpsPin)
-                        } else {
-                            optimizationState.profileSummary
-                                ?.primaryLaunchLabel
-                                ?.takeIf { it.isNotBlank() }
-                                ?: primaryPlayLabel(uiState)
-                        }
+                        // Pin-aware in the summary itself now, so the button just reads it.
+                        optimizationState.profileSummary
+                            ?.primaryLaunchLabel
+                            ?.takeIf { it.isNotBlank() }
+                            ?: primaryPlayLabel(uiState)
                     },
                     launchModeTitle = getString(R.string.nova_library_launch_mode_title),
                     headlessModeLabel = modeBadgeLabel(PolarisGame.MODE_HEADLESS_STREAM),
@@ -1786,10 +1788,15 @@ class NovaGameDetailActivity : NovaActivity() {
             }
         }
 
+        val clientPreferences = PreferenceConfiguration.readPreferences(this)
         return NovaGameDetailOptimizationState(
             ai = aiCard,
             stability = stabilityCard,
-            profileSummary = buildNovaLaunchProfileSummary(opt),
+            profileSummary = buildNovaLaunchProfileSummary(
+                opt,
+                clientAskedFps = clientPreferences.fps.toDouble(),
+                clientFpsPinned = NovaLaunchStreamOverride.highFpsPin(profilePreference, clientPreferences.fps) != null,
+            ),
             rawOptimization = opt,
             reviewRequired = StreamSyncManager.requiresLaunchPreflightReview(opt),
             reviewReason = StreamSyncManager.launchPreflightReviewReason(opt),

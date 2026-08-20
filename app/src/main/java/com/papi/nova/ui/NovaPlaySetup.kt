@@ -629,7 +629,12 @@ internal fun novaPlaySetupPlan(
             facts += NovaPlaySetupFact(
                 key = askedKey,
                 value = asked,
-                detail = if (granted.isNotBlank()) grantedFormat.format(granted) else "",
+                // The why rides with the grant: "Granted: Recovery profile / 30 FPS ·
+                // Held by History Safe Profile" is the whole story in one fact.
+                detail = listOfNotNull(
+                    granted.takeIf { it.isNotBlank() }?.let { grantedFormat.format(it) },
+                    summary.grantHoldReason.takeIf { it.isNotBlank() },
+                ).joinToString(" · "),
             )
         }
 

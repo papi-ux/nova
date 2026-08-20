@@ -342,7 +342,9 @@
     <string name="nova_play_setup_strip_tuning">If you changed the tuning</string>
     <string name="nova_play_setup_tuning_pins">Pins %1$d FPS from your Settings frame rate</string>
     <string name="nova_play_setup_tuning_pins_over_hold">Pins %1$d FPS · overrides the recovery hold (host would run %2$d)</string>
-    <string name="nova_play_setup_launch_pinned_fps">Launch %1$d FPS · your pick</string>
+    <string name="nova_play_setup_tuning_applied">Applied by host</string>
+    <string name="nova_play_setup_tuning_declined">Host declined · %1$s</string>
+    <string name="nova_play_setup_tuning_declined_no_reason">Host declined this preference</string>
     <string name="nova_play_setup_strip_steam">If you changed how Steam starts</string>
     <string name="nova_play_setup_compare_private">Its own display, made for this session. The desk keeps its own screen.</string>
     <string name="nova_play_setup_compare_virtual">Uses the host\'s virtual display driver. Advanced, and needs SudoVDA on the host.</string>
