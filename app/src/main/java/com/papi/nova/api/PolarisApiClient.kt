@@ -900,6 +900,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 targetBitrateKbps = actionPayload?.optInt("target_bitrate_kbps", 0) ?: 0,
                 verificationDelaySeconds = actionVerification?.optInt("delay_seconds", 0) ?: 0,
                 undoSupported = actionUndo?.optBoolean("supported", false) ?: false,
+                requiresConfirmation = safeAction?.opt("requires_confirmation") == true,
                 packetLossPct = parseDoctorEvidenceNumber(doctor, "packet_loss"),
                 latencyMs = parseDoctorEvidenceNumber(doctor, "latency"),
                 destructiveActionAllowed = false

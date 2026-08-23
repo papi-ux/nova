@@ -992,6 +992,9 @@
     <string name="nova_quick_menu_doctor_receipt_verified">Verified</string>
     <string name="nova_quick_menu_doctor_receipt_attention">Needs attention</string>
     <string name="nova_quick_menu_doctor_receipt_undo_caption">Undo remains available here to restore the previous bitrate and Auto Quality state.</string>
+    <string name="nova_quick_menu_doctor_confirm_steam_input_title">Disable Xbox Steam Input?</string>
+    <string name="nova_quick_menu_doctor_confirm_steam_input_message">Desktop Steam and the current Steam game will close. Doctor will disable Xbox Steam Input, verify the fix, and keep Undo available so you can restore the previous setting.</string>
+    <string name="nova_quick_menu_doctor_confirm_steam_input_proceed">Close Steam and disable</string>
     <string name="nova_quick_menu_copy_hud_diagnostics">Copy HUD Diagnostics</string>
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>
