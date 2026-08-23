@@ -536,7 +536,7 @@ class NovaHudUiStateTest {
         trail.recordBitrateChange(fromKbps = 30000, toKbps = 22000)
         assertEquals("Bitrate lowered: 30M → 22M", trail.latestLabel)
 
-        trail.recordRecoveryProfile(targetFps = 60.0)
+        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = true)
         val state = NovaHudUiState.from(
             mode = NovaHudMode.PERFORMANCE,
             fps = 59.0,
@@ -553,6 +553,19 @@ class NovaHudUiStateTest {
 
         assertEquals("Next launch recovery: 60 FPS", trail.latestLabel)
         assertEquals("Next launch recovery: 60 FPS", state.eventBreadcrumbLabel)
+    }
+
+    @Test
+    fun recoveryProfileHoldingWithSafeTargetReadsAsFallbackReady() {
+        // Stable 120 FPS with a held historical 60 FPS safeTarget must not read as a
+        // scheduled downgrade — only autoQuality state = recovery_queued is the queued
+        // case; anything else (holding, unknown) is a fallback that is available, not
+        // one that has been booked.
+        val trail = NovaHudEventTrail(capacity = 3)
+
+        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = false)
+
+        assertEquals("Fallback ready: 60 FPS", trail.latestLabel)
     }
 
     @Test
@@ -589,6 +602,23 @@ class NovaHudUiStateTest {
         assertTrue(source.contains("updateFps(sample.fps)"))
         assertTrue(source.contains("updateFromPerfText(text: String)"))
         assertTrue(source.contains("NovaHudPerfSample.fromPerfText(text)"))
+    }
+
+    @Test
+    fun streamHudDerivesRecoveryQueuedFromAutoQualityStateForBreadcrumb() {
+        // A held historical safeTarget must not read as a scheduled downgrade. The
+        // queued-vs-fallback distinction lives on Polaris' parsed autoQuality state
+        // (isRecoveryQueued), so the call site must read that field and pass it
+        // through to the trail — no local re-derivation from relaunchRecommended alone.
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
+            StandardCharsets.UTF_8
+        )
+
+        assertTrue(source.contains("status?.autoQuality?.isRecoveryQueued"))
+        assertTrue(
+            source.contains("eventTrail.recordRecoveryProfile(safeTarget, recoveryQueued = recoveryQueued)")
+        )
     }
 
     private fun status(
