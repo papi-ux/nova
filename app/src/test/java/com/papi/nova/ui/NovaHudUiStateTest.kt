@@ -556,6 +556,57 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun retireRecoveryProfileRemovesStaleRecoveryButKeepsBitrateHistory() {
+        val trail = NovaHudEventTrail(capacity = 4)
+
+        trail.recordBitrateChange(fromKbps = 30000, toKbps = 22000)
+        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = true)
+        assertEquals("Next launch recovery: 60 FPS", trail.latestLabel)
+
+        trail.retireRecoveryProfile()
+
+        assertEquals("Bitrate lowered: 30M → 22M", trail.latestLabel)
+    }
+
+    @Test
+    fun retireRecoveryProfileRemovesFallbackReadyEntries() {
+        val trail = NovaHudEventTrail(capacity = 4)
+
+        trail.recordBitrateChange(fromKbps = 22000, toKbps = 30000)
+        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = false)
+        assertEquals("Fallback ready: 60 FPS", trail.latestLabel)
+
+        trail.retireRecoveryProfile()
+
+        assertEquals("Bitrate recovered: 22M → 30M", trail.latestLabel)
+    }
+
+    @Test
+    fun retireRecoveryProfileIsNoOpWhenTrailHoldsNoRecoveryEntries() {
+        val trail = NovaHudEventTrail(capacity = 4)
+
+        trail.recordBitrateChange(fromKbps = 30000, toKbps = 22000)
+        trail.recordBitrateChange(fromKbps = 22000, toKbps = 18000)
+
+        trail.retireRecoveryProfile()
+
+        assertEquals("Bitrate lowered: 22M → 18M", trail.latestLabel)
+    }
+
+    @Test
+    fun retireRecoveryProfileClearsEveryRecoveryFamilyEntry() {
+        val trail = NovaHudEventTrail(capacity = 4)
+
+        trail.recordRecoveryProfile(targetFps = 90.0, recoveryQueued = false)
+        trail.recordBitrateChange(fromKbps = 30000, toKbps = 22000)
+        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = true)
+
+        trail.retireRecoveryProfile()
+
+        assertEquals("Bitrate lowered: 30M → 22M", trail.latestLabel)
+    }
+
+    @Test
     fun recoveryProfileHoldingWithSafeTargetReadsAsFallbackReady() {
         // Stable 120 FPS with a held historical 60 FPS safeTarget must not read as a
         // scheduled downgrade — only autoQuality state = recovery_queued is the queued
@@ -619,6 +670,28 @@ class NovaHudUiStateTest {
         assertTrue(
             source.contains("eventTrail.recordRecoveryProfile(safeTarget, recoveryQueued = recoveryQueued)")
         )
+    }
+
+    @Test
+    fun streamHudRetiresRecoveryBreadcrumbWhenSafeTargetOrRecoveryStateClears() {
+        // NovaHudEventTrail is append-only, so once "Next launch recovery" or
+        // "Fallback ready" is recorded it lingers next to newer live telemetry.
+        // applySessionStatus must retire the recovery-family entry as soon as
+        // safeTarget drops to zero or neither recoveryQueued nor
+        // relaunchRecommended is true, so stale copy doesn't sit beside a
+        // healthy session.
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
+            StandardCharsets.UTF_8
+        )
+
+        assertTrue(source.contains("eventTrail.retireRecoveryProfile()"))
+        assertTrue(
+            source.contains(
+                "if (safeTarget > 0.0 && (recoveryQueued || status?.health?.relaunchRecommended == true)) {"
+            )
+        )
+        assertTrue(source.contains("} else {\n                eventTrail.retireRecoveryProfile()"))
     }
 
     private fun status(

@@ -328,6 +328,8 @@ class NovaStreamHud(
             val recoveryQueued = status?.autoQuality?.isRecoveryQueued == true
             if (safeTarget > 0.0 && (recoveryQueued || status?.health?.relaunchRecommended == true)) {
                 eventTrail.recordRecoveryProfile(safeTarget, recoveryQueued = recoveryQueued)
+            } else {
+                eventTrail.retireRecoveryProfile()
             }
             if (streamPolicy.effectiveBitrateKbps > 0) {
                 currentBitrateKbps = streamPolicy.effectiveBitrateKbps
