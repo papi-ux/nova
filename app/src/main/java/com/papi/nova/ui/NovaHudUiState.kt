@@ -495,6 +495,12 @@ class NovaHudEventTrail(private val capacity: Int = 4) {
         record("Bitrate $direction: ${formatHudMbps(fromKbps)} → ${formatHudMbps(toKbps)}")
     }
 
+    fun retireRecoveryProfile() {
+        labels.removeAll { label ->
+            label.startsWith("Next launch recovery:") || label.startsWith("Fallback ready:")
+        }
+    }
+
     fun recordRecoveryProfile(targetFps: Double, recoveryQueued: Boolean) {
         if (targetFps <= 0.0) {
             return
