@@ -106,6 +106,27 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
+    fun resolvedVerificationWithoutUndoMetadataKeepsPreviousUndoReceipt() {
+        val resolved = DoctorActionReceiptStore.applyResult(
+            previous = watchingReceipt(),
+            scopeId = scopeA,
+            result = PolarisDoctorActionResult(
+                status = true,
+                state = "resolved",
+                message = "Doctor verified that network pressure cleared.",
+                runId = "doctor-run-1"
+            ),
+            nowEpochMs = 10_000L
+        )
+
+        assertTrue(resolved.isTerminal)
+        assertEquals("", resolved.verificationActionId)
+        assertEquals(0L, resolved.verificationDueAtEpochMs)
+        assertTrue(resolved.undoAvailable)
+        assertEquals("restore_quality", resolved.undoActionId)
+    }
+
+    @Test
     fun explicitHostUndoRevocationOverridesPreviousAvailability() {
         val revoked = DoctorActionReceiptStore.applyResult(
             previous = watchingReceipt(),
