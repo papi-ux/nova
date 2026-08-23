@@ -28,6 +28,7 @@ import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.KeyboardTranslator
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.DeviceUtils
+import com.papi.nova.utils.UiHelper
 
 /**
  * Stream quick menu with grouped sections for tuning, overlays, controls, and session actions.
@@ -549,16 +550,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             }
         }
 
-        fun runDoctorAction() {
-            val status = sessionStatus
-            val doctor = status?.doctor
-            val client = apiClient
-            if (client == null || status == null || doctor == null || !doctor.canExecuteAction ||
-                doctorActionPendingRegistry.isPending()
-            ) {
-                game.copyNovaHudDiagnostics()
-                return
-            }
+        fun executeConfirmedDoctorAction(doctor: PolarisSessionStatus.DoctorStatus, client: PolarisApiClient) {
             val scope = doctorReceiptScopeId ?: return
             val request = beginNewDoctorRequest(scope) ?: return
             game.launchReplacingRuntimeIo("NovaQuickMenuDoctorAction") {
@@ -599,6 +591,48 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     doctorMenuRefreshRegistry.dispatch()
                 }
             }
+        }
+
+        fun runDoctorAction() {
+            val status = sessionStatus
+            val doctor = status?.doctor
+            val client = apiClient
+            if (client == null || status == null || doctor == null || !doctor.canExecuteAction ||
+                !status.canAdjustHostTuning ||
+                doctorActionPendingRegistry.isPending()
+            ) {
+                game.copyNovaHudDiagnostics()
+                return
+            }
+            if (doctor.requiresConfirmation) {
+                val confirmed = doctor
+                UiHelper.displayConfirmationDialog(
+                    game,
+                    game.getString(R.string.nova_quick_menu_doctor_confirm_steam_input_title),
+                    game.getString(R.string.nova_quick_menu_doctor_confirm_steam_input_message),
+                    game.getString(R.string.nova_quick_menu_doctor_confirm_steam_input_proceed),
+                    game.getString(R.string.cancel),
+                    Runnable {
+                        val currentStatus = sessionStatus
+                        val currentClient = apiClient
+                        val currentDoctor = currentStatus?.doctor
+                        if (currentClient == null ||
+                            currentStatus == null ||
+                            currentDoctor == null ||
+                            !currentDoctor.canExecuteAction ||
+                            !currentStatus.canAdjustHostTuning ||
+                            !currentDoctor.matchesConfirmedAction(confirmed) ||
+                            doctorActionPendingRegistry.isPending()
+                        ) {
+                            return@Runnable
+                        }
+                        executeConfirmedDoctorAction(currentDoctor, currentClient)
+                    },
+                    null
+                )
+                return
+            }
+            executeConfirmedDoctorAction(doctor, client)
         }
 
         val callbacks = NovaQuickMenuCallbacks(

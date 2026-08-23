@@ -401,6 +401,149 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun parseSessionStatusResponse_marksDisableSteamInputXboxActionExecutable() {
+        val json = JSONObject(
+            "{\"state\":\"streaming\",\"streaming_active\":true," +
+                "\"doctor\":{\"version\":2,\"result_id\":\"doctor-v2-steam_input_conflict-xbox\"," +
+                "\"primary_issue\":\"steam_input_conflict\"," +
+                "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\",\"label\":\"Disable Xbox Steam Input\"," +
+                "\"kind\":\"host_setting\",\"requires_confirmation\":true," +
+                "\"verification\":{\"delay_seconds\":6},\"undo\":{\"supported\":true}}}}"
+        )
+
+        val status = PolarisApiClient.parseSessionStatusResponse(json)
+
+        assertEquals("disable_steam_input_xbox", status.doctor.actionId)
+        assertEquals("steam_input_conflict", status.doctor.primaryIssue)
+        assertEquals("host_setting", status.doctor.actionKind)
+        assertEquals("doctor-v2-steam_input_conflict-xbox", status.doctor.resultId)
+        assertTrue(status.doctor.undoSupported)
+        assertTrue(status.doctor.requiresConfirmation)
+        assertTrue(status.doctor.canExecuteAction)
+    }
+
+    @Test
+    fun disableSteamInputXboxActionRefusesMalformedContract() {
+        fun status(overrides: String): PolarisSessionStatus.DoctorStatus {
+            val json = JSONObject(
+                "{\"state\":\"streaming\",\"streaming_active\":true," +
+                    "\"doctor\":{\"version\":2,\"result_id\":\"doctor-xbox\"," +
+                    "\"primary_issue\":\"steam_input_conflict\"," +
+                    "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\"," +
+                    "\"kind\":\"host_setting\",\"requires_confirmation\":true," +
+                    "\"verification\":{\"delay_seconds\":6},\"undo\":{\"supported\":true}" +
+                    overrides + "}}}"
+            )
+            return PolarisApiClient.parseSessionStatusResponse(json).doctor
+        }
+
+        assertTrue(status("").canExecuteAction)
+        assertFalse(
+            "version below 2 must reject",
+            PolarisApiClient.parseSessionStatusResponse(
+                JSONObject(
+                    "{\"state\":\"streaming\",\"doctor\":{\"version\":1,\"result_id\":\"doctor-xbox\"," +
+                        "\"primary_issue\":\"steam_input_conflict\"," +
+                        "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\",\"kind\":\"host_setting\"," +
+                        "\"requires_confirmation\":true,\"undo\":{\"supported\":true}}}}"
+                )
+            ).doctor.canExecuteAction
+        )
+        assertFalse(
+            "mismatched primary_issue must reject",
+            PolarisApiClient.parseSessionStatusResponse(
+                JSONObject(
+                    "{\"state\":\"streaming\",\"doctor\":{\"version\":2,\"result_id\":\"doctor-xbox\"," +
+                        "\"primary_issue\":\"network_jitter\"," +
+                        "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\",\"kind\":\"host_setting\"," +
+                        "\"requires_confirmation\":true,\"undo\":{\"supported\":true}}}}"
+                )
+            ).doctor.canExecuteAction
+        )
+        assertFalse(
+            "non host_setting kind must reject",
+            PolarisApiClient.parseSessionStatusResponse(
+                JSONObject(
+                    "{\"state\":\"streaming\",\"doctor\":{\"version\":2,\"result_id\":\"doctor-xbox\"," +
+                        "\"primary_issue\":\"steam_input_conflict\"," +
+                        "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\",\"kind\":\"live_tuning\"," +
+                        "\"requires_confirmation\":true,\"undo\":{\"supported\":true}}}}"
+                )
+            ).doctor.canExecuteAction
+        )
+        assertFalse(
+            "blank result_id must reject",
+            PolarisApiClient.parseSessionStatusResponse(
+                JSONObject(
+                    "{\"state\":\"streaming\",\"doctor\":{\"version\":2,\"result_id\":\"\"," +
+                        "\"primary_issue\":\"steam_input_conflict\"," +
+                        "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\",\"kind\":\"host_setting\"," +
+                        "\"requires_confirmation\":true,\"undo\":{\"supported\":true}}}}"
+                )
+            ).doctor.canExecuteAction
+        )
+        assertFalse(
+            "stringified requires_confirmation must reject",
+            PolarisApiClient.parseSessionStatusResponse(
+                JSONObject(
+                    "{\"state\":\"streaming\",\"doctor\":{\"version\":2,\"result_id\":\"doctor-xbox\"," +
+                        "\"primary_issue\":\"steam_input_conflict\"," +
+                        "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\",\"kind\":\"host_setting\"," +
+                        "\"requires_confirmation\":\"true\",\"undo\":{\"supported\":true}}}}"
+                )
+            ).doctor.canExecuteAction
+        )
+        assertFalse(
+            "missing requires_confirmation must reject",
+            PolarisApiClient.parseSessionStatusResponse(
+                JSONObject(
+                    "{\"state\":\"streaming\",\"doctor\":{\"version\":2,\"result_id\":\"doctor-xbox\"," +
+                        "\"primary_issue\":\"steam_input_conflict\"," +
+                        "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\",\"kind\":\"host_setting\"," +
+                        "\"undo\":{\"supported\":true}}}}"
+                )
+            ).doctor.canExecuteAction
+        )
+        assertFalse(
+            "undo.supported false must reject",
+            PolarisApiClient.parseSessionStatusResponse(
+                JSONObject(
+                    "{\"state\":\"streaming\",\"doctor\":{\"version\":2,\"result_id\":\"doctor-xbox\"," +
+                        "\"primary_issue\":\"steam_input_conflict\"," +
+                        "\"safe_recovery_action\":{\"id\":\"disable_steam_input_xbox\",\"kind\":\"host_setting\"," +
+                        "\"requires_confirmation\":true,\"undo\":{\"supported\":false}}}}"
+                )
+            ).doctor.canExecuteAction
+        )
+    }
+
+    @Test
+    fun matchesConfirmedAction_requiresExactActionIdAndResultIdPair() {
+        val confirmed = PolarisSessionStatus.DoctorStatus(
+            actionId = "disable_steam_input_xbox",
+            resultId = "doctor-v2-steam_input_conflict-xbox"
+        )
+
+        assertTrue(confirmed.matchesConfirmedAction(confirmed))
+        assertFalse(
+            confirmed.copy(actionId = "lower_bitrate").matchesConfirmedAction(confirmed)
+        )
+        assertFalse(
+            confirmed.copy(resultId = "doctor-v2-steam_input_conflict-xbox-next")
+                .matchesConfirmedAction(confirmed)
+        )
+        assertFalse(
+            confirmed.copy(actionId = "").matchesConfirmedAction(confirmed)
+        )
+        assertFalse(
+            confirmed.copy(resultId = "").matchesConfirmedAction(confirmed)
+        )
+        assertFalse(
+            PolarisSessionStatus.DoctorStatus().matchesConfirmedAction(confirmed)
+        )
+    }
+
+    @Test
     fun parseSessionStatusResponse_fallsBackForOlderHostsWithoutDoctorPayload() {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true," +

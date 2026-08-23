@@ -269,6 +269,7 @@ data class PolarisSessionStatus(
         val targetBitrateKbps: Int = 0,
         val verificationDelaySeconds: Int = 0,
         val undoSupported: Boolean = false,
+        val requiresConfirmation: Boolean = false,
         val packetLossPct: Double? = null,
         val latencyMs: Double? = null,
         val destructiveActionAllowed: Boolean = false
@@ -280,8 +281,25 @@ data class PolarisSessionStatus(
             "recheck_network" -> version >= 2
             "lower_bitrate" -> version >= 2 && primaryIssue == "network_jitter" && networkPressureConfirmed
             "restore_quality" -> version >= 2 && primaryIssue == "quality_capped_by_history" && targetBitrateKbps > 0
+            "disable_steam_input_xbox" -> version >= 2 &&
+                primaryIssue == "steam_input_conflict" &&
+                actionKind == "host_setting" &&
+                resultId.isNotBlank() &&
+                requiresConfirmation &&
+                undoSupported
             else -> false
         }
+
+        /**
+         * True when this doctor payload is the same actionable pair the user just confirmed.
+         * Guards against a session refresh swapping the safe action out from under a confirmation
+         * dialog before the positive button is pressed.
+         */
+        fun matchesConfirmedAction(confirmed: DoctorStatus): Boolean =
+            actionId.isNotBlank() &&
+                resultId.isNotBlank() &&
+                actionId == confirmed.actionId &&
+                resultId == confirmed.resultId
     }
 
     data class HealthStatus(
