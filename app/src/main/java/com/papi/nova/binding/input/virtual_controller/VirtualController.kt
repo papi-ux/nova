@@ -50,8 +50,21 @@ class VirtualController(
         } else {
             null
         }
+    private var layoutRefreshPending = false
+    private var appliedViewportWidth = 0
+    private var appliedViewportHeight = 0
+    private val layoutChangeListener = View.OnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+        val width = right - left
+        val height = bottom - top
+        if (width > 0 && height > 0 &&
+            (width != appliedViewportWidth || height != appliedViewportHeight)
+        ) {
+            scheduleLayoutRefresh()
+        }
+    }
 
     init {
+        frame_layout?.addOnLayoutChangeListener(layoutChangeListener)
         buttonConfigure.alpha = 0.25f
         buttonConfigure.isFocusable = false
         buttonConfigure.setBackgroundResource(R.drawable.ic_settings)
@@ -145,17 +158,68 @@ class VirtualController(
     fun getElements(): List<VirtualControllerElement> = elements
 
     fun refreshLayout() {
+        val layout = frame_layout ?: return
+        val width = layout.width
+        val height = layout.height
+        if (width <= 0 || height <= 0) {
+            scheduleLayoutRefresh()
+            return
+        }
+
+        refreshLayout(width, height)
+    }
+
+    private fun refreshLayout(viewportWidth: Int, viewportHeight: Int) {
+        val wasShown = buttonConfigure.visibility == View.VISIBLE
         removeElements()
 
-        val screen = context.resources.displayMetrics
-        val buttonSize = (screen.heightPixels * 0.06f).toInt()
+        val viewport = VirtualControllerConfigurationLoader.resolveLayoutViewport(
+            viewportWidth,
+            viewportHeight,
+        )
+        val buttonSize = (viewport.height * 0.06f).toInt().coerceAtLeast(1)
         val params = FrameLayout.LayoutParams(buttonSize, buttonSize)
         params.leftMargin = 15
         params.topMargin = 15
         frame_layout?.addView(buttonConfigure, params)
 
-        VirtualControllerConfigurationLoader.createDefaultLayout(this, context)
-        VirtualControllerConfigurationLoader.loadFromPreferences(this, context)
+        VirtualControllerConfigurationLoader.createDefaultLayout(
+            this,
+            context,
+            viewportWidth,
+            viewportHeight,
+        )
+        VirtualControllerConfigurationLoader.loadFromPreferences(
+            this,
+            context,
+            viewportWidth,
+            viewportHeight,
+        )
+        if (!wasShown) {
+            hide()
+        } else if (currentMode == ControllerMode.DisableEnableButtons) {
+            showElements()
+        } else {
+            showEnabledElements()
+        }
+        appliedViewportWidth = viewportWidth
+        appliedViewportHeight = viewportHeight
+    }
+
+    private fun scheduleLayoutRefresh() {
+        if (layoutRefreshPending) return
+        layoutRefreshPending = true
+        handler.post {
+            layoutRefreshPending = false
+            val layout = frame_layout ?: return@post
+            val width = layout.width
+            val height = layout.height
+            if (width > 0 && height > 0 &&
+                (width != appliedViewportWidth || height != appliedViewportHeight)
+            ) {
+                refreshLayout(width, height)
+            }
+        }
     }
 
     fun getControllerMode(): ControllerMode = currentMode

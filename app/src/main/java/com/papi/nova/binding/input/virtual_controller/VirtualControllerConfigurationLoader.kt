@@ -2,6 +2,7 @@ package com.papi.nova.binding.input.virtual_controller
 
 import android.app.Activity
 import android.content.Context
+import android.widget.FrameLayout
 import com.papi.nova.R
 import com.papi.nova.nvstream.input.ControllerPacket
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -11,6 +12,25 @@ import org.json.JSONObject
 object VirtualControllerConfigurationLoader {
     const val OSC_PREFERENCE = "OSC"
     private const val OSC_PREFERENCE_COMPACT_HANDHELD = "OSC_compact_handheld"
+    private const val MIN_ELEMENT_SIZE_PX = 20
+
+    internal data class LayoutViewport(
+        val width: Int,
+        val height: Int,
+        val rightDisplacement: Int,
+    )
+
+    internal fun resolveLayoutViewport(width: Int, height: Int): LayoutViewport {
+        val safeWidth = width.coerceAtLeast(1)
+        val safeHeight = height.coerceAtLeast(1)
+        val fittedHeight = minOf(safeHeight, safeWidth * 9 / 16).coerceAtLeast(1)
+        val baseWidth = fittedHeight * 16 / 9
+        return LayoutViewport(
+            width = safeWidth,
+            height = fittedHeight,
+            rightDisplacement = (safeWidth - baseWidth).coerceAtLeast(0),
+        )
+    }
 
     private fun screenScale(units: Int, height: Int): Int = (height.toFloat() / 72f * units).toInt()
 
@@ -301,9 +321,20 @@ object VirtualControllerConfigurationLoader {
     @JvmStatic
     fun createDefaultLayout(controller: VirtualController, context: Context) {
         val screen = context.resources.displayMetrics
+        createDefaultLayout(controller, context, screen.widthPixels, screen.heightPixels)
+    }
+
+    @JvmStatic
+    fun createDefaultLayout(
+        controller: VirtualController,
+        context: Context,
+        viewportWidth: Int,
+        viewportHeight: Int,
+    ) {
+        val viewport = resolveLayoutViewport(viewportWidth, viewportHeight)
         val config = PreferenceConfiguration.readPreferences(context)
-        val rightDisplacement = screen.widthPixels - screen.heightPixels * 16 / 9
-        val height = screen.heightPixels
+        val height = viewport.height
+        val rightDisplacement = viewport.rightDisplacement
 
         if (!config.onlyL3R3) {
             if (PreferenceConfiguration.ONSCREEN_CONTROLLER_LAYOUT_PRESET_COMPACT_HANDHELD == config.onscreenControllerLayoutPreset) {
@@ -337,7 +368,20 @@ object VirtualControllerConfigurationLoader {
 
     @JvmStatic
     fun loadFromPreferences(controller: VirtualController, context: Context) {
+        val screen = context.resources.displayMetrics
+        loadFromPreferences(controller, context, screen.widthPixels, screen.heightPixels)
+    }
+
+    @JvmStatic
+    fun loadFromPreferences(
+        controller: VirtualController,
+        context: Context,
+        viewportWidth: Int,
+        viewportHeight: Int,
+    ) {
         val pref = context.getSharedPreferences(getOscPreferenceName(context), Activity.MODE_PRIVATE)
+        val safeWidth = viewportWidth.coerceAtLeast(1)
+        val safeHeight = viewportHeight.coerceAtLeast(1)
 
         for (element in controller.getElements()) {
             val prefKey = element.elementId.toString()
@@ -345,11 +389,29 @@ object VirtualControllerConfigurationLoader {
             if (jsonConfig != null) {
                 try {
                     element.loadConfiguration(JSONObject(jsonConfig))
+                    clampElementToViewport(element, safeWidth, safeHeight)
                 } catch (e: JSONException) {
                     e.printStackTrace()
                     pref.edit().remove(prefKey).apply()
                 }
             }
         }
+    }
+
+    private fun clampElementToViewport(
+        element: VirtualControllerElement,
+        viewportWidth: Int,
+        viewportHeight: Int,
+    ) {
+        val params = element.layoutParams as? FrameLayout.LayoutParams ?: return
+        val minimumWidth = minOf(MIN_ELEMENT_SIZE_PX, viewportWidth)
+        val minimumHeight = minOf(MIN_ELEMENT_SIZE_PX, viewportHeight)
+        params.width = params.width.coerceIn(minimumWidth, viewportWidth)
+        params.height = params.height.coerceIn(minimumHeight, viewportHeight)
+        params.leftMargin = params.leftMargin.coerceIn(0, viewportWidth - params.width)
+        params.topMargin = params.topMargin.coerceIn(0, viewportHeight - params.height)
+        params.rightMargin = 0
+        params.bottomMargin = 0
+        element.layoutParams = params
     }
 }
