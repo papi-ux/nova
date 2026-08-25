@@ -2,10 +2,12 @@ package com.papi.nova.ui
 
 import android.content.Context
 import com.papi.nova.api.PolarisDoctorActionResult
+import com.papi.nova.api.PolarisSessionStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -398,7 +400,7 @@ class DoctorActionReceiptStoreTest {
         DoctorActionReceiptStore.save(prefs, receiptA)
         DoctorActionReceiptStore.save(prefs, receiptB)
 
-        val encoded = prefs.all.values.joinToString("\n")
+        val encoded = prefs.all.entries.joinToString("\n") { (key, value) -> "$key=$value" }
         assertFalse(encoded.contains("session-a"))
         assertFalse(encoded.contains("session-b"))
         assertFalse(encoded.contains("10.0.0.232"))
@@ -408,7 +410,194 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
-    fun receiptScopeRequiresExactSessionTokenAndNonBlankGameIdentity() {
+    fun receiptScopeSurvivesTransportTokenRotationButRejectsANewAppGeneration() {
+        val beforeStatus = PolarisSessionStatus(
+            state = "streaming",
+            sessionToken = "transport-a",
+            appSessionId = "app-session-a",
+            appSessionIdPresent = true,
+            gameUuid = "control"
+        )
+        val afterStatus = beforeStatus.copy(sessionToken = "transport-b")
+        val laterStatus = afterStatus.copy(appSessionId = "app-session-b")
+        val beforeResume = requireNotNull(
+            DoctorActionReceiptStore.scopeId(
+                host = "10.0.0.232",
+                httpsPort = 47984,
+                sessionStatus = beforeStatus
+            )
+        )
+        val afterResume = requireNotNull(
+            DoctorActionReceiptStore.scopeId(
+                host = "10.0.0.232",
+                httpsPort = 47984,
+                sessionStatus = afterStatus
+            )
+        )
+        val laterLaunch = requireNotNull(
+            DoctorActionReceiptStore.scopeId(
+                host = "10.0.0.232",
+                httpsPort = 47984,
+                sessionStatus = laterStatus
+            )
+        )
+        val differentGame = requireNotNull(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, afterStatus.copy(gameUuid = "other"))
+        )
+        val differentHost = requireNotNull(
+            DoctorActionReceiptStore.scopeId("10.0.0.233", 47984, afterStatus)
+        )
+        val differentPort = requireNotNull(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47985, afterStatus)
+        )
+
+        val prefs = context.getSharedPreferences("doctor-receipt-resume-test", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val receipt = watchingReceipt().copy(scopeId = beforeResume)
+        DoctorActionReceiptStore.save(prefs, receipt)
+        val resumedReceipt = DoctorActionReceiptStore.load(prefs, afterResume)
+        val request = DoctorActionRequestIdentity(afterResume, receipt.runId, generation = 7L)
+
+        assertEquals(beforeResume, afterResume)
+        assertNotEquals(beforeResume, laterLaunch)
+        assertNotEquals(beforeResume, differentGame)
+        assertNotEquals(beforeResume, differentHost)
+        assertNotEquals(beforeResume, differentPort)
+        assertEquals(receipt, resumedReceipt)
+        assertEquals(receipt, DoctorActionReceiptStore.visibleReceipt(resumedReceipt, afterResume, afterResume))
+        assertTrue(DoctorActionReceiptStore.requestIsCurrent(resumedReceipt, afterResume, 7L, request))
+        assertTrue(
+            DoctorActionReceiptStore.undoIsAuthorized(
+                current = resumedReceipt,
+                candidate = receipt,
+                activeScopeId = afterResume,
+                validatedScopeId = afterResume,
+                canAdjustHostTuning = true
+            )
+        )
+        assertNull(DoctorActionReceiptStore.load(prefs, laterLaunch))
+        assertFalse(DoctorActionReceiptStore.requestIsCurrent(resumedReceipt, laterLaunch, 7L, request))
+        assertFalse(
+            DoctorActionReceiptStore.undoIsAuthorized(
+                current = resumedReceipt,
+                candidate = receipt,
+                activeScopeId = laterLaunch,
+                validatedScopeId = laterLaunch,
+                canAdjustHostTuning = true
+            )
+        )
+        assertFalse(
+            DoctorActionReceiptStore.undoIsAuthorized(
+                current = resumedReceipt,
+                candidate = receipt.copy(scopeId = laterLaunch),
+                activeScopeId = afterResume,
+                validatedScopeId = afterResume,
+                canAdjustHostTuning = true
+            )
+        )
+    }
+
+    @Test
+    fun scopeRejectsPresentBlankAppIdentityAndSeparatesIdentityDomains() {
+        val presentBlank = PolarisSessionStatus(
+            state = "streaming",
+            sessionToken = "transport-a",
+            appSessionId = "",
+            appSessionIdPresent = true,
+            gameUuid = "control"
+        )
+        val appIdentity = presentBlank.copy(
+            sessionToken = "other-transport",
+            appSessionId = "same-raw-value"
+        )
+        val legacyIdentity = presentBlank.copy(
+            sessionToken = "same-raw-value",
+            appSessionId = "",
+            appSessionIdPresent = false
+        )
+
+        assertNull(DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, presentBlank))
+        assertNotEquals(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, appIdentity),
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, legacyIdentity)
+        )
+        assertNull(
+            DoctorActionReceiptStore.scopeId(
+                "10.0.0.232",
+                47984,
+                appIdentity.copy(appSessionId = "x".repeat(2_049))
+            )
+        )
+        assertNotEquals(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, "a\u0000b", "c"),
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, "a", "b\u0000c")
+        )
+        assertNull(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, "\uD800", "control")
+        )
+    }
+
+    @Test
+    fun undoAuthorityRejectsEveryIndependentMismatch() {
+        val current = watchingReceipt().copy(state = "resolved", verificationActionId = "")
+        fun authorized(
+            candidate: DoctorActionReceipt = current,
+            activeScope: String? = scopeA,
+            validatedScope: String? = scopeA,
+            canAdjust: Boolean = true
+        ) = DoctorActionReceiptStore.undoIsAuthorized(
+            current = current,
+            candidate = candidate,
+            activeScopeId = activeScope,
+            validatedScopeId = validatedScope,
+            canAdjustHostTuning = canAdjust
+        )
+
+        assertTrue(authorized())
+        assertFalse(authorized(candidate = current.copy(runId = "other-run")))
+        assertFalse(authorized(candidate = current.copy(undoActionId = "other-action")))
+        assertFalse(authorized(candidate = current.copy(scopeId = "other-scope")))
+        assertFalse(authorized(activeScope = "other-scope", validatedScope = "other-scope"))
+        assertFalse(authorized(validatedScope = null))
+        assertFalse(authorized(canAdjust = false))
+        assertFalse(
+            DoctorActionReceiptStore.undoIsAuthorized(
+                current = current.copy(undoAvailable = false),
+                candidate = current,
+                activeScopeId = scopeA,
+                validatedScopeId = scopeA,
+                canAdjustHostTuning = true
+            )
+        )
+    }
+
+    @Test
+    fun olderHostFallsBackToExactTransportTokenWithoutClaimingReconnectContinuity() {
+        val firstTransport = PolarisSessionStatus(
+            state = "streaming",
+            sessionToken = "transport-a",
+            appSessionId = "",
+            gameUuid = "control"
+        )
+        val nextTransport = firstTransport.copy(sessionToken = "transport-b")
+
+        val firstScope = DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, firstTransport)
+        val nextScope = DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, nextTransport)
+
+        assertNotNull(firstScope)
+        assertNotNull(nextScope)
+        assertNotEquals(firstScope, nextScope)
+        assertNull(
+            DoctorActionReceiptStore.scopeId(
+                "10.0.0.232",
+                47984,
+                firstTransport.copy(sessionToken = "")
+            )
+        )
+    }
+
+    @Test
+    fun receiptScopeRequiresExactAppSessionAndNonBlankGameIdentity() {
         assertNull(DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, "session-a", ""))
         assertNull(DoctorActionReceiptStore.scopeId("10.0.0.232", 0, "session-a", "control"))
         assertNotEquals(

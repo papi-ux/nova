@@ -137,8 +137,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             val nextScope = DoctorActionReceiptStore.scopeId(
                 host = getServerAddress().orEmpty(),
                 httpsPort = getHttpsPort(),
-                sessionToken = sessionStatus?.sessionToken.orEmpty(),
-                gameUuid = sessionStatus?.gameUuid.orEmpty()
+                sessionStatus = sessionStatus
             )
             synchronized(doctorActionLock) {
                 if (nextScope != doctorReceiptScopeId) {
@@ -165,7 +164,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         fun requestIdentity(runId: String): DoctorActionRequestIdentity? = synchronized(doctorActionLock) {
             val scope = doctorReceiptScopeId ?: return@synchronized null
-            DoctorActionRequestIdentity(scope, runId, doctorActionGeneration)
+            DoctorActionRequestIdentity(
+                scope,
+                runId,
+                doctorActionGeneration,
+                sessionStatus?.appSessionId.orEmpty()
+            )
         }
 
         fun currentDoctorReceipt(): DoctorActionReceipt? = synchronized(doctorActionLock) {
@@ -191,7 +195,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             doctorActionGeneration += 1L
             doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
             doctorVerificationRunnable = null
-            DoctorActionRequestIdentity(scopeId, runId = "", generation = doctorActionGeneration).also {
+            DoctorActionRequestIdentity(
+                scopeId,
+                runId = "",
+                generation = doctorActionGeneration,
+                appSessionId = sessionStatus?.appSessionId.orEmpty()
+            ).also {
                 check(doctorActionPendingRegistry.begin(it.generation))
             }
         }
@@ -202,13 +211,13 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         ): DoctorActionRequestIdentity? = synchronized(doctorActionLock) {
             val scopeId = doctorReceiptScopeId ?: return@synchronized null
             val current = doctorReceipt ?: return@synchronized null
-            if (!canAdjustHostTuning ||
-                doctorReceiptValidatedScopeId != scopeId ||
-                current.scopeId != scopeId ||
-                current.runId != receipt.runId ||
-                !current.undoAvailable ||
-                current.undoActionId.isBlank() ||
-                current.undoActionId != receipt.undoActionId ||
+            if (!DoctorActionReceiptStore.undoIsAuthorized(
+                    current = current,
+                    candidate = receipt,
+                    activeScopeId = scopeId,
+                    validatedScopeId = doctorReceiptValidatedScopeId,
+                    canAdjustHostTuning = canAdjustHostTuning
+                ) ||
                 doctorActionPendingRegistry.isPending()
             ) {
                 return@synchronized null
@@ -216,7 +225,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             doctorActionGeneration += 1L
             doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
             doctorVerificationRunnable = null
-            DoctorActionRequestIdentity(scopeId, current.runId, doctorActionGeneration).also {
+            DoctorActionRequestIdentity(
+                scopeId,
+                current.runId,
+                doctorActionGeneration,
+                sessionStatus?.appSessionId.orEmpty()
+            ).also {
                 check(doctorActionPendingRegistry.begin(it.generation))
             }
         }
@@ -431,6 +445,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
                 val result = client.runDoctorAction(
                     actionId = receipt.undoActionId,
+                    appSessionId = undoRequest.appSessionId,
                     runId = receipt.runId
                 )
                 val updated = when {
@@ -514,8 +529,20 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     return@Runnable
                 }
                 game.launchReplacingRuntimeIo("NovaQuickMenuDoctorVerify") {
+                    val latestStatus = client.getSessionStatus()
+                    if (!acceptRefreshedSessionStatus(latestStatus) ||
+                        latestStatus?.canAdjustHostTuning != true ||
+                        !requestIsCurrent(request)
+                    ) {
+                        game.runOnMainIfRuntimeActive {
+                            doctorActionPendingRegistry.clearIfOwned(request.generation)
+                            doctorMenuRefreshRegistry.dispatch()
+                        }
+                        return@launchReplacingRuntimeIo
+                    }
                     val verification = client.runDoctorAction(
                         actionId = pending.verificationActionId,
+                        appSessionId = request.appSessionId,
                         runId = pending.runId
                     )
                     val updated = when {
@@ -551,11 +578,20 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         fun executeConfirmedDoctorAction(doctor: PolarisSessionStatus.DoctorStatus, client: PolarisApiClient) {
-            val scope = doctorReceiptScopeId ?: return
-            val request = beginNewDoctorRequest(scope) ?: return
             game.launchReplacingRuntimeIo("NovaQuickMenuDoctorAction") {
+                val latestStatus = client.getSessionStatus()
+                if (!acceptRefreshedSessionStatus(latestStatus) ||
+                    latestStatus?.canAdjustHostTuning != true ||
+                    latestStatus.doctor.matchesConfirmedAction(doctor).not()
+                ) {
+                    return@launchReplacingRuntimeIo
+                }
+                val scope = synchronized(doctorActionLock) { doctorReceiptScopeId }
+                    ?: return@launchReplacingRuntimeIo
+                val request = beginNewDoctorRequest(scope) ?: return@launchReplacingRuntimeIo
                 val result = client.runDoctorAction(
                     actionId = doctor.actionId,
+                    appSessionId = request.appSessionId,
                     sourceResultId = doctor.resultId,
                     targetBitrateKbps = doctor.targetBitrateKbps
                 )
@@ -614,10 +650,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     game.getString(R.string.cancel),
                     Runnable {
                         val currentStatus = sessionStatus
-                        val currentClient = apiClient
                         val currentDoctor = currentStatus?.doctor
-                        if (currentClient == null ||
-                            currentStatus == null ||
+                        if (currentStatus == null ||
                             currentDoctor == null ||
                             !currentDoctor.canExecuteAction ||
                             !currentStatus.canAdjustHostTuning ||
@@ -626,7 +660,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         ) {
                             return@Runnable
                         }
-                        executeConfirmedDoctorAction(currentDoctor, currentClient)
+                        executeConfirmedDoctorAction(currentDoctor, client)
                     },
                     null
                 )

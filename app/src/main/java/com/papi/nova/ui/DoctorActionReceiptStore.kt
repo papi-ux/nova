@@ -2,14 +2,21 @@ package com.papi.nova.ui
 
 import android.content.SharedPreferences
 import com.papi.nova.api.PolarisDoctorActionResult
+import com.papi.nova.api.PolarisSessionStatus
 import org.json.JSONObject
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
 
 /**
  * Durable, session-scoped receipt for one reversible Doctor action.
  *
- * [scopeId] is a SHA-256 fingerprint. The host session token is used to bind the
- * receipt to one owner session, but is never persisted.
+ * [scopeId] is a SHA-256 fingerprint. Polaris's random app-session identity binds
+ * the receipt to one launched app generation across transport reconnects. Older
+ * hosts fall back to their exact transport token and do not claim reconnect
+ * continuity. Neither raw identity is persisted.
  */
 data class DoctorActionReceipt(
     val scopeId: String,
@@ -34,7 +41,8 @@ data class DoctorActionReceipt(
 data class DoctorActionRequestIdentity(
     val scopeId: String,
     val runId: String,
-    val generation: Long
+    val generation: Long,
+    val appSessionId: String = ""
 )
 
 internal class DoctorMenuRefreshRegistry {
@@ -108,7 +116,9 @@ internal class DoctorActionPendingRegistry {
 object DoctorActionReceiptStore {
     internal val TERMINAL_STATES = setOf("stable", "resolved", "needs_attention", "undone")
 
-    private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v2_"
+    private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v3_"
+    private const val SCOPE_VERSION = "nova-doctor-receipt-scope-v3"
+    private const val MAX_SCOPE_IDENTITY_LENGTH = 2_048
     private const val RETRY_DELAY_MS = 1_000L
     private const val MAX_VERIFICATION_FAILURES = 4
     private const val MAX_VERIFICATION_ATTEMPTS = 12
@@ -119,20 +129,67 @@ object DoctorActionReceiptStore {
     fun scopeId(
         host: String,
         httpsPort: Int,
-        sessionToken: String,
+        sessionStatus: PolarisSessionStatus?
+    ): String? = sessionStatus?.let {
+        val (identityKind, identity) = if (it.appSessionIdPresent) {
+            "app-v1" to it.appSessionId
+        } else {
+            "legacy-token-v1" to it.sessionToken
+        }
+        if (identity.isBlank()) return null
+        scopeId(
+            host = host,
+            httpsPort = httpsPort,
+            identityKind = identityKind,
+            appSessionId = identity,
+            gameUuid = it.gameUuid
+        )
+    }
+
+    fun scopeId(
+        host: String,
+        httpsPort: Int,
+        appSessionId: String,
+        gameUuid: String
+    ): String? = scopeId(host, httpsPort, "app-v1", appSessionId, gameUuid)
+
+    private fun scopeId(
+        host: String,
+        httpsPort: Int,
+        identityKind: String,
+        appSessionId: String,
         gameUuid: String
     ): String? {
         val normalizedHost = host.trim().lowercase()
-        if (normalizedHost.isBlank() || sessionToken.isBlank() || gameUuid.isBlank()) return null
+        if (normalizedHost.isBlank() || appSessionId.isBlank() || gameUuid.isBlank()) return null
         if (httpsPort !in 1..65_535) return null
-
-        val material = listOf(
+        val components = listOf(
+            SCOPE_VERSION,
+            identityKind,
             normalizedHost,
             httpsPort.toString(),
-            sessionToken,
+            appSessionId,
             gameUuid
-        ).joinToString("\u0000")
-        val digest = MessageDigest.getInstance("SHA-256").digest(material.toByteArray(Charsets.UTF_8))
+        )
+        val encoded = components.map { component ->
+            val encoder = Charsets.UTF_8.newEncoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+            val buffer = try {
+                encoder.encode(CharBuffer.wrap(component))
+            } catch (_: CharacterCodingException) {
+                return null
+            }
+            ByteArray(buffer.remaining()).also(buffer::get)
+        }
+        if (encoded.any { it.size > MAX_SCOPE_IDENTITY_LENGTH }) return null
+
+        val hasher = MessageDigest.getInstance("SHA-256")
+        encoded.forEach { component ->
+            hasher.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(component.size).array())
+            hasher.update(component)
+        }
+        val digest = hasher.digest()
         return buildString(digest.size * 2) {
             digest.forEach { value ->
                 val byte = value.toInt() and 0xff
@@ -274,6 +331,23 @@ object DoctorActionReceiptStore {
         if (request.runId.isBlank()) return true
         return current?.scopeId == request.scopeId && current.runId == request.runId
     }
+
+    fun undoIsAuthorized(
+        current: DoctorActionReceipt?,
+        candidate: DoctorActionReceipt,
+        activeScopeId: String?,
+        validatedScopeId: String?,
+        canAdjustHostTuning: Boolean
+    ): Boolean = canAdjustHostTuning &&
+        activeScopeId != null &&
+        validatedScopeId == activeScopeId &&
+        current != null &&
+        current.scopeId == activeScopeId &&
+        candidate.scopeId == activeScopeId &&
+        current.runId == candidate.runId &&
+        current.undoAvailable &&
+        current.undoActionId.isNotBlank() &&
+        current.undoActionId == candidate.undoActionId
 
     fun responseMatches(
         current: DoctorActionReceipt?,

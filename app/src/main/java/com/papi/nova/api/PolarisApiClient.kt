@@ -985,6 +985,27 @@ class PolarisApiClient @JvmOverloads constructor(
             )
         }
 
+        private fun strictOptionalIdentity(json: JSONObject, key: String): String {
+            if (!json.has(key)) return ""
+            return json.opt(key) as? String
+                ?: throw JSONException("$key must be a string")
+        }
+
+        @JvmStatic
+        internal fun buildDoctorActionBody(
+            actionId: String,
+            appSessionId: String,
+            sourceResultId: String = "",
+            targetBitrateKbps: Int = 0,
+            runId: String = ""
+        ): JSONObject = JSONObject().apply {
+            put("action_id", actionId)
+            if (appSessionId.isNotBlank()) put("app_session_id", appSessionId)
+            if (sourceResultId.isNotBlank()) put("source_result_id", sourceResultId)
+            if (targetBitrateKbps > 0) put("target_bitrate_kbps", targetBitrateKbps)
+            if (runId.isNotBlank()) put("run_id", runId)
+        }
+
         @JvmStatic
         fun parseSessionStatusResponse(json: JSONObject): PolarisSessionStatus {
             val controls = json.optJSONObject("controls")
@@ -1025,8 +1046,10 @@ class PolarisApiClient @JvmOverloads constructor(
                 shutdownRequested = json.optBoolean("shutdown_requested", false),
                 game = json.optString("game", ""),
                 gameId = json.optInt("game_id", 0),
-                gameUuid = json.optString("game_uuid", ""),
-                sessionToken = json.optString("session_token", ""),
+                gameUuid = strictOptionalIdentity(json, "game_uuid"),
+                sessionToken = strictOptionalIdentity(json, "session_token"),
+                appSessionId = strictOptionalIdentity(json, "app_session_id"),
+                appSessionIdPresent = json.has("app_session_id"),
                 ownerUniqueId = json.optString("owner_unique_id", ""),
                 ownerDeviceName = json.optString("owner_device_name", ""),
                 clientRole = json.optString("client_role", "none"),
@@ -1964,17 +1987,19 @@ class PolarisApiClient @JvmOverloads constructor(
      */
     fun runDoctorAction(
         actionId: String,
+        appSessionId: String,
         sourceResultId: String = "",
         targetBitrateKbps: Int = 0,
         runId: String = ""
     ): PolarisDoctorActionResult? {
         return try {
-            val body = JSONObject().apply {
-                put("action_id", actionId)
-                if (sourceResultId.isNotBlank()) put("source_result_id", sourceResultId)
-                if (targetBitrateKbps > 0) put("target_bitrate_kbps", targetBitrateKbps)
-                if (runId.isNotBlank()) put("run_id", runId)
-            }
+            val body = buildDoctorActionBody(
+                actionId = actionId,
+                appSessionId = appSessionId,
+                sourceResultId = sourceResultId,
+                targetBitrateKbps = targetBitrateKbps,
+                runId = runId
+            )
             val request = Request.Builder()
                 .url("$baseUrl/doctor/action")
                 .post(okhttp3.RequestBody.create(

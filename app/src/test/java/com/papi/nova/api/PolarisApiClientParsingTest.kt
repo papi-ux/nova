@@ -4,12 +4,14 @@ import com.papi.nova.shared.polaris.model.PolarisGame
 import java.util.concurrent.TimeUnit
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
+import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,6 +21,28 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 @RunWith(RobolectricTestRunner::class)
 class PolarisApiClientParsingTest {
+
+    @Test
+    fun doctorActionBodyCarriesExactAppGenerationAndOmitsOnlyLegacyBlankIdentity() {
+        val modern = PolarisApiClient.buildDoctorActionBody(
+            actionId = "undo",
+            appSessionId = "app-generation-123",
+            sourceResultId = "doctor-v2",
+            targetBitrateKbps = 16_000,
+            runId = "doctor-run-7"
+        )
+        assertEquals("undo", modern.getString("action_id"))
+        assertEquals("app-generation-123", modern.getString("app_session_id"))
+        assertEquals("doctor-v2", modern.getString("source_result_id"))
+        assertEquals(16_000, modern.getInt("target_bitrate_kbps"))
+        assertEquals("doctor-run-7", modern.getString("run_id"))
+
+        val legacy = PolarisApiClient.buildDoctorActionBody(
+            actionId = "lower_bitrate",
+            appSessionId = ""
+        )
+        assertFalse(legacy.has("app_session_id"))
+    }
 
     @Test
     fun doctorActionUndoAvailabilityRequiresLiteralBoolean() {
@@ -224,7 +248,7 @@ class PolarisApiClientParsingTest {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true,\"shutdown_requested\":false," +
                 "\"game_id\":123,\"game_uuid\":\"game-uuid\"," +
-                "\"session_token\":\"token-123\",\"owner_unique_id\":\"owner-uuid\"," +
+                "\"session_token\":\"token-123\",\"app_session_id\":\"app-session-123\",\"owner_unique_id\":\"owner-uuid\"," +
                 "\"owner_device_name\":\"Retroid\",\"client_role\":\"viewer\",\"viewer_count\":2,\"owned_by_client\":true," +
                 "\"cursor_visible\":true,\"dynamic_range\":1,\"mangohud_configured\":true,\"ai_auto_quality_enabled\":true," +
                 "\"controls\":{\"host_tuning_allowed\":false,\"quit_allowed\":false,\"shutdown_in_progress\":false," +
@@ -291,6 +315,8 @@ class PolarisApiClientParsingTest {
         assertEquals(123, status.gameId)
         assertEquals("game-uuid", status.gameUuid)
         assertEquals("token-123", status.sessionToken)
+        assertEquals("app-session-123", status.appSessionId)
+        assertTrue(status.appSessionIdPresent)
         assertEquals("owner-uuid", status.ownerUniqueId)
         assertEquals("Retroid", status.ownerDeviceName)
         assertEquals("viewer", status.clientRole)
@@ -362,6 +388,51 @@ class PolarisApiClientParsingTest {
         assertEquals(3, status.profileState.lastResult.sessionCount)
         assertEquals(118.0, status.profileState.lastResult.deliveredFps, 0.01)
         assertTrue(status.profileState.actions.canReset)
+    }
+
+    @Test
+    fun parseSessionStatusResponse_rejectsTypedInvalidSecurityIdentities() {
+        val invalidValues = listOf<Any>(JSONObject.NULL, 7, true, JSONObject())
+        invalidValues.forEach { invalid ->
+            val invalidAppSession = JSONObject()
+                .put("state", "streaming")
+                .put("game_uuid", "control")
+                .put("session_token", "token-123")
+                .put("app_session_id", invalid)
+            assertThrows(JSONException::class.java) {
+                PolarisApiClient.parseSessionStatusResponse(invalidAppSession)
+            }
+
+            val invalidTransport = JSONObject()
+                .put("state", "streaming")
+                .put("game_uuid", "control")
+                .put("session_token", invalid)
+            assertThrows(JSONException::class.java) {
+                PolarisApiClient.parseSessionStatusResponse(invalidTransport)
+            }
+
+            val invalidGame = JSONObject()
+                .put("state", "streaming")
+                .put("game_uuid", invalid)
+                .put("session_token", "token-123")
+            assertThrows(JSONException::class.java) {
+                PolarisApiClient.parseSessionStatusResponse(invalidGame)
+            }
+        }
+    }
+
+    @Test
+    fun parseSessionStatusResponse_allowsAnAbsentAppIdentityForLegacyTokenScope() {
+        val status = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject()
+                .put("state", "streaming")
+                .put("game_uuid", "control")
+                .put("session_token", "legacy-token")
+        )
+
+        assertEquals("legacy-token", status.sessionToken)
+        assertEquals("", status.appSessionId)
+        assertFalse(status.appSessionIdPresent)
     }
 
     @Test

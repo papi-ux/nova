@@ -8,6 +8,8 @@ data class PolarisSessionStatus(
     val gameId: Int = 0,
     val gameUuid: String = "",
     val sessionToken: String = "",
+    val appSessionId: String = "",
+    val appSessionIdPresent: Boolean = false,
     val ownerUniqueId: String = "",
     val ownerDeviceName: String = "",
     val clientRole: String = "none",
