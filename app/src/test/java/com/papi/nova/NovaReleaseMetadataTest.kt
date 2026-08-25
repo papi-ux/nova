@@ -81,14 +81,14 @@ class NovaReleaseMetadataTest {
         val releaseWorkflow = File(root, ".github/workflows/build.yml").readText()
         val storeNotes = File(
             root,
-            "fastlane/metadata/android/en-US/changelogs/39.txt"
+            "fastlane/metadata/android/en-US/changelogs/40.txt"
         )
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.3.7\""))
-        assertTrue(build.contains("versionCode = 39"))
-        assertTrue(changelog.contains("## 1.3.7 - 2026-08-19"))
-        assertTrue(changelog.contains("does not automatically upload a report"))
+        assertTrue(build.contains("versionName \"1.3.8\""))
+        assertTrue(build.contains("versionCode = 40"))
+        assertTrue(changelog.contains("## 1.3.8 - 2026-08-25"))
+        assertTrue(changelog.contains("Automatic Steam profile Fix, Apply, and Undo are not offered."))
         assertTrue(releaseWorkflow.contains("python3 scripts/extract_release_notes.py"))
         assertTrue(releaseWorkflow.contains("--notes-file \"\$release_notes\""))
         assertTrue(releaseWorkflow.contains("gh release edit \"\${GITHUB_REF_NAME}\""))
@@ -107,7 +107,7 @@ class NovaReleaseMetadataTest {
             "Google Play release notes must be at most 500 Unicode characters",
             storeNotesBody.codePointCount(0, storeNotesBody.length) <= 500,
         )
-        assertTrue(storeNotesBody.startsWith("Nova 1.3.7"))
+        assertTrue(storeNotesBody.startsWith("Nova 1.3.8"))
     }
 
     @Test

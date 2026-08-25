@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 1.3.8 - 2026-08-25
+
+Nova 1.3.8 makes high-FPS launches match what Play Setup says, keeps handheld controls inside the viewport, and makes recovery status honest instead of leaving stale warnings behind.
+
+Play Setup now sends one composed launch-tuning request for High FPS, shows the difference between what Nova requested and what Polaris granted, and keeps Settings presets from silently rewriting FPS or share-panel culling choices (#245-#247). Compact Handheld touch controls stay fully inside the viewport on narrow devices (#250).
+
+Command Center and NovaHUD now distinguish active recovery from fallback, retire stale recovery breadcrumbs, and keep authenticated Doctor receipt ownership across stream resume (#249, #252-#254). Steam Input evidence remains visible as manual guidance in this release. Automatic Steam profile Fix, Apply, and Undo are not offered.
+
+Android TV banner branding is refreshed to match the current Nova identity.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.8 and versionCode 40.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
+
+### Validation notes
+
+- The exact release-prep candidate must pass JVM tests, strict lint, public hygiene, and three-ABI release assembly before merge.
+- Final publication remains gated on the exact signed ARM64 artifact: package/version identity, signer continuity, in-place install and launch on the Retroid Pocket 6, controller-first focus, one Control stream, Command Center Doctor read-only behavior, and clean teardown with the host restored.
+- Steam Input profile mutation and Undo remain deliberately unavailable in this release. Doctor continues to report evidence and manual guidance without changing Steam files.
+
 ## 1.3.7 - 2026-08-19
 
 Nova 1.3.7 adds a user-controlled problem-report handoff, stops offering a per-session display choice the host cannot honor, and adds the two Steam Big Picture chords that were still unreachable from many streaming controllers.
