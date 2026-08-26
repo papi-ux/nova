@@ -131,6 +131,24 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun framePacingWarningOverridesStaleStableSummary() {
+        val state = quickState(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    summary = "Stable",
+                    primaryIssue = "frame_pacing",
+                    issues = listOf("frame_pacing")
+                )
+            )
+        )
+
+        assertEquals("Frame pacing", state.healthSummary)
+        assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
+        assertFalse(state.healthSummary.contains("Stable", ignoreCase = true))
+    }
+
+    @Test
     fun controllerToggleCopyClarifiesTouchOverlayInsteadOfPhysicalGamepad() {
         val state = quickState(status = status(), currentGameName = "Portal")
         val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }
@@ -265,6 +283,28 @@ class NovaQuickMenuUiStateTest {
         assertEquals("high", state.diagnosis.confidence)
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(16000, state.diagnosis.targetBitrateKbps)
+    }
+
+    @Test
+    fun deterministicFallbackIsDisplayedAsAnInformationalSource() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    classification = "HOST",
+                    likelyCause = "Frame pacing is uneven.",
+                    confidence = "deterministic-fallback",
+                    primaryIssue = "frame_pacing",
+                    explanationSourceKind = "deterministic-fallback",
+                    explanationSourceMode = "openai-subscription",
+                    explanationInformational = true
+                )
+            )
+        )
+
+        assertEquals("Deterministic fallback · openai-subscription", state.diagnosis.informationalSource)
+        assertFalse(state.diagnosis.actionExecutable)
     }
 
     @Test
@@ -435,6 +475,25 @@ class NovaQuickMenuUiStateTest {
         assertEquals(NovaQuickMenuActionId.DOCTOR_UNDO, state.doctorReceiptAction.id)
         assertEquals("Verified", state.doctorReceiptAction.chip?.label)
         assertTrue(state.doctorReceiptAction.caption.contains("restore", ignoreCase = true))
+    }
+
+    @Test
+    fun recoveryUndoCopyPromisesOnlyQueuedProfileRemoval() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope-a",
+            runId = "recovery-run-1",
+            state = "queued",
+            message = "Safer profile queued.",
+            undoAvailable = true,
+            undoActionId = "undo_recovery_profile_next_launch",
+            appUuid = "game-1"
+        )
+
+        val state = quickState(status = status(), doctorReceipt = receipt)
+
+        assertTrue(state.doctorReceiptAction.caption.contains("removes only this queued safer profile"))
+        assertTrue(state.doctorReceiptAction.caption.contains("current stream and settings will not change"))
+        assertFalse(state.doctorReceiptAction.caption.contains("restore the previous bitrate", ignoreCase = true))
     }
 
     @Test

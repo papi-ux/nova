@@ -142,37 +142,37 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     it.runId.isNotBlank() &&
                         (currentAppUuid.isBlank() || it.appUuid.equals(currentAppUuid, ignoreCase = true))
                 }
-            val recoveryScope = authoritativeRecovery?.let {
+            val recoveryScope = currentAppUuid.takeIf { it.isNotBlank() }?.let {
                 DoctorActionReceiptStore.recoveryScopeId(
                     host = getServerAddress().orEmpty(),
                     httpsPort = getHttpsPort(),
-                    appUuid = it.appUuid
+                    appUuid = it
                 )
             }
-            val nextScope = recoveryScope ?: DoctorActionReceiptStore.scopeId(
+            val nextScope = if (authoritativeRecovery != null) recoveryScope else DoctorActionReceiptStore.scopeId(
                 host = getServerAddress().orEmpty(),
                 httpsPort = getHttpsPort(),
                 sessionStatus = status
             )
             synchronized(doctorActionLock) {
-                if (nextScope != doctorReceiptScopeId) {
+                val previousScope = doctorReceiptScopeId
+                if (nextScope != previousScope) {
                     doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
                     doctorVerificationRunnable = null
                     doctorActionPendingRegistry.reset()
                     doctorActionGeneration += 1L
                     doctorReceiptScopeId = nextScope
-                    doctorReceipt = nextScope?.let { DoctorActionReceiptStore.load(prefs, it) }
                 }
-                if (authoritativeRecovery != null && nextScope != null) {
-                    DoctorActionReceiptStore.fromRecoveryReceipt(
-                        scopeId = nextScope,
-                        receipt = authoritativeRecovery,
-                        nowEpochMs = System.currentTimeMillis()
-                    )?.let { reconstructed ->
-                        doctorReceipt = reconstructed
-                        DoctorActionReceiptStore.save(prefs, reconstructed)
-                    }
-                }
+                doctorReceipt = DoctorActionReceiptStore.reconcileScope(
+                    preferences = prefs,
+                    currentReceipt = doctorReceipt,
+                    currentScopeId = previousScope,
+                    nextScopeId = nextScope,
+                    recoveryScopeId = recoveryScope,
+                    currentAppUuid = currentAppUuid,
+                    authoritativeRecovery = authoritativeRecovery,
+                    nowEpochMs = System.currentTimeMillis()
+                )
                 doctorReceiptValidatedScopeId = nextScope
             }
         }
@@ -445,7 +445,13 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 "expired" -> game.getString(R.string.nova_quick_menu_doctor_recovery_expired)
                 "rejected" -> game.getString(R.string.nova_quick_menu_doctor_recovery_rejected)
                 "needs_attention" -> game.getString(R.string.nova_quick_menu_doctor_needs_attention)
-                "undone" -> game.getString(R.string.nova_quick_menu_doctor_undone)
+                "undone" -> game.getString(
+                    if (result.appUuid.isNotBlank()) {
+                        R.string.nova_quick_menu_doctor_recovery_undone
+                    } else {
+                        R.string.nova_quick_menu_doctor_undone
+                    }
+                )
                 else -> result.error.takeIf { it.isNotBlank() }
                     ?: game.getString(R.string.nova_quick_menu_doctor_failed)
             }
@@ -487,14 +493,13 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
                 game.runOnMainIfRuntimeActive {
                     doctorActionPendingRegistry.clearIfOwned(undoRequest.generation)
-                    val canPresentHere = requestIsCurrent(undoRequest) &&
-                        menuValidationIsCurrent() && dialog === overlay && overlay.isShowing
+                    val canPresentHere = menuValidationIsCurrent() && dialog === overlay && overlay.isShowing
                     if (canPresentHere) {
                         if (result?.status == true && updated != null) {
                             doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
                             doctorVerificationRunnable = null
                             NovaSnackbar.showSuccess(game, doctorResultMessage(result), anchor = composeView)
-                        } else {
+                        } else if (requestIsCurrent(undoRequest)) {
                             NovaSnackbar.showError(
                                 game,
                                 result?.error?.takeIf { it.isNotBlank() }
@@ -672,6 +677,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 return
             }
             if (doctor.requiresConfirmation) {
+                if (doctor.actionId != "apply_recovery_profile_next_launch" ||
+                    doctor.actionKind != "next_launch_profile"
+                ) {
+                    game.copyNovaHudDiagnostics()
+                    return
+                }
                 val confirmed = doctor
                 UiHelper.displayConfirmationDialog(
                     game,

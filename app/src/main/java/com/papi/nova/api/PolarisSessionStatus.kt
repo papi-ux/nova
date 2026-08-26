@@ -333,12 +333,6 @@ data class PolarisSessionStatus(
                 ownerTuningAllowed &&
                 pairedEndpoint == "/polaris/v1/doctor/action" &&
                 undoPairedEndpoint == "/polaris/v1/doctor/action"
-            "disable_steam_input_xbox" -> version >= 2 &&
-                primaryIssue == "steam_input_conflict" &&
-                actionKind == "host_setting" &&
-                resultId.isNotBlank() &&
-                requiresConfirmation &&
-                undoSupported
             else -> false
         }
 
@@ -497,7 +491,11 @@ data class PolarisSessionStatus(
     val isHeadlessHdrUnavailable get() =
         health.hdrDowngradeReason.equals("headless_hdr_unavailable", ignoreCase = true) ||
             (isHdrDowngraded && isHeadlessMode)
-    val hasHealthConcerns get() = health.grade.equals("watch", ignoreCase = true) || health.grade.equals("degraded", ignoreCase = true)
+    val hasHealthConcerns get() =
+        health.grade.equals("watch", ignoreCase = true) ||
+            health.grade.equals("degraded", ignoreCase = true) ||
+            (health.primaryIssue.isNotBlank() && !health.primaryIssue.equals("none", ignoreCase = true)) ||
+            health.issues.isNotEmpty()
     val healthToneLabel get() = when {
         isHostRenderLimited -> "Host Render"
         health.primaryIssue.equals("frame_pacing", ignoreCase = true) ||

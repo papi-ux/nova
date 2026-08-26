@@ -281,18 +281,32 @@ class NovaLaunchSourceGuardTest {
                 !resolvePlan.contains("getOptimization(")
         )
         assertTrue(
-            "shortcut launch should sync the Polaris client settings/profile contract only when a launch is going ahead",
+            "shortcut launch should resolve recovery settings before pushing the exact launch contract",
             applyPreflight.contains("apiClient.setMangoHud(polarisGame.id, polarisGame.mangohud)") &&
-                applyPreflight.contains("syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay, clientSettings)") &&
                 applyPreflight.contains("apiClient.getClientSettings()") &&
                 applyPreflight.contains("apiClient.getOptimization(") &&
+                applyPreflight.contains("val recoveryProfile = StreamSyncManager.recoveryLaunchProfile(composed)") &&
+                applyPreflight.contains("val launchResolution = StreamSyncManager.resolveAutoSafeResolution(") &&
+                applyPreflight.contains("val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(") &&
+                applyPreflight.contains("val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(") &&
+                applyPreflight.indexOf("apiClient.getOptimization(") <
+                    applyPreflight.indexOf("syncShortcutLaunchPreflightSettings(") &&
                 trampoline.contains("applyPolarisShortcutLaunchPreflight(details, it, prefConfig.useVirtualDisplay)") &&
                 directLaunch.contains("startConfirmedShortcutLaunch(")
         )
         assertTrue(
-            "shortcut launch should carry Polaris optimization/profile extras into Game just like library launches",
+            "shortcut launch should carry the same resolved recovery fields into Game and the settings push",
             directLaunch.contains("readyLaunchPlan.profilePreference") &&
                 directLaunch.contains("readyLaunchPlan.launchOptimizationJson") &&
+                applyPreflight.contains("width = launchResolution.width") &&
+                applyPreflight.contains("height = launchResolution.height") &&
+                applyPreflight.contains("fps = launchFps") &&
+                applyPreflight.contains("bitrateKbps = launchBitrateKbps") &&
+                trampoline.contains("readyLaunchPlan.usesVirtualDisplay") &&
+                trampoline.contains("streamWidth = readyLaunchPlan.streamWidth") &&
+                trampoline.contains("streamHeight = readyLaunchPlan.streamHeight") &&
+                trampoline.contains("streamFps = readyLaunchPlan.streamFps") &&
+                trampoline.contains("streamMode = readyLaunchPlan.streamMode") &&
                 serverHelper.contains("Game.EXTRA_AI_PROFILE_PREFERENCE") &&
                 serverHelper.contains("Game.EXTRA_LAUNCH_OPTIMIZATION")
         )

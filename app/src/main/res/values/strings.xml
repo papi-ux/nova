@@ -1006,6 +1006,8 @@
     <string name="nova_quick_menu_doctor_recovery_applied">Polaris verified and applied the safer launch profile.</string>
     <string name="nova_quick_menu_doctor_recovery_expired">The queued safer profile expired before a matching launch.</string>
     <string name="nova_quick_menu_doctor_recovery_rejected">The connected stream did not match the queued safer profile; it remains queued.</string>
+    <string name="nova_quick_menu_doctor_recovery_undone">The queued safer profile was removed. The current stream and settings were not changed.</string>
+    <string name="nova_quick_menu_doctor_recovery_undo_caption">Undo removes only this queued safer profile; the current stream and settings will not change.</string>
     <string name="nova_quick_menu_copy_hud_diagnostics">Copy HUD Diagnostics</string>
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>

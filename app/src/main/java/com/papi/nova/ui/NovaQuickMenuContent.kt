@@ -485,6 +485,7 @@ private fun NovaQuickMenuDiagnosisCard(
     val detail = buildList {
         diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
         diagnosis.evidence.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("Evidence: $it") }
+        diagnosis.informationalSource.takeIf { it.isNotBlank() }?.let { add("Source: $it") }
         diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
     }.joinToString(" · ")
     NovaQuickMenuInfoCard(

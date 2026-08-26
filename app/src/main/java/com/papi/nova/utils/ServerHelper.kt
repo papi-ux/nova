@@ -303,6 +303,10 @@ object ServerHelper {
         launchOptimizationJson: String? = null,
         mirrorDesktop: Boolean = false,
         forcePrivateAfterSteamClose: Boolean = false,
+        streamWidth: Int = 0,
+        streamHeight: Int = 0,
+        streamFps: Float = 0f,
+        streamMode: String = "",
     ): Intent {
         var serverCert: ByteArray? = null
         try {
@@ -331,10 +335,14 @@ object ServerHelper {
             watchOnly,
             serverCommands,
             serverCert,
+            streamWidth = streamWidth,
+            streamHeight = streamHeight,
+            streamFps = streamFps,
             aiProfilePreference = profilePreference,
             launchOptimizationJson = launchOptimizationJson,
             mirrorDesktop = mirrorDesktop,
             forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
+            streamMode = streamMode,
         )
     }
 

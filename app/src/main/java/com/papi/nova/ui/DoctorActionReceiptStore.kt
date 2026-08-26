@@ -186,6 +186,67 @@ object DoctorActionReceiptStore {
         )
     }
 
+    /**
+     * Reconciles the transport-session receipt with Polaris's durable app-scoped record.
+     *
+     * Apply begins in an app-session scope. Once Polaris exposes the queued record, that
+     * server receipt becomes authoritative and moves the local receipt into the durable
+     * recovery scope. A successful Undo removes the server record, so its terminal local
+     * receipt must move back to the current app-session scope instead of reloading the old
+     * pre-reconstruction queued copy.
+     */
+    fun reconcileScope(
+        preferences: SharedPreferences,
+        currentReceipt: DoctorActionReceipt?,
+        currentScopeId: String?,
+        nextScopeId: String?,
+        recoveryScopeId: String?,
+        currentAppUuid: String,
+        authoritativeRecovery: PolarisSessionStatus.RecoveryReceipt?,
+        nowEpochMs: Long
+    ): DoctorActionReceipt? {
+        if (nextScopeId.isNullOrBlank()) return null
+        val currentInScope = currentReceipt?.takeIf { it.scopeId == currentScopeId }
+
+        if (authoritativeRecovery != null) {
+            val reconstructed = fromRecoveryReceipt(
+                scopeId = nextScopeId,
+                receipt = authoritativeRecovery,
+                nowEpochMs = nowEpochMs
+            ) ?: return load(preferences, nextScopeId)
+            val obsoleteScope = currentScopeId?.takeIf { priorScope ->
+                priorScope != nextScopeId &&
+                    currentInScope?.runId == reconstructed.runId &&
+                    (
+                        currentInScope.appUuid.isBlank() ||
+                            currentInScope.appUuid.equals(reconstructed.appUuid, ignoreCase = true)
+                        )
+            }
+            saveReplacing(preferences, reconstructed, obsoleteScope)
+            return reconstructed
+        }
+
+        if (currentScopeId == nextScopeId) return currentInScope
+        val terminalRecovery = currentInScope?.takeIf {
+            it.isTerminal &&
+                it.appUuid.isNotBlank() &&
+                it.appUuid.equals(currentAppUuid, ignoreCase = true)
+        } ?: recoveryScopeId
+            ?.takeIf { it != nextScopeId }
+            ?.let { load(preferences, it) }
+            ?.takeIf {
+                it.isTerminal &&
+                    it.appUuid.isNotBlank() &&
+                    it.appUuid.equals(currentAppUuid, ignoreCase = true)
+            }
+        if (terminalRecovery != null) {
+            return terminalRecovery.copy(scopeId = nextScopeId).also {
+                saveReplacing(preferences, it, terminalRecovery.scopeId)
+            }
+        }
+        return load(preferences, nextScopeId)
+    }
+
     private fun scopeId(
         host: String,
         httpsPort: Int,
@@ -435,6 +496,14 @@ object DoctorActionReceiptStore {
     }
 
     fun save(preferences: SharedPreferences, receipt: DoctorActionReceipt) {
+        saveReplacing(preferences, receipt, obsoleteScopeId = null)
+    }
+
+    private fun saveReplacing(
+        preferences: SharedPreferences,
+        receipt: DoctorActionReceipt,
+        obsoleteScopeId: String?
+    ) {
         if (receipt.scopeId.isBlank() || receipt.runId.isBlank()) return
         val savedAt = System.currentTimeMillis().coerceAtLeast(0L)
         val json = JSONObject().apply {
@@ -455,9 +524,17 @@ object DoctorActionReceiptStore {
         }
         val currentKey = keyForScope(receipt.scopeId)
         val editor = preferences.edit().putString(currentKey, json.toString())
+        val obsoleteKey = obsoleteScopeId
+            ?.takeIf { it.isNotBlank() && it != receipt.scopeId }
+            ?.let(::keyForScope)
+        obsoleteKey?.let(editor::remove)
 
         val savedKeys = preferences.all.keys
-            .filter { it.startsWith(RECEIPT_KEY_PREFIX) && it != currentKey }
+            .filter {
+                it.startsWith(RECEIPT_KEY_PREFIX) &&
+                    it != currentKey &&
+                    it != obsoleteKey
+            }
             .map { key ->
                 val timestamp = runCatching {
                     JSONObject(preferences.getString(key, "{}") ?: "{}")

@@ -476,7 +476,7 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun parseSessionStatusResponse_marksDisableSteamInputXboxActionExecutable() {
+    fun parseSessionStatusResponse_keepsSteamInputMutationReadOnly() {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true," +
                 "\"doctor\":{\"version\":2,\"result_id\":\"doctor-v2-steam_input_conflict-xbox\"," +
@@ -494,7 +494,7 @@ class PolarisApiClientParsingTest {
         assertEquals("doctor-v2-steam_input_conflict-xbox", status.doctor.resultId)
         assertTrue(status.doctor.undoSupported)
         assertTrue(status.doctor.requiresConfirmation)
-        assertTrue(status.doctor.canExecuteAction)
+        assertFalse(status.doctor.canExecuteAction)
     }
 
     @Test
@@ -639,7 +639,7 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun disableSteamInputXboxActionRefusesMalformedContract() {
+    fun steamInputMutationRemainsReadOnlyEvenWhenContractIsWellFormed() {
         fun status(overrides: String): PolarisSessionStatus.DoctorStatus {
             val json = JSONObject(
                 "{\"state\":\"streaming\",\"streaming_active\":true," +
@@ -653,7 +653,7 @@ class PolarisApiClientParsingTest {
             return PolarisApiClient.parseSessionStatusResponse(json).doctor
         }
 
-        assertTrue(status("").canExecuteAction)
+        assertFalse("Steam Input mutation is disabled for this release", status("").canExecuteAction)
         assertFalse(
             "version below 2 must reject",
             PolarisApiClient.parseSessionStatusResponse(

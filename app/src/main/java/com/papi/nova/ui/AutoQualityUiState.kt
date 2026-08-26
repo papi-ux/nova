@@ -76,8 +76,7 @@ data class AutoQualityUiState(
                     )
             val healthGrade = status.health.grade.lowercase()
             val healthAutoAction = status.health.autoAction.lowercase()
-            val healthSuggestsRecovery = healthGrade == "watch" ||
-                healthGrade == "degraded" ||
+            val healthSuggestsRecovery = status.hasHealthConcerns ||
                 status.health.recoveryProfile.isNotBlank() ||
                 status.health.relaunchRecommended ||
                 healthAutoAction == "lower_bitrate" ||
@@ -304,7 +303,8 @@ data class AutoQualityUiState(
                 )
             }
 
-            if (adaptiveLowered ||
+            if (healthSuggestsRecovery ||
+                adaptiveLowered ||
                 safeProfileApplied ||
                 status.health.relaunchRecommended ||
                 healthAutoAction == "lower_bitrate" ||
@@ -316,13 +316,19 @@ data class AutoQualityUiState(
             ) {
                 val label = when {
                     hostRenderLimited -> "Host render limited"
+                    status.healthToneLabel == "Frame pacing" -> "Frame pacing"
+                    healthGrade == "degraded" -> "Stream degraded"
+                    healthGrade == "watch" -> "Needs attention"
                     adaptiveLowered -> "Auto Safe capped"
                     safeFpsApplied -> "Recovering FPS"
                     status.health.relaunchRecommended -> "Recovery queued"
                     else -> "Auto Quality recovering"
                 }
-                val detail = status.health.summary.takeIf { it.isNotBlank() }
+                val detail = status.health.summary.takeIf {
+                    it.isNotBlank() && !it.trim().trimEnd('.', '!').equals("Stable", ignoreCase = true)
+                }
                     ?: when {
+                        status.hasHealthConcerns -> status.healthToneLabel
                         adaptiveLowered -> streamPolicy.statusCaption
                         safeFpsApplied -> "Safer ${status.health.safeTargetFps.roundToInt()} FPS profile is available"
                         hostRenderLimited -> "Host render path is missing the target frame rate"

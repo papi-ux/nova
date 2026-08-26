@@ -10,6 +10,24 @@ import org.junit.Test
 
 class NovaComposeSourceGuardTest {
     @Test
+    fun commandCenterRendersDeterministicFallbackAsASourceAndGuardsRecoveryConfirmation() {
+        val menu = readNovaQuickMenu()
+        val content = readNovaQuickMenuContent()
+
+        assertTrue(
+            "Doctor explanation fallback must be identified as an informational source, not mislabeled as confidence only",
+            content.contains("diagnosis.informationalSource") &&
+                content.contains("add(\"Source: \$it\")")
+        )
+        assertTrue(
+            "next-launch confirmation copy must be unreachable for any other Doctor action kind",
+            menu.contains("doctor.actionId != \"apply_recovery_profile_next_launch\"") &&
+                menu.contains("doctor.actionKind != \"next_launch_profile\"") &&
+                menu.contains("R.string.nova_quick_menu_doctor_confirm_recovery_message")
+        )
+    }
+
+    @Test
     fun commandCenterRequestsInitialFocusForDpadNavigationOnOpen() {
         val quickMenuContent = readNovaQuickMenuContent()
         val content = quickMenuContent.section(
