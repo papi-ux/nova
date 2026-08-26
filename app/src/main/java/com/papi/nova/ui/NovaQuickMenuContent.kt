@@ -485,7 +485,6 @@ private fun NovaQuickMenuDiagnosisCard(
     val detail = buildList {
         diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
         diagnosis.evidence.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("Evidence: $it") }
-        diagnosis.informationalSource.takeIf { it.isNotBlank() }?.let { add("Source: $it") }
         diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
     }.joinToString(" · ")
     NovaQuickMenuInfoCard(
@@ -508,6 +507,10 @@ private fun NovaQuickMenuDiagnosisCard(
             ),
             enabled = diagnosis.available
         ),
+        supportingLine = diagnosis.informationalSource
+            .takeIf { it.isNotBlank() }
+            ?.let { "Source: $it" }
+            .orEmpty(),
         // The real callbacks. This used to construct a fresh default instance, whose
         // every member is a no-op, so the card rendered enabled and did nothing when
         // pressed -- and looked no different from one that worked. The guard forbids the
@@ -707,14 +710,17 @@ private fun NovaQuickMenuPreferenceButton(
 private fun NovaQuickMenuInfoCard(
     action: NovaQuickMenuAction,
     callbacks: NovaQuickMenuCallbacks,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    supportingLine: String = ""
 ) {
     NovaQuickMenuClickableSurface(
         enabled = action.enabled,
         onClick = { callbacks.perform(action) },
         modifier = modifier,
         contentPadding = PaddingValues(11.dp),
-        contentDescription = action.label
+        contentDescription = listOf(action.label, supportingLine)
+            .filter { it.isNotBlank() }
+            .joinToString(". ")
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -728,6 +734,16 @@ private fun NovaQuickMenuInfoCard(
                     modifier = Modifier.weight(1f)
                 )
                 action.chip?.let { NovaQuickMenuChipView(it) }
+            }
+            if (supportingLine.isNotBlank()) {
+                Text(
+                    text = supportingLine,
+                    color = LocalNovaComposeColors.current.accent,
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
             }
             if (action.caption.isNotBlank()) {
                 Text(

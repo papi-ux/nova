@@ -15,9 +15,11 @@ class NovaComposeSourceGuardTest {
         val content = readNovaQuickMenuContent()
 
         assertTrue(
-            "Doctor explanation fallback must be identified as an informational source, not mislabeled as confidence only",
+            "Doctor explanation fallback must have an always-visible and accessibility-visible source line",
             content.contains("diagnosis.informationalSource") &&
-                content.contains("add(\"Source: \$it\")")
+                content.contains("supportingLine = diagnosis.informationalSource") &&
+                content.contains("text = supportingLine") &&
+                content.contains("listOf(action.label, supportingLine)")
         )
         assertTrue(
             "next-launch confirmation copy must be unreachable for any other Doctor action kind",

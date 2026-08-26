@@ -149,11 +149,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     appUuid = it
                 )
             }
-            val nextScope = if (authoritativeRecovery != null) recoveryScope else DoctorActionReceiptStore.scopeId(
+            val appSessionScope = DoctorActionReceiptStore.scopeId(
                 host = getServerAddress().orEmpty(),
                 httpsPort = getHttpsPort(),
                 sessionStatus = status
             )
+            val nextScope = if (authoritativeRecovery != null) recoveryScope else appSessionScope
             synchronized(doctorActionLock) {
                 val previousScope = doctorReceiptScopeId
                 if (nextScope != previousScope) {
@@ -168,6 +169,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     currentReceipt = doctorReceipt,
                     currentScopeId = previousScope,
                     nextScopeId = nextScope,
+                    appSessionScopeId = appSessionScope,
                     recoveryScopeId = recoveryScope,
                     currentAppUuid = currentAppUuid,
                     authoritativeRecovery = authoritativeRecovery,
