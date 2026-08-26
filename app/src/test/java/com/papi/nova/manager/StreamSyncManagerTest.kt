@@ -1,5 +1,6 @@
 package com.papi.nova.manager
 
+import com.papi.nova.nvstream.jni.MoonBridge
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -436,5 +437,124 @@ class StreamSyncManagerTest {
         )
 
         assertTrue(StreamSyncManager.shouldPreferStabilityDecoder(optimization))
+    }
+
+    @Test
+    fun exactQueuedRecoveryProfileControlsEveryLaunchPreflightField() {
+        val optimization = JSONObject()
+            .put("recovery_state", "queued")
+            .put("recovery_run_id", "run-a")
+            .put("display_mode", "1280x720x120")
+            .put("target_bitrate_kbps", 80_000)
+            .put(
+                "recovery_profile",
+                JSONObject()
+                    .put("stream_display_mode", "host_virtual_display")
+                    .put("width", 1920)
+                    .put("height", 1080)
+                    .put("target_fps", 60)
+                    .put("target_bitrate_kbps", 16_000)
+                    .put("preferred_codec", "hevc")
+                    .put("hdr", true)
+                    .put("preserve_paired_resolution", true)
+                    .put("requires_fresh_launch", true)
+            )
+
+        val recovery = requireNotNull(StreamSyncManager.recoveryLaunchProfile(optimization))
+        assertEquals("run-a", recovery.runId)
+        assertEquals("host_virtual_display", recovery.streamDisplayMode)
+        assertTrue(recovery.virtualDisplay)
+        assertFalse(recovery.mirrorDesktop)
+        assertEquals(1920, recovery.width)
+        assertEquals(1080, recovery.height)
+        assertEquals(60f, recovery.targetFps, 0.01f)
+        assertEquals(16_000, recovery.targetBitrateKbps)
+        assertEquals("hevc", recovery.preferredCodec)
+        assertTrue(recovery.hdr)
+        assertTrue(recovery.requiresFreshLaunch)
+        assertEquals(16_000, StreamSyncManager.resolveAutoSafeBitrateKbps(50_000, optimization))
+        assertEquals(60f, StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization), 0.01f)
+        val resolution = StreamSyncManager.resolveAutoSafeResolution(2560, 1440, optimization)
+        assertEquals(1920, resolution.width)
+        assertEquals(1080, resolution.height)
+        assertTrue(StreamSyncManager.shouldForceFreshLaunch(optimization))
+        assertEquals(
+            MoonBridge.VIDEO_FORMAT_H265 or MoonBridge.VIDEO_FORMAT_H265_MAIN10,
+            StreamSyncManager.restrictVideoFormatsForRecovery(
+                MoonBridge.VIDEO_FORMAT_H264 or MoonBridge.VIDEO_FORMAT_H265 or MoonBridge.VIDEO_FORMAT_H265_MAIN10,
+                recovery
+            )
+        )
+    }
+
+    @Test
+    fun malformedOrNonQueuedRecoveryProfileCannotAffectLaunchPreflight() {
+        fun optimization(state: String = "queued", runId: String = "run-a") = JSONObject()
+            .put("recovery_state", state)
+            .put("recovery_run_id", runId)
+            .put(
+                "recovery_profile",
+                JSONObject()
+                    .put("stream_display_mode", "host_virtual_display")
+                    .put("width", 1920)
+                    .put("height", 1080)
+                    .put("target_fps", 60)
+                    .put("target_bitrate_kbps", 16_000)
+                    .put("preferred_codec", "hevc")
+                    .put("hdr", false)
+                    .put("preserve_paired_resolution", true)
+                    .put("requires_fresh_launch", true)
+            )
+
+        assertTrue(StreamSyncManager.recoveryLaunchProfile(optimization()) != null)
+        assertEquals(null, StreamSyncManager.recoveryLaunchProfile(optimization(state = "applied")))
+        assertEquals(null, StreamSyncManager.recoveryLaunchProfile(optimization(runId = "")))
+        assertEquals(
+            null,
+            StreamSyncManager.recoveryLaunchProfile(
+                optimization().apply {
+                    getJSONObject("recovery_profile").put("preferred_codec", "vp9")
+                }
+            )
+        )
+        assertEquals(
+            null,
+            StreamSyncManager.recoveryLaunchProfile(
+                optimization().apply {
+                    getJSONObject("recovery_profile").put("requires_fresh_launch", false)
+                }
+            )
+        )
+        assertEquals(
+            null,
+            StreamSyncManager.recoveryLaunchProfile(
+                optimization().apply {
+                    getJSONObject("recovery_profile").remove("preserve_paired_resolution")
+                }
+            )
+        )
+        assertEquals(
+            null,
+            StreamSyncManager.recoveryLaunchProfile(
+                optimization().apply {
+                    getJSONObject("recovery_profile").put("target_bitrate_kbps", 999)
+                }
+            )
+        )
+        assertEquals(
+            0,
+            StreamSyncManager.restrictVideoFormatsForRecovery(
+                MoonBridge.VIDEO_FORMAT_H264,
+                StreamSyncManager.recoveryLaunchProfile(optimization())
+            )
+        )
+        assertEquals(
+            null,
+            StreamSyncManager.recoveryLaunchProfile(
+                optimization().apply {
+                    getJSONObject("recovery_profile").put("stream_display_mode", "unknown")
+                }
+            )
+        )
     }
 }

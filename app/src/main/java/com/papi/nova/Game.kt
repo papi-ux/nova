@@ -256,6 +256,9 @@ private var externalDisplayListener:DisplayManager.DisplayListener? = null
 com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfileSource.LOCAL_DEFAULT)
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
+private var launchRecoveryRunId:String = ""
+private var recoveryVerificationAttempted:AtomicBoolean = AtomicBoolean(false)
+private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
 private var streamMode:String = ""
 private var forcePrivateAfterSteamClose:Boolean = false
@@ -1043,6 +1046,8 @@ streamMode = this@Game.getIntent().getStringExtra(EXTRA_STREAM_MODE) ?: ""
 forcePrivateAfterSteamClose = this@Game.getIntent().getBooleanExtra(EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, false)
 launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
 launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
+launchRecoveryRunId = this@Game.getIntent().getStringExtra(EXTRA_RECOVERY_RUN_ID) ?: ""
+resumeExistingRequested = this@Game.getIntent().getBooleanExtra(EXTRA_RESUME_EXISTING, false)
 serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
 var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
 var derCertData:ByteArray? = this@Game.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT)
@@ -1083,7 +1088,17 @@ finish()
 return
 }
 
-var launchOptimization:JSONObject? = if (watchOnlyRequested) null else loadLaunchOptimization(appName)
+var launchOptimization:JSONObject? = if (watchOnlyRequested || resumeExistingRequested) null else loadLaunchOptimization(appName)
+var recoveryLaunchProfile:com.papi.nova.manager.StreamSyncManager.RecoveryLaunchProfile? =
+com.papi.nova.manager.StreamSyncManager.recoveryLaunchProfile(launchOptimization)
+if (recoveryLaunchProfile != null)
+{
+launchRecoveryRunId = recoveryLaunchProfile!!.runId
+vDisplay = recoveryLaunchProfile!!.virtualDisplay
+mirrorDesktop = recoveryLaunchProfile!!.mirrorDesktop
+streamMode = recoveryLaunchProfile!!.streamDisplayMode
+LimeLog.info("Nova: Recovery launch contract " + launchRecoveryRunId + " topology=" + streamMode)
+}
 lastClientProfileProvenance = com.papi.nova.manager.StreamSyncManager.resolveProfileProvenance(launchOptimization, manualOverride = isManualProfileOverride())
 
  // Initialize the MediaCodec helper before creating the decoder
@@ -1092,7 +1107,8 @@ MediaCodecHelper.initialize(this, glPrefs!!.glRenderer)
 MediaCodecHelper.setPreferStabilityDecoders(
 com.papi.nova.manager.StreamSyncManager.shouldPreferStabilityDecoder(launchOptimization)
 )
-var forceFreshLaunch:Boolean = !watchOnlyRequested && com.papi.nova.manager.StreamSyncManager.shouldForceFreshLaunch(launchOptimization)
+var forceFreshLaunch:Boolean = !watchOnlyRequested && !resumeExistingRequested &&
+com.papi.nova.manager.StreamSyncManager.shouldForceFreshLaunch(launchOptimization)
 if (forceFreshLaunch)
 {
 LimeLog.info("Nova: Auto Safe requires fresh launch before streaming")
@@ -1111,6 +1127,10 @@ isOnExternalDisplay,
 Build.VERSION.SDK_INT,
 displaySupportsHdr10
 )
+if (recoveryLaunchProfile != null)
+{
+willStreamHdr = recoveryLaunchProfile!!.hdr
+}
 
 if (shouldShowSdr10BitOptInToast(
 prefConfig!!.enableHdr,
@@ -1261,6 +1281,10 @@ if (willStreamHdr && decoderRenderer!!.isAv1Main10Supported)
 supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_AV1_MAIN10
 }
 }
+supportedVideoFormats = com.papi.nova.manager.StreamSyncManager.restrictVideoFormatsForRecovery(
+supportedVideoFormats,
+recoveryLaunchProfile
+)
 
 var gamepadMask:Int = ControllerHandler.getAttachedControllerMask(this).toInt()
 if (!prefConfig!!.multiController)
@@ -1300,7 +1324,7 @@ var autoSafeTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveAut
 launchRefreshRate,
 launchOptimization
 )
-if (autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
+if (recoveryLaunchProfile == null && autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
 {
 var displayCompatibleTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveDisplayCompatibleAutoSafeTargetFps(
 autoSafeTargetFps,
@@ -1414,7 +1438,9 @@ vDisplay,
 willStreamHdr,
 supportedVideoFormats,
 prefConfig!!.videoFormat,
-displayModeExplicit
+displayModeExplicit,
+recoveryLaunchProfile?.preferredCodec ?: "",
+recoveryLaunchProfile?.streamDisplayMode ?: streamMode
 )
 try
 {
@@ -6163,6 +6189,7 @@ maybeShowDisplayModeWarning(status)
 updateCompanionCommandDeck()
 }
 reportClientPresentationIfNeeded(status)
+maybeVerifyRecoveryAfterConnect(status)
 }
 }
 catch (e:kotlinx.coroutines.CancellationException) {
@@ -6175,6 +6202,51 @@ finally
 {
 polarisSessionStatusRefreshInFlight.set(false)
 } }
+}
+
+private fun maybeVerifyRecoveryAfterConnect(status:com.papi.nova.api.PolarisSessionStatus) {
+val runId:String = launchRecoveryRunId
+val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: return
+if (runId.isBlank() || !connected || !isStreamActive || !status.isStreaming || status.isViewer)
+{
+return
+}
+if (!status.gameUuid.equals(appUUID, ignoreCase = true) ||
+status.encoder.codec.isBlank() || status.encoder.bitrateKbps <= 0 ||
+status.encoder.encodeTargetFps <= 0.0 || status.capture.resolution.isBlank())
+{
+return
+}
+val receipt = status.recoveryRecords.firstOrNull { it.runId == runId }
+    ?: status.recovery.takeIf { it.runId == runId }
+if (receipt == null || !receipt.isQueued || !recoveryVerificationAttempted.compareAndSet(false, true))
+{
+return
+}
+val result = client.runDoctorAction(
+"verify_recovery_profile_next_launch",
+status.appSessionId,
+appUuid = appUUID.orEmpty(),
+runId = runId
+)
+if (result == null)
+{
+recoveryVerificationAttempted.set(false)
+LimeLog.warning("Nova: Recovery verification transport failed; will retry after fresh status")
+return
+}
+if (result.status && result.recoveryState.equals("applied", ignoreCase = true))
+{
+LimeLog.info("Nova: Recovery profile verified and consumed run=" + runId)
+launchRecoveryRunId = ""
+launchOptimizationJson = null
+intent.removeExtra(EXTRA_RECOVERY_RUN_ID)
+intent.removeExtra(EXTRA_LAUNCH_OPTIMIZATION)
+}
+else
+{
+LimeLog.warning("Nova: Recovery verification did not consume run=" + runId + " state=" + result.recoveryState)
+}
 }
 
 private fun applyMouseMode(mode:Int) {
@@ -6508,6 +6580,9 @@ finish()
 var relaunchIntent:Intent = Intent(getIntent())
 relaunchIntent.setClass(getApplicationContext(), Game::class.java)
 relaunchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+relaunchIntent.removeExtra(EXTRA_LAUNCH_OPTIMIZATION)
+relaunchIntent.removeExtra(EXTRA_RECOVERY_RUN_ID)
+relaunchIntent.removeExtra(EXTRA_RESUME_EXISTING)
 if (prefConfig!!.smartClipboardSync)
 {
 getClipboard(-1)
@@ -6786,6 +6861,8 @@ const val EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE:String = "ForcePrivateAfterSteam
  const val EXTRA_STREAM_FPS:String = "StreamFps"
  const val EXTRA_AI_PROFILE_PREFERENCE:String = "AiProfilePreference"
  const val EXTRA_LAUNCH_OPTIMIZATION:String = "LaunchOptimization"
+ const val EXTRA_RECOVERY_RUN_ID:String = "RecoveryRunId"
+ const val EXTRA_RESUME_EXISTING:String = "ResumeExisting"
  const val EXTRA_SERVER_COMMANDS:String = "ServerCommands"
  const val EXTRA_DISPLAY_ID:String = "DisplayID"
 

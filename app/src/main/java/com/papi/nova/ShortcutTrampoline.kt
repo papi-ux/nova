@@ -12,17 +12,19 @@ import android.util.Log
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
-import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.computers.ComputerDatabaseManager
 import com.papi.nova.computers.ComputerManagerListener
 import com.papi.nova.computers.ComputerManagerService
+import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.nvstream.wol.WakeOnLanSender
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.AutoQualityProfilePreferences
+import com.papi.nova.ui.NovaLaunchPreflight
 import com.papi.nova.ui.NovaLaunchStreamOverride
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.CacheHelper
@@ -63,6 +65,12 @@ class ShortcutTrampoline : NovaActivity() {
         val profilePreference: String = "auto",
         val launchOptimizationJson: String? = null,
         val polarisGame: PolarisGame? = null,
+        val usesVirtualDisplay: Boolean? = null,
+        val mirrorDesktop: Boolean = false,
+        val streamMode: String = "",
+        val streamWidth: Int = 0,
+        val streamHeight: Int = 0,
+        val streamFps: Float = 0f,
     )
 
     private val serviceConnection: ServiceConnection = object : ServiceConnection {
@@ -166,9 +174,17 @@ class ShortcutTrampoline : NovaActivity() {
                                                         readyLaunchPlan.app,
                                                         details,
                                                         activeBinder,
-                                                        prefConfig.useVirtualDisplay,
-                                                        readyLaunchPlan.profilePreference,
-                                                        readyLaunchPlan.launchOptimizationJson,
+                                                        readyLaunchPlan.usesVirtualDisplay
+                                                            ?: prefConfig.useVirtualDisplay,
+                                                        displayModeExplicit = false,
+                                                        watchOnly = false,
+                                                        profilePreference = readyLaunchPlan.profilePreference,
+                                                        launchOptimizationJson = readyLaunchPlan.launchOptimizationJson,
+                                                        mirrorDesktop = readyLaunchPlan.mirrorDesktop,
+                                                        streamWidth = readyLaunchPlan.streamWidth,
+                                                        streamHeight = readyLaunchPlan.streamHeight,
+                                                        streamFps = readyLaunchPlan.streamFps,
+                                                        streamMode = readyLaunchPlan.streamMode,
                                                     ),
                                                 )
 
@@ -680,7 +696,6 @@ class ShortcutTrampoline : NovaActivity() {
             }
 
             val clientSettings = apiClient.getClientSettings()
-            syncShortcutLaunchPreflightSettings(apiClient, withVirtualDisplay, clientSettings)
             // The per-game Tuning choice, not a fixed "auto": a game pinned to High FPS
             // in Play Setup must launch pinned from a home-screen shortcut too.
             val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.name)
@@ -699,10 +714,39 @@ class ShortcutTrampoline : NovaActivity() {
                 preferences.height,
                 preferences.fps.toInt(),
             )
+            val recoveryProfile = StreamSyncManager.recoveryLaunchProfile(composed)
+            val launchUsesVirtualDisplay = recoveryProfile?.virtualDisplay ?: withVirtualDisplay
+            val launchMirrorDesktop = recoveryProfile?.mirrorDesktop ?: false
+            val launchMode = recoveryProfile?.streamDisplayMode.orEmpty()
+            val launchResolution = StreamSyncManager.resolveAutoSafeResolution(
+                preferences.width,
+                preferences.height,
+                composed,
+            )
+            val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(preferences.fps, composed)
+            val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(preferences.bitrate, composed)
+
+            syncShortcutLaunchPreflightSettings(
+                apiClient = apiClient,
+                clientSettings = clientSettings,
+                usesVirtualDisplay = launchUsesVirtualDisplay,
+                mirrorDesktop = launchMirrorDesktop,
+                resolvedMode = launchMode,
+                width = launchResolution.width,
+                height = launchResolution.height,
+                fps = launchFps,
+                bitrateKbps = launchBitrateKbps,
+            )
 
             launchPlan.copy(
                 profilePreference = profilePreference,
                 launchOptimizationJson = composed?.toString(),
+                usesVirtualDisplay = launchUsesVirtualDisplay,
+                mirrorDesktop = launchMirrorDesktop,
+                streamMode = launchMode,
+                streamWidth = launchResolution.width,
+                streamHeight = launchResolution.height,
+                streamFps = launchFps,
             )
         } catch (e: Exception) {
             LimeLog.warning("Nova: Shortcut launch Polaris preflight failed: ${e.message}")
@@ -723,9 +767,16 @@ class ShortcutTrampoline : NovaActivity() {
                 readyLaunchPlan.app,
                 details,
                 activeBinder,
-                withVirtualDisplay,
-                readyLaunchPlan.profilePreference,
-                readyLaunchPlan.launchOptimizationJson,
+                readyLaunchPlan.usesVirtualDisplay ?: withVirtualDisplay,
+                displayModeExplicit = false,
+                watchOnly = false,
+                profilePreference = readyLaunchPlan.profilePreference,
+                launchOptimizationJson = readyLaunchPlan.launchOptimizationJson,
+                mirrorDesktop = readyLaunchPlan.mirrorDesktop,
+                streamWidth = readyLaunchPlan.streamWidth,
+                streamHeight = readyLaunchPlan.streamHeight,
+                streamFps = readyLaunchPlan.streamFps,
+                streamMode = readyLaunchPlan.streamMode,
             )
 
             runOnUiThread {
@@ -748,18 +799,25 @@ class ShortcutTrampoline : NovaActivity() {
 
     private fun syncShortcutLaunchPreflightSettings(
         apiClient: PolarisApiClient,
-        withVirtualDisplay: Boolean,
         clientSettings: PolarisClientSettings?,
+        usesVirtualDisplay: Boolean,
+        mirrorDesktop: Boolean,
+        resolvedMode: String,
+        width: Int,
+        height: Int,
+        fps: Float,
+        bitrateKbps: Int,
     ) {
-        val preferences = PreferenceConfiguration.readPreferences(this)
-        val syncedSettings = com.papi.nova.ui.NovaLaunchPreflight.push(
+        val syncedSettings = NovaLaunchPreflight.push(
             apiClient = apiClient,
             clientSettings = clientSettings,
-            usesVirtualDisplay = withVirtualDisplay,
-            width = preferences.width,
-            height = preferences.height,
-            fps = preferences.fps,
-            bitrateKbps = preferences.bitrate,
+            usesVirtualDisplay = usesVirtualDisplay,
+            mirrorDesktop = mirrorDesktop,
+            resolvedMode = resolvedMode,
+            width = width,
+            height = height,
+            fps = fps,
+            bitrateKbps = bitrateKbps,
         )
         if (syncedSettings == null) {
             LimeLog.warning("Nova: Shortcut launch preflight client settings sync failed; continuing launch")

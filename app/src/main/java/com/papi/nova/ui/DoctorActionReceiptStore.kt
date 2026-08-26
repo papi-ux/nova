@@ -29,13 +29,20 @@ data class DoctorActionReceipt(
     val verificationAttemptCount: Int = 0,
     val undoAvailable: Boolean = false,
     val undoActionId: String = "",
+    val appUuid: String = "",
+    val expiresAtEpochSeconds: Long = 0L,
     val updatedAtEpochMs: Long = 0L
 ) {
     val isTerminal: Boolean
         get() = state in DoctorActionReceiptStore.TERMINAL_STATES
 
     val verificationPending: Boolean
-        get() = !isTerminal && runId.isNotBlank() && verificationActionId.isNotBlank()
+        get() = !isTerminal && runId.isNotBlank() && verificationActionId.isNotBlank() &&
+            verificationActionId != "verify_recovery_profile_next_launch"
+
+    val postConnectVerificationPending: Boolean
+        get() = !isTerminal && runId.isNotBlank() &&
+            verificationActionId == "verify_recovery_profile_next_launch"
 }
 
 data class DoctorActionRequestIdentity(
@@ -114,7 +121,9 @@ internal class DoctorActionPendingRegistry {
 }
 
 object DoctorActionReceiptStore {
-    internal val TERMINAL_STATES = setOf("stable", "resolved", "needs_attention", "undone")
+    internal val TERMINAL_STATES = setOf(
+        "stable", "resolved", "needs_attention", "applied", "expired", "rejected", "undone"
+    )
 
     private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v3_"
     private const val SCOPE_VERSION = "nova-doctor-receipt-scope-v3"
@@ -152,6 +161,120 @@ object DoctorActionReceiptStore {
         appSessionId: String,
         gameUuid: String
     ): String? = scopeId(host, httpsPort, "app-v1", appSessionId, gameUuid)
+
+    fun recoveryScopeId(host: String, httpsPort: Int, appUuid: String): String? =
+        scopeId(host, httpsPort, "recovery-app-v1", appUuid, appUuid)
+
+    fun fromRecoveryReceipt(
+        scopeId: String,
+        receipt: PolarisSessionStatus.RecoveryReceipt,
+        nowEpochMs: Long
+    ): DoctorActionReceipt? {
+        if (scopeId.isBlank() || receipt.runId.isBlank() || receipt.appUuid.isBlank()) return null
+        val message = receipt.message.ifBlank { receipt.error }
+        return DoctorActionReceipt(
+            scopeId = scopeId,
+            runId = receipt.runId.take(MAX_FIELD_LENGTH),
+            state = receipt.normalizedState.take(MAX_FIELD_LENGTH),
+            message = message.take(MAX_FIELD_LENGTH),
+            verificationActionId = receipt.verificationActionId.take(MAX_FIELD_LENGTH),
+            undoAvailable = receipt.undoAvailable,
+            undoActionId = receipt.undoActionId.take(MAX_FIELD_LENGTH),
+            appUuid = receipt.appUuid.take(MAX_FIELD_LENGTH),
+            expiresAtEpochSeconds = receipt.expiresAt.coerceAtLeast(0L),
+            updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
+        )
+    }
+
+    /**
+     * Reconciles the transport-session receipt with Polaris's durable app-scoped record.
+     *
+     * Apply begins in an app-session scope. Once Polaris exposes the queued record, that
+     * server receipt becomes authoritative and moves the local receipt into the durable
+     * recovery scope. A successful Undo removes the server record, so its terminal local
+     * receipt must move back to the current app-session scope instead of reloading the old
+     * pre-reconstruction queued copy.
+     */
+    fun reconcileScope(
+        preferences: SharedPreferences,
+        currentReceipt: DoctorActionReceipt?,
+        currentScopeId: String?,
+        nextScopeId: String?,
+        appSessionScopeId: String?,
+        recoveryScopeId: String?,
+        currentAppUuid: String,
+        authoritativeRecovery: PolarisSessionStatus.RecoveryReceipt?,
+        nowEpochMs: Long
+    ): DoctorActionReceipt? {
+        if (nextScopeId.isNullOrBlank()) return null
+        val currentInScope = currentReceipt?.takeIf { it.scopeId == currentScopeId }
+
+        if (authoritativeRecovery != null) {
+            val reconstructed = fromRecoveryReceipt(
+                scopeId = nextScopeId,
+                receipt = authoritativeRecovery,
+                nowEpochMs = nowEpochMs
+            ) ?: return load(preferences, nextScopeId)
+            val obsoleteScopes = buildSet {
+                val appReceipt = appSessionScopeId
+                    ?.takeIf { it != nextScopeId }
+                    ?.let { scope ->
+                        currentReceipt?.takeIf { it.scopeId == scope }
+                            ?: load(preferences, scope)
+                    }
+                appReceipt?.takeIf {
+                    !it.isTerminal &&
+                        it.runId == reconstructed.runId &&
+                        it.appUuid.isNotBlank() &&
+                        it.appUuid.equals(reconstructed.appUuid, ignoreCase = true)
+                }?.scopeId?.let(::add)
+                currentInScope?.takeIf {
+                    it.scopeId != nextScopeId &&
+                        !it.isTerminal &&
+                        it.runId == reconstructed.runId &&
+                        it.appUuid.isNotBlank() &&
+                        it.appUuid.equals(reconstructed.appUuid, ignoreCase = true)
+                }?.scopeId?.let(::add)
+            }
+            saveReplacing(preferences, reconstructed, obsoleteScopes)
+            return reconstructed
+        }
+
+        val storedRecovery = currentInScope?.takeIf { it.scopeId == recoveryScopeId }
+            ?: recoveryScopeId
+            ?.takeIf { it != nextScopeId }
+            ?.let { load(preferences, it) }
+
+        val matchingRecovery = storedRecovery?.takeIf {
+            it.appUuid.isNotBlank() &&
+                it.appUuid.equals(currentAppUuid, ignoreCase = true)
+        }
+        if (matchingRecovery?.isTerminal == true) {
+            return matchingRecovery.copy(scopeId = nextScopeId).also {
+                saveReplacing(preferences, it, setOf(matchingRecovery.scopeId))
+            }
+        }
+
+        if (matchingRecovery != null) {
+            // Polaris no longer exposes this queued record. Its absence is authoritative:
+            // a client crash after host-side Undo must not resurrect either durable copy.
+            val appReceipt = currentInScope?.takeIf { it.scopeId == nextScopeId }
+                ?: load(preferences, nextScopeId)
+            val staleScopes = buildSet {
+                add(matchingRecovery.scopeId)
+                appReceipt?.takeIf {
+                    !it.isTerminal &&
+                        it.appUuid.isNotBlank() &&
+                        it.appUuid.equals(currentAppUuid, ignoreCase = true)
+                }?.scopeId?.let(::add)
+            }
+            removeScopes(preferences, staleScopes)
+            return appReceipt?.takeUnless { it.scopeId in staleScopes }
+        }
+
+        if (currentScopeId == nextScopeId) return currentInScope
+        return load(preferences, nextScopeId)
+    }
 
     private fun scopeId(
         host: String,
@@ -208,7 +331,9 @@ object DoctorActionReceiptStore {
         val previousInScope = previous?.takeIf { it.scopeId == scopeId }
         val runId = result.runId.ifBlank { previousInScope?.runId.orEmpty() }
         val sameRun = previousInScope?.takeIf { it.runId == runId }
-        val responseState = result.state.ifBlank { sameRun?.state.orEmpty() }
+        val responseState = result.recoveryState.ifBlank {
+            result.state.ifBlank { sameRun?.state.orEmpty() }
+        }
         val terminal = responseState in TERMINAL_STATES
         val verificationActionId = when {
             terminal -> ""
@@ -259,6 +384,10 @@ object DoctorActionReceiptStore {
             verificationAttemptCount = verificationAttemptCount,
             undoAvailable = undoAvailable,
             undoActionId = undoActionId.take(MAX_FIELD_LENGTH),
+            appUuid = result.appUuid.ifBlank { sameRun?.appUuid.orEmpty() }.take(MAX_FIELD_LENGTH),
+            expiresAtEpochSeconds = result.expiresAt.takeIf { it > 0L }
+                ?: sameRun?.expiresAtEpochSeconds
+                ?: 0L,
             updatedAtEpochMs = safeNow
         )
     }
@@ -396,6 +525,14 @@ object DoctorActionReceiptStore {
     }
 
     fun save(preferences: SharedPreferences, receipt: DoctorActionReceipt) {
+        saveReplacing(preferences, receipt, obsoleteScopeIds = emptySet())
+    }
+
+    private fun saveReplacing(
+        preferences: SharedPreferences,
+        receipt: DoctorActionReceipt,
+        obsoleteScopeIds: Set<String>
+    ) {
         if (receipt.scopeId.isBlank() || receipt.runId.isBlank()) return
         val savedAt = System.currentTimeMillis().coerceAtLeast(0L)
         val json = JSONObject().apply {
@@ -409,14 +546,24 @@ object DoctorActionReceiptStore {
             put("verification_attempt_count", receipt.verificationAttemptCount)
             put("undo_available", receipt.undoAvailable)
             put("undo_action_id", receipt.undoActionId)
+            put("app_uuid", receipt.appUuid)
+            put("expires_at_epoch_seconds", receipt.expiresAtEpochSeconds)
             put("updated_at_epoch_ms", receipt.updatedAtEpochMs)
             put("saved_at_epoch_ms", savedAt)
         }
         val currentKey = keyForScope(receipt.scopeId)
         val editor = preferences.edit().putString(currentKey, json.toString())
+        val obsoleteKeys = obsoleteScopeIds
+            .filter { it.isNotBlank() && it != receipt.scopeId }
+            .mapTo(mutableSetOf(), ::keyForScope)
+        obsoleteKeys.forEach(editor::remove)
 
         val savedKeys = preferences.all.keys
-            .filter { it.startsWith(RECEIPT_KEY_PREFIX) && it != currentKey }
+            .filter {
+                it.startsWith(RECEIPT_KEY_PREFIX) &&
+                    it != currentKey &&
+                    it !in obsoleteKeys
+            }
             .map { key ->
                 val timestamp = runCatching {
                     JSONObject(preferences.getString(key, "{}") ?: "{}")
@@ -429,6 +576,13 @@ object DoctorActionReceiptStore {
         savedKeys.take((savedKeys.size - MAX_RECEIPTS).coerceAtLeast(0)).forEach { (key, _) ->
             if (key != currentKey) editor.remove(key)
         }
+        editor.commit()
+    }
+
+    private fun removeScopes(preferences: SharedPreferences, scopeIds: Set<String>) {
+        if (scopeIds.isEmpty()) return
+        val editor = preferences.edit()
+        scopeIds.filter { it.isNotBlank() }.forEach { editor.remove(keyForScope(it)) }
         editor.commit()
     }
 
@@ -454,6 +608,8 @@ object DoctorActionReceiptStore {
                     .coerceIn(0, MAX_VERIFICATION_ATTEMPTS),
                 undoAvailable = json.optBoolean("undo_available", false),
                 undoActionId = json.optString("undo_action_id").take(MAX_FIELD_LENGTH),
+                appUuid = json.optString("app_uuid").take(MAX_FIELD_LENGTH),
+                expiresAtEpochSeconds = json.optLong("expires_at_epoch_seconds", 0L).coerceAtLeast(0L),
                 updatedAtEpochMs = json.optLong("updated_at_epoch_ms", 0L).coerceAtLeast(0L)
             )
         }.getOrNull()

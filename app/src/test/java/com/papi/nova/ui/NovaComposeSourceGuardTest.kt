@@ -10,6 +10,26 @@ import org.junit.Test
 
 class NovaComposeSourceGuardTest {
     @Test
+    fun commandCenterRendersDeterministicFallbackAsASourceAndGuardsRecoveryConfirmation() {
+        val menu = readNovaQuickMenu()
+        val content = readNovaQuickMenuContent()
+
+        assertTrue(
+            "Doctor explanation fallback must have an always-visible and accessibility-visible source line",
+            content.contains("diagnosis.informationalSource") &&
+                content.contains("supportingLine = diagnosis.informationalSource") &&
+                content.contains("text = supportingLine") &&
+                content.contains("listOf(action.label, supportingLine)")
+        )
+        assertTrue(
+            "next-launch confirmation copy must be unreachable for any other Doctor action kind",
+            menu.contains("doctor.actionId != \"apply_recovery_profile_next_launch\"") &&
+                menu.contains("doctor.actionKind != \"next_launch_profile\"") &&
+                menu.contains("R.string.nova_quick_menu_doctor_confirm_recovery_message")
+        )
+    }
+
+    @Test
     fun commandCenterRequestsInitialFocusForDpadNavigationOnOpen() {
         val quickMenuContent = readNovaQuickMenuContent()
         val content = quickMenuContent.section(

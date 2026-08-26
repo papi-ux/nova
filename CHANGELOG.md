@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 1.3.9 - 2026-08-26
+
+Nova 1.3.9 makes frame-pacing problems unambiguous and adds the reversible next-launch recovery flow shared with Polaris 1.3.14.
+
+Command Center labels `frame_pacing` as **Frame pacing**, maps Watch to **Needs attention** and Degraded to **Stream degraded**, and never shows Stable while warning evidence is active. Clean loss and RTT evidence therefore stays separate from network and bitrate diagnoses. OpenAI subscription Doctor explanations that use Polaris' deterministic fallback appear as an informational source without an optimizer/provider warning.
+
+The new recovery action is accepted only with Polaris' exact authenticated contract and explicit confirmation. Its copy makes clear that the active stream is unchanged and that the safer profile applies once, on the next launch of the same game and paired device. Nova reconstructs queued and Undo state from Polaris after disconnect, Resume Stream, or app restart and renders queued, expired, applied, rejected, and undone receipts.
+
+Launch preflight and `Game` now use one recovery profile for topology, bitrate, FPS, codec, HDR, and paired resolution. Resume Stream cannot consume the queued next-launch profile. The matching recovery run ID travels into the new `Game` instance, and Nova verifies it only after the stream connects and its effective settings are known. Steam Input remains manual and read-only.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.3.9 and versionCode 41.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
+
+### Validation notes
+
+- The exact release-prep candidate must pass JVM tests, strict lint, public hygiene, and ARM64 release assembly before merge.
+- Final publication remains gated on the exact signed ARM64 artifact: package/version identity, signer continuity, preserved-data install and launch on the Retroid Pocket 6, the Control frame-pacing case, the complete Apply/Resume/restart/Undo/reapply/consume lifecycle, and clean teardown with the host restored.
+- Steam Input mutation remains unavailable. Apply and Undo must not change Steam VDF bytes, mode, or ownership.
+
 ## 1.3.8 - 2026-08-25
 
 Nova 1.3.8 makes high-FPS launches match what Play Setup says, keeps handheld controls inside the viewport, and makes recovery status honest instead of leaving stale warnings behind.

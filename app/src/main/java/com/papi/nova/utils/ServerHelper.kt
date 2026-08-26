@@ -151,7 +151,7 @@ object ServerHelper {
         return parent.windowManager.defaultDisplay.displayId
     }
 
-    private fun createStartIntent(
+    fun createStartIntent(
         parent: Activity,
         app: NvApp,
         host: String,
@@ -228,6 +228,12 @@ object ServerHelper {
         gameIntent.putExtra(Game.EXTRA_AI_PROFILE_PREFERENCE, aiProfilePreference)
         if (!launchOptimizationJson.isNullOrBlank()) {
             gameIntent.putExtra(Game.EXTRA_LAUNCH_OPTIMIZATION, launchOptimizationJson)
+            runCatching { org.json.JSONObject(launchOptimizationJson) }
+                .getOrNull()
+                ?.takeIf { it.optString("recovery_state", "").equals("queued", ignoreCase = true) }
+                ?.optString("recovery_run_id", "")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { gameIntent.putExtra(Game.EXTRA_RECOVERY_RUN_ID, it) }
         }
 
         if (serverCommands != null) {
@@ -297,6 +303,10 @@ object ServerHelper {
         launchOptimizationJson: String? = null,
         mirrorDesktop: Boolean = false,
         forcePrivateAfterSteamClose: Boolean = false,
+        streamWidth: Int = 0,
+        streamHeight: Int = 0,
+        streamFps: Float = 0f,
+        streamMode: String = "",
     ): Intent {
         var serverCert: ByteArray? = null
         try {
@@ -325,10 +335,14 @@ object ServerHelper {
             watchOnly,
             serverCommands,
             serverCert,
+            streamWidth = streamWidth,
+            streamHeight = streamHeight,
+            streamFps = streamFps,
             aiProfilePreference = profilePreference,
             launchOptimizationJson = launchOptimizationJson,
             mirrorDesktop = mirrorDesktop,
             forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
+            streamMode = streamMode,
         )
     }
 

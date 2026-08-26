@@ -100,7 +100,8 @@ data class NovaQuickMenuDiagnosisState(
     val actionExecutable: Boolean,
     val targetBitrateKbps: Int,
     val verificationDelaySeconds: Int,
-    val undoSupported: Boolean
+    val undoSupported: Boolean,
+    val informationalSource: String
 )
 
 data class NovaQuickMenuUiState(
@@ -194,8 +195,8 @@ data class NovaQuickMenuUiState(
                     }
                 )
                 hdrDowngradeSummary != null -> hdrDowngradeSummary
+                status.hasHealthConcerns -> status.healthToneLabel
                 status.health.summary.isNotBlank() -> status.health.summary
-                status.hasHealthConcerns -> context.getString(R.string.nova_quick_menu_health_attention)
                 else -> context.getString(R.string.nova_quick_menu_health_steady)
             }
             val healthTone = when {
@@ -528,6 +529,14 @@ data class NovaQuickMenuUiState(
                 receipt.runId.isNotBlank() &&
                 receipt.undoActionId.isNotBlank()
             val chip = when {
+                receipt.state == "queued" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_queued), NovaQuickMenuTone.INFO)
+                receipt.state == "applied" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_applied), NovaQuickMenuTone.ACTIVE)
+                receipt.state == "expired" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_expired), NovaQuickMenuTone.WARNING)
+                receipt.state == "rejected" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_rejected), NovaQuickMenuTone.WARNING)
                 watching -> chip(context.getString(R.string.nova_quick_menu_doctor_receipt_watching), NovaQuickMenuTone.INFO)
                 receipt.state == "resolved" || receipt.state == "stable" ->
                     chip(context.getString(R.string.nova_quick_menu_doctor_receipt_verified), NovaQuickMenuTone.ACTIVE)
@@ -537,7 +546,17 @@ data class NovaQuickMenuUiState(
             }
             val caption = buildList {
                 receipt.message.takeIf { it.isNotBlank() }?.let(::add)
-                if (canUndo) add(context.getString(R.string.nova_quick_menu_doctor_receipt_undo_caption))
+                if (canUndo) {
+                    add(
+                        context.getString(
+                            if (receipt.appUuid.isNotBlank()) {
+                                R.string.nova_quick_menu_doctor_recovery_undo_caption
+                            } else {
+                                R.string.nova_quick_menu_doctor_receipt_undo_caption
+                            }
+                        )
+                    )
+                }
             }.joinToString(" ")
             return NovaQuickMenuAction(
                 id = NovaQuickMenuActionId.DOCTOR_UNDO,
@@ -567,7 +586,15 @@ data class NovaQuickMenuUiState(
                 actionExecutable = doctor?.canExecuteAction == true && status?.canAdjustHostTuning == true,
                 targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
                 verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
-                undoSupported = doctor?.undoSupported == true
+                undoSupported = doctor?.undoSupported == true,
+                informationalSource = when {
+                    doctor?.explanationInformational == true &&
+                        doctor.explanationSourceKind.equals("deterministic-fallback", ignoreCase = true) ->
+                        listOf("Deterministic fallback", doctor.explanationSourceMode)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · ")
+                    else -> ""
+                }
             )
         }
 

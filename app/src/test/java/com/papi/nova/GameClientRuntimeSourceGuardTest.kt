@@ -12,7 +12,7 @@ class GameClientRuntimeSourceGuardTest {
     fun gameResolvesLaunchProfileProvenanceBeforeReportingRuntime() {
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val launchSetup = game.section(
-            "var launchOptimization:JSONObject? = if (watchOnlyRequested) null else loadLaunchOptimization(appName)",
+            "var launchOptimization:JSONObject? = if (watchOnlyRequested || resumeExistingRequested) null else loadLaunchOptimization(appName)",
             " // Initialize the MediaCodec helper before creating the decoder"
         )
         val reportSnapshot = game.section(
@@ -24,6 +24,10 @@ class GameClientRuntimeSourceGuardTest {
             "Game should derive profile provenance from the actual launch optimization before stream sync reporting",
             game.contains("lastClientProfileProvenance") &&
                 launchSetup.contains("StreamSyncManager.resolveProfileProvenance(launchOptimization")
+        )
+        assertTrue(
+            "Resume Stream must not consume a queued next-launch profile",
+            launchSetup.contains("watchOnlyRequested || resumeExistingRequested")
         )
         assertTrue(
             "client runtime reports should carry the same provenance into the client_runtime payload",

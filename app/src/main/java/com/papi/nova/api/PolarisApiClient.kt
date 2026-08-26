@@ -870,6 +870,7 @@ class PolarisApiClient @JvmOverloads constructor(
             val actionPayload = safeAction?.optJSONObject("payload_preview")
             val actionVerification = safeAction?.optJSONObject("verification")
             val actionUndo = safeAction?.optJSONObject("undo")
+            val explanationSource = aiDoctor?.optJSONObject("source")
             val tryFirst = parseStringArray(explanation?.optJSONArray("try_first")).takeIf { it.isNotEmpty() }
                 ?: listOfNotNull(
                     recommendation?.optString("body", "")?.takeIf { it.isNotBlank() },
@@ -897,13 +898,20 @@ class PolarisApiClient @JvmOverloads constructor(
                 actionId = safeAction?.optString("id", "") ?: "",
                 actionLabel = safeAction?.optString("label", "") ?: "",
                 actionKind = safeAction?.optString("kind", "") ?: "",
+                actionAppUuid = actionPayload?.optString("app_uuid", "") ?: "",
                 targetBitrateKbps = actionPayload?.optInt("target_bitrate_kbps", 0) ?: 0,
                 verificationDelaySeconds = actionVerification?.optInt("delay_seconds", 0) ?: 0,
-                undoSupported = actionUndo?.optBoolean("supported", false) ?: false,
+                undoSupported = actionUndo?.opt("supported") == true,
                 requiresConfirmation = safeAction?.opt("requires_confirmation") == true,
+                ownerTuningAllowed = safeAction?.opt("owner_tuning_allowed") == true,
+                pairedEndpoint = safeAction?.optString("paired_endpoint", "") ?: "",
+                undoPairedEndpoint = actionUndo?.optString("paired_endpoint", "") ?: "",
                 packetLossPct = parseDoctorEvidenceNumber(doctor, "packet_loss"),
                 latencyMs = parseDoctorEvidenceNumber(doctor, "latency"),
-                destructiveActionAllowed = false
+                destructiveActionAllowed = false,
+                explanationSourceKind = explanationSource?.optString("kind", "") ?: "",
+                explanationSourceMode = explanationSource?.optString("mode", "") ?: "",
+                explanationInformational = explanationSource?.optBoolean("informational", false) ?: false
             )
         }
 
@@ -958,6 +966,10 @@ class PolarisApiClient @JvmOverloads constructor(
                 message = json.optString("message", ""),
                 error = json.optString("error", ""),
                 runId = json.optString("run_id", ""),
+                recoveryState = json.optString("recovery_state", json.optString("state", "")),
+                appUuid = json.optString("app_uuid", ""),
+                expiresAt = json.optLong("expires_at", 0L),
+                safeProfile = parseRecoverySafeProfile(json.optJSONObject("safe_profile")),
                 verificationDelaySeconds = verification?.optInt("delay_seconds", 0) ?: 0,
                 verificationActionId = verification?.optString("action_id", "") ?: "",
                 undoAvailable = undoAvailable,
@@ -995,16 +1007,59 @@ class PolarisApiClient @JvmOverloads constructor(
         internal fun buildDoctorActionBody(
             actionId: String,
             appSessionId: String,
+            appUuid: String = "",
             sourceResultId: String = "",
             targetBitrateKbps: Int = 0,
-            runId: String = ""
+            runId: String = "",
+            confirmed: Boolean = false
         ): JSONObject = JSONObject().apply {
             put("action_id", actionId)
             if (appSessionId.isNotBlank()) put("app_session_id", appSessionId)
+            if (appUuid.isNotBlank()) put("app_uuid", appUuid)
             if (sourceResultId.isNotBlank()) put("source_result_id", sourceResultId)
             if (targetBitrateKbps > 0) put("target_bitrate_kbps", targetBitrateKbps)
             if (runId.isNotBlank()) put("run_id", runId)
+            if (confirmed) put("confirmed", true)
         }
+
+        private fun parseRecoverySafeProfile(json: JSONObject?): PolarisSessionStatus.RecoverySafeProfile =
+            PolarisSessionStatus.RecoverySafeProfile(
+                streamDisplayMode = json?.optString("stream_display_mode", "") ?: "",
+                width = json?.optInt("width", 0) ?: 0,
+                height = json?.optInt("height", 0) ?: 0,
+                targetFps = json?.optDouble("target_fps", 0.0)?.toFloat() ?: 0f,
+                targetBitrateKbps = json?.optInt("target_bitrate_kbps", 0) ?: 0,
+                preferredCodec = json?.optString("preferred_codec", "") ?: "",
+                hdr = json?.optBoolean("hdr", false) ?: false,
+                preservePairedResolution = json?.optBoolean("preserve_paired_resolution", false) ?: false,
+                requiresFreshLaunch = json?.optBoolean("requires_fresh_launch", false) ?: false
+            )
+
+        private fun parseRecoveryReceipt(json: JSONObject?): PolarisSessionStatus.RecoveryReceipt {
+            if (json == null) return PolarisSessionStatus.RecoveryReceipt()
+            val undo = json.optJSONObject("undo")
+            val verification = json.optJSONObject("verification")
+            return PolarisSessionStatus.RecoveryReceipt(
+                status = json.optBoolean("status", true),
+                state = json.optString("recovery_state", json.optString("state", "none")),
+                runId = json.optString("run_id", ""),
+                sourceResultId = json.optString("source_result_id", ""),
+                appUuid = json.optString("app_uuid", ""),
+                expiresAt = json.optLong("expires_at", 0L),
+                message = json.optString("message", ""),
+                error = json.optString("error", ""),
+                safeProfile = parseRecoverySafeProfile(json.optJSONObject("safe_profile")),
+                undoSupported = undo?.optBoolean("supported", false) ?: false,
+                undoAvailable = undo?.optBoolean("available", false) ?: false,
+                undoActionId = undo?.optString("action_id", "") ?: "",
+                verificationActionId = verification?.optString("action_id", "") ?: ""
+            )
+        }
+
+        private fun parseRecoveryRecords(json: org.json.JSONArray?): List<PolarisSessionStatus.RecoveryReceipt> =
+            if (json == null) emptyList() else (0 until json.length()).mapNotNull { index ->
+                json.optJSONObject(index)?.let(::parseRecoveryReceipt)
+            }
 
         @JvmStatic
         fun parseSessionStatusResponse(json: JSONObject): PolarisSessionStatus {
@@ -1039,6 +1094,8 @@ class PolarisApiClient @JvmOverloads constructor(
             val profileState = json.optJSONObject("profile_state")
             val linuxGpuProfile = json.optJSONObject("linux_gpu_profile")
                 ?: streamPolicy?.optJSONObject("linux_gpu_profile")
+            val recovery = parseRecoveryReceipt(json.optJSONObject("recovery"))
+            val recoveryRecords = parseRecoveryRecords(json.optJSONArray("recovery_records"))
 
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
@@ -1219,7 +1276,9 @@ class PolarisApiClient @JvmOverloads constructor(
                     recoveryProfile = health?.optString("recovery_profile", "") ?: "",
                     relaunchRecommended = health?.optBoolean("relaunch_recommended", false) ?: false
                 ),
-                doctor = parseDoctorStatus(doctor, health, aiDoctor)
+                doctor = parseDoctorStatus(doctor, health, aiDoctor),
+                recovery = recovery,
+                recoveryRecords = recoveryRecords
             )
         }
     }
@@ -1988,17 +2047,21 @@ class PolarisApiClient @JvmOverloads constructor(
     fun runDoctorAction(
         actionId: String,
         appSessionId: String,
+        appUuid: String = "",
         sourceResultId: String = "",
         targetBitrateKbps: Int = 0,
-        runId: String = ""
+        runId: String = "",
+        confirmed: Boolean = false
     ): PolarisDoctorActionResult? {
         return try {
             val body = buildDoctorActionBody(
                 actionId = actionId,
                 appSessionId = appSessionId,
+                appUuid = appUuid,
                 sourceResultId = sourceResultId,
                 targetBitrateKbps = targetBitrateKbps,
-                runId = runId
+                runId = runId,
+                confirmed = confirmed
             )
             val request = Request.Builder()
                 .url("$baseUrl/doctor/action")

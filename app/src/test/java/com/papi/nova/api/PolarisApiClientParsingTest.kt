@@ -27,15 +27,19 @@ class PolarisApiClientParsingTest {
         val modern = PolarisApiClient.buildDoctorActionBody(
             actionId = "undo",
             appSessionId = "app-generation-123",
+            appUuid = "game-uuid-123",
             sourceResultId = "doctor-v2",
             targetBitrateKbps = 16_000,
-            runId = "doctor-run-7"
+            runId = "doctor-run-7",
+            confirmed = true
         )
         assertEquals("undo", modern.getString("action_id"))
         assertEquals("app-generation-123", modern.getString("app_session_id"))
+        assertEquals("game-uuid-123", modern.getString("app_uuid"))
         assertEquals("doctor-v2", modern.getString("source_result_id"))
         assertEquals(16_000, modern.getInt("target_bitrate_kbps"))
         assertEquals("doctor-run-7", modern.getString("run_id"))
+        assertTrue(modern.getBoolean("confirmed"))
 
         val legacy = PolarisApiClient.buildDoctorActionBody(
             actionId = "lower_bitrate",
@@ -472,7 +476,7 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun parseSessionStatusResponse_marksDisableSteamInputXboxActionExecutable() {
+    fun parseSessionStatusResponse_keepsSteamInputMutationReadOnly() {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true," +
                 "\"doctor\":{\"version\":2,\"result_id\":\"doctor-v2-steam_input_conflict-xbox\"," +
@@ -490,11 +494,152 @@ class PolarisApiClientParsingTest {
         assertEquals("doctor-v2-steam_input_conflict-xbox", status.doctor.resultId)
         assertTrue(status.doctor.undoSupported)
         assertTrue(status.doctor.requiresConfirmation)
-        assertTrue(status.doctor.canExecuteAction)
+        assertFalse(status.doctor.canExecuteAction)
     }
 
     @Test
-    fun disableSteamInputXboxActionRefusesMalformedContract() {
+    fun nextLaunchRecoveryActionRequiresTheExactAuthenticatedContract() {
+        fun status(mutate: (JSONObject) -> Unit = {}): PolarisSessionStatus.DoctorStatus {
+            val action = JSONObject()
+                .put("id", "apply_recovery_profile_next_launch")
+                .put("label", "Use safer settings next launch")
+                .put("kind", "next_launch_profile")
+                .put("requires_confirmation", true)
+                .put("owner_tuning_allowed", true)
+                .put("paired_endpoint", "/polaris/v1/doctor/action")
+                .put("payload_preview", JSONObject().put("app_uuid", "game-a"))
+                .put(
+                    "undo",
+                    JSONObject()
+                        .put("supported", true)
+                        .put("paired_endpoint", "/polaris/v1/doctor/action")
+                )
+            mutate(action)
+            return PolarisApiClient.parseSessionStatusResponse(
+                JSONObject()
+                    .put("state", "streaming")
+                    .put(
+                        "doctor",
+                        JSONObject()
+                            .put("version", 2)
+                            .put("result_id", "doctor-frame-pacing-a")
+                            .put("primary_issue", "frame_pacing")
+                            .put("safe_recovery_action", action)
+                    )
+            ).doctor
+        }
+
+        val exact = status()
+        assertTrue(exact.canExecuteAction)
+        assertEquals("game-a", exact.actionAppUuid)
+        assertFalse(status { it.put("id", "apply_recovery_profile") }.canExecuteAction)
+        assertFalse(status { it.put("kind", "live_tuning") }.canExecuteAction)
+        assertFalse(status { it.put("requires_confirmation", false) }.canExecuteAction)
+        assertFalse(status { it.put("requires_confirmation", "true") }.canExecuteAction)
+        assertFalse(status { it.put("owner_tuning_allowed", false) }.canExecuteAction)
+        assertFalse(status { it.put("owner_tuning_allowed", "true") }.canExecuteAction)
+        assertFalse(status { it.put("payload_preview", JSONObject()) }.canExecuteAction)
+        assertFalse(status { it.put("undo", JSONObject().put("supported", false)) }.canExecuteAction)
+        assertFalse(status { it.put("undo", JSONObject().put("supported", "true")) }.canExecuteAction)
+        assertFalse(status { it.put("paired_endpoint", "/apps/close") }.canExecuteAction)
+        assertFalse(
+            status {
+                it.getJSONObject("undo").put("paired_endpoint", "/apps/close")
+            }.canExecuteAction
+        )
+    }
+
+    @Test
+    fun queuedRecoveryReceiptsReconstructEveryTerminalStateAndUndo() {
+        val records = org.json.JSONArray()
+        listOf("queued", "expired", "applied", "rejected", "undone").forEachIndexed { index, state ->
+            records.put(
+                JSONObject()
+                    .put("status", state != "rejected")
+                    .put("recovery_state", state)
+                    .put("run_id", "run-$index")
+                    .put("source_result_id", "doctor-result-$index")
+                    .put("app_uuid", "game-$index")
+                    .put("expires_at", 2_000_000_000L + index)
+                    .put(
+                        "safe_profile",
+                        JSONObject()
+                            .put("stream_display_mode", "host_virtual_display")
+                            .put("width", 1920)
+                            .put("height", 1080)
+                            .put("target_fps", 60)
+                            .put("target_bitrate_kbps", 16_000)
+                            .put("preferred_codec", "hevc")
+                            .put("hdr", false)
+                            .put("preserve_paired_resolution", true)
+                            .put("requires_fresh_launch", true)
+                    )
+                    .put(
+                        "undo",
+                        JSONObject()
+                            .put("supported", true)
+                            .put("available", state == "queued")
+                            .put("action_id", "undo_recovery_profile_next_launch")
+                    )
+            )
+        }
+        val status = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject().put("state", "idle").put("recovery_records", records)
+        )
+
+        assertEquals(listOf("queued", "expired", "applied", "rejected", "undone"), status.recoveryRecords.map { it.normalizedState })
+        val queued = status.recoveryRecords.first()
+        assertTrue(queued.undoSupported)
+        assertTrue(queued.undoAvailable)
+        assertEquals("undo_recovery_profile_next_launch", queued.undoActionId)
+        assertEquals("host_virtual_display", queued.safeProfile.streamDisplayMode)
+        assertEquals(1920, queued.safeProfile.width)
+        assertEquals(60f, queued.safeProfile.targetFps, 0.01f)
+        assertTrue(queued.safeProfile.preservePairedResolution)
+        assertTrue(queued.safeProfile.requiresFreshLaunch)
+    }
+
+    @Test
+    fun deterministicDoctorFallbackIsAnInformationalSource() {
+        val status = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject()
+                .put("state", "streaming")
+                .put(
+                    "doctor",
+                    JSONObject()
+                        .put("version", 2)
+                        .put("result_id", "doctor-frame-pacing")
+                        .put("primary_issue", "frame_pacing")
+                        .put("summary", "Frame pacing needs attention.")
+                )
+                .put(
+                    "ai_doctor_explanation",
+                    JSONObject()
+                        .put("status", true)
+                        .put(
+                            "source",
+                            JSONObject()
+                                .put("kind", "deterministic-fallback")
+                                .put("mode", "openai-subscription")
+                                .put("informational", true)
+                        )
+                        .put(
+                            "explanation",
+                            JSONObject()
+                                .put("likely_cause", "Frame pacing is uneven.")
+                                .put("confidence", "deterministic-fallback")
+                        )
+                )
+        )
+
+        assertEquals("deterministic-fallback", status.doctor.explanationSourceKind)
+        assertEquals("openai-subscription", status.doctor.explanationSourceMode)
+        assertTrue(status.doctor.explanationInformational)
+        assertEquals("deterministic-fallback", status.doctor.confidence)
+    }
+
+    @Test
+    fun steamInputMutationRemainsReadOnlyEvenWhenContractIsWellFormed() {
         fun status(overrides: String): PolarisSessionStatus.DoctorStatus {
             val json = JSONObject(
                 "{\"state\":\"streaming\",\"streaming_active\":true," +
@@ -508,7 +653,7 @@ class PolarisApiClientParsingTest {
             return PolarisApiClient.parseSessionStatusResponse(json).doctor
         }
 
-        assertTrue(status("").canExecuteAction)
+        assertFalse("Steam Input mutation is disabled for this release", status("").canExecuteAction)
         assertFalse(
             "version below 2 must reject",
             PolarisApiClient.parseSessionStatusResponse(

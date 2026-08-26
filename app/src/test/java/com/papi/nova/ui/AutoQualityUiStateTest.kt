@@ -33,6 +33,25 @@ class AutoQualityUiStateTest {
     }
 
     @Test
+    fun warningOnlyFramePacingEvidenceNeverShowsStable() {
+        val state = AutoQualityUiState.from(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    summary = "Stable",
+                    primaryIssue = "frame_pacing",
+                    issues = listOf("frame_pacing")
+                )
+            )
+        )
+
+        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
+        assertEquals("Frame pacing", state.label)
+        assertEquals(AutoQualityUiState.Tone.WARNING, state.tone)
+        assertEquals("Frame pacing", state.detail)
+    }
+
+    @Test
     fun adaptiveTargetBelowBaseShowsAutoSafeCap() {
         val state = AutoQualityUiState.from(
             status = status(

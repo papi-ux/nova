@@ -27,6 +27,249 @@ class DoctorActionReceiptStoreTest {
         )
 
     @Test
+    fun recoveryReceiptReconstructsQueuedUndoAfterResumeAndRetiresTerminalStates() {
+        val recoveryScope = requireNotNull(
+            DoctorActionReceiptStore.recoveryScopeId("10.0.0.232", 47984, "game-a")
+        )
+        val queued = DoctorActionReceiptStore.fromRecoveryReceipt(
+            scopeId = recoveryScope,
+            receipt = PolarisSessionStatus.RecoveryReceipt(
+                state = "queued",
+                runId = "recovery-run-a",
+                appUuid = "game-a",
+                expiresAt = 2_000_000_000L,
+                message = "Safer settings are queued for the next launch.",
+                undoSupported = true,
+                undoAvailable = true,
+                undoActionId = "undo_recovery_profile_next_launch"
+            ),
+            nowEpochMs = 1_000L
+        )
+
+        assertNotNull(queued)
+        assertEquals("queued", queued?.state)
+        assertTrue(queued?.undoAvailable == true)
+        assertEquals("undo_recovery_profile_next_launch", queued?.undoActionId)
+        assertFalse(queued?.isTerminal == true)
+        for (terminalState in listOf("expired", "applied", "rejected", "undone")) {
+            val terminal = DoctorActionReceiptStore.fromRecoveryReceipt(
+                scopeId = recoveryScope,
+                receipt = PolarisSessionStatus.RecoveryReceipt(
+                    state = terminalState,
+                    runId = "recovery-run-a",
+                    appUuid = "game-a",
+                    undoAvailable = false
+                ),
+                nowEpochMs = 2_000L
+            )
+            assertTrue("$terminalState must retire the queued action", terminal?.isTerminal == true)
+            assertFalse(terminal?.undoAvailable == true)
+        }
+    }
+
+    @Test
+    fun recoveryScopeTransitionDoesNotResurrectQueuedReceiptAfterUndo() {
+        val prefs = context.getSharedPreferences("doctor-receipt-recovery-scope-test", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val appScope = requireNotNull(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, "session-a", "game-a")
+        )
+        val recoveryScope = requireNotNull(
+            DoctorActionReceiptStore.recoveryScopeId("10.0.0.232", 47984, "game-a")
+        )
+        val initiallyQueued = DoctorActionReceipt(
+            scopeId = appScope,
+            runId = "recovery-run-a",
+            state = "queued",
+            message = "Queued",
+            verificationActionId = "verify_recovery_profile_next_launch",
+            undoAvailable = true,
+            undoActionId = "undo_recovery_profile_next_launch",
+            appUuid = "game-a",
+            updatedAtEpochMs = 1_000L
+        )
+        DoctorActionReceiptStore.save(prefs, initiallyQueued)
+
+        val reconstructed = DoctorActionReceiptStore.reconcileScope(
+            preferences = prefs,
+            currentReceipt = initiallyQueued,
+            currentScopeId = appScope,
+            nextScopeId = recoveryScope,
+            appSessionScopeId = appScope,
+            recoveryScopeId = recoveryScope,
+            currentAppUuid = "game-a",
+            authoritativeRecovery = PolarisSessionStatus.RecoveryReceipt(
+                state = "queued",
+                runId = "recovery-run-a",
+                appUuid = "game-a",
+                undoAvailable = true,
+                undoActionId = "undo_recovery_profile_next_launch"
+            ),
+            nowEpochMs = 2_000L
+        )
+
+        assertEquals(recoveryScope, reconstructed?.scopeId)
+        assertNull(DoctorActionReceiptStore.load(prefs, appScope))
+        assertEquals("queued", DoctorActionReceiptStore.load(prefs, recoveryScope)?.state)
+
+        val undone = DoctorActionReceiptStore.applyResult(
+            previous = reconstructed,
+            scopeId = recoveryScope,
+            result = PolarisDoctorActionResult(
+                status = true,
+                state = "undone",
+                recoveryState = "undone",
+                runId = "recovery-run-a",
+                appUuid = "game-a",
+                undoAvailable = false
+            ),
+            nowEpochMs = 3_000L
+        )
+        DoctorActionReceiptStore.save(prefs, undone)
+
+        val afterRecordRemoval = DoctorActionReceiptStore.reconcileScope(
+            preferences = prefs,
+            currentReceipt = null,
+            currentScopeId = null,
+            nextScopeId = appScope,
+            appSessionScopeId = appScope,
+            recoveryScopeId = recoveryScope,
+            currentAppUuid = "game-a",
+            authoritativeRecovery = null,
+            nowEpochMs = 4_000L
+        )
+
+        assertEquals("undone", afterRecordRemoval?.state)
+        assertEquals(appScope, afterRecordRemoval?.scopeId)
+        assertFalse(afterRecordRemoval?.undoAvailable == true)
+        assertNull(DoctorActionReceiptStore.load(prefs, recoveryScope))
+        assertEquals("undone", DoctorActionReceiptStore.load(prefs, appScope)?.state)
+        assertEquals(
+            "undone",
+            DoctorActionReceiptStore.reconcileScope(
+                preferences = prefs,
+                currentReceipt = null,
+                currentScopeId = null,
+                nextScopeId = appScope,
+                appSessionScopeId = appScope,
+                recoveryScopeId = recoveryScope,
+                currentAppUuid = "game-a",
+                authoritativeRecovery = null,
+                nowEpochMs = 5_000L
+            )?.state
+        )
+    }
+
+    @Test
+    fun authoritativeAbsenceAfterHostUndoAndClientCrashClearsEveryQueuedCopy() {
+        val prefs = context.getSharedPreferences("doctor-receipt-undo-crash-test", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val appScope = requireNotNull(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, "session-a", "game-a")
+        )
+        val recoveryScope = requireNotNull(
+            DoctorActionReceiptStore.recoveryScopeId("10.0.0.232", 47984, "game-a")
+        )
+        DoctorActionReceiptStore.save(
+            prefs,
+            DoctorActionReceipt(
+                scopeId = appScope,
+                runId = "recovery-run-a",
+                state = "queued",
+                message = "Queued",
+                verificationActionId = "verify_recovery_profile_next_launch",
+                undoAvailable = true,
+                undoActionId = "undo_recovery_profile_next_launch",
+                appUuid = "game-a"
+            )
+        )
+
+        // Nova restarted before reconstructing the authoritative queued record.
+        val reconstructed = DoctorActionReceiptStore.reconcileScope(
+            preferences = prefs,
+            currentReceipt = null,
+            currentScopeId = null,
+            nextScopeId = recoveryScope,
+            appSessionScopeId = appScope,
+            recoveryScopeId = recoveryScope,
+            currentAppUuid = "game-a",
+            authoritativeRecovery = PolarisSessionStatus.RecoveryReceipt(
+                state = "queued",
+                runId = "recovery-run-a",
+                appUuid = "game-a",
+                undoAvailable = true,
+                undoActionId = "undo_recovery_profile_next_launch"
+            ),
+            nowEpochMs = 2_000L
+        )
+        assertEquals("queued", reconstructed?.state)
+        assertNull(DoctorActionReceiptStore.load(prefs, appScope))
+        assertEquals("queued", DoctorActionReceiptStore.load(prefs, recoveryScope)?.state)
+
+        // Polaris accepted Undo, but Nova died before persisting the undone response.
+        val afterRestart = DoctorActionReceiptStore.reconcileScope(
+            preferences = prefs,
+            currentReceipt = null,
+            currentScopeId = null,
+            nextScopeId = appScope,
+            appSessionScopeId = appScope,
+            recoveryScopeId = recoveryScope,
+            currentAppUuid = "game-a",
+            authoritativeRecovery = null,
+            nowEpochMs = 3_000L
+        )
+
+        assertNull(afterRestart)
+        assertNull(DoctorActionReceiptStore.load(prefs, appScope))
+        assertNull(DoctorActionReceiptStore.load(prefs, recoveryScope))
+    }
+
+    @Test
+    fun authoritativeRecoveryPreservesUnrelatedTerminalAppReceipt() {
+        val prefs = context.getSharedPreferences("doctor-receipt-terminal-preservation-test", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val appScope = requireNotNull(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, "session-a", "game-a")
+        )
+        val recoveryScope = requireNotNull(
+            DoctorActionReceiptStore.recoveryScopeId("10.0.0.232", 47984, "game-a")
+        )
+        val terminalNetworkReceipt = DoctorActionReceipt(
+            scopeId = appScope,
+            runId = "network-run-a",
+            state = "resolved",
+            message = "Network pressure cleared.",
+            undoAvailable = true,
+            undoActionId = "restore_quality"
+        )
+        DoctorActionReceiptStore.save(prefs, terminalNetworkReceipt)
+
+        val reconstructed = DoctorActionReceiptStore.reconcileScope(
+            preferences = prefs,
+            currentReceipt = null,
+            currentScopeId = null,
+            nextScopeId = recoveryScope,
+            appSessionScopeId = appScope,
+            recoveryScopeId = recoveryScope,
+            currentAppUuid = "game-a",
+            authoritativeRecovery = PolarisSessionStatus.RecoveryReceipt(
+                state = "queued",
+                runId = "recovery-run-a",
+                appUuid = "game-a",
+                undoAvailable = true,
+                undoActionId = "undo_recovery_profile_next_launch"
+            ),
+            nowEpochMs = 2_000L
+        )
+
+        assertEquals("queued", reconstructed?.state)
+        assertEquals("resolved", DoctorActionReceiptStore.load(prefs, appScope)?.state)
+        assertEquals("network-run-a", DoctorActionReceiptStore.load(prefs, appScope)?.runId)
+        assertTrue(DoctorActionReceiptStore.load(prefs, appScope)?.undoAvailable == true)
+        assertEquals("queued", DoctorActionReceiptStore.load(prefs, recoveryScope)?.state)
+    }
+
+    @Test
     fun watchingVerificationWithoutRepeatDirectiveKeepsPollingSameRun() {
         val applied = DoctorActionReceiptStore.applyResult(
             previous = null,
