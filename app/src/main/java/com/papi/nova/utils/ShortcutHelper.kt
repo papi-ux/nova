@@ -9,8 +9,11 @@ import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
+import com.papi.nova.AppView
+import com.papi.nova.Game
 import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.ShortcutTrampoline
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.ui.NovaSnackbar
@@ -150,6 +153,60 @@ class ShortcutHelper(private val context: Activity) {
         } else {
             false
         }
+    }
+
+    /**
+     * Same as [createPinnedGameShortcut], for callers that only have Polaris identity
+     * primitives on hand rather than a [ComputerDetails]/[NvApp] pair.
+     *
+     * The Polaris-native library screens ([com.papi.nova.ui.NovaGameDetailActivity] and
+     * friends) never build a [ComputerDetails]/[NvApp] - they talk to Polaris entirely
+     * through [com.papi.nova.api.PolarisApiClient] and a
+     * [com.papi.nova.shared.polaris.model.PolarisGame]. Faking those two legacy pairing
+     * types just to reach the intent builder above would be more fragile than reusing
+     * the same intent shape directly, so this builds the identical
+     * [ShortcutTrampoline]-targeting intent from the primitives those screens already
+     * have (see [ServerHelper.createAppShortcutIntent], which this mirrors field for
+     * field).
+     */
+    @TargetApi(Build.VERSION_CODES.O)
+    fun createPinnedGameShortcut(
+        hostUuid: String,
+        hostName: String,
+        appUuid: String,
+        appId: Int,
+        appName: String,
+        hdrSupported: Boolean,
+        iconBits: Bitmap?,
+    ): Boolean {
+        val manager = sm ?: return false
+        if (!manager.isRequestPinShortcutSupported) {
+            return false
+        }
+
+        val appIcon = if (iconBits != null) {
+            Icon.createWithAdaptiveBitmap(iconBits)
+        } else {
+            Icon.createWithResource(context, R.mipmap.ic_pc_scut)
+        }
+
+        val intent = Intent(context, ShortcutTrampoline::class.java).apply {
+            putExtra(AppView.NAME_EXTRA, hostName)
+            putExtra(AppView.UUID_EXTRA, hostUuid)
+            putExtra(Game.EXTRA_APP_NAME, appName)
+            putExtra(Game.EXTRA_APP_UUID, appUuid)
+            putExtra(Game.EXTRA_APP_ID, "" + appId)
+            putExtra(Game.EXTRA_APP_HDR, hdrSupported)
+            action = Intent.ACTION_DEFAULT
+        }
+
+        val shortcutInfo = ShortcutInfo.Builder(context, hostUuid + appId)
+            .setIntent(intent)
+            .setShortLabel(appName + " (" + hostName + ")")
+            .setIcon(appIcon)
+            .build()
+
+        return manager.requestPinShortcut(shortcutInfo, null)
     }
 
     fun disableComputerShortcut(computer: ComputerDetails, reason: CharSequence) {

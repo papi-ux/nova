@@ -129,6 +129,7 @@ internal fun NovaGameDetailOverview(
     onPrimaryLaunch: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    onPinShortcut: () -> Unit,
     onDestination: (NovaGameDetailDestination) -> Unit,
     activeSession: NovaLibraryActiveSessionUiState?,
     onResumeSession: () -> Unit,
@@ -247,6 +248,7 @@ internal fun NovaGameDetailOverview(
                 onPrimaryLaunch = onPrimaryLaunch,
                 onRetryHighFps = onRetryHighFps,
                 onResetProfile = onResetProfile,
+                onPinShortcut = onPinShortcut,
                 onDestination = onDestination,
                 activeSession = activeSession,
                 onResumeSession = onResumeSession,
@@ -410,6 +412,7 @@ private fun NovaGameDetailActions(
     onPrimaryLaunch: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    onPinShortcut: () -> Unit,
     onDestination: (NovaGameDetailDestination) -> Unit,
     activeSession: NovaLibraryActiveSessionUiState?,
     onResumeSession: () -> Unit,
@@ -506,6 +509,12 @@ private fun NovaGameDetailActions(
             text = stringResource(R.string.nova_library_reset_game_profile),
             onClick = onResetProfile,
             mark = "\u21BA",
+            modifier = itemWidth,
+        )
+        NovaGameDetailAction(
+            text = stringResource(R.string.nova_library_pin_shortcut),
+            onClick = onPinShortcut,
+            mark = "\u2691",
             modifier = itemWidth,
         )
         if (!reviewExpanded) {
