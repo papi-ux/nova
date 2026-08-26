@@ -216,17 +216,25 @@ object DoctorActionReceiptStore {
                 nowEpochMs = nowEpochMs
             ) ?: return load(preferences, nextScopeId)
             val obsoleteScopes = buildSet {
-                appSessionScopeId
+                val appReceipt = appSessionScopeId
                     ?.takeIf { it != nextScopeId }
-                    ?.let(::add)
-                currentScopeId?.takeIf { priorScope ->
-                    priorScope != nextScopeId &&
-                        currentInScope?.runId == reconstructed.runId &&
-                        (
-                            currentInScope.appUuid.isBlank() ||
-                                currentInScope.appUuid.equals(reconstructed.appUuid, ignoreCase = true)
-                            )
-                }?.let(::add)
+                    ?.let { scope ->
+                        currentReceipt?.takeIf { it.scopeId == scope }
+                            ?: load(preferences, scope)
+                    }
+                appReceipt?.takeIf {
+                    !it.isTerminal &&
+                        it.runId == reconstructed.runId &&
+                        it.appUuid.isNotBlank() &&
+                        it.appUuid.equals(reconstructed.appUuid, ignoreCase = true)
+                }?.scopeId?.let(::add)
+                currentInScope?.takeIf {
+                    it.scopeId != nextScopeId &&
+                        !it.isTerminal &&
+                        it.runId == reconstructed.runId &&
+                        it.appUuid.isNotBlank() &&
+                        it.appUuid.equals(reconstructed.appUuid, ignoreCase = true)
+                }?.scopeId?.let(::add)
             }
             saveReplacing(preferences, reconstructed, obsoleteScopes)
             return reconstructed

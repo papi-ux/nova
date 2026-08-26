@@ -225,6 +225,51 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
+    fun authoritativeRecoveryPreservesUnrelatedTerminalAppReceipt() {
+        val prefs = context.getSharedPreferences("doctor-receipt-terminal-preservation-test", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val appScope = requireNotNull(
+            DoctorActionReceiptStore.scopeId("10.0.0.232", 47984, "session-a", "game-a")
+        )
+        val recoveryScope = requireNotNull(
+            DoctorActionReceiptStore.recoveryScopeId("10.0.0.232", 47984, "game-a")
+        )
+        val terminalNetworkReceipt = DoctorActionReceipt(
+            scopeId = appScope,
+            runId = "network-run-a",
+            state = "resolved",
+            message = "Network pressure cleared.",
+            undoAvailable = true,
+            undoActionId = "restore_quality"
+        )
+        DoctorActionReceiptStore.save(prefs, terminalNetworkReceipt)
+
+        val reconstructed = DoctorActionReceiptStore.reconcileScope(
+            preferences = prefs,
+            currentReceipt = null,
+            currentScopeId = null,
+            nextScopeId = recoveryScope,
+            appSessionScopeId = appScope,
+            recoveryScopeId = recoveryScope,
+            currentAppUuid = "game-a",
+            authoritativeRecovery = PolarisSessionStatus.RecoveryReceipt(
+                state = "queued",
+                runId = "recovery-run-a",
+                appUuid = "game-a",
+                undoAvailable = true,
+                undoActionId = "undo_recovery_profile_next_launch"
+            ),
+            nowEpochMs = 2_000L
+        )
+
+        assertEquals("queued", reconstructed?.state)
+        assertEquals("resolved", DoctorActionReceiptStore.load(prefs, appScope)?.state)
+        assertEquals("network-run-a", DoctorActionReceiptStore.load(prefs, appScope)?.runId)
+        assertTrue(DoctorActionReceiptStore.load(prefs, appScope)?.undoAvailable == true)
+        assertEquals("queued", DoctorActionReceiptStore.load(prefs, recoveryScope)?.state)
+    }
+
+    @Test
     fun watchingVerificationWithoutRepeatDirectiveKeepsPollingSameRun() {
         val applied = DoctorActionReceiptStore.applyResult(
             previous = null,
