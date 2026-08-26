@@ -716,10 +716,11 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "step 2: a per-game override rides the /launch URL session-scoped (never client-settings)",
-            nvhttp.contains("\"&streamMode=\" + URLEncoder.encode(") &&
+                nvhttp.contains("\"&streamMode=\" + URLEncoder.encode(") &&
                 streamConfig.contains("fun getStreamMode(): String") &&
                 serverHelper.contains("gameIntent.putExtra(Game.EXTRA_STREAM_MODE, streamMode)") &&
-                library.contains("streamMode = resolvedMode")
+                library.contains("val launchMode = recoveryProfile?.streamDisplayMode") &&
+                library.contains("streamMode = launchMode")
         )
 
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")

@@ -395,6 +395,46 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun framePacingWarningNeverContradictsItselfWithStableOrNetworkCopy() {
+        val status = status(
+            health = PolarisSessionStatus.HealthStatus(
+                grade = "watch",
+                primaryIssue = "frame_pacing",
+                issues = listOf("frame_pacing"),
+                networkRisk = "normal",
+                decoderRisk = "normal"
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertEquals("Frame pacing", status.healthToneLabel)
+        assertEquals("Frame pacing", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertFalse(state.healthReasonLabel.contains("Stable", ignoreCase = true))
+        assertFalse(state.healthReasonLabel.contains("Network", ignoreCase = true))
+    }
+
+    @Test
+    fun healthGradeFallbacksRemainWarningsWithoutSpecificEvidence() {
+        val watch = status(health = PolarisSessionStatus.HealthStatus(grade = "watch"))
+        val degraded = status(health = PolarisSessionStatus.HealthStatus(grade = "degraded"))
+
+        assertEquals("Needs attention", watch.healthToneLabel)
+        assertEquals("Stream degraded", degraded.healthToneLabel)
+    }
+
+    @Test
     fun elevatedNetworkRiskRaisesTheJitterWarning() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.DEBUG,

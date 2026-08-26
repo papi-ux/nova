@@ -528,6 +528,14 @@ data class NovaQuickMenuUiState(
                 receipt.runId.isNotBlank() &&
                 receipt.undoActionId.isNotBlank()
             val chip = when {
+                receipt.state == "queued" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_queued), NovaQuickMenuTone.INFO)
+                receipt.state == "applied" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_applied), NovaQuickMenuTone.ACTIVE)
+                receipt.state == "expired" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_expired), NovaQuickMenuTone.WARNING)
+                receipt.state == "rejected" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_rejected), NovaQuickMenuTone.WARNING)
                 watching -> chip(context.getString(R.string.nova_quick_menu_doctor_receipt_watching), NovaQuickMenuTone.INFO)
                 receipt.state == "resolved" || receipt.state == "stable" ->
                     chip(context.getString(R.string.nova_quick_menu_doctor_receipt_verified), NovaQuickMenuTone.ACTIVE)

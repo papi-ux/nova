@@ -17,6 +17,21 @@ class StreamSyncManager private constructor() {
         fun pixels(): Long = width.toLong() * height.toLong()
     }
 
+    data class RecoveryLaunchProfile(
+        val runId: String,
+        val streamDisplayMode: String,
+        val width: Int,
+        val height: Int,
+        val targetFps: Float,
+        val targetBitrateKbps: Int,
+        val preferredCodec: String,
+        val hdr: Boolean,
+        val requiresFreshLaunch: Boolean
+    ) {
+        val virtualDisplay get() = streamDisplayMode == "host_virtual_display"
+        val mirrorDesktop get() = streamDisplayMode == "desktop_display"
+    }
+
     companion object {
         const val SYNC_MODE_AUTO_SAFE: String = "auto_safe"
         private const val BALANCED_FLOOR_WIDTH = 1920
@@ -38,6 +53,7 @@ class StreamSyncManager private constructor() {
             }
 
             val target = optimization.optInt("target_bitrate_kbps", 0)
+            recoveryLaunchProfile(optimization)?.let { return it.targetBitrateKbps }
             val stability = optimization.optJSONObject("stability")
             val safeProfile = stability?.optJSONObject("safe_profile")
             val safeTarget = safeProfile?.optInt("target_bitrate_kbps", 0) ?: 0
@@ -71,6 +87,10 @@ class StreamSyncManager private constructor() {
             val configured = StreamResolution(configuredWidth, configuredHeight)
             if (optimization == null) {
                 return configured
+            }
+
+            recoveryLaunchProfile(optimization)?.let { recovery ->
+                return StreamResolution(recovery.width, recovery.height)
             }
 
             val optimized = parseDisplayModeResolution(optimization.optString("display_mode", ""))
@@ -107,6 +127,9 @@ class StreamSyncManager private constructor() {
 
             var selected = configuredFps
             val optimizedFps = parseDisplayModeFps(optimization.optString("display_mode", ""))
+            recoveryLaunchProfile(optimization)?.let { recovery ->
+                return recovery.targetFps.takeIf { it > 0f } ?: optimizedFps.takeIf { it > 0f } ?: configuredFps
+            }
             val stability = optimization.optJSONObject("stability")
             val safeProfile = stability?.optJSONObject("safe_profile")
             val confirmedRecovery = isConfirmedRecoveryPolicy(optimization, stability)
@@ -252,7 +275,11 @@ class StreamSyncManager private constructor() {
                 return false
             }
 
-            if (optimization.optBoolean("relaunch_required", false)) {
+            recoveryLaunchProfile(optimization)?.let { return it.requiresFreshLaunch }
+
+            if (optimization.optBoolean("requires_fresh_launch", false) ||
+                optimization.optBoolean("relaunch_required", false)
+            ) {
                 return true
             }
 
@@ -532,6 +559,7 @@ class StreamSyncManager private constructor() {
         ).toJson()
 
         @JvmStatic
+        @JvmOverloads
         fun buildAppliedStreamSettings(
             bitrateKbps: Int,
             width: Int,
@@ -542,7 +570,9 @@ class StreamSyncManager private constructor() {
             hdr: Boolean,
             supportedVideoFormats: Int,
             videoFormat: PreferenceConfiguration.FormatOption?,
-            displayModeExplicit: Boolean
+            displayModeExplicit: Boolean,
+            preferredCodecOverride: String = "",
+            streamDisplayMode: String = ""
         ): JSONObject {
             val json = JSONObject()
             put(json, "target_bitrate_kbps", bitrateKbps)
@@ -554,8 +584,85 @@ class StreamSyncManager private constructor() {
             put(json, "virtual_display", virtualDisplay)
             put(json, "hdr", hdr)
             put(json, "display_mode_explicit", displayModeExplicit)
-            put(json, "preferred_codec", preferredCodec(videoFormat, supportedVideoFormats))
+            put(
+                json,
+                "preferred_codec",
+                preferredCodecOverride.takeIf { it in setOf("h264", "hevc", "av1") }
+                    ?: preferredCodec(videoFormat, supportedVideoFormats)
+            )
+            if (streamDisplayMode.isNotBlank()) put(json, "stream_display_mode", streamDisplayMode)
             return json
+        }
+
+        @JvmStatic
+        fun recoveryLaunchProfile(optimization: JSONObject?): RecoveryLaunchProfile? {
+            if (optimization == null ||
+                !optimization.optString("recovery_state", "").equals("queued", ignoreCase = true)
+            ) {
+                return null
+            }
+            val runId = optimization.optString("recovery_run_id", "").trim()
+            val profile = optimization.optJSONObject("recovery_profile") ?: return null
+            val streamDisplayMode = profile.optString(
+                "stream_display_mode",
+                optimization.optString("stream_display_mode", "")
+            ).trim().lowercase(Locale.US)
+            val width = profile.optInt("width", 0)
+            val height = profile.optInt("height", 0)
+            val targetFps = profile.optDouble("target_fps", 0.0).toFloat()
+            val targetBitrateKbps = profile.optInt(
+                "target_bitrate_kbps",
+                optimization.optInt("target_bitrate_kbps", 0)
+            )
+            val preferredCodec = profile.optString(
+                "preferred_codec",
+                optimization.optString("preferred_codec", "")
+            ).trim().lowercase(Locale.US)
+            val hdr = profile.opt("hdr") as? Boolean ?: return null
+            val preservePairedResolution = profile.opt("preserve_paired_resolution") as? Boolean
+                ?: return null
+            val requiresFreshLaunch = profile.opt("requires_fresh_launch") as? Boolean
+                ?: return null
+            if (runId.isBlank() ||
+                streamDisplayMode !in setOf(
+                    "headless_stream", "host_virtual_display", "gamescope_stream",
+                    "windowed_stream", "desktop_display"
+                ) ||
+                width !in 320..16384 || height !in 240..16384 ||
+                targetFps !in 15f..240f || targetBitrateKbps !in 1_000..300_000 ||
+                preferredCodec !in setOf("h264", "hevc", "av1") ||
+                !preservePairedResolution || !requiresFreshLaunch ||
+                (hdr && preferredCodec == "h264")
+            ) {
+                return null
+            }
+            return RecoveryLaunchProfile(
+                runId = runId,
+                streamDisplayMode = streamDisplayMode,
+                width = width,
+                height = height,
+                targetFps = targetFps,
+                targetBitrateKbps = targetBitrateKbps,
+                preferredCodec = preferredCodec,
+                hdr = hdr,
+                requiresFreshLaunch = requiresFreshLaunch
+            )
+        }
+
+        @JvmStatic
+        fun restrictVideoFormatsForRecovery(
+            supportedVideoFormats: Int,
+            recovery: RecoveryLaunchProfile?
+        ): Int {
+            if (recovery == null) return supportedVideoFormats
+            val codecMask = when (recovery.preferredCodec) {
+                "av1" -> MoonBridge.VIDEO_FORMAT_AV1_MAIN8 or
+                    if (recovery.hdr) MoonBridge.VIDEO_FORMAT_AV1_MAIN10 else 0
+                "hevc" -> MoonBridge.VIDEO_FORMAT_H265 or
+                    if (recovery.hdr) MoonBridge.VIDEO_FORMAT_H265_MAIN10 else 0
+                else -> MoonBridge.VIDEO_FORMAT_H264
+            }
+            return supportedVideoFormats and codecMask
         }
 
         private fun preferredCodec(

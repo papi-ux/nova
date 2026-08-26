@@ -36,8 +36,42 @@ data class PolarisSessionStatus(
     val autoQuality: AutoQualityPolicy = AutoQualityPolicy(),
     val profileState: ProfileState = ProfileState(),
     val health: HealthStatus = HealthStatus(),
-    val doctor: DoctorStatus = DoctorStatus()
+    val doctor: DoctorStatus = DoctorStatus(),
+    val recovery: RecoveryReceipt = RecoveryReceipt(),
+    val recoveryRecords: List<RecoveryReceipt> = emptyList()
 ) {
+    data class RecoveryReceipt(
+        val status: Boolean = true,
+        val state: String = "none",
+        val runId: String = "",
+        val sourceResultId: String = "",
+        val appUuid: String = "",
+        val expiresAt: Long = 0L,
+        val message: String = "",
+        val error: String = "",
+        val safeProfile: RecoverySafeProfile = RecoverySafeProfile(),
+        val undoSupported: Boolean = false,
+        val undoAvailable: Boolean = false,
+        val undoActionId: String = "",
+        val verificationActionId: String = ""
+    ) {
+        val normalizedState get() = state.trim().lowercase()
+        val isQueued get() = normalizedState == "queued"
+        val isTerminal get() = normalizedState in setOf("applied", "expired", "rejected", "undone")
+    }
+
+    data class RecoverySafeProfile(
+        val streamDisplayMode: String = "",
+        val width: Int = 0,
+        val height: Int = 0,
+        val targetFps: Float = 0f,
+        val targetBitrateKbps: Int = 0,
+        val preferredCodec: String = "",
+        val hdr: Boolean = false,
+        val preservePairedResolution: Boolean = false,
+        val requiresFreshLaunch: Boolean = false
+    )
+
     data class ControlsStatus(
         val hostTuningAllowed: Boolean? = null,
         val quitAllowed: Boolean = false,
@@ -268,13 +302,20 @@ data class PolarisSessionStatus(
         val actionId: String = "",
         val actionLabel: String = "",
         val actionKind: String = "",
+        val actionAppUuid: String = "",
         val targetBitrateKbps: Int = 0,
         val verificationDelaySeconds: Int = 0,
         val undoSupported: Boolean = false,
         val requiresConfirmation: Boolean = false,
+        val ownerTuningAllowed: Boolean = false,
+        val pairedEndpoint: String = "",
+        val undoPairedEndpoint: String = "",
         val packetLossPct: Double? = null,
         val latencyMs: Double? = null,
-        val destructiveActionAllowed: Boolean = false
+        val destructiveActionAllowed: Boolean = false,
+        val explanationSourceKind: String = "",
+        val explanationSourceMode: String = "",
+        val explanationInformational: Boolean = false
     ) {
         val firstTry get() = tryFirst.firstOrNull().orEmpty()
         val networkPressureConfirmed get() =
@@ -283,6 +324,15 @@ data class PolarisSessionStatus(
             "recheck_network" -> version >= 2
             "lower_bitrate" -> version >= 2 && primaryIssue == "network_jitter" && networkPressureConfirmed
             "restore_quality" -> version >= 2 && primaryIssue == "quality_capped_by_history" && targetBitrateKbps > 0
+            "apply_recovery_profile_next_launch" -> version >= 2 &&
+                actionKind == "next_launch_profile" &&
+                resultId.isNotBlank() &&
+                actionAppUuid.isNotBlank() &&
+                requiresConfirmation &&
+                undoSupported &&
+                ownerTuningAllowed &&
+                pairedEndpoint == "/polaris/v1/doctor/action" &&
+                undoPairedEndpoint == "/polaris/v1/doctor/action"
             "disable_steam_input_xbox" -> version >= 2 &&
                 primaryIssue == "steam_input_conflict" &&
                 actionKind == "host_setting" &&
@@ -301,7 +351,11 @@ data class PolarisSessionStatus(
             actionId.isNotBlank() &&
                 resultId.isNotBlank() &&
                 actionId == confirmed.actionId &&
-                resultId == confirmed.resultId
+                resultId == confirmed.resultId &&
+                actionKind == confirmed.actionKind &&
+                actionAppUuid == confirmed.actionAppUuid &&
+                requiresConfirmation == confirmed.requiresConfirmation &&
+                ownerTuningAllowed == confirmed.ownerTuningAllowed
     }
 
     data class HealthStatus(
@@ -446,8 +500,12 @@ data class PolarisSessionStatus(
     val hasHealthConcerns get() = health.grade.equals("watch", ignoreCase = true) || health.grade.equals("degraded", ignoreCase = true)
     val healthToneLabel get() = when {
         isHostRenderLimited -> "Host Render"
-        health.grade.equals("degraded", ignoreCase = true) -> "Degraded"
-        health.grade.equals("watch", ignoreCase = true) -> "Watch"
+        health.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
+            health.issues.any { it.equals("frame_pacing", ignoreCase = true) } -> "Frame pacing"
+        health.grade.equals("degraded", ignoreCase = true) -> "Stream degraded"
+        health.grade.equals("watch", ignoreCase = true) -> "Needs attention"
+        health.primaryIssue.isNotBlank() && !health.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
+        health.issues.isNotEmpty() -> "Needs attention"
         else -> "Stable"
     }
 }
@@ -459,6 +517,10 @@ data class PolarisDoctorActionResult(
     val message: String = "",
     val error: String = "",
     val runId: String = "",
+    val recoveryState: String = "",
+    val appUuid: String = "",
+    val expiresAt: Long = 0L,
+    val safeProfile: PolarisSessionStatus.RecoverySafeProfile = PolarisSessionStatus.RecoverySafeProfile(),
     val verificationDelaySeconds: Int = 0,
     val verificationActionId: String = "",
     val undoAvailable: Boolean? = null,

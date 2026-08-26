@@ -124,6 +124,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.PreferenceManager
 import com.papi.nova.LimeLog
+import com.papi.nova.Game
 import com.papi.nova.NovaSessionEndSignal
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
@@ -870,14 +871,19 @@ class NovaLibraryActivity : NovaActivity() {
         }
         launchErrorMessage = null
 
+        val recoveryProfile = StreamSyncManager.recoveryLaunchProfile(preflightOptimization)
+        val launchUsesVirtualDisplay = recoveryProfile?.virtualDisplay ?: withVirtualDisplay
+        val launchMirrorsDesktop = recoveryProfile?.mirrorDesktop ?: mirrorDesktop
+        val launchMode = recoveryProfile?.streamDisplayMode?.takeIf { it.isNotBlank() } ?: resolvedMode
+
         NovaSnackbar.show(
             this,
             getString(
                 R.string.nova_library_launching_mode,
                 game.name,
                 when {
-                    withVirtualDisplay -> getString(R.string.nova_library_launch_virtual_display)
-                    mirrorDesktop -> getString(R.string.nova_desktop_steam_mirror_desktop)
+                    launchUsesVirtualDisplay -> getString(R.string.nova_library_launch_virtual_display)
+                    launchMirrorsDesktop -> getString(R.string.nova_desktop_steam_mirror_desktop)
                     forcePrivateAfterSteamClose -> getString(R.string.nova_desktop_steam_force_private)
                     else -> getString(R.string.nova_library_launch_headless)
                 }
@@ -902,6 +908,10 @@ class NovaLibraryActivity : NovaActivity() {
                     preferences.fps,
                     preflightOptimization
                 )
+                val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(
+                    preferences.bitrate,
+                    preflightOptimization
+                )
                 LimeLog.info(
                     "Nova: Launch resolved stream mode " +
                         launchResolution.width + "x" + launchResolution.height + "x" + launchFps + " " +
@@ -913,13 +923,13 @@ class NovaLibraryActivity : NovaActivity() {
                     NovaLaunchPreflight.push(
                         apiClient = apiClient,
                         clientSettings = clientSettings,
-                        usesVirtualDisplay = withVirtualDisplay,
-                        mirrorDesktop = mirrorDesktop,
-                        resolvedMode = resolvedMode,
+                        usesVirtualDisplay = launchUsesVirtualDisplay,
+                        mirrorDesktop = launchMirrorsDesktop,
+                        resolvedMode = launchMode,
                         width = launchResolution.width,
                         height = launchResolution.height,
                         fps = launchFps,
-                        bitrateKbps = preferences.bitrate
+                        bitrateKbps = launchBitrateKbps
                     )
                 }
                 if (syncedSettings == null) {
@@ -937,7 +947,7 @@ class NovaLibraryActivity : NovaActivity() {
                     pcUuid,
                     streamPcName,
                     streamServerCommands,
-                    withVirtualDisplay,
+                    launchUsesVirtualDisplay,
                     true,
                     false,
                     serverCert,
@@ -946,9 +956,9 @@ class NovaLibraryActivity : NovaActivity() {
                     launchFps,
                     aiProfilePreference = profilePreference,
                     launchOptimizationJson = preflightOptimization?.toString(),
-                    mirrorDesktop = mirrorDesktop,
+                    mirrorDesktop = launchMirrorsDesktop,
                     forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
-                    streamMode = resolvedMode
+                    streamMode = launchMode
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -980,7 +990,7 @@ class NovaLibraryActivity : NovaActivity() {
             session.gameId,
             false
         )
-        ServerHelper.doStart(
+        val resumeIntent = ServerHelper.createStartIntent(
             this,
             app,
             streamHost,
@@ -989,15 +999,18 @@ class NovaLibraryActivity : NovaActivity() {
             uniqueId,
             pcUuid,
             streamPcName,
-            streamServerCommands,
             session.virtualDisplay,
             session.displayModeExplicit,
             session.watchOnly,
+            streamServerCommands,
             serverCert,
             session.streamWidth,
             session.streamHeight,
             session.streamFps
         )
+        resumeIntent.putExtra(Game.EXTRA_RESUME_EXISTING, true)
+        startActivity(resumeIntent)
+        NovaThemeManager.applyFadeTransition(this)
     }
 
     private fun endActiveSession(session: NovaLibraryActiveSessionUiState) {

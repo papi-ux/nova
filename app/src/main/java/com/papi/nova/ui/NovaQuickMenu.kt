@@ -134,10 +134,25 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         fun syncDoctorReceiptScope() {
-            val nextScope = DoctorActionReceiptStore.scopeId(
+            val status = sessionStatus
+            val currentAppUuid = status?.gameUuid.orEmpty().ifBlank { getRunningGameUuid().orEmpty() }
+            val authoritativeRecovery = status?.recoveryRecords
+                ?.firstOrNull { it.appUuid.equals(currentAppUuid, ignoreCase = true) && it.runId.isNotBlank() }
+                ?: status?.recovery?.takeIf {
+                    it.runId.isNotBlank() &&
+                        (currentAppUuid.isBlank() || it.appUuid.equals(currentAppUuid, ignoreCase = true))
+                }
+            val recoveryScope = authoritativeRecovery?.let {
+                DoctorActionReceiptStore.recoveryScopeId(
+                    host = getServerAddress().orEmpty(),
+                    httpsPort = getHttpsPort(),
+                    appUuid = it.appUuid
+                )
+            }
+            val nextScope = recoveryScope ?: DoctorActionReceiptStore.scopeId(
                 host = getServerAddress().orEmpty(),
                 httpsPort = getHttpsPort(),
-                sessionStatus = sessionStatus
+                sessionStatus = status
             )
             synchronized(doctorActionLock) {
                 if (nextScope != doctorReceiptScopeId) {
@@ -147,6 +162,16 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     doctorActionGeneration += 1L
                     doctorReceiptScopeId = nextScope
                     doctorReceipt = nextScope?.let { DoctorActionReceiptStore.load(prefs, it) }
+                }
+                if (authoritativeRecovery != null && nextScope != null) {
+                    DoctorActionReceiptStore.fromRecoveryReceipt(
+                        scopeId = nextScope,
+                        receipt = authoritativeRecovery,
+                        nowEpochMs = System.currentTimeMillis()
+                    )?.let { reconstructed ->
+                        doctorReceipt = reconstructed
+                        DoctorActionReceiptStore.save(prefs, reconstructed)
+                    }
                 }
                 doctorReceiptValidatedScopeId = nextScope
             }
@@ -415,6 +440,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 "confirmed_pressure" -> game.getString(R.string.nova_quick_menu_doctor_confirmed)
                 "watching" -> game.getString(R.string.nova_quick_menu_doctor_watching)
                 "resolved" -> game.getString(R.string.nova_quick_menu_doctor_resolved)
+                "queued" -> game.getString(R.string.nova_quick_menu_doctor_recovery_queued)
+                "applied" -> game.getString(R.string.nova_quick_menu_doctor_recovery_applied)
+                "expired" -> game.getString(R.string.nova_quick_menu_doctor_recovery_expired)
+                "rejected" -> game.getString(R.string.nova_quick_menu_doctor_recovery_rejected)
                 "needs_attention" -> game.getString(R.string.nova_quick_menu_doctor_needs_attention)
                 "undone" -> game.getString(R.string.nova_quick_menu_doctor_undone)
                 else -> result.error.takeIf { it.isNotBlank() }
@@ -592,8 +621,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 val result = client.runDoctorAction(
                     actionId = doctor.actionId,
                     appSessionId = request.appSessionId,
+                    appUuid = doctor.actionAppUuid,
                     sourceResultId = doctor.resultId,
-                    targetBitrateKbps = doctor.targetBitrateKbps
+                    targetBitrateKbps = doctor.targetBitrateKbps,
+                    confirmed = doctor.requiresConfirmation
                 )
                 val legacySuccess = result?.let {
                     DoctorActionReceiptStore.successfulLegacyNewRunResult(request, it)
@@ -644,9 +675,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 val confirmed = doctor
                 UiHelper.displayConfirmationDialog(
                     game,
-                    game.getString(R.string.nova_quick_menu_doctor_confirm_steam_input_title),
-                    game.getString(R.string.nova_quick_menu_doctor_confirm_steam_input_message),
-                    game.getString(R.string.nova_quick_menu_doctor_confirm_steam_input_proceed),
+                    game.getString(R.string.nova_quick_menu_doctor_confirm_recovery_title),
+                    game.getString(R.string.nova_quick_menu_doctor_confirm_recovery_message),
+                    game.getString(R.string.nova_quick_menu_doctor_confirm_recovery_proceed),
                     game.getString(R.string.cancel),
                     Runnable {
                         val currentStatus = sessionStatus

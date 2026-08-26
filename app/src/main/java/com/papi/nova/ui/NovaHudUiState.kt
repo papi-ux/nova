@@ -315,6 +315,8 @@ data class NovaHudUiState(
                 status?.isHdrDowngraded == true -> "HDR downgraded" to NovaHudTone.WARNING
                 status?.isHostRenderLimited == true || primaryIssue == "host_render_limited" || issues.contains("host_render_limited") ->
                     "Host capped" to NovaHudTone.WARNING
+                primaryIssue == "frame_pacing" || issues.contains("frame_pacing") ->
+                    "Frame pacing" to NovaHudTone.WARNING
                 primaryIssue.contains("network") || riskElevated(status?.health?.networkRisk) ->
                     "Network jitter" to NovaHudTone.WARNING
                 primaryIssue.contains("decoder") || riskElevated(status?.health?.decoderRisk) ->
@@ -322,6 +324,12 @@ data class NovaHudUiState(
                 latencyMs > 50 -> "High latency" to NovaHudTone.DANGER
                 targetFps > 0.0 && fps > 0.0 && fps < targetFps * 0.75 ->
                     "FPS below target" to NovaHudTone.WARNING
+                status?.health?.grade.equals("degraded", ignoreCase = true) ->
+                    "Stream degraded" to NovaHudTone.WARNING
+                status?.health?.grade.equals("watch", ignoreCase = true) ->
+                    "Needs attention" to NovaHudTone.WARNING
+                primaryIssue.isNotBlank() && primaryIssue != "none" ->
+                    "Needs attention" to NovaHudTone.WARNING
                 status == null -> "Waiting" to NovaHudTone.MUTED
                 else -> "Stable" to NovaHudTone.STABLE
             }
@@ -360,7 +368,9 @@ data class NovaHudUiState(
             val hostTone = when {
                 status?.isHostRenderLimited == true || primaryIssue.contains("host") || issues.any { it.contains("host") } ->
                     NovaHudTone.WARNING
-                status?.health?.grade.equals("degraded", ignoreCase = true) -> NovaHudTone.WARNING
+                status?.health?.grade.equals("degraded", ignoreCase = true) ||
+                    status?.health?.grade.equals("watch", ignoreCase = true) ||
+                    primaryIssue == "frame_pacing" || issues.contains("frame_pacing") -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
             val networkTone = when {

@@ -29,13 +29,20 @@ data class DoctorActionReceipt(
     val verificationAttemptCount: Int = 0,
     val undoAvailable: Boolean = false,
     val undoActionId: String = "",
+    val appUuid: String = "",
+    val expiresAtEpochSeconds: Long = 0L,
     val updatedAtEpochMs: Long = 0L
 ) {
     val isTerminal: Boolean
         get() = state in DoctorActionReceiptStore.TERMINAL_STATES
 
     val verificationPending: Boolean
-        get() = !isTerminal && runId.isNotBlank() && verificationActionId.isNotBlank()
+        get() = !isTerminal && runId.isNotBlank() && verificationActionId.isNotBlank() &&
+            verificationActionId != "verify_recovery_profile_next_launch"
+
+    val postConnectVerificationPending: Boolean
+        get() = !isTerminal && runId.isNotBlank() &&
+            verificationActionId == "verify_recovery_profile_next_launch"
 }
 
 data class DoctorActionRequestIdentity(
@@ -114,7 +121,9 @@ internal class DoctorActionPendingRegistry {
 }
 
 object DoctorActionReceiptStore {
-    internal val TERMINAL_STATES = setOf("stable", "resolved", "needs_attention", "undone")
+    internal val TERMINAL_STATES = setOf(
+        "stable", "resolved", "needs_attention", "applied", "expired", "rejected", "undone"
+    )
 
     private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v3_"
     private const val SCOPE_VERSION = "nova-doctor-receipt-scope-v3"
@@ -152,6 +161,30 @@ object DoctorActionReceiptStore {
         appSessionId: String,
         gameUuid: String
     ): String? = scopeId(host, httpsPort, "app-v1", appSessionId, gameUuid)
+
+    fun recoveryScopeId(host: String, httpsPort: Int, appUuid: String): String? =
+        scopeId(host, httpsPort, "recovery-app-v1", appUuid, appUuid)
+
+    fun fromRecoveryReceipt(
+        scopeId: String,
+        receipt: PolarisSessionStatus.RecoveryReceipt,
+        nowEpochMs: Long
+    ): DoctorActionReceipt? {
+        if (scopeId.isBlank() || receipt.runId.isBlank() || receipt.appUuid.isBlank()) return null
+        val message = receipt.message.ifBlank { receipt.error }
+        return DoctorActionReceipt(
+            scopeId = scopeId,
+            runId = receipt.runId.take(MAX_FIELD_LENGTH),
+            state = receipt.normalizedState.take(MAX_FIELD_LENGTH),
+            message = message.take(MAX_FIELD_LENGTH),
+            verificationActionId = receipt.verificationActionId.take(MAX_FIELD_LENGTH),
+            undoAvailable = receipt.undoAvailable,
+            undoActionId = receipt.undoActionId.take(MAX_FIELD_LENGTH),
+            appUuid = receipt.appUuid.take(MAX_FIELD_LENGTH),
+            expiresAtEpochSeconds = receipt.expiresAt.coerceAtLeast(0L),
+            updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
+        )
+    }
 
     private fun scopeId(
         host: String,
@@ -208,7 +241,9 @@ object DoctorActionReceiptStore {
         val previousInScope = previous?.takeIf { it.scopeId == scopeId }
         val runId = result.runId.ifBlank { previousInScope?.runId.orEmpty() }
         val sameRun = previousInScope?.takeIf { it.runId == runId }
-        val responseState = result.state.ifBlank { sameRun?.state.orEmpty() }
+        val responseState = result.recoveryState.ifBlank {
+            result.state.ifBlank { sameRun?.state.orEmpty() }
+        }
         val terminal = responseState in TERMINAL_STATES
         val verificationActionId = when {
             terminal -> ""
@@ -259,6 +294,10 @@ object DoctorActionReceiptStore {
             verificationAttemptCount = verificationAttemptCount,
             undoAvailable = undoAvailable,
             undoActionId = undoActionId.take(MAX_FIELD_LENGTH),
+            appUuid = result.appUuid.ifBlank { sameRun?.appUuid.orEmpty() }.take(MAX_FIELD_LENGTH),
+            expiresAtEpochSeconds = result.expiresAt.takeIf { it > 0L }
+                ?: sameRun?.expiresAtEpochSeconds
+                ?: 0L,
             updatedAtEpochMs = safeNow
         )
     }
@@ -409,6 +448,8 @@ object DoctorActionReceiptStore {
             put("verification_attempt_count", receipt.verificationAttemptCount)
             put("undo_available", receipt.undoAvailable)
             put("undo_action_id", receipt.undoActionId)
+            put("app_uuid", receipt.appUuid)
+            put("expires_at_epoch_seconds", receipt.expiresAtEpochSeconds)
             put("updated_at_epoch_ms", receipt.updatedAtEpochMs)
             put("saved_at_epoch_ms", savedAt)
         }
@@ -454,6 +495,8 @@ object DoctorActionReceiptStore {
                     .coerceIn(0, MAX_VERIFICATION_ATTEMPTS),
                 undoAvailable = json.optBoolean("undo_available", false),
                 undoActionId = json.optString("undo_action_id").take(MAX_FIELD_LENGTH),
+                appUuid = json.optString("app_uuid").take(MAX_FIELD_LENGTH),
+                expiresAtEpochSeconds = json.optLong("expires_at_epoch_seconds", 0L).coerceAtLeast(0L),
                 updatedAtEpochMs = json.optLong("updated_at_epoch_ms", 0L).coerceAtLeast(0L)
             )
         }.getOrNull()

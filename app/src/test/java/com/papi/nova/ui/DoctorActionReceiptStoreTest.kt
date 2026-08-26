@@ -27,6 +27,47 @@ class DoctorActionReceiptStoreTest {
         )
 
     @Test
+    fun recoveryReceiptReconstructsQueuedUndoAfterResumeAndRetiresTerminalStates() {
+        val recoveryScope = requireNotNull(
+            DoctorActionReceiptStore.recoveryScopeId("10.0.0.232", 47984, "game-a")
+        )
+        val queued = DoctorActionReceiptStore.fromRecoveryReceipt(
+            scopeId = recoveryScope,
+            receipt = PolarisSessionStatus.RecoveryReceipt(
+                state = "queued",
+                runId = "recovery-run-a",
+                appUuid = "game-a",
+                expiresAt = 2_000_000_000L,
+                message = "Safer settings are queued for the next launch.",
+                undoSupported = true,
+                undoAvailable = true,
+                undoActionId = "undo_recovery_profile_next_launch"
+            ),
+            nowEpochMs = 1_000L
+        )
+
+        assertNotNull(queued)
+        assertEquals("queued", queued?.state)
+        assertTrue(queued?.undoAvailable == true)
+        assertEquals("undo_recovery_profile_next_launch", queued?.undoActionId)
+        assertFalse(queued?.isTerminal == true)
+        for (terminalState in listOf("expired", "applied", "rejected", "undone")) {
+            val terminal = DoctorActionReceiptStore.fromRecoveryReceipt(
+                scopeId = recoveryScope,
+                receipt = PolarisSessionStatus.RecoveryReceipt(
+                    state = terminalState,
+                    runId = "recovery-run-a",
+                    appUuid = "game-a",
+                    undoAvailable = false
+                ),
+                nowEpochMs = 2_000L
+            )
+            assertTrue("$terminalState must retire the queued action", terminal?.isTerminal == true)
+            assertFalse(terminal?.undoAvailable == true)
+        }
+    }
+
+    @Test
     fun watchingVerificationWithoutRepeatDirectiveKeepsPollingSameRun() {
         val applied = DoctorActionReceiptStore.applyResult(
             previous = null,

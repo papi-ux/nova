@@ -151,7 +151,7 @@ object ServerHelper {
         return parent.windowManager.defaultDisplay.displayId
     }
 
-    private fun createStartIntent(
+    fun createStartIntent(
         parent: Activity,
         app: NvApp,
         host: String,
@@ -228,6 +228,12 @@ object ServerHelper {
         gameIntent.putExtra(Game.EXTRA_AI_PROFILE_PREFERENCE, aiProfilePreference)
         if (!launchOptimizationJson.isNullOrBlank()) {
             gameIntent.putExtra(Game.EXTRA_LAUNCH_OPTIMIZATION, launchOptimizationJson)
+            runCatching { org.json.JSONObject(launchOptimizationJson) }
+                .getOrNull()
+                ?.takeIf { it.optString("recovery_state", "").equals("queued", ignoreCase = true) }
+                ?.optString("recovery_run_id", "")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { gameIntent.putExtra(Game.EXTRA_RECOVERY_RUN_ID, it) }
         }
 
         if (serverCommands != null) {
