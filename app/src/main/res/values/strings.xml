@@ -979,6 +979,10 @@
     <string name="nova_quick_menu_hud_opacity_not_selected">Not selected</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
     <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
+    <string name="nova_quick_menu_doctor_capability_auto_fix">Auto Fix</string>
+    <string name="nova_quick_menu_doctor_capability_recheck">Recheck</string>
+    <string name="nova_quick_menu_doctor_capability_doctor">Doctor</string>
+    <string name="nova_quick_menu_doctor_capability_fallback">Fallback</string>
     <string name="nova_quick_menu_doctor_stable">Doctor verified the network is stable. Bitrate was left unchanged.</string>
     <string name="nova_quick_menu_doctor_confirmed">Doctor now has enough live evidence. Press Fix and verify to apply one safe step.</string>
     <string name="nova_quick_menu_doctor_watching">Fix applied. Doctor is watching live loss and latency.</string>

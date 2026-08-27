@@ -282,6 +282,7 @@ class NovaQuickMenuUiStateTest {
         assertEquals("3.4% packet loss", state.diagnosis.evidence.first())
         assertEquals("high", state.diagnosis.confidence)
         assertTrue(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
         assertEquals(16000, state.diagnosis.targetBitrateKbps)
     }
 
@@ -305,6 +306,7 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Deterministic fallback · openai-subscription", state.diagnosis.informationalSource)
         assertFalse(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.DOCTOR, state.diagnosis.capability)
     }
 
     @Test
@@ -315,6 +317,7 @@ class NovaQuickMenuUiStateTest {
         assertFalse(diagnose.enabled)
         assertEquals("N/A", diagnose.chip!!.label)
         assertEquals("Connect to Polaris for HOST / NET / CLIENT diagnostics.", diagnose.caption)
+        assertEquals(NovaQuickMenuDoctorCapability.FALLBACK, state.diagnosis.capability)
     }
 
     @Test
@@ -338,6 +341,7 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Recheck network", state.overlayRows.first().label)
         assertTrue(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.RECHECK, state.diagnosis.capability)
         assertEquals(0, state.diagnosis.targetBitrateKbps)
     }
 
@@ -362,6 +366,7 @@ class NovaQuickMenuUiStateTest {
         )
 
         assertFalse(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.DOCTOR, state.diagnosis.capability)
         assertEquals("Diagnose This Stream", state.overlayRows.first().label)
     }
 
@@ -390,8 +395,38 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Restore and verify", state.overlayRows.first().label)
         assertTrue(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
         assertEquals(20000, state.diagnosis.targetBitrateKbps)
         assertTrue(state.diagnosis.undoSupported)
+    }
+
+    @Test
+    fun exactNextLaunchRecoveryIsPresentedAsAutoFixWithoutChangingItsActionCopy() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-v2-watch-frame_pacing-safe-profile",
+                    classification = "HOST",
+                    likelyCause = "Frame pacing is uneven.",
+                    primaryIssue = "frame_pacing",
+                    actionId = "apply_recovery_profile_next_launch",
+                    actionLabel = "Use safer profile next launch",
+                    actionKind = "next_launch_profile",
+                    actionAppUuid = "game-1",
+                    undoSupported = true,
+                    requiresConfirmation = true,
+                    ownerTuningAllowed = true,
+                    pairedEndpoint = "/polaris/v1/doctor/action",
+                    undoPairedEndpoint = "/polaris/v1/doctor/action"
+                )
+            )
+        )
+
+        assertTrue(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
+        assertEquals("Use safer profile next launch", state.overlayRows.first().label)
     }
 
     @Test

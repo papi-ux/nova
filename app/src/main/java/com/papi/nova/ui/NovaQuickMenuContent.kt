@@ -482,6 +482,12 @@ private fun NovaQuickMenuDiagnosisCard(
     callbacks: NovaQuickMenuCallbacks,
     initialFocusRequester: FocusRequester? = null,
 ) {
+    val capabilityLabel = when (diagnosis.capability) {
+        NovaQuickMenuDoctorCapability.AUTO_FIX -> stringResource(R.string.nova_quick_menu_doctor_capability_auto_fix)
+        NovaQuickMenuDoctorCapability.RECHECK -> stringResource(R.string.nova_quick_menu_doctor_capability_recheck)
+        NovaQuickMenuDoctorCapability.DOCTOR -> stringResource(R.string.nova_quick_menu_doctor_capability_doctor)
+        NovaQuickMenuDoctorCapability.FALLBACK -> stringResource(R.string.nova_quick_menu_doctor_capability_fallback)
+    }
     val detail = buildList {
         diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
         diagnosis.evidence.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("Evidence: $it") }
@@ -502,7 +508,7 @@ private fun NovaQuickMenuDiagnosisCard(
                 detail.takeIf { it.isNotBlank() }?.let { add(it) }
             }.joinToString(" · ").ifBlank { "HOST / NET / CLIENT self-service diagnostics" },
             chip = NovaQuickMenuChip(
-                label = if (diagnosis.actionExecutable) "One click" else if (diagnosis.available) "Doctor" else "Fallback",
+                label = capabilityLabel,
                 tone = if (diagnosis.available) NovaQuickMenuTone.INFO else NovaQuickMenuTone.MUTED
             ),
             enabled = diagnosis.available
@@ -718,7 +724,7 @@ private fun NovaQuickMenuInfoCard(
         onClick = { callbacks.perform(action) },
         modifier = modifier,
         contentPadding = PaddingValues(11.dp),
-        contentDescription = listOf(action.label, supportingLine)
+        contentDescription = listOfNotNull(action.label, action.chip?.label, supportingLine)
             .filter { it.isNotBlank() }
             .joinToString(". ")
     ) {
