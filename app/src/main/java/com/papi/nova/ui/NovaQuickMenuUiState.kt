@@ -88,6 +88,13 @@ data class NovaQuickMenuMenuOpacityState(
     val presets: List<Int>
 )
 
+enum class NovaQuickMenuDoctorCapability {
+    AUTO_FIX,
+    RECHECK,
+    DOCTOR,
+    FALLBACK
+}
+
 data class NovaQuickMenuDiagnosisState(
     val classification: String,
     val likelyCause: String,
@@ -98,6 +105,7 @@ data class NovaQuickMenuDiagnosisState(
     val actionId: String,
     val actionLabel: String,
     val actionExecutable: Boolean,
+    val capability: NovaQuickMenuDoctorCapability,
     val targetBitrateKbps: Int,
     val verificationDelaySeconds: Int,
     val undoSupported: Boolean,
@@ -129,6 +137,12 @@ data class NovaQuickMenuUiState(
     val sessionRows: List<NovaQuickMenuAction>
 ) {
     companion object {
+        private val autoFixActionIds = setOf(
+            "lower_bitrate",
+            "restore_quality",
+            "apply_recovery_profile_next_launch"
+        )
+
         @JvmStatic
         fun from(
             context: Context,
@@ -574,16 +588,27 @@ data class NovaQuickMenuUiState(
 
         private fun diagnosisState(status: PolarisSessionStatus?): NovaQuickMenuDiagnosisState {
             val doctor = status?.doctor
+            val actionId = doctor?.actionId.orEmpty()
+            val available = status != null &&
+                (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true)
+            val actionExecutable = doctor?.canExecuteAction == true && status.canAdjustHostTuning
+            val capability = when {
+                actionExecutable && actionId in autoFixActionIds -> NovaQuickMenuDoctorCapability.AUTO_FIX
+                actionExecutable && actionId == "recheck_network" -> NovaQuickMenuDoctorCapability.RECHECK
+                available -> NovaQuickMenuDoctorCapability.DOCTOR
+                else -> NovaQuickMenuDoctorCapability.FALLBACK
+            }
             return NovaQuickMenuDiagnosisState(
                 classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",
                 likelyCause = doctor?.likelyCause?.takeIf { it.isNotBlank() } ?: "Connect to Polaris for HOST / NET / CLIENT diagnostics.",
                 evidence = doctor?.evidence ?: emptyList(),
                 tryFirst = doctor?.firstTry.orEmpty(),
                 confidence = doctor?.confidence.orEmpty(),
-                available = status != null && (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true),
-                actionId = doctor?.actionId.orEmpty(),
+                available = available,
+                actionId = actionId,
                 actionLabel = doctor?.actionLabel.orEmpty(),
-                actionExecutable = doctor?.canExecuteAction == true && status?.canAdjustHostTuning == true,
+                actionExecutable = actionExecutable,
+                capability = capability,
                 targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
                 verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
                 undoSupported = doctor?.undoSupported == true,

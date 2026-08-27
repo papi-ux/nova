@@ -19,7 +19,15 @@ class NovaComposeSourceGuardTest {
             content.contains("diagnosis.informationalSource") &&
                 content.contains("supportingLine = diagnosis.informationalSource") &&
                 content.contains("text = supportingLine") &&
-                content.contains("listOf(action.label, supportingLine)")
+                content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine)")
+        )
+        assertTrue(
+            "Doctor capability chips must distinguish mutating Auto Fix from read-only Recheck using localized labels",
+            content.contains("NovaQuickMenuDoctorCapability.AUTO_FIX") &&
+                content.contains("NovaQuickMenuDoctorCapability.RECHECK") &&
+                content.contains("nova_quick_menu_doctor_capability_auto_fix") &&
+                content.contains("nova_quick_menu_doctor_capability_recheck") &&
+                !content.contains("label = if (diagnosis.actionExecutable) \"One click\"")
         )
         assertTrue(
             "next-launch confirmation copy must be unreachable for any other Doctor action kind",
