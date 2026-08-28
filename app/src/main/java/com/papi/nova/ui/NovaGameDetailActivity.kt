@@ -107,6 +107,7 @@ import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaFocusableCard
 import com.papi.nova.utils.DeviceUtils
+import com.papi.nova.utils.ShortcutHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -128,6 +129,7 @@ import kotlin.math.roundToInt
 class NovaGameDetailActivity : NovaActivity() {
 
     private lateinit var apiClient: PolarisApiClient
+    private lateinit var shortcutHelper: ShortcutHelper
     private lateinit var artworkViewModel: NovaArtworkLibraryUpdateViewModel
     private var defaultToVirtualDisplay: Boolean = false
     private var clientSettings: PolarisClientSettings? = null
@@ -246,6 +248,7 @@ class NovaGameDetailActivity : NovaActivity() {
         serverUuid = intent.getStringExtra(EXTRA_SERVER_UUID)
 
         apiClient = PolarisApiClient(this, host, httpsPort, serverCert)
+        shortcutHelper = ShortcutHelper(this)
         artworkViewModel = ViewModelProvider(
             this,
             NovaArtworkLibraryUpdateViewModel.Factory(
@@ -1179,6 +1182,28 @@ class NovaGameDetailActivity : NovaActivity() {
                             Toast.makeText(sheetContext, message, Toast.LENGTH_SHORT).show()
                             resetWorking = false
                         }
+                    },
+                    onPinShortcut = {
+                        val hostUuid = serverUuid
+                        val messageRes = if (hostUuid.isNullOrEmpty()) {
+                            R.string.nova_library_pin_shortcut_failed
+                        } else {
+                            val pinned = shortcutHelper.createPinnedGameShortcut(
+                                hostUuid = hostUuid,
+                                hostName = serverName,
+                                appUuid = currentGame.id,
+                                appId = currentGame.appId,
+                                appName = currentGame.name,
+                                hdrSupported = currentGame.hdrSupported,
+                                iconBits = null,
+                            )
+                            if (pinned) {
+                                R.string.nova_library_pin_shortcut_success
+                            } else {
+                                R.string.nova_library_pin_shortcut_unsupported
+                            }
+                        }
+                        Toast.makeText(this@NovaGameDetailActivity, messageRes, Toast.LENGTH_SHORT).show()
                     },
                     artworkState = artworkState,
                     onRefreshArtwork = {
