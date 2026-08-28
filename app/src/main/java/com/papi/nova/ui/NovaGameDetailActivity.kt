@@ -604,7 +604,16 @@ class NovaGameDetailActivity : NovaActivity() {
                         syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, usesVirtualDisplay, clientSettings, uiState.playMode)?.let {
                             clientSettings = it
                         }
-                        apiClient.getOptimization(deviceName, currentGame.name, preference, mode = uiState.playMode)
+                        val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+                        apiClient.getOptimization(
+                            deviceName, currentGame.name, preference,
+                            mode = uiState.playMode,
+                            width = launchPrefs.width,
+                            height = launchPrefs.height,
+                            fps = launchPrefs.fps,
+                            bitrateKbps = launchPrefs.bitrate,
+                            hdr = launchPrefs.enableHdr,
+                        )
                     }
                     logPreflightOptimization("Preflight optimization", opt, preference)
                     buildOptimizationState(opt, preference)
@@ -644,7 +653,7 @@ class NovaGameDetailActivity : NovaActivity() {
             }
         }
 
-        fun retryHighFpsTrial() {
+        fun selectHighFpsPreset() {
             profilePreference = "high_fps"
             saveProfilePreference(currentGame, profilePreference)
             refreshUiState(profilePreference)
@@ -655,12 +664,21 @@ class NovaGameDetailActivity : NovaActivity() {
                         syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, uiState.playUsesVirtualDisplay, clientSettings, uiState.playMode)?.let {
                             clientSettings = it
                         }
-                        apiClient.getOptimization(deviceName, currentGame.name, profilePreference, "high_fps", mode = uiState.playMode)
+                        val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+                        apiClient.getOptimization(
+                            deviceName, currentGame.name, profilePreference,
+                            mode = uiState.playMode,
+                            width = launchPrefs.width,
+                            height = launchPrefs.height,
+                            fps = launchPrefs.fps,
+                            bitrateKbps = launchPrefs.bitrate,
+                            hdr = launchPrefs.enableHdr,
+                        )
                     }
-                    logPreflightOptimization("High FPS trial preflight", opt, profilePreference)
+                    logPreflightOptimization("High FPS preset preflight", opt, profilePreference)
                     buildOptimizationState(opt, profilePreference)
                 } catch (e: Exception) {
-                    LimeLog.warning("Nova: High FPS trial preflight failed: ${e.message}")
+                    LimeLog.warning("Nova: High FPS preset preflight failed: ${e.message}")
                     NovaGameDetailOptimizationState()
                 }
                 if (pendingLaunch) attemptLaunch()
@@ -815,9 +833,6 @@ class NovaGameDetailActivity : NovaActivity() {
             val rows = mutableListOf<NovaPlaySetupRowState>()
             val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
             val fpsPin = NovaLaunchStreamOverride.highFpsPin(profilePreference, preferences.fps)
-            val autoSafeFps = StreamSyncManager
-                .resolveAutoSafeTargetFps(preferences.fps, optimizationState.rawOptimization)
-                .roundToInt()
 
             val modeOptions = buildList {
                 if (uiState.headlessAllowed) {
@@ -887,12 +902,9 @@ class NovaGameDetailActivity : NovaActivity() {
             rows += NovaPlaySetupRowState(
                 row = NovaPlaySetupRow.TUNING,
                 label = getString(R.string.nova_play_setup_tuning),
-                // High FPS is binding, so the caption states the pin -- and, when the
-                // host is holding a recovery target below it, exactly what is being
-                // overridden. The other preferences keep the host in control.
+                // High FPS is binding, so the caption states the explicit pin.
+                // Historical Doctor guidance never participates in this launch.
                 caption = when {
-                    fpsPin != null && autoSafeFps in 1 until fpsPin ->
-                        getString(R.string.nova_play_setup_tuning_pins_over_hold, fpsPin, autoSafeFps)
                     fpsPin != null -> getString(R.string.nova_play_setup_tuning_pins, fpsPin)
                     // The row used to show only the saved ask; for the asks the host
                     // owns, the outcome is the half that was never said anywhere.
@@ -912,7 +924,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 stripTitle = getString(R.string.nova_play_setup_strip_tuning),
                 options = AutoQualityProfilePreferences.values().map { value ->
                     NovaPlaySetupOption(
-                        // shortLabelRes, not labelRes: the long form is "AI Preference: X",
+                        // shortLabelRes, not labelRes: the long form is "Launch preset: X",
                         // and four cards of it ellipsize to four identical words.
                         label = getString(AutoQualityProfilePreferences.shortLabelRes(value)),
                         consequence = getString(novaProfilePreferenceConsequenceRes(value)),
@@ -1163,7 +1175,7 @@ class NovaGameDetailActivity : NovaActivity() {
                                 launchConfirmed(mirrorDesktop = false, forcePrivateAfterSteamClose = true)
                         }
                     },
-                    onRetryHighFps = { retryHighFpsTrial() },
+                    onRetryHighFps = { selectHighFpsPreset() },
                     onResetProfile = {
                         resetWorking = true
                         lifecycleScope.launch {
@@ -1641,24 +1653,43 @@ class NovaGameDetailActivity : NovaActivity() {
         if (opt == null) return NovaGameDetailOptimizationState()
 
         val profileState = opt.optJSONObject("profile_state")
-        val currentProfile = profileState?.optJSONObject("current_profile") ?: opt.optJSONObject("effective_profile")
+        val resolvedProfile = opt.optJSONObject("resolved_profile")
+        val currentProfile = profileState?.optJSONObject("current_profile")
+            ?: resolvedProfile
+            ?: opt.optJSONObject("effective_profile")
+        val resolvedFields = currentProfile?.optJSONObject("fields")
+            ?: resolvedProfile?.optJSONObject("fields")
+        fun resolvedField(name: String): JSONObject? = resolvedFields?.optJSONObject(name)
         val lastResult = profileState?.optJSONObject("last_result")
         val source = opt.optString("source", "")
         val confidence = opt.optString("confidence", "")
         val cacheStatus = opt.optString("cache_status", "")
-        val displayMode = currentProfile
+        val displayMode = resolvedField("display_mode")
+            ?.optString("value", "")
+            ?.takeIf { it.isNotBlank() }
+            ?: currentProfile
             ?.optString("display_mode", "")
             ?.takeIf { it.isNotBlank() }
             ?: opt.optString("display_mode", "")
-        val bitrate = currentProfile
+        val bitrate = resolvedField("target_bitrate_kbps")
+            ?.optInt("value", 0)
+            ?.takeIf { it > 0 }
+            ?: currentProfile
             ?.optInt("target_bitrate_kbps", 0)
             ?.takeIf { it > 0 }
             ?: opt.optInt("target_bitrate_kbps", 0)
-        val targetFps = currentProfile?.optDouble("target_fps", 0.0) ?: 0.0
-        val codec = currentProfile
+        val targetFps = currentProfile?.optDouble("target_fps", 0.0)
+            ?.takeIf { it > 0.0 }
+            ?: displayMode.substringAfterLast('x', "").toDoubleOrNull()
+            ?: 0.0
+        val codec = resolvedField("preferred_codec")
+            ?.optString("value", "")
+            ?.takeIf { it.isNotBlank() }
+            ?: currentProfile
             ?.optString("preferred_codec", "")
             ?.takeIf { it.isNotBlank() }
             ?: opt.optString("preferred_codec", "")
+        val hdr = resolvedField("hdr")?.takeIf { it.has("value") }?.optBoolean("value")
         val reasoning = opt.optString("reasoning", "")
         val normalizationReason = opt.optString("normalization_reason", "")
         val generatedAt = opt.optLong("generated_at", 0L)
@@ -1669,9 +1700,35 @@ class NovaGameDetailActivity : NovaActivity() {
             if (displayMode.isEmpty() && targetFps > 0.0) parts.add("${formatFps(targetFps)} FPS")
             if (codec.isNotEmpty()) parts.add(codec.uppercase())
             if (bitrate > 0) parts.add("up to ${bitrate / 1000} Mbps")
-            val settingsText = parts.joinToString(" · ").ifBlank { "Profile is being learned" }
+            if (hdr != null) parts.add(if (hdr) "HDR" else "SDR")
+            val settingsText = parts.joinToString(" · ").ifBlank { "Preset fields are unavailable" }
 
-            val titleLabel = profileState
+            val provenanceParts = mutableListOf<String>()
+            val fieldNames = resolvedFields?.keys()
+            while (fieldNames?.hasNext() == true) {
+                val fieldName = fieldNames.next()
+                val field = resolvedFields.optJSONObject(fieldName) ?: continue
+                val fieldSource = field.optString("source", "").takeIf { it.isNotBlank() } ?: "unknown"
+                val flags = buildList {
+                    if (field.optBoolean("locked", false)) add("locked")
+                    if (field.optBoolean("normalized", false)) add("normalized")
+                }
+                provenanceParts += buildString {
+                    append(fieldName.replace('_', ' '))
+                    append(" from ")
+                    append(fieldSource.replace('_', ' '))
+                    if (flags.isNotEmpty()) append(" (${flags.joinToString()})")
+                }
+            }
+            val provenanceText = provenanceParts.sorted().joinToString("; ")
+
+            val presetLabel = currentProfile
+                ?.optString("preset_label", "")
+                ?.takeIf { it.isNotBlank() }
+                ?: resolvedProfile?.optString("preset_label", "")?.takeIf { it.isNotBlank() }
+            val titleLabel = if (source == "deterministic_preset_v1" && presetLabel != null) {
+                "Launch preset: $presetLabel"
+            } else profileState
                 ?.optString("label", "")
                 ?.takeIf { it.isNotBlank() }
                 ?: when {
@@ -1683,6 +1740,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     else -> "Auto Quality"
                 }
             val sourceLabel = when {
+                source == "deterministic_preset_v1" -> "Deterministic policy v1"
                 source.contains("ai_live") && cacheStatus.equals("invalidated", ignoreCase = true) ->
                     "Recovery"
                 source.contains("ai_cached") -> "Cached profile"
@@ -1735,7 +1793,14 @@ class NovaGameDetailActivity : NovaActivity() {
             } else {
                 ""
             }
-            val fullReasoning = listOf(profileReason, preferenceNote, requestedReason, reasoning, normalizationReason)
+            val fullReasoning = listOf(
+                profileReason,
+                preferenceNote,
+                provenanceText,
+                requestedReason,
+                reasoning,
+                normalizationReason
+            )
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
 
@@ -1793,20 +1858,24 @@ class NovaGameDetailActivity : NovaActivity() {
                 val isStabilityFirst = stabilityMode.equals("stability_first", ignoreCase = true) ||
                     opt.optInt("consecutive_poor_outcomes", 0) > 0
                 val relaunchRequired = stability.optBoolean("relaunch_required", false)
+                val observational = stability.optString("state", "").equals("observational", ignoreCase = true) ||
+                    stability.optString("auto_action", "none").equals("none", ignoreCase = true)
                 NovaGameDetailInsightCard(
                     label = when {
-                        isStabilityFirst -> "Recovery Profile"
-                        relaunchRequired -> "Recovery Queued"
-                        else -> "Safer Fallback"
+                        observational -> "Doctor Observation"
+                        isStabilityFirst || relaunchRequired -> "Deprecated Recovery Record"
+                        else -> "Manual Guidance"
                     },
                     source = "",
-                    settings = if (safeProfileParts.isNotEmpty()) {
+                    settings = if (observational) {
+                        "Launch settings unchanged"
+                    } else if (safeProfileParts.isNotEmpty()) {
                         safeProfileParts.joinToString(" · ")
                     } else {
-                        "Safer next launch"
+                        "Not applicable to launch"
                     },
                     reasoning = stabilityDetails,
-                    isWarning = isStabilityFirst
+                    isWarning = !observational && (isStabilityFirst || relaunchRequired)
                 )
             } else {
                 null

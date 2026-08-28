@@ -46,6 +46,7 @@ import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaHudSessionSummaryLog
+import com.papi.nova.ui.NovaHudSessionStats
 import com.papi.nova.ui.NovaCompanionCommandDeckState
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudUiState
@@ -169,10 +170,15 @@ class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, On
 
 private val runtimeTasks:NovaRuntimeTasks = NovaRuntimeTasks(this, "Nova runtime")
 private var novaHud:com.papi.nova.ui.NovaStreamHud? = null
+private val doctorTelemetry:NovaHudSessionStats = NovaHudSessionStats()
  var configuredHudTargetFps:Float = 0f
 private var configuredStreamFrameRateFps:Float = 0f
+private var configuredDisplayRefreshRateHz:Float = 0f
 private var configuredStreamBitrateKbps:Int = 0
+private var configuredStreamHdr:Boolean = false
 @Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
+private val doctorV2UploadInFlight:AtomicBoolean = AtomicBoolean(false)
+private val doctorV2UploadFailureLogged:AtomicBoolean = AtomicBoolean(false)
 private var preferStableRefreshMultipleForAutoSafe:Boolean = false
 private var audioHapticEngine:com.papi.nova.ui.AudioHapticEngine? = null
 private var gyroAimController:com.papi.nova.ui.GyroAimController? = null
@@ -256,8 +262,6 @@ private var externalDisplayListener:DisplayManager.DisplayListener? = null
 com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfileSource.LOCAL_DEFAULT)
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
-private var launchRecoveryRunId:String = ""
-private var recoveryVerificationAttempted:AtomicBoolean = AtomicBoolean(false)
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
 private var streamMode:String = ""
@@ -1046,7 +1050,6 @@ streamMode = this@Game.getIntent().getStringExtra(EXTRA_STREAM_MODE) ?: ""
 forcePrivateAfterSteamClose = this@Game.getIntent().getBooleanExtra(EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, false)
 launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
 launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
-launchRecoveryRunId = this@Game.getIntent().getStringExtra(EXTRA_RECOVERY_RUN_ID) ?: ""
 resumeExistingRequested = this@Game.getIntent().getBooleanExtra(EXTRA_RESUME_EXISTING, false)
 serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
 var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
@@ -1089,16 +1092,6 @@ return
 }
 
 var launchOptimization:JSONObject? = if (watchOnlyRequested || resumeExistingRequested) null else loadLaunchOptimization(appName)
-var recoveryLaunchProfile:com.papi.nova.manager.StreamSyncManager.RecoveryLaunchProfile? =
-com.papi.nova.manager.StreamSyncManager.recoveryLaunchProfile(launchOptimization)
-if (recoveryLaunchProfile != null)
-{
-launchRecoveryRunId = recoveryLaunchProfile!!.runId
-vDisplay = recoveryLaunchProfile!!.virtualDisplay
-mirrorDesktop = recoveryLaunchProfile!!.mirrorDesktop
-streamMode = recoveryLaunchProfile!!.streamDisplayMode
-LimeLog.info("Nova: Recovery launch contract " + launchRecoveryRunId + " topology=" + streamMode)
-}
 lastClientProfileProvenance = com.papi.nova.manager.StreamSyncManager.resolveProfileProvenance(launchOptimization, manualOverride = isManualProfileOverride())
 
  // Initialize the MediaCodec helper before creating the decoder
@@ -1127,11 +1120,6 @@ isOnExternalDisplay,
 Build.VERSION.SDK_INT,
 displaySupportsHdr10
 )
-if (recoveryLaunchProfile != null)
-{
-willStreamHdr = recoveryLaunchProfile!!.hdr
-}
-
 if (shouldShowSdr10BitOptInToast(
 prefConfig!!.enableHdr,
 isOnExternalDisplay,
@@ -1281,11 +1269,6 @@ if (willStreamHdr && decoderRenderer!!.isAv1Main10Supported)
 supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_AV1_MAIN10
 }
 }
-supportedVideoFormats = com.papi.nova.manager.StreamSyncManager.restrictVideoFormatsForRecovery(
-supportedVideoFormats,
-recoveryLaunchProfile
-)
-
 var gamepadMask:Int = ControllerHandler.getAttachedControllerMask(this).toInt()
 if (!prefConfig!!.multiController)
 {
@@ -1324,7 +1307,7 @@ var autoSafeTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveAut
 launchRefreshRate,
 launchOptimization
 )
-if (recoveryLaunchProfile == null && autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
+if (autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
 {
 var displayCompatibleTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveDisplayCompatibleAutoSafeTargetFps(
 autoSafeTargetFps,
@@ -1353,6 +1336,7 @@ configuredStreamFrameRateFps
 
  // Set to the optimal mode for streaming
         var displayRefreshRate:Float = prepareDisplayForRendering(currentDisplay)
+configuredDisplayRefreshRateHz = displayRefreshRate
 LimeLog.info("Display refresh rate: " + displayRefreshRate)
 
  // If the user requested frame pacing using a capped FPS, we will need to change our
@@ -1420,6 +1404,11 @@ chosenFrameRate = Math.min(chosenFrameRate, autoSafeTargetFps)
 }
 configuredStreamFrameRateFps = chosenFrameRate
 configuredHudTargetFps = launchRefreshRate
+configuredStreamHdr = willStreamHdr
+doctorTelemetry.reset()
+doctorV2UploadFailureLogged.set(false)
+doctorTelemetry.setTargetFps(launchRefreshRate.toDouble())
+doctorTelemetry.recordBitrate(configuredStreamBitrateKbps)
 lastPolarisDeviceCapabilities = com.papi.nova.manager.StreamSyncManager.buildDeviceCapabilities(
 this,
 currentDisplay,
@@ -1439,8 +1428,8 @@ willStreamHdr,
 supportedVideoFormats,
 prefConfig!!.videoFormat,
 displayModeExplicit,
-recoveryLaunchProfile?.preferredCodec ?: "",
-recoveryLaunchProfile?.streamDisplayMode ?: streamMode
+"",
+streamMode
 )
 try
 {
@@ -2384,7 +2373,13 @@ var safeAppName:String = appName ?: ""
 var preference:String = launchProfilePreference.takeIf { it.isNotBlank() } ?: getSharedPreferences("nova_prefs", MODE_PRIVATE)
 .getString("ai_profile_preference_name_" + safeAppName, "auto") ?: "auto"
 launchProfilePreference = preference
-result[0] = novaApiClient!!.getOptimization(DeviceUtils.getModel(), safeAppName, preference)
+result[0] = novaApiClient!!.getOptimization(
+DeviceUtils.getModel(), safeAppName, preference,
+width = prefConfig.width,
+height = prefConfig.height,
+fps = prefConfig.fps,
+bitrateKbps = prefConfig.bitrate,
+hdr = prefConfig.enableHdr)
 }
 catch (e:Exception) {
 failure[0] = e
@@ -4818,11 +4813,12 @@ isStreamActive = false
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
 runtimeTasks.cancel("NovaBitrateAdjust")
- // Send AI session report before dismissing HUD
-            if (novaHud != null && host != null)
+runtimeTasks.cancel("NovaDoctorV2Sample")
+ // Raw Doctor sampling runs independently of HUD visibility.
+            if (host != null)
 {
-val summary:Map<String, Any>? = novaHud!!.getSessionSummary()
-com.papi.nova.LimeLog.info("Nova: HUD session summary " + NovaHudSessionSummaryLog.format(summary ?: emptyMap()))
+val summary:Map<String, Any> = doctorTelemetry.summary()
+com.papi.nova.LimeLog.info("Nova: observational session summary " + NovaHudSessionSummaryLog.format(summary))
 val reportHost:String? = host
 val reportHttpsPort:Int = httpsPort
 val reportServerCert:X509Certificate? = serverCert
@@ -4832,36 +4828,9 @@ val reportGame:String? = if (appName != null) appName else ""
 launchRuntimeIo("NovaSessionReport") { try
 {
 var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, reportHost ?: "", reportHttpsPort, reportServerCert)
-client.sendSessionReport(
-reportDevice ?: "", reportUniqueId ?: "", reportGame ?: "",
-getSummaryDouble(summary, "avg_fps", 0.0),
-getSummaryDouble(summary, "target_fps", 0.0),
-getSummaryDouble(summary, "low_1_percent_fps", 0.0),
-getSummaryDouble(summary, "min_fps", 0.0),
-getSummaryDouble(summary, "frame_pacing_bad_pct", 0.0),
-getSummaryDouble(summary, "safe_target_fps", 0.0),
-getSummaryDouble(summary, "avg_latency_ms", 0.0),
-getSummaryInt(summary, "avg_bitrate_kbps", 0),
-getSummaryDouble(summary, "packet_loss_pct", 0.0),
-getSummaryString(summary, "codec"),
-getSummaryInt(summary, "duration_s", 0),
-getSummaryInt(summary, "samples", 0),
-"disconnect",
-getSummaryString(summary, "optimization_source"),
-getSummaryString(summary, "optimization_confidence"),
-getSummaryInt(summary, "recommendation_version", 0),
-getSummaryString(summary, "health_grade"),
-getSummaryString(summary, "primary_issue"),
-getSummaryStringList(summary, "issues"),
-getSummaryString(summary, "decoder_risk"),
-getSummaryString(summary, "hdr_risk"),
-getSummaryString(summary, "network_risk"),
-getSummaryString(summary, "capture_path"),
-getSummaryInt(summary, "safe_bitrate_kbps", 0),
-getSummaryString(summary, "safe_codec"),
-getSummaryString(summary, "safe_display_mode"),
-getSummaryBoolean(summary, "safe_hdr"),
-getSummaryBoolean(summary, "relaunch_recommended") == true
+client.sendDoctorEvidenceReport(
+reportDevice ?: "", reportUniqueId ?: "", reportGame ?: "", summary,
+if (reportedCrash) "decoder_crash" else "disconnect"
 )
 }
 catch (e:kotlinx.coroutines.CancellationException) {
@@ -4870,17 +4839,11 @@ throw e
 catch (e:Exception) {
 com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e!!.message)
 }
- }
-novaHud!!.dismiss()
+}
+}
+novaHud?.dismiss()
 novaHud = null
 syncPerfTextWanted()
-}
-else if (novaHud != null)
-{
-novaHud!!.dismiss()
-novaHud = null
-syncPerfTextWanted()
-}
  // Stop audio haptics and gyro aiming
             if (audioHapticEngine != null)
 {
@@ -5484,6 +5447,46 @@ else if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)
 hideSystemUi(2000)
 }
 }
+private fun uploadDoctorV2Sample(sample:PerfOverlaySample) {
+if (!connected ||
+!com.papi.nova.manager.FeatureFlagManager.isDoctorV2ShadowEnabled ||
+!doctorV2UploadInFlight.compareAndSet(false, true))
+{
+return
+}
+val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: run {
+doctorV2UploadInFlight.set(false)
+return
+}
+val effectiveTopology:String = lastPolarisSessionStatus?.displayMode?.selection?.takeIf { it.isNotBlank() }
+?: if (streamMode.isNotBlank()) streamMode else if (vDisplay) "host_virtual_display" else "desktop_display"
+val sampleTargetFps:Double = configuredHudTargetFps.toDouble()
+val sampleRefreshRateHz:Double = configuredDisplayRefreshRateHz.toDouble()
+val sampleBitrateKbps:Int = configuredStreamBitrateKbps
+val sampleHdr:Boolean = configuredStreamHdr
+launchRuntimeIo("NovaDoctorV2Sample") {
+try
+{
+val accepted:Boolean = client.sendDoctorV2Sample(
+sample = sample,
+targetFps = sampleTargetFps,
+refreshRateHz = sampleRefreshRateHz,
+bitrateKbps = sampleBitrateKbps,
+topology = effectiveTopology,
+hdr = sampleHdr
+)
+if (!accepted && doctorV2UploadFailureLogged.compareAndSet(false, true))
+{
+com.papi.nova.LimeLog.warning("Nova: Doctor v2 shadow sample was not accepted; continuing locally")
+}
+}
+finally
+{
+doctorV2UploadInFlight.set(false)
+}
+}
+}
+
 override fun onPerfUpdate(text:String) {
 runOnUiThread(object : Runnable {
 override fun run() {
@@ -5512,6 +5515,8 @@ override fun onPerfSample(sample:PerfOverlaySample) {
 runOnUiThread(object : Runnable {
 override fun run() {
 lastCompanionPerfSample = sample
+doctorTelemetry.recordPerfSample(sample)
+uploadDoctorV2Sample(sample)
                 if (novaHud != null && novaHud!!.isShowing)
 {
 novaHud!!.updateFromPerfSample(sample)
@@ -6189,7 +6194,6 @@ maybeShowDisplayModeWarning(status)
 updateCompanionCommandDeck()
 }
 reportClientPresentationIfNeeded(status)
-maybeVerifyRecoveryAfterConnect(status)
 }
 }
 catch (e:kotlinx.coroutines.CancellationException) {
@@ -6202,51 +6206,6 @@ finally
 {
 polarisSessionStatusRefreshInFlight.set(false)
 } }
-}
-
-private fun maybeVerifyRecoveryAfterConnect(status:com.papi.nova.api.PolarisSessionStatus) {
-val runId:String = launchRecoveryRunId
-val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: return
-if (runId.isBlank() || !connected || !isStreamActive || !status.isStreaming || status.isViewer)
-{
-return
-}
-if (!status.gameUuid.equals(appUUID, ignoreCase = true) ||
-status.encoder.codec.isBlank() || status.encoder.bitrateKbps <= 0 ||
-status.encoder.encodeTargetFps <= 0.0 || status.capture.resolution.isBlank())
-{
-return
-}
-val receipt = status.recoveryRecords.firstOrNull { it.runId == runId }
-    ?: status.recovery.takeIf { it.runId == runId }
-if (receipt == null || !receipt.isQueued || !recoveryVerificationAttempted.compareAndSet(false, true))
-{
-return
-}
-val result = client.runDoctorAction(
-"verify_recovery_profile_next_launch",
-status.appSessionId,
-appUuid = appUUID.orEmpty(),
-runId = runId
-)
-if (result == null)
-{
-recoveryVerificationAttempted.set(false)
-LimeLog.warning("Nova: Recovery verification transport failed; will retry after fresh status")
-return
-}
-if (result.status && result.recoveryState.equals("applied", ignoreCase = true))
-{
-LimeLog.info("Nova: Recovery profile verified and consumed run=" + runId)
-launchRecoveryRunId = ""
-launchOptimizationJson = null
-intent.removeExtra(EXTRA_RECOVERY_RUN_ID)
-intent.removeExtra(EXTRA_LAUNCH_OPTIMIZATION)
-}
-else
-{
-LimeLog.warning("Nova: Recovery verification did not consume run=" + runId + " state=" + result.recoveryState)
-}
 }
 
 private fun applyMouseMode(mode:Int) {

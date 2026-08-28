@@ -871,10 +871,9 @@ class NovaLibraryActivity : NovaActivity() {
         }
         launchErrorMessage = null
 
-        val recoveryProfile = StreamSyncManager.recoveryLaunchProfile(preflightOptimization)
-        val launchUsesVirtualDisplay = recoveryProfile?.virtualDisplay ?: withVirtualDisplay
-        val launchMirrorsDesktop = recoveryProfile?.mirrorDesktop ?: mirrorDesktop
-        val launchMode = recoveryProfile?.streamDisplayMode?.takeIf { it.isNotBlank() } ?: resolvedMode
+        val launchUsesVirtualDisplay = withVirtualDisplay
+        val launchMirrorsDesktop = mirrorDesktop
+        val launchMode = resolvedMode
 
         NovaSnackbar.show(
             this,

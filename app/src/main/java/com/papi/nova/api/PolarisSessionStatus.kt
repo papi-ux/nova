@@ -53,7 +53,11 @@ data class PolarisSessionStatus(
         val undoSupported: Boolean = false,
         val undoAvailable: Boolean = false,
         val undoActionId: String = "",
-        val verificationActionId: String = ""
+        val verificationActionId: String = "",
+        val deprecated: Boolean = false,
+        val applicable: Boolean = true,
+        val cancellable: Boolean = false,
+        val reasonCode: String = ""
     ) {
         val normalizedState get() = state.trim().lowercase()
         val isQueued get() = normalizedState == "queued"
@@ -301,6 +305,7 @@ data class PolarisSessionStatus(
         val primaryIssue: String = "",
         val actionId: String = "",
         val actionLabel: String = "",
+        val actionCapability: String = "",
         val actionKind: String = "",
         val actionAppUuid: String = "",
         val targetBitrateKbps: Int = 0,
@@ -321,18 +326,9 @@ data class PolarisSessionStatus(
         val networkPressureConfirmed get() =
             (packetLossPct ?: 0.0) > 2.0 || (latencyMs ?: 0.0) >= 45.0
         val canExecuteAction get() = when (actionId) {
-            "recheck_network" -> version >= 2
+            "recheck_network", "recheck_pacing" -> version >= 2
             "lower_bitrate" -> version >= 2 && primaryIssue == "network_jitter" && networkPressureConfirmed
             "restore_quality" -> version >= 2 && primaryIssue == "quality_capped_by_history" && targetBitrateKbps > 0
-            "apply_recovery_profile_next_launch" -> version >= 2 &&
-                actionKind == "next_launch_profile" &&
-                resultId.isNotBlank() &&
-                actionAppUuid.isNotBlank() &&
-                requiresConfirmation &&
-                undoSupported &&
-                ownerTuningAllowed &&
-                pairedEndpoint == "/polaris/v1/doctor/action" &&
-                undoPairedEndpoint == "/polaris/v1/doctor/action"
             else -> false
         }
 

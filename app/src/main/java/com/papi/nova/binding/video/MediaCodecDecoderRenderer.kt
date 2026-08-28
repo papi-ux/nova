@@ -1796,7 +1796,16 @@ class MediaCodecDecoderRenderer(
                 rttMs = (rttInfo shr 32).toInt(),
                 rttVarianceMs = rttInfo.toInt(),
                 decodeTimeMs = decodeTimeMs.toDouble(),
-                packetLossPct = packetLossPct
+                packetLossPct = packetLossPct,
+                monotonicTimestampMs = SystemClock.elapsedRealtime(),
+                framesExpected = (globalVideoStats.totalFrames + activeWindowVideoStats.totalFrames).toLong(),
+                framesReceived = (globalVideoStats.totalFramesReceived + activeWindowVideoStats.totalFramesReceived).toLong(),
+                framesRendered = (globalVideoStats.totalFramesRendered + activeWindowVideoStats.totalFramesRendered).toLong(),
+                framesLost = (globalVideoStats.framesLost + activeWindowVideoStats.framesLost).toLong(),
+                hostProcessingLatencyMs = lastTwo.framesWithHostProcessingLatency
+                    .takeIf { it > 0 }
+                    ?.let { lastTwo.totalHostProcessingLatency.toDouble() / 10.0 / it.toDouble() },
+                sessionGeneration = benchmarkStreamGeneration.toLong() + 1L
             )
             perfListener.onPerfSample(perfSample)
 

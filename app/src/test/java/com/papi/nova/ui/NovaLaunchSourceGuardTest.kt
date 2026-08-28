@@ -281,11 +281,13 @@ class NovaLaunchSourceGuardTest {
                 !resolvePlan.contains("getOptimization(")
         )
         assertTrue(
-            "shortcut launch should resolve recovery settings before pushing the exact launch contract",
+            "shortcut launch should resolve deterministic preset fields before pushing the exact launch contract",
             applyPreflight.contains("apiClient.setMangoHud(polarisGame.id, polarisGame.mangohud)") &&
                 applyPreflight.contains("apiClient.getClientSettings()") &&
                 applyPreflight.contains("apiClient.getOptimization(") &&
-                applyPreflight.contains("val recoveryProfile = StreamSyncManager.recoveryLaunchProfile(composed)") &&
+                !applyPreflight.contains("recoveryLaunchProfile(") &&
+                applyPreflight.contains("val launchUsesVirtualDisplay = withVirtualDisplay") &&
+                applyPreflight.contains("val launchMirrorDesktop = false") &&
                 applyPreflight.contains("val launchResolution = StreamSyncManager.resolveAutoSafeResolution(") &&
                 applyPreflight.contains("val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(") &&
                 applyPreflight.contains("val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(") &&
@@ -295,7 +297,7 @@ class NovaLaunchSourceGuardTest {
                 directLaunch.contains("startConfirmedShortcutLaunch(")
         )
         assertTrue(
-            "shortcut launch should carry the same resolved recovery fields into Game and the settings push",
+            "shortcut launch should carry the same deterministic preset fields into Game and the settings push",
             directLaunch.contains("readyLaunchPlan.profilePreference") &&
                 directLaunch.contains("readyLaunchPlan.launchOptimizationJson") &&
                 applyPreflight.contains("width = launchResolution.width") &&
@@ -733,7 +735,8 @@ class NovaLaunchSourceGuardTest {
                 nvhttp.contains("\"&streamMode=\" + URLEncoder.encode(") &&
                 streamConfig.contains("fun getStreamMode(): String") &&
                 serverHelper.contains("gameIntent.putExtra(Game.EXTRA_STREAM_MODE, streamMode)") &&
-                library.contains("val launchMode = recoveryProfile?.streamDisplayMode") &&
+                library.contains("val launchMode = resolvedMode") &&
+                !library.contains("recoveryProfile?.streamDisplayMode") &&
                 library.contains("streamMode = launchMode")
         )
 

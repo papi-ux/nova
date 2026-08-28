@@ -33,7 +33,7 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Leave", state.endAction.label)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.MOUSE_MODE }.enabled)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.enabled)
-        assertFalse(state.advancedRows.first { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY }.enabled)
+        assertFalse(state.advancedRows.any { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY })
         assertEquals("Owner", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.MUTED, state.stability.chip.tone)
     }
@@ -57,7 +57,7 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
-    fun hostRenderLimitedSessionWarnsWithPlayerReadableRecoveryCopy() {
+    fun hostRenderLimitedSessionWarnsWithObservationalPacingCopy() {
         val state = quickState(
             status = status(
                 aiOptimizerEnabled = true,
@@ -78,9 +78,9 @@ class NovaQuickMenuUiStateTest {
             aiEnabled = true
         )
 
-        assertEquals("AI Recovery Profile ready for next launch.", state.healthSummary)
+        assertEquals("Frame-pacing evidence needs a read-only recheck; launch settings are unchanged.", state.healthSummary)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
-        assertEquals("AI Recovery Profile", state.stability.chip.label)
+        assertEquals("Frame Pacing Watch", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.WARNING, state.stability.chip.tone)
     }
 
@@ -163,9 +163,8 @@ class NovaQuickMenuUiStateTest {
         val state = quickState(status = null, apiAvailable = false)
 
         assertEquals("Checking stream mode", state.sessionMode.label)
-        assertEquals("N/A", state.advancedRows.first { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY }.chip!!.label)
         assertEquals("N/A", state.advancedRows.first { it.id == NovaQuickMenuActionId.MANGOHUD }.chip!!.label)
-        assertEquals("not a Polaris session", state.advancedRows.first { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY }.caption)
+        assertFalse(state.advancedRows.any { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY })
         assertFalse(state.advancedRows.first { it.id == NovaQuickMenuActionId.CLEAR_GAME_PROFILE }.enabled)
     }
 
@@ -306,7 +305,7 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Deterministic fallback · openai-subscription", state.diagnosis.informationalSource)
         assertFalse(state.diagnosis.actionExecutable)
-        assertEquals(NovaQuickMenuDoctorCapability.DOCTOR, state.diagnosis.capability)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
     }
 
     @Test
@@ -317,7 +316,7 @@ class NovaQuickMenuUiStateTest {
         assertFalse(diagnose.enabled)
         assertEquals("N/A", diagnose.chip!!.label)
         assertEquals("Connect to Polaris for HOST / NET / CLIENT diagnostics.", diagnose.caption)
-        assertEquals(NovaQuickMenuDoctorCapability.FALLBACK, state.diagnosis.capability)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
     }
 
     @Test
@@ -366,7 +365,7 @@ class NovaQuickMenuUiStateTest {
         )
 
         assertFalse(state.diagnosis.actionExecutable)
-        assertEquals(NovaQuickMenuDoctorCapability.DOCTOR, state.diagnosis.capability)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
         assertEquals("Diagnose This Stream", state.overlayRows.first().label)
     }
 
@@ -401,7 +400,7 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
-    fun exactNextLaunchRecoveryIsPresentedAsAutoFixWithoutChangingItsActionCopy() {
+    fun exactLegacyNextLaunchRecoveryIsPresentedAsNonExecutableManualGuidance() {
         val state = quickState(
             status = status(
                 doctor = PolarisSessionStatus.DoctorStatus(
@@ -424,9 +423,9 @@ class NovaQuickMenuUiStateTest {
             )
         )
 
-        assertTrue(state.diagnosis.actionExecutable)
-        assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
-        assertEquals("Use safer profile next launch", state.overlayRows.first().label)
+        assertFalse(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
+        assertEquals("Diagnose This Stream", state.overlayRows.first().label)
     }
 
     @Test

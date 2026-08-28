@@ -90,9 +90,9 @@ data class NovaQuickMenuMenuOpacityState(
 
 enum class NovaQuickMenuDoctorCapability {
     AUTO_FIX,
+    RUN_TRIAL,
     RECHECK,
-    DOCTOR,
-    FALLBACK
+    MANUAL
 }
 
 data class NovaQuickMenuDiagnosisState(
@@ -139,8 +139,7 @@ data class NovaQuickMenuUiState(
     companion object {
         private val autoFixActionIds = setOf(
             "lower_bitrate",
-            "restore_quality",
-            "apply_recovery_profile_next_launch"
+            "restore_quality"
         )
 
         @JvmStatic
@@ -314,19 +313,6 @@ data class NovaQuickMenuUiState(
                 )
             )
 
-            val aiRow = aiAction(
-                context,
-                status,
-                apiAvailable,
-                hostStateUnavailable,
-                aiSupported || adaptiveSupported,
-                effectiveAiEnabled,
-                canAdjustHostTuning,
-                viewerSession,
-                shutdownInProgress,
-                streamPolicy,
-                autoQuality
-            )
             val clearRow = clearProfileAction(
                 context,
                 apiAvailable,
@@ -456,7 +442,9 @@ data class NovaQuickMenuUiState(
                 sync = sync,
                 advancedToggle = advancedToggle,
                 advancedExpanded = advancedExpanded,
-                advancedRows = listOf(aiRow, clearRow, mangoRow),
+                // AI may explain evidence, but it no longer owns a mutable
+                // launch-policy control. Presets live in the card above.
+                advancedRows = listOf(clearRow, mangoRow),
                 quickKeys = quickKeyActions(context),
                 diagnosis = diagnosis,
                 doctorReceiptAction = doctorReceiptAction,
@@ -592,11 +580,16 @@ data class NovaQuickMenuUiState(
             val available = status != null &&
                 (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true)
             val actionExecutable = doctor?.canExecuteAction == true && status.canAdjustHostTuning
-            val capability = when {
-                actionExecutable && actionId in autoFixActionIds -> NovaQuickMenuDoctorCapability.AUTO_FIX
-                actionExecutable && actionId == "recheck_network" -> NovaQuickMenuDoctorCapability.RECHECK
-                available -> NovaQuickMenuDoctorCapability.DOCTOR
-                else -> NovaQuickMenuDoctorCapability.FALLBACK
+            val capability = when (doctor?.actionCapability?.lowercase()) {
+                "auto_fix" -> NovaQuickMenuDoctorCapability.AUTO_FIX
+                "run_trial" -> NovaQuickMenuDoctorCapability.RUN_TRIAL
+                "recheck" -> NovaQuickMenuDoctorCapability.RECHECK
+                "manual" -> NovaQuickMenuDoctorCapability.MANUAL
+                else -> when {
+                    actionExecutable && actionId in autoFixActionIds -> NovaQuickMenuDoctorCapability.AUTO_FIX
+                    actionExecutable && actionId in setOf("recheck_network", "recheck_pacing") -> NovaQuickMenuDoctorCapability.RECHECK
+                    else -> NovaQuickMenuDoctorCapability.MANUAL
+                }
             }
             return NovaQuickMenuDiagnosisState(
                 classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",

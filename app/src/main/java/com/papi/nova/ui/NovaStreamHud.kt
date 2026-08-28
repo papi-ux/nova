@@ -324,13 +324,9 @@ class NovaStreamHud(
             hostAdaptiveBitrateActive = status?.tuning?.adaptiveBitrateEnabled == true ||
                 status?.adaptiveBitrateEnabled == true
             streamPolicy = StreamPolicyUiState.from(status, lastBitrateKbps, targetFps)
-            val safeTarget = status?.health?.safeTargetFps ?: 0.0
-            val recoveryQueued = status?.autoQuality?.isRecoveryQueued == true
-            if (safeTarget > 0.0 && (recoveryQueued || status?.health?.relaunchRecommended == true)) {
-                eventTrail.recordRecoveryProfile(safeTarget, recoveryQueued = recoveryQueued)
-            } else {
-                eventTrail.retireRecoveryProfile()
-            }
+            // Historical recovery receipts are observational/deprecated and
+            // never become a current or next-launch HUD event.
+            eventTrail.retireRecoveryProfile()
             if (streamPolicy.effectiveBitrateKbps > 0) {
                 currentBitrateKbps = streamPolicy.effectiveBitrateKbps
             }

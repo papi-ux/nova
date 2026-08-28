@@ -44,6 +44,9 @@ internal fun buildNovaLaunchProfileSummary(
 ): NovaLaunchProfileSummary? {
     if (optimization == null) return null
     val pinnedFps = if (clientFpsPinned && clientAskedFps > 0.0) clientAskedFps else 0.0
+    if (optimization.optString("source", "").equals("deterministic_preset_v1", ignoreCase = true)) {
+        return buildDeterministicLaunchPresetSummary(optimization, pinnedFps, clientAskedFps)
+    }
 
     val profileState = optimization.optJSONObject("profile_state")
     val currentProfile = profileState?.optJSONObject("current_profile")
@@ -236,6 +239,62 @@ internal fun buildNovaLaunchProfileSummary(
         showRetryHighFps = showRetryHighFps,
         retryHighFpsLabel = retryLabel,
         grantHoldReason = grantHoldReason
+    )
+}
+
+private fun buildDeterministicLaunchPresetSummary(
+    optimization: JSONObject,
+    pinnedFps: Double,
+    clientAskedFps: Double
+): NovaLaunchProfileSummary? {
+    val resolved = optimization.optJSONObject("resolved_profile") ?: return null
+    if (resolved.optInt("policy_version", 0) != 1) return null
+    val fields = resolved.optJSONObject("fields") ?: return null
+    fun detail(name: String): JSONObject? = fields.optJSONObject(name)
+    fun value(name: String): Any? = detail(name)?.opt("value")?.takeUnless { it === JSONObject.NULL }
+
+    val preset = normalized(resolved.optString("preset", optimization.optString("preset", "auto")))
+    val presetLabel = resolved.optString("preset_label", "").takeIf { it.isNotBlank() }
+        ?: preferenceLabel(preset)
+    val displayMode = value("display_mode") as? String ?: ""
+    val resolvedFps = parseDisplayModeFps(displayMode)
+    val effectiveFps = if (pinnedFps > 0.0) pinnedFps else resolvedFps
+    val selectedParts = mutableListOf<String>()
+    if (displayMode.isNotBlank()) selectedParts += displayMode
+    (value("target_bitrate_kbps") as? Number)?.toInt()?.takeIf { it > 0 }?.let {
+        selectedParts += "${it / 1000.0} Mbps"
+    }
+    (value("preferred_codec") as? String)?.takeIf { it.isNotBlank() }?.let {
+        selectedParts += it.uppercase(Locale.US)
+    }
+    (value("hdr") as? Boolean)?.let { selectedParts += if (it) "HDR" else "SDR" }
+
+    val provenance = listOf("display_mode", "target_bitrate_kbps", "preferred_codec", "hdr")
+        .mapNotNull { name ->
+            val field = detail(name) ?: return@mapNotNull null
+            val source = field.optString("source", "").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            "$name: $source${if (field.optBoolean("locked", false)) " (locked)" else ""}"
+        }
+    val asked = if (clientAskedFps > 0.0) " · ${formatFps(clientAskedFps)} FPS" else ""
+    return NovaLaunchProfileSummary(
+        primaryLaunchLabel = if (effectiveFps > 0.0) {
+            "Launch $presetLabel · ${formatFps(effectiveFps)} FPS"
+        } else {
+            "Launch $presetLabel"
+        },
+        requestedLine = "Requested: $presetLabel$asked",
+        selectedLine = "Resolved: ${selectedParts.joinToString(" · ").ifBlank { presetLabel }}",
+        reasonLine = "Deterministic preset v1; Doctor history and AI output cannot change these fields.",
+        limitingLine = provenance.joinToString(" · "),
+        noticeDetail = "Every launch field includes its source, reason code, and lock state.",
+        noticeRecommendation = "Doctor observations do not change launch settings.",
+        noticeTone = NovaLaunchProfileNoticeTone.HEALTHY,
+        noticeLabel = "Launch preset",
+        freshnessLine = "Resolved for this launch",
+        historyLines = emptyList(),
+        showRetryHighFps = false,
+        retryHighFpsLabel = "",
+        grantHoldReason = ""
     )
 }
 

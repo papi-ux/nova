@@ -45,7 +45,7 @@ class AutoQualityUiStateTest {
             )
         )
 
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
         assertEquals("Frame pacing", state.label)
         assertEquals(AutoQualityUiState.Tone.WARNING, state.tone)
         assertEquals("Frame pacing", state.detail)
@@ -64,13 +64,13 @@ class AutoQualityUiStateTest {
             )
         )
 
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("Auto Safe capped", state.label)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
+        assertEquals("Live bitrate adjusted", state.label)
         assertTrue(state.targetSummary.contains("12 Mbps live / 30 Mbps limit"))
     }
 
     @Test
-    fun hostRenderRecoveryQueuedShowsAiRecoveryProfile() {
+    fun hostRenderRecoveryHistoryShowsObservationalPacingWatch() {
         val state = AutoQualityUiState.from(
             status = status(
                 health = PolarisSessionStatus.HealthStatus(
@@ -89,10 +89,10 @@ class AutoQualityUiStateTest {
             )
         )
 
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("AI Recovery Profile", state.label)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
+        assertEquals("Frame Pacing Watch", state.label)
         assertEquals("HOST", state.compactLabel)
-        assertEquals(true, state.recovering)
+        assertEquals(false, state.recovering)
     }
 
     @Test
@@ -138,8 +138,8 @@ class AutoQualityUiStateTest {
             )
         )
 
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("AI Recovery Profile", state.label)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
+        assertEquals("Frame Pacing Watch", state.label)
         assertTrue(state.manualOverride)
     }
 

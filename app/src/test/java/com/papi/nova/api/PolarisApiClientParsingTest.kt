@@ -498,7 +498,7 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun nextLaunchRecoveryActionRequiresTheExactAuthenticatedContract() {
+    fun deprecatedNextLaunchRecoveryActionIsNeverExecutable() {
         fun status(mutate: (JSONObject) -> Unit = {}): PolarisSessionStatus.DoctorStatus {
             val action = JSONObject()
                 .put("id", "apply_recovery_profile_next_launch")
@@ -530,7 +530,7 @@ class PolarisApiClientParsingTest {
         }
 
         val exact = status()
-        assertTrue(exact.canExecuteAction)
+        assertFalse(exact.canExecuteAction)
         assertEquals("game-a", exact.actionAppUuid)
         assertFalse(status { it.put("id", "apply_recovery_profile") }.canExecuteAction)
         assertFalse(status { it.put("kind", "live_tuning") }.canExecuteAction)
@@ -1402,18 +1402,24 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun buildOptimizationPath_includesHighFpsTrialWhenRequested() {
+    fun buildOptimizationPath_carriesExplicitLaunchLocksWithoutATrialQuery() {
         val path = PolarisApiClient.buildOptimizationPath(
             device = "RetroidPocket6",
             game = "Black Myth: Wukong",
             preference = "high_fps",
-            trial = "high_fps"
+            width = 1920,
+            height = 1080,
+            fps = 120f,
+            bitrateKbps = 40000,
+            hdr = false,
         )
 
         assertEquals(
-            "/optimize?device=RetroidPocket6&game=Black+Myth%3A+Wukong&preference=high_fps&trial=high_fps",
+            "/optimize?device=RetroidPocket6&game=Black+Myth%3A+Wukong&preference=high_fps" +
+                "&width=1920&height=1080&fps=120.0&bitrate_kbps=40000&hdr=0",
             path
         )
+        assertFalse(path.contains("trial="))
     }
 
     @Test

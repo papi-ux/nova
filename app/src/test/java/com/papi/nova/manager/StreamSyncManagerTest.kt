@@ -14,6 +14,44 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class StreamSyncManagerTest {
 
+    private fun deterministicOptimization(
+        preset: String = "auto",
+        displayMode: String? = null,
+        bitrateKbps: Int? = null,
+        fieldSource: String = "explicit_launch_request"
+    ): JSONObject {
+        val fields = JSONObject()
+        displayMode?.let {
+            fields.put(
+                "display_mode",
+                JSONObject()
+                    .put("value", it)
+                    .put("source", fieldSource)
+                    .put("reason_code", "test_explicit_setting")
+                    .put("locked", true)
+            )
+        }
+        bitrateKbps?.let {
+            fields.put(
+                "target_bitrate_kbps",
+                JSONObject()
+                    .put("value", it)
+                    .put("source", fieldSource)
+                    .put("reason_code", "test_explicit_setting")
+                    .put("locked", true)
+            )
+        }
+        return JSONObject()
+            .put("source", "deterministic_preset_v1")
+            .put(
+                "resolved_profile",
+                JSONObject()
+                    .put("policy_version", 1)
+                    .put("preset", preset)
+                    .put("fields", fields)
+            )
+    }
+
     @Test
     fun resolveProfileProvenance_marksManualOverride() {
         val optimization = JSONObject("{\"source\":\"ai_cached\",\"recommendation_version\":2}")
@@ -75,7 +113,7 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun resolveAutoSafeResolution_appliesConfirmedRecoveryResolution() {
+    fun resolveAutoSafeResolution_ignoresConfirmedRecoveryResolution() {
         val optimization = JSONObject(
             "{\"display_mode\":\"1280x720x60\",\"source\":\"history_safe\"," +
                 "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"}}"
@@ -83,8 +121,8 @@ class StreamSyncManagerTest {
 
         val resolution = StreamSyncManager.resolveAutoSafeResolution(1920, 1080, optimization)
 
-        assertEquals(1280, resolution.width)
-        assertEquals(720, resolution.height)
+        assertEquals(1920, resolution.width)
+        assertEquals(1080, resolution.height)
     }
 
     @Test
@@ -99,9 +137,9 @@ class StreamSyncManagerTest {
 
     @Test
     fun resolveAutoSafeResolution_honorsPairedLaunchProfileUpscale() {
-        val optimization = JSONObject(
-            "{\"display_mode\":\"2560x1440x120\"," +
-                "\"normalization_reason\":\"Aligned launch optimization display mode to the paired client profile.\"}"
+        val optimization = deterministicOptimization(
+            displayMode = "2560x1440x120",
+            fieldSource = "paired_client"
         )
 
         val resolution = StreamSyncManager.resolveAutoSafeResolution(1920, 1080, optimization)
@@ -121,7 +159,7 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun resolveAutoSafeBitrate_honorsHighConfidenceOptimizerTarget() {
+    fun resolveAutoSafeBitrate_ignoresHighConfidenceOptimizerTarget() {
         val optimization = JSONObject(
             "{\"target_bitrate_kbps\":50000,\"confidence\":\"high\"," +
                 "\"stability\":{\"mode\":\"auto\",\"auto_action\":\"none\"," +
@@ -130,7 +168,7 @@ class StreamSyncManagerTest {
 
         val bitrate = StreamSyncManager.resolveAutoSafeBitrateKbps(16000, optimization)
 
-        assertEquals(50000, bitrate)
+        assertEquals(16000, bitrate)
     }
 
     @Test
@@ -147,10 +185,9 @@ class StreamSyncManagerTest {
 
     @Test
     fun resolveAutoSafeBitrate_honorsPairedLaunchProfileTarget() {
-        val optimization = JSONObject(
-            "{\"target_bitrate_kbps\":80000,\"confidence\":\"medium\"," +
-                "\"normalization_reason\":\"Aligned launch optimization bitrate to the paired client profile.\"," +
-                "\"stability\":{\"mode\":\"auto\",\"auto_action\":\"none\"}}"
+        val optimization = deterministicOptimization(
+            bitrateKbps = 80_000,
+            fieldSource = "paired_client"
         )
 
         val bitrate = StreamSyncManager.resolveAutoSafeBitrateKbps(30000, optimization)
@@ -159,7 +196,7 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun resolveAutoSafeBitrate_clampsOnlyForConfirmedRecovery() {
+    fun resolveAutoSafeBitrate_ignoresConfirmedRecoveryClamp() {
         val optimization = JSONObject(
             "{\"target_bitrate_kbps\":50000,\"confidence\":\"high\",\"source\":\"history_safe\"," +
                 "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"," +
@@ -168,7 +205,7 @@ class StreamSyncManagerTest {
 
         val bitrate = StreamSyncManager.resolveAutoSafeBitrateKbps(28000, optimization)
 
-        assertEquals(12000, bitrate)
+        assertEquals(28000, bitrate)
     }
 
     @Test
@@ -213,10 +250,9 @@ class StreamSyncManagerTest {
 
     @Test
     fun resolveAutoSafeTargetFps_honorsPairedLaunchProfileTarget() {
-        val optimization = JSONObject(
-            "{\"display_mode\":\"2560x1440x120\",\"source\":\"client_profile\"," +
-                "\"normalization_reason\":\"Aligned launch optimization display mode to the paired client profile.\"," +
-                "\"stability\":{\"mode\":\"auto\",\"auto_action\":\"none\"}}"
+        val optimization = deterministicOptimization(
+            displayMode = "2560x1440x120",
+            fieldSource = "paired_client"
         )
 
         val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(60f, optimization)
@@ -225,7 +261,7 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun resolveAutoSafeTargetFps_appliesAiDisplayModeCap() {
+    fun resolveAutoSafeTargetFps_ignoresAiDisplayModeCap() {
         val optimization = JSONObject(
             "{\"display_mode\":\"1280x720x60\",\"source\":\"ai_cached\"," +
                 "\"confidence\":\"medium\"," +
@@ -234,11 +270,11 @@ class StreamSyncManagerTest {
 
         val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization)
 
-        assertEquals(60f, targetFps, 0.01f)
+        assertEquals(120f, targetFps, 0.01f)
     }
 
     @Test
-    fun resolveAutoSafeTargetFps_appliesConfirmedRecoveryCap() {
+    fun resolveAutoSafeTargetFps_ignoresConfirmedRecoveryCap() {
         val optimization = JSONObject(
             "{\"display_mode\":\"1920x1080x120\",\"safe_target_fps\":30,\"source\":\"history_safe\"," +
                 "\"stability\":{\"mode\":\"stability_first\",\"auto_action\":\"apply_recovery\"," +
@@ -247,7 +283,7 @@ class StreamSyncManagerTest {
 
         val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization)
 
-        assertEquals(30f, targetFps, 0.01f)
+        assertEquals(120f, targetFps, 0.01f)
     }
 
     @Test
@@ -267,10 +303,7 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun resolveAutoSafeTargetFps_pairedOverrideIsStillClampedByConfirmedRecovery() {
-        // The launch composer relies on this ordering: a composed blob that keeps the
-        // stability block gets the paired display_mode pin AND the recovery min-clamp,
-        // so a resolution pick alone can never discard the safe target.
+    fun resolveAutoSafeTargetFps_legacyPairedOverrideCannotReenableRecoveryClamp() {
         val optimization = JSONObject(
             "{\"display_mode\":\"1440x810x60\",\"safe_target_fps\":30,\"source\":\"history_safe\"," +
                 "\"paired_profile_applied\":true," +
@@ -280,13 +313,11 @@ class StreamSyncManagerTest {
 
         val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization)
 
-        assertEquals(30f, targetFps, 0.01f)
+        assertEquals(120f, targetFps, 0.01f)
     }
 
     @Test
-    fun resolveAutoSafeTargetFps_pairedOverrideWithRelaxedFlagPinsDisplayModeFps() {
-        // And this is the composer's explicit release: safe_target_fps_relaxed on the
-        // same blob is what lets an informed fps pin win over a confirmed recovery.
+    fun resolveAutoSafeTargetFps_legacyRelaxedFlagCannotSupplyLaunchFps() {
         val optimization = JSONObject(
             "{\"display_mode\":\"1440x810x120\",\"safe_target_fps\":30,\"source\":\"history_safe\"," +
                 "\"paired_profile_applied\":true,\"safe_target_fps_relaxed\":true," +
@@ -297,11 +328,11 @@ class StreamSyncManagerTest {
 
         val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(60f, optimization)
 
-        assertEquals(120f, targetFps, 0.01f)
+        assertEquals(60f, targetFps, 0.01f)
     }
 
     @Test
-    fun resolveAutoSafeBitrateKbps_pairedOverrideStaysClampedByConfirmedRecovery() {
+    fun resolveAutoSafeBitrateKbps_legacyPairedOverrideCannotReenableRecoveryClamp() {
         val optimization = JSONObject(
             "{\"target_bitrate_kbps\":40000,\"source\":\"history_safe\"," +
                 "\"paired_profile_applied\":true," +
@@ -309,7 +340,7 @@ class StreamSyncManagerTest {
                 "\"safe_profile\":{\"target_bitrate_kbps\":8000}}}"
         )
 
-        assertEquals(8000, StreamSyncManager.resolveAutoSafeBitrateKbps(20000, optimization))
+        assertEquals(20000, StreamSyncManager.resolveAutoSafeBitrateKbps(20000, optimization))
     }
 
     @Test
@@ -430,17 +461,17 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun stabilityDecoder_appliesConfirmedRecoveryProfile() {
+    fun stabilityDecoder_ignoresConfirmedRecoveryProfile() {
         val optimization = JSONObject(
             "{\"source\":\"history_safe\",\"stability\":{\"mode\":\"stability_first\"," +
                 "\"auto_action\":\"apply_recovery\",\"safe_profile\":{\"target_fps\":30}}}"
         )
 
-        assertTrue(StreamSyncManager.shouldPreferStabilityDecoder(optimization))
+        assertFalse(StreamSyncManager.shouldPreferStabilityDecoder(optimization))
     }
 
     @Test
-    fun exactQueuedRecoveryProfileControlsEveryLaunchPreflightField() {
+    fun exactQueuedRecoveryProfileCannotControlAnyLaunchPreflightField() {
         val optimization = JSONObject()
             .put("recovery_state", "queued")
             .put("recovery_run_id", "run-a")
@@ -460,26 +491,16 @@ class StreamSyncManagerTest {
                     .put("requires_fresh_launch", true)
             )
 
-        val recovery = requireNotNull(StreamSyncManager.recoveryLaunchProfile(optimization))
-        assertEquals("run-a", recovery.runId)
-        assertEquals("host_virtual_display", recovery.streamDisplayMode)
-        assertTrue(recovery.virtualDisplay)
-        assertFalse(recovery.mirrorDesktop)
-        assertEquals(1920, recovery.width)
-        assertEquals(1080, recovery.height)
-        assertEquals(60f, recovery.targetFps, 0.01f)
-        assertEquals(16_000, recovery.targetBitrateKbps)
-        assertEquals("hevc", recovery.preferredCodec)
-        assertTrue(recovery.hdr)
-        assertTrue(recovery.requiresFreshLaunch)
-        assertEquals(16_000, StreamSyncManager.resolveAutoSafeBitrateKbps(50_000, optimization))
-        assertEquals(60f, StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization), 0.01f)
+        val recovery = StreamSyncManager.recoveryLaunchProfile(optimization)
+        assertEquals(null, recovery)
+        assertEquals(50_000, StreamSyncManager.resolveAutoSafeBitrateKbps(50_000, optimization))
+        assertEquals(120f, StreamSyncManager.resolveAutoSafeTargetFps(120f, optimization), 0.01f)
         val resolution = StreamSyncManager.resolveAutoSafeResolution(2560, 1440, optimization)
-        assertEquals(1920, resolution.width)
-        assertEquals(1080, resolution.height)
-        assertTrue(StreamSyncManager.shouldForceFreshLaunch(optimization))
+        assertEquals(2560, resolution.width)
+        assertEquals(1440, resolution.height)
+        assertFalse(StreamSyncManager.shouldForceFreshLaunch(optimization))
         assertEquals(
-            MoonBridge.VIDEO_FORMAT_H265 or MoonBridge.VIDEO_FORMAT_H265_MAIN10,
+            MoonBridge.VIDEO_FORMAT_H264 or MoonBridge.VIDEO_FORMAT_H265 or MoonBridge.VIDEO_FORMAT_H265_MAIN10,
             StreamSyncManager.restrictVideoFormatsForRecovery(
                 MoonBridge.VIDEO_FORMAT_H264 or MoonBridge.VIDEO_FORMAT_H265 or MoonBridge.VIDEO_FORMAT_H265_MAIN10,
                 recovery
@@ -488,7 +509,7 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun malformedOrNonQueuedRecoveryProfileCannotAffectLaunchPreflight() {
+    fun allLegacyRecoveryProfilesAreNonApplicable() {
         fun optimization(state: String = "queued", runId: String = "run-a") = JSONObject()
             .put("recovery_state", state)
             .put("recovery_run_id", runId)
@@ -506,7 +527,7 @@ class StreamSyncManagerTest {
                     .put("requires_fresh_launch", true)
             )
 
-        assertTrue(StreamSyncManager.recoveryLaunchProfile(optimization()) != null)
+        assertEquals(null, StreamSyncManager.recoveryLaunchProfile(optimization()))
         assertEquals(null, StreamSyncManager.recoveryLaunchProfile(optimization(state = "applied")))
         assertEquals(null, StreamSyncManager.recoveryLaunchProfile(optimization(runId = "")))
         assertEquals(
@@ -542,7 +563,7 @@ class StreamSyncManagerTest {
             )
         )
         assertEquals(
-            0,
+            MoonBridge.VIDEO_FORMAT_H264,
             StreamSyncManager.restrictVideoFormatsForRecovery(
                 MoonBridge.VIDEO_FORMAT_H264,
                 StreamSyncManager.recoveryLaunchProfile(optimization())

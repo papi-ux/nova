@@ -19,7 +19,11 @@ data class PolarisCapabilities(
         val clientSettings: Boolean = false,
         val optimizerSync: Boolean = false,
         val lockScreenControl: Boolean = false,
-        val cursorVisibilityControl: Boolean = false
+        val cursorVisibilityControl: Boolean = false,
+        val doctorV2Shadow: Boolean = false,
+        val doctorV2ShadowEnabled: Boolean = false,
+        val doctorTrials: Boolean = false,
+        val doctorTrialsEnabled: Boolean = false
     ) {
         constructor(
             aiOptimizer: Boolean,
@@ -31,19 +35,16 @@ data class PolarisCapabilities(
             lockScreenControl: Boolean,
             cursorVisibilityControl: Boolean
         ) : this(
-            aiOptimizer,
-            aiOptimizer,
-            aiOptimizerControl,
-            aiOptimizerControl,
-            adaptiveBitrateControl,
-            gameLibrary,
-            sessionLifecycle,
-            deviceProfiles,
-            false,
-            false,
-            false,
-            lockScreenControl,
-            cursorVisibilityControl
+            aiOptimizer = aiOptimizer,
+            aiAutoQuality = aiOptimizer,
+            aiAutoQualityControl = aiOptimizerControl,
+            aiOptimizerControl = aiOptimizerControl,
+            adaptiveBitrateControl = adaptiveBitrateControl,
+            gameLibrary = gameLibrary,
+            sessionLifecycle = sessionLifecycle,
+            deviceProfiles = deviceProfiles,
+            lockScreenControl = lockScreenControl,
+            cursorVisibilityControl = cursorVisibilityControl
         )
     }
 

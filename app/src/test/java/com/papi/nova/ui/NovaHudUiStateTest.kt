@@ -196,7 +196,7 @@ class NovaHudUiStateTest {
     }
 
     @Test
-    fun recoveryStatusUsesWarningAutopilotTone() {
+    fun legacyRecoveryStatusUsesObservationalPacingWatch() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.MINIMAL,
             fps = 42.0,
@@ -223,8 +223,8 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(42f)
         )
 
-        assertEquals("AI Recovery Profile", state.autopilotLabel)
-        assertEquals("AI Recovery", state.autopilotHudLabel)
+        assertEquals("Frame Pacing Watch", state.autopilotLabel)
+        assertEquals("Pacing Watch", state.autopilotHudLabel)
         assertEquals("HOST", state.autopilotCompactLabel)
         assertEquals(NovaHudTone.WARNING, state.statusTone)
         assertEquals(NovaHudTone.WARNING, state.fpsTone)
@@ -263,8 +263,8 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(118f)
         )
 
-        assertEquals("Auto Safe capped", state.autopilotLabel)
-        assertEquals("Auto Safe", state.autopilotHudLabel)
+        assertEquals("Live bitrate adjusted", state.autopilotLabel)
+        assertEquals("Bitrate Adjusted", state.autopilotHudLabel)
         assertEquals(NovaHudTone.WARNING, state.statusTone)
     }
 
@@ -696,42 +696,26 @@ class NovaHudUiStateTest {
     }
 
     @Test
-    fun streamHudDerivesRecoveryQueuedFromAutoQualityStateForBreadcrumb() {
-        // A held historical safeTarget must not read as a scheduled downgrade. The
-        // queued-vs-fallback distinction lives on Polaris' parsed autoQuality state
-        // (isRecoveryQueued), so the call site must read that field and pass it
-        // through to the trail — no local re-derivation from relaunchRecommended alone.
-        val source = String(
-            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
-            StandardCharsets.UTF_8
-        )
-
-        assertTrue(source.contains("status?.autoQuality?.isRecoveryQueued"))
-        assertTrue(
-            source.contains("eventTrail.recordRecoveryProfile(safeTarget, recoveryQueued = recoveryQueued)")
-        )
-    }
-
-    @Test
-    fun streamHudRetiresRecoveryBreadcrumbWhenSafeTargetOrRecoveryStateClears() {
-        // NovaHudEventTrail is append-only, so once "Next launch recovery" or
-        // "Fallback ready" is recorded it lingers next to newer live telemetry.
-        // applySessionStatus must retire the recovery-family entry as soon as
-        // safeTarget drops to zero or neither recoveryQueued nor
-        // relaunchRecommended is true, so stale copy doesn't sit beside a
-        // healthy session.
+    fun streamHudNeverTurnsRecoveryHistoryIntoANextLaunchBreadcrumb() {
         val source = String(
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
             StandardCharsets.UTF_8
         )
 
         assertTrue(source.contains("eventTrail.retireRecoveryProfile()"))
-        assertTrue(
-            source.contains(
-                "if (safeTarget > 0.0 && (recoveryQueued || status?.health?.relaunchRecommended == true)) {"
-            )
+        assertFalse(source.contains("eventTrail.recordRecoveryProfile("))
+    }
+
+    @Test
+    fun streamHudUnconditionallyRetiresLegacyRecoveryBreadcrumbs() {
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
+            StandardCharsets.UTF_8
         )
-        assertTrue(source.contains("} else {\n                eventTrail.retireRecoveryProfile()"))
+
+        assertTrue(source.contains("eventTrail.retireRecoveryProfile()"))
+        assertFalse(source.contains("status?.health?.safeTargetFps"))
+        assertFalse(source.contains("status?.autoQuality?.isRecoveryQueued"))
     }
 
     private fun status(

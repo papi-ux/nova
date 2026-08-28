@@ -3,6 +3,7 @@ package com.papi.nova.api
 import android.graphics.Bitmap
 import android.content.Context
 import com.papi.nova.binding.PlatformBinding
+import com.papi.nova.binding.video.PerfOverlaySample
 import android.widget.ImageView
 import com.papi.nova.LimeLog
 import com.papi.nova.R
@@ -475,27 +476,36 @@ class PolarisApiClient @JvmOverloads constructor(
             device: String,
             game: String,
             preference: String = "",
-            trial: String = "",
-            mode: String = ""
+            mode: String = "",
+            width: Int = 0,
+            height: Int = 0,
+            fps: Float = 0f,
+            bitrateKbps: Int = 0,
+            hdr: Boolean? = null
         ): String {
             val preferenceParam = preference
                 .takeIf { it.isNotBlank() }
                 ?.let { "&preference=${java.net.URLEncoder.encode(it, "UTF-8")}" }
-                ?: ""
-            val trialParam = trial
-                .takeIf { it.isNotBlank() }
-                ?.let { "&trial=${java.net.URLEncoder.encode(it, "UTF-8")}" }
                 ?: ""
             // Omitted when blank: an absent mode is the host's legacy cache bucket.
             val modeParam = mode
                 .takeIf { it.isNotBlank() }
                 ?.let { "&mode=${java.net.URLEncoder.encode(it, "UTF-8")}" }
                 ?: ""
+            val displayParam = if (width > 0 && height > 0 && fps > 0f) {
+                "&width=$width&height=$height&fps=$fps"
+            } else {
+                ""
+            }
+            val bitrateParam = bitrateKbps.takeIf { it > 0 }?.let { "&bitrate_kbps=$it" } ?: ""
+            val hdrParam = hdr?.let { "&hdr=${if (it) 1 else 0}" } ?: ""
             return "/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
                 "&game=${java.net.URLEncoder.encode(game, "UTF-8")}" +
                 preferenceParam +
-                trialParam +
-                modeParam
+                modeParam +
+                displayParam +
+                bitrateParam +
+                hdrParam
         }
 
         private fun parseStringArray(array: org.json.JSONArray?): List<String> {
@@ -833,7 +843,11 @@ class PolarisApiClient @JvmOverloads constructor(
                     clientSettings = features?.optBoolean("client_settings_v1") ?: false,
                     optimizerSync = features?.optBoolean("optimizer_sync_v1") ?: false,
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
-                    cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false
+                    cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
+                    doctorV2Shadow = features?.optBoolean("doctor_v2_shadow_v1") ?: false,
+                    doctorV2ShadowEnabled = features?.optBoolean("doctor_v2_shadow_enabled") ?: false,
+                    doctorTrials = features?.optBoolean("doctor_trials_v1") ?: false,
+                    doctorTrialsEnabled = features?.optBoolean("doctor_trials_enabled") ?: false
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
@@ -897,6 +911,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 primaryIssue = primaryIssue,
                 actionId = safeAction?.optString("id", "") ?: "",
                 actionLabel = safeAction?.optString("label", "") ?: "",
+                actionCapability = safeAction?.optString("capability", "") ?: "",
                 actionKind = safeAction?.optString("kind", "") ?: "",
                 actionAppUuid = actionPayload?.optString("app_uuid", "") ?: "",
                 targetBitrateKbps = actionPayload?.optInt("target_bitrate_kbps", 0) ?: 0,
@@ -1052,7 +1067,11 @@ class PolarisApiClient @JvmOverloads constructor(
                 undoSupported = undo?.optBoolean("supported", false) ?: false,
                 undoAvailable = undo?.optBoolean("available", false) ?: false,
                 undoActionId = undo?.optString("action_id", "") ?: "",
-                verificationActionId = verification?.optString("action_id", "") ?: ""
+                verificationActionId = verification?.optString("action_id", "") ?: "",
+                deprecated = json.optBoolean("deprecated", false),
+                applicable = json.optBoolean("applicable", true),
+                cancellable = json.optBoolean("cancellable", false),
+                reasonCode = json.optString("reason_code", "")
             )
         }
 
@@ -2256,6 +2275,105 @@ class PolarisApiClient @JvmOverloads constructor(
     /**
      * Send session quality report at end of stream.
      */
+    fun sendDoctorEvidenceReport(
+        device: String,
+        uniqueId: String,
+        game: String,
+        evidence: Map<String, Any>,
+        endReason: String
+    ): Boolean {
+        return try {
+            val raw = JSONObject()
+            evidence.forEach { (key, value) -> raw.put(key, value) }
+            raw.put("schema_version", 2)
+            raw.put("contract", "doctor_v2_raw")
+            raw.put("end_reason", endReason)
+
+            val body = JSONObject().apply {
+                put("device", device)
+                if (uniqueId.isNotBlank()) put("unique_id", uniqueId)
+                put("game", game)
+                put("doctor_v2", raw)
+                // Temporary observational v1 compatibility. Only raw numeric
+                // evidence is mirrored; no diagnosis, action, safe setting, or
+                // relaunch recommendation can be supplied by Nova.
+                listOf(
+                    "avg_fps", "target_fps", "low_1_percent_fps", "min_fps",
+                    "frame_pacing_bad_pct", "avg_latency_ms", "avg_bitrate_kbps",
+                    "packet_loss_pct", "packet_loss_source", "codec", "duration_s", "samples"
+                ).forEach { key -> if (raw.has(key)) put(key, raw.get(key)) }
+                put("end_reason", endReason)
+            }
+            val request = Request.Builder()
+                .url("$baseUrl/session/report")
+                .post(okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    body.toString()
+                ))
+                .build()
+            execute(request).use { response -> response.code == 200 }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Doctor evidence report failed: ${errorMessage(e)}")
+            false
+        }
+    }
+
+    /**
+     * Upload one raw monotonic Doctor v2 sample while the stream is active.
+     * Polaris derives session/app scope and every diagnosis; Nova supplies no
+     * action, confidence, safe setting, or launch recommendation.
+     */
+    fun sendDoctorV2Sample(
+        sample: PerfOverlaySample,
+        targetFps: Double,
+        refreshRateHz: Double,
+        bitrateKbps: Int,
+        topology: String,
+        hdr: Boolean
+    ): Boolean {
+        return try {
+            val raw = JSONObject().apply {
+                put("monotonic_timestamp_ms", sample.monotonicTimestampMs)
+                put("session_generation", sample.sessionGeneration)
+                put("frames_expected", sample.framesExpected)
+                put("frames_received", sample.framesReceived)
+                put("frames_rendered", sample.framesRendered)
+                put("frames_lost", sample.framesLost)
+                put("received_fps", sample.incomingFps)
+                put("rendered_fps", sample.renderedFps)
+                put("target_fps", targetFps)
+                put("refresh_rate_hz", refreshRateHz)
+                put("rtt_ms", sample.rttMs)
+                put("decode_latency_ms", sample.decodeTimeMs)
+                sample.hostProcessingLatencyMs?.let { put("host_processing_latency_ms", it) }
+                put("width", sample.width)
+                put("height", sample.height)
+                put("codec", sample.codec)
+                put("bitrate_kbps", bitrateKbps)
+                put("topology", topology)
+                put("hdr", hdr)
+            }
+            val request = Request.Builder()
+                .url("$baseUrl/doctor/v2/evidence")
+                .post(okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    JSONObject().put("sample", raw).toString()
+                ))
+                .build()
+            // Samples are monotonic and intentionally best-effort. Retrying a
+            // lost response would submit a duplicate timestamp.
+            executeNonRetryable(request).use { response -> response.code == 200 }
+        } catch (_: Exception) {
+            // Continuous shadow sampling is best-effort. The caller records a
+            // single failure without turning a transient outage into log spam.
+            false
+        }
+    }
+
+    /**
+     * Legacy v1 report shape retained for older integrations. New Nova code
+     * uses [sendDoctorEvidenceReport].
+     */
     fun sendSessionReport(device: String, uniqueId: String, game: String, avgFps: Double, targetFps: Double,
                           lowOnePercentFps: Double, minFps: Double, framePacingBadPct: Double, safeTargetFps: Double,
                           avgLatency: Double,
@@ -2325,19 +2443,21 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Get AI-recommended streaming settings for a device+game combo.
-     */
+    /** Resolve deterministic launch settings for a device and game. */
     @JvmOverloads
     fun getOptimization(
         device: String,
         game: String,
         preference: String = "",
-        trial: String = "",
-        mode: String = ""
+        mode: String = "",
+        width: Int = 0,
+        height: Int = 0,
+        fps: Float = 0f,
+        bitrateKbps: Int = 0,
+        hdr: Boolean? = null
     ): org.json.JSONObject? {
         return try {
-            val url = "$baseUrl${buildOptimizationPath(device, game, preference, trial, mode)}"
+            val url = "$baseUrl${buildOptimizationPath(device, game, preference, mode, width, height, fps, bitrateKbps, hdr)}"
             val request = Request.Builder().url(url).get().build()
             LimeLog.info("Nova: Optimization query start for $url")
             executeGetWithRetry(request).use { response ->

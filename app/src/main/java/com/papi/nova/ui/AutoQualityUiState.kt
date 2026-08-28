@@ -164,20 +164,20 @@ data class AutoQualityUiState(
                     .takeIf { it > 0.0 }
                     ?: autoPolicy.suggestedTargetFps
                 val detail = when {
-                    safeTarget > 0.0 -> "Host render limited; next launch can target ${safeTarget.roundToInt()} FPS"
+                    safeTarget > 0.0 -> "Observed host pacing pressure near ${safeTarget.roundToInt()} FPS; launch settings are unchanged"
                     autoPolicy.summary.isNotBlank() -> autoPolicy.summary
                     status.health.summary.isNotBlank() -> status.health.summary
-                    else -> "Host render path is missing the target frame rate"
+                    else -> "Host render evidence needs a read-only pacing recheck"
                 }
                 return AutoQualityUiState(
-                    state = State.RECOVERING,
-                    label = "AI Recovery Profile",
+                    state = State.NEEDS_ATTENTION,
+                    label = "Frame Pacing Watch",
                     compactLabel = "HOST",
                     detail = detail,
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
                     enabled = true,
-                    recovering = true,
+                    recovering = false,
                     manualOverride = manualOverride
                 )
             }
@@ -319,10 +319,8 @@ data class AutoQualityUiState(
                     status.healthToneLabel == "Frame pacing" -> "Frame pacing"
                     healthGrade == "degraded" -> "Stream degraded"
                     healthGrade == "watch" -> "Needs attention"
-                    adaptiveLowered -> "Auto Safe capped"
-                    safeFpsApplied -> "Recovering FPS"
-                    status.health.relaunchRecommended -> "Recovery queued"
-                    else -> "Auto Quality recovering"
+                    adaptiveLowered -> "Live bitrate adjusted"
+                    else -> "Doctor observation"
                 }
                 val detail = status.health.summary.takeIf {
                     it.isNotBlank() && !it.trim().trimEnd('.', '!').equals("Stable", ignoreCase = true)
@@ -330,12 +328,12 @@ data class AutoQualityUiState(
                     ?: when {
                         status.hasHealthConcerns -> status.healthToneLabel
                         adaptiveLowered -> streamPolicy.statusCaption
-                        safeFpsApplied -> "Safer ${status.health.safeTargetFps.roundToInt()} FPS profile is available"
+                        safeFpsApplied -> "Historical FPS guidance is observational; launch settings are unchanged"
                         hostRenderLimited -> "Host render path is missing the target frame rate"
-                        else -> "Applying a safer stream profile"
+                        else -> "Recheck the measured evidence or review manual guidance"
                     }
                 return AutoQualityUiState(
-                    state = State.RECOVERING,
+                    state = State.NEEDS_ATTENTION,
                     label = label,
                     compactLabel = when {
                         hostRenderLimited -> "HOST"
@@ -346,7 +344,7 @@ data class AutoQualityUiState(
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
                     enabled = true,
-                    recovering = true,
+                    recovering = false,
                     manualOverride = manualOverride
                 )
             }

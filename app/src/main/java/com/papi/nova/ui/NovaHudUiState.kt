@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisSessionStatus
+import com.papi.nova.binding.video.PerfOverlaySample
 import kotlin.math.roundToInt
 
 enum class NovaHudMode(val preferenceValue: String) {
@@ -462,6 +463,8 @@ data class NovaHudUiState(
             AutoQualityUiState.State.NEEDS_ATTENTION -> when {
                 label.contains("sync", ignoreCase = true) -> "Sync Attention"
                 label.contains("decoder", ignoreCase = true) -> "Decoder Pressure"
+                label.contains("pacing", ignoreCase = true) -> "Pacing Watch"
+                label.contains("bitrate", ignoreCase = true) -> "Bitrate Adjusted"
                 else -> "Attention"
             }
         }
@@ -551,27 +554,16 @@ class NovaHudSessionStats {
     private var lastBitrateKbps = 0
     private var sessionBitrateSum = 0L
     private var sessionBitrateSamples = 0
-    private var optimizationSource = ""
-    private var optimizationConfidence = ""
-    private var recommendationVersion = 0
-    private var healthGrade = ""
-    private var healthPrimaryIssue = ""
-    private var healthIssues: List<String> = emptyList()
-    private var decoderRisk = ""
-    private var hdrRisk = ""
-    private var networkRisk = ""
-    private var hostRenderLimited = false
-    private var capturePath = ""
-    private var safeBitrateKbps = 0
-    private var safeCodec = ""
-    private var safeDisplayMode = ""
-    private var safeTargetFps = 0.0
-    private var safeHdr: Boolean? = null
-    private var relaunchRecommended = false
-    private var diagnosisClassification = ""
-    private var diagnosisLikelyCause = ""
-    private var diagnosisTryFirst = ""
-    private var diagnosisConfidence = ""
+    private var lastMonotonicTimestampMs = 0L
+    private var framesExpected = 0L
+    private var framesReceived = 0L
+    private var framesRendered = 0L
+    private var framesLost = 0L
+    private var incomingFps = 0.0
+    private var renderedFps = 0.0
+    private var decodeTimeMs = 0.0
+    private var hostProcessingLatencyMs: Double? = null
+    private var sessionGeneration = 0L
 
     fun reset() {
         sessionFpsSum = 0.0
@@ -586,6 +578,16 @@ class NovaHudSessionStats {
         sessionBadPacingSamples = 0
         sessionBitrateSum = 0L
         sessionBitrateSamples = 0
+        lastMonotonicTimestampMs = 0L
+        framesExpected = 0L
+        framesReceived = 0L
+        framesRendered = 0L
+        framesLost = 0L
+        incomingFps = 0.0
+        renderedFps = 0.0
+        decodeTimeMs = 0.0
+        hostProcessingLatencyMs = null
+        sessionGeneration = 0L
     }
 
     fun setTargetFps(fps: Double) {
@@ -646,6 +648,23 @@ class NovaHudSessionStats {
         }
     }
 
+    fun recordPerfSample(sample: PerfOverlaySample) {
+        recordFps(if (sample.renderedFps > 0.0) sample.renderedFps else sample.fps)
+        recordLatency(sample.rttMs)
+        recordPacketLoss(sample.packetLossPct)
+        setLastCodec(sample.codec)
+        lastMonotonicTimestampMs = sample.monotonicTimestampMs
+        framesExpected = sample.framesExpected
+        framesReceived = sample.framesReceived
+        framesRendered = sample.framesRendered
+        framesLost = sample.framesLost
+        incomingFps = sample.incomingFps
+        renderedFps = sample.renderedFps
+        decodeTimeMs = sample.decodeTimeMs
+        hostProcessingLatencyMs = sample.hostProcessingLatencyMs
+        sessionGeneration = sample.sessionGeneration
+    }
+
     fun applySessionStatus(status: PolarisSessionStatus?) {
         if (status == null) {
             return
@@ -656,27 +675,6 @@ class NovaHudSessionStats {
             status.encoder.requestedClientFps
         ).firstOrNull { it > 0.0 } ?: 0.0
         setTargetFps(resolvedTargetFps)
-        optimizationSource = status.encoder.optimizationSource
-        optimizationConfidence = status.encoder.optimizationConfidence
-        recommendationVersion = status.encoder.recommendationVersion
-        healthGrade = status.health.grade
-        healthPrimaryIssue = status.health.primaryIssue
-        healthIssues = status.health.issues
-        decoderRisk = status.health.decoderRisk
-        hdrRisk = status.health.hdrRisk
-        networkRisk = status.health.networkRisk
-        hostRenderLimited = status.isHostRenderLimited
-        capturePath = resolveCapturePath(status)
-        safeBitrateKbps = status.health.safeBitrateKbps
-        safeCodec = status.health.safeCodec
-        safeDisplayMode = status.health.safeDisplayMode
-        safeTargetFps = status.health.safeTargetFps
-        safeHdr = status.health.safeHdr
-        relaunchRecommended = status.health.relaunchRecommended
-        diagnosisClassification = status.doctor.classification
-        diagnosisLikelyCause = status.doctor.likelyCause
-        diagnosisTryFirst = status.doctor.firstTry
-        diagnosisConfidence = status.doctor.confidence
     }
 
     fun summary(nowMs: Long = System.currentTimeMillis()): Map<String, Any> {
@@ -688,49 +686,9 @@ class NovaHudSessionStats {
         } else {
             0.0
         }
-        val lowSignalFps = when {
-            sessionLowOnePercentFps > 0.0 -> sessionLowOnePercentFps
-            sessionMinFps > 0.0 -> sessionMinFps
-            else -> avgFps
-        }
-        val severePacing = targetFps >= 55.0 && sessionSamples >= 10 &&
-            (
-                badPacingPct >= 18.0 ||
-                    (lowSignalFps > 0.0 && lowSignalFps < targetFps * 0.72) ||
-                    (avgFps > 0.0 && avgFps < targetFps * 0.82)
-                )
-        val moderatePacing = targetFps >= 55.0 && sessionSamples >= 10 &&
-            (
-                badPacingPct >= 8.0 ||
-                    (lowSignalFps > 0.0 && lowSignalFps < targetFps * 0.85) ||
-                    (avgFps > 0.0 && avgFps < targetFps * 0.90)
-                )
-        val canHoldStable40 = targetFps in 55.0..75.0 &&
-            avgFps > 0.0 &&
-            avgFps >= targetFps * 0.82 &&
-            lowSignalFps > 0.0 &&
-            lowSignalFps >= targetFps * 0.70
-        val highRefreshPacing = targetFps >= 90.0 && (severePacing || moderatePacing)
-        val canHoldStable60 = highRefreshPacing &&
-            avgFps >= 58.0 &&
-            lowSignalFps >= 45.0 &&
-            badPacingPct < 18.0
-        val derivedSafeTargetFps = when {
-            safeTargetFps > 0.0 -> safeTargetFps
-            highRefreshPacing && canHoldStable60 -> 60.0
-            highRefreshPacing -> 30.0
-            severePacing -> 30.0
-            moderatePacing && canHoldStable40 -> 40.0
-            moderatePacing -> 30.0
-            else -> 0.0
-        }
-        val derivedRelaunchRecommended = relaunchRecommended ||
-            (
-                derivedSafeTargetFps > 0.0 &&
-                    targetFps > 0.0 &&
-                    derivedSafeTargetFps < targetFps
-                )
         val summary = mutableMapOf<String, Any>(
+            "contract" to "doctor_v2_raw",
+            "observational" to true,
             "avg_fps" to avgFps,
             "target_fps" to targetFps,
             "avg_latency_ms" to avgLatency,
@@ -746,52 +704,29 @@ class NovaHudSessionStats {
             },
             "codec" to lastCodec,
             "duration_s" to durationS,
-            "samples" to sessionSamples,
-            "optimization_source" to optimizationSource,
-            "optimization_confidence" to optimizationConfidence,
-            "recommendation_version" to recommendationVersion
+            "samples" to sessionSamples
         )
+        summary["monotonic_timestamp_ms"] = lastMonotonicTimestampMs
+        summary["frames_expected"] = framesExpected
+        summary["frames_received"] = framesReceived
+        summary["frames_rendered"] = framesRendered
+        summary["frames_lost"] = framesLost
+        summary["received_fps"] = incomingFps
+        summary["rendered_fps"] = renderedFps
+        summary["decode_latency_ms"] = decodeTimeMs
+        summary["decoded_frames_available"] = false
+        summary["duplicate_frames_available"] = false
+        summary["transport_bytes_available"] = false
+        summary["retransmissions_available"] = false
+        summary["session_generation"] = sessionGeneration
+        hostProcessingLatencyMs?.let { summary["host_processing_latency_ms"] = it }
         if (sessionLowOnePercentFps > 0.0) summary["low_1_percent_fps"] = sessionLowOnePercentFps
         if (sessionMinFps > 0.0) summary["min_fps"] = sessionMinFps
         if (badPacingPct > 0.0) summary["frame_pacing_bad_pct"] = badPacingPct
-        if (derivedSafeTargetFps > 0.0) summary["safe_target_fps"] = derivedSafeTargetFps
-        if (healthGrade.isNotBlank()) summary["health_grade"] = healthGrade
-        val primaryIssue = when {
-            hostRenderLimited -> "host_render_limited"
-            healthPrimaryIssue.isNotBlank() -> healthPrimaryIssue
-            else -> ""
+        if (sessionPacketLossSamples > 0) {
+            summary["packet_loss_source"] = "nova_media_path"
         }
-        val issues = if (hostRenderLimited && healthIssues.none { it.equals("host_render_limited", ignoreCase = true) }) {
-            healthIssues + "host_render_limited"
-        } else {
-            healthIssues
-        }
-        if (primaryIssue.isNotBlank()) summary["primary_issue"] = primaryIssue
-        if (issues.isNotEmpty()) summary["issues"] = issues
-        if (decoderRisk.isNotBlank()) summary["decoder_risk"] = decoderRisk
-        if (hdrRisk.isNotBlank()) summary["hdr_risk"] = hdrRisk
-        if (networkRisk.isNotBlank()) summary["network_risk"] = networkRisk
-        if (capturePath.isNotBlank()) summary["capture_path"] = capturePath
-        if (safeBitrateKbps > 0) summary["safe_bitrate_kbps"] = safeBitrateKbps
-        if (safeCodec.isNotBlank()) summary["safe_codec"] = safeCodec
-        if (safeDisplayMode.isNotBlank()) summary["safe_display_mode"] = safeDisplayMode
-        safeHdr?.let { summary["safe_hdr"] = it }
-        if (derivedRelaunchRecommended) summary["relaunch_recommended"] = true
-        if (diagnosisClassification.isNotBlank()) summary["diagnosis_classification"] = diagnosisClassification
-        if (diagnosisLikelyCause.isNotBlank()) summary["diagnosis_likely_cause"] = diagnosisLikelyCause
-        if (diagnosisTryFirst.isNotBlank()) summary["diagnosis_try_first"] = diagnosisTryFirst
-        if (diagnosisConfidence.isNotBlank()) summary["diagnosis_confidence"] = diagnosisConfidence
         return summary
     }
 
-    private fun resolveCapturePath(status: PolarisSessionStatus): String {
-        return when {
-            status.isVirtualDisplayMode -> "virtual_display"
-            status.capture.transport.equals("shm", ignoreCase = true) ||
-                status.capture.residency.equals("cpu", ignoreCase = true) ||
-                status.encoder.targetResidency.equals("cpu", ignoreCase = true) -> "cpu_fallback"
-            status.isHeadlessMode -> "headless"
-            else -> "desktop"
-        }
-    }
 }

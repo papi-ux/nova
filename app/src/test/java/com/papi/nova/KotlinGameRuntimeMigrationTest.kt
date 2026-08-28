@@ -248,8 +248,8 @@ class KotlinGameRuntimeMigrationTest {
             source.indexOf("override fun stageFailed(")
         )
         val sessionReport = stopConnection.substring(
-            stopConnection.indexOf("// Send AI session report before dismissing HUD"),
-            stopConnection.indexOf("novaHud!!.dismiss()")
+            stopConnection.indexOf("// Raw Doctor sampling runs independently of HUD visibility."),
+            stopConnection.indexOf("novaHud?.dismiss()")
         )
 
         assertTrue(sessionReport.contains("launchRuntimeIo(\"NovaSessionReport\")"))

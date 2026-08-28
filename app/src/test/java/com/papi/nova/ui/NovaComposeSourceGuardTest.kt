@@ -10,7 +10,7 @@ import org.junit.Test
 
 class NovaComposeSourceGuardTest {
     @Test
-    fun commandCenterRendersDeterministicFallbackAsASourceAndGuardsRecoveryConfirmation() {
+    fun commandCenterRendersExplanationSourceAndCapabilityExactActions() {
         val menu = readNovaQuickMenu()
         val content = readNovaQuickMenuContent()
 
@@ -22,18 +22,23 @@ class NovaComposeSourceGuardTest {
                 content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine)")
         )
         assertTrue(
-            "Doctor capability chips must distinguish mutating Auto Fix from read-only Recheck using localized labels",
+            "Doctor capability chips must distinguish all four action classes using localized labels",
             content.contains("NovaQuickMenuDoctorCapability.AUTO_FIX") &&
+                content.contains("NovaQuickMenuDoctorCapability.RUN_TRIAL") &&
                 content.contains("NovaQuickMenuDoctorCapability.RECHECK") &&
+                content.contains("NovaQuickMenuDoctorCapability.MANUAL") &&
                 content.contains("nova_quick_menu_doctor_capability_auto_fix") &&
+                content.contains("nova_quick_menu_doctor_capability_run_trial") &&
                 content.contains("nova_quick_menu_doctor_capability_recheck") &&
+                content.contains("nova_quick_menu_doctor_capability_manual") &&
                 !content.contains("label = if (diagnosis.actionExecutable) \"One click\"")
         )
         assertTrue(
-            "next-launch confirmation copy must be unreachable for any other Doctor action kind",
-            menu.contains("doctor.actionId != \"apply_recovery_profile_next_launch\"") &&
-                menu.contains("doctor.actionKind != \"next_launch_profile\"") &&
-                menu.contains("R.string.nova_quick_menu_doctor_confirm_recovery_message")
+            "deprecated next-launch recovery must have no executable confirmation path",
+            !menu.contains("apply_recovery_profile_next_launch") &&
+                !menu.contains("nova_quick_menu_doctor_confirm_recovery_message") &&
+                menu.contains("if (doctor.requiresConfirmation)") &&
+                menu.contains("game.copyNovaHudDiagnostics()")
         )
     }
 

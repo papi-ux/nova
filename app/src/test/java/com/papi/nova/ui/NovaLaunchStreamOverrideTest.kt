@@ -27,54 +27,78 @@ class NovaLaunchStreamOverrideTest {
         recommended = false,
     )
 
-    private fun recoveryBlob(): JSONObject = JSONObject(
-        "{\"display_mode\":\"1920x1080x30\",\"safe_target_fps\":30,\"source\":\"history_safe\"," +
-            "\"target_bitrate_kbps\":8000," +
-            "\"profile_state\":{\"label\":\"Recovery\"}," +
-            "\"stability\":{\"mode\":\"stability_first\",\"safe_profile\":{\"target_fps\":30}}}"
+    private fun deterministicBlob(): JSONObject = JSONObject(
+        "{\"source\":\"deterministic_preset_v1\",\"resolved_profile\":{" +
+            "\"policy_version\":1,\"preset\":\"quality\",\"fields\":{" +
+            "\"display_mode\":{\"value\":\"1920x1080x60\",\"source\":\"paired_client\"}," +
+            "\"target_bitrate_kbps\":{\"value\":40000,\"source\":\"paired_client\"}}}}"
+    )
+
+    private fun legacyRecoveryBlob(): JSONObject = JSONObject(
+        "{\"display_mode\":\"1920x1080x30\",\"safe_target_fps\":30," +
+            "\"source\":\"history_safe\",\"stability\":{\"mode\":\"stability_first\"}}"
     )
 
     @Test
     fun nothingChosenReturnsTheRawBlobUntouched() {
-        val raw = recoveryBlob()
+        val raw = deterministicBlob()
         assertSame(raw, NovaLaunchStreamOverride.compose(raw, null, null, 1920, 1080, 60))
         assertNull(NovaLaunchStreamOverride.compose(null, null, null, 1920, 1080, 60))
     }
 
     @Test
-    fun resolutionPickKeepsTheStabilityBlockAndTheHostFps() {
-        val raw = recoveryBlob()
-        val composed = NovaLaunchStreamOverride.compose(raw, choice("1440x810x60"), null, 1920, 1080, 120)!!
+    fun resolutionPickPreservesOnlyTypedDeterministicFields() {
+        val composed = NovaLaunchStreamOverride.compose(
+            deterministicBlob(), choice("1440x810x60"), null, 1920, 1080, 120
+        )!!
+        val fields = composed.getJSONObject("resolved_profile").getJSONObject("fields")
+        val display = fields.getJSONObject("display_mode")
 
-        // Resolution from the pick, fps from the pick's own target mode.
         assertEquals("1440x810x60", composed.getString("display_mode"))
-        assertTrue(composed.getBoolean("paired_profile_applied"))
+        assertEquals("1440x810x60", display.getString("value"))
+        assertEquals("explicit_launch_request", display.getString("source"))
+        assertEquals(NovaLaunchStreamOverride.NORMALIZATION_REASON, display.getString("reason_code"))
+        assertTrue(display.getBoolean("locked"))
         assertEquals("balanced", composed.getString("display_planner_choice"))
-        // The honesty fix: the recovery clamp's inputs survive the pick.
-        assertEquals("stability_first", composed.getJSONObject("stability").getString("mode"))
-        assertEquals(30.0, composed.getDouble("safe_target_fps"), 0.0)
-        assertEquals(8000, composed.getInt("target_bitrate_kbps"))
-        assertFalse(composed.optBoolean("safe_target_fps_relaxed", false))
+        assertEquals(40000, fields.getJSONObject("target_bitrate_kbps").getInt("value"))
+        assertFalse(composed.has("paired_profile_applied"))
+        assertFalse(composed.has("safe_target_fps_relaxed"))
     }
 
     @Test
-    fun fpsPinReleasesTheSafeTargetExplicitly() {
-        val raw = recoveryBlob()
-        val composed = NovaLaunchStreamOverride.compose(raw, null, 120, 1280, 800, 60)!!
+    fun fpsPinIsAnExplicitDisplayFieldRatherThanARecoveryRelease() {
+        val composed = NovaLaunchStreamOverride.compose(
+            deterministicBlob(), null, 120, 1280, 800, 60
+        )!!
 
-        // Resolution from the host blob, fps from the pin.
         assertEquals("1920x1080x120", composed.getString("display_mode"))
-        assertTrue(composed.getBoolean("safe_target_fps_relaxed"))
-        assertEquals(120.0, composed.getDouble("effective_target_fps"), 0.0)
-        // Still composed, never replaced: stability travels with the release flag.
-        assertEquals("stability_first", composed.getJSONObject("stability").getString("mode"))
+        assertEquals(
+            "1920x1080x120",
+            composed.getJSONObject("resolved_profile").getJSONObject("fields")
+                .getJSONObject("display_mode").getString("value")
+        )
+        assertFalse(composed.has("safe_target_fps_relaxed"))
+        assertFalse(composed.has("effective_target_fps"))
     }
 
     @Test
     fun resolutionPickAndFpsPinComposeIntoOneMode() {
-        val composed = NovaLaunchStreamOverride.compose(recoveryBlob(), choice("1440x810x60"), 120, 1280, 800, 60)!!
+        val composed = NovaLaunchStreamOverride.compose(
+            deterministicBlob(), choice("1440x810x60"), 120, 1280, 800, 60
+        )!!
         assertEquals("1440x810x120", composed.getString("display_mode"))
-        assertTrue(composed.getBoolean("safe_target_fps_relaxed"))
+    }
+
+    @Test
+    fun legacyRecoveryBlobIsDiscardedBeforeExplicitComposition() {
+        val composed = NovaLaunchStreamOverride.compose(
+            legacyRecoveryBlob(), choice("1440x810x60"), null, 1280, 800, 60
+        )!!
+
+        assertEquals("nova_explicit_launch_v1", composed.getString("source"))
+        assertFalse(composed.has("safe_target_fps"))
+        assertFalse(composed.has("stability"))
+        assertEquals(1, composed.getJSONObject("resolved_profile").getInt("policy_version"))
     }
 
     @Test
@@ -82,13 +106,15 @@ class NovaLaunchStreamOverrideTest {
         val composed = NovaLaunchStreamOverride.compose(null, null, 90, 1280, 800, 60)!!
         assertEquals("1280x800x90", composed.getString("display_mode"))
 
-        val pinless = NovaLaunchStreamOverride.compose(JSONObject(), choice("x-bad-mode"), null, 1280, 800, 60)!!
+        val pinless = NovaLaunchStreamOverride.compose(
+            JSONObject(), choice("x-bad-mode"), null, 1280, 800, 60
+        )!!
         assertEquals("1280x800x60", pinless.getString("display_mode"))
     }
 
     @Test
     fun composingNeverMutatesTheInputBlob() {
-        val raw = recoveryBlob()
+        val raw = deterministicBlob()
         val before = raw.toString()
         NovaLaunchStreamOverride.compose(raw, choice("1440x810x60"), 120, 1280, 800, 60)
         assertEquals(before, raw.toString())

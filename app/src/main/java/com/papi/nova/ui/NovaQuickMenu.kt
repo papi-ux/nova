@@ -679,35 +679,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 return
             }
             if (doctor.requiresConfirmation) {
-                if (doctor.actionId != "apply_recovery_profile_next_launch" ||
-                    doctor.actionKind != "next_launch_profile"
-                ) {
-                    game.copyNovaHudDiagnostics()
-                    return
-                }
-                val confirmed = doctor
-                UiHelper.displayConfirmationDialog(
-                    game,
-                    game.getString(R.string.nova_quick_menu_doctor_confirm_recovery_title),
-                    game.getString(R.string.nova_quick_menu_doctor_confirm_recovery_message),
-                    game.getString(R.string.nova_quick_menu_doctor_confirm_recovery_proceed),
-                    game.getString(R.string.cancel),
-                    Runnable {
-                        val currentStatus = sessionStatus
-                        val currentDoctor = currentStatus?.doctor
-                        if (currentStatus == null ||
-                            currentDoctor == null ||
-                            !currentDoctor.canExecuteAction ||
-                            !currentStatus.canAdjustHostTuning ||
-                            !currentDoctor.matchesConfirmedAction(confirmed) ||
-                            doctorActionPendingRegistry.isPending()
-                        ) {
-                            return@Runnable
-                        }
-                        executeConfirmedDoctorAction(currentDoctor, client)
-                    },
-                    null
-                )
+                // Legacy next-launch recovery confirmations are intentionally
+                // non-executable. Current Auto Fix actions are reversible
+                // same-stream changes and do not use this confirmation path.
+                game.copyNovaHudDiagnostics()
                 return
             }
             executeConfirmedDoctorAction(doctor, client)
@@ -741,61 +716,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             },
             onStability = {
                 haptic {
-                    val status = sessionStatus
-                    if (status == null || apiClient == null || !status.canAdjustHostTuning) {
-                        return@haptic
-                    }
-
-                    val policy = StreamPolicyUiState.from(
-                        status,
-                        game.prefConfig.bitrate,
-                        game.configuredHudTargetFps.toDouble()
-                    )
-                    val safeBitrate = status.health.safeBitrateKbps
-                    val liveBitrate = policy.effectiveBitrateKbps
-                    val qualityBlocked = status.autoQuality.isBlocked || status.isHostRenderLimited
-                    val shouldLowerBitrate = !qualityBlocked && safeBitrate > 0 && liveBitrate > 0 && safeBitrate < liveBitrate
-                    val shouldEnableAutoQuality = !qualityBlocked && !aiEnabled
-
-                    if (!shouldLowerBitrate && !shouldEnableAutoQuality) {
-                        if (!qualityBlocked && (status.autoQuality.relaunchRequired || status.health.relaunchRecommended)) {
-                            dismiss()
-                            NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_relaunching_auto_quality), anchor = composeView)
-                            game.relaunchStream()
-                        }
-                        return@haptic
-                    }
-
-                    game.launchRuntimeIo("NovaQuickMenuStability") {
-                        var success = true
-                        if (shouldEnableAutoQuality) {
-                            success = apiClient.setAiAutoQualityEnabled(true) && success
-                        }
-                        if (shouldLowerBitrate) {
-                            success = apiClient.setBitrate(safeBitrate) && success
-                        }
-                        if (success) {
-                            acceptRefreshedSessionStatus(apiClient.getSessionStatus())
-                        }
-                        game.runOnMainIfRuntimeActive {
-                            if (!success) {
-                                stabilityApplied = false
-                                NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_stability_failed), anchor = composeView)
-                            } else {
-                                stabilityApplied = true
-                                NovaSnackbar.showSuccess(
-                                    game,
-                                    if (status.health.relaunchRecommended) {
-                                        game.getString(R.string.nova_quick_menu_live_fallback_applied)
-                                    } else {
-                                        game.getString(R.string.nova_quick_menu_stability_applied)
-                                    },
-                                    anchor = composeView
-                                )
-                            }
-                            refreshState()
-                        }
-                    }
+                    // This shortcut shares the same evidence-gated Doctor
+                    // path. It cannot directly toggle AI, alter bitrate, or
+                    // relaunch with a historical profile.
+                    runDoctorAction()
                 }
             },
             onSyncStatus = {
@@ -825,7 +749,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             onAiAutoQuality = {
                 haptic {
                     val status = sessionStatus
-                    if (status == null || apiClient == null || (!aiSupported && !adaptiveSupported) || !status.canAdjustHostTuning) {
+                    if (status == null || apiClient == null || !aiSupported || !status.canAdjustHostTuning) {
                         return@haptic
                     }
                     val next = !aiEnabled
@@ -1043,8 +967,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             val polarisSessionApiAvailable = sessionStatus != null
                             adaptiveSupported = capabilities?.features?.adaptiveBitrateControl == true || polarisSessionApiAvailable
                             aiSupported = capabilities?.features?.aiAutoQualityControl == true ||
-                                capabilities?.features?.aiOptimizerControl == true ||
-                                polarisSessionApiAvailable
+                                capabilities?.features?.aiOptimizerControl == true
                             hostStateUnavailable = false
                             syncSessionDerivedState()
                             syncDoctorReceiptScope()

@@ -31,6 +31,10 @@ object FeatureFlagManager {
     val hasOptimizerSync: Boolean get() = capabilities?.features?.optimizerSync == true
     val hasLockScreenControl: Boolean get() = capabilities?.features?.lockScreenControl == true
     val hasCursorVisibilityControl: Boolean get() = capabilities?.features?.cursorVisibilityControl == true
+    val hasDoctorV2Shadow: Boolean get() = capabilities?.features?.doctorV2Shadow == true
+    val isDoctorV2ShadowEnabled: Boolean get() = capabilities?.features?.doctorV2ShadowEnabled == true
+    val hasDoctorTrials: Boolean get() = capabilities?.features?.doctorTrials == true
+    val areDoctorTrialsEnabled: Boolean get() = capabilities?.features?.doctorTrialsEnabled == true
 
     // Capture info
     val captureBackend: String get() = capabilities?.capture?.backend ?: ""
@@ -77,7 +81,8 @@ object FeatureFlagManager {
             LimeLog.info("Nova: Features: AI=${hasAiOptimizer} GameLib=${hasGameLibrary} " +
                 "AIControl=${hasAiOptimizerControl} Adaptive=${hasAdaptiveBitrateControl} " +
                 "Session=${hasSessionLifecycle} Devices=${hasDeviceProfiles} Lock=${hasLockScreenControl} " +
-                "Cursor=${hasCursorVisibilityControl} Sync=${hasOptimizerSync}")
+                "Cursor=${hasCursorVisibilityControl} Sync=${hasOptimizerSync} " +
+                "DoctorV2=${hasDoctorV2Shadow}/${isDoctorV2ShadowEnabled} Trials=${hasDoctorTrials}/${areDoctorTrialsEnabled}")
             LimeLog.info("Nova: Capture: ${captureBackend}, codecs: ${supportedCodecs}")
         } else {
             LimeLog.info("Nova: Standard Sunshine/Apollo server (no Polaris features)")
