@@ -481,6 +481,7 @@ class PolarisApiClient @JvmOverloads constructor(
             height: Int = 0,
             fps: Float = 0f,
             bitrateKbps: Int = 0,
+            bitrateLocked: Boolean = false,
             hdr: Boolean? = null
         ): String {
             val preferenceParam = preference
@@ -498,6 +499,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 ""
             }
             val bitrateParam = bitrateKbps.takeIf { it > 0 }?.let { "&bitrate_kbps=$it" } ?: ""
+            val bitrateLockParam = if (bitrateLocked && bitrateKbps > 0) "&bitrate_locked=1" else ""
             val hdrParam = hdr?.let { "&hdr=${if (it) 1 else 0}" } ?: ""
             return "/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
                 "&game=${java.net.URLEncoder.encode(game, "UTF-8")}" +
@@ -505,6 +507,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 modeParam +
                 displayParam +
                 bitrateParam +
+                bitrateLockParam +
                 hdrParam
         }
 
@@ -513,6 +516,38 @@ class PolarisApiClient @JvmOverloads constructor(
             return (0 until array.length()).mapNotNull { index ->
                 array.optString(index).takeIf { it.isNotBlank() }
             }
+        }
+
+        private fun strictString(json: JSONObject?, key: String): String =
+            (json?.opt(key) as? String).orEmpty()
+
+        private fun strictBoolean(json: JSONObject?, key: String): Boolean =
+            json?.opt(key) as? Boolean ?: false
+
+        private fun strictIntOrNull(json: JSONObject?, key: String): Int? {
+            val number = json?.opt(key) as? Number ?: return null
+            val value = number.toDouble()
+            if (!value.isFinite() || value % 1.0 != 0.0 || value < Int.MIN_VALUE || value > Int.MAX_VALUE) {
+                return null
+            }
+            return value.toInt()
+        }
+
+        private fun strictInt(json: JSONObject?, key: String): Int =
+            strictIntOrNull(json, key) ?: 0
+
+        private fun strictLong(json: JSONObject?, key: String): Long {
+            val number = json?.opt(key) as? Number ?: return 0L
+            val value = number.toDouble()
+            if (!value.isFinite() || value % 1.0 != 0.0 || value < 0.0 || value > Long.MAX_VALUE.toDouble()) {
+                return 0L
+            }
+            return number.toLong()
+        }
+
+        private fun strictDouble(json: JSONObject?, key: String): Double? {
+            val value = (json?.opt(key) as? Number)?.toDouble() ?: return null
+            return value.takeIf { it.isFinite() }
         }
 
         private fun parseModeOptions(array: org.json.JSONArray?): List<PolarisClientSettings.ModeOption> {
@@ -866,68 +901,129 @@ class PolarisApiClient @JvmOverloads constructor(
             health: JSONObject?,
             aiDoctor: JSONObject?
         ): PolarisSessionStatus.DoctorStatus {
-            val explanation = aiDoctor?.optJSONObject("explanation")?.takeIf { aiDoctor.optBoolean("status", true) }
+            val explanation = aiDoctor?.optJSONObject("explanation")
+                ?.takeIf { strictBoolean(aiDoctor, "status") }
             val primaryIssue = doctor?.optString("primary_issue", "")
                 ?.takeIf { it.isNotBlank() }
                 ?: health?.optString("primary_issue", "")
                 ?: ""
-            val likelyCause = explanation?.optString("likely_cause", "")?.takeIf { it.isNotBlank() }
-                ?: doctor?.optString("summary", "")?.takeIf { it.isNotBlank() }
+            val likelyCause = doctor?.optString("summary", "")?.takeIf { it.isNotBlank() }
                 ?: doctor?.optString("simple_state", "")?.takeIf { it.isNotBlank() }
                 ?: doctor?.optString("diagnosis", "")?.takeIf { it.isNotBlank() }
                 ?: health?.optString("summary", "")
                 ?: ""
-            val evidence = parseStringArray(explanation?.optJSONArray("evidence")).takeIf { it.isNotEmpty() }
-                ?: parseDoctorEvidence(doctor)
+            val evidenceItems = parseDoctorEvidenceItems(doctor)
+            val evidence = parseDoctorEvidence(doctor)
             val recommendation = doctor?.optJSONObject("recommendation")
             val safeAction = doctor?.optJSONObject("safe_recovery_action")
             val actionPayload = safeAction?.optJSONObject("payload_preview")
             val actionVerification = safeAction?.optJSONObject("verification")
             val actionUndo = safeAction?.optJSONObject("undo")
             val explanationSource = aiDoctor?.optJSONObject("source")
-            val tryFirst = parseStringArray(explanation?.optJSONArray("try_first")).takeIf { it.isNotEmpty() }
-                ?: listOfNotNull(
+            val targetBitratePresent = actionPayload?.has("target_bitrate_kbps") == true
+            val targetBitrateTyped = strictIntOrNull(actionPayload, "target_bitrate_kbps") != null
+            val actionContractTyped = safeAction != null &&
+                safeAction.opt("id") is String &&
+                safeAction.opt("capability") is String &&
+                safeAction.opt("kind") is String &&
+                safeAction.opt("endpoint") is String &&
+                safeAction.opt("method") is String &&
+                safeAction.opt("destructive") is Boolean &&
+                safeAction.opt("requires_confirmation") is Boolean &&
+                safeAction.opt("requires_owner") is Boolean &&
+                safeAction.opt("allowed_in_viewer_mode") is Boolean &&
+                safeAction.opt("owner_tuning_allowed") is Boolean &&
+                safeAction.opt("paired_endpoint") is String &&
+                actionPayload?.opt("action_id") is String &&
+                actionPayload.opt("source_result_id") is String &&
+                actionVerification?.opt("mode") is String &&
+                actionVerification.opt("endpoint") is String &&
+                strictIntOrNull(actionVerification, "delay_seconds") != null &&
+                actionUndo?.opt("supported") is Boolean &&
+                actionUndo.opt("endpoint") is String &&
+                actionUndo.opt("paired_endpoint") is String
+            val tryFirst = listOfNotNull(
                     recommendation?.optString("body", "")?.takeIf { it.isNotBlank() },
                     recommendation?.optString("next_step_label", "")?.takeIf { it.isNotBlank() },
                     safeAction?.optString("label", "")?.takeIf { it.isNotBlank() }
                 ).takeIf { it.isNotEmpty() }
                 ?: parseStringArray(health?.optJSONArray("recommendations"))
-            val confidence = explanation?.optString("confidence", "")?.takeIf { it.isNotBlank() }
-                ?: doctor?.optJSONObject("confidence")?.optString("level", "")?.takeIf { it.isNotBlank() }
+            val confidence = doctor?.optJSONObject("confidence")?.optString("level", "")?.takeIf { it.isNotBlank() }
                 ?: doctor?.optString("confidence", "")?.takeIf { it.isNotBlank() && !it.startsWith("{") }
                 ?: if (doctor != null) "deterministic" else if (primaryIssue.isNotBlank() || likelyCause.isNotBlank()) "fallback" else ""
+            val aiExplanation = PolarisSessionStatus.DoctorStatus.AiExplanation(
+                available = explanation != null,
+                likelyCause = strictString(explanation, "likely_cause"),
+                evidence = parseStringArray(explanation?.optJSONArray("evidence")),
+                tryFirst = parseStringArray(explanation?.optJSONArray("try_first")),
+                confidence = strictString(explanation, "confidence"),
+                advancedDetail = strictString(explanation, "advanced_detail"),
+                sourceKind = strictString(explanationSource, "kind"),
+                sourceMode = strictString(explanationSource, "mode"),
+                informational = strictBoolean(explanationSource, "informational")
+            )
             return PolarisSessionStatus.DoctorStatus(
                 available = doctor != null,
-                version = doctor?.optInt("version", 0) ?: 0,
-                resultId = doctor?.optString("result_id", "") ?: "",
+                version = strictInt(doctor, "version"),
+                resultId = strictString(doctor, "result_id"),
                 classification = classifyDoctorIssue(primaryIssue),
                 likelyCause = likelyCause,
                 evidence = evidence,
+                evidenceItems = evidenceItems,
                 tryFirst = tryFirst,
                 confidence = confidence,
-                advancedDetail = explanation?.optString("advanced_detail", "")
-                    ?: doctor?.optJSONObject("advanced_evidence")?.optString("summary", "")
+                advancedDetail = doctor?.optJSONObject("advanced_evidence")?.optString("summary", "")
                     ?: "",
                 primaryIssue = primaryIssue,
-                actionId = safeAction?.optString("id", "") ?: "",
-                actionLabel = safeAction?.optString("label", "") ?: "",
-                actionCapability = safeAction?.optString("capability", "") ?: "",
-                actionKind = safeAction?.optString("kind", "") ?: "",
-                actionAppUuid = actionPayload?.optString("app_uuid", "") ?: "",
-                targetBitrateKbps = actionPayload?.optInt("target_bitrate_kbps", 0) ?: 0,
-                verificationDelaySeconds = actionVerification?.optInt("delay_seconds", 0) ?: 0,
-                undoSupported = actionUndo?.opt("supported") == true,
-                requiresConfirmation = safeAction?.opt("requires_confirmation") == true,
-                ownerTuningAllowed = safeAction?.opt("owner_tuning_allowed") == true,
-                pairedEndpoint = safeAction?.optString("paired_endpoint", "") ?: "",
-                undoPairedEndpoint = actionUndo?.optString("paired_endpoint", "") ?: "",
-                packetLossPct = parseDoctorEvidenceNumber(doctor, "packet_loss"),
-                latencyMs = parseDoctorEvidenceNumber(doctor, "latency"),
+                actionId = strictString(safeAction, "id"),
+                actionLabel = strictString(safeAction, "label"),
+                actionCapability = strictString(safeAction, "capability"),
+                actionKind = strictString(safeAction, "kind"),
+                actionEndpoint = strictString(safeAction, "endpoint"),
+                actionMethod = strictString(safeAction, "method"),
+                actionPayloadId = strictString(actionPayload, "action_id"),
+                actionSourceResultId = strictString(actionPayload, "source_result_id"),
+                actionContractTyped = actionContractTyped,
+                actionAppUuid = strictString(actionPayload, "app_uuid"),
+                targetBitrateKbps = strictInt(actionPayload, "target_bitrate_kbps"),
+                targetBitratePresent = targetBitratePresent,
+                targetBitrateTyped = targetBitrateTyped,
+                verificationDelaySeconds = strictInt(actionVerification, "delay_seconds"),
+                undoSupported = strictBoolean(actionUndo, "supported"),
+                undoEndpoint = strictString(actionUndo, "endpoint"),
+                requiresConfirmation = strictBoolean(safeAction, "requires_confirmation"),
+                requiresOwner = strictBoolean(safeAction, "requires_owner"),
+                allowedInViewerMode = strictBoolean(safeAction, "allowed_in_viewer_mode"),
+                destructive = strictBoolean(safeAction, "destructive"),
+                ownerTuningAllowed = strictBoolean(safeAction, "owner_tuning_allowed"),
+                pairedEndpoint = strictString(safeAction, "paired_endpoint"),
+                undoPairedEndpoint = strictString(actionUndo, "paired_endpoint"),
+                verificationMode = strictString(actionVerification, "mode"),
+                verificationEndpoint = strictString(actionVerification, "endpoint"),
+                packetLossPct = evidenceItems.firstOrNull { it.id == "packet_loss" }?.value,
+                latencyMs = evidenceItems.firstOrNull { it.id == "latency" }?.value,
                 destructiveActionAllowed = false,
-                explanationSourceKind = explanationSource?.optString("kind", "") ?: "",
-                explanationSourceMode = explanationSource?.optString("mode", "") ?: "",
-                explanationInformational = explanationSource?.optBoolean("informational", false) ?: false
+                explanationSourceKind = aiExplanation.sourceKind,
+                explanationSourceMode = aiExplanation.sourceMode,
+                explanationInformational = aiExplanation.informational,
+                aiExplanation = aiExplanation
             )
+        }
+
+        private fun parseDoctorEvidenceItems(
+            doctor: JSONObject?
+        ): List<PolarisSessionStatus.DoctorStatus.EvidenceItem> {
+            val array = doctor?.optJSONArray("evidence") ?: return emptyList()
+            return (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                    id = strictString(item, "id"),
+                    status = strictString(item, "status"),
+                    source = strictString(item, "source"),
+                    value = strictDouble(item, "value"),
+                    detail = strictString(item, "detail")
+                )
+            }
         }
 
         private fun parseDoctorEvidence(doctor: JSONObject?): List<String> {
@@ -940,16 +1036,6 @@ class PolarisApiClient @JvmOverloads constructor(
                     else -> null
                 }
             }
-        }
-
-        private fun parseDoctorEvidenceNumber(doctor: JSONObject?, id: String): Double? {
-            val array = doctor?.optJSONArray("evidence") ?: return null
-            for (index in 0 until array.length()) {
-                val item = array.optJSONObject(index) ?: continue
-                if (item.optString("id", "") != id || !item.has("value")) continue
-                return item.optDouble("value").takeIf { !it.isNaN() }
-            }
-            return null
         }
 
         private fun classifyDoctorIssue(issue: String): String {
@@ -974,23 +1060,37 @@ class PolarisApiClient @JvmOverloads constructor(
                     value.opt("available") as? Boolean
                 }
             }
+            val rawVerificationActionId = strictString(verification, "action_id")
+            val verificationActionId = rawVerificationActionId.takeIf {
+                it == "verify" || it == "verify_recovery_profile_next_launch"
+            }.orEmpty()
+            val verificationDelay = strictInt(verification, "delay_seconds")
+                .takeIf { verificationActionId.isNotBlank() && it > 0 }
+                ?: 0
+            val rawUndoActionId = strictString(undo, "action_id")
+            val undoActionId = rawUndoActionId.takeIf {
+                it == "undo" || it == "undo_recovery_profile_next_launch"
+            }.orEmpty()
+            val safeUndoAvailable = undoAvailable?.let { available ->
+                available && undoActionId.isNotBlank()
+            }
             return PolarisDoctorActionResult(
-                status = json.optBoolean("status", false),
-                changed = json.optBoolean("changed", false),
-                state = json.optString("state", ""),
-                message = json.optString("message", ""),
-                error = json.optString("error", ""),
-                runId = json.optString("run_id", ""),
-                recoveryState = json.optString("recovery_state", json.optString("state", "")),
-                appUuid = json.optString("app_uuid", ""),
-                expiresAt = json.optLong("expires_at", 0L),
+                status = strictBoolean(json, "status"),
+                changed = strictBoolean(json, "changed"),
+                state = strictString(json, "state"),
+                message = strictString(json, "message"),
+                error = strictString(json, "error"),
+                runId = strictString(json, "run_id"),
+                recoveryState = strictString(json, "recovery_state").ifBlank { strictString(json, "state") },
+                appUuid = strictString(json, "app_uuid"),
+                expiresAt = strictLong(json, "expires_at"),
                 safeProfile = parseRecoverySafeProfile(json.optJSONObject("safe_profile")),
-                verificationDelaySeconds = verification?.optInt("delay_seconds", 0) ?: 0,
-                verificationActionId = verification?.optString("action_id", "") ?: "",
-                undoAvailable = undoAvailable,
-                undoActionId = undo?.optString("action_id", "") ?: "",
-                evidencePacketLossPct = evidence?.optDouble("packet_loss_pct")?.takeIf { !it.isNaN() },
-                evidenceLatencyMs = evidence?.optDouble("latency_ms")?.takeIf { !it.isNaN() }
+                verificationDelaySeconds = verificationDelay,
+                verificationActionId = verificationActionId,
+                undoAvailable = safeUndoAvailable,
+                undoActionId = if (safeUndoAvailable == true) undoActionId else "",
+                evidencePacketLossPct = strictDouble(evidence, "packet_loss_pct"),
+                evidenceLatencyMs = strictDouble(evidence, "latency_ms")
             )
         }
 
@@ -2299,7 +2399,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 // relaunch recommendation can be supplied by Nova.
                 listOf(
                     "avg_fps", "target_fps", "low_1_percent_fps", "min_fps",
-                    "frame_pacing_bad_pct", "avg_latency_ms", "avg_bitrate_kbps",
+                    "avg_latency_ms", "avg_bitrate_kbps",
                     "packet_loss_pct", "packet_loss_source", "codec", "duration_s", "samples"
                 ).forEach { key -> if (raw.has(key)) put(key, raw.get(key)) }
                 put("end_reason", endReason)
@@ -2402,8 +2502,6 @@ class PolarisApiClient @JvmOverloads constructor(
                 if (targetFps > 0.0) put("target_fps", targetFps)
                 if (lowOnePercentFps > 0.0) put("low_1_percent_fps", lowOnePercentFps)
                 if (minFps > 0.0) put("min_fps", minFps)
-                if (framePacingBadPct > 0.0) put("frame_pacing_bad_pct", framePacingBadPct)
-                if (safeTargetFps > 0.0) put("safe_target_fps", safeTargetFps)
                 put("avg_latency_ms", avgLatency)
                 put("avg_bitrate_kbps", avgBitrate)
                 put("packet_loss_pct", packetLoss)
@@ -2414,18 +2512,9 @@ class PolarisApiClient @JvmOverloads constructor(
                 if (optimizationSource.isNotBlank()) put("optimization_source", optimizationSource)
                 if (optimizationConfidence.isNotBlank()) put("optimization_confidence", optimizationConfidence)
                 if (recommendationVersion > 0) put("recommendation_version", recommendationVersion)
-                if (healthGrade.isNotBlank()) put("health_grade", healthGrade)
-                if (primaryIssue.isNotBlank()) put("primary_issue", primaryIssue)
-                if (issues.isNotEmpty()) put("issues", org.json.JSONArray(issues))
-                if (decoderRisk.isNotBlank()) put("decoder_risk", decoderRisk)
-                if (hdrRisk.isNotBlank()) put("hdr_risk", hdrRisk)
-                if (networkRisk.isNotBlank()) put("network_risk", networkRisk)
                 if (capturePath.isNotBlank()) put("capture_path", capturePath)
-                if (safeBitrateKbps > 0) put("safe_bitrate_kbps", safeBitrateKbps)
-                if (safeCodec.isNotBlank()) put("safe_codec", safeCodec)
-                if (safeDisplayMode.isNotBlank()) put("safe_display_mode", safeDisplayMode)
-                if (safeHdr != null) put("safe_hdr", safeHdr)
-                if (relaunchRecommended) put("relaunch_recommended", true)
+                // Legacy callers are observational too. Derived diagnoses,
+                // safe settings, and relaunch recommendations are ignored.
             }
             val request = Request.Builder()
                 .url("$baseUrl/session/report")
@@ -2454,10 +2543,11 @@ class PolarisApiClient @JvmOverloads constructor(
         height: Int = 0,
         fps: Float = 0f,
         bitrateKbps: Int = 0,
+        bitrateLocked: Boolean = false,
         hdr: Boolean? = null
     ): org.json.JSONObject? {
         return try {
-            val url = "$baseUrl${buildOptimizationPath(device, game, preference, mode, width, height, fps, bitrateKbps, hdr)}"
+            val url = "$baseUrl${buildOptimizationPath(device, game, preference, mode, width, height, fps, bitrateKbps, bitrateLocked, hdr)}"
             val request = Request.Builder().url(url).get().build()
             LimeLog.info("Nova: Optimization query start for $url")
             executeGetWithRetry(request).use { response ->

@@ -1091,7 +1091,7 @@ finish()
 return
 }
 
-var launchOptimization:JSONObject? = if (watchOnlyRequested || resumeExistingRequested) null else loadLaunchOptimization(appName)
+var launchOptimization:JSONObject? = if (watchOnlyRequested || resumeExistingRequested) null else loadLaunchOptimization(appName, isMetered)
 lastClientProfileProvenance = com.papi.nova.manager.StreamSyncManager.resolveProfileProvenance(launchOptimization, manualOverride = isManualProfileOverride())
 
  // Initialize the MediaCodec helper before creating the decoder
@@ -1456,6 +1456,7 @@ displayHeight
 .setBitrate(configuredStreamBitrateKbps)
 .setEnableSops(prefConfig!!.enableSops)
 .setProfilePreference(launchProfilePreference)
+.setResolvedProfile(true)
 .enableLocalAudioPlayback(prefConfig!!.playHostAudio)
 .setMaxPacketSize(1392)
 .setRemoteConfiguration(StreamConfiguration.STREAM_CFG_AUTO) // NvConnection will perform LAN and VPN detection
@@ -2349,8 +2350,8 @@ private fun isManualProfileOverride():Boolean {
 return launchProfilePreference.isNotBlank() && !launchProfilePreference.equals("auto", ignoreCase = true)
 }
 
-private fun loadLaunchOptimization(appName:String?):JSONObject? {
-if (!launchOptimizationJson.isNullOrBlank())
+private fun loadLaunchOptimization(appName:String?, bitrateLocked:Boolean):JSONObject? {
+if (!bitrateLocked && !launchOptimizationJson.isNullOrBlank())
 {
 try
 {
@@ -2373,12 +2374,14 @@ var safeAppName:String = appName ?: ""
 var preference:String = launchProfilePreference.takeIf { it.isNotBlank() } ?: getSharedPreferences("nova_prefs", MODE_PRIVATE)
 .getString("ai_profile_preference_name_" + safeAppName, "auto") ?: "auto"
 launchProfilePreference = preference
+val requestedBitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate
 result[0] = novaApiClient!!.getOptimization(
 DeviceUtils.getModel(), safeAppName, preference,
 width = prefConfig.width,
 height = prefConfig.height,
 fps = prefConfig.fps,
-bitrateKbps = prefConfig.bitrate,
+bitrateKbps = requestedBitrateKbps,
+bitrateLocked = bitrateLocked,
 hdr = prefConfig.enableHdr)
 }
 catch (e:Exception) {
@@ -4812,7 +4815,6 @@ connecting = connected
 isStreamActive = false
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
-runtimeTasks.cancel("NovaBitrateAdjust")
 runtimeTasks.cancel("NovaDoctorV2Sample")
  // Raw Doctor sampling runs independently of HUD visibility.
             if (host != null)
@@ -6335,25 +6337,6 @@ if (lastPolarisSessionStatus != null)
 hud.applySessionStatus(lastPolarisSessionStatus)
 }
 
-	val streamHost:String? = host
-	val streamHttpsPort:Int = httpsPort
-	val streamServerCert:X509Certificate? = serverCert
-	// Wire proactive bitrate adjustment through runtime tasks so repeated slider moves coalesce.
-	hud.onBitrateAdjust = { newBitrate:Int ->
-	launchReplacingRuntimeIo("NovaBitrateAdjust") { try
-{
-val client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, streamHost ?: "", streamHttpsPort, streamServerCert)
-client.setBitrate(newBitrate)
-com.papi.nova.LimeLog.info("Nova: Proactive bitrate adjust → " + newBitrate + " kbps")
-}
-catch (e:kotlinx.coroutines.CancellationException) {
-throw e
-}
-catch (e:Exception) {
-com.papi.nova.LimeLog.warning("Nova: Bitrate adjust failed: " + e!!.message)
-}
- }
-}
 schedulePolarisLiveSessionStatusRefresh(true)
 }
 

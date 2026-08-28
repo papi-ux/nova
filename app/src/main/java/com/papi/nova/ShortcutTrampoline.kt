@@ -700,6 +700,8 @@ class ShortcutTrampoline : NovaActivity() {
             // in Play Setup must launch pinned from a home-screen shortcut too.
             val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.name)
             val preferences = PreferenceConfiguration.readPreferences(this)
+            val metered = StreamSyncManager.isMeteredNetwork(this)
+            val requestedBitrateKbps = if (metered) preferences.meteredBitrate else preferences.bitrate
             val optimization = apiClient.getOptimization(
                 DeviceUtils.getModel(),
                 polarisGame.name,
@@ -708,7 +710,8 @@ class ShortcutTrampoline : NovaActivity() {
                 width = preferences.width,
                 height = preferences.height,
                 fps = preferences.fps,
-                bitrateKbps = preferences.bitrate,
+                bitrateKbps = requestedBitrateKbps,
+                bitrateLocked = metered,
                 hdr = preferences.enableHdr,
             )
             val composed = NovaLaunchStreamOverride.compose(
@@ -728,7 +731,7 @@ class ShortcutTrampoline : NovaActivity() {
                 composed,
             )
             val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(preferences.fps, composed)
-            val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(preferences.bitrate, composed)
+            val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(requestedBitrateKbps, composed)
 
             syncShortcutLaunchPreflightSettings(
                 apiClient = apiClient,
@@ -736,10 +739,12 @@ class ShortcutTrampoline : NovaActivity() {
                 usesVirtualDisplay = launchUsesVirtualDisplay,
                 mirrorDesktop = launchMirrorDesktop,
                 resolvedMode = launchMode,
-                width = launchResolution.width,
-                height = launchResolution.height,
-                fps = launchFps,
-                bitrateKbps = launchBitrateKbps,
+                // Do not persist a deterministic preset's one-launch result
+                // as the paired client's next-launch policy.
+                width = preferences.width,
+                height = preferences.height,
+                fps = preferences.fps,
+                bitrateKbps = preferences.bitrate,
             )
 
             launchPlan.copy(

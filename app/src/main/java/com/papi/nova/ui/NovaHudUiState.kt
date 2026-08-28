@@ -195,8 +195,8 @@ data class NovaHudUiState(
             eventBreadcrumbLabel: String = "",
             lowOnePercentFps: Double = calculateLowOnePercent(sparklineSamples)
         ): NovaHudUiState {
-            val autoQuality = AutoQualityUiState.from(status, targetFps, fps)
-            val healthReason = buildHealthReason(status, fps, targetFps, latencyMs)
+            val autoQuality = AutoQualityUiState.from(status, targetFps)
+            val healthReason = buildHealthReason(status, latencyMs)
             return NovaHudUiState(
                 mode = mode,
                 fpsLabel = fps.takeIf { it > 0.0 }?.roundToInt()?.toString() ?: "--",
@@ -210,7 +210,7 @@ data class NovaHudUiState(
                 autopilotLabel = autoQuality.label,
                 autopilotHudLabel = autoQuality.hudLabel(),
                 autopilotCompactLabel = autoQuality.compactLabel,
-                fpsTone = toneForFps(fps, targetFps),
+                fpsTone = toneForFps(fps, status),
                 latencyTone = toneForLatency(latencyMs),
                 statusTone = if (healthReason.second == NovaHudTone.WARNING || healthReason.second == NovaHudTone.DANGER) healthReason.second else autoQuality.tone.toHudTone(),
                 healthReasonLabel = healthReason.first,
@@ -281,15 +281,33 @@ data class NovaHudUiState(
             }
         }
 
-        private fun toneForFps(fps: Double, targetFps: Double): NovaHudTone {
+        private fun toneForFps(fps: Double, status: PolarisSessionStatus?): NovaHudTone {
             if (fps <= 0.0) {
                 return NovaHudTone.MUTED
             }
-            return when {
-                targetFps > 0.0 && fps < targetFps * 0.75 -> NovaHudTone.WARNING
-                fps >= 55.0 -> NovaHudTone.STABLE
-                fps >= 30.0 -> NovaHudTone.WARNING
-                else -> NovaHudTone.DANGER
+            val primaryIssue = status?.doctor?.primaryIssue
+                ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+                ?: status?.health?.primaryIssue.orEmpty()
+            val pacingEvidence = status?.doctor?.evidenceItems.orEmpty().any { item ->
+                item.id.lowercase() in setOf("frame_pacing", "target_fps_gap", "encode_cadence") &&
+                    item.status.lowercase() in setOf("watch", "warning", "fail", "degraded", "needs_action")
+            }
+            return if (
+                primaryIssue.equals("frame_pacing", ignoreCase = true) ||
+                primaryIssue.equals("host_render_limited", ignoreCase = true) ||
+                primaryIssue.equals("encoder_load", ignoreCase = true) ||
+                status?.health?.issues.orEmpty().any {
+                    it.equals("frame_pacing", ignoreCase = true) ||
+                        it.equals("host_render_limited", ignoreCase = true)
+                } ||
+                pacingEvidence
+            ) {
+                NovaHudTone.WARNING
+            } else {
+                // Rendered FPS is a raw observation. Without source/capture
+                // cadence, low values may represent a static or duplicate-only
+                // scene and are not independently graded as a pacing fault.
+                NovaHudTone.STABLE
             }
         }
 
@@ -304,32 +322,39 @@ data class NovaHudUiState(
         // alone means nothing — only the elevated value is a warning.
         private fun riskElevated(risk: String?): Boolean = risk.equals("elevated", ignoreCase = true)
 
+        private fun doctorEvidenceWarns(status: PolarisSessionStatus?, ids: Set<String>? = null): Boolean =
+            status?.doctor?.evidenceItems.orEmpty().any { item ->
+                (ids == null || item.id.lowercase() in ids) &&
+                    item.status.lowercase() in setOf("watch", "warning", "fail", "degraded", "needs_action")
+            }
+
         private fun buildHealthReason(
             status: PolarisSessionStatus?,
-            fps: Double,
-            targetFps: Double,
             latencyMs: Int
         ): Pair<String, NovaHudTone> {
-            val primaryIssue = status?.health?.primaryIssue.orEmpty().lowercase()
+            val primaryIssue = status?.doctor?.primaryIssue
+                ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+                ?: status?.health?.primaryIssue.orEmpty()
+            val normalizedPrimaryIssue = primaryIssue.lowercase()
             val issues = status?.health?.issues.orEmpty().map { it.lowercase() }
+            val doctorWarning = doctorEvidenceWarns(status)
             return when {
                 status?.isHdrDowngraded == true -> "HDR downgraded" to NovaHudTone.WARNING
-                status?.isHostRenderLimited == true || primaryIssue == "host_render_limited" || issues.contains("host_render_limited") ->
+                status?.isHostRenderLimited == true || normalizedPrimaryIssue == "host_render_limited" || issues.contains("host_render_limited") ->
                     "Host capped" to NovaHudTone.WARNING
-                primaryIssue == "frame_pacing" || issues.contains("frame_pacing") ->
+                normalizedPrimaryIssue == "frame_pacing" || issues.contains("frame_pacing") ->
                     "Frame pacing" to NovaHudTone.WARNING
-                primaryIssue.contains("network") || riskElevated(status?.health?.networkRisk) ->
+                normalizedPrimaryIssue.contains("network") || riskElevated(status?.health?.networkRisk) ->
                     "Network jitter" to NovaHudTone.WARNING
-                primaryIssue.contains("decoder") || riskElevated(status?.health?.decoderRisk) ->
+                normalizedPrimaryIssue.contains("decoder") || riskElevated(status?.health?.decoderRisk) ->
                     "Decoder late" to NovaHudTone.WARNING
+                doctorWarning -> "Needs attention" to NovaHudTone.WARNING
                 latencyMs > 50 -> "High latency" to NovaHudTone.DANGER
-                targetFps > 0.0 && fps > 0.0 && fps < targetFps * 0.75 ->
-                    "FPS below target" to NovaHudTone.WARNING
                 status?.health?.grade.equals("degraded", ignoreCase = true) ->
                     "Stream degraded" to NovaHudTone.WARNING
                 status?.health?.grade.equals("watch", ignoreCase = true) ->
                     "Needs attention" to NovaHudTone.WARNING
-                primaryIssue.isNotBlank() && primaryIssue != "none" ->
+                normalizedPrimaryIssue.isNotBlank() && normalizedPrimaryIssue != "none" ->
                     "Needs attention" to NovaHudTone.WARNING
                 status == null -> "Waiting" to NovaHudTone.MUTED
                 else -> "Stable" to NovaHudTone.STABLE
@@ -364,26 +389,41 @@ data class NovaHudUiState(
         }
 
         private fun buildLayerHealth(status: PolarisSessionStatus?, latencyMs: Int): List<NovaHudLayerHealth> {
-            val primaryIssue = status?.health?.primaryIssue.orEmpty().lowercase()
+            val primaryIssue = status?.doctor?.primaryIssue
+                ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+                ?: status?.health?.primaryIssue.orEmpty()
+            val normalizedPrimaryIssue = primaryIssue.lowercase()
             val issues = status?.health?.issues.orEmpty().map { it.lowercase() }
+            val hostDoctorWarning = doctorEvidenceWarns(
+                status,
+                setOf("capture_path", "encoder", "frame_pacing", "target_fps_gap", "source_capture", "encode_cadence", "effective_quality_ceiling")
+            )
+            val networkDoctorWarning = doctorEvidenceWarns(
+                status,
+                setOf("packet_loss", "latency", "transport", "control_channel_packet_loss")
+            )
+            val clientDoctorWarning = doctorEvidenceWarns(
+                status,
+                setOf("decoder", "delivery_cadence", "receive_decode_render", "presentation")
+            )
             val hostTone = when {
-                status?.isHostRenderLimited == true || primaryIssue.contains("host") || issues.any { it.contains("host") } ->
+                status?.isHostRenderLimited == true || normalizedPrimaryIssue.contains("host") || issues.any { it.contains("host") } ->
                     NovaHudTone.WARNING
                 status?.health?.grade.equals("degraded", ignoreCase = true) ||
                     status?.health?.grade.equals("watch", ignoreCase = true) ||
-                    primaryIssue == "frame_pacing" || issues.contains("frame_pacing") -> NovaHudTone.WARNING
+                    normalizedPrimaryIssue == "frame_pacing" || issues.contains("frame_pacing") || hostDoctorWarning -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
             val networkTone = when {
-                primaryIssue.contains("network") || issues.any { it.contains("network") } ||
-                    riskElevated(status?.health?.networkRisk) -> NovaHudTone.WARNING
+                normalizedPrimaryIssue.contains("network") || issues.any { it.contains("network") } ||
+                    riskElevated(status?.health?.networkRisk) || networkDoctorWarning -> NovaHudTone.WARNING
                 latencyMs > 50 -> NovaHudTone.DANGER
                 latencyMs > 20 -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
             val clientTone = when {
-                primaryIssue.contains("decoder") || issues.any { it.contains("decoder") } ||
-                    riskElevated(status?.health?.decoderRisk) -> NovaHudTone.WARNING
+                normalizedPrimaryIssue.contains("decoder") || issues.any { it.contains("decoder") } ||
+                    riskElevated(status?.health?.decoderRisk) || clientDoctorWarning -> NovaHudTone.WARNING
                 status?.encoder?.targetResidency.equals("cpu", ignoreCase = true) -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
@@ -514,17 +554,6 @@ class NovaHudEventTrail(private val capacity: Int = 4) {
         }
     }
 
-    fun recordRecoveryProfile(targetFps: Double, recoveryQueued: Boolean) {
-        if (targetFps <= 0.0) {
-            return
-        }
-        val label = if (recoveryQueued) {
-            "Next launch recovery: ${targetFps.roundToInt()} FPS"
-        } else {
-            "Fallback ready: ${targetFps.roundToInt()} FPS"
-        }
-        record(label)
-    }
 }
 
 private fun formatHudMbps(kbps: Int): String {
@@ -548,7 +577,6 @@ class NovaHudSessionStats {
     private var sessionStartTime = 0L
     private var sessionMinFps = 0.0
     private var sessionLowOnePercentFps = 0.0
-    private var sessionBadPacingSamples = 0
     private var targetFps = 0.0
     private var lastCodec = ""
     private var lastBitrateKbps = 0
@@ -575,7 +603,6 @@ class NovaHudSessionStats {
         sessionStartTime = 0L
         sessionMinFps = 0.0
         sessionLowOnePercentFps = 0.0
-        sessionBadPacingSamples = 0
         sessionBitrateSum = 0L
         sessionBitrateSamples = 0
         lastMonotonicTimestampMs = 0L
@@ -617,9 +644,6 @@ class NovaHudSessionStats {
         }
         if (lowOnePercentFps > 0.0) {
             sessionLowOnePercentFps = lowOnePercentFps
-        }
-        if (targetFps > 0.0 && fps < targetFps * 0.85) {
-            sessionBadPacingSamples++
         }
         if (sessionStartTime == 0L) {
             sessionStartTime = nowMs
@@ -681,11 +705,6 @@ class NovaHudSessionStats {
         val durationS = if (sessionStartTime > 0) ((nowMs - sessionStartTime) / 1000).toInt() else 0
         val avgFps = if (sessionSamples > 0) sessionFpsSum / sessionSamples else 0.0
         val avgLatency = if (sessionLatencySamples > 0) sessionLatencySum / sessionLatencySamples else 0.0
-        val badPacingPct = if (sessionSamples > 0) {
-            (sessionBadPacingSamples.toDouble() / sessionSamples.toDouble()) * 100.0
-        } else {
-            0.0
-        }
         val summary = mutableMapOf<String, Any>(
             "contract" to "doctor_v2_raw",
             "observational" to true,
@@ -722,7 +741,9 @@ class NovaHudSessionStats {
         hostProcessingLatencyMs?.let { summary["host_processing_latency_ms"] = it }
         if (sessionLowOnePercentFps > 0.0) summary["low_1_percent_fps"] = sessionLowOnePercentFps
         if (sessionMinFps > 0.0) summary["min_fps"] = sessionMinFps
-        if (badPacingPct > 0.0) summary["frame_pacing_bad_pct"] = badPacingPct
+        // Rendered FPS alone cannot distinguish moving content from a static
+        // or duplicate-only source. Polaris owns pacing classification once
+        // source/capture cadence is available; Nova reports only raw stages.
         if (sessionPacketLossSamples > 0) {
             summary["packet_loss_source"] = "nova_media_path"
         }

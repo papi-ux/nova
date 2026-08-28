@@ -49,7 +49,7 @@ class NovaHudSessionStatsTest {
     }
 
     @Test
-    fun summaryReportsHighRefreshPacingEvidenceWithoutRelaunchConclusion() {
+    fun summaryReportsRawHighRefreshEvidenceWithoutDerivingPacing() {
         val stats = NovaHudSessionStats()
 
         stats.setTargetFps(120.0)
@@ -63,7 +63,9 @@ class NovaHudSessionStatsTest {
         assertFalse(summary.containsKey("safe_target_fps"))
         assertFalse(summary.containsKey("relaunch_recommended"))
         assertEquals(true, summary["observational"])
-        assertTrue((summary["frame_pacing_bad_pct"] as Double) > 90.0)
+        assertFalse(summary.containsKey("frame_pacing_bad_pct"))
+        assertEquals(54.0, summary["avg_fps"] as Double, 0.01)
+        assertEquals(120.0, summary["target_fps"] as Double, 0.01)
     }
 
     @Test

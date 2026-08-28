@@ -692,6 +692,11 @@ class NvHTTP @Throws(IOException::class) constructor(
                 (if (forcePrivateAfterSteamClose) "&closeDesktopSteamForPrivate=1&launchMode=force_private_stream" else "") +
                 streamModeParam +
                 profilePreference +
+                (if (streamConfig.getResolvedProfile()) {
+                    "&resolvedProfile=1&bitrateKbps=" + streamConfig.getBitrate()
+                } else {
+                    ""
+                }) +
                 "&localAudioPlayMode=" + (if (streamConfig.getPlayLocalAudio()) 1 else 0) +
                 "&surroundAudioInfo=" + streamConfig.getAudioConfiguration()!!.getSurroundAudioInfo() +
                 "&remoteControllersBitmap=" + streamConfig.getAttachedGamepadMask() +

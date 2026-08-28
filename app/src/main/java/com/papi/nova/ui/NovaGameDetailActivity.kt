@@ -605,13 +605,15 @@ class NovaGameDetailActivity : NovaActivity() {
                             clientSettings = it
                         }
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+                        val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         apiClient.getOptimization(
                             deviceName, currentGame.name, preference,
                             mode = uiState.playMode,
                             width = launchPrefs.width,
                             height = launchPrefs.height,
                             fps = launchPrefs.fps,
-                            bitrateKbps = launchPrefs.bitrate,
+                            bitrateKbps = if (metered) launchPrefs.meteredBitrate else launchPrefs.bitrate,
+                            bitrateLocked = metered,
                             hdr = launchPrefs.enableHdr,
                         )
                     }
@@ -665,13 +667,15 @@ class NovaGameDetailActivity : NovaActivity() {
                             clientSettings = it
                         }
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+                        val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         apiClient.getOptimization(
                             deviceName, currentGame.name, profilePreference,
                             mode = uiState.playMode,
                             width = launchPrefs.width,
                             height = launchPrefs.height,
                             fps = launchPrefs.fps,
-                            bitrateKbps = launchPrefs.bitrate,
+                            bitrateKbps = if (metered) launchPrefs.meteredBitrate else launchPrefs.bitrate,
+                            bitrateLocked = metered,
                             hdr = launchPrefs.enableHdr,
                         )
                     }

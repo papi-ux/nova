@@ -898,6 +898,8 @@ class NovaLibraryActivity : NovaActivity() {
                     LimeLog.warning("Nova: MangoHUD launch state sync failed; continuing launch")
                 }
                 val preferences = com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity)
+                val metered = StreamSyncManager.isMeteredNetwork(this@NovaLibraryActivity)
+                val requestedBitrateKbps = if (metered) preferences.meteredBitrate else preferences.bitrate
                 val launchResolution = StreamSyncManager.resolveAutoSafeResolution(
                     preferences.width,
                     preferences.height,
@@ -908,7 +910,7 @@ class NovaLibraryActivity : NovaActivity() {
                     preflightOptimization
                 )
                 val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(
-                    preferences.bitrate,
+                    requestedBitrateKbps,
                     preflightOptimization
                 )
                 LimeLog.info(
@@ -925,10 +927,13 @@ class NovaLibraryActivity : NovaActivity() {
                         usesVirtualDisplay = launchUsesVirtualDisplay,
                         mirrorDesktop = launchMirrorsDesktop,
                         resolvedMode = launchMode,
-                        width = launchResolution.width,
-                        height = launchResolution.height,
-                        fps = launchFps,
-                        bitrateKbps = launchBitrateKbps
+                        // Paired settings describe the user's durable Nova
+                        // preferences. Preset-normalized values belong only to
+                        // the resolved launch envelope passed to Game below.
+                        width = preferences.width,
+                        height = preferences.height,
+                        fps = preferences.fps,
+                        bitrateKbps = preferences.bitrate
                     )
                 }
                 if (syncedSettings == null) {

@@ -47,7 +47,15 @@ class StreamSyncManager private constructor() {
         @JvmStatic
         fun resolveAutoSafeBitrateKbps(configuredBitrateKbps: Int, optimization: JSONObject?): Int {
             val target = resolvedField(optimization, "target_bitrate_kbps") as? Number
-            return target?.toInt()?.takeIf { it > 0 } ?: configuredBitrateKbps
+            val resolved = target?.toInt()?.takeIf { it > 0 } ?: return configuredBitrateKbps
+            // The configured value is the client-side launch ceiling (and is
+            // lower on metered networks). A deterministic preset may step it
+            // down, but a preview must never raise the actual launch above it.
+            return if (configuredBitrateKbps > 0) {
+                minOf(configuredBitrateKbps, resolved)
+            } else {
+                resolved
+            }
         }
 
         @JvmStatic
@@ -274,7 +282,7 @@ class StreamSyncManager private constructor() {
             put(json, "device", Build.DEVICE)
             put(json, "sdk_int", Build.VERSION.SDK_INT)
             put(json, "external_display", externalDisplay)
-            put(json, "metered_network", isMetered(context))
+            put(json, "metered_network", isMeteredNetwork(context))
 
             if (display != null) {
                 put(json, "display_id", display.displayId)
@@ -328,7 +336,7 @@ class StreamSyncManager private constructor() {
                 profile = profile ?: ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT)
             ).toJson()
             put(json, "sync_mode", SYNC_MODE_AUTO_SAFE)
-            put(json, "metered_network", isMetered(context))
+            put(json, "metered_network", isMeteredNetwork(context))
             put(json, "frame_pacing", framePacing)
             if (displayModeId > 0) put(json, "display_mode_id", displayModeId)
             if (renderer != null) {
@@ -436,7 +444,8 @@ class StreamSyncManager private constructor() {
             }
         }
 
-        private fun isMetered(context: Context): Boolean {
+        @JvmStatic
+        fun isMeteredNetwork(context: Context): Boolean {
             val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager?
             return manager != null && manager.isActiveNetworkMetered
         }

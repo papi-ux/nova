@@ -23,13 +23,30 @@ class AutoQualityUiStateTest {
                 encoder = encoder(fps = 118.0),
                 capture = capture()
             ),
-            fallbackTargetFps = 120.0,
-            lastRenderedFps = 117.0
+            fallbackTargetFps = 120.0
         )
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
         assertEquals("Auto Quality Stable", state.label)
         assertTrue(state.targetSummary.contains("HEVC"))
+    }
+
+    @Test
+    fun lowRenderedFpsWithoutHostCadenceEvidenceRemainsObservational() {
+        val state = AutoQualityUiState.from(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "good",
+                    primaryIssue = "none"
+                ),
+                encoder = encoder(fps = 30.0),
+                capture = capture()
+            ),
+            fallbackTargetFps = 120.0
+        )
+
+        assertEquals(AutoQualityUiState.State.STABLE, state.state)
+        assertEquals("Auto Quality Stable", state.label)
     }
 
     @Test

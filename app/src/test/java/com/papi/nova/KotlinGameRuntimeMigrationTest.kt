@@ -257,15 +257,17 @@ class KotlinGameRuntimeMigrationTest {
     }
 
     @Test
-    fun hudBitrateAdjustUsesReplacingRuntimeTask() {
+    fun hudNeverOwnsAutomaticBitrateMutation() {
         val source = readGameSource()
-        val bitrateAdjust = source.substring(
-            source.indexOf("// Wire proactive bitrate adjustment"),
-            source.indexOf("schedulePolarisLiveSessionStatusRefresh(true)", source.indexOf("// Wire proactive bitrate adjustment"))
+        val perfSample = source.substring(
+            source.indexOf("override fun onPerfSample(sample:PerfOverlaySample)"),
+            source.indexOf("override fun onUsbPermissionPromptStarting()")
         )
 
-        assertTrue(bitrateAdjust.contains("launchReplacingRuntimeIo(\"NovaBitrateAdjust\")"))
-        assertFalse(bitrateAdjust.contains("Thread({"))
+        assertTrue(perfSample.contains("doctorTelemetry.recordPerfSample(sample)"))
+        assertTrue(perfSample.contains("uploadDoctorV2Sample(sample)"))
+        assertFalse(source.contains("NovaBitrateAdjust"))
+        assertFalse(source.contains("hud.onBitrateAdjust"))
     }
 
     @Test

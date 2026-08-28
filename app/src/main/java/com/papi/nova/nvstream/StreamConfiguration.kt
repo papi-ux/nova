@@ -28,6 +28,7 @@ class StreamConfiguration private constructor() {
     private var enableUltraLowLatency = false
     private var forceFreshLaunch = false
     private var profilePreference = "auto"
+    private var resolvedProfile = false
     private var mirrorDesktop = false
     private var streamMode = ""
     private var forcePrivateAfterSteamClose = false
@@ -161,6 +162,11 @@ class StreamConfiguration private constructor() {
             return this
         }
 
+        fun setResolvedProfile(resolved: Boolean): Builder {
+            config.resolvedProfile = resolved
+            return this
+        }
+
         fun setMirrorDesktop(enable: Boolean): Builder {
             config.mirrorDesktop = enable
             return this
@@ -239,6 +245,8 @@ class StreamConfiguration private constructor() {
     fun getForceFreshLaunch(): Boolean = forceFreshLaunch
 
     fun getProfilePreference(): String = profilePreference
+
+    fun getResolvedProfile(): Boolean = resolvedProfile
 
     fun getMirrorDesktop(): Boolean = mirrorDesktop
 

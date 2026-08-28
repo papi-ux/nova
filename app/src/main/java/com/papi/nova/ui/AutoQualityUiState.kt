@@ -38,8 +38,7 @@ data class AutoQualityUiState(
         @JvmStatic
         fun from(
             status: PolarisSessionStatus?,
-            fallbackTargetFps: Double = 0.0,
-            lastRenderedFps: Double = 0.0
+            fallbackTargetFps: Double = 0.0
         ): AutoQualityUiState {
             if (status == null) {
                 return AutoQualityUiState(
@@ -102,9 +101,6 @@ data class AutoQualityUiState(
                 safeBitrateApplied ||
                 (healthSuggestsRecovery && status.health.safeDisplayMode.isNotBlank()) ||
                 status.health.recoveryProfile.isNotBlank()
-            val frameTargetMiss = targetFps > 0.0 &&
-                lastRenderedFps > 0.0 &&
-                lastRenderedFps < targetFps * 0.85
             val cpuCapture = status.capture.transport.equals("shm", ignoreCase = true) ||
                 status.capture.residency.equals("cpu", ignoreCase = true) ||
                 status.encoder.targetResidency.equals("cpu", ignoreCase = true)
@@ -311,8 +307,7 @@ data class AutoQualityUiState(
                 healthAutoAction == "lower_render_profile" ||
                 healthAutoAction == "apply_recovery" ||
                 healthAutoAction == "suggest_recovery" ||
-                hostRenderLimited ||
-                frameTargetMiss
+                hostRenderLimited
             ) {
                 val label = when {
                     hostRenderLimited -> "Host render limited"

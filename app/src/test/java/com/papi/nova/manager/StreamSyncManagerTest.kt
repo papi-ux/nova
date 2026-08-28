@@ -184,7 +184,7 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun resolveAutoSafeBitrate_honorsPairedLaunchProfileTarget() {
+    fun resolveAutoSafeBitrate_neverRaisesExplicitClientCeiling() {
         val optimization = deterministicOptimization(
             bitrateKbps = 80_000,
             fieldSource = "paired_client"
@@ -192,7 +192,17 @@ class StreamSyncManagerTest {
 
         val bitrate = StreamSyncManager.resolveAutoSafeBitrateKbps(30000, optimization)
 
-        assertEquals(80000, bitrate)
+        assertEquals(30000, bitrate)
+    }
+
+    @Test
+    fun resolveAutoSafeBitrate_preservesMeteredCeilingAgainstHigherResolvedProfile() {
+        val optimization = deterministicOptimization(
+            bitrateKbps = 40_000,
+            fieldSource = "paired_client"
+        )
+
+        assertEquals(10_000, StreamSyncManager.resolveAutoSafeBitrateKbps(10_000, optimization))
     }
 
     @Test

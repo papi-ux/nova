@@ -297,13 +297,17 @@ class NovaLaunchSourceGuardTest {
                 directLaunch.contains("startConfirmedShortcutLaunch(")
         )
         assertTrue(
-            "shortcut launch should carry the same deterministic preset fields into Game and the settings push",
+            "shortcut launch should carry deterministic fields into Game without persisting them as paired settings",
             directLaunch.contains("readyLaunchPlan.profilePreference") &&
                 directLaunch.contains("readyLaunchPlan.launchOptimizationJson") &&
-                applyPreflight.contains("width = launchResolution.width") &&
-                applyPreflight.contains("height = launchResolution.height") &&
-                applyPreflight.contains("fps = launchFps") &&
-                applyPreflight.contains("bitrateKbps = launchBitrateKbps") &&
+                applyPreflight.contains("width = preferences.width") &&
+                applyPreflight.contains("height = preferences.height") &&
+                applyPreflight.contains("fps = preferences.fps") &&
+                // The one-launch metered/normalized bitrate stays in the
+                // resolved optimization envelope. Paired settings retain the
+                // user's ordinary bitrate instead of persisting that lock.
+                applyPreflight.contains("bitrateKbps = preferences.bitrate") &&
+                applyPreflight.contains("launchOptimizationJson = composed?.toString()") &&
                 trampoline.contains("readyLaunchPlan.usesVirtualDisplay") &&
                 trampoline.contains("streamWidth = readyLaunchPlan.streamWidth") &&
                 trampoline.contains("streamHeight = readyLaunchPlan.streamHeight") &&
@@ -675,13 +679,23 @@ class NovaLaunchSourceGuardTest {
         )
 
         assertTrue(
-            "drawer launch should derive effective stream mode from preflight optimization before syncing settings",
+            "drawer launch should derive its one-launch stream envelope from deterministic preflight",
             launchGame.contains("val launchResolution = StreamSyncManager.resolveAutoSafeResolution(") &&
-                launchGame.contains("val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(") &&
-                launchGame.indexOf("val launchResolution") < launchGame.indexOf("NovaLaunchPreflight.push(")
+                launchGame.contains("val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(")
+        )
+        val pairedSettingsPush = launchGame.substringAfter("NovaLaunchPreflight.push(").substringBefore("\n                    )")
+        assertTrue(
+            "preset-normalized launch fields must not become durable paired-client settings",
+            pairedSettingsPush.contains("width = preferences.width") &&
+                pairedSettingsPush.contains("height = preferences.height") &&
+                pairedSettingsPush.contains("fps = preferences.fps") &&
+                pairedSettingsPush.contains("bitrateKbps = preferences.bitrate") &&
+                !pairedSettingsPush.contains("launchResolution") &&
+                !pairedSettingsPush.contains("launchFps") &&
+                !pairedSettingsPush.contains("launchBitrateKbps")
         )
         assertTrue(
-            "client settings and Game intent should use launchResolution and launchFps instead of saved fps only",
+            "the Game intent should still carry the one-launch resolved display envelope",
             launchGame.contains("launchResolution.width") &&
                 launchGame.contains("launchResolution.height") &&
                 launchGame.contains("launchFps") &&
@@ -765,6 +779,16 @@ class NovaLaunchSourceGuardTest {
             "Staged fix step 1: a shortcut launch rides the preflight helper and must not resurrect the old 2-value collapse",
             shortcut.contains("NovaLaunchPreflight.push") &&
                 !shortcut.contains("if (withVirtualDisplay) \"host_virtual_display\" else \"headless_stream\"")
+        )
+        val shortcutPush = shortcut.substringAfter("syncShortcutLaunchPreflightSettings(").substringBefore("\n            )")
+        assertTrue(
+            "shortcut presets must stay one-shot while paired settings retain raw Nova preferences",
+            shortcutPush.contains("width = preferences.width") &&
+                shortcutPush.contains("height = preferences.height") &&
+                shortcutPush.contains("fps = preferences.fps") &&
+                shortcutPush.contains("bitrateKbps = preferences.bitrate") &&
+                !shortcutPush.contains("launchResolution") &&
+                !shortcutPush.contains("launchFps")
         )
     }
 

@@ -1771,7 +1771,8 @@ class MediaCodecDecoderRenderer(
             val rttInfo = MoonBridge.getEstimatedRttInfo()
             // Overlay text costs resource lookups and TrafficStats kernel round trips on the
             // decode thread; skip all of it unless something is actually going to display or
-            // log it. The numeric sample below stays unconditional: it feeds adaptive quality.
+            // log it. The raw numeric sample below stays unconditional so Doctor shadow
+            // telemetry remains independent of whether any HUD is visible.
             if (perfTextWanted || prefs.enablePerfLogging) {
                 val fullLog = buildPerfText(lastTwo, fps, decoder, decodeTimeMs, rttInfo)
                 perfListener.onPerfUpdate(fullLog)

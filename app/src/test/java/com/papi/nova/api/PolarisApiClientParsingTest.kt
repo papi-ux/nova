@@ -51,7 +51,7 @@ class PolarisApiClientParsingTest {
     @Test
     fun doctorActionUndoAvailabilityRequiresLiteralBoolean() {
         fun parsed(value: String): PolarisDoctorActionResult = PolarisApiClient.parseDoctorActionResponse(
-            JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{\"available\":$value}}")
+            JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{\"available\":$value,\"action_id\":\"undo\"}}")
         )
 
         assertEquals(true, parsed("true").undoAvailable)
@@ -62,6 +62,11 @@ class PolarisApiClientParsingTest {
             PolarisApiClient.parseDoctorActionResponse(
                 JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{}}")
             ).undoAvailable
+        )
+        assertFalse(
+            PolarisApiClient.parseDoctorActionResponse(
+                JSONObject("{\"status\":\"true\",\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}")
+            ).status
         )
     }
 
@@ -441,32 +446,119 @@ class PolarisApiClientParsingTest {
 
     @Test
     fun parseSessionStatusResponse_includesPolarisDoctorDiagnosis() {
-        val json = JSONObject(
-            "{\"state\":\"streaming\",\"streaming_active\":true," +
-                "\"doctor\":{\"version\":2,\"result_id\":\"doctor-v2-needs_action-network_jitter-gpu_native\"," +
-                "\"simple_state\":\"Network issue detected\",\"primary_issue\":\"network_jitter\"," +
-                "\"confidence\":{\"level\":\"high\"}," +
-                "\"evidence\":[{\"id\":\"packet_loss\",\"value\":3.4,\"detail\":\"Packet loss is 3.4% over the last sample window.\"}," +
-                "{\"id\":\"latency\",\"value\":12.0,\"detail\":\"Latency is 12ms.\"}]," +
-                "\"recommendation\":{\"body\":\"Current evidence confirms network pressure.\",\"next_step_label\":\"Fix and verify\"}," +
-                "\"safe_recovery_action\":{\"id\":\"lower_bitrate\",\"label\":\"Fix and verify\",\"kind\":\"live_tuning\"," +
-                "\"payload_preview\":{\"target_bitrate_kbps\":16000},\"verification\":{\"delay_seconds\":8},\"undo\":{\"supported\":true}}}," +
-                "\"ai_doctor_explanation\":{\"status\":true,\"explanation\":{\"likely_cause\":\"Wi-Fi jitter is the likely bottleneck.\"," +
-                "\"evidence\":[\"3.4% packet loss\"],\"try_first\":[\"Lower bitrate\"]," +
-                "\"advanced_detail\":\"Network evidence beats encoder speculation.\",\"confidence\":\"high\",\"destructive_action_allowed\":true}}}"
-        )
+        val resultId = "doctor-v2-needs_action-network_jitter-gpu_native"
+        val json = JSONObject()
+            .put("state", "streaming")
+            .put("streaming_active", true)
+            .put(
+                "doctor",
+                JSONObject()
+                    .put("version", 2)
+                    .put("result_id", resultId)
+                    .put("primary_issue", "network_jitter")
+                    .put("summary", "Current evidence confirms network pressure.")
+                    .put("confidence", JSONObject().put("level", "high"))
+                    .put(
+                        "evidence",
+                        org.json.JSONArray()
+                            .put(
+                                JSONObject()
+                                    .put("id", "packet_loss")
+                                    .put("status", "fail")
+                                    .put("source", "media_transport")
+                                    .put("value", 3.4)
+                                    .put("detail", "Packet loss is 3.4% over the last sample window.")
+                            )
+                            .put(
+                                JSONObject()
+                                    .put("id", "latency")
+                                    .put("status", "pass")
+                                    .put("source", "stream_stats")
+                                    .put("value", 12.0)
+                                    .put("detail", "Latency is 12ms.")
+                            )
+                    )
+                    .put(
+                        "recommendation",
+                        JSONObject()
+                            .put("body", "Current evidence confirms network pressure.")
+                            .put("next_step_label", "Fix and verify")
+                    )
+                    .put(
+                        "safe_recovery_action",
+                        JSONObject()
+                            .put("id", "lower_bitrate")
+                            .put("label", "Auto Fix")
+                            .put("capability", "auto_fix")
+                            .put("kind", "live_tuning")
+                            .put("endpoint", "/api/doctor/action")
+                            .put("method", "POST")
+                            .put("destructive", false)
+                            .put("requires_confirmation", false)
+                            .put("requires_owner", true)
+                            .put("allowed_in_viewer_mode", false)
+                            .put("owner_tuning_allowed", false)
+                            .put("paired_endpoint", "")
+                            .put(
+                                "payload_preview",
+                                JSONObject()
+                                    .put("action_id", "lower_bitrate")
+                                    .put("source_result_id", resultId)
+                                    .put("target_bitrate_kbps", 16_000)
+                            )
+                            .put(
+                                "verification",
+                                JSONObject()
+                                    .put("mode", "live_telemetry")
+                                    .put("endpoint", "/api/doctor/action")
+                                    .put("delay_seconds", 8)
+                            )
+                            .put(
+                                "undo",
+                                JSONObject()
+                                    .put("supported", true)
+                                    .put("endpoint", "/api/doctor/action")
+                                    .put("paired_endpoint", "")
+                            )
+                    )
+            )
+            .put(
+                "ai_doctor_explanation",
+                JSONObject()
+                    .put("status", true)
+                    .put(
+                        "source",
+                        JSONObject()
+                            .put("kind", "openai")
+                            .put("mode", "subscription")
+                            .put("informational", true)
+                    )
+                    .put(
+                        "explanation",
+                        JSONObject()
+                            .put("likely_cause", "Wi-Fi jitter is the likely bottleneck.")
+                            .put("evidence", org.json.JSONArray().put("3.4% packet loss"))
+                            .put("try_first", org.json.JSONArray().put("Lower bitrate"))
+                            .put("advanced_detail", "Network evidence beats encoder speculation.")
+                            .put("confidence", "high")
+                            .put("destructive_action_allowed", true)
+                    )
+            )
 
         val status = PolarisApiClient.parseSessionStatusResponse(json)
 
         assertTrue(status.doctor.available)
         assertEquals("NET", status.doctor.classification)
-        assertEquals("Wi-Fi jitter is the likely bottleneck.", status.doctor.likelyCause)
-        assertEquals("3.4% packet loss", status.doctor.evidence.first())
-        assertEquals("Lower bitrate", status.doctor.tryFirst.first())
+        assertEquals("Current evidence confirms network pressure.", status.doctor.likelyCause)
+        assertEquals("Packet loss is 3.4% over the last sample window.", status.doctor.evidence.first())
+        assertEquals("Current evidence confirms network pressure.", status.doctor.tryFirst.first())
         assertEquals("high", status.doctor.confidence)
+        assertTrue(status.doctor.aiExplanation.available)
+        assertEquals("Wi-Fi jitter is the likely bottleneck.", status.doctor.aiExplanation.likelyCause)
+        assertEquals("Lower bitrate", status.doctor.aiExplanation.tryFirst.first())
         assertEquals(2, status.doctor.version)
         assertEquals("lower_bitrate", status.doctor.actionId)
-        assertEquals("Fix and verify", status.doctor.actionLabel)
+        assertEquals("Auto Fix", status.doctor.actionLabel)
         assertEquals(16000, status.doctor.targetBitrateKbps)
         assertEquals(8, status.doctor.verificationDelaySeconds)
         assertTrue(status.doctor.undoSupported)
@@ -635,7 +727,10 @@ class PolarisApiClientParsingTest {
         assertEquals("deterministic-fallback", status.doctor.explanationSourceKind)
         assertEquals("openai-subscription", status.doctor.explanationSourceMode)
         assertTrue(status.doctor.explanationInformational)
-        assertEquals("deterministic-fallback", status.doctor.confidence)
+        assertEquals("Frame pacing needs attention.", status.doctor.likelyCause)
+        assertEquals("deterministic", status.doctor.confidence)
+        assertEquals("Frame pacing is uneven.", status.doctor.aiExplanation.likelyCause)
+        assertEquals("deterministic-fallback", status.doctor.aiExplanation.confidence)
     }
 
     @Test
@@ -736,16 +831,43 @@ class PolarisApiClientParsingTest {
     @Test
     fun matchesConfirmedAction_requiresExactActionIdAndResultIdPair() {
         val confirmed = PolarisSessionStatus.DoctorStatus(
-            actionId = "disable_steam_input_xbox",
-            resultId = "doctor-v2-steam_input_conflict-xbox"
+            available = true,
+            version = 2,
+            resultId = "doctor-v2-network-a",
+            primaryIssue = "network_jitter",
+            evidenceItems = listOf(
+                PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                    id = "packet_loss",
+                    status = "fail",
+                    source = "media_transport",
+                    value = 3.4
+                )
+            ),
+            actionId = "lower_bitrate",
+            actionCapability = "auto_fix",
+            actionKind = "live_tuning",
+            actionEndpoint = "/api/doctor/action",
+            actionMethod = "POST",
+            actionPayloadId = "lower_bitrate",
+            actionSourceResultId = "doctor-v2-network-a",
+            actionContractTyped = true,
+            targetBitrateKbps = 16_000,
+            targetBitratePresent = true,
+            targetBitrateTyped = true,
+            verificationDelaySeconds = 8,
+            verificationMode = "live_telemetry",
+            verificationEndpoint = "/api/doctor/action",
+            undoSupported = true,
+            undoEndpoint = "/api/doctor/action",
+            requiresOwner = true
         )
 
         assertTrue(confirmed.matchesConfirmedAction(confirmed))
         assertFalse(
-            confirmed.copy(actionId = "lower_bitrate").matchesConfirmedAction(confirmed)
+            confirmed.copy(actionId = "restore_quality").matchesConfirmedAction(confirmed)
         )
         assertFalse(
-            confirmed.copy(resultId = "doctor-v2-steam_input_conflict-xbox-next")
+            confirmed.copy(resultId = "doctor-v2-network-next")
                 .matchesConfirmedAction(confirmed)
         )
         assertFalse(
@@ -1411,12 +1533,13 @@ class PolarisApiClientParsingTest {
             height = 1080,
             fps = 120f,
             bitrateKbps = 40000,
+            bitrateLocked = true,
             hdr = false,
         )
 
         assertEquals(
             "/optimize?device=RetroidPocket6&game=Black+Myth%3A+Wukong&preference=high_fps" +
-                "&width=1920&height=1080&fps=120.0&bitrate_kbps=40000&hdr=0",
+                "&width=1920&height=1080&fps=120.0&bitrate_kbps=40000&bitrate_locked=1&hdr=0",
             path
         )
         assertFalse(path.contains("trial="))

@@ -260,11 +260,31 @@ class NovaQuickMenuUiStateTest {
                     confidence = "high",
                     primaryIssue = "network_jitter",
                     actionId = "lower_bitrate",
-                    actionLabel = "Fix and verify",
+                    actionLabel = "Auto Fix",
+                    actionCapability = "auto_fix",
                     actionKind = "live_tuning",
+                    actionEndpoint = "/api/doctor/action",
+                    actionMethod = "POST",
+                    actionPayloadId = "lower_bitrate",
+                    actionSourceResultId = "doctor-v2-needs_action-network_jitter-gpu_native",
+                    actionContractTyped = true,
                     targetBitrateKbps = 16000,
+                    targetBitratePresent = true,
+                    targetBitrateTyped = true,
                     verificationDelaySeconds = 8,
+                    verificationMode = "live_telemetry",
+                    verificationEndpoint = "/api/doctor/action",
                     undoSupported = true,
+                    undoEndpoint = "/api/doctor/action",
+                    requiresOwner = true,
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "packet_loss",
+                            status = "fail",
+                            source = "media_transport",
+                            value = 3.4
+                        )
+                    ),
                     packetLossPct = 3.4,
                     latencyMs = 12.0
                 )
@@ -273,7 +293,7 @@ class NovaQuickMenuUiStateTest {
 
         val diagnose = state.overlayRows.first()
         assertEquals(NovaQuickMenuActionId.DIAGNOSE_STREAM, diagnose.id)
-        assertEquals("Fix and verify", diagnose.label)
+        assertEquals("Auto Fix", diagnose.label)
         assertEquals("Wi-Fi jitter is the likely bottleneck.", diagnose.caption)
         assertEquals("NET", diagnose.chip!!.label)
         assertEquals(NovaQuickMenuTone.WARNING, diagnose.chip.tone)
@@ -326,12 +346,23 @@ class NovaQuickMenuUiStateTest {
                 doctor = PolarisSessionStatus.DoctorStatus(
                     available = true,
                     version = 2,
+                    resultId = "doctor-v2-network-observation",
                     classification = "NET",
                     likelyCause = "A network warning needs more live evidence before Doctor changes quality.",
                     primaryIssue = "network_observation",
                     actionId = "recheck_network",
                     actionLabel = "Recheck network",
+                    actionCapability = "recheck",
                     actionKind = "verification",
+                    actionEndpoint = "/api/doctor/action",
+                    actionMethod = "POST",
+                    actionPayloadId = "recheck_network",
+                    actionSourceResultId = "doctor-v2-network-observation",
+                    actionContractTyped = true,
+                    verificationDelaySeconds = 3,
+                    verificationMode = "live_telemetry",
+                    verificationEndpoint = "/api/doctor/action",
+                    requiresOwner = true,
                     packetLossPct = 0.4,
                     latencyMs = 20.0
                 )
@@ -370,32 +401,64 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
-    fun cleanHistorySafeCapOffersOneClickQualityRestore() {
+    fun cleanLiveReductionOffersOneClickQualityRestoreWithinLaunchCeiling() {
         val state = quickState(
             status = status(
                 doctor = PolarisSessionStatus.DoctorStatus(
                     available = true,
                     version = 2,
-                    resultId = "doctor-v2-needs_action-quality_capped_by_history-gpu_native",
+                    resultId = "doctor-v2-needs_action-quality_reduced_live-gpu_native",
                     classification = "HOST",
-                    likelyCause = "An older recovery profile is limiting quality even though the live network is stable.",
-                    primaryIssue = "quality_capped_by_history",
+                    likelyCause = "The reversible live target is below the capability-validated launch ceiling.",
+                    primaryIssue = "quality_reduced_live",
                     actionId = "restore_quality",
-                    actionLabel = "Restore and verify",
+                    actionLabel = "Auto Fix",
+                    actionCapability = "auto_fix",
                     actionKind = "live_tuning",
-                    targetBitrateKbps = 20000,
+                    actionEndpoint = "/api/doctor/action",
+                    actionMethod = "POST",
+                    actionPayloadId = "restore_quality",
+                    actionSourceResultId = "doctor-v2-needs_action-quality_reduced_live-gpu_native",
+                    actionContractTyped = true,
+                    targetBitrateKbps = 15000,
+                    targetBitratePresent = true,
+                    targetBitrateTyped = true,
                     verificationDelaySeconds = 8,
+                    verificationMode = "graduated_live_telemetry",
+                    verificationEndpoint = "/api/doctor/action",
                     undoSupported = true,
+                    undoEndpoint = "/api/doctor/action",
+                    requiresOwner = true,
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "effective_quality_ceiling",
+                            status = "watch",
+                            source = "launch_policy",
+                            value = 15000.0
+                        ),
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "packet_loss",
+                            status = "pass",
+                            source = "media_transport",
+                            value = 0.0
+                        ),
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "latency",
+                            status = "pass",
+                            source = "stream_stats",
+                            value = 3.8
+                        )
+                    ),
                     packetLossPct = 0.0,
                     latencyMs = 3.8
                 )
             )
         )
 
-        assertEquals("Restore and verify", state.overlayRows.first().label)
+        assertEquals("Auto Fix", state.overlayRows.first().label)
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
-        assertEquals(20000, state.diagnosis.targetBitrateKbps)
+        assertEquals(15000, state.diagnosis.targetBitrateKbps)
         assertTrue(state.diagnosis.undoSupported)
     }
 
