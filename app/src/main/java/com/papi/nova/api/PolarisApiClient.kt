@@ -15,12 +15,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.ConnectionPool
 import okhttp3.Protocol
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.ByteArrayInputStream
 import java.io.IOException
@@ -39,6 +43,8 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.net.Socket
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
@@ -134,6 +140,29 @@ class PolarisApiClient @JvmOverloads constructor(
                 .callTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .readTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .build()
+
+        @JvmStatic
+        internal suspend fun awaitArtworkResponse(call: Call): Response =
+            suspendCancellableCoroutine { continuation ->
+                continuation.invokeOnCancellation { call.cancel() }
+                call.enqueue(
+                    object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            if (continuation.isActive) {
+                                continuation.resumeWithException(e)
+                            }
+                        }
+
+                        override fun onResponse(call: Call, response: Response) {
+                            if (continuation.isActive) {
+                                continuation.resume(response) { _, value, _ -> value.close() }
+                            } else {
+                                response.close()
+                            }
+                        }
+                    },
+                )
+            }
 
         @JvmStatic
         internal fun buildNonRetryableHttpClient(base: OkHttpClient): OkHttpClient =
@@ -2013,7 +2042,7 @@ class PolarisApiClient @JvmOverloads constructor(
         repeat(3) { attempt ->
             try {
                 val request = Request.Builder().url(url).build()
-                executeArtwork(request).use { response ->
+                awaitArtworkResponse(artworkClient.newCall(request)).use { response ->
                     if (!response.isSuccessful) {
                         LimeLog.warning("Nova: artwork request failed [$requestClass] code=${response.code}")
                         return null
