@@ -1185,25 +1185,39 @@ class NovaGameDetailActivity : NovaActivity() {
                     },
                     onPinShortcut = {
                         val hostUuid = serverUuid
-                        val messageRes = if (hostUuid.isNullOrEmpty()) {
-                            R.string.nova_library_pin_shortcut_failed
+                        if (hostUuid.isNullOrEmpty()) {
+                            Toast.makeText(
+                                this@NovaGameDetailActivity,
+                                R.string.nova_library_pin_shortcut_failed,
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         } else {
-                            val pinned = shortcutHelper.createPinnedGameShortcut(
-                                hostUuid = hostUuid,
-                                hostName = serverName,
-                                appUuid = currentGame.id,
-                                appId = currentGame.appId,
-                                appName = currentGame.name,
-                                hdrSupported = currentGame.hdrSupported,
-                                iconBits = null,
-                            )
-                            if (pinned) {
-                                R.string.nova_library_pin_shortcut_success
-                            } else {
-                                R.string.nova_library_pin_shortcut_unsupported
+                            val pinnedGame = currentGame
+                            lifecycleScope.launch {
+                                val iconBits = withContext(Dispatchers.IO) {
+                                    apiClient.loadShortcutIcon(pinnedGame)
+                                }
+                                val pinned = shortcutHelper.createPinnedGameShortcut(
+                                    hostUuid = hostUuid,
+                                    hostName = serverName,
+                                    appUuid = pinnedGame.id,
+                                    appId = pinnedGame.appId,
+                                    appName = pinnedGame.name,
+                                    hdrSupported = pinnedGame.hdrSupported,
+                                    iconBits = iconBits,
+                                )
+                                val messageRes = if (pinned) {
+                                    R.string.nova_library_pin_shortcut_success
+                                } else {
+                                    R.string.nova_library_pin_shortcut_unsupported
+                                }
+                                Toast.makeText(
+                                    this@NovaGameDetailActivity,
+                                    messageRes,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             }
                         }
-                        Toast.makeText(this@NovaGameDetailActivity, messageRes, Toast.LENGTH_SHORT).show()
                     },
                     artworkState = artworkState,
                     onRefreshArtwork = {
