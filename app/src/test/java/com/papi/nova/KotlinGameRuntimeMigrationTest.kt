@@ -265,7 +265,12 @@ class KotlinGameRuntimeMigrationTest {
         )
 
         assertTrue(perfSample.contains("doctorTelemetry.recordPerfSample(sample)"))
-        assertTrue(perfSample.contains("uploadDoctorV2Sample(sample)"))
+        assertTrue(perfSample.contains("uploadDoctorSample(sample)"))
+        assertTrue(
+            "raw Doctor telemetry must be uploaded before the optional visible HUD branch",
+            perfSample.indexOf("uploadDoctorSample(sample)") in
+                0 until perfSample.indexOf("if (novaHud != null && novaHud!!.isShowing)")
+        )
         assertFalse(source.contains("NovaBitrateAdjust"))
         assertFalse(source.contains("hud.onBitrateAdjust"))
     }

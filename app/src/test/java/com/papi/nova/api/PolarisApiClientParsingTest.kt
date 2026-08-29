@@ -1,6 +1,7 @@
 package com.papi.nova.api
 
 import com.papi.nova.shared.polaris.model.PolarisGame
+import com.papi.nova.binding.video.PerfOverlaySample
 import java.util.concurrent.TimeUnit
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
@@ -78,6 +79,50 @@ class PolarisApiClientParsingTest {
             appSessionId = ""
         )
         assertFalse(legacy.has("app_session_id"))
+    }
+
+    @Test
+    fun liveMediaTelemetryCarriesRawCountersAndExactHostScopeOnly() {
+        val body = PolarisApiClient.buildLiveMediaTelemetryBody(
+            sample = PerfOverlaySample(
+                fps = 119.0,
+                incomingFps = 118.5,
+                renderedFps = 118.0,
+                width = 1920,
+                height = 1080,
+                codec = "c2.qti.hevc.decoder",
+                rttMs = 77,
+                rttVarianceMs = 4,
+                decodeTimeMs = 3.5,
+                packetLossPct = 42.0,
+                monotonicTimestampMs = 12_345L,
+                framesExpected = 1_000L,
+                framesReceived = 990L,
+                framesRendered = 988L,
+                framesLost = 10L,
+                sessionGeneration = 3L
+            ),
+            appSessionId = "app-session-41",
+            sessionGeneration = 41L,
+            targetFps = 120.0,
+            refreshRateHz = 120.0,
+            bitrateKbps = 20_000,
+            topology = "gamescope_stream",
+            hdr = false
+        )
+
+        assertEquals("app-session-41", body.getString("app_session_id"))
+        assertEquals(41L, body.getLong("session_generation"))
+        val sample = body.getJSONObject("sample")
+        assertEquals(12_345L, sample.getLong("monotonic_timestamp_ms"))
+        assertEquals(1_000L, sample.getLong("frames_expected"))
+        assertEquals(990L, sample.getLong("frames_received"))
+        assertEquals(10L, sample.getLong("frames_lost"))
+        assertEquals(3L, sample.getLong("decoder_generation"))
+        assertFalse(sample.has("packet_loss_pct"))
+        assertFalse(sample.has("rtt_ms"))
+        assertFalse(sample.has("settings"))
+        assertFalse(sample.has("actions"))
     }
 
     @Test
@@ -491,7 +536,8 @@ class PolarisApiClientParsingTest {
             "{\"server\":\"polaris\",\"version\":\"1.0.0\"," +
                 "\"features\":{\"ai_optimizer\":true,\"ai_optimizer_control\":true,\"cursor_visibility_control\":true," +
                 "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true," +
-                "\"resolved_profile_provenance_v1\":true,\"expected_topology_assertion_v1\":true}," +
+                "\"resolved_profile_provenance_v1\":true,\"expected_topology_assertion_v1\":true," +
+                "\"live_media_telemetry_v1\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"codecs\":[\"hevc\"]}}"
         )
 
@@ -507,7 +553,25 @@ class PolarisApiClientParsingTest {
         assertTrue(capabilities.features.optimizerSync)
         assertTrue(capabilities.features.resolvedProfileProvenance)
         assertTrue(capabilities.features.expectedTopologyAssertion)
+        assertTrue(capabilities.features.liveMediaTelemetry)
         assertTrue(PolarisApiClient.supportsDeterministicLaunchContract(capabilities))
+    }
+
+    @Test
+    fun liveMediaTelemetryCapabilityRequiresLiteralBoolean() {
+        val enabled = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject("{\"server\":\"polaris\",\"features\":{\"live_media_telemetry_v1\":true}}")
+        )
+        val coerced = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject("{\"server\":\"polaris\",\"features\":{\"live_media_telemetry_v1\":\"true\"}}")
+        )
+        val missing = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject("{\"server\":\"polaris\",\"features\":{}}")
+        )
+
+        assertTrue(enabled.features.liveMediaTelemetry)
+        assertFalse(coerced.features.liveMediaTelemetry)
+        assertFalse(missing.features.liveMediaTelemetry)
     }
 
     @Test

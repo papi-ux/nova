@@ -976,7 +976,7 @@ class NovaHudUiStateTest {
         assertFalse(hudSource.contains("setBitrate("))
         assertFalse(hudSource.contains("currentBitrateKbps * 0.75"))
         assertFalse(gameSource.contains("hud.onBitrateAdjust"))
-        assertTrue(gameSource.contains("uploadDoctorV2Sample(sample)"))
+        assertTrue(gameSource.contains("uploadDoctorSample(sample)"))
     }
 
     @Test

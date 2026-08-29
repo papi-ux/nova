@@ -955,6 +955,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     expectedTopologyAssertion = strictBoolean(features, "expected_topology_assertion_v1"),
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
                     cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
+                    liveMediaTelemetry = strictBoolean(features, "live_media_telemetry_v1"),
                     doctorV2Shadow = features?.optBoolean("doctor_v2_shadow_v1") ?: false,
                     doctorV2ShadowEnabled = features?.optBoolean("doctor_v2_shadow_enabled") ?: false,
                     doctorTrials = features?.optBoolean("doctor_trials_v1") ?: false,
@@ -1357,6 +1358,41 @@ class PolarisApiClient @JvmOverloads constructor(
             if (runId.isNotBlank()) put("run_id", runId)
             if (requestId.isNotBlank()) put("request_id", requestId)
             if (confirmed) put("confirmed", true)
+        }
+
+        @JvmStatic
+        internal fun buildLiveMediaTelemetryBody(
+            sample: PerfOverlaySample,
+            appSessionId: String,
+            sessionGeneration: Long,
+            targetFps: Double,
+            refreshRateHz: Double,
+            bitrateKbps: Int,
+            topology: String,
+            hdr: Boolean
+        ): JSONObject = JSONObject().apply {
+            put("app_session_id", appSessionId)
+            put("session_generation", sessionGeneration)
+            put("sample", JSONObject().apply {
+                put("monotonic_timestamp_ms", sample.monotonicTimestampMs)
+                put("decoder_generation", sample.sessionGeneration)
+                put("frames_expected", sample.framesExpected)
+                put("frames_received", sample.framesReceived)
+                put("frames_rendered", sample.framesRendered)
+                put("frames_lost", sample.framesLost)
+                put("received_fps", sample.incomingFps)
+                put("rendered_fps", sample.renderedFps)
+                put("target_fps", targetFps)
+                put("refresh_rate_hz", refreshRateHz)
+                put("decode_latency_ms", sample.decodeTimeMs)
+                sample.hostProcessingLatencyMs?.let { put("host_processing_latency_ms", it) }
+                put("width", sample.width)
+                put("height", sample.height)
+                put("codec", sample.codec)
+                put("bitrate_kbps", bitrateKbps)
+                put("topology", topology)
+                put("hdr", hdr)
+            })
         }
 
         private fun parseRecoverySafeProfile(json: JSONObject?): PolarisSessionStatus.RecoverySafeProfile =
@@ -2829,6 +2865,55 @@ class PolarisApiClient @JvmOverloads constructor(
         } catch (_: Exception) {
             // Continuous shadow sampling is best-effort. The caller records a
             // single failure without turning a transient outage into log spam.
+            false
+        }
+    }
+
+    /**
+     * Send raw cumulative media counters for host-derived live Doctor evidence.
+     * The exact host app/session identity is mandatory and the request is never
+     * retried, so a delayed sample cannot cross a stream generation.
+     */
+    fun sendLiveMediaTelemetry(
+        sample: PerfOverlaySample,
+        appSessionId: String,
+        sessionGeneration: Long,
+        targetFps: Double,
+        refreshRateHz: Double,
+        bitrateKbps: Int,
+        topology: String,
+        hdr: Boolean
+    ): Boolean {
+        if (appSessionId.isBlank() || sessionGeneration <= 0L ||
+            sample.monotonicTimestampMs <= 0L || sample.framesExpected < 0L ||
+            sample.framesReceived < 0L || sample.framesLost < 0L
+        ) {
+            return false
+        }
+        return try {
+            val body = buildLiveMediaTelemetryBody(
+                sample = sample,
+                appSessionId = appSessionId,
+                sessionGeneration = sessionGeneration,
+                targetFps = targetFps,
+                refreshRateHz = refreshRateHz,
+                bitrateKbps = bitrateKbps,
+                topology = topology,
+                hdr = hdr
+            )
+            val request = Request.Builder()
+                .url("$baseUrl/session/telemetry")
+                .post(okhttp3.RequestBody.create(
+                    "application/json".toMediaTypeOrNull(),
+                    body.toString()
+                ))
+                .build()
+            executeNonRetryable(request).use { response ->
+                if (response.code != 200) return false
+                val json = JSONObject(response.body?.string() ?: return false)
+                json.opt("status") is Boolean && json.getBoolean("status")
+            }
+        } catch (_: Exception) {
             false
         }
     }

@@ -179,8 +179,8 @@ private var configuredDisplayRefreshRateHz:Float = 0f
 private var configuredStreamBitrateKbps:Int = 0
 private var configuredStreamHdr:Boolean = false
 @Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
-private val doctorV2UploadInFlight:AtomicBoolean = AtomicBoolean(false)
-private val doctorV2UploadFailureLogged:AtomicBoolean = AtomicBoolean(false)
+private val doctorTelemetryUploadInFlight:AtomicBoolean = AtomicBoolean(false)
+private val doctorTelemetryUploadFailureLogged:AtomicBoolean = AtomicBoolean(false)
 private var preferStableRefreshMultipleForAutoSafe:Boolean = false
 private var audioHapticEngine:com.papi.nova.ui.AudioHapticEngine? = null
 private var gyroAimController:com.papi.nova.ui.GyroAimController? = null
@@ -1576,7 +1576,7 @@ configuredStreamFrameRateFps = chosenFrameRate
 configuredHudTargetFps = launchRefreshRate
 configuredStreamHdr = willStreamHdr
 doctorTelemetry.reset()
-doctorV2UploadFailureLogged.set(false)
+doctorTelemetryUploadFailureLogged.set(false)
 doctorTelemetry.setTargetFps(launchRefreshRate.toDouble())
 doctorTelemetry.recordBitrate(configuredStreamBitrateKbps)
 lastPolarisDeviceCapabilities = com.papi.nova.manager.StreamSyncManager.buildDeviceCapabilities(
@@ -5913,15 +5913,23 @@ else if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)
 hideSystemUi(2000)
 }
 }
-private fun uploadDoctorV2Sample(sample:PerfOverlaySample) {
-if (!connected ||
-!novaDoctorV2ShadowEnabled() ||
-!doctorV2UploadInFlight.compareAndSet(false, true))
+private fun uploadDoctorSample(sample:PerfOverlaySample) {
+if (!connected || !doctorTelemetryUploadInFlight.compareAndSet(false, true))
 {
 return
 }
 val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: run {
-doctorV2UploadInFlight.set(false)
+doctorTelemetryUploadInFlight.set(false)
+return
+}
+val liveStatus = lastPolarisSessionStatus?.takeIf { status ->
+novaHasLiveMediaTelemetry() && status.authorityContractValid &&
+status.isStreaming && status.ownedByClient && status.clientRole == "owner" &&
+status.appSessionId.isNotBlank() && status.sessionGeneration > 0L
+}
+if (liveStatus == null && !novaDoctorV2ShadowEnabled())
+{
+doctorTelemetryUploadInFlight.set(false)
 return
 }
 val effectiveTopology:String = lastPolarisSessionStatus?.displayMode?.selection?.takeIf { it.isNotBlank() }
@@ -5930,10 +5938,20 @@ val sampleTargetFps:Double = configuredHudTargetFps.toDouble()
 val sampleRefreshRateHz:Double = configuredDisplayRefreshRateHz.toDouble()
 val sampleBitrateKbps:Int = configuredStreamBitrateKbps
 val sampleHdr:Boolean = configuredStreamHdr
-launchRuntimeIo("NovaDoctorV2Sample") {
+launchRuntimeIo("NovaDoctorTelemetry") {
 try
 {
-val accepted:Boolean = client.sendDoctorV2Sample(
+val accepted:Boolean = if (liveStatus != null) client.sendLiveMediaTelemetry(
+sample = sample,
+appSessionId = liveStatus.appSessionId,
+sessionGeneration = liveStatus.sessionGeneration,
+targetFps = sampleTargetFps,
+refreshRateHz = sampleRefreshRateHz,
+bitrateKbps = sampleBitrateKbps,
+topology = effectiveTopology,
+hdr = sampleHdr
+)
+else client.sendDoctorV2Sample(
 sample = sample,
 targetFps = sampleTargetFps,
 refreshRateHz = sampleRefreshRateHz,
@@ -5941,14 +5959,14 @@ bitrateKbps = sampleBitrateKbps,
 topology = effectiveTopology,
 hdr = sampleHdr
 )
-if (!accepted && doctorV2UploadFailureLogged.compareAndSet(false, true))
+if (!accepted && doctorTelemetryUploadFailureLogged.compareAndSet(false, true))
 {
-com.papi.nova.LimeLog.warning("Nova: Doctor v2 shadow sample was not accepted; continuing locally")
+com.papi.nova.LimeLog.warning("Nova: Live Doctor telemetry was not accepted; continuing locally")
 }
 }
 finally
 {
-doctorV2UploadInFlight.set(false)
+doctorTelemetryUploadInFlight.set(false)
 }
 }
 }
@@ -5982,7 +6000,7 @@ runOnUiThread(object : Runnable {
 override fun run() {
 lastCompanionPerfSample = sample
 doctorTelemetry.recordPerfSample(sample)
-uploadDoctorV2Sample(sample)
+uploadDoctorSample(sample)
                 if (novaHud != null && novaHud!!.isShowing)
 {
 novaHud!!.updateFromPerfSample(sample)
@@ -6301,6 +6319,9 @@ currentNovaCapabilities()?.features?.lockScreenControl == true
 
 private fun novaHasClientSettings():Boolean =
 currentNovaCapabilities()?.features?.clientSettings == true
+
+private fun novaHasLiveMediaTelemetry():Boolean =
+currentNovaCapabilities()?.features?.liveMediaTelemetry == true
 
 private fun novaDoctorV2ShadowEnabled():Boolean =
 currentNovaCapabilities()?.features?.doctorV2ShadowEnabled == true
