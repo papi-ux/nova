@@ -87,9 +87,15 @@ class StreamSyncManager private constructor() {
         @JvmStatic
         fun resolveAutoSafeTargetFps(configuredFps: Float, optimization: JSONObject?): Float {
             if (configuredFps <= 0f) return configuredFps
-            val resolved = (resolvedField(optimization, "target_fps") as? Number)?.toFloat() ?: 0f
+            val resolved = resolvedTargetFpsValue(optimization) ?: 0f
             return resolved.takeIf { it > 0f && it.isFinite() } ?: configuredFps
         }
+
+        @JvmStatic
+        fun resolvedTargetFpsValue(optimization: JSONObject?): Float? =
+            (resolvedField(optimization, "target_fps") as? Number)
+                ?.toFloat()
+                ?.takeIf { it > 0f && it.isFinite() }
 
         @JvmStatic
         fun resolveAutoSafeHdr(configuredHdr: Boolean, optimization: JSONObject?): Boolean {
@@ -108,6 +114,14 @@ class StreamSyncManager private constructor() {
                     ?.optJSONObject("fields")
                     ?.optJSONObject(name)
             )?.opt("locked") as? Boolean
+
+        @JvmStatic
+        fun resolvedFieldIsNormalized(optimization: JSONObject?, name: String): Boolean? =
+            validResolvedField(
+                resolvedProfile(optimization)
+                    ?.optJSONObject("fields")
+                    ?.optJSONObject(name)
+            )?.opt("normalized") as? Boolean
 
         @JvmStatic
         fun resolveDisplayCompatibleAutoSafeTargetFps(

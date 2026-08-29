@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisSessionStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,6 +29,9 @@ class AutoQualityUiStateTest {
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
         assertEquals("Auto Quality Stable", state.label)
+        assertEquals("Stream target is holding steady", state.detail)
+        assertFalse(state.detail.contains("Network", ignoreCase = true))
+        assertFalse(state.detail.contains("frame pacing", ignoreCase = true))
         assertTrue(state.targetSummary.contains("HEVC"))
     }
 
@@ -307,6 +311,13 @@ class AutoQualityUiStateTest {
                     version = 2,
                     resultId = "doctor-current-none",
                     primaryIssue = "none"
+                ),
+                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
+                    enabled = true,
+                    state = "blocked",
+                    blockedReason = "network",
+                    relaunchRequired = true,
+                    summary = "Holding quality while network pressure clears."
                 )
             ),
             fallbackTargetFps = 120.0
@@ -314,6 +325,9 @@ class AutoQualityUiStateTest {
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
         assertEquals("Auto Quality Stable", state.label)
+        assertEquals("Stream target is holding steady", state.detail)
+        assertFalse(state.detail.contains("Network", ignoreCase = true))
+        assertFalse(state.detail.contains("frame pacing", ignoreCase = true))
     }
 
     private fun status(

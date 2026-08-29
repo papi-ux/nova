@@ -610,6 +610,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         apiClient.getOptimization(
                             deviceName, currentGame.name, preference,
                             mode = uiState.playMode,
+                            topologyLocked = true,
                             width = launchPrefs.width,
                             height = launchPrefs.height,
                             fps = launchPrefs.fps,
@@ -675,6 +676,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         apiClient.getOptimization(
                             deviceName, currentGame.name, profilePreference,
                             mode = uiState.playMode,
+                            topologyLocked = true,
                             width = launchPrefs.width,
                             height = launchPrefs.height,
                             fps = launchPrefs.fps,

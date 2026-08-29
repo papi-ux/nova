@@ -74,6 +74,9 @@ data class AutoQualityUiState(
                         adaptiveTarget < streamPolicy.adaptiveBaseBitrateKbps
                     )
             val authoritativeDoctor = status.hasAuthoritativeDoctorResult
+            val legacyHealthSummary = status.health.summary.takeIf {
+                !authoritativeDoctor && it.isNotBlank()
+            }
             val healthGrade = if (authoritativeDoctor) "stable" else status.health.grade.lowercase()
             val healthAutoAction = if (authoritativeDoctor) "" else status.health.autoAction.lowercase()
             val healthSuggestsRecovery = status.hasHealthConcerns ||
@@ -94,7 +97,7 @@ data class AutoQualityUiState(
                 status.health.safeTargetFps < targetFps
             val hostRenderRecoveryQueued = hostRenderLimited &&
                 (
-                    autoPolicy.isRecoveryQueued ||
+                    (!authoritativeDoctor && autoPolicy.isRecoveryQueued) ||
                     (!authoritativeDoctor && status.health.relaunchRecommended) ||
                         safeFpsApplied
                     )
@@ -147,7 +150,7 @@ data class AutoQualityUiState(
                     label = "Sync Attention",
                     compactLabel = "MAN",
                     detail = status.syncStatus.message.takeIf { it.isNotBlank() }
-                        ?: status.health.summary.takeIf { it.isNotBlank() }
+                        ?: legacyHealthSummary
                         ?: "Nova and Polaris need a settings check",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
@@ -162,8 +165,8 @@ data class AutoQualityUiState(
                     ?: autoPolicy.suggestedTargetFps
                 val detail = when {
                     safeTarget > 0.0 -> "Observed host pacing pressure near ${safeTarget.roundToInt()} FPS; launch settings are unchanged"
-                    autoPolicy.summary.isNotBlank() -> autoPolicy.summary
-                    status.health.summary.isNotBlank() -> status.health.summary
+                    !authoritativeDoctor && autoPolicy.summary.isNotBlank() -> autoPolicy.summary
+                    legacyHealthSummary != null -> legacyHealthSummary
                     else -> "Host render evidence needs a read-only pacing recheck"
                 }
                 return AutoQualityUiState(
@@ -179,7 +182,7 @@ data class AutoQualityUiState(
                 )
             }
 
-            if (autoPolicy.isBlocked) {
+            if (!authoritativeDoctor && autoPolicy.isBlocked) {
                 val hostBlocked = autoPolicy.normalizedBlockedReason == "host_render_limited" ||
                     hostRenderLimited
                 val label = when {
@@ -200,7 +203,7 @@ data class AutoQualityUiState(
                         else -> "HOLD"
                     },
                     detail = autoPolicy.summary.takeIf { it.isNotBlank() }
-                        ?: status.health.summary.takeIf { it.isNotBlank() }
+                        ?: legacyHealthSummary
                         ?: "Holding quality until the stream is stable",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
@@ -215,7 +218,9 @@ data class AutoQualityUiState(
                     state = State.BLOCKED,
                     label = "Host Render Limited",
                     compactLabel = "HOST",
-                    detail = status.health.summary.takeIf { it.isNotBlank() }
+                    detail = status.doctor.likelyCause.takeIf {
+                        authoritativeDoctor && it.isNotBlank()
+                    } ?: legacyHealthSummary
                         ?: "Holding quality until the host render path reaches the stream FPS target",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
@@ -236,7 +241,7 @@ data class AutoQualityUiState(
                     state = State.NEEDS_ATTENTION,
                     label = label,
                     compactLabel = "ATTN",
-                    detail = status.health.summary.takeIf { it.isNotBlank() }
+                    detail = legacyHealthSummary
                         ?: status.syncStatus.message.takeIf { it.isNotBlank() }
                         ?: "Auto Quality needs a stream setting check",
                     targetSummary = streamPolicy.targetSummary,
@@ -263,7 +268,7 @@ data class AutoQualityUiState(
                 )
             }
 
-            if (autoPolicy.isUpgradeAvailable) {
+            if (!authoritativeDoctor && autoPolicy.isUpgradeAvailable) {
                 return AutoQualityUiState(
                     state = State.UPGRADE_AVAILABLE,
                     label = "Higher Quality Ready",
@@ -321,7 +326,7 @@ data class AutoQualityUiState(
                 val detail = (if (authoritativeDoctor) {
                     status.doctor.likelyCause
                 } else {
-                    status.health.summary
+                    legacyHealthSummary.orEmpty()
                 }).takeIf {
                     it.isNotBlank() && !it.trim().trimEnd('.', '!').equals("Stable", ignoreCase = true)
                 }
@@ -379,8 +384,13 @@ data class AutoQualityUiState(
                 state = State.STABLE,
                 label = if (autoPolicy.isAtQualityCap) "Auto Quality at cap" else "Auto Quality Stable",
                 compactLabel = "OK",
-                detail = autoPolicy.summary.takeIf { it.isNotBlank() }
-                    ?: status.health.summary.takeIf { it.isNotBlank() }
+                detail = autoPolicy.summary.takeIf { !authoritativeDoctor && it.isNotBlank() }
+                    ?: status.doctor.likelyCause.takeIf {
+                        authoritativeDoctor &&
+                            it.isNotBlank() &&
+                            !it.equals("No confirmed issue", ignoreCase = true)
+                    }
+                    ?: legacyHealthSummary
                     ?: "Stream target is holding steady",
                 targetSummary = streamPolicy.targetSummary,
                 tone = Tone.STABLE,

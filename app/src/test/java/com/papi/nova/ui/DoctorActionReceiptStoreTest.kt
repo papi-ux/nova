@@ -592,6 +592,20 @@ class DoctorActionReceiptStoreTest {
                 result = PolarisDoctorActionResult(status = true, state = "watching", runId = "doctor-run-2")
             )
         )
+        assertFalse(
+            DoctorActionReceiptStore.responseMatches(
+                current = watchingReceipt(),
+                activeScopeId = scopeA,
+                activeGeneration = 9L,
+                request = request,
+                result = PolarisDoctorActionResult(
+                    status = true,
+                    state = "watching",
+                    runId = "doctor-run-2",
+                    changedContractValid = false
+                )
+            )
+        )
     }
 
     @Test

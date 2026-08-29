@@ -209,6 +209,8 @@ data class NovaQuickMenuUiState(
                 )
                 hdrDowngradeSummary != null -> hdrDowngradeSummary
                 status.hasHealthConcerns -> status.healthToneLabel
+                status.hasAuthoritativeDoctorResult ->
+                    context.getString(R.string.nova_quick_menu_health_steady)
                 status.health.summary.isNotBlank() -> status.health.summary
                 else -> context.getString(R.string.nova_quick_menu_health_steady)
             }
@@ -582,7 +584,8 @@ data class NovaQuickMenuUiState(
             val actionEnvelopeExecutable = doctor?.canExecuteAction == true
             val readOnlyRecheck = actionId in setOf("recheck_network", "recheck_pacing")
             val actionExecutable = actionEnvelopeExecutable && if (readOnlyRecheck) {
-                status?.ownedByClient == true && !status.isViewer
+                status?.authorityContractValid == true &&
+                    status.ownedByClient && !status.isViewer
             } else {
                 status?.canAdjustHostTuning == true
             }

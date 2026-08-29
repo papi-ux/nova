@@ -119,6 +119,19 @@ class StreamSyncManagerTest {
     }
 
     @Test
+    fun resolvedFieldNormalizationComesOnlyFromValidatedDeterministicProvenance() {
+        val optimization = deterministicOptimization()
+        val hdr = optimization.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("hdr")
+        hdr.put("normalized", true)
+
+        assertEquals(true, StreamSyncManager.resolvedFieldIsNormalized(optimization, "hdr"))
+        hdr.put("normalized", "true")
+        assertEquals(null, StreamSyncManager.resolvedFieldIsNormalized(optimization, "hdr"))
+    }
+
+    @Test
     fun resolveProfileProvenance_marksManualOverride() {
         val optimization = JSONObject("{\"source\":\"ai_cached\",\"recommendation_version\":2}")
 
@@ -447,6 +460,7 @@ class StreamSyncManagerTest {
         val targetFps = StreamSyncManager.resolveAutoSafeTargetFps(60f, optimization)
 
         assertEquals(120f, targetFps, 0.01f)
+        assertEquals(120f, StreamSyncManager.resolvedTargetFpsValue(optimization) ?: 0f, 0.01f)
     }
 
     @Test

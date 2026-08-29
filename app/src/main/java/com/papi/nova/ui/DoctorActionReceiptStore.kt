@@ -50,7 +50,8 @@ data class DoctorActionRequestIdentity(
     val runId: String,
     val generation: Long,
     val appSessionId: String = "",
-    val actionId: String = ""
+    val actionId: String = "",
+    val requestId: String = ""
 )
 
 internal class DoctorMenuRefreshRegistry {
@@ -340,7 +341,7 @@ object DoctorActionReceiptStore {
         val verificationActionId = when {
             terminal -> ""
             result.verificationActionId.isNotBlank() -> result.verificationActionId
-            responseState == "watching" -> sameRun?.verificationActionId.orEmpty()
+            responseState in setOf("applying", "watching") -> sameRun?.verificationActionId.orEmpty()
             else -> ""
         }
         val verificationAttemptCount = if (sameRun?.verificationPending == true) {
@@ -487,7 +488,9 @@ object DoctorActionReceiptStore {
         request: DoctorActionRequestIdentity,
         result: PolarisDoctorActionResult
     ): Boolean {
-        if (!result.status || !responseIdentityMatches(current, activeScopeId, activeGeneration, request, result)) {
+        if (!result.status || !result.changedContractValid ||
+            !responseIdentityMatches(current, activeScopeId, activeGeneration, request, result)
+        ) {
             return false
         }
         return true
@@ -501,6 +504,7 @@ object DoctorActionReceiptStore {
         result: PolarisDoctorActionResult
     ): Boolean {
         if (!requestIsCurrent(current, activeScopeId, activeGeneration, request)) return false
+        if (request.requestId.isNotBlank() && result.requestId != request.requestId) return false
         val responseRunId = result.runId.trim()
         return if (request.runId.isBlank()) {
             responseRunId.isNotBlank()
@@ -521,7 +525,7 @@ object DoctorActionReceiptStore {
         } else {
             setOf("stable", "confirmed_pressure")
         }
-        return result.status &&
+        return result.status && result.changedContractValid &&
             !result.changed &&
             result.runId.isBlank() &&
             result.state in expectedStates &&

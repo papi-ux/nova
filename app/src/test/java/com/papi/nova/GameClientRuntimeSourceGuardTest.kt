@@ -43,8 +43,11 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("trustedPreflight = preflight") &&
                 game.contains("val optimizationResult = trustedPreflight ?: novaApiClient!!.getOptimization(") &&
                 game.contains("Rejecting malformed preflight optimization payload") &&
-                game.contains("mode = streamMode") &&
-                game.contains("launchOptimizationPolicyBlocked = true") &&
+                game.contains("mode = requestedLaunchTopology()") &&
+                game.contains("topologyLocked = displayModeExplicit") &&
+                game.contains("else if (vDisplay) \"host_virtual_display\"") &&
+                game.contains("private data class LaunchOptimizationDecision(") &&
+                game.contains("if (launchDecision.policyBlocked)") &&
                 game.contains("identifyLaunchHost()") &&
                 game.contains("PolarisLaunchHostKind.CURRENT_POLARIS") &&
                 game.contains("PolarisLaunchHostKind.NON_POLARIS") &&
@@ -60,6 +63,42 @@ class GameClientRuntimeSourceGuardTest {
                 launchSetup.contains("NovaLaunchPolicyGateStore.consume(") &&
                 launchSetup.contains("NovaLaunchPolicyGateStore.issue(") &&
                 !game.contains("thread.join(12000)")
+        )
+        assertTrue(
+            "singleTask launch decisions must bind the certificate and every local setting that can rewrite the resolved envelope",
+            game.contains("serverCertificatePolicyFingerprint()") &&
+                game.contains("displayModeExplicit.toString()") &&
+                game.contains("forcePrivateAfterSteamClose.toString()") &&
+                game.contains("prefConfig!!.resolutionScaleFactor.toString()") &&
+                game.contains("prefConfig!!.framePacing.toString()") &&
+                game.contains("prefConfig!!.framePacingWarpFactor.toString()") &&
+                game.contains("launchPolicyGateGeneration.incrementAndGet()") &&
+                game.contains("this@Game.getIntent() === gateIntent") &&
+                game.contains("this@Game.getIntent() !== gateIntent")
+        )
+        assertTrue(
+            "an obsolete gate worker must return an immutable decision and every Nova-authored launch override must be re-resolved by Polaris",
+            game.contains("requestedProfilePreference:String") &&
+                game.contains("val containsNovaLaunchOverride =") &&
+                game.contains("NovaLaunchStreamOverride.NORMALIZATION_REASON") &&
+                game.contains(") && !containsNovaLaunchOverride)") &&
+                game.contains("queryDisplayLocked = containsNovaLaunchOverride") &&
+                game.contains("return LaunchOptimizationDecision(optimizationResult, false, preference, true)")
+        )
+        assertTrue(
+            "fresh and preflight resolved profiles must pass the same HDR, client-FPS, and metered-lock envelope",
+            game.contains("private fun resolvedOptimizationHonorsLaunchEnvelope(") &&
+                game.countOccurrences("resolvedOptimizationHonorsLaunchEnvelope(") >= 3 &&
+                game.contains("resolvedFps <= clientMaximumFps + 0.5f") &&
+                game.contains("resolvedBitrate in 1..bitrateCeilingKbps") &&
+                game.contains("val displayLockHonored = !displayLocked") &&
+                game.contains("val fpsLockHonored = !(displayLocked || fpsLocked)")
+        )
+        assertTrue(
+            "a trusted deterministic FPS must be used exactly by both /launch and the stream connection",
+            game.contains("chosenFrameRate = autoSafeTargetFps") &&
+                game.contains("if (!launchResolvedProfileTrusted &&\nprefConfig!!.framePacing ==") &&
+                game.contains("if (!launchResolvedProfileTrusted && prefConfig!!.framePacingWarpFactor > 0)")
         )
         assertTrue(
             "connection recovery must use the same lifecycle-bound capability scope as Doctor sampling",
@@ -111,4 +150,7 @@ class GameClientRuntimeSourceGuardTest {
         require(end >= 0) { "Missing end marker: $endMarker" }
         return substring(start, end)
     }
+
+    private fun String.countOccurrences(needle: String): Int =
+        windowed(needle.length).count { it == needle }
 }

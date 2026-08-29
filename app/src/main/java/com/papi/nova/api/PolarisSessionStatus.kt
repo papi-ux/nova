@@ -15,6 +15,7 @@ data class PolarisSessionStatus(
     val clientRole: String = "none",
     val viewerCount: Int = 0,
     val ownedByClient: Boolean = false,
+    val authorityContractValid: Boolean = true,
     val cagePid: Int = 0,
     val screenLocked: Boolean = false,
     val cursorVisible: Boolean = false,
@@ -569,8 +570,10 @@ data class PolarisSessionStatus(
         get() = listOf(sessionModeLabel, capturePathLabel).filter { it.isNotBlank() }.joinToString(" · ")
     val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
     val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice
-    val canAdjustHostTuning get() = controls.hostTuningAllowed ?: (ownedByClient && !isViewer)
-    val canQuit get() = controls.quitAllowed || (ownedByClient && !isViewer)
+    val canAdjustHostTuning get() = authorityContractValid &&
+        (controls.hostTuningAllowed ?: (ownedByClient && !isViewer))
+    val canQuit get() = authorityContractValid &&
+        (controls.quitAllowed || (ownedByClient && !isViewer))
 
     private fun normalizeSessionModeLabel(label: String): String = when (label.trim().lowercase()) {
         "headless", "headless stream", "private headless stream", "private stream" -> "Private Stream"
@@ -703,5 +706,7 @@ data class PolarisDoctorActionResult(
     val undoAvailable: Boolean? = null,
     val undoActionId: String = "",
     val evidencePacketLossPct: Double? = null,
-    val evidenceLatencyMs: Double? = null
+    val evidenceLatencyMs: Double? = null,
+    val requestId: String = "",
+    val changedContractValid: Boolean = true
 )

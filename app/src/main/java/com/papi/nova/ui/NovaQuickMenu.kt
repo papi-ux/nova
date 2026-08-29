@@ -29,6 +29,7 @@ import com.papi.nova.binding.input.KeyboardTranslator
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.UiHelper
+import java.util.UUID
 
 /**
  * Stream quick menu with grouped sections for tuning, overlays, controls, and session actions.
@@ -195,7 +196,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         ): Boolean {
             val readOnlyRecheck = doctor.actionId in setOf("recheck_network", "recheck_pacing")
             return if (readOnlyRecheck) {
-                status.ownedByClient && !status.isViewer
+                status.authorityContractValid && status.ownedByClient && !status.isViewer
             } else {
                 status.canAdjustHostTuning
             }
@@ -240,7 +241,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 runId = "",
                 generation = doctorActionGeneration,
                 appSessionId = sessionStatus?.appSessionId.orEmpty(),
-                actionId = actionId
+                actionId = actionId,
+                requestId = if (actionId in setOf("lower_bitrate", "restore_quality")) {
+                    UUID.randomUUID().toString()
+                } else {
+                    ""
+                }
             ).also {
                 check(doctorActionPendingRegistry.begin(it.generation))
             }
@@ -653,6 +659,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     appUuid = doctor.actionAppUuid,
                     sourceResultId = doctor.resultId,
                     targetBitrateKbps = doctor.targetBitrateKbps,
+                    requestId = request.requestId,
                     confirmed = doctor.requiresConfirmation
                 )
                 val readOnlySuccess = result?.let {

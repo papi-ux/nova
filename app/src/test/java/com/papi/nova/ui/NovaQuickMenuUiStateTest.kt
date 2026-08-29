@@ -149,6 +149,31 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun authoritativeDoctorNoneDoesNotShowStaleHealthSummaryBesideSteadyState() {
+        val state = quickState(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    summary = "Network jitter was previously observed.",
+                    primaryIssue = "network_jitter",
+                    issues = listOf("network_jitter")
+                ),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-current-none",
+                    primaryIssue = "none",
+                    likelyCause = "No confirmed issue"
+                )
+            )
+        )
+
+        assertEquals("Session looks steady.", state.healthSummary)
+        assertFalse(state.healthSummary.contains("Network", ignoreCase = true))
+        assertFalse(state.diagnosis.likelyCause.contains("Network", ignoreCase = true))
+    }
+
+    @Test
     fun controllerToggleCopyClarifiesTouchOverlayInsteadOfPhysicalGamepad() {
         val state = quickState(status = status(), currentGameName = "Portal")
         val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }

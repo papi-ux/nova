@@ -31,6 +31,7 @@ class PolarisApiClientParsingTest {
             sourceResultId = "doctor-v2",
             targetBitrateKbps = 16_000,
             runId = "doctor-run-7",
+            requestId = "request-7",
             confirmed = true
         )
         assertEquals("undo", modern.getString("action_id"))
@@ -39,6 +40,7 @@ class PolarisApiClientParsingTest {
         assertEquals("doctor-v2", modern.getString("source_result_id"))
         assertEquals(16_000, modern.getInt("target_bitrate_kbps"))
         assertEquals("doctor-run-7", modern.getString("run_id"))
+        assertEquals("request-7", modern.getString("request_id"))
         assertTrue(modern.getBoolean("confirmed"))
 
         val legacy = PolarisApiClient.buildDoctorActionBody(
@@ -94,7 +96,8 @@ class PolarisApiClientParsingTest {
             statusCode = 200,
             responseBody = "{\"status\":true,\"changed\":true,\"state\":\"watching\"}",
             actionId = "lower_bitrate",
-            requestedRunId = ""
+            requestedRunId = "",
+            requestedRequestId = "request-1"
         )
         val blankRunVerification = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 200,
@@ -127,11 +130,13 @@ class PolarisApiClientParsingTest {
     fun doctorActionHttpAcceptsCorrelatedMutationVerificationAndUndo() {
         val applied = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 200,
-            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"watching\"," +
-                "\"run_id\":\"doctor-run-1\",\"verification\":{\"action_id\":\"verify\"," +
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"applying\"," +
+                "\"run_id\":\"doctor-run-1\",\"request_id\":\"request-1\"," +
+                "\"verification\":{\"action_id\":\"verify\"," +
                 "\"delay_seconds\":8},\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
             actionId = "lower_bitrate",
-            requestedRunId = ""
+            requestedRunId = "",
+            requestedRequestId = "request-1"
         )
         val verified = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 200,
@@ -151,6 +156,73 @@ class PolarisApiClientParsingTest {
         assertTrue(applied.status)
         assertTrue(verified.status)
         assertTrue(undone.status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsOnlyExactIdempotentRetryReceipt() {
+        fun parsed(requestId: String, changed: Any): PolarisDoctorActionResult =
+            PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 200,
+                responseBody = JSONObject()
+                    .put("status", true)
+                    .put("changed", changed)
+                    .put("state", "watching")
+                    .put("run_id", "doctor-run-1")
+                    .put("request_id", requestId)
+                    .put("verification", JSONObject()
+                        .put("action_id", "verify")
+                        .put("delay_seconds", 8))
+                    .put("undo", JSONObject()
+                        .put("available", true)
+                        .put("action_id", "undo"))
+                    .toString(),
+                actionId = "lower_bitrate",
+                requestedRunId = "",
+                requestedRequestId = "request-1"
+            )
+
+        assertTrue(parsed("request-1", false).status)
+        assertFalse(parsed("request-2", false).status)
+        assertFalse(parsed("request-1", "false").status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsExactTerminalReceiptAfterLostApplyResponse() {
+        fun parsed(state: String, changed: Boolean, requestId: String): PolarisDoctorActionResult =
+            PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 200,
+                responseBody = JSONObject()
+                    .put("status", true)
+                    .put("changed", changed)
+                    .put("state", state)
+                    .put("run_id", "doctor-run-1")
+                    .put("request_id", requestId)
+                    .put("undo", JSONObject().put("available", false))
+                    .toString(),
+                actionId = "lower_bitrate",
+                requestedRunId = "",
+                requestedRequestId = "request-1"
+            )
+
+        assertTrue(parsed("rolled_back", true, "request-1").status)
+        assertTrue(parsed("superseded", false, "request-1").status)
+        assertFalse(parsed("rolled_back", true, "request-2").status)
+        assertFalse(parsed("rolled_back", false, "request-1").status)
+    }
+
+    @Test
+    fun doctorActionHttpRejectsMissingOrMalformedChangedField() {
+        fun parsed(changedJson: String): PolarisDoctorActionResult =
+            PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 200,
+                responseBody = "{\"status\":true$changedJson,\"state\":\"observed\"}",
+                actionId = "recheck_pacing",
+                requestedRunId = ""
+            )
+
+        assertFalse(parsed("").status)
+        assertFalse(parsed(",\"changed\":\"false\"").status)
+        assertTrue(parsed(",\"changed\":false").status)
     }
 
     @Test
@@ -213,7 +285,7 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun explicitHostTuningRevocationOverridesLegacyOwnershipFallback() {
+    fun hostTuningAuthorityRequiresTheCompleteTypedContract() {
         val explicitRevocation = PolarisApiClient.parseSessionStatusResponse(
             JSONObject(
                 "{\"state\":\"streaming\",\"owned_by_client\":true,\"client_role\":\"owner\"," +
@@ -225,7 +297,17 @@ class PolarisApiClientParsingTest {
         )
 
         assertFalse(explicitRevocation.canAdjustHostTuning)
-        assertTrue(legacyOmission.canAdjustHostTuning)
+        assertFalse(legacyOmission.canAdjustHostTuning)
+        assertFalse(legacyOmission.authorityContractValid)
+
+        val malformed = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject(
+                "{\"state\":\"streaming\",\"owned_by_client\":\"true\"," +
+                    "\"client_role\":\"owner\",\"controls\":{\"host_tuning_allowed\":\"false\"}}"
+            )
+        )
+        assertFalse(malformed.authorityContractValid)
+        assertFalse(malformed.canAdjustHostTuning)
     }
 
     @Test
@@ -345,6 +427,18 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun parseCapabilitiesResponse_rejectsCoercedResolvedProfileAuthority() {
+        val capabilities = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject(
+                "{\"server\":\"polaris\",\"features\":" +
+                    "{\"resolved_profile_provenance_v1\":\"true\"}}"
+            )
+        )
+
+        assertFalse(capabilities.features.resolvedProfileProvenance)
+    }
+
+    @Test
     fun parseSessionStatusResponse_includesHdrDowngradeTruth() {
         val health = JSONObject()
             .put("primary_issue", "hdr_downgraded")
@@ -367,6 +461,26 @@ class PolarisApiClientParsingTest {
         assertEquals("missing", status.health.hdrSource)
         assertTrue(status.isHdrDowngraded)
         assertTrue(status.isHeadlessHdrUnavailable)
+    }
+
+    @Test
+    fun authoritativeDoctorNoneNeverInheritsStaleHealthDiagnosis() {
+        val status = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject()
+                .put("state", "streaming")
+                .put("doctor", JSONObject()
+                    .put("version", 2)
+                    .put("result_id", "doctor-v2-clean")
+                    .put("primary_issue", "none"))
+                .put("health", JSONObject()
+                    .put("primary_issue", "network_jitter")
+                    .put("summary", "Network jitter is the most likely source."))
+        )
+
+        assertTrue(status.hasAuthoritativeDoctorResult)
+        assertEquals("none", status.effectivePrimaryIssue)
+        assertEquals("No confirmed issue", status.doctor.likelyCause)
+        assertFalse(status.doctor.likelyCause.contains("Network", ignoreCase = true))
     }
 
     @Test
@@ -1661,6 +1775,7 @@ class PolarisApiClientParsingTest {
             device = "RetroidPocket6",
             game = "Black Myth: Wukong",
             preference = "high_fps",
+            topologyLocked = true,
             width = 1920,
             height = 1080,
             fps = 120f,
@@ -1673,7 +1788,7 @@ class PolarisApiClientParsingTest {
 
         assertEquals(
             "/optimize?device=RetroidPocket6&game=Black+Myth%3A+Wukong&preference=high_fps" +
-                "&width=1920&height=1080&fps=120.0&display_locked=1" +
+                "&topology_locked=1&width=1920&height=1080&fps=120.0&display_locked=1" +
                 "&bitrate_kbps=40000&bitrate_locked=1&hdr=0&client_max_fps=119.88",
             path
         )

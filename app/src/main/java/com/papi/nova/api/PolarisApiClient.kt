@@ -484,6 +484,7 @@ class PolarisApiClient @JvmOverloads constructor(
             game: String,
             preference: String = "",
             mode: String = "",
+            topologyLocked: Boolean = false,
             width: Int = 0,
             height: Int = 0,
             fps: Float = 0f,
@@ -502,6 +503,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 .takeIf { it.isNotBlank() }
                 ?.let { "&mode=${java.net.URLEncoder.encode(it, "UTF-8")}" }
                 ?: ""
+            val topologyLockParam = if (topologyLocked) "&topology_locked=1" else ""
             val displayParam = if (width > 0 && height > 0 && fps > 0f) {
                 "&width=$width&height=$height&fps=$fps"
             } else {
@@ -519,6 +521,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 "&game=${java.net.URLEncoder.encode(game, "UTF-8")}" +
                 preferenceParam +
                 modeParam +
+                topologyLockParam +
                 displayParam +
                 displayLockParam +
                 bitrateParam +
@@ -893,7 +896,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     streamPolicy = features?.optBoolean("stream_policy_v1") ?: false,
                     clientSettings = features?.optBoolean("client_settings_v1") ?: false,
                     optimizerSync = features?.optBoolean("optimizer_sync_v1") ?: false,
-                    resolvedProfileProvenance = features?.optBoolean("resolved_profile_provenance_v1") ?: false,
+                    resolvedProfileProvenance = strictBoolean(features, "resolved_profile_provenance_v1"),
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
                     cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
                     doctorV2Shadow = features?.optBoolean("doctor_v2_shadow_v1") ?: false,
@@ -920,15 +923,30 @@ class PolarisApiClient @JvmOverloads constructor(
         ): PolarisSessionStatus.DoctorStatus {
             val explanation = aiDoctor?.optJSONObject("explanation")
                 ?.takeIf { strictBoolean(aiDoctor, "status") }
-            val primaryIssue = doctor?.optString("primary_issue", "")
-                ?.takeIf { it.isNotBlank() }
-                ?: health?.optString("primary_issue", "")
-                ?: ""
-            val likelyCause = doctor?.optString("summary", "")?.takeIf { it.isNotBlank() }
-                ?: doctor?.optString("simple_state", "")?.takeIf { it.isNotBlank() }
-                ?: doctor?.optString("diagnosis", "")?.takeIf { it.isNotBlank() }
-                ?: health?.optString("summary", "")
-                ?: ""
+            val doctorVersion = strictInt(doctor, "version")
+            val doctorResultId = strictString(doctor, "result_id")
+            val authoritativeDoctor = doctorVersion >= 2 && doctorResultId.isNotBlank()
+            val doctorPrimaryIssue = strictString(doctor, "primary_issue")
+            val primaryIssue = if (authoritativeDoctor) {
+                doctorPrimaryIssue.ifBlank { "none" }
+            } else {
+                doctorPrimaryIssue.takeIf { it.isNotBlank() }
+                    ?: health?.optString("primary_issue", "")
+                    ?: ""
+            }
+            val deterministicDoctorSummary = strictString(doctor, "summary").takeIf { it.isNotBlank() }
+                ?: strictString(doctor, "simple_state").takeIf { it.isNotBlank() }
+                ?: strictString(doctor, "diagnosis").takeIf { it.isNotBlank() }
+            val likelyCause = deterministicDoctorSummary
+                ?: if (authoritativeDoctor) {
+                    if (primaryIssue.equals("none", ignoreCase = true)) {
+                        "No confirmed issue"
+                    } else {
+                        "Review the measured Doctor evidence"
+                    }
+                } else {
+                    health?.optString("summary", "").orEmpty()
+                }
             val evidenceItems = parseDoctorEvidenceItems(doctor)
             val evidence = parseDoctorEvidence(doctor)
             val recommendation = doctor?.optJSONObject("recommendation")
@@ -981,8 +999,8 @@ class PolarisApiClient @JvmOverloads constructor(
             )
             return PolarisSessionStatus.DoctorStatus(
                 available = doctor != null,
-                version = strictInt(doctor, "version"),
-                resultId = strictString(doctor, "result_id"),
+                version = doctorVersion,
+                resultId = doctorResultId,
                 classification = classifyDoctorIssue(primaryIssue),
                 likelyCause = likelyCause,
                 evidence = evidence,
@@ -1095,10 +1113,12 @@ class PolarisApiClient @JvmOverloads constructor(
             return PolarisDoctorActionResult(
                 status = strictBoolean(json, "status"),
                 changed = strictBoolean(json, "changed"),
+                changedContractValid = json.has("changed") && json.opt("changed") is Boolean,
                 state = strictString(json, "state"),
                 message = strictString(json, "message"),
                 error = strictString(json, "error"),
                 runId = strictString(json, "run_id"),
+                requestId = strictString(json, "request_id"),
                 recoveryState = strictString(json, "recovery_state").ifBlank { strictString(json, "state") },
                 appUuid = strictString(json, "app_uuid"),
                 expiresAt = strictLong(json, "expires_at"),
@@ -1117,7 +1137,8 @@ class PolarisApiClient @JvmOverloads constructor(
             statusCode: Int,
             responseBody: String,
             actionId: String,
-            requestedRunId: String
+            requestedRunId: String,
+            requestedRequestId: String = ""
         ): PolarisDoctorActionResult {
             val parsed = runCatching {
                 parseDoctorActionResponse(JSONObject(responseBody.ifBlank { "{}" }))
@@ -1125,6 +1146,7 @@ class PolarisApiClient @JvmOverloads constructor(
             if (statusCode == 200 && parsed != null && doctorActionResponseMatchesRequest(
                     actionId = actionId,
                     requestedRunId = requestedRunId,
+                    requestedRequestId = requestedRequestId,
                     result = parsed
                 )) {
                 return parsed
@@ -1143,9 +1165,10 @@ class PolarisApiClient @JvmOverloads constructor(
         internal fun doctorActionResponseMatchesRequest(
             actionId: String,
             requestedRunId: String,
+            requestedRequestId: String = "",
             result: PolarisDoctorActionResult
         ): Boolean {
-            if (!result.status) return false
+            if (!result.status || !result.changedContractValid) return false
             val runId = result.runId.trim()
             return when (actionId) {
                 "recheck_pacing" ->
@@ -1158,14 +1181,27 @@ class PolarisApiClient @JvmOverloads constructor(
                         result.verificationActionId.isBlank() &&
                         result.undoAvailable != true && result.undoActionId.isBlank()
                 "lower_bitrate", "restore_quality" ->
-                    requestedRunId.isBlank() && result.changed && runId.isNotBlank() &&
-                        runId.startsWith("doctor-run-") &&
-                        result.state == "watching" && result.verificationActionId == "verify" &&
-                        result.verificationDelaySeconds >= 8 && result.undoAvailable == true &&
-                        result.undoActionId == "undo"
+                    requestedRunId.isBlank() && requestedRequestId.isNotBlank() &&
+                        result.requestId == requestedRequestId && runId.isNotBlank() &&
+                        runId.startsWith("doctor-run-") && when (result.state) {
+                            "applying", "watching" ->
+                                result.verificationActionId == "verify" &&
+                                    result.verificationDelaySeconds >= 8 &&
+                                    result.undoAvailable == true && result.undoActionId == "undo"
+                            // A transport timeout can outlive Polaris's host-side
+                            // apply/verification watchdog. The idempotency key
+                            // still authorizes returning that exact terminal receipt.
+                            "rolled_back" -> result.changed &&
+                                result.undoAvailable != true && result.undoActionId.isBlank()
+                            "superseded" -> !result.changed &&
+                                result.undoAvailable != true && result.undoActionId.isBlank()
+                            else -> false
+                        }
                 "verify" ->
                     requestedRunId.isNotBlank() && runId == requestedRunId &&
                         runId.startsWith("doctor-run-") && when (result.state) {
+                            "applying" -> !result.changed && result.undoAvailable == true &&
+                                result.undoActionId == "undo"
                             "watching" -> result.undoAvailable == true &&
                                 result.undoActionId == "undo" &&
                                 ((result.changed &&
@@ -1206,6 +1242,7 @@ class PolarisApiClient @JvmOverloads constructor(
             sourceResultId: String = "",
             targetBitrateKbps: Int = 0,
             runId: String = "",
+            requestId: String = "",
             confirmed: Boolean = false
         ): JSONObject = JSONObject().apply {
             put("action_id", actionId)
@@ -1214,6 +1251,7 @@ class PolarisApiClient @JvmOverloads constructor(
             if (sourceResultId.isNotBlank()) put("source_result_id", sourceResultId)
             if (targetBitrateKbps > 0) put("target_bitrate_kbps", targetBitrateKbps)
             if (runId.isNotBlank()) put("run_id", runId)
+            if (requestId.isNotBlank()) put("request_id", requestId)
             if (confirmed) put("confirmed", true)
         }
 
@@ -1295,6 +1333,19 @@ class PolarisApiClient @JvmOverloads constructor(
                 ?: streamPolicy?.optJSONObject("linux_gpu_profile")
             val recovery = parseRecoveryReceipt(json.optJSONObject("recovery"))
             val recoveryRecords = parseRecoveryRecords(json.optJSONArray("recovery_records"))
+            val rawClientRole = json.opt("client_role")
+            val clientRole = (rawClientRole as? String)?.lowercase().orEmpty()
+            val clientRoleContractValid = json.has("client_role") &&
+                clientRole in setOf("none", "owner", "viewer")
+            val rawOwnedByClient = json.opt("owned_by_client")
+            val ownedByClientContractValid = json.has("owned_by_client") &&
+                rawOwnedByClient is Boolean
+            val rawHostTuningAllowed = controls?.opt("host_tuning_allowed")
+            val hostTuningContractValid = controls != null &&
+                controls.has("host_tuning_allowed") &&
+                rawHostTuningAllowed is Boolean
+            val authorityContractValid = clientRoleContractValid &&
+                ownedByClientContractValid && hostTuningContractValid
 
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
@@ -1308,9 +1359,10 @@ class PolarisApiClient @JvmOverloads constructor(
                 appSessionIdPresent = json.has("app_session_id"),
                 ownerUniqueId = json.optString("owner_unique_id", ""),
                 ownerDeviceName = json.optString("owner_device_name", ""),
-                clientRole = json.optString("client_role", "none"),
+                clientRole = clientRole.takeIf { clientRoleContractValid } ?: "none",
                 viewerCount = json.optInt("viewer_count", 0),
-                ownedByClient = json.optBoolean("owned_by_client", false),
+                ownedByClient = rawOwnedByClient as? Boolean ?: false,
+                authorityContractValid = authorityContractValid,
                 cagePid = json.optInt("cage_pid", 0),
                 screenLocked = json.optBoolean("screen_locked", false),
                 cursorVisible = json.optBoolean("cursor_visible", false),
@@ -1325,17 +1377,11 @@ class PolarisApiClient @JvmOverloads constructor(
                 aiOptimizerEnabled = json.optBoolean("ai_optimizer_enabled", false),
                 mangohudConfigured = json.optBoolean("mangohud_configured", false),
                 controls = PolarisSessionStatus.ControlsStatus(
-                    hostTuningAllowed = controls?.let { value ->
-                        if (!value.has("host_tuning_allowed") || value.isNull("host_tuning_allowed")) {
-                            null
-                        } else {
-                            value.opt("host_tuning_allowed") as? Boolean
-                        }
-                    },
-                    quitAllowed = controls?.optBoolean("quit_allowed", false) ?: false,
-                    shutdownInProgress = controls?.optBoolean("shutdown_in_progress", false) ?: false,
-                    clientCommandsEnabled = controls?.optBoolean("client_commands_enabled", false) ?: false,
-                    deviceCommandsEnabled = controls?.optBoolean("device_commands_enabled", false) ?: false
+                    hostTuningAllowed = rawHostTuningAllowed as? Boolean,
+                    quitAllowed = strictBoolean(controls, "quit_allowed"),
+                    shutdownInProgress = strictBoolean(controls, "shutdown_in_progress"),
+                    clientCommandsEnabled = strictBoolean(controls, "client_commands_enabled"),
+                    deviceCommandsEnabled = strictBoolean(controls, "device_commands_enabled")
                 ),
                 tuning = PolarisSessionStatus.TuningStatus(
                     adaptiveBitrateEnabled = tuning?.optBoolean("adaptive_bitrate_enabled", false)
@@ -1641,6 +1687,15 @@ class PolarisApiClient @JvmOverloads constructor(
                 .header("Connection", "close")
                 .build()
         ).execute()
+
+    private fun executeIdempotentDoctorAction(request: Request): okhttp3.Response = try {
+        executeNonRetryable(request)
+    } catch (e: IOException) {
+        // The host binds request_id to the exact owner/app/generation scope.
+        // Repeating this same body can only recover the existing receipt.
+        resetCallClient()
+        executeNonRetryable(request)
+    }
 
     private fun executeLaunchPolicyGet(request: Request): okhttp3.Response =
         clientForCall().newBuilder()
@@ -2313,8 +2368,15 @@ class PolarisApiClient @JvmOverloads constructor(
         sourceResultId: String = "",
         targetBitrateKbps: Int = 0,
         runId: String = "",
+        requestId: String = "",
         confirmed: Boolean = false
     ): PolarisDoctorActionResult? {
+        if (actionId in setOf("lower_bitrate", "restore_quality") && requestId.isBlank()) {
+            return PolarisDoctorActionResult(
+                status = false,
+                error = "Doctor Auto Fix requires an idempotency request ID"
+            )
+        }
         return try {
             val body = buildDoctorActionBody(
                 actionId = actionId,
@@ -2323,6 +2385,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 sourceResultId = sourceResultId,
                 targetBitrateKbps = targetBitrateKbps,
                 runId = runId,
+                requestId = requestId,
                 confirmed = confirmed
             )
             val request = Request.Builder()
@@ -2332,14 +2395,19 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            // Doctor apply, verification, and Undo advance host-side run state.
-            // A lost response cannot be retried safely without an idempotency key.
-            executeNonRetryable(request).use { response ->
+            val response = if (actionId in setOf("lower_bitrate", "restore_quality")) {
+                executeIdempotentDoctorAction(request)
+            } else {
+                // Verification and Undo are state transitions and remain single-shot.
+                executeNonRetryable(request)
+            }
+            response.use {
                 parseDoctorActionHttpResponse(
-                    statusCode = response.code,
-                    responseBody = response.body?.string().orEmpty(),
+                    statusCode = it.code,
+                    responseBody = it.body?.string().orEmpty(),
                     actionId = actionId,
-                    requestedRunId = runId
+                    requestedRunId = runId,
+                    requestedRequestId = requestId
                 )
             }
         } catch (e: Exception) {
@@ -2684,6 +2752,7 @@ class PolarisApiClient @JvmOverloads constructor(
         game: String,
         preference: String = "",
         mode: String = "",
+        topologyLocked: Boolean = false,
         width: Int = 0,
         height: Int = 0,
         fps: Float = 0f,
@@ -2700,6 +2769,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 game = game,
                 preference = preference,
                 mode = mode,
+                topologyLocked = topologyLocked,
                 width = width,
                 height = height,
                 fps = fps,

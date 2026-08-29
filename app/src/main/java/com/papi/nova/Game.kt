@@ -153,6 +153,7 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.ArrayList
 import java.util.Arrays
@@ -160,6 +161,7 @@ import java.util.Date
 import java.util.HashMap
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import android.view.SurfaceView
 import android.view.ViewGroup
 
@@ -263,8 +265,15 @@ private var externalDisplayListener:DisplayManager.DisplayListener? = null
 com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfileSource.LOCAL_DEFAULT)
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
-private var launchOptimizationPolicyBlocked:Boolean = false
 private var launchResolvedProfileTrusted:Boolean = false
+private val launchPolicyGateGeneration = AtomicLong(0L)
+private val launchPolicyGatePending = AtomicBoolean(false)
+private data class LaunchOptimizationDecision(
+val optimization:JSONObject?,
+val policyBlocked:Boolean,
+val profilePreference:String,
+val resolvedProfileTrusted:Boolean
+)
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
 private var streamMode:String = ""
@@ -1254,8 +1263,10 @@ requestedWidth = displayWidth,
 requestedHeight = displayHeight,
 requestedFps = optimizationRequestedFps,
 displayLocked = watchStreamWidth > 0 && watchStreamHeight > 0,
+displayModeExplicit = displayModeExplicit,
 requestedHdr = willStreamHdr
 )
+var launchPolicyTokenInvalid = false
 if (watchOnlyRequested || resumeExistingRequested)
 {
 launchOptimization = null
@@ -1272,19 +1283,30 @@ launchPolicyFingerprint
 this@Game.getIntent().removeExtra(EXTRA_LAUNCH_POLICY_TOKEN)
 if (policyDecision == null)
 {
+val gateIntent = this@Game.getIntent()
+val gateGeneration = launchPolicyGateGeneration.incrementAndGet()
+launchPolicyGatePending.set(true)
 launchRuntimeIo("NovaLaunchPolicyGate") {
-val resolvedOptimization = loadLaunchOptimization(
+val launchDecision = loadLaunchOptimization(
 appName,
 isMetered,
 displayWidth,
 displayHeight,
 optimizationRequestedFps,
 watchStreamWidth > 0 && watchStreamHeight > 0,
-willStreamHdr
+topologyLocked = displayModeExplicit,
+requestedHdr = willStreamHdr,
+requestedProfilePreference = launchProfilePreference
 )
-if (launchOptimizationPolicyBlocked)
+if (launchDecision.policyBlocked)
 {
 runOnMainIfRuntimeActive {
+if (launchPolicyGateGeneration.get() != gateGeneration ||
+this@Game.getIntent() !== gateIntent)
+{
+return@runOnMainIfRuntimeActive
+}
+launchPolicyGatePending.set(false)
 LimeLog.severe("Nova: Refusing launch because host identity or deterministic resolved-profile authority is unproven")
 Toast.makeText(this@Game, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
 finish()
@@ -1294,19 +1316,31 @@ return@launchRuntimeIo
 val nextToken = com.papi.nova.manager.NovaLaunchPolicyGateStore.issue(
 launchPolicyFingerprint,
 com.papi.nova.manager.NovaLaunchPolicyGateStore.Decision(
-optimizationJson = resolvedOptimization?.toString(),
-profilePreference = launchProfilePreference,
-resolvedProfileTrusted = launchResolvedProfileTrusted
+optimizationJson = launchDecision.optimization?.toString(),
+profilePreference = launchDecision.profilePreference,
+resolvedProfileTrusted = launchDecision.resolvedProfileTrusted
 )
 )
 runOnMainIfRuntimeActive {
-this@Game.getIntent().putExtra(EXTRA_LAUNCH_POLICY_TOKEN, nextToken)
+if (launchPolicyGateGeneration.get() == gateGeneration &&
+this@Game.getIntent() === gateIntent)
+{
+launchPolicyGatePending.set(false)
+gateIntent.putExtra(EXTRA_LAUNCH_POLICY_TOKEN, nextToken)
 recreate()
+}
+else
+{
+// Consume and retire the unused one-shot token. A decision may never be
+// transplanted onto a newer singleTask launch intent.
+com.papi.nova.manager.NovaLaunchPolicyGateStore.consume(nextToken, launchPolicyFingerprint)
+}
 }
 }
 return
 }
 launchProfilePreference = policyDecision.profilePreference
+launchPolicyGatePending.set(false)
 launchResolvedProfileTrusted = policyDecision.resolvedProfileTrusted
 launchOptimization = try
 {
@@ -1315,11 +1349,11 @@ policyDecision.optimizationJson?.let(::JSONObject)
 catch (e:Exception)
 {
 LimeLog.severe("Nova: Refusing an invalid process-local launch policy handoff")
-launchOptimizationPolicyBlocked = true
+launchPolicyTokenInvalid = true
 null
 }
 }
-if (launchOptimizationPolicyBlocked)
+if (launchPolicyTokenInvalid)
 {
 LimeLog.severe("Nova: Refusing launch because host identity or deterministic resolved-profile authority is unproven")
 Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
@@ -1446,7 +1480,8 @@ LimeLog.info("Display refresh rate: " + displayRefreshRate)
         // desired FPS setting here in accordance with the active display refresh rate.
         var roundedRefreshRate:Int = Math.round(displayRefreshRate)
 var chosenFrameRate:Float = if (configuredStreamFrameRateFps > 0f) configuredStreamFrameRateFps else prefConfig!!.fps
-if (prefConfig!!.framePacing == PreferenceConfiguration.FRAME_PACING_CAP_FPS)
+if (!launchResolvedProfileTrusted &&
+prefConfig!!.framePacing == PreferenceConfiguration.FRAME_PACING_CAP_FPS)
 {
 if (chosenFrameRate >= roundedRefreshRate)
 {
@@ -1470,7 +1505,7 @@ LimeLog.info("Adjusting FPS target for screen to " + chosenFrameRate)
 }
 }
 
-if (prefConfig!!.framePacingWarpFactor > 0)
+if (!launchResolvedProfileTrusted && prefConfig!!.framePacingWarpFactor > 0)
 {
 chosenFrameRate *= prefConfig!!.framePacingWarpFactor
 }
@@ -1506,6 +1541,7 @@ LimeLog.info(("Nova: Exact resolved launch FPS " + launchRefreshRate +
 " -> " + autoSafeTargetFps))
 }
 launchRefreshRate = autoSafeTargetFps
+chosenFrameRate = autoSafeTargetFps
 }
 configuredStreamFrameRateFps = chosenFrameRate
 configuredHudTargetFps = launchRefreshRate
@@ -2456,6 +2492,13 @@ private fun isManualProfileOverride():Boolean {
 return launchProfilePreference.isNotBlank() && !launchProfilePreference.equals("auto", ignoreCase = true)
 }
 
+private fun requestedLaunchTopology():String {
+return if (mirrorDesktop) "desktop_display"
+else if (streamMode.isNotBlank()) streamMode
+else if (vDisplay) "host_virtual_display"
+else "desktop_display"
+}
+
 private fun launchPolicyFingerprint(
 appName:String?,
 bitrateLocked:Boolean,
@@ -2463,12 +2506,14 @@ requestedWidth:Int,
 requestedHeight:Int,
 requestedFps:Float,
 displayLocked:Boolean,
+displayModeExplicit:Boolean,
 requestedHdr:Boolean
 ):String = listOf(
 host.orEmpty(),
 port.toString(),
 httpsPort.toString(),
 uniqueId.orEmpty(),
+serverCertificatePolicyFingerprint(),
 appUUID.orEmpty(),
 appId.toString(),
 appName.orEmpty(),
@@ -2484,8 +2529,95 @@ requestedWidth.toString(),
 requestedHeight.toString(),
 requestedFps.toBits().toString(),
 displayLocked.toString(),
+displayModeExplicit.toString(),
+forcePrivateAfterSteamClose.toString(),
+prefConfig!!.resolutionScaleFactor.toString(),
+prefConfig!!.framePacing.toString(),
+prefConfig!!.framePacingWarpFactor.toString(),
+prefConfig!!.reduceRefreshRate.toString(),
 requestedHdr.toString()
 ).joinToString("\u001f")
+
+private fun serverCertificatePolicyFingerprint():String
+{
+return try
+{
+val encoded = serverCert?.encoded ?: return "no-cert"
+MessageDigest.getInstance("SHA-256").digest(encoded).joinToString("") { byte ->
+"%02x".format(Locale.ROOT, byte.toInt() and 0xff)
+}
+}
+catch (e:Exception)
+{
+"invalid-cert"
+}
+}
+
+private fun resolvedOptimizationHonorsLaunchEnvelope(
+optimization:JSONObject,
+requestedHdr:Boolean,
+clientMaximumFps:Float,
+bitrateLocked:Boolean,
+bitrateCeilingKbps:Int,
+requestedWidth:Int,
+requestedHeight:Int,
+requestedFps:Float,
+displayLocked:Boolean,
+fpsLocked:Boolean
+):Boolean {
+if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimization)) return false
+val resolvedHdr = com.papi.nova.manager.StreamSyncManager.resolvedHdrValue(optimization)
+val resolvedFps = com.papi.nova.manager.StreamSyncManager.resolvedTargetFpsValue(optimization) ?: 0f
+val resolvedResolution = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
+requestedWidth,
+requestedHeight,
+optimization
+)
+val resolvedBitrate = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
+bitrateCeilingKbps,
+optimization
+)
+val bitrateLockHonored = !bitrateLocked ||
+(com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+optimization,
+"target_bitrate_kbps"
+) == true && resolvedBitrate in 1..bitrateCeilingKbps)
+val displayLockHonored = !displayLocked ||
+(resolvedResolution.width == requestedWidth &&
+resolvedResolution.height == requestedHeight &&
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+optimization,
+"display_width"
+) == true &&
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+optimization,
+"display_height"
+) == true)
+val fpsLockHonored = !(displayLocked || fpsLocked) ||
+(com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+optimization,
+"target_fps"
+) == true &&
+resolvedFps <= requestedFps + 0.5f &&
+(Math.abs(resolvedFps - requestedFps) <= 0.5f ||
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsNormalized(
+optimization,
+"target_fps"
+) == true))
+val hdrWithinEnvelope = resolvedHdr != null &&
+(resolvedHdr == requestedHdr ||
+(requestedHdr && !resolvedHdr &&
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsNormalized(
+optimization,
+"hdr"
+) == true))
+return hdrWithinEnvelope &&
+resolvedFps > 0f &&
+(clientMaximumFps <= 0f || resolvedFps <= clientMaximumFps + 0.5f) &&
+displayLockHonored &&
+fpsLockHonored &&
+bitrateLockHonored
+}
 
 private fun loadLaunchOptimization(
 appName:String?,
@@ -2494,10 +2626,20 @@ requestedWidth:Int,
 requestedHeight:Int,
 requestedFps:Float,
 displayLocked:Boolean,
-requestedHdr:Boolean
-):JSONObject? {
-launchOptimizationPolicyBlocked = false
-launchResolvedProfileTrusted = false
+topologyLocked:Boolean,
+requestedHdr:Boolean,
+requestedProfilePreference:String
+):LaunchOptimizationDecision {
+val safeAppName:String = appName ?: ""
+val preference:String = requestedProfilePreference.takeIf { it.isNotBlank() }
+?: getSharedPreferences("nova_prefs", MODE_PRIVATE)
+.getString("ai_profile_preference_name_" + safeAppName, "auto") ?: "auto"
+fun blocked():LaunchOptimizationDecision = LaunchOptimizationDecision(
+optimization = null,
+policyBlocked = true,
+profilePreference = preference,
+resolvedProfileTrusted = false
+)
 var queryWidth = requestedWidth
 var queryHeight = requestedHeight
 var queryFps = requestedFps
@@ -2512,12 +2654,7 @@ try
 val preflight = JSONObject(launchOptimizationJson!!)
 if (com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(preflight))
 {
-val preflightHdr = com.papi.nova.manager.StreamSyncManager.resolvedHdrValue(preflight)
 val clientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
-val preflightFps = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeTargetFps(
-requestedFps,
-preflight
-)
 val preflightBitrateKbps = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
 queryBitrateKbps,
 preflight
@@ -2527,9 +2664,20 @@ val preflightHonorsCurrentBitrateLock = !queryBitrateLocked ||
 preflight,
 "target_bitrate_kbps"
 ) == true && preflightBitrateKbps in 1..queryBitrateKbps)
-if (preflightHdr == requestedHdr &&
-(clientMaximumFps <= 0f || preflightFps <= clientMaximumFps + 0.5f) &&
-preflightHonorsCurrentBitrateLock)
+val containsNovaLaunchOverride = preflight.optString("normalization_reason", "") ==
+NovaLaunchStreamOverride.NORMALIZATION_REASON
+if (resolvedOptimizationHonorsLaunchEnvelope(
+preflight,
+requestedHdr,
+clientMaximumFps,
+queryBitrateLocked,
+queryBitrateKbps,
+requestedWidth,
+requestedHeight,
+requestedFps,
+displayLocked,
+preference.equals("high_fps", ignoreCase = true)
+) && !containsNovaLaunchOverride)
 {
 // Play Setup already resolved the exact per-launch locks. Its HDR value is
 // accepted only after it matches Nova's actual display/decoder capability.
@@ -2551,61 +2699,60 @@ queryFps = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeTargetFps(
 requestedFps,
 preflight
 )
+queryDisplayLocked = containsNovaLaunchOverride &&
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+preflight,
+"display_mode"
+) == true
+if (!containsNovaLaunchOverride)
+{
 queryDisplayLocked = true
-if (preflightHonorsCurrentBitrateLock)
+}
+if (queryBitrateLocked && preflightHonorsCurrentBitrateLock)
 {
 queryBitrateKbps = preflightBitrateKbps
-queryBitrateLocked = true
 }
 LimeLog.info("Nova: Re-resolving trusted preflight after local display, HDR, or metered-lock validation")
 }
 }
 else
 {
-launchOptimizationPolicyBlocked = true
-return null
+return blocked()
 }
 }
 catch (e:Exception) {
 LimeLog.warning("Nova: Rejecting malformed preflight optimization payload")
-launchOptimizationPolicyBlocked = true
-return null
+return blocked()
 }
 }
 if (novaApiClient == null)
 {
-launchOptimizationPolicyBlocked = true
-return null
+return blocked()
 }
 
-val safeAppName:String = appName ?: ""
-val preference:String = launchProfilePreference.takeIf { it.isNotBlank() } ?: getSharedPreferences("nova_prefs", MODE_PRIVATE)
-.getString("ai_profile_preference_name_" + safeAppName, "auto") ?: "auto"
-launchProfilePreference = preference
 val hostKind = try
 {
 novaApiClient!!.identifyLaunchHost()
 }
 catch (e:Exception)
 {
-launchOptimizationPolicyBlocked = true
 LimeLog.severe("Nova: Launch identity failed closed: " + e.message)
-return null
+return blocked()
 }
 if (hostKind == com.papi.nova.api.PolarisLaunchHostKind.NON_POLARIS)
 {
 LimeLog.info("Nova: Stock host confirmed; launching with local settings and no resolvedProfile marker")
-return null
+return LaunchOptimizationDecision(null, false, preference, false)
 }
 if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
 {
-launchOptimizationPolicyBlocked = true
 LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
-return null
+return blocked()
 }
 val optimizationResult = trustedPreflight ?: novaApiClient!!.getOptimization(
 DeviceUtils.getModel(), safeAppName, preference,
-mode = streamMode,
+mode = requestedLaunchTopology(),
+topologyLocked = topologyLocked,
 width = queryWidth,
 height = queryHeight,
 fps = queryFps,
@@ -2617,8 +2764,7 @@ clientMaxFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay()
 launchBounded = true)
 if (optimizationResult == null)
 {
-launchOptimizationPolicyBlocked = true
-return null
+return blocked()
 }
 else
 {
@@ -2626,12 +2772,27 @@ LimeLog.info(("Nova: Launch optimization loaded source=" + optimizationResult.op
 " mode=" + optimizationResult.optString("display_mode", "")))
 if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimizationResult))
 {
-launchOptimizationPolicyBlocked = true
-return null
+return blocked()
+}
+val currentClientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
+if (!resolvedOptimizationHonorsLaunchEnvelope(
+optimizationResult,
+requestedHdr,
+currentClientMaximumFps,
+queryBitrateLocked,
+queryBitrateKbps,
+queryWidth,
+queryHeight,
+queryFps,
+queryDisplayLocked,
+preference.equals("high_fps", ignoreCase = true)
+))
+{
+LimeLog.severe("Nova: Rejecting resolved profile outside the current HDR, FPS, or bitrate-lock envelope")
+return blocked()
 }
 }
-launchResolvedProfileTrusted = true
-return optimizationResult
+return LaunchOptimizationDecision(optimizationResult, false, preference, true)
 }
 
 private fun getMaxSupportedRefreshRate(display:Display?):Float {
@@ -3127,6 +3288,16 @@ super.onNewIntent(intent)
 if (isDisconnectIntent(intent))
 {
 disconnect()
+return
+}
+
+if (intent != null && launchPolicyGatePending.getAndSet(false))
+{
+launchPolicyGateGeneration.incrementAndGet()
+runtimeTasks.cancel("NovaLaunchPolicyGate")
+setIntent(intent)
+LimeLog.info("Nova: Restarting launch policy validation for a newer launch intent")
+recreate()
 return
 }
 
@@ -5668,7 +5839,7 @@ doctorV2UploadInFlight.set(false)
 return
 }
 val effectiveTopology:String = lastPolarisSessionStatus?.displayMode?.selection?.takeIf { it.isNotBlank() }
-?: if (streamMode.isNotBlank()) streamMode else if (vDisplay) "host_virtual_display" else "desktop_display"
+?: requestedLaunchTopology()
 val sampleTargetFps:Double = configuredHudTargetFps.toDouble()
 val sampleRefreshRateHz:Double = configuredDisplayRefreshRateHz.toDouble()
 val sampleBitrateKbps:Int = configuredStreamBitrateKbps
