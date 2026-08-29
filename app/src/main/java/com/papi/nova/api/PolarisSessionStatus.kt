@@ -495,6 +495,31 @@ data class PolarisSessionStatus(
                 allowedInViewerMode == confirmed.allowedInViewerMode &&
                 destructive == confirmed.destructive &&
                 ownerTuningAllowed == confirmed.ownerTuningAllowed
+
+        /**
+         * True when both payloads describe the same user-selected action and stream scope.
+         *
+         * Routine telemetry is allowed to replace the result, controller/evidence revisions,
+         * and deterministic target between rendering the Doctor card and pressing it. Nova must
+         * execute the latest host-authored payload in that case. A changed action type, wire
+         * contract, app, or stream generation still requires another explicit press.
+         */
+        fun matchesExecutableActionIntent(displayed: DoctorStatus): Boolean =
+            actionId.isNotBlank() &&
+                canExecuteAction &&
+                displayed.canExecuteAction &&
+                actionId == displayed.actionId &&
+                actionCapability == displayed.actionCapability &&
+                actionKind == displayed.actionKind &&
+                actionEndpoint == displayed.actionEndpoint &&
+                actionMethod.equals(displayed.actionMethod, ignoreCase = true) &&
+                actionPayloadId == displayed.actionPayloadId &&
+                actionAppUuid == displayed.actionAppUuid &&
+                actionAppSessionId == displayed.actionAppSessionId &&
+                actionSessionGeneration == displayed.actionSessionGeneration &&
+                verificationMode == displayed.verificationMode &&
+                verificationEndpoint == displayed.verificationEndpoint &&
+                undoEndpoint == displayed.undoEndpoint
     }
 
     data class HealthStatus(

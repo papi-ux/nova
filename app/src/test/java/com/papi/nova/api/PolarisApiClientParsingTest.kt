@@ -1321,6 +1321,30 @@ class PolarisApiClientParsingTest {
         assertFalse(
             PolarisSessionStatus.DoctorStatus().matchesConfirmedAction(confirmed)
         )
+
+        val refreshedSameAction = confirmed.copy(
+            resultId = "doctor-v2-network-next",
+            actionSourceResultId = "doctor-v2-network-next",
+            actionControllerRevision = 52L,
+            actionEvidenceRevision = 64L,
+            targetBitrateKbps = 15_000
+        )
+        assertFalse(refreshedSameAction.matchesConfirmedAction(confirmed))
+        assertTrue(refreshedSameAction.matchesExecutableActionIntent(confirmed))
+        assertFalse(
+            refreshedSameAction.copy(actionSessionGeneration = 42L)
+                .matchesExecutableActionIntent(confirmed)
+        )
+        assertFalse(
+            refreshedSameAction.copy(actionAppSessionId = "app-session-other")
+                .matchesExecutableActionIntent(confirmed)
+        )
+        assertFalse(
+            refreshedSameAction.copy(
+                actionId = "restore_quality",
+                actionPayloadId = "restore_quality"
+            ).matchesExecutableActionIntent(confirmed)
+        )
     }
 
     @Test
