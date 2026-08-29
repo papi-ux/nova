@@ -52,6 +52,16 @@ import javax.net.ssl.X509KeyManager
 import javax.net.ssl.X509TrustManager
 import androidx.collection.LruCache
 
+data class PolarisApiRejection(
+    val httpStatus: Int,
+    val code: String,
+    val error: String,
+)
+
+class PolarisApiRejectedException(
+    val rejection: PolarisApiRejection,
+) : IOException(rejection.error)
+
 data class PolarisArtworkMatchCandidate(
     val provider: String,
     val providerGameId: String,
@@ -552,6 +562,28 @@ class PolarisApiClient @JvmOverloads constructor(
 
         private fun strictBoolean(json: JSONObject?, key: String): Boolean =
             json?.opt(key) as? Boolean ?: false
+
+        @JvmStatic
+        internal fun parseTypedRejection(
+            httpStatus: Int,
+            body: String,
+            mutationEnvelope: Boolean,
+        ): PolarisApiRejection? {
+            if (httpStatus < 400 || body.isBlank()) return null
+            val json = runCatching { JSONObject(body) }.getOrNull() ?: return null
+            if (json.opt("status") !is Boolean || strictBoolean(json, "status")) return null
+            if (mutationEnvelope) {
+                if (json.opt("changed") !is Boolean || strictBoolean(json, "changed")) return null
+                if (strictString(json, "state").isBlank()) return null
+            }
+            val code = strictString(json, "code").trim().take(96)
+            val error = strictString(json, "error")
+                .replace(Regex("[\\r\\n\\t]+"), " ")
+                .trim()
+                .take(320)
+            if (code.isBlank() || error.isBlank()) return null
+            return PolarisApiRejection(httpStatus, code, error)
+        }
 
         private fun strictIntOrNull(json: JSONObject?, key: String): Int? {
             val number = json?.opt(key) as? Number ?: return null
@@ -2003,10 +2035,15 @@ class PolarisApiClient @JvmOverloads constructor(
                 val responseBody = response.body?.string().orEmpty()
                 if (response.code != 200) {
                     LimeLog.warning("Nova: Client settings update rejected code=${response.code}")
+                    parseTypedRejection(response.code, responseBody, mutationEnvelope = true)?.let {
+                        throw PolarisApiRejectedException(it)
+                    }
                     return null
                 }
                 parseClientSettingsResponse(JSONObject(responseBody.ifBlank { return null }))
             }
+        } catch (e: PolarisApiRejectedException) {
+            throw e
         } catch (e: Exception) {
             LimeLog.warning("Nova: Client settings update failed: ${errorMessage(e)}")
             null
@@ -2904,16 +2941,22 @@ class PolarisApiClient @JvmOverloads constructor(
                 executeGetWithRetry(request)
             }
             response.use {
+                val body = it.body?.string().orEmpty()
                 if (it.code == 200) {
                     LimeLog.info("Nova: Optimization query HTTP 200 for $url")
-                    val body = it.body?.string() ?: "{}"
-                    LimeLog.info("Nova: Optimization query body received (${body.length} bytes)")
-                    org.json.JSONObject(body)
+                    val responseBody = body.ifBlank { "{}" }
+                    LimeLog.info("Nova: Optimization query body received (${responseBody.length} bytes)")
+                    org.json.JSONObject(responseBody)
                 } else {
                     LimeLog.warning("Nova: Optimization query returned HTTP ${it.code} for $url")
+                    parseTypedRejection(it.code, body, mutationEnvelope = false)?.let { rejection ->
+                        throw PolarisApiRejectedException(rejection)
+                    }
                     null
                 }
             }
+        } catch (e: PolarisApiRejectedException) {
+            throw e
         } catch (e: Exception) {
             LimeLog.warning("Nova: Optimization query failed: ${errorMessage(e)}")
             null

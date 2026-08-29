@@ -104,6 +104,9 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
             onMessage = { messageRes, _ ->
                 Toast.makeText(requireContext(), messageRes, Toast.LENGTH_SHORT).show()
             },
+            onTextMessage = { message, _ ->
+                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+            },
         ).also { this.engine = it }
         engine.start(initialSettings)
 

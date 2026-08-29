@@ -40,7 +40,10 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("StreamSyncManager.hasTrustedResolvedProfile(preflight)") &&
                 game.contains("StreamSyncManager.resolvedFieldIsLocked(") &&
                 game.contains("LaunchOptimizationPreflightPolicy.select(") &&
-                game.contains("val optimizationResult = preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(") &&
+                game.contains("preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(") &&
+                game.contains("catch (e:com.papi.nova.api.PolarisApiRejectedException)") &&
+                game.contains("return blocked(e.rejection.error)") &&
+                game.contains("policyMessage ?: getString(R.string.nova_launch_deterministic_host_required)") &&
                 game.contains("Rejecting malformed preflight optimization payload") &&
                 game.contains("mode = requestedLaunchTopology()") &&
                 game.contains("topologyLocked = exactTopologyLocked") &&

@@ -89,6 +89,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisApiRejectedException
 import com.papi.nova.api.PolarisArtworkChoice
 import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.api.PolarisClientSettings
@@ -467,6 +468,13 @@ class NovaGameDetailActivity : NovaActivity() {
                     NovaSnackbar.showSuccess(this, getString(messageRes))
                 }
             },
+            onTextMessage = { message, isError ->
+                if (isError) {
+                    NovaSnackbar.showError(this, message)
+                } else {
+                    NovaSnackbar.showSuccess(this, message)
+                }
+            },
         )
 
         fun acceptArtwork(manifest: PolarisGame.ArtworkManifest) {
@@ -624,6 +632,10 @@ class NovaGameDetailActivity : NovaActivity() {
                     }
                     logPreflightOptimization("Preflight optimization", opt, preference)
                     buildOptimizationState(opt, preference)
+                } catch (e: PolarisApiRejectedException) {
+                    LimeLog.warning("Nova: Preflight optimization rejected: ${e.rejection.code}")
+                    NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
+                    NovaGameDetailOptimizationState()
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: Preflight optimization failed: ${e.message}")
                     NovaGameDetailOptimizationState()
@@ -690,6 +702,10 @@ class NovaGameDetailActivity : NovaActivity() {
                     }
                     logPreflightOptimization("High FPS preset preflight", opt, profilePreference)
                     buildOptimizationState(opt, profilePreference)
+                } catch (e: PolarisApiRejectedException) {
+                    LimeLog.warning("Nova: High FPS preflight rejected: ${e.rejection.code}")
+                    NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
+                    NovaGameDetailOptimizationState()
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: High FPS preset preflight failed: ${e.message}")
                     NovaGameDetailOptimizationState()

@@ -23,6 +23,30 @@ import org.robolectric.annotation.Config
 class PolarisApiClientParsingTest {
 
     @Test
+    fun typedPolicyRejectionRequiresLiteralFailureFieldsAndPreservesTheReason() {
+        val optimize = PolarisApiClient.parseTypedRejection(
+            httpStatus = 400,
+            body = """{"status":false,"code":"invalid_or_unavailable_topology","error":"Gamescope is unavailable.\nChoose another mode."}""",
+            mutationEnvelope = false,
+        )
+        assertNotNull(optimize)
+        assertEquals(400, optimize?.httpStatus)
+        assertEquals("invalid_or_unavailable_topology", optimize?.code)
+        assertEquals("Gamescope is unavailable. Choose another mode.", optimize?.error)
+
+        val mutation = PolarisApiClient.parseTypedRejection(
+            httpStatus = 500,
+            body = """{"status":false,"changed":false,"state":"persistence_failed","code":"stream_display_mode_persistence_failed","error":"The host could not save that mode."}""",
+            mutationEnvelope = true,
+        )
+        assertEquals("The host could not save that mode.", mutation?.error)
+
+        assertNull(PolarisApiClient.parseTypedRejection(400, """{"status":"false","code":"bad","error":"bad"}""", false))
+        assertNull(PolarisApiClient.parseTypedRejection(400, """{"status":false,"changed":"false","state":"rejected","code":"bad","error":"bad"}""", true))
+        assertNull(PolarisApiClient.parseTypedRejection(200, """{"status":false,"code":"bad","error":"bad"}""", false))
+    }
+
+    @Test
     fun doctorActionBodyCarriesExactAppGenerationAndOmitsOnlyLegacyBlankIdentity() {
         val modern = PolarisApiClient.buildDoctorActionBody(
             actionId = "undo",

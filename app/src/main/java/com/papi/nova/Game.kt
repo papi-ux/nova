@@ -273,7 +273,8 @@ private data class LaunchOptimizationDecision(
 val optimization:JSONObject?,
 val policyBlocked:Boolean,
 val profilePreference:String,
-val resolvedProfileTrusted:Boolean
+val resolvedProfileTrusted:Boolean,
+val policyMessage:String = ""
 )
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
@@ -1309,8 +1310,19 @@ this@Game.getIntent() !== gateIntent)
 return@runOnMainIfRuntimeActive
 }
 launchPolicyGatePending.set(false)
-LimeLog.severe("Nova: Refusing launch because host identity or deterministic resolved-profile authority is unproven")
-Toast.makeText(this@Game, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
+val policyMessage = launchDecision.policyMessage.takeIf { it.isNotBlank() }
+LimeLog.severe(
+if (policyMessage != null) {
+"Nova: Refusing launch because Polaris rejected the requested profile: $policyMessage"
+} else {
+"Nova: Refusing launch because host identity or deterministic resolved-profile authority is unproven"
+}
+)
+Toast.makeText(
+this@Game,
+policyMessage ?: getString(R.string.nova_launch_deterministic_host_required),
+Toast.LENGTH_LONG
+).show()
 finish()
 }
 return@launchRuntimeIo
@@ -2668,11 +2680,12 @@ val safeAppIdentity:String = appUUID?.takeIf { it.isNotBlank() }
 ?: safeAppName
 val preference:String = requestedProfilePreference.takeIf { it.isNotBlank() }
 ?: com.papi.nova.ui.AutoQualityProfilePreferences.load(this, safeAppIdentity, safeAppName)
-fun blocked():LaunchOptimizationDecision = LaunchOptimizationDecision(
+fun blocked(message:String = ""):LaunchOptimizationDecision = LaunchOptimizationDecision(
 optimization = null,
 policyBlocked = true,
 profilePreference = preference,
-resolvedProfileTrusted = false
+resolvedProfileTrusted = false,
+policyMessage = message
 )
 val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
 width = requestedWidth,
@@ -2786,7 +2799,8 @@ LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch a
 return blocked()
 }
 val resolverRequest = preflightSelection.resolverRequest ?: callerRequest
-val optimizationResult = preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(
+val optimizationResult = try {
+preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(
 DeviceUtils.getModel(), safeAppIdentity, preference,
 mode = requestedLaunchTopology(),
 topologyLocked = exactTopologyLocked,
@@ -2801,6 +2815,11 @@ bitrateLocked = resolverRequest.bitrateLocked,
 hdr = requestedHdr,
 clientMaxFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay()),
 launchBounded = true)
+}
+catch (e:com.papi.nova.api.PolarisApiRejectedException)
+{
+return blocked(e.rejection.error)
+}
 if (optimizationResult == null)
 {
 return blocked()
