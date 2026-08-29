@@ -107,6 +107,7 @@ import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaFocusableCard
 import com.papi.nova.utils.DeviceUtils
+import com.papi.nova.utils.ServerHelper
 import com.papi.nova.utils.ShortcutHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -615,6 +616,9 @@ class NovaGameDetailActivity : NovaActivity() {
                             bitrateKbps = if (metered) launchPrefs.meteredBitrate else launchPrefs.bitrate,
                             bitrateLocked = metered,
                             hdr = launchPrefs.enableHdr,
+                            clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
+                                ServerHelper.getActiveDisplay(this@NovaGameDetailActivity, launchPrefs)
+                            ),
                         )
                     }
                     logPreflightOptimization("Preflight optimization", opt, preference)
@@ -677,6 +681,9 @@ class NovaGameDetailActivity : NovaActivity() {
                             bitrateKbps = if (metered) launchPrefs.meteredBitrate else launchPrefs.bitrate,
                             bitrateLocked = metered,
                             hdr = launchPrefs.enableHdr,
+                            clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
+                                ServerHelper.getActiveDisplay(this@NovaGameDetailActivity, launchPrefs)
+                            ),
                         )
                     }
                     logPreflightOptimization("High FPS preset preflight", opt, profilePreference)

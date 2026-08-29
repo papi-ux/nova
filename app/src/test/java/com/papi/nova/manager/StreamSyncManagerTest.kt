@@ -94,6 +94,31 @@ class StreamSyncManagerTest {
     }
 
     @Test
+    fun resolvedFieldLockComesOnlyFromValidatedDeterministicProvenance() {
+        val optimization = deterministicOptimization(bitrateKbps = 10_000)
+
+        assertEquals(
+            true,
+            StreamSyncManager.resolvedFieldIsLocked(optimization, "target_bitrate_kbps")
+        )
+
+        optimization.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("target_bitrate_kbps")
+            .put("locked", false)
+        assertEquals(
+            false,
+            StreamSyncManager.resolvedFieldIsLocked(optimization, "target_bitrate_kbps")
+        )
+
+        optimization.put("source", "history_safe")
+        assertEquals(
+            null,
+            StreamSyncManager.resolvedFieldIsLocked(optimization, "target_bitrate_kbps")
+        )
+    }
+
+    @Test
     fun resolveProfileProvenance_marksManualOverride() {
         val optimization = JSONObject("{\"source\":\"ai_cached\",\"recommendation_version\":2}")
 
@@ -225,7 +250,7 @@ class StreamSyncManagerTest {
     }
 
     @Test
-    fun resolveAutoSafeBitrate_neverRaisesExplicitClientCeiling() {
+    fun resolveAutoSafeBitrate_consumesTrustedResolvedValueExactly() {
         val optimization = deterministicOptimization(
             bitrateKbps = 80_000,
             fieldSource = "paired_client"
@@ -233,17 +258,17 @@ class StreamSyncManagerTest {
 
         val bitrate = StreamSyncManager.resolveAutoSafeBitrateKbps(30000, optimization)
 
-        assertEquals(30000, bitrate)
+        assertEquals(80_000, bitrate)
     }
 
     @Test
-    fun resolveAutoSafeBitrate_preservesMeteredCeilingAgainstHigherResolvedProfile() {
+    fun resolveAutoSafeBitrate_doesNotRewriteTrustedEnvelope() {
         val optimization = deterministicOptimization(
             bitrateKbps = 40_000,
             fieldSource = "paired_client"
         )
 
-        assertEquals(10_000, StreamSyncManager.resolveAutoSafeBitrateKbps(10_000, optimization))
+        assertEquals(40_000, StreamSyncManager.resolveAutoSafeBitrateKbps(10_000, optimization))
     }
 
     @Test

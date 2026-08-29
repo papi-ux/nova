@@ -21,7 +21,8 @@ import java.util.concurrent.TimeUnit
 class ConnectionResilienceManager @JvmOverloads constructor(
     private val apiClient: PolarisApiClient,
     private val onReconnect: Runnable,
-    private val onGiveUp: Runnable? = null
+    private val onGiveUp: Runnable? = null,
+    private val featureScope: Long = 0L
 ) {
     private val backoffDelaysMs = longArrayOf(0, 1000, 3000, 7000)
     private var attemptIndex = 0
@@ -37,7 +38,7 @@ class ConnectionResilienceManager @JvmOverloads constructor(
      * @return true if the error should be absorbed (reconnect scheduled)
      */
     fun shouldAbsorbError(errorCode: Int): Boolean {
-        if (!FeatureFlagManager.isPolarisServer) return false
+        if (FeatureFlagManager.capabilitiesForScope(featureScope) == null) return false
         if (attemptIndex >= backoffDelaysMs.size) {
             LimeLog.info("Nova: Max reconnect attempts reached, showing error")
             return false

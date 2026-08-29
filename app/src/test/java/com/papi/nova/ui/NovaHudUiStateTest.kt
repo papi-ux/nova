@@ -395,6 +395,28 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun warningLatencyCannotRenderBesideStableDiagnosis() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 48,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = listOf(60f)
+        )
+
+        assertEquals(NovaHudTone.WARNING, state.latencyTone)
+        assertEquals("High latency", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertFalse(state.healthReasonLabel.contains("Stable", ignoreCase = true))
+        assertEquals(NovaHudTone.WARNING, state.layerHealth.single { it.label == "NET" }.tone)
+    }
+
+    @Test
     fun lowRenderedFpsAloneDoesNotInventAStaticContentPacingFault() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.DEBUG,

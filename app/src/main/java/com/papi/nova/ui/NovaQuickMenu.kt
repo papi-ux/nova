@@ -189,6 +189,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             } ?: false
         }
 
+        fun canExecuteDoctorAction(
+            status: PolarisSessionStatus,
+            doctor: PolarisSessionStatus.DoctorStatus
+        ): Boolean {
+            val readOnlyRecheck = doctor.actionId in setOf("recheck_network", "recheck_pacing")
+            return if (readOnlyRecheck) {
+                status.ownedByClient && !status.isViewer
+            } else {
+                status.canAdjustHostTuning
+            }
+        }
+
         fun requestIdentity(runId: String, actionId: String): DoctorActionRequestIdentity? = synchronized(doctorActionLock) {
             val scope = doctorReceiptScopeId ?: return@synchronized null
             DoctorActionRequestIdentity(
@@ -626,7 +638,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             game.launchReplacingRuntimeIo("NovaQuickMenuDoctorAction") {
                 val latestStatus = client.getSessionStatus()
                 if (!acceptRefreshedSessionStatus(latestStatus) ||
-                    latestStatus?.canAdjustHostTuning != true ||
+                    latestStatus == null ||
+                    !canExecuteDoctorAction(latestStatus, doctor) ||
                     latestStatus.doctor.matchesConfirmedAction(doctor).not()
                 ) {
                     return@launchReplacingRuntimeIo
@@ -681,7 +694,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             val doctor = status?.doctor
             val client = apiClient
             if (client == null || status == null || doctor == null || !doctor.canExecuteAction ||
-                !status.canAdjustHostTuning ||
+                !canExecuteDoctorAction(status, doctor) ||
                 doctorActionPendingRegistry.isPending()
             ) {
                 game.copyNovaHudDiagnostics()

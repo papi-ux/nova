@@ -713,6 +713,9 @@ class ShortcutTrampoline : NovaActivity() {
                 bitrateKbps = requestedBitrateKbps,
                 bitrateLocked = metered,
                 hdr = preferences.enableHdr,
+                clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
+                    ServerHelper.getActiveDisplay(this, preferences)
+                ),
             )
             val composed = NovaLaunchStreamOverride.compose(
                 optimization,

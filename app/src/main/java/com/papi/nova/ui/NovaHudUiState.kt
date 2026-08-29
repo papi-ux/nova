@@ -372,7 +372,7 @@ data class NovaHudUiState(
                 normalizedPrimaryIssue.contains("decoder") ||
                     (status?.hasAuthoritativeDoctorResult != true && riskElevated(status?.health?.decoderRisk)) ->
                     "Decoder late" to NovaHudTone.WARNING
-                latencyMs > 50 -> "High latency" to NovaHudTone.DANGER
+                latencyMs >= 45 -> "High latency" to toneForLatency(latencyMs)
                 status?.hasAuthoritativeDoctorResult != true &&
                     status?.health?.grade.equals("watch", ignoreCase = true) ->
                     "Needs attention" to NovaHudTone.WARNING

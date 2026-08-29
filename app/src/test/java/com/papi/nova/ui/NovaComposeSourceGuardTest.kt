@@ -40,6 +40,13 @@ class NovaComposeSourceGuardTest {
                 menu.contains("if (doctor.requiresConfirmation)") &&
                 menu.contains("game.copyNovaHudDiagnostics()")
         )
+        assertTrue(
+            "read-only Recheck must use owner observation authority instead of host-tuning authority",
+            menu.contains("fun canExecuteDoctorAction(") &&
+                menu.contains("status.ownedByClient && !status.isViewer") &&
+                menu.contains("!canExecuteDoctorAction(latestStatus, doctor)") &&
+                menu.contains("!canExecuteDoctorAction(status, doctor)")
+        )
     }
 
     @Test

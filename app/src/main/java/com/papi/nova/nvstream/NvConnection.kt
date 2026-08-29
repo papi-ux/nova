@@ -194,8 +194,16 @@ class NvConnection(
 
         context.negotiatedHdr = (streamConfig.getSupportedVideoFormats() and MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0
         if ((context.serverCodecModeSupport and 0x20200) == 0 && context.negotiatedHdr) {
-            listener.displayTransientMessage("Your PC GPU does not support streaming HDR. The stream will be SDR.")
-            context.negotiatedHdr = false
+            if (streamConfig.getResolvedProfile()) {
+                listener.displayMessage(
+                    "The host can no longer honor the resolved HDR profile. " +
+                        "Return to the library and resolve the launch again.",
+                )
+                return false
+            } else {
+                listener.displayTransientMessage("Your PC GPU does not support streaming HDR. The stream will be SDR.")
+                context.negotiatedHdr = false
+            }
         }
 
         if ((streamConfig.getWidth() > 4096 || streamConfig.getHeight() > 4096) &&
@@ -210,9 +218,17 @@ class NvConnection(
             listener.displayMessage("Your streaming device must support HEVC or AV1 to stream at resolutions above 4K.")
             return false
         } else if (streamConfig.getHeight() >= 2160 && !h.supports4K(serverInfo)) {
-            listener.displayTransientMessage("You must update GeForce Experience to stream in 4K. The stream will be 1080p.")
-            context.negotiatedWidth = 1920
-            context.negotiatedHeight = 1080
+            if (streamConfig.getResolvedProfile()) {
+                listener.displayMessage(
+                    "The host can no longer honor the resolved display profile. " +
+                        "Return to the library and resolve the launch again.",
+                )
+                return false
+            } else {
+                listener.displayTransientMessage("You must update GeForce Experience to stream in 4K. The stream will be 1080p.")
+                context.negotiatedWidth = 1920
+                context.negotiatedHeight = 1080
+            }
         } else {
             context.negotiatedWidth = streamConfig.getWidth()
             context.negotiatedHeight = streamConfig.getHeight()
@@ -332,9 +348,17 @@ class NvConnection(
 
     @Throws(IOException::class, XmlPullParserException::class)
     protected fun quitAndLaunch(h: NvHTTP, context: ConnectionContext): Boolean {
+        val streamConfig = context.streamConfig!!
         val listener = context.connListener!!
-        if (context.watchOnlyRequested) {
-            listener.displayMessage("Watch mode can't quit or replace the active stream.")
+        if (!canStartFreshLaunch(streamConfig.getResumeExistingOnly(), context.watchOnlyRequested)) {
+            listener.displayMessage(
+                if (context.watchOnlyRequested) {
+                    "Watch mode can't quit or replace the active stream."
+                } else {
+                    "The requested stream is no longer available to resume. " +
+                        "Return to the library to start a new stream explicitly."
+                },
+            )
             return false
         }
 
@@ -376,18 +400,40 @@ class NvConnection(
     private fun launchNotRunningApp(h: NvHTTP, context: ConnectionContext): Boolean {
         val streamConfig = context.streamConfig!!
         val listener = context.connListener!!
-        if (context.watchOnlyRequested) {
-            listener.displayMessage("No active stream is available to watch.")
+        if (!canStartFreshLaunch(streamConfig.getResumeExistingOnly(), context.watchOnlyRequested)) {
+            listener.displayMessage(
+                if (context.watchOnlyRequested) {
+                    "No active stream is available to watch."
+                } else {
+                    "The requested stream is no longer available to resume. " +
+                        "Return to the library to start a new stream explicitly."
+                },
+            )
             return false
         }
 
         val requestedLaunchRefreshRate = streamConfig.getLaunchRefreshRate().toFloat()
-        context.negotiatedLaunchRefreshRate = negotiateLaunchRefreshRate(
-            requestedLaunchRefreshRate,
-            context.serverMaxLaunchRefreshRate,
-        )
+        val requestedLaunchRefreshRateHz = launchRefreshRateHz(requestedLaunchRefreshRate)
+        if (streamConfig.getResolvedProfile() &&
+            context.serverMaxLaunchRefreshRate > 0 &&
+            requestedLaunchRefreshRateHz > context.serverMaxLaunchRefreshRate
+        ) {
+            listener.displayMessage(
+                "The host can no longer honor the resolved FPS profile. " +
+                    "Return to the library and resolve the launch again.",
+            )
+            return false
+        }
+        context.negotiatedLaunchRefreshRate = if (streamConfig.getResolvedProfile()) {
+            requestedLaunchRefreshRate
+        } else {
+            negotiateLaunchRefreshRate(
+                requestedLaunchRefreshRate,
+                context.serverMaxLaunchRefreshRate,
+            )
+        }
         if (context.serverMaxLaunchRefreshRate > 0 &&
-            context.negotiatedLaunchRefreshRate < requestedLaunchRefreshRate
+            launchRefreshRateHz(context.negotiatedLaunchRefreshRate) < requestedLaunchRefreshRateHz
         ) {
             listener.displayTransientMessage(
                 "This host currently advertises up to " + context.serverMaxLaunchRefreshRate +
@@ -751,12 +797,26 @@ class NvConnection(
                 return requestedLaunchRefreshRate
             }
 
-            return min(requestedLaunchRefreshRate, serverMaxLaunchRefreshRate.toFloat())
+            val encodedServerMaximum = if (requestedLaunchRefreshRate >= 1000f) {
+                serverMaxLaunchRefreshRate * 1000f
+            } else {
+                serverMaxLaunchRefreshRate.toFloat()
+            }
+            return min(requestedLaunchRefreshRate, encodedServerMaximum)
         }
+
+        @JvmStatic
+        fun launchRefreshRateHz(encodedRefreshRate: Float): Float =
+            if (encodedRefreshRate >= 1000f) encodedRefreshRate / 1000f else encodedRefreshRate
 
         @JvmStatic
         fun shouldReplaceCurrentSession(forceFreshLaunch: Boolean, watchOnlyRequested: Boolean): Boolean {
             return forceFreshLaunch && !watchOnlyRequested
+        }
+
+        @JvmStatic
+        fun canStartFreshLaunch(resumeExistingOnly: Boolean, watchOnlyRequested: Boolean): Boolean {
+            return !resumeExistingOnly && !watchOnlyRequested
         }
 
         @JvmStatic

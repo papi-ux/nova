@@ -4,6 +4,7 @@ import com.papi.nova.api.PolarisCapabilities
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class FeatureFlagManagerTest {
@@ -32,6 +33,25 @@ class FeatureFlagManagerTest {
         FeatureFlagManager.reset()
 
         assertFalse(FeatureFlagManager.hasCursorVisibilityControl)
+    }
+
+    @Test
+    fun obsoleteScopeCannotPublishOrResetNewGameCapabilities() {
+        val oldScope = FeatureFlagManager.beginScope()
+        val currentScope = FeatureFlagManager.beginScope()
+        val current = PolarisCapabilities(
+            server = "polaris",
+            version = "1.3.14",
+            features = PolarisCapabilities.Features(doctorV2ShadowEnabled = true),
+            capture = PolarisCapabilities.CaptureInfo()
+        )
+
+        assertFalse(FeatureFlagManager.publishForScope(oldScope, current))
+        assertTrue(FeatureFlagManager.publishForScope(currentScope, current))
+        FeatureFlagManager.reset(oldScope)
+
+        assertNull(FeatureFlagManager.capabilitiesForScope(oldScope))
+        assertTrue(FeatureFlagManager.capabilitiesForScope(currentScope) === current)
     }
 
     private fun setCapabilities(capabilities: PolarisCapabilities) {

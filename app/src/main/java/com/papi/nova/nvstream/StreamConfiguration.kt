@@ -27,6 +27,7 @@ class StreamConfiguration private constructor() {
     private var persistGamepadsAfterDisconnect = false
     private var enableUltraLowLatency = false
     private var forceFreshLaunch = false
+    private var resumeExistingOnly = false
     private var profilePreference = "auto"
     private var resolvedProfile = false
     private var mirrorDesktop = false
@@ -157,6 +158,11 @@ class StreamConfiguration private constructor() {
             return this
         }
 
+        fun setResumeExistingOnly(resumeExistingOnly: Boolean): Builder {
+            config.resumeExistingOnly = resumeExistingOnly
+            return this
+        }
+
         fun setProfilePreference(profilePreference: String?): Builder {
             config.profilePreference = if (profilePreference.isNullOrBlank()) "auto" else profilePreference
             return this
@@ -243,6 +249,8 @@ class StreamConfiguration private constructor() {
     fun getEnableUltraLowLatency(): Boolean = enableUltraLowLatency
 
     fun getForceFreshLaunch(): Boolean = forceFreshLaunch
+
+    fun getResumeExistingOnly(): Boolean = resumeExistingOnly
 
     fun getProfilePreference(): String = profilePreference
 

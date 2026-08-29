@@ -29,6 +29,7 @@ class GameClientRuntimeSourceGuardTest {
         assertTrue(
             "Resume Stream must not consume a queued next-launch profile and fallback metered queries must carry an explicit bitrate lock",
                 launchSetup.contains("watchOnlyRequested || resumeExistingRequested") &&
+                game.contains("setResumeExistingOnly(resumeExistingRequested)") &&
                 game.contains("private fun loadLaunchOptimization(") &&
                 game.contains("bitrateLocked = queryBitrateLocked")
         )
@@ -36,8 +37,11 @@ class GameClientRuntimeSourceGuardTest {
             "Game must keep a trusted Play Setup envelope on metered launches and reject legacy launch-policy responses",
                 game.contains("if (!launchOptimizationJson.isNullOrBlank())") &&
                 game.contains("StreamSyncManager.hasTrustedResolvedProfile(preflight)") &&
+                game.contains("preflightHonorsCurrentBitrateLock") &&
+                game.contains("StreamSyncManager.resolvedFieldIsLocked(") &&
+                game.contains("preflightBitrateKbps in 1..queryBitrateKbps") &&
                 game.contains("trustedPreflight = preflight") &&
-                game.contains("result[0] = trustedPreflight ?: novaApiClient!!.getOptimization(") &&
+                game.contains("val optimizationResult = trustedPreflight ?: novaApiClient!!.getOptimization(") &&
                 game.contains("Rejecting malformed preflight optimization payload") &&
                 game.contains("mode = streamMode") &&
                 game.contains("launchOptimizationPolicyBlocked = true") &&
@@ -49,6 +53,21 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("setResolvedProfile(launchResolvedProfileTrusted)")
         )
         assertTrue(
+            "launch identity and optimization must run off the main thread and return through a one-shot bound token",
+            launchSetup.contains("launchRuntimeIo(\"NovaLaunchPolicyGate\")") &&
+                launchSetup.indexOf("launchRuntimeIo(\"NovaLaunchPolicyGate\")") in
+                0 until launchSetup.indexOf("loadLaunchOptimization(") &&
+                launchSetup.contains("NovaLaunchPolicyGateStore.consume(") &&
+                launchSetup.contains("NovaLaunchPolicyGateStore.issue(") &&
+                !game.contains("thread.join(12000)")
+        )
+        assertTrue(
+            "connection recovery must use the same lifecycle-bound capability scope as Doctor sampling",
+            game.contains("ConnectionResilienceManager(") &&
+                game.contains("novaFeatureScope") &&
+                game.contains("FeatureFlagManager.capabilitiesForScope(novaFeatureScope)")
+        )
+        assertTrue(
             "client runtime reports should carry the same provenance into the client_runtime payload",
             reportSnapshot.contains("lastClientProfileProvenance") &&
                 reportSnapshot.contains("buildClientRuntime(") &&
@@ -57,6 +76,28 @@ class GameClientRuntimeSourceGuardTest {
                 // thing it is ordering has been deleted.
                 reportSnapshot.indexOf("lastClientProfileProvenance") in
                 0 until reportSnapshot.indexOf("reportClientSettings(")
+        )
+    }
+
+    @Test
+    fun resumeExistingCannotFallThroughToFreshLaunch() {
+        val connection = readSource("src/main/java/com/papi/nova/nvstream/NvConnection.kt")
+        val quitAndLaunch = connection.section(
+            "protected fun quitAndLaunch(",
+            "fun getSessionToken(): String?",
+        )
+        val launchNotRunning = connection.section(
+            "private fun launchNotRunningApp(",
+            "fun start(",
+        )
+        val guard = "canStartFreshLaunch(streamConfig.getResumeExistingOnly(), context.watchOnlyRequested)"
+
+        assertTrue(
+            "Resume Existing must fail closed before either helper can quit or launch a session",
+            quitAndLaunch.contains(guard) &&
+                quitAndLaunch.indexOf(guard) in 0 until quitAndLaunch.indexOf("h.quitApp(") &&
+                launchNotRunning.contains(guard) &&
+                launchNotRunning.indexOf(guard) in 0 until launchNotRunning.indexOf("h.launchApp("),
         )
     }
 

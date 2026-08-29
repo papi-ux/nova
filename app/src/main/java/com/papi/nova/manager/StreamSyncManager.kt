@@ -36,6 +36,23 @@ class StreamSyncManager private constructor() {
         const val SYNC_MODE_AUTO_SAFE: String = "auto_safe"
 
         @JvmStatic
+        fun maxSupportedRefreshRate(display: Display?): Float {
+            if (display == null) return 0f
+            var maximum = display.refreshRate
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                display.supportedModes.forEach { mode ->
+                    maximum = maxOf(maximum, mode.refreshRate)
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                display.supportedRefreshRates.forEach { rate ->
+                    maximum = maxOf(maximum, rate)
+                }
+            }
+            return maximum
+        }
+
+        @JvmStatic
         fun resolveProfileProvenance(
             optimization: JSONObject?,
             manualOverride: Boolean
@@ -48,14 +65,10 @@ class StreamSyncManager private constructor() {
         fun resolveAutoSafeBitrateKbps(configuredBitrateKbps: Int, optimization: JSONObject?): Int {
             val target = resolvedField(optimization, "target_bitrate_kbps") as? Number
             val resolved = target?.toInt()?.takeIf { it > 0 } ?: return configuredBitrateKbps
-            // The configured value is the client-side launch ceiling (and is
-            // lower on metered networks). A deterministic preset may step it
-            // down, but a preview must never raise the actual launch above it.
-            return if (configuredBitrateKbps > 0) {
-                minOf(configuredBitrateKbps, resolved)
-            } else {
-                resolved
-            }
+            // Metered and other per-launch limits are sent to /optimize as
+            // explicit locks. Once the authenticated resolver returns a valid
+            // envelope, Nova must consume that exact value without rewriting it.
+            return resolved
         }
 
         @JvmStatic
@@ -81,14 +94,20 @@ class StreamSyncManager private constructor() {
         @JvmStatic
         fun resolveAutoSafeHdr(configuredHdr: Boolean, optimization: JSONObject?): Boolean {
             val resolved = resolvedHdrValue(optimization) ?: return configuredHdr
-            // Host/client hard capability validation may step HDR down. A
-            // deterministic preview never turns HDR on when Nova disabled it.
-            return configuredHdr && resolved
+            return resolved
         }
 
         @JvmStatic
         fun resolvedHdrValue(optimization: JSONObject?): Boolean? =
             resolvedField(optimization, "hdr") as? Boolean
+
+        @JvmStatic
+        fun resolvedFieldIsLocked(optimization: JSONObject?, name: String): Boolean? =
+            validResolvedField(
+                resolvedProfile(optimization)
+                    ?.optJSONObject("fields")
+                    ?.optJSONObject(name)
+            )?.opt("locked") as? Boolean
 
         @JvmStatic
         fun resolveDisplayCompatibleAutoSafeTargetFps(

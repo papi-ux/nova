@@ -490,7 +490,8 @@ class PolarisApiClient @JvmOverloads constructor(
             displayLocked: Boolean = false,
             bitrateKbps: Int = 0,
             bitrateLocked: Boolean = false,
-            hdr: Boolean? = null
+            hdr: Boolean? = null,
+            clientMaxFps: Float = 0f
         ): String {
             val preferenceParam = preference
                 .takeIf { it.isNotBlank() }
@@ -510,6 +511,10 @@ class PolarisApiClient @JvmOverloads constructor(
             val bitrateParam = bitrateKbps.takeIf { it > 0 }?.let { "&bitrate_kbps=$it" } ?: ""
             val bitrateLockParam = if (bitrateLocked && bitrateKbps > 0) "&bitrate_locked=1" else ""
             val hdrParam = hdr?.let { "&hdr=${if (it) 1 else 0}" } ?: ""
+            val clientMaxFpsParam = clientMaxFps
+                .takeIf { it > 0f && it.isFinite() }
+                ?.let { "&client_max_fps=$it" }
+                ?: ""
             return "/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
                 "&game=${java.net.URLEncoder.encode(game, "UTF-8")}" +
                 preferenceParam +
@@ -518,7 +523,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 displayLockParam +
                 bitrateParam +
                 bitrateLockParam +
-                hdrParam
+                hdrParam +
+                clientMaxFpsParam
         }
 
         private fun parseStringArray(array: org.json.JSONArray?): List<String> {
@@ -2685,10 +2691,24 @@ class PolarisApiClient @JvmOverloads constructor(
         bitrateKbps: Int = 0,
         bitrateLocked: Boolean = false,
         hdr: Boolean? = null,
+        clientMaxFps: Float = 0f,
         launchBounded: Boolean = false
     ): org.json.JSONObject? {
         return try {
-            val url = "$baseUrl${buildOptimizationPath(device, game, preference, mode, width, height, fps, displayLocked, bitrateKbps, bitrateLocked, hdr)}"
+            val url = "$baseUrl${buildOptimizationPath(
+                device = device,
+                game = game,
+                preference = preference,
+                mode = mode,
+                width = width,
+                height = height,
+                fps = fps,
+                displayLocked = displayLocked,
+                bitrateKbps = bitrateKbps,
+                bitrateLocked = bitrateLocked,
+                hdr = hdr,
+                clientMaxFps = clientMaxFps
+            )}"
             val request = Request.Builder().url(url).get().build()
             LimeLog.info("Nova: Optimization query start for $url")
             val response = if (launchBounded) {
