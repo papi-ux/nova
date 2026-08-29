@@ -410,6 +410,7 @@ internal enum class NovaPlaySetupScope { THIS_GAME, EVERY_GAME }
 internal enum class NovaPlaySetupRow {
     WHERE_IT_RUNS,
     RESOLUTION,
+    FRAME_RATE,
     TUNING,
     STEAM_LAUNCH,
     HOST_DEFAULT_DISPLAY,

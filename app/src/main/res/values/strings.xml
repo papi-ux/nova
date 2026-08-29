@@ -338,6 +338,13 @@
     <string name="nova_play_setup_resolution_caption">The display is made to match this handheld</string>
     <string name="nova_play_setup_resolution_chosen">Chosen here \u00b7 applies at launch</string>
     <string name="nova_play_setup_strip_resolution">If you changed the resolution</string>
+    <string name="nova_play_setup_frame_rate">Frame Rate</string>
+    <string name="nova_play_setup_frame_rate_caption">Follows the resolution\'s own rate</string>
+    <string name="nova_play_setup_frame_rate_chosen">Chosen here \u00b7 applies at launch</string>
+    <string name="nova_play_setup_strip_frame_rate">If you changed the frame rate</string>
+    <string name="nova_play_setup_frame_rate_auto">Auto</string>
+    <string name="nova_play_setup_frame_rate_auto_consequence">Whatever the resolution or host plans</string>
+    <string name="nova_play_setup_frame_rate_fps_format">%d FPS</string>
     <string name="nova_play_setup_tuning">Launch preset</string>
     <string name="nova_play_setup_strip_tuning">If you changed the tuning</string>
     <string name="nova_play_setup_tuning_pins">Pins %1$d FPS from your Settings frame rate</string>
