@@ -71,6 +71,12 @@ data class NovaDisplayResolutionPlanner(
             return if (parts.size == 3) "${parts[0]}x${parts[1]}" else targetMode
         }
 
+        /** The trailing rate half of a planner target mode, or null when it can't be read. */
+        fun resolutionFps(targetMode: String): Int? {
+            val parts = targetMode.trim().split('x', 'X')
+            return parts.getOrNull(2)?.toFloatOrNull()?.roundToInt()
+        }
+
         private fun plannerTitle(choice: PolarisGame.DisplayPlannerChoice, recommendedId: String): String {
             return if (choice.id == recommendedId) {
                 "Best for this device"
