@@ -27,21 +27,20 @@ class GameClientRuntimeSourceGuardTest {
                 launchSetup.contains("launchOptimization,")
         )
         assertTrue(
-            "Resume Stream must not consume a queued next-launch profile and fallback metered queries must carry an explicit bitrate lock",
-                launchSetup.contains("watchOnlyRequested || resumeExistingRequested") &&
+            "Resume Existing must carry a deterministic profile while remaining unable to fall through to a fresh launch",
+                launchSetup.contains("if (watchOnlyRequested)") &&
+                !launchSetup.contains("watchOnlyRequested || resumeExistingRequested") &&
                 game.contains("setResumeExistingOnly(resumeExistingRequested)") &&
                 game.contains("private fun loadLaunchOptimization(") &&
-                game.contains("bitrateLocked = queryBitrateLocked")
+                game.contains("bitrateLocked = resolverRequest.bitrateLocked")
         )
         assertTrue(
             "Game must keep a trusted Play Setup envelope on metered launches and reject legacy launch-policy responses",
                 game.contains("if (!launchOptimizationJson.isNullOrBlank())") &&
                 game.contains("StreamSyncManager.hasTrustedResolvedProfile(preflight)") &&
-                game.contains("preflightHonorsCurrentBitrateLock") &&
                 game.contains("StreamSyncManager.resolvedFieldIsLocked(") &&
-                game.contains("preflightBitrateKbps in 1..queryBitrateKbps") &&
-                game.contains("trustedPreflight = preflight") &&
-                game.contains("val optimizationResult = trustedPreflight ?: novaApiClient!!.getOptimization(") &&
+                game.contains("LaunchOptimizationPreflightPolicy.select(") &&
+                game.contains("val optimizationResult = preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(") &&
                 game.contains("Rejecting malformed preflight optimization payload") &&
                 game.contains("mode = requestedLaunchTopology()") &&
                 game.contains("topologyLocked = exactTopologyLocked") &&
@@ -50,6 +49,16 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("LaunchTopologyEnvelope.matches(") &&
                 game.contains("if (!preflightTopologyHonored)") &&
                 game.contains("Discarding preflight values after app or topology intent changed") &&
+                game.contains("Discarding preflight values after the launch envelope changed") &&
+                game.contains("val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(") &&
+                game.contains("width = requestedWidth") &&
+                game.contains("height = requestedHeight") &&
+                game.contains("fps = requestedFps") &&
+                game.contains("displayLocked = displayLocked") &&
+                !game.contains("queryWidth = resolution.width") &&
+                !game.contains("queryHeight = resolution.height") &&
+                !game.contains("queryFps = com.papi.nova.manager.StreamSyncManager") &&
+                !game.contains("queryBitrateKbps = preflightBitrateKbps") &&
                 game.contains("else \"\"\n}") &&
                 game.contains("val safeAppIdentity:String = appUUID?.takeIf") &&
                 game.contains("DeviceUtils.getModel(), safeAppIdentity, preference") &&
@@ -76,6 +85,7 @@ class GameClientRuntimeSourceGuardTest {
             "singleTask launch decisions must bind the certificate and every local setting that can rewrite the resolved envelope",
             game.contains("serverCertificatePolicyFingerprint()") &&
                 game.contains("displayModeExplicit.toString()") &&
+                game.contains("resumeExistingOnly.toString()") &&
                 game.contains("forcePrivateAfterSteamClose.toString()") &&
                 game.contains("prefConfig!!.resolutionScaleFactor.toString()") &&
                 game.contains("prefConfig!!.framePacing.toString()") &&
@@ -103,7 +113,8 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("val containsNovaLaunchOverride =") &&
                 game.contains("NovaLaunchStreamOverride.NORMALIZATION_REASON") &&
                 game.contains(") && !containsNovaLaunchOverride)") &&
-                game.contains("queryDisplayLocked = containsNovaLaunchOverride") &&
+                game.contains("displayLocked = displayLocked") &&
+                !game.contains("queryDisplayLocked = containsNovaLaunchOverride") &&
                 game.contains("return LaunchOptimizationDecision(optimizationResult, false, preference, true)")
         )
         assertTrue(

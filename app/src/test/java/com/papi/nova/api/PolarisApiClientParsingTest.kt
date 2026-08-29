@@ -124,11 +124,19 @@ class PolarisApiClientParsingTest {
             actionId = "verify",
             requestedRunId = "doctor-run-1"
         )
+        val incompleteApplyingStep = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"applying\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
 
         assertFalse(blankRunMutation.status)
         assertEquals("Invalid Doctor action response", blankRunMutation.error)
         assertFalse(blankRunVerification.status)
         assertFalse(incompleteNextStep.status)
+        assertFalse(incompleteApplyingStep.status)
         assertTrue(recheck.status)
     }
 
@@ -151,6 +159,14 @@ class PolarisApiClientParsingTest {
             actionId = "verify",
             requestedRunId = "doctor-run-1"
         )
+        val nextQualityStep = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"applying\"," +
+                "\"run_id\":\"doctor-run-1\",\"verification\":{\"action_id\":\"verify\"," +
+                "\"delay_seconds\":8},\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
         val undone = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 200,
             responseBody = "{\"status\":true,\"changed\":true,\"state\":\"undone\"," +
@@ -161,6 +177,7 @@ class PolarisApiClientParsingTest {
 
         assertTrue(applied.status)
         assertTrue(verified.status)
+        assertTrue(nextQualityStep.status)
         assertTrue(undone.status)
     }
 

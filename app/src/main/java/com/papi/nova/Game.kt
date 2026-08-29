@@ -1265,10 +1265,11 @@ requestedHeight = displayHeight,
 requestedFps = optimizationRequestedFps,
 displayLocked = watchStreamWidth > 0 && watchStreamHeight > 0,
 displayModeExplicit = displayModeExplicit,
+resumeExistingOnly = resumeExistingRequested,
 requestedHdr = willStreamHdr
 )
 var launchPolicyTokenInvalid = false
-if (watchOnlyRequested || resumeExistingRequested)
+if (watchOnlyRequested)
 {
 launchOptimization = null
 launchResolvedProfileTrusted = false
@@ -2509,6 +2510,7 @@ requestedHeight:Int,
 requestedFps:Float,
 displayLocked:Boolean,
 displayModeExplicit:Boolean,
+resumeExistingOnly:Boolean,
 requestedHdr:Boolean
 ):String = listOf(
 host.orEmpty(),
@@ -2532,6 +2534,7 @@ requestedHeight.toString(),
 requestedFps.toBits().toString(),
 displayLocked.toString(),
 displayModeExplicit.toString(),
+resumeExistingOnly.toString(),
 forcePrivateAfterSteamClose.toString(),
 prefConfig!!.resolutionScaleFactor.toString(),
 prefConfig!!.framePacing.toString(),
@@ -2658,16 +2661,22 @@ policyBlocked = true,
 profilePreference = preference,
 resolvedProfileTrusted = false
 )
-var queryWidth = requestedWidth
-var queryHeight = requestedHeight
-var queryFps = requestedFps
-var queryDisplayLocked = displayLocked
-var queryBitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate
-var queryBitrateLocked = bitrateLocked
+val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
+width = requestedWidth,
+height = requestedHeight,
+fps = requestedFps,
+displayLocked = displayLocked,
+bitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate,
+bitrateLocked = bitrateLocked
+)
 val requestedTopology = requestedLaunchTopology()
 val exactTopologyLocked = topologyLocked || mirrorDesktop ||
 forcePrivateAfterSteamClose || streamMode.isNotBlank()
-var trustedPreflight:JSONObject? = null
+var preflightSelection = com.papi.nova.manager.LaunchOptimizationPreflightPolicy.select(
+callerRequest,
+null,
+false
+)
 if (!launchOptimizationJson.isNullOrBlank())
 {
 try
@@ -2676,15 +2685,6 @@ val preflight = JSONObject(launchOptimizationJson!!)
 if (com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(preflight))
 {
 val clientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
-val preflightBitrateKbps = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
-queryBitrateKbps,
-preflight
-)
-val preflightHonorsCurrentBitrateLock = !queryBitrateLocked ||
-(com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
-preflight,
-"target_bitrate_kbps"
-) == true && preflightBitrateKbps in 1..queryBitrateKbps)
 val containsNovaLaunchOverride = preflight.optString("normalization_reason", "") ==
 NovaLaunchStreamOverride.NORMALIZATION_REASON
 val preflightTopologyHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
@@ -2700,8 +2700,8 @@ if (resolvedOptimizationHonorsLaunchEnvelope(
 preflight,
 requestedHdr,
 clientMaximumFps,
-queryBitrateLocked,
-queryBitrateKbps,
+callerRequest.bitrateLocked,
+callerRequest.bitrateKbps,
 requestedWidth,
 requestedHeight,
 requestedFps,
@@ -2715,47 +2715,27 @@ forcePrivateAfterSteamClose
 {
 // Play Setup already resolved the exact per-launch locks. Its HDR value is
 // accepted only after it matches Nova's actual display/decoder capability.
-trustedPreflight = preflight
-}
-else
-{
-if (!preflightTopologyHonored)
-{
-// A result for another app/topology has no authority over even the next
-// resolver request. Preserve the caller's original fields and locks.
-LimeLog.info("Nova: Discarding preflight values after app or topology intent changed")
-}
-else
-{
-// Local capability validation stepped HDR down after Play Setup. Re-resolve
-// the already chosen values as explicit locks so the new host envelope and
-// /launch remain identical without falling back to durable preferences.
-val resolution = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
-requestedWidth,
-requestedHeight,
-preflight
-)
-queryWidth = resolution.width
-queryHeight = resolution.height
-queryFps = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeTargetFps(
-requestedFps,
-preflight
-)
-queryDisplayLocked = containsNovaLaunchOverride &&
-com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+preflightSelection = com.papi.nova.manager.LaunchOptimizationPreflightPolicy.select(
+callerRequest,
 preflight,
-"display_mode"
-) == true
-if (!containsNovaLaunchOverride)
+true
+)
+}
+else
 {
-queryDisplayLocked = true
-}
-if (queryBitrateLocked && preflightHonorsCurrentBitrateLock)
-{
-queryBitrateKbps = preflightBitrateKbps
-}
-LimeLog.info("Nova: Re-resolving trusted preflight after local display, HDR, or metered-lock validation")
-}
+// A rejected result has no authority over even the next resolver request.
+// Requery from the immutable caller fields and locks whether app/topology,
+// display capability, HDR, FPS, or metered bitrate caused the rejection.
+preflightSelection = com.papi.nova.manager.LaunchOptimizationPreflightPolicy.select(
+callerRequest,
+preflight,
+false
+)
+LimeLog.info(if (!preflightTopologyHonored) {
+"Nova: Discarding preflight values after app or topology intent changed"
+} else {
+"Nova: Discarding preflight values after the launch envelope changed"
+})
 }
 }
 else
@@ -2792,18 +2772,19 @@ if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
 LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
 return blocked()
 }
-val optimizationResult = trustedPreflight ?: novaApiClient!!.getOptimization(
+val resolverRequest = preflightSelection.resolverRequest ?: callerRequest
+val optimizationResult = preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(
 DeviceUtils.getModel(), safeAppIdentity, preference,
 mode = requestedLaunchTopology(),
 topologyLocked = exactTopologyLocked,
 mirrorDesktop = mirrorDesktop,
 forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
-width = queryWidth,
-height = queryHeight,
-fps = queryFps,
-displayLocked = queryDisplayLocked,
-bitrateKbps = queryBitrateKbps,
-bitrateLocked = queryBitrateLocked,
+width = resolverRequest.width,
+height = resolverRequest.height,
+fps = resolverRequest.fps,
+displayLocked = resolverRequest.displayLocked,
+bitrateKbps = resolverRequest.bitrateKbps,
+bitrateLocked = resolverRequest.bitrateLocked,
 hdr = requestedHdr,
 clientMaxFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay()),
 launchBounded = true)
@@ -2824,12 +2805,12 @@ if (!resolvedOptimizationHonorsLaunchEnvelope(
 optimizationResult,
 requestedHdr,
 currentClientMaximumFps,
-queryBitrateLocked,
-queryBitrateKbps,
-queryWidth,
-queryHeight,
-queryFps,
-queryDisplayLocked,
+callerRequest.bitrateLocked,
+callerRequest.bitrateKbps,
+callerRequest.width,
+callerRequest.height,
+callerRequest.fps,
+callerRequest.displayLocked,
 preference.equals("high_fps", ignoreCase = true),
 requestedTopology,
 exactTopologyLocked,

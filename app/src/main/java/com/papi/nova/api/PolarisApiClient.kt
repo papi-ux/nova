@@ -1252,8 +1252,14 @@ class PolarisApiClient @JvmOverloads constructor(
                 "verify" ->
                     requestedRunId.isNotBlank() && runId == requestedRunId &&
                         runId.startsWith("doctor-run-") && when (result.state) {
-                            "applying" -> !result.changed && result.undoAvailable == true &&
-                                result.undoActionId == "undo"
+                            "applying" -> result.undoAvailable == true &&
+                                result.undoActionId == "undo" &&
+                                ((!result.changed &&
+                                    result.verificationActionId.isBlank() &&
+                                    result.verificationDelaySeconds == 0) ||
+                                    (result.changed &&
+                                        result.verificationActionId == "verify" &&
+                                        result.verificationDelaySeconds >= 8))
                             "watching" -> result.undoAvailable == true &&
                                 result.undoActionId == "undo" &&
                                 ((result.changed &&
