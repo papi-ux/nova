@@ -708,6 +708,10 @@ class NovaHudSessionStats {
         recordLatency(sample.rttMs)
         recordPacketLoss(sample.packetLossPct)
         setLastCodec(sample.codec)
+        recordRawMediaEvidence(sample)
+    }
+
+    fun recordRawMediaEvidence(sample: PerfOverlaySample) {
         lastMonotonicTimestampMs = sample.monotonicTimestampMs
         framesExpected = sample.framesExpected
         framesReceived = sample.framesReceived

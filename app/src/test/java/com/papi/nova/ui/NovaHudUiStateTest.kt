@@ -957,6 +957,7 @@ class NovaHudUiStateTest {
 
         assertTrue(source.contains("fun updateFromPerfSample(sample: PerfOverlaySample)"))
         assertTrue(source.contains("updateFps(sample.fps)"))
+        assertTrue(source.contains("sessionStats.recordRawMediaEvidence(sample)"))
         assertTrue(source.contains("updateFromPerfText(text: String)"))
         assertTrue(source.contains("NovaHudPerfSample.fromPerfText(text)"))
     }

@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisSessionStatus
+import com.papi.nova.binding.video.PerfOverlaySample
 import com.google.gson.JsonParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -8,6 +9,45 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NovaHudSessionStatsTest {
+    @Test
+    fun rawMediaEvidencePopulatesDiagnosticsWithoutDoubleCountingHudAverages() {
+        val stats = NovaHudSessionStats()
+        stats.recordFps(120.0, nowMs = 1_000)
+        stats.recordLatency(4)
+        stats.recordPacketLoss(0.5)
+
+        stats.recordRawMediaEvidence(
+            PerfOverlaySample(
+                fps = 120.0,
+                incomingFps = 119.8,
+                renderedFps = 119.7,
+                width = 1920,
+                height = 1080,
+                codec = "HEVC",
+                rttMs = 4,
+                rttVarianceMs = 1,
+                decodeTimeMs = 3.2,
+                packetLossPct = 0.5,
+                monotonicTimestampMs = 50_000L,
+                framesExpected = 6_000L,
+                framesReceived = 5_970L,
+                framesRendered = 5_960L,
+                framesLost = 30L,
+                sessionGeneration = 3L
+            )
+        )
+
+        val summary = stats.summary(nowMs = 2_000)
+        assertEquals(120.0, summary["avg_fps"] as Double, 0.01)
+        assertEquals(4.0, summary["avg_latency_ms"] as Double, 0.01)
+        assertEquals(0.5, summary["packet_loss_pct"] as Double, 0.01)
+        assertEquals(6_000L, summary["frames_expected"])
+        assertEquals(5_970L, summary["frames_received"])
+        assertEquals(5_960L, summary["frames_rendered"])
+        assertEquals(30L, summary["frames_lost"])
+        assertEquals(3L, summary["session_generation"])
+    }
+
     @Test
     fun summaryReportsAveragesAndPacketLoss() {
         val stats = NovaHudSessionStats()
