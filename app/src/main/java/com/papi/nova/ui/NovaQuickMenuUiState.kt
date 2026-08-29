@@ -526,7 +526,7 @@ data class NovaQuickMenuUiState(
                 )
             }
             val watching = !receipt.isTerminal
-            val canUndo = canAdjustHostTuning &&
+            val canUndo = (canAdjustHostTuning || receipt.runId.startsWith("recovery-run-")) &&
                 receipt.undoAvailable &&
                 receipt.runId.isNotBlank() &&
                 receipt.undoActionId.isNotBlank()

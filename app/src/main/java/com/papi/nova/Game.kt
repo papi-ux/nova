@@ -262,6 +262,7 @@ private var externalDisplayListener:DisplayManager.DisplayListener? = null
 com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfileSource.LOCAL_DEFAULT)
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
+private var launchOptimizationPolicyBlocked:Boolean = false
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
 private var streamMode:String = ""
@@ -1092,6 +1093,13 @@ return
 }
 
 var launchOptimization:JSONObject? = if (watchOnlyRequested || resumeExistingRequested) null else loadLaunchOptimization(appName, isMetered)
+if (launchOptimizationPolicyBlocked)
+{
+LimeLog.severe("Nova: Refusing launch because Polaris did not provide a deterministic resolved-profile contract")
+Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
+finish()
+return
+}
 lastClientProfileProvenance = com.papi.nova.manager.StreamSyncManager.resolveProfileProvenance(launchOptimization, manualOverride = isManualProfileOverride())
 
  // Initialize the MediaCodec helper before creating the decoder
@@ -2350,15 +2358,37 @@ private fun isManualProfileOverride():Boolean {
 return launchProfilePreference.isNotBlank() && !launchProfilePreference.equals("auto", ignoreCase = true)
 }
 
+private fun blockLaunchForKnownLegacyPolaris():Boolean {
+val blocked = com.papi.nova.manager.FeatureFlagManager.isPolarisServer &&
+!com.papi.nova.manager.FeatureFlagManager.hasResolvedProfileProvenance
+if (blocked)
+{
+launchOptimizationPolicyBlocked = true
+}
+return blocked
+}
+
 private fun loadLaunchOptimization(appName:String?, bitrateLocked:Boolean):JSONObject? {
-if (!bitrateLocked && !launchOptimizationJson.isNullOrBlank())
+launchOptimizationPolicyBlocked = false
+if (!launchOptimizationJson.isNullOrBlank())
 {
 try
 {
-return JSONObject(launchOptimizationJson!!)
+val preflight = JSONObject(launchOptimizationJson!!)
+if (com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(preflight))
+{
+// Play Setup already resolved the per-launch topology, explicit locks, and
+// metered ceiling. Re-querying here would replace that intent with durable
+// preferences and a topology-free cache bucket.
+return preflight
+}
+launchOptimizationPolicyBlocked = true
+return null
 }
 catch (e:Exception) {
-LimeLog.warning("Nova: Ignoring invalid preflight optimization payload")
+LimeLog.warning("Nova: Rejecting malformed preflight optimization payload")
+launchOptimizationPolicyBlocked = true
+return null
 }
 }
 if (novaApiClient == null)
@@ -2377,12 +2407,22 @@ launchProfilePreference = preference
 val requestedBitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate
 result[0] = novaApiClient!!.getOptimization(
 DeviceUtils.getModel(), safeAppName, preference,
+mode = streamMode,
 width = prefConfig.width,
 height = prefConfig.height,
 fps = prefConfig.fps,
 bitrateKbps = requestedBitrateKbps,
 bitrateLocked = bitrateLocked,
 hdr = prefConfig.enableHdr)
+if (result[0] == null)
+{
+val capabilities = novaApiClient!!.getCapabilities()
+if (capabilities != null && capabilities.server.equals("polaris", ignoreCase = true) &&
+!capabilities.features.resolvedProfileProvenance)
+{
+launchOptimizationPolicyBlocked = true
+}
+}
 }
 catch (e:Exception) {
 failure[0] = e
@@ -2396,17 +2436,32 @@ thread.join(4500)
 }
 catch (e:InterruptedException) {
 Thread.currentThread().interrupt()
+blockLaunchForKnownLegacyPolaris()
 return null
 }
 
 if (thread.isAlive())
 {
+if (blockLaunchForKnownLegacyPolaris())
+{
+LimeLog.severe("Nova: Legacy Polaris optimization timed out; refusing an unproven launch profile")
+}
+else
+{
 LimeLog.warning("Nova: Launch optimization query timed out after 4500ms; starting with local defaults")
+}
 return null
 }
 if (failure[0] != null)
 {
+if (blockLaunchForKnownLegacyPolaris())
+{
+LimeLog.severe("Nova: Legacy Polaris optimization failed; refusing an unproven launch profile")
+}
+else
+{
 LimeLog.warning("Nova: Launch optimization query failed: " + failure[0]!!.message)
+}
 return null
 }
 val optimizationResult = result[0]
@@ -2414,6 +2469,11 @@ if (optimizationResult != null)
 {
 LimeLog.info(("Nova: Launch optimization loaded source=" + optimizationResult.optString("source", "unknown") +
 " mode=" + optimizationResult.optString("display_mode", "")))
+if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimizationResult))
+{
+launchOptimizationPolicyBlocked = true
+return null
+}
 }
 // Launches that bypass the detail screen (Continue Playing, shortcuts that lost their
 // preflight) arrive here with the raw host blob, so the High FPS pin has to be composed

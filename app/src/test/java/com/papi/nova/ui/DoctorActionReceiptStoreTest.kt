@@ -518,12 +518,12 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
-    fun responseGuardRejectsStaleScopeGenerationAndRunButAcceptsBlankRunId() {
+    fun responseGuardRejectsStaleScopeGenerationRunAndBlankRunId() {
         val request = DoctorActionRequestIdentity(scopeA, "doctor-run-1", generation = 7L)
         val current = watchingReceipt()
         val blankRunResponse = PolarisDoctorActionResult(status = true, state = "watching", runId = "")
 
-        assertTrue(
+        assertFalse(
             DoctorActionReceiptStore.responseMatches(
                 current = current,
                 activeScopeId = scopeA,
@@ -595,24 +595,35 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
-    fun successfulLegacyNewRunCanBePresentedWithoutDurableReceipt() {
-        val request = DoctorActionRequestIdentity(scopeA, runId = "", generation = 9L)
+    fun successfulReadOnlyRecheckCanBePresentedWithoutDurableReceipt() {
+        val request = DoctorActionRequestIdentity(
+            scopeA,
+            runId = "",
+            generation = 9L,
+            actionId = "recheck_pacing"
+        )
         val result = PolarisDoctorActionResult(
             status = true,
-            changed = true,
-            state = "stable",
-            message = "Applied",
+            changed = false,
+            state = "observed",
+            message = "Observed",
             runId = ""
         )
 
-        assertTrue(DoctorActionReceiptStore.successfulLegacyNewRunResult(request, result))
+        assertTrue(DoctorActionReceiptStore.successfulReadOnlyNewRunResult(request, result))
         assertFalse(
-            DoctorActionReceiptStore.successfulLegacyNewRunResult(
+            DoctorActionReceiptStore.successfulReadOnlyNewRunResult(
                 request.copy(runId = "doctor-run-1"),
                 result
             )
         )
-        assertFalse(DoctorActionReceiptStore.successfulLegacyNewRunResult(request, result.copy(status = false)))
+        assertFalse(
+            DoctorActionReceiptStore.successfulReadOnlyNewRunResult(
+                request.copy(actionId = "lower_bitrate"),
+                result.copy(changed = true, state = "stable")
+            )
+        )
+        assertFalse(DoctorActionReceiptStore.successfulReadOnlyNewRunResult(request, result.copy(status = false)))
     }
 
     @Test
@@ -803,6 +814,16 @@ class DoctorActionReceiptStoreTest {
         assertFalse(authorized(activeScope = "other-scope", validatedScope = "other-scope"))
         assertFalse(authorized(validatedScope = null))
         assertFalse(authorized(canAdjust = false))
+        val queuedRecovery = current.copy(runId = "recovery-run-1", state = "queued")
+        assertTrue(
+            DoctorActionReceiptStore.undoIsAuthorized(
+                current = queuedRecovery,
+                candidate = queuedRecovery,
+                activeScopeId = scopeA,
+                validatedScopeId = scopeA,
+                canAdjustHostTuning = false
+            )
+        )
         assertFalse(
             DoctorActionReceiptStore.undoIsAuthorized(
                 current = current.copy(undoAvailable = false),

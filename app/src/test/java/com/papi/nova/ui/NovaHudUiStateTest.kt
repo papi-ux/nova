@@ -535,6 +535,126 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun unconfirmedNetworkObservationRequestsARecheckWithoutNetworkBlame() {
+        val status = status(
+            health = PolarisSessionStatus.HealthStatus(
+                grade = "watch",
+                primaryIssue = "network_jitter",
+                issues = listOf("network_jitter"),
+                networkRisk = "elevated"
+            ),
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                primaryIssue = "network_observation",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "packet_loss",
+                        status = "pass",
+                        source = "media_transport",
+                        value = 0.4
+                    ),
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "latency",
+                        status = "watch",
+                        source = "stream_stats",
+                        value = 30.0
+                    )
+                )
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 30,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertFalse(status.hasHealthConcerns)
+        assertEquals("Network recheck", status.healthToneLabel)
+        assertEquals("Network recheck", state.healthReasonLabel)
+        assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
+        assertEquals(NovaHudTone.STABLE, state.latencyTone)
+        assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
+    }
+
+    @Test
+    fun confirmedMediaLossOverridesObservationSuppression() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 30,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(grade = "watch"),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    primaryIssue = "network_observation",
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "packet_loss",
+                            status = "fail",
+                            source = "media_transport",
+                            value = 3.2
+                        )
+                    )
+                )
+            ),
+            sparklineSamples = listOf(60f)
+        )
+
+        assertEquals("Needs attention", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertEquals(NovaHudTone.WARNING, state.layerHealth[1].tone)
+    }
+
+    @Test
+    fun controlChannelRetriesRemainInformational() {
+        val status = status(
+            health = PolarisSessionStatus.HealthStatus(grade = "watch"),
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                primaryIssue = "control_channel_observation",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "control_channel_packet_loss",
+                        status = "watch",
+                        source = "enet_control_channel",
+                        value = 8.0
+                    )
+                )
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertFalse(status.hasHealthConcerns)
+        assertEquals("Control retries", status.healthToneLabel)
+        assertEquals("Control retries observed", state.healthReasonLabel)
+        assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
+        assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
+    }
+
+    @Test
     fun elevatedDecoderRiskRaisesDecoderLate() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.DEBUG,

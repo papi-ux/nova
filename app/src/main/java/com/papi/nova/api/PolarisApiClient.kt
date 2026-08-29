@@ -877,6 +877,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     streamPolicy = features?.optBoolean("stream_policy_v1") ?: false,
                     clientSettings = features?.optBoolean("client_settings_v1") ?: false,
                     optimizerSync = features?.optBoolean("optimizer_sync_v1") ?: false,
+                    resolvedProfileProvenance = features?.optBoolean("resolved_profile_provenance_v1") ?: false,
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
                     cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
                     doctorV2Shadow = features?.optBoolean("doctor_v2_shadow_v1") ?: false,
@@ -1042,6 +1043,7 @@ class PolarisApiClient @JvmOverloads constructor(
             val normalized = issue.lowercase()
             return when {
                 normalized.isBlank() || normalized == "none" -> "UNKNOWN"
+                normalized == "network_observation" || normalized == "control_channel_observation" -> "UNKNOWN"
                 normalized.contains("network") || normalized.contains("packet") || normalized.contains("jitter") || normalized.contains("latency") -> "NET"
                 normalized.contains("client") || normalized.contains("decoder") || normalized.contains("presentation") || normalized.contains("refresh") -> "CLIENT"
                 else -> "HOST"
@@ -1097,19 +1099,81 @@ class PolarisApiClient @JvmOverloads constructor(
         @JvmStatic
         internal fun parseDoctorActionHttpResponse(
             statusCode: Int,
-            responseBody: String
+            responseBody: String,
+            actionId: String,
+            requestedRunId: String
         ): PolarisDoctorActionResult {
             val parsed = runCatching {
                 parseDoctorActionResponse(JSONObject(responseBody.ifBlank { "{}" }))
             }.getOrNull()
-            if (statusCode == 200 && parsed != null) return parsed
+            if (statusCode == 200 && parsed != null && doctorActionResponseMatchesRequest(
+                    actionId = actionId,
+                    requestedRunId = requestedRunId,
+                    result = parsed
+                )) {
+                return parsed
+            }
 
             return (parsed ?: PolarisDoctorActionResult(status = false)).copy(
                 status = false,
-                error = parsed?.error?.takeIf { it.isNotBlank() } ?: "Doctor action rejected",
+                error = parsed?.error?.takeIf { it.isNotBlank() }
+                    ?: if (statusCode == 200) "Invalid Doctor action response" else "Doctor action rejected",
                 undoAvailable = false,
                 undoActionId = ""
             )
+        }
+
+        @JvmStatic
+        internal fun doctorActionResponseMatchesRequest(
+            actionId: String,
+            requestedRunId: String,
+            result: PolarisDoctorActionResult
+        ): Boolean {
+            if (!result.status) return false
+            val runId = result.runId.trim()
+            return when (actionId) {
+                "recheck_pacing" ->
+                    requestedRunId.isBlank() && !result.changed && runId.isBlank() &&
+                        result.state == "observed" && result.verificationActionId.isBlank() &&
+                        result.undoAvailable != true && result.undoActionId.isBlank()
+                "recheck_network" ->
+                    requestedRunId.isBlank() && !result.changed && runId.isBlank() &&
+                        result.state in setOf("stable", "confirmed_pressure") &&
+                        result.verificationActionId.isBlank() &&
+                        result.undoAvailable != true && result.undoActionId.isBlank()
+                "lower_bitrate", "restore_quality" ->
+                    requestedRunId.isBlank() && result.changed && runId.isNotBlank() &&
+                        runId.startsWith("doctor-run-") &&
+                        result.state == "watching" && result.verificationActionId == "verify" &&
+                        result.verificationDelaySeconds >= 8 && result.undoAvailable == true &&
+                        result.undoActionId == "undo"
+                "verify" ->
+                    requestedRunId.isNotBlank() && runId == requestedRunId &&
+                        runId.startsWith("doctor-run-") && when (result.state) {
+                            "watching" -> result.undoAvailable == true &&
+                                result.undoActionId == "undo" &&
+                                ((result.changed &&
+                                    result.verificationActionId == "verify" &&
+                                    result.verificationDelaySeconds >= 8) ||
+                                    (!result.changed &&
+                                        result.verificationActionId.isBlank() &&
+                                        result.verificationDelaySeconds == 0))
+                            "resolved" -> !result.changed && result.undoAvailable == true &&
+                                result.undoActionId == "undo"
+                            "rolled_back" -> result.changed && result.undoAvailable != true &&
+                                result.undoActionId.isBlank()
+                            else -> false
+                        }
+                "undo" ->
+                    requestedRunId.isNotBlank() && runId == requestedRunId &&
+                        (runId.startsWith("doctor-run-") || runId.startsWith("recovery-run-")) &&
+                        result.state == "undone" &&
+                        result.changed && result.undoAvailable != true
+                "undo_recovery_profile_next_launch" ->
+                    requestedRunId.startsWith("recovery-run-") && runId == requestedRunId &&
+                        result.state == "undone" && result.changed && result.undoAvailable != true
+                else -> false
+            }
         }
 
         private fun strictOptionalIdentity(json: JSONObject, key: String): String {
@@ -2194,7 +2258,9 @@ class PolarisApiClient @JvmOverloads constructor(
             executeNonRetryable(request).use { response ->
                 parseDoctorActionHttpResponse(
                     statusCode = response.code,
-                    responseBody = response.body?.string().orEmpty()
+                    responseBody = response.body?.string().orEmpty(),
+                    actionId = actionId,
+                    requestedRunId = runId
                 )
             }
         } catch (e: Exception) {

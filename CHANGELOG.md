@@ -8,6 +8,8 @@ Nova 1.3.9 resets Doctor to evidence-first containment with Polaris 1.3.14. Fram
 
 Launch presets are deterministic and carry field-level provenance. Nova sends the resolved launch envelope directly, preserves a metered bitrate as a one-launch lock, and never consumes history, AI output, or an old recovery record. AI output is informational explanation only and cannot replace measured evidence, confidence, actions, or settings.
 
+Nova rejects legacy Polaris optimization responses that do not provide the deterministic resolved-profile contract. This fail-closed matched-version check prevents Nova 1.3.9 from launching through a Polaris version that could still apply historical or AI-derived settings.
+
 Pacing offers **Recheck** or manual guidance. **Auto Fix** is reserved for authenticated, reversible same-stream bitrate changes backed by measured loss or RTT evidence, with host-side verification and rollback. Legacy next-launch recovery records are deprecated, non-applicable, and cancellable only; they cannot change optimization or launch.
 
 The HUD is observational and never changes bitrate merely because it is open. Nova does not request or apply an automatic MangoHud, DXVK, VKD3D, or game-process FPS limiter. User-authored host/game settings remain untouched. Steam Input remains manual and read-only.

@@ -594,6 +594,29 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun pairedOwnerCanCancelLegacyRecoveryWithoutOwningTheActiveStream() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope-a",
+            runId = "recovery-run-1",
+            state = "queued",
+            message = "Deprecated profile queued.",
+            undoAvailable = true,
+            undoActionId = "undo",
+            appUuid = "game-1"
+        )
+        val viewerStatus = status(
+            clientRole = "viewer",
+            ownedByClient = false,
+            controls = PolarisSessionStatus.ControlsStatus(hostTuningAllowed = false)
+        )
+
+        val state = quickState(status = viewerStatus, doctorReceipt = receipt)
+
+        assertTrue(state.doctorReceiptAction.visible)
+        assertTrue(state.doctorReceiptAction.enabled)
+    }
+
+    @Test
     fun durableDoctorUndoRequiresHostActionIdAndCurrentTuningPermission() {
         val receipt = DoctorActionReceipt(
             scopeId = "scope-a",

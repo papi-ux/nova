@@ -11,6 +11,7 @@ import com.papi.nova.api.PolarisCapabilities
  */
 object FeatureFlagManager {
 
+    @Volatile
     private var capabilities: PolarisCapabilities? = null
 
     /** True if the connected server is a Polaris server */
@@ -29,6 +30,7 @@ object FeatureFlagManager {
     val hasStreamPolicy: Boolean get() = capabilities?.features?.streamPolicy == true
     val hasClientSettings: Boolean get() = capabilities?.features?.clientSettings == true
     val hasOptimizerSync: Boolean get() = capabilities?.features?.optimizerSync == true
+    val hasResolvedProfileProvenance: Boolean get() = capabilities?.features?.resolvedProfileProvenance == true
     val hasLockScreenControl: Boolean get() = capabilities?.features?.lockScreenControl == true
     val hasCursorVisibilityControl: Boolean get() = capabilities?.features?.cursorVisibilityControl == true
     val hasDoctorV2Shadow: Boolean get() = capabilities?.features?.doctorV2Shadow == true
@@ -82,6 +84,7 @@ object FeatureFlagManager {
                 "AIControl=${hasAiOptimizerControl} Adaptive=${hasAdaptiveBitrateControl} " +
                 "Session=${hasSessionLifecycle} Devices=${hasDeviceProfiles} Lock=${hasLockScreenControl} " +
                 "Cursor=${hasCursorVisibilityControl} Sync=${hasOptimizerSync} " +
+                "ResolvedProfile=${hasResolvedProfileProvenance} " +
                 "DoctorV2=${hasDoctorV2Shadow}/${isDoctorV2ShadowEnabled} Trials=${hasDoctorTrials}/${areDoctorTrialsEnabled}")
             LimeLog.info("Nova: Capture: ${captureBackend}, codecs: ${supportedCodecs}")
         } else {

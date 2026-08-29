@@ -26,10 +26,21 @@ class GameClientRuntimeSourceGuardTest {
                 launchSetup.contains("StreamSyncManager.resolveProfileProvenance(launchOptimization")
         )
         assertTrue(
-            "Resume Stream must not consume a queued next-launch profile and metered launches must be resolved with an explicit bitrate lock",
+            "Resume Stream must not consume a queued next-launch profile and fallback metered queries must carry an explicit bitrate lock",
             launchSetup.contains("watchOnlyRequested || resumeExistingRequested") &&
                 game.contains("loadLaunchOptimization(appName:String?, bitrateLocked:Boolean)") &&
                 game.contains("bitrateLocked = bitrateLocked")
+        )
+        assertTrue(
+            "Game must keep a trusted Play Setup envelope on metered launches and reject legacy launch-policy responses",
+            game.contains("if (!launchOptimizationJson.isNullOrBlank())") &&
+                game.contains("StreamSyncManager.hasTrustedResolvedProfile(preflight)") &&
+                game.contains("return preflight") &&
+                game.contains("Rejecting malformed preflight optimization payload") &&
+                game.contains("mode = streamMode") &&
+                game.contains("launchOptimizationPolicyBlocked = true") &&
+                game.contains("blockLaunchForKnownLegacyPolaris()") &&
+                game.contains("resolvedProfileProvenance")
         )
         assertTrue(
             "client runtime reports should carry the same provenance into the client_runtime payload",

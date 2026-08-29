@@ -29,6 +29,7 @@ class StreamSyncManagerTest {
                     .put("source", fieldSource)
                     .put("reason_code", "test_explicit_setting")
                     .put("locked", true)
+                    .put("normalized", false)
             )
         }
         bitrateKbps?.let {
@@ -39,8 +40,18 @@ class StreamSyncManagerTest {
                     .put("source", fieldSource)
                     .put("reason_code", "test_explicit_setting")
                     .put("locked", true)
-            )
+                    .put("normalized", false)
+                )
         }
+        fields.put(
+            "hdr",
+            JSONObject()
+                .put("value", false)
+                .put("source", fieldSource)
+                .put("reason_code", "test_hdr_setting")
+                .put("locked", true)
+                .put("normalized", false)
+        )
         return JSONObject()
             .put("source", "deterministic_preset_v1")
             .put(
@@ -203,6 +214,75 @@ class StreamSyncManagerTest {
         )
 
         assertEquals(10_000, StreamSyncManager.resolveAutoSafeBitrateKbps(10_000, optimization))
+    }
+
+    @Test
+    fun resolvedFieldsWithoutCompleteProvenanceAreIgnored() {
+        val missingNormalized = deterministicOptimization(bitrateKbps = 12_000)
+        missingNormalized.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("target_bitrate_kbps")
+            .remove("normalized")
+        val stringLocked = deterministicOptimization(displayMode = "1280x720x60")
+        stringLocked.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("display_mode")
+            .put("locked", "true")
+
+        assertEquals(30_000, StreamSyncManager.resolveAutoSafeBitrateKbps(30_000, missingNormalized))
+        val resolution = StreamSyncManager.resolveAutoSafeResolution(1920, 1080, stringLocked)
+        assertEquals(1920, resolution.width)
+        assertEquals(1080, resolution.height)
+    }
+
+    @Test
+    fun trustedLaunchEnvelopeRequiresEveryConsumedFieldAndItsProvenance() {
+        val complete = deterministicOptimization(
+            displayMode = "1920x1080x120",
+            bitrateKbps = 30_000
+        )
+        val missingBitrateReason = JSONObject(complete.toString())
+        missingBitrateReason.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("target_bitrate_kbps")
+            .remove("reason_code")
+        val missingHdr = JSONObject(complete.toString())
+        missingHdr.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .remove("hdr")
+
+        assertTrue(StreamSyncManager.hasTrustedResolvedProfile(complete))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(missingBitrateReason))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(missingHdr))
+    }
+
+    @Test
+    fun trustedLaunchEnvelopeRequiresHostAuthorityAndBoundedExactValues() {
+        val clientAuthored = deterministicOptimization(
+            displayMode = "1920x1080x120",
+            bitrateKbps = 30_000
+        ).put("source", "nova_explicit_launch_v1")
+        val malformedMode = deterministicOptimization(
+            displayMode = "1920x1080x120xignored",
+            bitrateKbps = 30_000
+        )
+        val oversizedMode = deterministicOptimization(
+            displayMode = "20000x1080x120",
+            bitrateKbps = 30_000
+        )
+        val fractionalBitrate = deterministicOptimization(
+            displayMode = "1920x1080x120",
+            bitrateKbps = 30_000
+        )
+        fractionalBitrate.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("target_bitrate_kbps")
+            .put("value", 30_000.5)
+
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(clientAuthored))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(malformedMode))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(oversizedMode))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(fractionalBitrate))
     }
 
     @Test

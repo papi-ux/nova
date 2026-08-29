@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import com.papi.nova.manager.StreamSyncManager
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
@@ -33,7 +34,13 @@ object NovaLaunchStreamOverride {
 
         val trustedRaw = raw?.takeIf(::isTrustedDeterministicEnvelope)
         val composed = trustedRaw?.let { JSONObject(it.toString()) } ?: JSONObject().apply {
-            put("source", "nova_explicit_launch_v1")
+            // A legacy/AI/history host response cannot be relabelled as a
+            // deterministic launch contract merely because Nova overlays one
+            // explicit display choice. Game rejects this marker before launch.
+            put(
+                "source",
+                "nova_explicit_launch_unverified_v1"
+            )
             put("confidence", "deterministic")
             put("cache_status", "not_applicable")
             put("recommendation_version", 1)
@@ -78,13 +85,7 @@ object NovaLaunchStreamOverride {
     }
 
     private fun isTrustedDeterministicEnvelope(raw: JSONObject): Boolean {
-        if (raw.optString("source", "").trim().lowercase() !in
-            setOf("deterministic_preset_v1", "nova_explicit_launch_v1")
-        ) {
-            return false
-        }
-        val profile = raw.optJSONObject("resolved_profile") ?: return false
-        return profile.optInt("policy_version", 0) == 1 && profile.optJSONObject("fields") != null
+        return StreamSyncManager.hasTrustedResolvedProfile(raw)
     }
 
     private data class Mode(val width: Int, val height: Int, val fps: Int)

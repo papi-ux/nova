@@ -1036,6 +1036,7 @@
     <string name="nova_pairing_auto_success">Paired automatically with this host</string>
     <string name="nova_pairing_auto_fallback_pin">Automatic pairing failed — switching to PIN</string>
     <string name="nova_pairing_auto_unsupported">This host doesn\'t support automatic pairing — update Polaris or pair with OTP/PIN</string>
+    <string name="nova_launch_deterministic_host_required">Update Polaris before launching. This Nova version requires deterministic launch profiles and will not use legacy recovery or AI launch settings.</string>
     <string name="nova_quick_menu_safe">Safe</string>
     <string name="nova_quick_menu_mouse">Mouse</string>
     <string name="nova_quick_menu_controller">Touch Controls</string>

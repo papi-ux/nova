@@ -313,7 +313,7 @@ data class NovaHudUiState(
 
         private fun toneForLatency(ms: Int): NovaHudTone = when {
             ms <= 0 -> NovaHudTone.MUTED
-            ms <= 20 -> NovaHudTone.STABLE
+            ms < 45 -> NovaHudTone.STABLE
             ms <= 50 -> NovaHudTone.WARNING
             else -> NovaHudTone.DANGER
         }
@@ -324,8 +324,17 @@ data class NovaHudUiState(
 
         private fun doctorEvidenceWarns(status: PolarisSessionStatus?, ids: Set<String>? = null): Boolean =
             status?.doctor?.evidenceItems.orEmpty().any { item ->
-                (ids == null || item.id.lowercase() in ids) &&
-                    item.status.lowercase() in setOf("watch", "warning", "fail", "degraded", "needs_action")
+                val id = item.id.lowercase()
+                val evidenceStatus = item.status.lowercase()
+                (ids == null || id in ids) &&
+                    evidenceStatus in setOf("watch", "warning", "fail", "degraded", "needs_action") &&
+                    when (id) {
+                        "control_channel_packet_loss" -> false
+                        "packet_loss" -> evidenceStatus == "fail" &&
+                            item.source.equals("media_transport", ignoreCase = true)
+                        "latency" -> evidenceStatus == "fail"
+                        else -> true
+                    }
             }
 
         private fun buildHealthReason(
@@ -344,14 +353,18 @@ data class NovaHudUiState(
                     "Host capped" to NovaHudTone.WARNING
                 normalizedPrimaryIssue == "frame_pacing" || issues.contains("frame_pacing") ->
                     "Frame pacing" to NovaHudTone.WARNING
-                normalizedPrimaryIssue.contains("network") || riskElevated(status?.health?.networkRisk) ->
+                status?.health?.grade.equals("degraded", ignoreCase = true) ->
+                    "Stream degraded" to NovaHudTone.WARNING
+                doctorWarning -> "Needs attention" to NovaHudTone.WARNING
+                normalizedPrimaryIssue == "network_observation" ->
+                    "Network recheck" to NovaHudTone.MUTED
+                normalizedPrimaryIssue == "control_channel_observation" ->
+                    "Control retries observed" to NovaHudTone.MUTED
+                normalizedPrimaryIssue == "network_jitter" || riskElevated(status?.health?.networkRisk) ->
                     "Network jitter" to NovaHudTone.WARNING
                 normalizedPrimaryIssue.contains("decoder") || riskElevated(status?.health?.decoderRisk) ->
                     "Decoder late" to NovaHudTone.WARNING
-                doctorWarning -> "Needs attention" to NovaHudTone.WARNING
                 latencyMs > 50 -> "High latency" to NovaHudTone.DANGER
-                status?.health?.grade.equals("degraded", ignoreCase = true) ->
-                    "Stream degraded" to NovaHudTone.WARNING
                 status?.health?.grade.equals("watch", ignoreCase = true) ->
                     "Needs attention" to NovaHudTone.WARNING
                 normalizedPrimaryIssue.isNotBlank() && normalizedPrimaryIssue != "none" ->
@@ -393,6 +406,8 @@ data class NovaHudUiState(
                 ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
                 ?: status?.health?.primaryIssue.orEmpty()
             val normalizedPrimaryIssue = primaryIssue.lowercase()
+            val networkObservation = normalizedPrimaryIssue in
+                setOf("network_observation", "control_channel_observation")
             val issues = status?.health?.issues.orEmpty().map { it.lowercase() }
             val hostDoctorWarning = doctorEvidenceWarns(
                 status,
@@ -400,7 +415,7 @@ data class NovaHudUiState(
             )
             val networkDoctorWarning = doctorEvidenceWarns(
                 status,
-                setOf("packet_loss", "latency", "transport", "control_channel_packet_loss")
+                setOf("packet_loss", "latency", "transport")
             )
             val clientDoctorWarning = doctorEvidenceWarns(
                 status,
@@ -410,15 +425,17 @@ data class NovaHudUiState(
                 status?.isHostRenderLimited == true || normalizedPrimaryIssue.contains("host") || issues.any { it.contains("host") } ->
                     NovaHudTone.WARNING
                 status?.health?.grade.equals("degraded", ignoreCase = true) ||
-                    status?.health?.grade.equals("watch", ignoreCase = true) ||
+                    (status?.health?.grade.equals("watch", ignoreCase = true) && !networkObservation) ||
                     normalizedPrimaryIssue == "frame_pacing" || issues.contains("frame_pacing") || hostDoctorWarning -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
             val networkTone = when {
-                normalizedPrimaryIssue.contains("network") || issues.any { it.contains("network") } ||
-                    riskElevated(status?.health?.networkRisk) || networkDoctorWarning -> NovaHudTone.WARNING
+                networkDoctorWarning -> NovaHudTone.WARNING
+                !networkObservation &&
+                    (normalizedPrimaryIssue == "network_jitter" || issues.any { it.contains("network") } ||
+                        riskElevated(status?.health?.networkRisk)) -> NovaHudTone.WARNING
                 latencyMs > 50 -> NovaHudTone.DANGER
-                latencyMs > 20 -> NovaHudTone.WARNING
+                latencyMs >= 45 -> NovaHudTone.WARNING
                 else -> NovaHudTone.STABLE
             }
             val clientTone = when {

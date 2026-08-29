@@ -30,8 +30,12 @@ class NovaLaunchStreamOverrideTest {
     private fun deterministicBlob(): JSONObject = JSONObject(
         "{\"source\":\"deterministic_preset_v1\",\"resolved_profile\":{" +
             "\"policy_version\":1,\"preset\":\"quality\",\"fields\":{" +
-            "\"display_mode\":{\"value\":\"1920x1080x60\",\"source\":\"paired_client\"}," +
-            "\"target_bitrate_kbps\":{\"value\":40000,\"source\":\"paired_client\"}}}}"
+            "\"display_mode\":{\"value\":\"1920x1080x60\",\"source\":\"paired_client\"," +
+            "\"reason_code\":\"paired_display_setting\",\"locked\":false,\"normalized\":false}," +
+            "\"target_bitrate_kbps\":{\"value\":40000,\"source\":\"paired_client\"," +
+            "\"reason_code\":\"paired_bitrate_setting\",\"locked\":false,\"normalized\":false}," +
+            "\"hdr\":{\"value\":false,\"source\":\"explicit_launch_request\"," +
+            "\"reason_code\":\"requested_hdr_setting\",\"locked\":false,\"normalized\":false}}}}"
     )
 
     private fun legacyRecoveryBlob(): JSONObject = JSONObject(
@@ -90,12 +94,12 @@ class NovaLaunchStreamOverrideTest {
     }
 
     @Test
-    fun legacyRecoveryBlobIsDiscardedBeforeExplicitComposition() {
+    fun legacyRecoveryBlobCannotBeRelabelledAsATrustedExplicitContract() {
         val composed = NovaLaunchStreamOverride.compose(
             legacyRecoveryBlob(), choice("1440x810x60"), null, 1280, 800, 60
         )!!
 
-        assertEquals("nova_explicit_launch_v1", composed.getString("source"))
+        assertEquals("nova_explicit_launch_unverified_v1", composed.getString("source"))
         assertFalse(composed.has("safe_target_fps"))
         assertFalse(composed.has("stability"))
         assertEquals(1, composed.getJSONObject("resolved_profile").getInt("policy_version"))
@@ -105,6 +109,7 @@ class NovaLaunchStreamOverrideTest {
     fun missingBlobFallsBackToTheSettingsMode() {
         val composed = NovaLaunchStreamOverride.compose(null, null, 90, 1280, 800, 60)!!
         assertEquals("1280x800x90", composed.getString("display_mode"))
+        assertEquals("nova_explicit_launch_unverified_v1", composed.getString("source"))
 
         val pinless = NovaLaunchStreamOverride.compose(
             JSONObject(), choice("x-bad-mode"), null, 1280, 800, 60

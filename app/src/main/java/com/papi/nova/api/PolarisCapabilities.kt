@@ -18,6 +18,7 @@ data class PolarisCapabilities(
         val streamPolicy: Boolean = false,
         val clientSettings: Boolean = false,
         val optimizerSync: Boolean = false,
+        val resolvedProfileProvenance: Boolean = false,
         val lockScreenControl: Boolean = false,
         val cursorVisibilityControl: Boolean = false,
         val doctorV2Shadow: Boolean = false,

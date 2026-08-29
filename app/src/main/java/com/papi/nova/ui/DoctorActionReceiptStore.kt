@@ -49,7 +49,8 @@ data class DoctorActionRequestIdentity(
     val scopeId: String,
     val runId: String,
     val generation: Long,
-    val appSessionId: String = ""
+    val appSessionId: String = "",
+    val actionId: String = ""
 )
 
 internal class DoctorMenuRefreshRegistry {
@@ -122,7 +123,7 @@ internal class DoctorActionPendingRegistry {
 
 object DoctorActionReceiptStore {
     internal val TERMINAL_STATES = setOf(
-        "stable", "resolved", "needs_attention", "applied", "expired", "rejected", "undone"
+        "stable", "resolved", "rolled_back", "needs_attention", "applied", "expired", "rejected", "undone"
     )
 
     private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v3_"
@@ -467,7 +468,7 @@ object DoctorActionReceiptStore {
         activeScopeId: String?,
         validatedScopeId: String?,
         canAdjustHostTuning: Boolean
-    ): Boolean = canAdjustHostTuning &&
+    ): Boolean = (canAdjustHostTuning || candidate.runId.startsWith("recovery-run-")) &&
         activeScopeId != null &&
         validatedScopeId == activeScopeId &&
         current != null &&
@@ -503,14 +504,30 @@ object DoctorActionReceiptStore {
         return if (request.runId.isBlank()) {
             responseRunId.isNotBlank()
         } else {
-            responseRunId.isBlank() || responseRunId == request.runId
+            responseRunId == request.runId
         }
     }
 
-    fun successfulLegacyNewRunResult(
+    fun successfulReadOnlyNewRunResult(
         request: DoctorActionRequestIdentity,
         result: PolarisDoctorActionResult
-    ): Boolean = request.runId.isBlank() && result.status && result.runId.isBlank()
+    ): Boolean {
+        if (request.runId.isNotBlank() || request.actionId !in setOf("recheck_network", "recheck_pacing")) {
+            return false
+        }
+        val expectedStates = if (request.actionId == "recheck_pacing") {
+            setOf("observed")
+        } else {
+            setOf("stable", "confirmed_pressure")
+        }
+        return result.status &&
+            !result.changed &&
+            result.runId.isBlank() &&
+            result.state in expectedStates &&
+            result.verificationActionId.isBlank() &&
+            result.undoAvailable != true &&
+            result.undoActionId.isBlank()
+    }
 
     fun validationGenerationIsCurrent(activeGeneration: Long, requestGeneration: Long): Boolean =
         activeGeneration == requestGeneration

@@ -245,8 +245,8 @@ class StreamSyncManager private constructor() {
         private fun normalized(value: String?): String = value?.trim()?.lowercase(Locale.US) ?: ""
 
         private fun resolvedProfile(optimization: JSONObject?): JSONObject? {
-            if (optimization == null || normalized(optimization.optString("source", "")) !in
-                setOf("deterministic_preset_v1", "nova_explicit_launch_v1")) {
+            if (optimization == null ||
+                normalized(optimization.optString("source", "")) != "deterministic_preset_v1") {
                 return null
             }
             val profile = optimization.optJSONObject("resolved_profile") ?: return null
@@ -254,11 +254,45 @@ class StreamSyncManager private constructor() {
             return profile
         }
 
+        @JvmStatic
+        fun hasTrustedResolvedProfile(optimization: JSONObject?): Boolean {
+            val fields = resolvedProfile(optimization)?.optJSONObject("fields") ?: return false
+            val displayMode = validResolvedField(fields.optJSONObject("display_mode"))
+                ?.opt("value") as? String ?: return false
+            val bitrate = validResolvedField(fields.optJSONObject("target_bitrate_kbps"))
+                ?.opt("value") as? Number ?: return false
+            if (validResolvedField(fields.optJSONObject("hdr"))?.opt("value") !is Boolean) {
+                return false
+            }
+            val modeParts = displayMode.split("x")
+            if (modeParts.size != 3) return false
+            val width = modeParts[0].toIntOrNull() ?: return false
+            val height = modeParts[1].toIntOrNull() ?: return false
+            val fps = modeParts[2].toDoubleOrNull() ?: return false
+            val bitrateKbps = bitrate.toDouble()
+            return width in 320..16384 && height in 240..16384 &&
+                fps.isFinite() && fps in 15.0..240.0 &&
+                bitrateKbps.isFinite() && bitrateKbps in 1000.0..300000.0 &&
+                bitrateKbps == kotlin.math.floor(bitrateKbps)
+        }
+
+        private fun validResolvedField(detail: JSONObject?): JSONObject? {
+            detail ?: return null
+            if (detail.optString("source", "").isBlank() ||
+                detail.optString("reason_code", "").isBlank() ||
+                detail.opt("locked") !is Boolean ||
+                detail.opt("normalized") !is Boolean ||
+                !detail.has("value") || detail.isNull("value")
+            ) {
+                return null
+            }
+            return detail
+        }
+
         private fun resolvedField(optimization: JSONObject?, name: String): Any? {
-            val detail = resolvedProfile(optimization)
+            val detail = validResolvedField(resolvedProfile(optimization)
                 ?.optJSONObject("fields")
-                ?.optJSONObject(name)
-                ?: return null
+                ?.optJSONObject(name)) ?: return null
             val value = detail.opt("value")
             return value?.takeUnless { it === JSONObject.NULL }
         }

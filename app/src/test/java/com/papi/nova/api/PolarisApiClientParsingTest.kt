@@ -75,7 +75,9 @@ class PolarisApiClientParsingTest {
         val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 409,
             responseBody = "{\"status\":false,\"run_id\":\"run-1\",\"error\":\"expired\"," +
-                "\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}"
+                "\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}",
+            actionId = "verify",
+            requestedRunId = "run-1"
         )
 
         assertFalse(rejected.status)
@@ -84,6 +86,119 @@ class PolarisApiClientParsingTest {
         assertEquals(false, rejected.undoAvailable)
         assertEquals("", rejected.undoActionId)
         assertFalse(rejected.error.contains("409"))
+    }
+
+    @Test
+    fun doctorActionHttpSuccessRequiresTheTypedActionAndRunContract() {
+        val blankRunMutation = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"watching\"}",
+            actionId = "lower_bitrate",
+            requestedRunId = ""
+        )
+        val blankRunVerification = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"resolved\"}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+        val recheck = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"observed\"}",
+            actionId = "recheck_pacing",
+            requestedRunId = ""
+        )
+        val incompleteNextStep = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"watching\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertFalse(blankRunMutation.status)
+        assertEquals("Invalid Doctor action response", blankRunMutation.error)
+        assertFalse(blankRunVerification.status)
+        assertFalse(incompleteNextStep.status)
+        assertTrue(recheck.status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedMutationVerificationAndUndo() {
+        val applied = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"watching\"," +
+                "\"run_id\":\"doctor-run-1\",\"verification\":{\"action_id\":\"verify\"," +
+                "\"delay_seconds\":8},\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "lower_bitrate",
+            requestedRunId = ""
+        )
+        val verified = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"resolved\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+        val undone = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"undone\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "undo",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(applied.status)
+        assertTrue(verified.status)
+        assertTrue(undone.status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedVerificationStillCollecting() {
+        val collecting = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"watching\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(collecting.status)
+        assertEquals("watching", collecting.state)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedAutomaticRollback() {
+        val rolledBack = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"rolled_back\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(rolledBack.status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsOnlyTheExactLegacyRecoveryUndoReceipt() {
+        val accepted = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"undone\"," +
+                "\"run_id\":\"recovery-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "undo",
+            requestedRunId = "recovery-run-1"
+        )
+        val mismatched = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"undone\"," +
+                "\"run_id\":\"recovery-run-2\",\"undo\":{\"available\":false}}",
+            actionId = "undo",
+            requestedRunId = "recovery-run-1"
+        )
+
+        assertTrue(accepted.status)
+        assertFalse(mismatched.status)
     }
 
     @Test
@@ -211,7 +326,8 @@ class PolarisApiClientParsingTest {
         val json = JSONObject(
             "{\"server\":\"polaris\",\"version\":\"1.0.0\"," +
                 "\"features\":{\"ai_optimizer\":true,\"ai_optimizer_control\":true,\"cursor_visibility_control\":true," +
-                "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true}," +
+                "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true," +
+                "\"resolved_profile_provenance_v1\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"codecs\":[\"hevc\"]}}"
         )
 
@@ -225,6 +341,7 @@ class PolarisApiClientParsingTest {
         assertTrue(capabilities.features.streamPolicy)
         assertTrue(capabilities.features.clientSettings)
         assertTrue(capabilities.features.optimizerSync)
+        assertTrue(capabilities.features.resolvedProfileProvenance)
     }
 
     @Test
@@ -896,6 +1013,21 @@ class PolarisApiClientParsingTest {
         assertEquals("Host render is missing the stream FPS target.", status.doctor.likelyCause)
         assertEquals("Lower game FPS before tuning bitrate.", status.doctor.tryFirst.first())
         assertEquals("fallback", status.doctor.confidence)
+    }
+
+    @Test
+    fun observationalNetworkFallbackIsNotClassifiedAsHostOrNetworkFailure() {
+        val status = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject(
+                "{\"state\":\"streaming\",\"streaming_active\":true," +
+                    "\"health\":{\"grade\":\"watch\",\"summary\":\"Control retries observed.\"," +
+                    "\"primary_issue\":\"control_channel_observation\"}}"
+            )
+        )
+
+        assertEquals("UNKNOWN", status.doctor.classification)
+        assertFalse(status.hasHealthConcerns)
+        assertEquals("Control retries", status.healthToneLabel)
     }
 
     @Test
