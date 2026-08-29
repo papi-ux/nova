@@ -4,7 +4,7 @@
 
 ## 1.3.9 - 2026-08-26
 
-Nova 1.3.9 resets Doctor to evidence-first containment with Polaris 1.3.14. Frame-pacing observations remain visible without a contradictory Stable state or network blame when media loss and RTT are clean. Raw counters are sampled independently of HUD visibility; duplicate-only or static content is not promoted into a pacing diagnosis without source-cadence evidence.
+Nova 1.3.9 resets Doctor to evidence-first containment with Polaris 1.3.14. Frame-pacing observations remain visible without a contradictory Stable state or network blame when media loss and RTT are clean. Raw counters are sampled independently of HUD visibility and streamed only to a capable paired Polaris under the exact active-owner session identity; Nova sends no derived loss percentage, diagnosis, action, or setting. Duplicate-only or static content is not promoted into a pacing diagnosis without source-cadence evidence.
 
 Launch presets are deterministic and carry field-level provenance, including separate width, height, and FPS sources when High FPS locks only cadence. Nova sends the resolved launch envelope directly with an exact resolved HDR value, preserves a metered bitrate as a one-launch lock, and never consumes history, AI output, or an old recovery record. AI output is informational explanation only and cannot replace measured evidence, confidence, actions, or settings.
 
