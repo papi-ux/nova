@@ -77,9 +77,12 @@ class LaunchTopologyEnvelopeTest {
         val missing = JSONObject()
         val coerced = optimization("host_default", "desktop_display", false)
         coerced.getJSONObject("topology_resolution").put("locked", "false")
+        val inventedSource = optimization("host_default", "desktop_display", false)
+        inventedSource.getJSONObject("topology_resolution").put("source", "doctor_history")
 
         assertFalse(LaunchTopologyEnvelope.matches(missing, "game-a", "", false, false, false))
         assertFalse(LaunchTopologyEnvelope.matches(coerced, "game-a", "", false, false, false))
+        assertFalse(LaunchTopologyEnvelope.matches(inventedSource, "game-a", "", false, false, false))
         assertFalse(
             LaunchTopologyEnvelope.matches(
                 optimization("host_default", "invented_topology", false),
@@ -114,6 +117,12 @@ class LaunchTopologyEnvelopeTest {
             .put("requested", requested)
             .put("resolved", resolved)
             .put("locked", locked)
+            .put("source", "client_launch_request")
+            .put("reason_code", "test_topology_resolution")
+            .put(
+                "normalized",
+                requested != "host_default" && !resolved.equals(requested, ignoreCase = true),
+            )
             .put("mirror_desktop_requested", mirror)
             .put("force_private_after_steam_close_requested", forcePrivate)
             .put("app_uuid", "game-a")
