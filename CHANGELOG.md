@@ -10,7 +10,7 @@ Launch presets are deterministic and carry field-level provenance, including sep
 
 Every optimize result is bound to the canonical app UUID or ID and the exact topology that will launch. Host default remains distinct from an explicit Desktop choice, and a later mirror/private Steam decision forces re-resolution instead of reusing a different topology's preflight. Duplicate app titles no longer share a launch-preset preference.
 
-Nova rejects malformed resolved-field provenance and legacy Polaris optimization responses that do not provide the deterministic resolved-profile contract. Host identity is scoped to the launch attempt and fails closed on timeout or ambiguity; only a positively identified stock host may launch without the marker. This prevents Nova 1.3.9 from launching through a Polaris version that could still apply historical or AI-derived settings.
+Nova rejects malformed resolved-field provenance and legacy Polaris optimization responses that do not provide both the deterministic resolved-profile and versioned topology-assertion contracts. Host identity is scoped to the launch attempt and fails closed on timeout or ambiguity; only a positively identified stock host may launch without the marker. This prevents Nova 1.3.9 from launching through a Polaris version that could still apply historical or AI-derived settings or ignore a changed host topology.
 
 Pacing offers **Recheck** or manual guidance. **Auto Fix** is reserved for authenticated, reversible same-stream bitrate changes backed by measured loss or RTT evidence, with host-side verification and rollback. Legacy next-launch recovery records are deprecated, non-applicable, and cancellable only; they cannot change optimization or launch.
 

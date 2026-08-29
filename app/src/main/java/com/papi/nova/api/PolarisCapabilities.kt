@@ -19,6 +19,7 @@ data class PolarisCapabilities(
         val clientSettings: Boolean = false,
         val optimizerSync: Boolean = false,
         val resolvedProfileProvenance: Boolean = false,
+        val expectedTopologyAssertion: Boolean = false,
         val lockScreenControl: Boolean = false,
         val cursorVisibilityControl: Boolean = false,
         val doctorV2Shadow: Boolean = false,

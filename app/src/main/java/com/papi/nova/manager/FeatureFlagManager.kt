@@ -34,6 +34,7 @@ object FeatureFlagManager {
     val hasClientSettings: Boolean get() = capabilities?.features?.clientSettings == true
     val hasOptimizerSync: Boolean get() = capabilities?.features?.optimizerSync == true
     val hasResolvedProfileProvenance: Boolean get() = capabilities?.features?.resolvedProfileProvenance == true
+    val hasExpectedTopologyAssertion: Boolean get() = capabilities?.features?.expectedTopologyAssertion == true
     val hasLockScreenControl: Boolean get() = capabilities?.features?.lockScreenControl == true
     val hasCursorVisibilityControl: Boolean get() = capabilities?.features?.cursorVisibilityControl == true
     val hasDoctorV2Shadow: Boolean get() = capabilities?.features?.doctorV2Shadow == true
@@ -94,6 +95,7 @@ object FeatureFlagManager {
                 "Session=${features.sessionLifecycle} Devices=${features.deviceProfiles} Lock=${features.lockScreenControl} " +
                 "Cursor=${features.cursorVisibilityControl} Sync=${features.optimizerSync} " +
                 "ResolvedProfile=${features.resolvedProfileProvenance} " +
+                "TopologyAssertion=${features.expectedTopologyAssertion} " +
                 "DoctorV2=${features.doctorV2Shadow}/${features.doctorV2ShadowEnabled} " +
                 "Trials=${features.doctorTrials}/${features.doctorTrialsEnabled}")
             LimeLog.info("Nova: Capture: ${discovered.capture.backend}, codecs: ${discovered.capture.codecs}")

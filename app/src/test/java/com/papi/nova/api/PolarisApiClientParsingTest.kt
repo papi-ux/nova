@@ -467,7 +467,7 @@ class PolarisApiClientParsingTest {
             "{\"server\":\"polaris\",\"version\":\"1.0.0\"," +
                 "\"features\":{\"ai_optimizer\":true,\"ai_optimizer_control\":true,\"cursor_visibility_control\":true," +
                 "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true," +
-                "\"resolved_profile_provenance_v1\":true}," +
+                "\"resolved_profile_provenance_v1\":true,\"expected_topology_assertion_v1\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"codecs\":[\"hevc\"]}}"
         )
 
@@ -482,6 +482,8 @@ class PolarisApiClientParsingTest {
         assertTrue(capabilities.features.clientSettings)
         assertTrue(capabilities.features.optimizerSync)
         assertTrue(capabilities.features.resolvedProfileProvenance)
+        assertTrue(capabilities.features.expectedTopologyAssertion)
+        assertTrue(PolarisApiClient.supportsDeterministicLaunchContract(capabilities))
     }
 
     @Test
@@ -494,6 +496,37 @@ class PolarisApiClientParsingTest {
         )
 
         assertFalse(capabilities.features.resolvedProfileProvenance)
+    }
+
+    @Test
+    fun parseCapabilitiesResponse_requiresTypedExpectedTopologyAuthority() {
+        val missing = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject(
+                "{\"server\":\"polaris\",\"features\":" +
+                    "{\"resolved_profile_provenance_v1\":true}}"
+            )
+        )
+        val coerced = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject(
+                "{\"server\":\"polaris\",\"features\":" +
+                    "{\"resolved_profile_provenance_v1\":true," +
+                    "\"expected_topology_assertion_v1\":\"true\"}}"
+            )
+        )
+        val disabled = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject(
+                "{\"server\":\"polaris\",\"features\":" +
+                    "{\"resolved_profile_provenance_v1\":true," +
+                    "\"expected_topology_assertion_v1\":false}}"
+            )
+        )
+
+        assertFalse(missing.features.expectedTopologyAssertion)
+        assertFalse(coerced.features.expectedTopologyAssertion)
+        assertFalse(disabled.features.expectedTopologyAssertion)
+        assertFalse(PolarisApiClient.supportsDeterministicLaunchContract(missing))
+        assertFalse(PolarisApiClient.supportsDeterministicLaunchContract(coerced))
+        assertFalse(PolarisApiClient.supportsDeterministicLaunchContract(disabled))
     }
 
     @Test

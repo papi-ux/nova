@@ -920,6 +920,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     clientSettings = features?.optBoolean("client_settings_v1") ?: false,
                     optimizerSync = features?.optBoolean("optimizer_sync_v1") ?: false,
                     resolvedProfileProvenance = strictBoolean(features, "resolved_profile_provenance_v1"),
+                    expectedTopologyAssertion = strictBoolean(features, "expected_topology_assertion_v1"),
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
                     cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
                     doctorV2Shadow = features?.optBoolean("doctor_v2_shadow_v1") ?: false,
@@ -938,6 +939,11 @@ class PolarisApiClient @JvmOverloads constructor(
                 )
             )
         }
+
+        @JvmStatic
+        fun supportsDeterministicLaunchContract(capabilities: PolarisCapabilities): Boolean =
+            capabilities.features.resolvedProfileProvenance &&
+                capabilities.features.expectedTopologyAssertion
 
         private fun parseDoctorStatus(
             doctor: JSONObject?,
@@ -1896,7 +1902,7 @@ class PolarisApiClient @JvmOverloads constructor(
                         }.getOrNull() ?: return PolarisLaunchHostKind.UNKNOWN
                         if (!capabilities.server.equals("polaris", ignoreCase = true)) {
                             PolarisLaunchHostKind.UNKNOWN
-                        } else if (capabilities.features.resolvedProfileProvenance) {
+                        } else if (supportsDeterministicLaunchContract(capabilities)) {
                             PolarisLaunchHostKind.CURRENT_POLARIS
                         } else {
                             PolarisLaunchHostKind.LEGACY_POLARIS
