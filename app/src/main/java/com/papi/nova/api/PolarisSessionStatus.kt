@@ -10,6 +10,7 @@ data class PolarisSessionStatus(
     val sessionToken: String = "",
     val appSessionId: String = "",
     val appSessionIdPresent: Boolean = false,
+    val sessionGeneration: Long = 0L,
     val ownerUniqueId: String = "",
     val ownerDeviceName: String = "",
     val clientRole: String = "none",
@@ -315,6 +316,10 @@ data class PolarisSessionStatus(
         val actionSourceResultId: String = "",
         val actionContractTyped: Boolean = false,
         val actionAppUuid: String = "",
+        val actionAppSessionId: String = "",
+        val actionSessionGeneration: Long = 0L,
+        val actionControllerRevision: Long = 0L,
+        val actionEvidenceRevision: Long = 0L,
         val targetBitrateKbps: Int = 0,
         val targetBitratePresent: Boolean = false,
         val targetBitrateTyped: Boolean = false,
@@ -372,6 +377,8 @@ data class PolarisSessionStatus(
                 actionSourceResultId == resultId &&
                 actionEndpoint == "/api/doctor/action" &&
                 actionMethod.equals("POST", ignoreCase = true) &&
+                actionAppSessionId.isNotBlank() &&
+                actionSessionGeneration > 0L &&
                 requiresOwner &&
                 !allowedInViewerMode &&
                 !destructive &&
@@ -421,6 +428,8 @@ data class PolarisSessionStatus(
                     verificationDelaySeconds >= 8 &&
                     verificationEnvelopeValid &&
                     verificationMode == "live_telemetry" &&
+                    actionControllerRevision > 0L &&
+                    actionEvidenceRevision > 0L &&
                     networkPressureConfirmed
             "restore_quality" -> {
                 val ceiling = evidenceItem("effective_quality_ceiling")
@@ -441,6 +450,8 @@ data class PolarisSessionStatus(
                     verificationDelaySeconds >= 8 &&
                     verificationEnvelopeValid &&
                     verificationMode == "graduated_live_telemetry"
+                    && actionControllerRevision > 0L
+                    && actionEvidenceRevision > 0L
             }
             else -> false
         }
@@ -465,6 +476,10 @@ data class PolarisSessionStatus(
                 actionSourceResultId == confirmed.actionSourceResultId &&
                 actionContractTyped == confirmed.actionContractTyped &&
                 actionAppUuid == confirmed.actionAppUuid &&
+                actionAppSessionId == confirmed.actionAppSessionId &&
+                actionSessionGeneration == confirmed.actionSessionGeneration &&
+                actionControllerRevision == confirmed.actionControllerRevision &&
+                actionEvidenceRevision == confirmed.actionEvidenceRevision &&
                 targetBitrateKbps == confirmed.targetBitrateKbps &&
                 targetBitratePresent == confirmed.targetBitratePresent &&
                 targetBitrateTyped == confirmed.targetBitrateTyped &&
@@ -708,5 +723,8 @@ data class PolarisDoctorActionResult(
     val evidencePacketLossPct: Double? = null,
     val evidenceLatencyMs: Double? = null,
     val requestId: String = "",
-    val changedContractValid: Boolean = true
+    val changedContractValid: Boolean = true,
+    val appSessionId: String = "",
+    val sessionGeneration: Long = 0L,
+    val scopeContractValid: Boolean = true
 )

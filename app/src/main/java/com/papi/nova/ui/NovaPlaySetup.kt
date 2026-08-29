@@ -622,6 +622,14 @@ internal fun novaPlaySetupPlan(
             )
         }
 
+        summary.provenanceLine.takeIf { it.isNotBlank() }?.let {
+            facts += NovaPlaySetupFact(
+                key = profileKey,
+                value = it,
+                tone = NovaPlaySetupTone.PLAIN,
+            )
+        }
+
         val asked = novaStripLabel(summary.requestedLine)
         val granted = novaStripLabel(summary.selectedLine)
         if (asked.isNotBlank()) {
@@ -637,7 +645,7 @@ internal fun novaPlaySetupPlan(
             )
         }
 
-        summary.freshnessLine.takeIf { it.isNotBlank() }?.let {
+        summary.freshnessLine.takeIf { it.isNotBlank() && summary.provenanceLine.isBlank() }?.let {
             facts += NovaPlaySetupFact(key = profileKey, value = it)
         }
     }

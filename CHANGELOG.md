@@ -8,9 +8,13 @@ Nova 1.3.9 resets Doctor to evidence-first containment with Polaris 1.3.14. Fram
 
 Launch presets are deterministic and carry field-level provenance, including separate width, height, and FPS sources when High FPS locks only cadence. Nova sends the resolved launch envelope directly with an exact resolved HDR value, preserves a metered bitrate as a one-launch lock, and never consumes history, AI output, or an old recovery record. AI output is informational explanation only and cannot replace measured evidence, confidence, actions, or settings.
 
+Every optimize result is bound to the canonical app UUID or ID and the exact topology that will launch. Host default remains distinct from an explicit Desktop choice, and a later mirror/private Steam decision forces re-resolution instead of reusing a different topology's preflight. Duplicate app titles no longer share a launch-preset preference.
+
 Nova rejects malformed resolved-field provenance and legacy Polaris optimization responses that do not provide the deterministic resolved-profile contract. Host identity is scoped to the launch attempt and fails closed on timeout or ambiguity; only a positively identified stock host may launch without the marker. This prevents Nova 1.3.9 from launching through a Polaris version that could still apply historical or AI-derived settings.
 
 Pacing offers **Recheck** or manual guidance. **Auto Fix** is reserved for authenticated, reversible same-stream bitrate changes backed by measured loss or RTT evidence, with host-side verification and rollback. Legacy next-launch recovery records are deprecated, non-applicable, and cancellable only; they cannot change optimization or launch.
+
+Live Doctor actions and paired bitrate/adaptive controls carry the exact app-session token and numeric stream generation. Nova rejects missing, malformed, stale-generation, or mismatched responses, and a newer singleTask launch intent replaces a validated pre-surface connection instead of inheriting the previous intent's host, app, or resolved profile.
 
 The HUD is observational and never changes bitrate merely because it is open. Nova does not request or apply an automatic MangoHud, DXVK, VKD3D, or game-process FPS limiter. User-authored host/game settings remain untouched. Steam Input remains manual and read-only.
 

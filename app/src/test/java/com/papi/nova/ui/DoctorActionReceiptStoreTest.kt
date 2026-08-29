@@ -684,10 +684,14 @@ class DoctorActionReceiptStoreTest {
             sessionToken = "transport-a",
             appSessionId = "app-session-a",
             appSessionIdPresent = true,
+            sessionGeneration = 41L,
             gameUuid = "control"
         )
         val afterStatus = beforeStatus.copy(sessionToken = "transport-b")
-        val laterStatus = afterStatus.copy(appSessionId = "app-session-b")
+        val laterStatus = afterStatus.copy(
+            appSessionId = "app-session-b",
+            sessionGeneration = 42L
+        )
         val beforeResume = requireNotNull(
             DoctorActionReceiptStore.scopeId(
                 host = "10.0.0.232",

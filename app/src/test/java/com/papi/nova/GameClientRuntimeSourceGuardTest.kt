@@ -44,7 +44,15 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("val optimizationResult = trustedPreflight ?: novaApiClient!!.getOptimization(") &&
                 game.contains("Rejecting malformed preflight optimization payload") &&
                 game.contains("mode = requestedLaunchTopology()") &&
-                game.contains("topologyLocked = displayModeExplicit") &&
+                game.contains("topologyLocked = exactTopologyLocked") &&
+                game.contains("mirrorDesktop = mirrorDesktop") &&
+                game.contains("forcePrivateAfterSteamClose = forcePrivateAfterSteamClose") &&
+                game.contains("LaunchTopologyEnvelope.matches(") &&
+                game.contains("if (!preflightTopologyHonored)") &&
+                game.contains("Discarding preflight values after app or topology intent changed") &&
+                game.contains("else \"\"\n}") &&
+                game.contains("val safeAppIdentity:String = appUUID?.takeIf") &&
+                game.contains("DeviceUtils.getModel(), safeAppIdentity, preference") &&
                 game.contains("else if (vDisplay) \"host_virtual_display\"") &&
                 game.contains("private data class LaunchOptimizationDecision(") &&
                 game.contains("if (launchDecision.policyBlocked)") &&
@@ -75,6 +83,19 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("launchPolicyGateGeneration.incrementAndGet()") &&
                 game.contains("this@Game.getIntent() === gateIntent") &&
                 game.contains("this@Game.getIntent() !== gateIntent")
+        )
+        val newIntent = game.section("override fun onNewIntent", "override fun onResume")
+        val preSurfaceReplacement = newIntent.section(
+            "if (intent != null && launchInitializationCommitted",
+            "if (intent != null) {"
+        )
+        assertTrue(
+            "a newer singleTask launch must replace a validated launch before its connection starts",
+            game.contains("launchInitializationCommitted = true") &&
+                preSurfaceReplacement.contains("launchInitializationCommitted && !attemptedConnection") &&
+                preSurfaceReplacement.contains("intent.hasExtra(EXTRA_HOST) && intent.hasExtra(EXTRA_APP_ID)") &&
+                preSurfaceReplacement.indexOf("setIntent(intent)") in
+                0 until preSurfaceReplacement.indexOf("recreate()")
         )
         assertTrue(
             "an obsolete gate worker must return an immutable decision and every Nova-authored launch override must be re-resolved by Polaris",

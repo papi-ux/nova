@@ -998,6 +998,7 @@ internal fun LaunchProfilePrimaryNotice(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val notice = summary.limitingLine.takeIf { it.isNotBlank() }
+        ?: summary.provenanceLine.takeIf { it.isNotBlank() }
         ?: summary.reasonLine.takeIf { it.isNotBlank() }
         ?: summary.freshnessLine.takeIf { it.isNotBlank() }
         ?: ""

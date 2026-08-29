@@ -773,24 +773,53 @@ class NovaQuickMenuUiStateTest {
         encoder: PolarisSessionStatus.EncoderStatus = PolarisSessionStatus.EncoderStatus(),
         capture: PolarisSessionStatus.CaptureStatus = PolarisSessionStatus.CaptureStatus(),
         linuxGpuProfile: PolarisSessionStatus.LinuxGpuProfile? = null
-    ) = PolarisSessionStatus(
-        state = state,
-        streamingActive = true,
-        game = "Portal",
-        gameUuid = "game-1",
-        clientRole = clientRole,
-        ownedByClient = ownedByClient,
-        controls = controls,
-        tuning = tuning,
-        displayMode = displayMode,
-        clientPresentation = clientPresentation,
-        syncStatus = syncStatus,
-        autoQuality = autoQuality,
-        health = health,
-        doctor = doctor,
-        encoder = encoder,
-        capture = capture,
-        linuxGpuProfile = linuxGpuProfile,
-        aiOptimizerEnabled = aiOptimizerEnabled
-    )
+    ): PolarisSessionStatus {
+        val scopedActionIds = setOf(
+            "lower_bitrate",
+            "restore_quality",
+            "recheck_network",
+            "recheck_pacing"
+        )
+        val scopedDoctor = if (doctor.actionId in scopedActionIds) {
+            doctor.copy(
+                actionAppSessionId = doctor.actionAppSessionId.ifBlank { "app-session-1" },
+                actionSessionGeneration = doctor.actionSessionGeneration.takeIf { it > 0L } ?: 41L,
+                actionControllerRevision = if (doctor.actionCapability == "auto_fix") {
+                    doctor.actionControllerRevision.takeIf { it > 0L } ?: 51L
+                } else {
+                    doctor.actionControllerRevision
+                },
+                actionEvidenceRevision = if (doctor.actionCapability == "auto_fix") {
+                    doctor.actionEvidenceRevision.takeIf { it > 0L } ?: 61L
+                } else {
+                    doctor.actionEvidenceRevision
+                }
+            )
+        } else {
+            doctor
+        }
+        return PolarisSessionStatus(
+            state = state,
+            streamingActive = true,
+            game = "Portal",
+            gameUuid = "game-1",
+            appSessionId = "app-session-1",
+            appSessionIdPresent = true,
+            sessionGeneration = 41L,
+            clientRole = clientRole,
+            ownedByClient = ownedByClient,
+            controls = controls,
+            tuning = tuning,
+            displayMode = displayMode,
+            clientPresentation = clientPresentation,
+            syncStatus = syncStatus,
+            autoQuality = autoQuality,
+            health = health,
+            doctor = scopedDoctor,
+            encoder = encoder,
+            capture = capture,
+            linuxGpuProfile = linuxGpuProfile,
+            aiOptimizerEnabled = aiOptimizerEnabled
+        )
+    }
 }

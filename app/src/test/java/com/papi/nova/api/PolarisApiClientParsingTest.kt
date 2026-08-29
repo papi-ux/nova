@@ -27,18 +27,24 @@ class PolarisApiClientParsingTest {
         val modern = PolarisApiClient.buildDoctorActionBody(
             actionId = "undo",
             appSessionId = "app-generation-123",
+            sessionGeneration = 41L,
             appUuid = "game-uuid-123",
             sourceResultId = "doctor-v2",
             targetBitrateKbps = 16_000,
+            controllerRevision = 51L,
+            evidenceRevision = 61L,
             runId = "doctor-run-7",
             requestId = "request-7",
             confirmed = true
         )
         assertEquals("undo", modern.getString("action_id"))
         assertEquals("app-generation-123", modern.getString("app_session_id"))
+        assertEquals(41L, modern.getLong("session_generation"))
         assertEquals("game-uuid-123", modern.getString("app_uuid"))
         assertEquals("doctor-v2", modern.getString("source_result_id"))
         assertEquals(16_000, modern.getInt("target_bitrate_kbps"))
+        assertEquals(51L, modern.getLong("controller_revision"))
+        assertEquals(61L, modern.getLong("evidence_revision"))
         assertEquals("doctor-run-7", modern.getString("run_id"))
         assertEquals("request-7", modern.getString("request_id"))
         assertTrue(modern.getBoolean("confirmed"))
@@ -156,6 +162,41 @@ class PolarisApiClientParsingTest {
         assertTrue(applied.status)
         assertTrue(verified.status)
         assertTrue(undone.status)
+    }
+
+    @Test
+    fun doctorActionHttpRequiresTheExactRequestedAppGenerationScope() {
+        fun parsed(appSessionId: Any?, sessionGeneration: Any?): PolarisDoctorActionResult {
+            val response = JSONObject()
+                .put("status", true)
+                .put("changed", true)
+                .put("state", "applying")
+                .put("run_id", "doctor-run-1")
+                .put("request_id", "request-1")
+                .put("verification", JSONObject()
+                    .put("action_id", "verify")
+                    .put("delay_seconds", 8))
+                .put("undo", JSONObject()
+                    .put("available", true)
+                    .put("action_id", "undo"))
+            if (appSessionId != null) response.put("app_session_id", appSessionId)
+            if (sessionGeneration != null) response.put("session_generation", sessionGeneration)
+            return PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 200,
+                responseBody = response.toString(),
+                actionId = "lower_bitrate",
+                requestedRunId = "",
+                requestedRequestId = "request-1",
+                requestedAppSessionId = "app-session-41",
+                requestedSessionGeneration = 41L,
+            )
+        }
+
+        assertTrue(parsed("app-session-41", 41L).status)
+        assertFalse(parsed(null, null).status)
+        assertFalse(parsed("app-session-42", 41L).status)
+        assertFalse(parsed("app-session-41", 42L).status)
+        assertFalse(parsed("app-session-41", "41").status)
     }
 
     @Test
@@ -488,7 +529,8 @@ class PolarisApiClientParsingTest {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true,\"shutdown_requested\":false," +
                 "\"game_id\":123,\"game_uuid\":\"game-uuid\"," +
-                "\"session_token\":\"token-123\",\"app_session_id\":\"app-session-123\",\"owner_unique_id\":\"owner-uuid\"," +
+                "\"session_token\":\"token-123\",\"app_session_id\":\"app-session-123\",\"session_generation\":41," +
+                "\"owner_unique_id\":\"owner-uuid\"," +
                 "\"owner_device_name\":\"Retroid\",\"client_role\":\"viewer\",\"viewer_count\":2,\"owned_by_client\":true," +
                 "\"cursor_visible\":true,\"dynamic_range\":1,\"mangohud_configured\":true,\"ai_auto_quality_enabled\":true," +
                 "\"controls\":{\"host_tuning_allowed\":false,\"quit_allowed\":false,\"shutdown_in_progress\":false," +
@@ -557,6 +599,7 @@ class PolarisApiClientParsingTest {
         assertEquals("token-123", status.sessionToken)
         assertEquals("app-session-123", status.appSessionId)
         assertTrue(status.appSessionIdPresent)
+        assertEquals(41L, status.sessionGeneration)
         assertEquals("owner-uuid", status.ownerUniqueId)
         assertEquals("Retroid", status.ownerDeviceName)
         assertEquals("viewer", status.clientRole)
@@ -659,6 +702,18 @@ class PolarisApiClientParsingTest {
                 PolarisApiClient.parseSessionStatusResponse(invalidGame)
             }
         }
+
+        listOf<Any>(JSONObject.NULL, "41", true, -1, 1.5).forEach { invalid ->
+            val invalidGeneration = JSONObject()
+                .put("state", "streaming")
+                .put("game_uuid", "control")
+                .put("session_token", "token-123")
+                .put("app_session_id", "app-session-123")
+                .put("session_generation", invalid)
+            assertThrows(JSONException::class.java) {
+                PolarisApiClient.parseSessionStatusResponse(invalidGeneration)
+            }
+        }
     }
 
     @Test
@@ -681,6 +736,8 @@ class PolarisApiClientParsingTest {
         val json = JSONObject()
             .put("state", "streaming")
             .put("streaming_active", true)
+            .put("app_session_id", "app-session-41")
+            .put("session_generation", 41L)
             .put(
                 "doctor",
                 JSONObject()
@@ -735,6 +792,10 @@ class PolarisApiClientParsingTest {
                                 JSONObject()
                                     .put("action_id", "lower_bitrate")
                                     .put("source_result_id", resultId)
+                                    .put("app_session_id", "app-session-41")
+                                    .put("session_generation", 41L)
+                                    .put("controller_revision", 51L)
+                                    .put("evidence_revision", 61L)
                                     .put("target_bitrate_kbps", 16_000)
                             )
                             .put(
@@ -791,6 +852,10 @@ class PolarisApiClientParsingTest {
         assertEquals("lower_bitrate", status.doctor.actionId)
         assertEquals("Auto Fix", status.doctor.actionLabel)
         assertEquals(16000, status.doctor.targetBitrateKbps)
+        assertEquals("app-session-41", status.doctor.actionAppSessionId)
+        assertEquals(41L, status.doctor.actionSessionGeneration)
+        assertEquals(51L, status.doctor.actionControllerRevision)
+        assertEquals(61L, status.doctor.actionEvidenceRevision)
         assertEquals(8, status.doctor.verificationDelaySeconds)
         assertTrue(status.doctor.undoSupported)
         assertEquals(3.4, status.doctor.packetLossPct!!, 0.01)
@@ -1082,6 +1147,10 @@ class PolarisApiClientParsingTest {
             actionPayloadId = "lower_bitrate",
             actionSourceResultId = "doctor-v2-network-a",
             actionContractTyped = true,
+            actionAppSessionId = "app-session-41",
+            actionSessionGeneration = 41L,
+            actionControllerRevision = 51L,
+            actionEvidenceRevision = 61L,
             targetBitrateKbps = 16_000,
             targetBitratePresent = true,
             targetBitrateTyped = true,
@@ -1820,6 +1889,38 @@ class PolarisApiClientParsingTest {
             legacy
         )
     }
+
+    @Test
+    fun buildOptimizationPathCarriesCanonicalAppAndExactSteamTopologyChoice() {
+        val mirror = PolarisApiClient.buildOptimizationPath(
+            device = "RetroidPocket6",
+            game = "f2f47f88-3463-4e5a-9db2-d50b1f83ab77",
+            preference = "quality",
+            mode = "desktop_display",
+            topologyLocked = true,
+            mirrorDesktop = true,
+        )
+        val privateStream = PolarisApiClient.buildOptimizationPath(
+            device = "RetroidPocket6",
+            game = "42",
+            preference = "auto",
+            mode = "gamescope_stream",
+            topologyLocked = true,
+            forcePrivateAfterSteamClose = true,
+        )
+
+        assertEquals(
+            "/optimize?device=RetroidPocket6&game=f2f47f88-3463-4e5a-9db2-d50b1f83ab77" +
+                "&preference=quality&mode=desktop_display&topology_locked=1&mirrorDesktop=1",
+            mirror,
+        )
+        assertTrue(privateStream.contains("game=42"))
+        assertTrue(privateStream.contains("mode=gamescope_stream"))
+        assertTrue(privateStream.contains("topology_locked=1"))
+        assertTrue(privateStream.contains("closeDesktopSteamForPrivate=1"))
+        assertTrue(privateStream.contains("launchMode=force_private_stream"))
+    }
+
     @Test
     fun buildSteamLaunchModeUpdateBodyNormalizesAliases() {
         val body = PolarisApiClient.buildSteamLaunchModeUpdateBody("game-1", "gamepadui")

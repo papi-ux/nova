@@ -608,7 +608,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
                         val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         apiClient.getOptimization(
-                            deviceName, currentGame.name, preference,
+                            deviceName, currentGame.id.ifBlank { currentGame.name }, preference,
                             mode = uiState.playMode,
                             topologyLocked = true,
                             width = launchPrefs.width,
@@ -674,7 +674,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
                         val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         apiClient.getOptimization(
-                            deviceName, currentGame.name, profilePreference,
+                            deviceName, currentGame.id.ifBlank { currentGame.name }, profilePreference,
                             mode = uiState.playMode,
                             topologyLocked = true,
                             width = launchPrefs.width,
@@ -1401,11 +1401,11 @@ class NovaGameDetailActivity : NovaActivity() {
     }
 
     private fun loadProfilePreference(game: PolarisGame): String {
-        return AutoQualityProfilePreferences.load(this@NovaGameDetailActivity, game.name)
+        return AutoQualityProfilePreferences.load(this@NovaGameDetailActivity, game.id, game.name)
     }
 
     private fun saveProfilePreference(game: PolarisGame, preference: String) {
-        AutoQualityProfilePreferences.save(this@NovaGameDetailActivity, game.name, preference)
+        AutoQualityProfilePreferences.save(this@NovaGameDetailActivity, game.id, game.name, preference)
     }
 
     private fun loadArtworkState(game: PolarisGame): NovaArtworkStudioState {

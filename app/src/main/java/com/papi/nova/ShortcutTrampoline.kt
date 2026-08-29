@@ -698,13 +698,13 @@ class ShortcutTrampoline : NovaActivity() {
             val clientSettings = apiClient.getClientSettings()
             // The per-game Tuning choice, not a fixed "auto": a game pinned to High FPS
             // in Play Setup must launch pinned from a home-screen shortcut too.
-            val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.name)
+            val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.id, polarisGame.name)
             val preferences = PreferenceConfiguration.readPreferences(this)
             val metered = StreamSyncManager.isMeteredNetwork(this)
             val requestedBitrateKbps = if (metered) preferences.meteredBitrate else preferences.bitrate
             val optimization = apiClient.getOptimization(
                 DeviceUtils.getModel(),
-                polarisGame.name,
+                polarisGame.id.ifBlank { polarisGame.name },
                 profilePreference,
                 mode = PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings),
                 width = preferences.width,

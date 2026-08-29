@@ -195,6 +195,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             doctor: PolarisSessionStatus.DoctorStatus
         ): Boolean {
             val readOnlyRecheck = doctor.actionId in setOf("recheck_network", "recheck_pacing")
+            val exactStreamScope = status.appSessionIdPresent &&
+                status.appSessionId.isNotBlank() && status.sessionGeneration > 0L &&
+                doctor.actionAppSessionId == status.appSessionId &&
+                doctor.actionSessionGeneration == status.sessionGeneration
+            if (!exactStreamScope) return false
             return if (readOnlyRecheck) {
                 status.authorityContractValid && status.ownedByClient && !status.isViewer
             } else {
@@ -205,11 +210,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         fun requestIdentity(runId: String, actionId: String): DoctorActionRequestIdentity? = synchronized(doctorActionLock) {
             val scope = doctorReceiptScopeId ?: return@synchronized null
             DoctorActionRequestIdentity(
-                scope,
-                runId,
-                doctorActionGeneration,
-                sessionStatus?.appSessionId.orEmpty(),
-                actionId
+                scopeId = scope,
+                runId = runId,
+                generation = doctorActionGeneration,
+                appSessionId = sessionStatus?.appSessionId.orEmpty(),
+                sessionGeneration = sessionStatus?.sessionGeneration ?: 0L,
+                actionId = actionId
             )
         }
 
@@ -241,6 +247,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 runId = "",
                 generation = doctorActionGeneration,
                 appSessionId = sessionStatus?.appSessionId.orEmpty(),
+                sessionGeneration = sessionStatus?.sessionGeneration ?: 0L,
                 actionId = actionId,
                 requestId = if (actionId in setOf("lower_bitrate", "restore_quality")) {
                     UUID.randomUUID().toString()
@@ -273,11 +280,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
             doctorVerificationRunnable = null
             DoctorActionRequestIdentity(
-                scopeId,
-                current.runId,
-                doctorActionGeneration,
-                sessionStatus?.appSessionId.orEmpty(),
-                current.undoActionId
+                scopeId = scopeId,
+                runId = current.runId,
+                generation = doctorActionGeneration,
+                appSessionId = if (current.runId.startsWith("recovery-run-")) "" else sessionStatus?.appSessionId.orEmpty(),
+                sessionGeneration = if (current.runId.startsWith("recovery-run-")) 0L else sessionStatus?.sessionGeneration ?: 0L,
+                actionId = current.undoActionId
             ).also {
                 check(doctorActionPendingRegistry.begin(it.generation))
             }
@@ -300,7 +308,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 previous = doctorReceipt,
                 scopeId = request.scopeId,
                 result = result,
-                nowEpochMs = System.currentTimeMillis()
+                nowEpochMs = System.currentTimeMillis(),
+                sessionGeneration = request.sessionGeneration
             )
             doctorReceipt = updated
             DoctorActionReceiptStore.save(prefs, updated)
@@ -386,12 +395,13 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         fun currentProfilePreference(gameName: String?): String {
+            val gameUuid = currentGameUuid().orEmpty()
             val statusPreference = sessionStatus?.profileState?.preference
                 ?.takeIf { it.isNotBlank() && it != "auto" }
-            return if (gameName.isNullOrBlank()) {
+            return if (gameName.isNullOrBlank() || gameUuid.isBlank()) {
                 AutoQualityProfilePreferences.normalize(statusPreference)
-            } else if (AutoQualityProfilePreferences.hasSaved(game, gameName)) {
-                AutoQualityProfilePreferences.load(game, gameName)
+            } else if (AutoQualityProfilePreferences.hasSaved(game, gameUuid, gameName)) {
+                AutoQualityProfilePreferences.load(game, gameUuid, gameName)
             } else {
                 AutoQualityProfilePreferences.normalize(statusPreference)
             }
@@ -509,6 +519,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 val result = client.runDoctorAction(
                     actionId = receipt.undoActionId,
                     appSessionId = undoRequest.appSessionId,
+                    sessionGeneration = undoRequest.sessionGeneration,
                     runId = receipt.runId
                 )
                 val updated = when {
@@ -606,6 +617,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     val verification = client.runDoctorAction(
                         actionId = pending.verificationActionId,
                         appSessionId = request.appSessionId,
+                        sessionGeneration = request.sessionGeneration,
                         runId = pending.runId
                     )
                     val updated = when {
@@ -656,9 +668,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 val result = client.runDoctorAction(
                     actionId = doctor.actionId,
                     appSessionId = request.appSessionId,
+                    sessionGeneration = request.sessionGeneration,
                     appUuid = doctor.actionAppUuid,
                     sourceResultId = doctor.resultId,
                     targetBitrateKbps = doctor.targetBitrateKbps,
+                    controllerRevision = doctor.actionControllerRevision,
+                    evidenceRevision = doctor.actionEvidenceRevision,
                     requestId = request.requestId,
                     confirmed = doctor.requiresConfirmation
                 )
@@ -862,7 +877,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             onProfilePreference = { preference ->
                 haptic {
                     val gameName = currentProfileGameName() ?: return@haptic
-                    AutoQualityProfilePreferences.save(game, gameName, preference)
+                    val gameUuid = currentGameUuid() ?: return@haptic
+                    AutoQualityProfilePreferences.save(game, gameUuid, gameName, preference)
                     NovaSnackbar.showSuccess(
                         game,
                         game.getString(R.string.nova_quick_menu_profile_preference_saved),

@@ -485,6 +485,8 @@ class PolarisApiClient @JvmOverloads constructor(
             preference: String = "",
             mode: String = "",
             topologyLocked: Boolean = false,
+            mirrorDesktop: Boolean = false,
+            forcePrivateAfterSteamClose: Boolean = false,
             width: Int = 0,
             height: Int = 0,
             fps: Float = 0f,
@@ -504,6 +506,12 @@ class PolarisApiClient @JvmOverloads constructor(
                 ?.let { "&mode=${java.net.URLEncoder.encode(it, "UTF-8")}" }
                 ?: ""
             val topologyLockParam = if (topologyLocked) "&topology_locked=1" else ""
+            val mirrorDesktopParam = if (mirrorDesktop) "&mirrorDesktop=1" else ""
+            val forcePrivateParam = if (forcePrivateAfterSteamClose) {
+                "&closeDesktopSteamForPrivate=1&launchMode=force_private_stream"
+            } else {
+                ""
+            }
             val displayParam = if (width > 0 && height > 0 && fps > 0f) {
                 "&width=$width&height=$height&fps=$fps"
             } else {
@@ -522,6 +530,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 preferenceParam +
                 modeParam +
                 topologyLockParam +
+                mirrorDesktopParam +
+                forcePrivateParam +
                 displayParam +
                 displayLockParam +
                 bitrateParam +
@@ -560,6 +570,19 @@ class PolarisApiClient @JvmOverloads constructor(
             val value = number.toDouble()
             if (!value.isFinite() || value % 1.0 != 0.0 || value < 0.0 || value > Long.MAX_VALUE.toDouble()) {
                 return 0L
+            }
+            return number.toLong()
+        }
+
+        private fun strictOptionalNonNegativeLong(json: JSONObject, key: String): Long {
+            if (!json.has(key)) return 0L
+            val number = json.opt(key) as? Number
+                ?: throw JSONException("$key must be an integer")
+            val value = number.toDouble()
+            if (!value.isFinite() || value % 1.0 != 0.0 || value < 0.0 ||
+                value > Long.MAX_VALUE.toDouble()
+            ) {
+                throw JSONException("$key must be a non-negative integer")
             }
             return number.toLong()
         }
@@ -957,6 +980,9 @@ class PolarisApiClient @JvmOverloads constructor(
             val explanationSource = aiDoctor?.optJSONObject("source")
             val targetBitratePresent = actionPayload?.has("target_bitrate_kbps") == true
             val targetBitrateTyped = strictIntOrNull(actionPayload, "target_bitrate_kbps") != null
+            val actionSessionGeneration = strictLong(actionPayload, "session_generation")
+            val actionControllerRevision = strictLong(actionPayload, "controller_revision")
+            val actionEvidenceRevision = strictLong(actionPayload, "evidence_revision")
             val actionContractTyped = safeAction != null &&
                 safeAction.opt("id") is String &&
                 safeAction.opt("capability") is String &&
@@ -971,6 +997,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 safeAction.opt("paired_endpoint") is String &&
                 actionPayload?.opt("action_id") is String &&
                 actionPayload.opt("source_result_id") is String &&
+                actionPayload.opt("app_session_id") is String &&
+                actionPayload.opt("session_generation") is Number &&
                 actionVerification?.opt("mode") is String &&
                 actionVerification.opt("endpoint") is String &&
                 strictIntOrNull(actionVerification, "delay_seconds") != null &&
@@ -1020,6 +1048,10 @@ class PolarisApiClient @JvmOverloads constructor(
                 actionSourceResultId = strictString(actionPayload, "source_result_id"),
                 actionContractTyped = actionContractTyped,
                 actionAppUuid = strictString(actionPayload, "app_uuid"),
+                actionAppSessionId = strictString(actionPayload, "app_session_id"),
+                actionSessionGeneration = actionSessionGeneration,
+                actionControllerRevision = actionControllerRevision,
+                actionEvidenceRevision = actionEvidenceRevision,
                 targetBitrateKbps = strictInt(actionPayload, "target_bitrate_kbps"),
                 targetBitratePresent = targetBitratePresent,
                 targetBitrateTyped = targetBitrateTyped,
@@ -1121,6 +1153,12 @@ class PolarisApiClient @JvmOverloads constructor(
                 requestId = strictString(json, "request_id"),
                 recoveryState = strictString(json, "recovery_state").ifBlank { strictString(json, "state") },
                 appUuid = strictString(json, "app_uuid"),
+                appSessionId = strictString(json, "app_session_id"),
+                sessionGeneration = strictLong(json, "session_generation"),
+                scopeContractValid = json.opt("app_session_id") is String &&
+                    json.opt("session_generation") is Number &&
+                    strictString(json, "app_session_id").isNotBlank() &&
+                    strictLong(json, "session_generation") > 0L,
                 expiresAt = strictLong(json, "expires_at"),
                 safeProfile = parseRecoverySafeProfile(json.optJSONObject("safe_profile")),
                 verificationDelaySeconds = verificationDelay,
@@ -1138,7 +1176,9 @@ class PolarisApiClient @JvmOverloads constructor(
             responseBody: String,
             actionId: String,
             requestedRunId: String,
-            requestedRequestId: String = ""
+            requestedRequestId: String = "",
+            requestedAppSessionId: String = "",
+            requestedSessionGeneration: Long = 0L
         ): PolarisDoctorActionResult {
             val parsed = runCatching {
                 parseDoctorActionResponse(JSONObject(responseBody.ifBlank { "{}" }))
@@ -1147,6 +1187,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     actionId = actionId,
                     requestedRunId = requestedRunId,
                     requestedRequestId = requestedRequestId,
+                    requestedAppSessionId = requestedAppSessionId,
+                    requestedSessionGeneration = requestedSessionGeneration,
                     result = parsed
                 )) {
                 return parsed
@@ -1166,9 +1208,19 @@ class PolarisApiClient @JvmOverloads constructor(
             actionId: String,
             requestedRunId: String,
             requestedRequestId: String = "",
+            requestedAppSessionId: String = "",
+            requestedSessionGeneration: Long = 0L,
             result: PolarisDoctorActionResult
         ): Boolean {
             if (!result.status || !result.changedContractValid) return false
+            if (requestedAppSessionId.isNotBlank() || requestedSessionGeneration > 0L) {
+                if (!result.scopeContractValid ||
+                    result.appSessionId != requestedAppSessionId ||
+                    result.sessionGeneration != requestedSessionGeneration
+                ) {
+                    return false
+                }
+            }
             val runId = result.runId.trim()
             return when (actionId) {
                 "recheck_pacing" ->
@@ -1238,18 +1290,26 @@ class PolarisApiClient @JvmOverloads constructor(
         internal fun buildDoctorActionBody(
             actionId: String,
             appSessionId: String,
+            sessionGeneration: Long = 0L,
             appUuid: String = "",
             sourceResultId: String = "",
             targetBitrateKbps: Int = 0,
+            controllerRevision: Long = 0L,
+            evidenceRevision: Long = 0L,
             runId: String = "",
             requestId: String = "",
             confirmed: Boolean = false
         ): JSONObject = JSONObject().apply {
             put("action_id", actionId)
-            if (appSessionId.isNotBlank()) put("app_session_id", appSessionId)
+            if (appSessionId.isNotBlank() && sessionGeneration > 0L) {
+                put("app_session_id", appSessionId)
+                put("session_generation", sessionGeneration)
+            }
             if (appUuid.isNotBlank()) put("app_uuid", appUuid)
             if (sourceResultId.isNotBlank()) put("source_result_id", sourceResultId)
             if (targetBitrateKbps > 0) put("target_bitrate_kbps", targetBitrateKbps)
+            if (controllerRevision > 0L) put("controller_revision", controllerRevision)
+            if (evidenceRevision > 0L) put("evidence_revision", evidenceRevision)
             if (runId.isNotBlank()) put("run_id", runId)
             if (requestId.isNotBlank()) put("request_id", requestId)
             if (confirmed) put("confirmed", true)
@@ -1346,6 +1406,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 rawHostTuningAllowed is Boolean
             val authorityContractValid = clientRoleContractValid &&
                 ownedByClientContractValid && hostTuningContractValid
+            val sessionGeneration = strictOptionalNonNegativeLong(json, "session_generation")
 
             return PolarisSessionStatus(
                 state = json.optString("state", "unknown"),
@@ -1357,6 +1418,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 sessionToken = strictOptionalIdentity(json, "session_token"),
                 appSessionId = strictOptionalIdentity(json, "app_session_id"),
                 appSessionIdPresent = json.has("app_session_id"),
+                sessionGeneration = sessionGeneration,
                 ownerUniqueId = json.optString("owner_unique_id", ""),
                 ownerDeviceName = json.optString("owner_device_name", ""),
                 clientRole = clientRole.takeIf { clientRoleContractValid } ?: "none",
@@ -1901,6 +1963,21 @@ class PolarisApiClient @JvmOverloads constructor(
                 aiAutoQualityEnabled = aiAutoQualityEnabled,
                 disconnectResumeTimeoutSeconds = disconnectResumeTimeoutSeconds
             )
+            val canAffectActiveStream = streamDisplayMode != null ||
+                targetBitrateKbps != null || adaptiveBitrateEnabled != null ||
+                disconnectResumeTimeoutSeconds != null
+            if (canAffectActiveStream) {
+                val status = getSessionStatus() ?: return null
+                if (status.isStreaming) {
+                    if (!status.canAdjustHostTuning || status.appSessionId.isBlank() ||
+                        status.sessionGeneration <= 0L
+                    ) {
+                        return null
+                    }
+                    body.put("app_session_id", status.appSessionId)
+                    body.put("session_generation", status.sessionGeneration)
+                }
+            }
             val request = Request.Builder()
                 .url("$baseUrl/client-settings")
                 .post(okhttp3.RequestBody.create(
@@ -2364,9 +2441,12 @@ class PolarisApiClient @JvmOverloads constructor(
     fun runDoctorAction(
         actionId: String,
         appSessionId: String,
+        sessionGeneration: Long = 0L,
         appUuid: String = "",
         sourceResultId: String = "",
         targetBitrateKbps: Int = 0,
+        controllerRevision: Long = 0L,
+        evidenceRevision: Long = 0L,
         runId: String = "",
         requestId: String = "",
         confirmed: Boolean = false
@@ -2381,9 +2461,12 @@ class PolarisApiClient @JvmOverloads constructor(
             val body = buildDoctorActionBody(
                 actionId = actionId,
                 appSessionId = appSessionId,
+                sessionGeneration = sessionGeneration,
                 appUuid = appUuid,
                 sourceResultId = sourceResultId,
                 targetBitrateKbps = targetBitrateKbps,
+                controllerRevision = controllerRevision,
+                evidenceRevision = evidenceRevision,
                 runId = runId,
                 requestId = requestId,
                 confirmed = confirmed
@@ -2407,7 +2490,9 @@ class PolarisApiClient @JvmOverloads constructor(
                     responseBody = it.body?.string().orEmpty(),
                     actionId = actionId,
                     requestedRunId = runId,
-                    requestedRequestId = requestId
+                    requestedRequestId = requestId,
+                    requestedAppSessionId = appSessionId,
+                    requestedSessionGeneration = sessionGeneration
                 )
             }
         } catch (e: Exception) {
@@ -2421,7 +2506,14 @@ class PolarisApiClient @JvmOverloads constructor(
      */
     fun setBitrate(bitrateKbps: Int): Boolean {
         return try {
-            val body = org.json.JSONObject().apply { put("bitrate_kbps", bitrateKbps) }
+            val status = getSessionStatus()?.takeIf {
+                it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
+            } ?: return false
+            val body = org.json.JSONObject().apply {
+                put("bitrate_kbps", bitrateKbps)
+                put("app_session_id", status.appSessionId)
+                put("session_generation", status.sessionGeneration)
+            }
             val request = Request.Builder()
                 .url("$baseUrl/session/bitrate")
                 .post(okhttp3.RequestBody.create(
@@ -2443,7 +2535,14 @@ class PolarisApiClient @JvmOverloads constructor(
      */
     fun setAdaptiveBitrateEnabled(enabled: Boolean): Boolean {
         return try {
-            val body = org.json.JSONObject().apply { put("enabled", enabled) }
+            val status = getSessionStatus()?.takeIf {
+                it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
+            } ?: return false
+            val body = org.json.JSONObject().apply {
+                put("enabled", enabled)
+                put("app_session_id", status.appSessionId)
+                put("session_generation", status.sessionGeneration)
+            }
             val request = Request.Builder()
                 .url("$baseUrl/session/adaptive-bitrate")
                 .post(okhttp3.RequestBody.create(
@@ -2753,6 +2852,8 @@ class PolarisApiClient @JvmOverloads constructor(
         preference: String = "",
         mode: String = "",
         topologyLocked: Boolean = false,
+        mirrorDesktop: Boolean = false,
+        forcePrivateAfterSteamClose: Boolean = false,
         width: Int = 0,
         height: Int = 0,
         fps: Float = 0f,
@@ -2770,6 +2871,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 preference = preference,
                 mode = mode,
                 topologyLocked = topologyLocked,
+                mirrorDesktop = mirrorDesktop,
+                forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
                 width = width,
                 height = height,
                 fps = fps,

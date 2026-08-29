@@ -232,6 +232,7 @@ private var connecting:Boolean = false
 private var autoEnterPip:Boolean = false
 private var surfaceCreated:Boolean = false
 private var attemptedConnection:Boolean = false
+private var launchInitializationCommitted:Boolean = false
 private var suppressPipRefCount:Int = 0
 private var pcName:String? = null
 private var appName:String? = null
@@ -1360,6 +1361,7 @@ Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LEN
 finish()
 return
 }
+launchInitializationCommitted = true
 startNovaFeatureProbe()
 willStreamHdr = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeHdr(
 willStreamHdr,
@@ -2496,7 +2498,7 @@ private fun requestedLaunchTopology():String {
 return if (mirrorDesktop) "desktop_display"
 else if (streamMode.isNotBlank()) streamMode
 else if (vDisplay) "host_virtual_display"
-else "desktop_display"
+else ""
 }
 
 private fun launchPolicyFingerprint(
@@ -2563,9 +2565,22 @@ requestedWidth:Int,
 requestedHeight:Int,
 requestedFps:Float,
 displayLocked:Boolean,
-fpsLocked:Boolean
+fpsLocked:Boolean,
+requestedTopology:String,
+topologyLocked:Boolean,
+mirrorDesktopRequested:Boolean,
+forcePrivateRequested:Boolean
 ):Boolean {
 if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimization)) return false
+val topologyEnvelopeHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
+optimization = optimization,
+appIdentity = appUUID?.takeIf { it.isNotBlank() }
+?: appId.takeIf { it > 0 }?.toString().orEmpty(),
+requestedTopology = requestedTopology,
+topologyLocked = topologyLocked,
+mirrorDesktopRequested = mirrorDesktopRequested,
+forcePrivateRequested = forcePrivateRequested
+)
 val resolvedHdr = com.papi.nova.manager.StreamSyncManager.resolvedHdrValue(optimization)
 val resolvedFps = com.papi.nova.manager.StreamSyncManager.resolvedTargetFpsValue(optimization) ?: 0f
 val resolvedResolution = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
@@ -2612,6 +2627,7 @@ optimization,
 "hdr"
 ) == true))
 return hdrWithinEnvelope &&
+topologyEnvelopeHonored &&
 resolvedFps > 0f &&
 (clientMaximumFps <= 0f || resolvedFps <= clientMaximumFps + 0.5f) &&
 displayLockHonored &&
@@ -2631,9 +2647,11 @@ requestedHdr:Boolean,
 requestedProfilePreference:String
 ):LaunchOptimizationDecision {
 val safeAppName:String = appName ?: ""
+val safeAppIdentity:String = appUUID?.takeIf { it.isNotBlank() }
+?: appId.takeIf { it > 0 }?.toString()
+?: safeAppName
 val preference:String = requestedProfilePreference.takeIf { it.isNotBlank() }
-?: getSharedPreferences("nova_prefs", MODE_PRIVATE)
-.getString("ai_profile_preference_name_" + safeAppName, "auto") ?: "auto"
+?: com.papi.nova.ui.AutoQualityProfilePreferences.load(this, safeAppIdentity, safeAppName)
 fun blocked():LaunchOptimizationDecision = LaunchOptimizationDecision(
 optimization = null,
 policyBlocked = true,
@@ -2646,6 +2664,9 @@ var queryFps = requestedFps
 var queryDisplayLocked = displayLocked
 var queryBitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate
 var queryBitrateLocked = bitrateLocked
+val requestedTopology = requestedLaunchTopology()
+val exactTopologyLocked = topologyLocked || mirrorDesktop ||
+forcePrivateAfterSteamClose || streamMode.isNotBlank()
 var trustedPreflight:JSONObject? = null
 if (!launchOptimizationJson.isNullOrBlank())
 {
@@ -2666,6 +2687,15 @@ preflight,
 ) == true && preflightBitrateKbps in 1..queryBitrateKbps)
 val containsNovaLaunchOverride = preflight.optString("normalization_reason", "") ==
 NovaLaunchStreamOverride.NORMALIZATION_REASON
+val preflightTopologyHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
+preflight,
+appUUID?.takeIf { it.isNotBlank() }
+?: appId.takeIf { it > 0 }?.toString().orEmpty(),
+requestedTopology,
+exactTopologyLocked,
+mirrorDesktop,
+forcePrivateAfterSteamClose
+)
 if (resolvedOptimizationHonorsLaunchEnvelope(
 preflight,
 requestedHdr,
@@ -2676,12 +2706,24 @@ requestedWidth,
 requestedHeight,
 requestedFps,
 displayLocked,
-preference.equals("high_fps", ignoreCase = true)
+preference.equals("high_fps", ignoreCase = true),
+requestedTopology,
+exactTopologyLocked,
+mirrorDesktop,
+forcePrivateAfterSteamClose
 ) && !containsNovaLaunchOverride)
 {
 // Play Setup already resolved the exact per-launch locks. Its HDR value is
 // accepted only after it matches Nova's actual display/decoder capability.
 trustedPreflight = preflight
+}
+else
+{
+if (!preflightTopologyHonored)
+{
+// A result for another app/topology has no authority over even the next
+// resolver request. Preserve the caller's original fields and locks.
+LimeLog.info("Nova: Discarding preflight values after app or topology intent changed")
 }
 else
 {
@@ -2713,6 +2755,7 @@ if (queryBitrateLocked && preflightHonorsCurrentBitrateLock)
 queryBitrateKbps = preflightBitrateKbps
 }
 LimeLog.info("Nova: Re-resolving trusted preflight after local display, HDR, or metered-lock validation")
+}
 }
 }
 else
@@ -2750,9 +2793,11 @@ LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch a
 return blocked()
 }
 val optimizationResult = trustedPreflight ?: novaApiClient!!.getOptimization(
-DeviceUtils.getModel(), safeAppName, preference,
+DeviceUtils.getModel(), safeAppIdentity, preference,
 mode = requestedLaunchTopology(),
-topologyLocked = topologyLocked,
+topologyLocked = exactTopologyLocked,
+mirrorDesktop = mirrorDesktop,
+forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
 width = queryWidth,
 height = queryHeight,
 fps = queryFps,
@@ -2785,7 +2830,11 @@ queryWidth,
 queryHeight,
 queryFps,
 queryDisplayLocked,
-preference.equals("high_fps", ignoreCase = true)
+preference.equals("high_fps", ignoreCase = true),
+requestedTopology,
+exactTopologyLocked,
+mirrorDesktop,
+forcePrivateAfterSteamClose
 ))
 {
 LimeLog.severe("Nova: Rejecting resolved profile outside the current HDR, FPS, or bitrate-lock envelope")
@@ -3297,6 +3346,18 @@ launchPolicyGateGeneration.incrementAndGet()
 runtimeTasks.cancel("NovaLaunchPolicyGate")
 setIntent(intent)
 LimeLog.info("Nova: Restarting launch policy validation for a newer launch intent")
+recreate()
+return
+}
+
+if (intent != null && launchInitializationCommitted && !attemptedConnection &&
+intent.hasExtra(EXTRA_HOST) && intent.hasExtra(EXTRA_APP_ID)
+)
+{
+launchPolicyGateGeneration.incrementAndGet()
+runtimeTasks.cancel("NovaLaunchPolicyGate")
+setIntent(intent)
+LimeLog.info("Nova: Replacing a validated but not-yet-started launch with the newer intent")
 recreate()
 return
 }
