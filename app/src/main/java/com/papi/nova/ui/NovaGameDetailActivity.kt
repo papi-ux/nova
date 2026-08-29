@@ -392,8 +392,10 @@ class NovaGameDetailActivity : NovaActivity() {
         explainedRow = NovaPlaySetupRow.WHERE_IT_RUNS
         // An explicit resolution, held until launch rather than launching on the spot.
         // Picking one used to start the game immediately, which is why the row that owned
-        // it could not be a setting: there was nothing to set.
-        var chosenResolution by mutableStateOf<NovaDisplayResolutionChoice?>(null)
+        // it could not be a setting: there was nothing to set. The choice itself is
+        // rebuilt fresh from the planner every open, so only its id is persisted
+        // (NovaResolutionOverrides) and resolved back against this open's planner here.
+        var chosenResolution by mutableStateOf<NovaDisplayResolutionChoice?>(loadResolutionOverride(currentGame))
         // Changing a row is cheap; telling the host about it is not. Presses settle first
         // so that cycling past three values costs one round-trip rather than three.
         var settleJob: Job? = null
@@ -763,6 +765,7 @@ class NovaGameDetailActivity : NovaActivity() {
          */
         fun chooseResolution(choice: NovaDisplayResolutionChoice) {
             chosenResolution = choice
+            saveResolutionOverride(currentGame, choice.id)
         }
 
         fun selectProfilePreference(value: String) {
@@ -1382,6 +1385,16 @@ class NovaGameDetailActivity : NovaActivity() {
 
     private fun saveProfilePreference(game: PolarisGame, preference: String) {
         AutoQualityProfilePreferences.save(this@NovaGameDetailActivity, game.name, preference)
+    }
+
+    /** Resolves a saved resolution-choice id back against this open's planner, if any. */
+    private fun loadResolutionOverride(game: PolarisGame): NovaDisplayResolutionChoice? {
+        val savedId = NovaResolutionOverrides.load(this@NovaGameDetailActivity, game) ?: return null
+        return resolutionPlanner(game).visibleChoices.firstOrNull { it.id == savedId }
+    }
+
+    private fun saveResolutionOverride(game: PolarisGame, choiceId: String) {
+        NovaResolutionOverrides.save(this@NovaGameDetailActivity, game, choiceId)
     }
 
     private fun loadArtworkState(game: PolarisGame): NovaArtworkStudioState {
