@@ -5,7 +5,8 @@ import com.papi.nova.R
 
 object AutoQualityProfilePreferences {
     private const val PREFS_NAME = "nova_prefs"
-    private const val KEY_PREFIX = "ai_profile_preference_name_"
+    private const val APP_KEY_PREFIX = "launch_preset_app_id_"
+    private const val LEGACY_NAME_KEY_PREFIX = "ai_profile_preference_name_"
 
     private val values = arrayOf("auto", "quality", "high_fps", "stability")
 
@@ -15,23 +16,42 @@ object AutoQualityProfilePreferences {
         return preference?.takeIf { it in values } ?: "auto"
     }
 
-    fun load(context: Context, gameName: String): String {
-        return normalize(
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(key(gameName), "auto")
-        )
+    fun load(context: Context, appId: String, gameName: String): String {
+        val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val canonicalKey = appKey(appId)
+        if (canonicalKey != null && preferences.contains(canonicalKey)) {
+            return normalize(preferences.getString(canonicalKey, "auto"))
+        }
+
+        val legacyKey = legacyNameKey(gameName)
+        if (legacyKey != null && preferences.contains(legacyKey)) {
+            val migrated = normalize(preferences.getString(legacyKey, "auto"))
+            if (canonicalKey != null) {
+                // One bounded migration consumes the shared name key. A second
+                // UUID-distinct app with the same title therefore cannot adopt it.
+                preferences.edit()
+                    .putString(canonicalKey, migrated)
+                    .remove(legacyKey)
+                    .commit()
+            }
+            return migrated
+        }
+        return "auto"
     }
 
-    fun hasSaved(context: Context, gameName: String): Boolean {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .contains(key(gameName))
+    fun hasSaved(context: Context, appId: String, gameName: String): Boolean {
+        val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return appKey(appId)?.let(preferences::contains) == true ||
+            legacyNameKey(gameName)?.let(preferences::contains) == true
     }
 
-    fun save(context: Context, gameName: String, preference: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    fun save(context: Context, appId: String, gameName: String, preference: String) {
+        val canonicalKey = appKey(appId) ?: return
+        val editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putString(key(gameName), normalize(preference))
-            .apply()
+            .putString(canonicalKey, normalize(preference))
+        legacyNameKey(gameName)?.let(editor::remove)
+        editor.apply()
     }
 
     fun labelRes(preference: String): Int {
@@ -52,7 +72,11 @@ object AutoQualityProfilePreferences {
         }
     }
 
-    private fun key(gameName: String): String {
-        return "$KEY_PREFIX$gameName"
-    }
+    private fun appKey(appId: String): String? = appId.trim()
+        .takeIf { it.isNotEmpty() }
+        ?.let { "$APP_KEY_PREFIX$it" }
+
+    private fun legacyNameKey(gameName: String): String? = gameName.trim()
+        .takeIf { it.isNotEmpty() }
+        ?.let { "$LEGACY_NAME_KEY_PREFIX$it" }
 }

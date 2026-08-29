@@ -196,7 +196,7 @@ class NovaHudUiStateTest {
     }
 
     @Test
-    fun recoveryStatusUsesWarningAutopilotTone() {
+    fun legacyRecoveryStatusUsesObservationalPacingWatch() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.MINIMAL,
             fps = 42.0,
@@ -223,8 +223,8 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(42f)
         )
 
-        assertEquals("AI Recovery Profile", state.autopilotLabel)
-        assertEquals("AI Recovery", state.autopilotHudLabel)
+        assertEquals("Frame Pacing Watch", state.autopilotLabel)
+        assertEquals("Pacing Watch", state.autopilotHudLabel)
         assertEquals("HOST", state.autopilotCompactLabel)
         assertEquals(NovaHudTone.WARNING, state.statusTone)
         assertEquals(NovaHudTone.WARNING, state.fpsTone)
@@ -263,8 +263,8 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(118f)
         )
 
-        assertEquals("Auto Safe capped", state.autopilotLabel)
-        assertEquals("Auto Safe", state.autopilotHudLabel)
+        assertEquals("Live bitrate adjusted", state.autopilotLabel)
+        assertEquals("Bitrate Adjusted", state.autopilotHudLabel)
         assertEquals(NovaHudTone.WARNING, state.statusTone)
     }
 
@@ -395,6 +395,61 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun warningLatencyCannotRenderBesideStableDiagnosis() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 48,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = listOf(60f)
+        )
+
+        assertEquals(NovaHudTone.WARNING, state.latencyTone)
+        assertEquals("High latency", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertFalse(state.healthReasonLabel.contains("Stable", ignoreCase = true))
+        assertEquals(NovaHudTone.WARNING, state.layerHealth.single { it.label == "NET" }.tone)
+    }
+
+    @Test
+    fun lowRenderedFpsAloneDoesNotInventAStaticContentPacingFault() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 30.0,
+            targetFps = 120.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "good",
+                    primaryIssue = "none",
+                    networkRisk = "normal",
+                    decoderRisk = "normal"
+                ),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-static-clean",
+                    primaryIssue = "none"
+                )
+            ),
+            sparklineSamples = listOf(30f)
+        )
+
+        assertEquals("Stable", state.healthReasonLabel)
+        assertEquals(NovaHudTone.STABLE, state.healthReasonTone)
+        assertEquals(NovaHudTone.STABLE, state.fpsTone)
+    }
+
+    @Test
     fun framePacingWarningNeverContradictsItselfWithStableOrNetworkCopy() {
         val status = status(
             health = PolarisSessionStatus.HealthStatus(
@@ -423,6 +478,45 @@ class NovaHudUiStateTest {
         assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
         assertFalse(state.healthReasonLabel.contains("Stable", ignoreCase = true))
         assertFalse(state.healthReasonLabel.contains("Network", ignoreCase = true))
+    }
+
+    @Test
+    fun doctorOnlyWarningCannotRenderBesideStableAndKeepsItsLayer() {
+        val status = status(
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                primaryIssue = "none",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "packet_loss",
+                        status = "fail",
+                        source = "media_transport",
+                        value = 3.4
+                    )
+                )
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertTrue(status.hasHealthConcerns)
+        assertEquals("Needs attention", status.healthToneLabel)
+        assertEquals("Needs attention", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertEquals(NovaHudTone.STABLE, state.layerHealth[0].tone)
+        assertEquals(NovaHudTone.WARNING, state.layerHealth[1].tone)
+        assertEquals(NovaHudTone.STABLE, state.layerHealth[2].tone)
     }
 
     @Test
@@ -461,6 +555,192 @@ class NovaHudUiStateTest {
             NovaHudLayerHealth("NET", NovaHudTone.WARNING),
             state.layerHealth[1]
         )
+    }
+
+    @Test
+    fun unconfirmedNetworkObservationRequestsARecheckWithoutNetworkBlame() {
+        val status = status(
+            health = PolarisSessionStatus.HealthStatus(
+                grade = "watch",
+                primaryIssue = "network_jitter",
+                issues = listOf("network_jitter"),
+                networkRisk = "elevated"
+            ),
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-network-observation",
+                primaryIssue = "network_observation",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "packet_loss",
+                        status = "pass",
+                        source = "media_transport",
+                        value = 0.4
+                    ),
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "latency",
+                        status = "watch",
+                        source = "stream_stats",
+                        value = 30.0
+                    )
+                )
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 30,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertFalse(status.hasHealthConcerns)
+        assertEquals("Network recheck", status.healthToneLabel)
+        assertEquals("Network recheck", state.healthReasonLabel)
+        assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
+        assertEquals(NovaHudTone.STABLE, state.latencyTone)
+        assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
+    }
+
+    @Test
+    fun confirmedMediaLossOverridesObservationSuppression() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 30,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(grade = "watch"),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-confirmed-loss",
+                    primaryIssue = "network_observation",
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "packet_loss",
+                            status = "fail",
+                            source = "media_transport",
+                            value = 3.2
+                        )
+                    )
+                )
+            ),
+            sparklineSamples = listOf(60f)
+        )
+
+        assertEquals("Needs attention", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertEquals(NovaHudTone.WARNING, state.layerHealth[1].tone)
+    }
+
+    @Test
+    fun controlChannelRetriesRemainInformational() {
+        val status = status(
+            health = PolarisSessionStatus.HealthStatus(grade = "watch"),
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-control-observation",
+                primaryIssue = "control_channel_observation",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "control_channel_packet_loss",
+                        status = "watch",
+                        source = "enet_control_channel",
+                        value = 8.0
+                    )
+                )
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertFalse(status.hasHealthConcerns)
+        assertEquals("Control retries", status.healthToneLabel)
+        assertEquals("Control retries observed", state.healthReasonLabel)
+        assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
+        assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
+    }
+
+    @Test
+    fun authoritativeDoctorNoneSuppressesStaleHealthNetworkAndPacingLabels() {
+        val doctor = PolarisSessionStatus.DoctorStatus(
+            available = true,
+            version = 2,
+            resultId = "doctor-current-clean",
+            primaryIssue = "none"
+        )
+        val staleNetwork = status(
+            health = PolarisSessionStatus.HealthStatus(
+                grade = "watch",
+                primaryIssue = "network_jitter",
+                issues = listOf("network_jitter"),
+                networkRisk = "elevated"
+            ),
+            doctor = doctor
+        )
+        val stalePacing = status(
+            health = PolarisSessionStatus.HealthStatus(
+                grade = "watch",
+                primaryIssue = "frame_pacing",
+                issues = listOf("frame_pacing")
+            ),
+            doctor = doctor
+        )
+
+        val networkState = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = staleNetwork,
+            sparklineSamples = listOf(60f)
+        )
+        val pacingState = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 30.0,
+            targetFps = 120.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = stalePacing,
+            sparklineSamples = listOf(30f)
+        )
+
+        assertEquals("none", staleNetwork.effectivePrimaryIssue)
+        assertFalse(staleNetwork.hasHealthConcerns)
+        assertEquals("Stable", networkState.healthReasonLabel)
+        assertEquals(NovaHudTone.STABLE, networkState.layerHealth[1].tone)
+        assertEquals("Stable", pacingState.healthReasonLabel)
+        assertEquals(NovaHudTone.STABLE, pacingState.fpsTone)
+        assertEquals(NovaHudTone.STABLE, pacingState.layerHealth[0].tone)
     }
 
     @Test
@@ -576,7 +856,6 @@ class NovaHudUiStateTest {
         trail.recordBitrateChange(fromKbps = 30000, toKbps = 22000)
         assertEquals("Bitrate lowered: 30M → 22M", trail.latestLabel)
 
-        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = true)
         val state = NovaHudUiState.from(
             mode = NovaHudMode.PERFORMANCE,
             fps = 59.0,
@@ -591,8 +870,8 @@ class NovaHudUiStateTest {
             eventBreadcrumbLabel = trail.latestLabel
         )
 
-        assertEquals("Next launch recovery: 60 FPS", trail.latestLabel)
-        assertEquals("Next launch recovery: 60 FPS", state.eventBreadcrumbLabel)
+        assertEquals("Bitrate lowered: 30M → 22M", trail.latestLabel)
+        assertEquals("Bitrate lowered: 30M → 22M", state.eventBreadcrumbLabel)
     }
 
     @Test
@@ -600,7 +879,7 @@ class NovaHudUiStateTest {
         val trail = NovaHudEventTrail(capacity = 4)
 
         trail.recordBitrateChange(fromKbps = 30000, toKbps = 22000)
-        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = true)
+        trail.record("Next launch recovery: 60 FPS")
         assertEquals("Next launch recovery: 60 FPS", trail.latestLabel)
 
         trail.retireRecoveryProfile()
@@ -613,7 +892,7 @@ class NovaHudUiStateTest {
         val trail = NovaHudEventTrail(capacity = 4)
 
         trail.recordBitrateChange(fromKbps = 22000, toKbps = 30000)
-        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = false)
+        trail.record("Fallback ready: 60 FPS")
         assertEquals("Fallback ready: 60 FPS", trail.latestLabel)
 
         trail.retireRecoveryProfile()
@@ -637,26 +916,13 @@ class NovaHudUiStateTest {
     fun retireRecoveryProfileClearsEveryRecoveryFamilyEntry() {
         val trail = NovaHudEventTrail(capacity = 4)
 
-        trail.recordRecoveryProfile(targetFps = 90.0, recoveryQueued = false)
+        trail.record("Fallback ready: 90 FPS")
         trail.recordBitrateChange(fromKbps = 30000, toKbps = 22000)
-        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = true)
+        trail.record("Next launch recovery: 60 FPS")
 
         trail.retireRecoveryProfile()
 
         assertEquals("Bitrate lowered: 30M → 22M", trail.latestLabel)
-    }
-
-    @Test
-    fun recoveryProfileHoldingWithSafeTargetReadsAsFallbackReady() {
-        // Stable 120 FPS with a held historical 60 FPS safeTarget must not read as a
-        // scheduled downgrade — only autoQuality state = recovery_queued is the queued
-        // case; anything else (holding, unknown) is a fallback that is available, not
-        // one that has been booked.
-        val trail = NovaHudEventTrail(capacity = 3)
-
-        trail.recordRecoveryProfile(targetFps = 60.0, recoveryQueued = false)
-
-        assertEquals("Fallback ready: 60 FPS", trail.latestLabel)
     }
 
     @Test
@@ -696,42 +962,44 @@ class NovaHudUiStateTest {
     }
 
     @Test
-    fun streamHudDerivesRecoveryQueuedFromAutoQualityStateForBreadcrumb() {
-        // A held historical safeTarget must not read as a scheduled downgrade. The
-        // queued-vs-fallback distinction lives on Polaris' parsed autoQuality state
-        // (isRecoveryQueued), so the call site must read that field and pass it
-        // through to the trail — no local re-derivation from relaunchRecommended alone.
-        val source = String(
+    fun streamHudIsObservationalAndNeverOwnsBitrateMutation() {
+        val hudSource = String(
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
             StandardCharsets.UTF_8
         )
-
-        assertTrue(source.contains("status?.autoQuality?.isRecoveryQueued"))
-        assertTrue(
-            source.contains("eventTrail.recordRecoveryProfile(safeTarget, recoveryQueued = recoveryQueued)")
+        val gameSource = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/Game.kt")),
+            StandardCharsets.UTF_8
         )
+
+        assertFalse(hudSource.contains("onBitrateAdjust"))
+        assertFalse(hudSource.contains("setBitrate("))
+        assertFalse(hudSource.contains("currentBitrateKbps * 0.75"))
+        assertFalse(gameSource.contains("hud.onBitrateAdjust"))
+        assertTrue(gameSource.contains("uploadDoctorV2Sample(sample)"))
     }
 
     @Test
-    fun streamHudRetiresRecoveryBreadcrumbWhenSafeTargetOrRecoveryStateClears() {
-        // NovaHudEventTrail is append-only, so once "Next launch recovery" or
-        // "Fallback ready" is recorded it lingers next to newer live telemetry.
-        // applySessionStatus must retire the recovery-family entry as soon as
-        // safeTarget drops to zero or neither recoveryQueued nor
-        // relaunchRecommended is true, so stale copy doesn't sit beside a
-        // healthy session.
+    fun streamHudNeverTurnsRecoveryHistoryIntoANextLaunchBreadcrumb() {
         val source = String(
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
             StandardCharsets.UTF_8
         )
 
         assertTrue(source.contains("eventTrail.retireRecoveryProfile()"))
-        assertTrue(
-            source.contains(
-                "if (safeTarget > 0.0 && (recoveryQueued || status?.health?.relaunchRecommended == true)) {"
-            )
+        assertFalse(source.contains("eventTrail.recordRecoveryProfile("))
+    }
+
+    @Test
+    fun streamHudUnconditionallyRetiresLegacyRecoveryBreadcrumbs() {
+        val source = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
+            StandardCharsets.UTF_8
         )
-        assertTrue(source.contains("} else {\n                eventTrail.retireRecoveryProfile()"))
+
+        assertTrue(source.contains("eventTrail.retireRecoveryProfile()"))
+        assertFalse(source.contains("status?.health?.safeTargetFps"))
+        assertFalse(source.contains("status?.autoQuality?.isRecoveryQueued"))
     }
 
     private fun status(
@@ -751,6 +1019,7 @@ class NovaHudUiStateTest {
             residency = "gpu"
         ),
         health: PolarisSessionStatus.HealthStatus = PolarisSessionStatus.HealthStatus(grade = "good"),
+        doctor: PolarisSessionStatus.DoctorStatus = PolarisSessionStatus.DoctorStatus(),
         autoQuality: PolarisSessionStatus.AutoQualityPolicy = PolarisSessionStatus.AutoQualityPolicy(),
         displayMode: PolarisSessionStatus.DisplayModeStatus = PolarisSessionStatus.DisplayModeStatus(
             requested = "headless",
@@ -772,6 +1041,7 @@ class NovaHudUiStateTest {
         encoder = encoder,
         capture = capture,
         health = health,
+        doctor = doctor,
         autoQuality = autoQuality,
         displayMode = displayMode,
         linuxGpuProfile = linuxGpuProfile,

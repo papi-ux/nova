@@ -414,7 +414,6 @@ internal enum class NovaPlaySetupRow {
     STEAM_LAUNCH,
     HOST_DEFAULT_DISPLAY,
     HOST_PROFILE,
-    HOST_AUTO_QUALITY,
     HOST_KEEP_IN_STEP,
 }
 
@@ -623,6 +622,14 @@ internal fun novaPlaySetupPlan(
             )
         }
 
+        summary.provenanceLine.takeIf { it.isNotBlank() }?.let {
+            facts += NovaPlaySetupFact(
+                key = profileKey,
+                value = it,
+                tone = NovaPlaySetupTone.PLAIN,
+            )
+        }
+
         val asked = novaStripLabel(summary.requestedLine)
         val granted = novaStripLabel(summary.selectedLine)
         if (asked.isNotBlank()) {
@@ -638,7 +645,7 @@ internal fun novaPlaySetupPlan(
             )
         }
 
-        summary.freshnessLine.takeIf { it.isNotBlank() }?.let {
+        summary.freshnessLine.takeIf { it.isNotBlank() && summary.provenanceLine.isBlank() }?.let {
             facts += NovaPlaySetupFact(key = profileKey, value = it)
         }
     }

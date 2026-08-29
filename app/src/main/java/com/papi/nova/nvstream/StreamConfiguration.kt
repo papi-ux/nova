@@ -27,9 +27,12 @@ class StreamConfiguration private constructor() {
     private var persistGamepadsAfterDisconnect = false
     private var enableUltraLowLatency = false
     private var forceFreshLaunch = false
+    private var resumeExistingOnly = false
     private var profilePreference = "auto"
+    private var resolvedProfile = false
     private var mirrorDesktop = false
     private var streamMode = ""
+    private var expectedTopology = ""
     private var forcePrivateAfterSteamClose = false
 
     class Builder {
@@ -156,8 +159,18 @@ class StreamConfiguration private constructor() {
             return this
         }
 
+        fun setResumeExistingOnly(resumeExistingOnly: Boolean): Builder {
+            config.resumeExistingOnly = resumeExistingOnly
+            return this
+        }
+
         fun setProfilePreference(profilePreference: String?): Builder {
             config.profilePreference = if (profilePreference.isNullOrBlank()) "auto" else profilePreference
+            return this
+        }
+
+        fun setResolvedProfile(resolved: Boolean): Builder {
+            config.resolvedProfile = resolved
             return this
         }
 
@@ -169,6 +182,11 @@ class StreamConfiguration private constructor() {
         fun setStreamMode(streamMode: String?): Builder {
             // Canonical stream path registry id, or blank for the host default.
             config.streamMode = streamMode?.trim().orEmpty()
+            return this
+        }
+
+        fun setExpectedTopology(expectedTopology: String?): Builder {
+            config.expectedTopology = expectedTopology?.trim()?.lowercase().orEmpty()
             return this
         }
 
@@ -238,11 +256,17 @@ class StreamConfiguration private constructor() {
 
     fun getForceFreshLaunch(): Boolean = forceFreshLaunch
 
+    fun getResumeExistingOnly(): Boolean = resumeExistingOnly
+
     fun getProfilePreference(): String = profilePreference
+
+    fun getResolvedProfile(): Boolean = resolvedProfile
 
     fun getMirrorDesktop(): Boolean = mirrorDesktop
 
     fun getStreamMode(): String = streamMode
+
+    fun getExpectedTopology(): String = expectedTopology
 
     fun getForcePrivateAfterSteamClose(): Boolean = forcePrivateAfterSteamClose
 

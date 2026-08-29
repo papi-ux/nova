@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisApiRejectedException
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.manager.PolarisProfileSync
@@ -36,6 +37,7 @@ internal class NovaPolarisSyncEngine(
     private val scope: CoroutineScope,
     private val onSettingsChanged: (PolarisClientSettings) -> Unit = {},
     private val onMessage: (messageRes: Int, isError: Boolean) -> Unit = { _, _ -> },
+    private val onTextMessage: ((message: String, isError: Boolean) -> Unit)? = null,
 ) {
     var currentSettings by mutableStateOf<PolarisClientSettings?>(null)
         private set
@@ -170,6 +172,7 @@ internal class NovaPolarisSyncEngine(
         }
         busy = true
         scope.launch {
+            var rejectionMessage: String? = null
             val confirmed = withContext(Dispatchers.IO) {
                 try {
                     client.updateClientSettings(
@@ -182,6 +185,10 @@ internal class NovaPolarisSyncEngine(
                         aiOptimizerEnabled = aiOptimizerEnabled,
                         aiAutoQualityEnabled = aiAutoQualityEnabled
                     )
+                } catch (e: PolarisApiRejectedException) {
+                    LimeLog.warning("Nova: Polaris sync update rejected: ${e.rejection.code}")
+                    rejectionMessage = e.rejection.error
+                    null
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: Polaris sync update failed: ${e.message}")
                     null
@@ -190,7 +197,12 @@ internal class NovaPolarisSyncEngine(
             busy = false
             if (confirmed == null) {
                 currentSettings = previousSettings
-                onMessage(R.string.nova_polaris_sync_failed, true)
+                val exactRejection = rejectionMessage
+                if (!exactRejection.isNullOrBlank() && onTextMessage != null) {
+                    onTextMessage.invoke(exactRejection, true)
+                } else {
+                    onMessage(R.string.nova_polaris_sync_failed, true)
+                }
                 return@launch
             }
 

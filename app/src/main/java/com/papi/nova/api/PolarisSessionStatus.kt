@@ -10,11 +10,13 @@ data class PolarisSessionStatus(
     val sessionToken: String = "",
     val appSessionId: String = "",
     val appSessionIdPresent: Boolean = false,
+    val sessionGeneration: Long = 0L,
     val ownerUniqueId: String = "",
     val ownerDeviceName: String = "",
     val clientRole: String = "none",
     val viewerCount: Int = 0,
     val ownedByClient: Boolean = false,
+    val authorityContractValid: Boolean = true,
     val cagePid: Int = 0,
     val screenLocked: Boolean = false,
     val cursorVisible: Boolean = false,
@@ -53,7 +55,11 @@ data class PolarisSessionStatus(
         val undoSupported: Boolean = false,
         val undoAvailable: Boolean = false,
         val undoActionId: String = "",
-        val verificationActionId: String = ""
+        val verificationActionId: String = "",
+        val deprecated: Boolean = false,
+        val applicable: Boolean = true,
+        val cancellable: Boolean = false,
+        val reasonCode: String = ""
     ) {
         val normalizedState get() = state.trim().lowercase()
         val isQueued get() = normalizedState == "queued"
@@ -102,6 +108,8 @@ data class PolarisSessionStatus(
         val requestedHeadless: Boolean = false,
         val effectiveHeadless: Boolean = false,
         val gpuNativeOverrideActive: Boolean = false,
+        val mirrorDesktop: Boolean = false,
+        val forcePrivateAfterSteamClose: Boolean = false,
         /** Why this session is not on the display the client asked for; blank when it is. */
         val warning: String = ""
     )
@@ -295,44 +303,158 @@ data class PolarisSessionStatus(
         val classification: String = "UNKNOWN",
         val likelyCause: String = "",
         val evidence: List<String> = emptyList(),
+        val evidenceItems: List<EvidenceItem> = emptyList(),
         val tryFirst: List<String> = emptyList(),
         val confidence: String = "",
         val advancedDetail: String = "",
         val primaryIssue: String = "",
         val actionId: String = "",
         val actionLabel: String = "",
+        val actionCapability: String = "",
         val actionKind: String = "",
+        val actionEndpoint: String = "",
+        val actionMethod: String = "",
+        val actionPayloadId: String = "",
+        val actionSourceResultId: String = "",
+        val actionContractTyped: Boolean = false,
         val actionAppUuid: String = "",
+        val actionAppSessionId: String = "",
+        val actionSessionGeneration: Long = 0L,
+        val actionControllerRevision: Long = 0L,
+        val actionEvidenceRevision: Long = 0L,
         val targetBitrateKbps: Int = 0,
+        val targetBitratePresent: Boolean = false,
+        val targetBitrateTyped: Boolean = false,
         val verificationDelaySeconds: Int = 0,
         val undoSupported: Boolean = false,
+        val undoEndpoint: String = "",
         val requiresConfirmation: Boolean = false,
+        val requiresOwner: Boolean = false,
+        val allowedInViewerMode: Boolean = false,
+        val destructive: Boolean = false,
         val ownerTuningAllowed: Boolean = false,
         val pairedEndpoint: String = "",
         val undoPairedEndpoint: String = "",
+        val verificationMode: String = "",
+        val verificationEndpoint: String = "",
         val packetLossPct: Double? = null,
         val latencyMs: Double? = null,
         val destructiveActionAllowed: Boolean = false,
         val explanationSourceKind: String = "",
         val explanationSourceMode: String = "",
-        val explanationInformational: Boolean = false
+        val explanationInformational: Boolean = false,
+        val aiExplanation: AiExplanation = AiExplanation()
     ) {
+        data class EvidenceItem(
+            val id: String = "",
+            val status: String = "",
+            val source: String = "",
+            val value: Double? = null,
+            val detail: String = ""
+        )
+
+        data class AiExplanation(
+            val available: Boolean = false,
+            val likelyCause: String = "",
+            val evidence: List<String> = emptyList(),
+            val tryFirst: List<String> = emptyList(),
+            val confidence: String = "",
+            val advancedDetail: String = "",
+            val sourceKind: String = "",
+            val sourceMode: String = "",
+            val informational: Boolean = false
+        )
+
         val firstTry get() = tryFirst.firstOrNull().orEmpty()
-        val networkPressureConfirmed get() =
-            (packetLossPct ?: 0.0) > 2.0 || (latencyMs ?: 0.0) >= 45.0
-        val canExecuteAction get() = when (actionId) {
-            "recheck_network" -> version >= 2
-            "lower_bitrate" -> version >= 2 && primaryIssue == "network_jitter" && networkPressureConfirmed
-            "restore_quality" -> version >= 2 && primaryIssue == "quality_capped_by_history" && targetBitrateKbps > 0
-            "apply_recovery_profile_next_launch" -> version >= 2 &&
-                actionKind == "next_launch_profile" &&
+        private fun evidenceItem(id: String) = evidenceItems.firstOrNull { it.id == id }
+        private fun evidenceStatusIs(item: EvidenceItem?, status: String) =
+            item?.status?.equals(status, ignoreCase = true) == true
+        private fun evidenceSourceIs(item: EvidenceItem?, expected: String) =
+            item?.source?.equals(expected, ignoreCase = true) == true
+        private val actionEnvelopeValid get() =
+            version >= 2 &&
+                actionContractTyped &&
                 resultId.isNotBlank() &&
-                actionAppUuid.isNotBlank() &&
-                requiresConfirmation &&
-                undoSupported &&
-                ownerTuningAllowed &&
-                pairedEndpoint == "/polaris/v1/doctor/action" &&
-                undoPairedEndpoint == "/polaris/v1/doctor/action"
+                actionPayloadId == actionId &&
+                actionSourceResultId == resultId &&
+                actionEndpoint == "/api/doctor/action" &&
+                actionMethod.equals("POST", ignoreCase = true) &&
+                actionAppSessionId.isNotBlank() &&
+                actionSessionGeneration > 0L &&
+                requiresOwner &&
+                !allowedInViewerMode &&
+                !destructive &&
+                !requiresConfirmation &&
+                !ownerTuningAllowed &&
+                pairedEndpoint.isEmpty()
+        private val verificationEnvelopeValid get() =
+            verificationEndpoint == "/api/doctor/action"
+        private val confirmedMediaLoss get() = evidenceItem("packet_loss").let { item ->
+            evidenceSourceIs(item, "media_transport") &&
+                evidenceStatusIs(item, "fail") && (item?.value ?: 0.0) > 2.0
+        }
+        private val confirmedRttPressure get() = evidenceItem("latency").let { item ->
+            evidenceSourceIs(item, "stream_stats") &&
+                evidenceStatusIs(item, "fail") && (item?.value ?: 0.0) >= 45.0
+        }
+        private val cleanRtt get() = evidenceItem("latency").let { item ->
+            evidenceSourceIs(item, "stream_stats") && evidenceStatusIs(item, "pass") &&
+                (item?.value ?: Double.POSITIVE_INFINITY) < 45.0
+        }
+        private val lossEvidenceAllowsQualityRetry get() = evidenceItem("packet_loss").let { item ->
+            (evidenceSourceIs(item, "media_transport") && evidenceStatusIs(item, "pass") &&
+                (item?.value ?: Double.POSITIVE_INFINITY) <= 2.0) ||
+                (evidenceSourceIs(item, "unavailable") && evidenceStatusIs(item, "unknown") &&
+                    item?.value == null)
+        }
+        val networkPressureConfirmed get() = confirmedMediaLoss || confirmedRttPressure
+        val canExecuteAction get() = when (actionId) {
+            "recheck_network", "recheck_pacing" ->
+                actionEnvelopeValid &&
+                    actionCapability == "recheck" &&
+                    actionKind == "verification" &&
+                    !undoSupported &&
+                    !targetBitratePresent &&
+                    verificationEnvelopeValid &&
+                    verificationMode == "live_telemetry"
+            "lower_bitrate" ->
+                actionEnvelopeValid &&
+                    actionCapability == "auto_fix" &&
+                    actionKind == "live_tuning" &&
+                    primaryIssue == "network_jitter" &&
+                    targetBitrateTyped &&
+                    targetBitrateKbps in 1_000..300_000 &&
+                    undoSupported &&
+                    undoEndpoint == "/api/doctor/action" &&
+                    undoPairedEndpoint.isEmpty() &&
+                    verificationDelaySeconds >= 8 &&
+                    verificationEnvelopeValid &&
+                    verificationMode == "live_telemetry" &&
+                    actionControllerRevision > 0L &&
+                    actionEvidenceRevision > 0L &&
+                    networkPressureConfirmed
+            "restore_quality" -> {
+                val ceiling = evidenceItem("effective_quality_ceiling")
+                actionEnvelopeValid &&
+                    actionCapability == "auto_fix" &&
+                    actionKind == "live_tuning" &&
+                    primaryIssue == "quality_reduced_live" &&
+                    targetBitrateTyped &&
+                    targetBitrateKbps in 1_000..300_000 &&
+                    ceiling?.source == "launch_policy" &&
+                    evidenceStatusIs(ceiling, "watch") &&
+                    ceiling?.value?.toInt() == targetBitrateKbps &&
+                    cleanRtt &&
+                    lossEvidenceAllowsQualityRetry &&
+                    undoSupported &&
+                    undoEndpoint == "/api/doctor/action" &&
+                    undoPairedEndpoint.isEmpty() &&
+                    verificationDelaySeconds >= 8 &&
+                    verificationEnvelopeValid &&
+                    verificationMode == "graduated_live_telemetry"
+                    && actionControllerRevision > 0L
+                    && actionEvidenceRevision > 0L
+            }
             else -> false
         }
 
@@ -346,9 +468,32 @@ data class PolarisSessionStatus(
                 resultId.isNotBlank() &&
                 actionId == confirmed.actionId &&
                 resultId == confirmed.resultId &&
+                canExecuteAction &&
+                confirmed.canExecuteAction &&
+                actionCapability == confirmed.actionCapability &&
                 actionKind == confirmed.actionKind &&
+                actionEndpoint == confirmed.actionEndpoint &&
+                actionMethod == confirmed.actionMethod &&
+                actionPayloadId == confirmed.actionPayloadId &&
+                actionSourceResultId == confirmed.actionSourceResultId &&
+                actionContractTyped == confirmed.actionContractTyped &&
                 actionAppUuid == confirmed.actionAppUuid &&
+                actionAppSessionId == confirmed.actionAppSessionId &&
+                actionSessionGeneration == confirmed.actionSessionGeneration &&
+                actionControllerRevision == confirmed.actionControllerRevision &&
+                actionEvidenceRevision == confirmed.actionEvidenceRevision &&
+                targetBitrateKbps == confirmed.targetBitrateKbps &&
+                targetBitratePresent == confirmed.targetBitratePresent &&
+                targetBitrateTyped == confirmed.targetBitrateTyped &&
+                verificationDelaySeconds == confirmed.verificationDelaySeconds &&
+                verificationMode == confirmed.verificationMode &&
+                verificationEndpoint == confirmed.verificationEndpoint &&
+                undoSupported == confirmed.undoSupported &&
+                undoEndpoint == confirmed.undoEndpoint &&
                 requiresConfirmation == confirmed.requiresConfirmation &&
+                requiresOwner == confirmed.requiresOwner &&
+                allowedInViewerMode == confirmed.allowedInViewerMode &&
+                destructive == confirmed.destructive &&
                 ownerTuningAllowed == confirmed.ownerTuningAllowed
     }
 
@@ -442,8 +587,10 @@ data class PolarisSessionStatus(
         get() = listOf(sessionModeLabel, capturePathLabel).filter { it.isNotBlank() }.joinToString(" · ")
     val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
     val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice
-    val canAdjustHostTuning get() = controls.hostTuningAllowed ?: (ownedByClient && !isViewer)
-    val canQuit get() = controls.quitAllowed || (ownedByClient && !isViewer)
+    val canAdjustHostTuning get() = authorityContractValid &&
+        (controls.hostTuningAllowed ?: (ownedByClient && !isViewer))
+    val canQuit get() = authorityContractValid &&
+        (controls.quitAllowed || (ownedByClient && !isViewer))
 
     private fun normalizeSessionModeLabel(label: String): String = when (label.trim().lowercase()) {
         "headless", "headless stream", "private headless stream", "private stream" -> "Private Stream"
@@ -480,10 +627,20 @@ data class PolarisSessionStatus(
     val hasOptimizationNormalization get() = encoder.optimizationNormalizationReason.isNotBlank()
     val optimizationNormalizedLabel get() = if (hasOptimizationNormalization) "Host adjusted" else ""
     val optimizationConfidenceLabel get() = encoder.optimizationConfidence.uppercase()
-    val isHostRenderLimited get() =
+    val hasAuthoritativeDoctorResult get() =
+        doctor.available && doctor.version >= 2 && doctor.resultId.isNotBlank()
+    val effectivePrimaryIssue get() = if (hasAuthoritativeDoctorResult) {
+        doctor.primaryIssue.ifBlank { "none" }
+    } else {
+        health.primaryIssue
+    }
+    val isHostRenderLimited get() = if (hasAuthoritativeDoctorResult) {
+        doctor.primaryIssue.equals("host_render_limited", ignoreCase = true)
+    } else {
         health.hostRenderLimited ||
             health.primaryIssue.equals("host_render_limited", ignoreCase = true) ||
             health.issues.any { it.equals("host_render_limited", ignoreCase = true) }
+    }
     val isHdrDowngraded get() =
         health.primaryIssue.equals("hdr_downgraded", ignoreCase = true) ||
             health.issues.any { it.equals("hdr_downgraded", ignoreCase = true) } ||
@@ -491,19 +648,61 @@ data class PolarisSessionStatus(
     val isHeadlessHdrUnavailable get() =
         health.hdrDowngradeReason.equals("headless_hdr_unavailable", ignoreCase = true) ||
             (isHdrDowngraded && isHeadlessMode)
+    private val doctorPrimaryIsObservation get() =
+        doctor.primaryIssue.lowercase() in setOf("network_observation", "control_channel_observation")
+    private val actionableDoctorEvidence get() = doctor.evidenceItems.any { item ->
+        val status = item.status.lowercase()
+        if (status !in setOf("watch", "warning", "fail", "degraded", "needs_action")) {
+            false
+        } else {
+            when (item.id.lowercase()) {
+                "control_channel_packet_loss" -> false
+                "packet_loss" -> status == "fail" && item.source.equals("media_transport", ignoreCase = true)
+                "latency" -> status == "fail"
+                else -> true
+            }
+        }
+    }
+    private fun healthIssueIsCoveredByObservation(issue: String): Boolean =
+        doctorPrimaryIsObservation &&
+            (issue.contains("network", ignoreCase = true) ||
+                issue.equals("control_channel_observation", ignoreCase = true) ||
+                issue.equals("control_channel_packet_loss", ignoreCase = true))
+    private val healthPrimaryActionable get() =
+        !hasAuthoritativeDoctorResult && health.primaryIssue.isNotBlank() &&
+            !health.primaryIssue.equals("none", ignoreCase = true) &&
+            !healthIssueIsCoveredByObservation(health.primaryIssue)
+    private val healthIssuesActionable get() = !hasAuthoritativeDoctorResult && health.issues.any {
+        !healthIssueIsCoveredByObservation(it)
+    }
     val hasHealthConcerns get() =
-        health.grade.equals("watch", ignoreCase = true) ||
-            health.grade.equals("degraded", ignoreCase = true) ||
-            (health.primaryIssue.isNotBlank() && !health.primaryIssue.equals("none", ignoreCase = true)) ||
-            health.issues.isNotEmpty()
+        (!hasAuthoritativeDoctorResult && health.grade.equals("degraded", ignoreCase = true)) ||
+            (!hasAuthoritativeDoctorResult && health.grade.equals("watch", ignoreCase = true) && !doctorPrimaryIsObservation) ||
+            healthPrimaryActionable ||
+            healthIssuesActionable ||
+            (doctor.primaryIssue.isNotBlank() &&
+                !doctor.primaryIssue.equals("none", ignoreCase = true) &&
+                !doctorPrimaryIsObservation) ||
+            actionableDoctorEvidence
     val healthToneLabel get() = when {
         isHostRenderLimited -> "Host Render"
-        health.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
-            health.issues.any { it.equals("frame_pacing", ignoreCase = true) } -> "Frame pacing"
-        health.grade.equals("degraded", ignoreCase = true) -> "Stream degraded"
-        health.grade.equals("watch", ignoreCase = true) -> "Needs attention"
-        health.primaryIssue.isNotBlank() && !health.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
-        health.issues.isNotEmpty() -> "Needs attention"
+        doctor.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
+            (!hasAuthoritativeDoctorResult && (
+                health.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
+                    health.issues.any { it.equals("frame_pacing", ignoreCase = true) }
+                )) -> "Frame pacing"
+        doctorPrimaryIsObservation && actionableDoctorEvidence -> "Needs attention"
+        doctor.primaryIssue.equals("network_observation", ignoreCase = true) -> "Network recheck"
+        doctor.primaryIssue.equals("control_channel_observation", ignoreCase = true) -> "Control retries"
+        doctor.primaryIssue.equals("network_jitter", ignoreCase = true) -> "Network"
+        doctor.primaryIssue.contains("decoder", ignoreCase = true) -> "Decoder"
+        !hasAuthoritativeDoctorResult && health.grade.equals("degraded", ignoreCase = true) -> "Stream degraded"
+        !hasAuthoritativeDoctorResult && health.grade.equals("watch", ignoreCase = true) -> "Needs attention"
+        doctor.primaryIssue.isNotBlank() && !doctor.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
+        actionableDoctorEvidence -> "Needs attention"
+        !hasAuthoritativeDoctorResult && health.primaryIssue.isNotBlank() &&
+            !health.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
+        !hasAuthoritativeDoctorResult && health.issues.isNotEmpty() -> "Needs attention"
         else -> "Stable"
     }
 }
@@ -524,5 +723,10 @@ data class PolarisDoctorActionResult(
     val undoAvailable: Boolean? = null,
     val undoActionId: String = "",
     val evidencePacketLossPct: Double? = null,
-    val evidenceLatencyMs: Double? = null
+    val evidenceLatencyMs: Double? = null,
+    val requestId: String = "",
+    val changedContractValid: Boolean = true,
+    val appSessionId: String = "",
+    val sessionGeneration: Long = 0L,
+    val scopeContractValid: Boolean = true
 )

@@ -105,6 +105,7 @@ class KotlinNvstreamContractsMigrationTest {
         assertBuilderMethod("setColorSpace", intType)
         assertBuilderMethod("setEnableUltraLowLatency", booleanType)
         assertBuilderMethod("setForceFreshLaunch", booleanType)
+        assertBuilderMethod("setResumeExistingOnly", booleanType)
         assertEquals(StreamConfiguration::class.java, StreamConfiguration.Builder::class.java.getMethod("build").returnType)
     }
 
@@ -264,6 +265,8 @@ class KotlinNvstreamContractsMigrationTest {
         assertEquals(0, defaults.getColorSpace())
         assertFalse(defaults.getEnableUltraLowLatency())
         assertFalse(defaults.getForceFreshLaunch())
+        assertFalse(defaults.getResumeExistingOnly())
+        assertEquals("", defaults.getExpectedTopology())
 
         val customApp = NvApp("Custom")
         val builder = StreamConfiguration.Builder()
@@ -292,6 +295,8 @@ class KotlinNvstreamContractsMigrationTest {
             .setColorSpace(MoonBridge.COLORSPACE_REC_2020)
             .setEnableUltraLowLatency(true)
             .setForceFreshLaunch(true)
+            .setResumeExistingOnly(true)
+            .setExpectedTopology(" Gamescope_Stream ")
             .build()
 
         assertSame(customApp, config.getApp())
@@ -317,6 +322,8 @@ class KotlinNvstreamContractsMigrationTest {
         assertEquals(MoonBridge.COLORSPACE_REC_2020, config.getColorSpace())
         assertTrue(config.getEnableUltraLowLatency())
         assertTrue(config.getForceFreshLaunch())
+        assertTrue(config.getResumeExistingOnly())
+        assertEquals("gamescope_stream", config.getExpectedTopology())
     }
 
     private fun assertPublicField(name: String, type: Class<*>) {

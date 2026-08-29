@@ -4,37 +4,29 @@ import com.google.gson.Gson
 
 internal object NovaHudSessionSummaryLog {
     private val allowedKeys = listOf(
+        "contract",
+        "observational",
         "avg_fps",
         "target_fps",
         "low_1_percent_fps",
         "min_fps",
         "frame_pacing_bad_pct",
-        "safe_target_fps",
         "avg_latency_ms",
         "avg_bitrate_kbps",
         "packet_loss_pct",
         "codec",
         "duration_s",
         "samples",
-        "optimization_source",
-        "optimization_confidence",
-        "recommendation_version",
-        "health_grade",
-        "primary_issue",
-        "issues",
-        "decoder_risk",
-        "hdr_risk",
-        "network_risk",
-        "capture_path",
-        "safe_bitrate_kbps",
-        "safe_codec",
-        "safe_display_mode",
-        "safe_hdr",
-        "relaunch_recommended",
-        "diagnosis_classification",
-        "diagnosis_likely_cause",
-        "diagnosis_try_first",
-        "diagnosis_confidence"
+        "monotonic_timestamp_ms",
+        "frames_expected",
+        "frames_received",
+        "frames_rendered",
+        "frames_lost",
+        "received_fps",
+        "rendered_fps",
+        "decode_latency_ms",
+        "host_processing_latency_ms",
+        "session_generation"
     )
 
     fun format(summary: Map<String, Any?>): String {
@@ -55,51 +47,14 @@ internal object NovaHudSessionSummaryLog {
 internal object NovaHudDiagnosticReport {
     fun format(summary: Map<String, Any?>): String {
         val lines = mutableListOf<String>()
-        lines += "Nova stream diagnostics"
+        lines += "Nova stream evidence"
         lines += "Observed: ${formatFps(summary["avg_fps"])} / target ${formatFps(summary["target_fps"])}"
-        suggestedLine(summary)?.let { lines += it }
         lines += "Video: ${formatBitrate(summary["avg_bitrate_kbps"])} / ${safeString(summary["codec"], "unknown codec")}"
         lines += "Network: ${formatMs(summary["avg_latency_ms"])} RTT / ${formatPercent(summary["packet_loss_pct"])} loss"
-        lines += "Health: ${safeString(summary["health_grade"], "unknown")} / ${safeString(summary["primary_issue"], "none")}"
-        diagnosisLine(summary)?.let { lines += it }
-        tryFirstLine(summary)?.let { lines += it }
-        issuesLine(summary)?.let { lines += it }
+        lines += "Counters: ${safeString(summary["frames_received"], "--")} received / " +
+            "${safeString(summary["frames_rendered"], "--")} rendered / ${safeString(summary["frames_lost"], "--")} lost"
+        lines += "Observational only: no launch setting or action is derived by Nova"
         return lines.joinToString("\n")
-    }
-
-    private fun diagnosisLine(summary: Map<String, Any?>): String? {
-        val classification = safeString(summary["diagnosis_classification"], "").takeIf { it.isNotBlank() }
-            ?: return null
-        val cause = safeString(summary["diagnosis_likely_cause"], "stream evidence available")
-        val confidence = safeString(summary["diagnosis_confidence"], "").takeIf { it.isNotBlank() }
-            ?.let { " ($it)" }
-            ?: ""
-        return "Diagnosis: $classification / $cause$confidence"
-    }
-
-    private fun tryFirstLine(summary: Map<String, Any?>): String? {
-        val tryFirst = safeString(summary["diagnosis_try_first"], "").takeIf { it.isNotBlank() }
-            ?: return null
-        return "Try first: $tryFirst"
-    }
-
-    private fun suggestedLine(summary: Map<String, Any?>): String? {
-        val relaunch = summary["relaunch_recommended"] as? Boolean ?: false
-        val safeTarget = (summary["safe_target_fps"] as? Number)?.toDouble() ?: 0.0
-        return when {
-            relaunch && safeTarget > 0.0 -> "Suggested: relaunch at ${formatNumber(safeTarget)} FPS"
-            safeTarget > 0.0 -> "Suggested: ${formatNumber(safeTarget)} FPS recovery profile"
-            relaunch -> "Suggested: relaunch with recovery profile"
-            else -> null
-        }
-    }
-
-    private fun issuesLine(summary: Map<String, Any?>): String? {
-        val issues = (summary["issues"] as? Iterable<*>)
-            ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
-            ?.takeIf { it.isNotEmpty() }
-            ?: return null
-        return "Issues: ${issues.joinToString(", ")}"
     }
 
     private fun safeString(value: Any?, fallback: String): String {

@@ -11,7 +11,11 @@ import com.papi.nova.api.PolarisCapabilities
  */
 object FeatureFlagManager {
 
+    @Volatile
     private var capabilities: PolarisCapabilities? = null
+    @Volatile
+    private var activeScope: Long = 0L
+    private var scopeSequence: Long = 0L
 
     /** True if the connected server is a Polaris server */
     val isPolarisServer: Boolean get() = capabilities != null
@@ -29,8 +33,14 @@ object FeatureFlagManager {
     val hasStreamPolicy: Boolean get() = capabilities?.features?.streamPolicy == true
     val hasClientSettings: Boolean get() = capabilities?.features?.clientSettings == true
     val hasOptimizerSync: Boolean get() = capabilities?.features?.optimizerSync == true
+    val hasResolvedProfileProvenance: Boolean get() = capabilities?.features?.resolvedProfileProvenance == true
+    val hasExpectedTopologyAssertion: Boolean get() = capabilities?.features?.expectedTopologyAssertion == true
     val hasLockScreenControl: Boolean get() = capabilities?.features?.lockScreenControl == true
     val hasCursorVisibilityControl: Boolean get() = capabilities?.features?.cursorVisibilityControl == true
+    val hasDoctorV2Shadow: Boolean get() = capabilities?.features?.doctorV2Shadow == true
+    val isDoctorV2ShadowEnabled: Boolean get() = capabilities?.features?.doctorV2ShadowEnabled == true
+    val hasDoctorTrials: Boolean get() = capabilities?.features?.doctorTrials == true
+    val areDoctorTrialsEnabled: Boolean get() = capabilities?.features?.doctorTrialsEnabled == true
 
     // Capture info
     val captureBackend: String get() = capabilities?.capture?.backend ?: ""
@@ -41,10 +51,10 @@ object FeatureFlagManager {
 	 * Call this after the standard Moonlight NVHTTP handshake succeeds.
 	 * Performs network I/O; call from a background thread.
 	 */
-    fun probe(client: PolarisApiClient) {
-        capabilities = client.getCapabilities()
-        if (capabilities == null) {
-            capabilities = client.getSessionStatus()?.let {
+    fun probe(client: PolarisApiClient, scope: Long = activeScope): Boolean {
+        var discovered = client.getCapabilities()
+        if (discovered == null) {
+            discovered = client.getSessionStatus()?.let {
                 LimeLog.info("Nova: Polaris session API detected; using session-status feature fallback")
                 PolarisCapabilities(
                     server = "polaris",
@@ -72,20 +82,59 @@ object FeatureFlagManager {
             }
         }
 
-        if (isPolarisServer) {
-            LimeLog.info("Nova: Polaris server detected — v$serverVersion")
-            LimeLog.info("Nova: Features: AI=${hasAiOptimizer} GameLib=${hasGameLibrary} " +
-                "AIControl=${hasAiOptimizerControl} Adaptive=${hasAdaptiveBitrateControl} " +
-                "Session=${hasSessionLifecycle} Devices=${hasDeviceProfiles} Lock=${hasLockScreenControl} " +
-                "Cursor=${hasCursorVisibilityControl} Sync=${hasOptimizerSync}")
-            LimeLog.info("Nova: Capture: ${captureBackend}, codecs: ${supportedCodecs}")
+        if (!publishForScope(scope, discovered)) {
+            LimeLog.info("Nova: Discarded capabilities from an obsolete Game scope")
+            return false
+        }
+
+        if (discovered != null) {
+            val features = discovered.features
+            LimeLog.info("Nova: Polaris server detected — v${discovered.version}")
+            LimeLog.info("Nova: Features: AI=${features.aiOptimizer} GameLib=${features.gameLibrary} " +
+                "AIControl=${features.aiOptimizerControl} Adaptive=${features.adaptiveBitrateControl} " +
+                "Session=${features.sessionLifecycle} Devices=${features.deviceProfiles} Lock=${features.lockScreenControl} " +
+                "Cursor=${features.cursorVisibilityControl} Sync=${features.optimizerSync} " +
+                "ResolvedProfile=${features.resolvedProfileProvenance} " +
+                "TopologyAssertion=${features.expectedTopologyAssertion} " +
+                "DoctorV2=${features.doctorV2Shadow}/${features.doctorV2ShadowEnabled} " +
+                "Trials=${features.doctorTrials}/${features.doctorTrialsEnabled}")
+            LimeLog.info("Nova: Capture: ${discovered.capture.backend}, codecs: ${discovered.capture.codecs}")
         } else {
             LimeLog.info("Nova: Standard Sunshine/Apollo server (no Polaris features)")
         }
+        return true
     }
 
-    /** Reset state when disconnecting from a server */
+    @Synchronized
+    fun beginScope(): Long {
+        activeScope = ++scopeSequence
+        capabilities = null
+        return activeScope
+    }
+
+    fun capabilitiesForScope(scope: Long): PolarisCapabilities? = synchronized(this) {
+        capabilities.takeIf { scope != 0L && scope == activeScope }
+    }
+
+    @Synchronized
+    internal fun publishForScope(scope: Long, value: PolarisCapabilities?): Boolean {
+        if (scope == 0L || scope != activeScope) return false
+        capabilities = value
+        return true
+    }
+
+    /** Reset state when disconnecting from a specific Game instance. */
+    @Synchronized
+    fun reset(scope: Long) {
+        if (scope == 0L || scope != activeScope) return
+        activeScope = ++scopeSequence
+        capabilities = null
+    }
+
+    /** Unscoped reset retained for application-level cleanup and tests. */
+    @Synchronized
     fun reset() {
+        activeScope = ++scopeSequence
         capabilities = null
     }
 }

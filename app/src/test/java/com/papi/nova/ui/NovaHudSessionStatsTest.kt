@@ -49,7 +49,7 @@ class NovaHudSessionStatsTest {
     }
 
     @Test
-    fun summaryRecommendsRelaunchForHighRefreshPacingFailure() {
+    fun summaryReportsRawHighRefreshEvidenceWithoutDerivingPacing() {
         val stats = NovaHudSessionStats()
 
         stats.setTargetFps(120.0)
@@ -60,13 +60,16 @@ class NovaHudSessionStatsTest {
 
         val summary = stats.summary(nowMs = 20_000)
 
-        assertEquals(30.0, summary["safe_target_fps"] as Double, 0.01)
-        assertEquals(true, summary["relaunch_recommended"])
-        assertTrue((summary["frame_pacing_bad_pct"] as Double) > 90.0)
+        assertFalse(summary.containsKey("safe_target_fps"))
+        assertFalse(summary.containsKey("relaunch_recommended"))
+        assertEquals(true, summary["observational"])
+        assertFalse(summary.containsKey("frame_pacing_bad_pct"))
+        assertEquals(54.0, summary["avg_fps"] as Double, 0.01)
+        assertEquals(120.0, summary["target_fps"] as Double, 0.01)
     }
 
     @Test
-    fun summaryPrefersPolarisHealthRecoveryFields() {
+    fun summaryDoesNotImportPolarisHealthRecoveryConclusions() {
         val stats = NovaHudSessionStats()
 
         stats.setTargetFps(120.0)
@@ -91,17 +94,20 @@ class NovaHudSessionStatsTest {
 
         val summary = stats.summary(nowMs = 5_000)
 
-        assertEquals("host_render_limited", summary["primary_issue"])
-        assertEquals(60.0, summary["safe_target_fps"] as Double, 0.01)
-        assertEquals(14000, summary["safe_bitrate_kbps"])
-        assertEquals("h264", summary["safe_codec"])
-        assertEquals("desktop", summary["safe_display_mode"])
-        assertEquals(true, summary["relaunch_recommended"])
+        assertEquals("doctor_v2_raw", summary["contract"])
+        assertFalse(summary.containsKey("primary_issue"))
+        assertFalse(summary.containsKey("safe_target_fps"))
+        assertFalse(summary.containsKey("safe_bitrate_kbps"))
+        assertFalse(summary.containsKey("safe_codec"))
+        assertFalse(summary.containsKey("safe_display_mode"))
+        assertFalse(summary.containsKey("relaunch_recommended"))
     }
 
     @Test
     fun sessionSummaryLogIncludesEvidenceFieldsAndExcludesIdentifiers() {
         val summary = mapOf(
+            "contract" to "doctor_v2_raw",
+            "observational" to true,
             "avg_fps" to 59.5,
             "target_fps" to 60.0,
             "avg_latency_ms" to 24.0,
@@ -110,11 +116,17 @@ class NovaHudSessionStatsTest {
             "codec" to "HEVC",
             "duration_s" to 120,
             "samples" to 118,
-            "health_grade" to "stable",
-            "primary_issue" to "none",
-            "issues" to listOf("decoder_watch"),
-            "safe_target_fps" to 60.0,
-            "relaunch_recommended" to false,
+            "monotonic_timestamp_ms" to 240_000L,
+            "frames_expected" to 7_200L,
+            "frames_received" to 7_198L,
+            "frames_rendered" to 7_190L,
+            "frames_lost" to 2L,
+            "received_fps" to 59.9,
+            "rendered_fps" to 59.5,
+            "decode_latency_ms" to 4.2,
+            "host_processing_latency_ms" to 8.1,
+            "session_generation" to 12L,
+            "primary_issue" to "must_not_escape",
             "device" to "Generic Handheld",
             "unique_id" to "abc123",
             "host" to "example-stream-host.lan"
@@ -126,7 +138,11 @@ class NovaHudSessionStatsTest {
         assertEquals(24.0, json["avg_latency_ms"].asDouble, 0.01)
         assertEquals(18000, json["avg_bitrate_kbps"].asInt)
         assertEquals("HEVC", json["codec"].asString)
-        assertEquals("decoder_watch", json["issues"].asJsonArray[0].asString)
+        assertEquals("doctor_v2_raw", json["contract"].asString)
+        assertTrue(json["observational"].asBoolean)
+        assertEquals(7_198L, json["frames_received"].asLong)
+        assertEquals(12L, json["session_generation"].asLong)
+        assertFalse(json.has("primary_issue"))
         assertFalse(json.has("device"))
         assertFalse(json.has("unique_id"))
         assertFalse(json.has("host"))
@@ -142,6 +158,9 @@ class NovaHudSessionStatsTest {
             "avg_bitrate_kbps" to 18000,
             "packet_loss_pct" to 0.25,
             "codec" to "HEVC",
+            "frames_received" to 7_198L,
+            "frames_rendered" to 7_190L,
+            "frames_lost" to 2L,
             "primary_issue" to "host_render_limited",
             "health_grade" to "watch",
             "relaunch_recommended" to true,
@@ -152,18 +171,20 @@ class NovaHudSessionStatsTest {
 
         val text = NovaHudDiagnosticReport.format(summary)
 
-        assertTrue(text.contains("Nova stream diagnostics"))
+        assertTrue(text.contains("Nova stream evidence"))
         assertTrue(text.contains("Observed: 59.5 FPS / target 120 FPS"))
-        assertTrue(text.contains("Suggested: relaunch at 60 FPS"))
-        assertTrue(text.contains("Health: watch / host_render_limited"))
+        assertFalse(text.contains("Suggested:"))
+        assertFalse(text.contains("Health:"))
         assertTrue(text.contains("Network: 24 ms RTT / 0.25% loss"))
+        assertTrue(text.contains("Counters: 7198 received / 7190 rendered / 2 lost"))
+        assertTrue(text.contains("Observational only"))
         assertFalse(text.contains("Generic Handheld"))
         assertFalse(text.contains("example-stream-host"))
         assertFalse(text.contains("abc123"))
     }
 
     @Test
-    fun diagnosticReportIncludesDoctorClassificationWithoutRawHostIdentifiers() {
+    fun diagnosticReportExcludesNovaDerivedDoctorClassificationAndRawHostIdentifiers() {
         val summary = mapOf(
             "avg_fps" to 58.0,
             "target_fps" to 60.0,
@@ -180,8 +201,10 @@ class NovaHudSessionStatsTest {
 
         val text = NovaHudDiagnosticReport.format(summary)
 
-        assertTrue(text.contains("Diagnosis: NET / Wi-Fi jitter is the likely bottleneck. (high)"))
-        assertTrue(text.contains("Try first: Lower bitrate"))
+        assertFalse(text.contains("Diagnosis:"))
+        assertFalse(text.contains("Wi-Fi jitter"))
+        assertFalse(text.contains("Try first:"))
+        assertTrue(text.contains("Network: 32 ms RTT / 3.4% loss"))
         assertFalse(text.contains("private-host"))
     }
 }

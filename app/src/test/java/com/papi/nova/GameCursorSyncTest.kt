@@ -40,7 +40,7 @@ class GameCursorSyncTest {
 
             setField(game, "novaApiClient", client)
             setField(game, "cursorVisible", false)
-            setCapabilities(
+            setCapabilities(game,
                 PolarisCapabilities(
                     server = "polaris",
                     version = "1.0.0",
@@ -87,7 +87,7 @@ class GameCursorSyncTest {
             setField(game, "novaApiClient", client)
             setField(game, "inputCaptureProvider", inputCaptureProvider)
             setField(game, "cursorVisible", false)
-            setCapabilities(
+            setCapabilities(game,
                 PolarisCapabilities(
                     server = "polaris",
                     version = "1.0.0",
@@ -125,7 +125,7 @@ class GameCursorSyncTest {
 
             setField(game, "novaApiClient", client)
             setField(game, "cursorVisible", false)
-            setCapabilities(
+            setCapabilities(game,
                 PolarisCapabilities(
                     server = "polaris",
                     version = "1.0.0",
@@ -149,10 +149,10 @@ class GameCursorSyncTest {
         }
     }
 
-    private fun setCapabilities(capabilities: PolarisCapabilities) {
-        val field = FeatureFlagManager::class.java.getDeclaredField("capabilities")
-        field.isAccessible = true
-        field.set(null, capabilities)
+    private fun setCapabilities(game: Game, capabilities: PolarisCapabilities) {
+        val scope = FeatureFlagManager.beginScope()
+        setField(game, "novaFeatureScope", scope)
+        assertTrue(FeatureFlagManager.publishForScope(scope, capabilities))
     }
 
     private fun setField(target: Any, fieldName: String, value: Any?) {

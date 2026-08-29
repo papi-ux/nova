@@ -4,15 +4,19 @@
 
 ## 1.3.9 - 2026-08-26
 
-Nova 1.3.9 makes frame-pacing problems unambiguous and adds the reversible next-launch recovery flow shared with Polaris 1.3.14.
+Nova 1.3.9 resets Doctor to evidence-first containment with Polaris 1.3.14. Frame-pacing observations remain visible without a contradictory Stable state or network blame when media loss and RTT are clean. Raw counters are sampled independently of HUD visibility; duplicate-only or static content is not promoted into a pacing diagnosis without source-cadence evidence.
 
-Command Center labels `frame_pacing` as **Frame pacing**, maps Watch to **Needs attention** and Degraded to **Stream degraded**, and never shows Stable while warning evidence is active. Clean loss and RTT evidence therefore stays separate from network and bitrate diagnoses. OpenAI subscription Doctor explanations that use Polaris' deterministic fallback appear as an informational source without an optimizer/provider warning.
+Launch presets are deterministic and carry field-level provenance, including separate width, height, and FPS sources when High FPS locks only cadence. Nova sends the resolved launch envelope directly with an exact resolved HDR value, preserves a metered bitrate as a one-launch lock, and never consumes history, AI output, or an old recovery record. AI output is informational explanation only and cannot replace measured evidence, confidence, actions, or settings.
 
-Command Center now identifies executable, evidence-gated tuning and next-launch recovery actions as **Auto Fix**, while read-only `recheck_network` stays **Recheck**. The action-specific button, confirmation, receipt, and Undo copy remain authoritative; unsupported or informational Doctor findings are never presented as automatic fixes.
+Every optimize result is bound to the canonical app UUID or ID and the exact topology that will launch. Host default remains distinct from an explicit Desktop choice, and a later mirror/private Steam decision forces re-resolution instead of reusing a different topology's preflight. Duplicate app titles no longer share a launch-preset preference.
 
-The new recovery action is accepted only with Polaris' exact authenticated contract and explicit confirmation. Its copy makes clear that the active stream is unchanged and that the safer profile applies once, on the next launch of the same game and paired device. Nova reconstructs queued and Undo state from Polaris after disconnect, Resume Stream, or app restart and renders queued, expired, applied, rejected, and undone receipts.
+Nova rejects malformed resolved-field provenance and legacy Polaris optimization responses that do not provide both the deterministic resolved-profile and versioned topology-assertion contracts. Host identity is scoped to the launch attempt and fails closed on timeout or ambiguity; only a positively identified stock host may launch without the marker. This prevents Nova 1.3.9 from launching through a Polaris version that could still apply historical or AI-derived settings or ignore a changed host topology.
 
-Launch preflight and `Game` now use one recovery profile for topology, bitrate, FPS, codec, HDR, and paired resolution. Resume Stream cannot consume the queued next-launch profile. The matching recovery run ID travels into the new `Game` instance, and Nova verifies it only after the stream connects and its effective settings are known. Steam Input remains manual and read-only.
+Pacing offers **Recheck** or manual guidance. **Auto Fix** is reserved for authenticated, reversible same-stream bitrate changes backed by measured loss or RTT evidence, with host-side verification and rollback. Legacy next-launch recovery records are deprecated, non-applicable, and cancellable only; they cannot change optimization or launch.
+
+Live Doctor actions and paired bitrate/adaptive controls carry the exact app-session token and numeric stream generation. Nova rejects missing, malformed, stale-generation, or mismatched responses, and a newer singleTask launch intent replaces a validated pre-surface connection instead of inheriting the previous intent's host, app, or resolved profile.
+
+The HUD is observational and never changes bitrate merely because it is open. Nova does not request or apply an automatic MangoHud, DXVK, VKD3D, or game-process FPS limiter. User-authored host/game settings remain untouched. Steam Input remains manual and read-only.
 
 ### Release packaging
 
@@ -22,8 +26,8 @@ Launch preflight and `Game` now use one recovery profile for topology, bitrate, 
 ### Validation notes
 
 - The exact release-prep candidate must pass JVM tests, strict lint, public hygiene, and ARM64 release assembly before merge.
-- Final publication remains gated on the exact signed ARM64 artifact: package/version identity, signer continuity, preserved-data install and launch on the Retroid Pocket 6, the Control frame-pacing case, the complete Apply/Resume/restart/Undo/reapply/consume lifecycle, and clean teardown with the host restored.
-- Steam Input mutation remains unavailable. Apply and Undo must not change Steam VDF bytes, mode, or ownership.
+- Final publication remains gated on the exact signed ARM64 artifact: package/version identity, signer continuity, preserved-data install and launch on the Retroid Pocket 6, the Control 120 FPS frame-pacing case, read-only Recheck, verified live bitrate Auto Fix/rollback, unchanged relaunch settings, and clean teardown with the host restored.
+- Steam Input mutation and hidden game-process limiting remain unavailable.
 
 ## 1.3.8 - 2026-08-25
 

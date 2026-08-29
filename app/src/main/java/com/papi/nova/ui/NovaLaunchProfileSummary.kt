@@ -31,7 +31,9 @@ data class NovaLaunchProfileSummary(
      * ("Held by History Safe Profile"). Blank when nothing is, or when a pin outranks
      * the hold anyway.
      */
-    val grantHoldReason: String = ""
+    val grantHoldReason: String = "",
+    /** Deterministic field-level source/reason/lock data; never a warning. */
+    val provenanceLine: String = ""
 )
 
 internal fun buildNovaLaunchProfileSummary(
@@ -44,6 +46,9 @@ internal fun buildNovaLaunchProfileSummary(
 ): NovaLaunchProfileSummary? {
     if (optimization == null) return null
     val pinnedFps = if (clientFpsPinned && clientAskedFps > 0.0) clientAskedFps else 0.0
+    if (optimization.optString("source", "").equals("deterministic_preset_v1", ignoreCase = true)) {
+        return buildDeterministicLaunchPresetSummary(optimization, pinnedFps, clientAskedFps)
+    }
 
     val profileState = optimization.optJSONObject("profile_state")
     val currentProfile = profileState?.optJSONObject("current_profile")
@@ -236,6 +241,91 @@ internal fun buildNovaLaunchProfileSummary(
         showRetryHighFps = showRetryHighFps,
         retryHighFpsLabel = retryLabel,
         grantHoldReason = grantHoldReason
+    )
+}
+
+private fun buildDeterministicLaunchPresetSummary(
+    optimization: JSONObject,
+    pinnedFps: Double,
+    clientAskedFps: Double
+): NovaLaunchProfileSummary? {
+    val resolved = optimization.optJSONObject("resolved_profile") ?: return null
+    if (resolved.optInt("policy_version", 0) != 1) return null
+    val fields = resolved.optJSONObject("fields") ?: return null
+    fun detail(name: String): JSONObject? = fields.optJSONObject(name)
+    fun value(name: String): Any? = detail(name)?.opt("value")?.takeUnless { it === JSONObject.NULL }
+
+    val preset = normalized(resolved.optString("preset", optimization.optString("preset", "auto")))
+    val presetLabel = resolved.optString("preset_label", "").takeIf { it.isNotBlank() }
+        ?: preferenceLabel(preset)
+    val displayMode = value("display_mode") as? String ?: ""
+    val resolvedFps = (value("target_fps") as? Number)?.toDouble()
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?: parseDisplayModeFps(displayMode)
+    val effectiveFps = if (pinnedFps > 0.0) pinnedFps else resolvedFps
+    val selectedParts = mutableListOf<String>()
+    val width = (value("display_width") as? Number)?.toInt()?.takeIf { it > 0 }
+    val height = (value("display_height") as? Number)?.toInt()?.takeIf { it > 0 }
+    if (width != null && height != null && resolvedFps > 0.0) {
+        selectedParts += "${width}×${height} @ ${formatFps(resolvedFps)} FPS"
+    } else if (displayMode.isNotBlank()) {
+        selectedParts += displayMode
+    }
+    (value("target_bitrate_kbps") as? Number)?.toInt()?.takeIf { it > 0 }?.let {
+        selectedParts += "${it / 1000.0} Mbps"
+    }
+    (value("preferred_codec") as? String)?.takeIf { it.isNotBlank() }?.let {
+        selectedParts += it.uppercase(Locale.US)
+    }
+    (value("hdr") as? Boolean)?.let { selectedParts += if (it) "HDR" else "SDR" }
+
+    val fieldLabels = mapOf(
+        "display_mode" to "mode",
+        "display_width" to "width",
+        "display_height" to "height",
+        "target_fps" to "FPS",
+        "target_bitrate_kbps" to "bitrate",
+        "preferred_codec" to "codec",
+        "nvenc_tune" to "encoder tune",
+        "hdr" to "HDR",
+        "color_range" to "color range",
+    )
+    val provenance = fields.keys().asSequence().asIterable()
+        .mapNotNull { name ->
+            val field = detail(name) ?: return@mapNotNull null
+            val source = (field.opt("source") as? String)?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val reason = (field.opt("reason_code") as? String)?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val locked = field.opt("locked") as? Boolean ?: return@mapNotNull null
+            val normalized = field.opt("normalized") as? Boolean ?: return@mapNotNull null
+            val flags = listOfNotNull(
+                "locked".takeIf { locked },
+                "normalized".takeIf { normalized },
+            ).joinToString(", ").ifBlank { "unlocked" }
+            "${fieldLabels[name] ?: name}: $source / $reason / $flags"
+        }
+    val asked = if (clientAskedFps > 0.0) " · ${formatFps(clientAskedFps)} FPS" else ""
+    return NovaLaunchProfileSummary(
+        primaryLaunchLabel = if (effectiveFps > 0.0) {
+            "Launch $presetLabel · ${formatFps(effectiveFps)} FPS"
+        } else {
+            "Launch $presetLabel"
+        },
+        requestedLine = "Requested: $presetLabel$asked",
+        selectedLine = "Resolved: ${selectedParts.joinToString(" · ").ifBlank { presetLabel }}",
+        reasonLine = "Deterministic preset v1; Doctor history and AI output cannot change these fields.",
+        limitingLine = "",
+        noticeDetail = "Field provenance lists the source, reason code, lock state, and any capability normalization.",
+        noticeRecommendation = "Doctor observations do not change launch settings.",
+        noticeTone = NovaLaunchProfileNoticeTone.HEALTHY,
+        noticeLabel = "Launch preset",
+        freshnessLine = "Resolved for this launch",
+        historyLines = emptyList(),
+        showRetryHighFps = false,
+        retryHighFpsLabel = "",
+        grantHoldReason = "",
+        provenanceLine = provenance.joinToString(" · ")
     )
 }
 

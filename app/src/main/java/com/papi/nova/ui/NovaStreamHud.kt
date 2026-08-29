@@ -48,10 +48,6 @@ class NovaStreamHud(
     private var activeCodecLabel = ""
     private var lastSessionStatus: PolarisSessionStatus? = null
     private var streamPolicy = StreamPolicyUiState.from(null)
-    private var hostAdaptiveBitrateActive = false
-    private var degradedFrames = 0
-    private var recoveredFrames = 0
-    private var bitrateReduced = false
     private val sparklineData = NovaHudSparklineBuffer()
     private val hudOpacityScale = mutableStateOf(1f)
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
@@ -61,8 +57,6 @@ class NovaStreamHud(
             )
         }
     }
-
-    var onBitrateAdjust: ((Int) -> Unit)? = null
 
     private var dragStartX = 0f
     private var dragStartY = 0f
@@ -121,9 +115,6 @@ class NovaStreamHud(
     private fun resetSessionState() {
         sessionStats.reset()
         sparklineData.clear()
-        degradedFrames = 0
-        recoveredFrames = 0
-        bitrateReduced = false
         eventTrail.clear()
     }
 
@@ -321,16 +312,10 @@ class NovaStreamHud(
                 targetFps = resolvedTargetFps
                 sessionStats.setTargetFps(resolvedTargetFps)
             }
-            hostAdaptiveBitrateActive = status?.tuning?.adaptiveBitrateEnabled == true ||
-                status?.adaptiveBitrateEnabled == true
             streamPolicy = StreamPolicyUiState.from(status, lastBitrateKbps, targetFps)
-            val safeTarget = status?.health?.safeTargetFps ?: 0.0
-            val recoveryQueued = status?.autoQuality?.isRecoveryQueued == true
-            if (safeTarget > 0.0 && (recoveryQueued || status?.health?.relaunchRecommended == true)) {
-                eventTrail.recordRecoveryProfile(safeTarget, recoveryQueued = recoveryQueued)
-            } else {
-                eventTrail.retireRecoveryProfile()
-            }
+            // Historical recovery receipts are observational/deprecated and
+            // never become a current or next-launch HUD event.
+            eventTrail.retireRecoveryProfile()
             if (streamPolicy.effectiveBitrateKbps > 0) {
                 currentBitrateKbps = streamPolicy.effectiveBitrateKbps
             }
@@ -352,41 +337,9 @@ class NovaStreamHud(
             lowOnePercentFps = sparklineData.lowOnePercent()
         )
 
-        if (hostAdaptiveBitrateActive) {
-            degradedFrames = 0
-            recoveredFrames = 0
-            bitrateReduced = false
-            return
-        }
-
-        val fpsInt = fps.toInt()
-        if (fpsInt < 45 || lastLatency > 50) {
-            degradedFrames++
-            recoveredFrames = 0
-            if (degradedFrames >= 3 && !bitrateReduced && currentBitrateKbps > 3000) {
-                val previousBitrate = currentBitrateKbps
-                val newBitrate = (currentBitrateKbps * 0.75).toInt().coerceAtLeast(2000)
-                onBitrateAdjust?.invoke(newBitrate)
-                eventTrail.recordBitrateChange(previousBitrate, newBitrate)
-                currentBitrateKbps = newBitrate
-                bitrateReduced = true
-                degradedFrames = 0
-            }
-        } else {
-            recoveredFrames++
-            degradedFrames = 0
-            if (recoveredFrames >= 10 && bitrateReduced) {
-                val previousBitrate = currentBitrateKbps
-                val newBitrate = (currentBitrateKbps * 1.15).toInt().coerceAtMost(lastBitrateKbps)
-                onBitrateAdjust?.invoke(newBitrate)
-                eventTrail.recordBitrateChange(previousBitrate, newBitrate)
-                currentBitrateKbps = newBitrate
-                if (currentBitrateKbps >= lastBitrateKbps) {
-                    bitrateReduced = false
-                }
-                recoveredFrames = 0
-            }
-        }
+        // The HUD is observational. Low rendered FPS may be static content or
+        // a source-cadence gap, so displaying telemetry must never mutate the
+        // live bitrate. Evidence-gated changes use Polaris Doctor actions.
     }
 
     private fun updateLatency(ms: Int) {

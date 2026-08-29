@@ -38,6 +38,21 @@ class ClientRuntimeSnapshotTest {
     }
 
     @Test
+    fun profileProvenanceRecognizesDeterministicLaunchSources() {
+        val preset = ClientProfileProvenance.fromOptimization(
+            JSONObject("{\"source\":\"deterministic_preset_v1\"}"),
+            manualOverride = false
+        )
+        val explicit = ClientProfileProvenance.fromOptimization(
+            JSONObject("{\"source\":\"nova_explicit_launch_v1\"}"),
+            manualOverride = false
+        )
+
+        assertEquals(ClientProfileSource.DETERMINISTIC_PRESET, preset.source)
+        assertEquals(ClientProfileSource.EXPLICIT_LAUNCH, explicit.source)
+    }
+
+    @Test
     fun profileProvenanceManualOverridePreservesRecommendationVersion() {
         val optimization = JSONObject("{\"source\":\"ai_cached\",\"recommendation_version\":2}")
 
