@@ -123,7 +123,8 @@ internal class DoctorActionPendingRegistry {
 
 object DoctorActionReceiptStore {
     internal val TERMINAL_STATES = setOf(
-        "stable", "resolved", "rolled_back", "needs_attention", "applied", "expired", "rejected", "undone"
+        "stable", "resolved", "rolled_back", "superseded", "needs_attention",
+        "applied", "expired", "rejected", "undone"
     )
 
     private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v3_"

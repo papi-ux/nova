@@ -414,7 +414,6 @@ internal enum class NovaPlaySetupRow {
     STEAM_LAUNCH,
     HOST_DEFAULT_DISPLAY,
     HOST_PROFILE,
-    HOST_AUTO_QUALITY,
     HOST_KEEP_IN_STEP,
 }
 

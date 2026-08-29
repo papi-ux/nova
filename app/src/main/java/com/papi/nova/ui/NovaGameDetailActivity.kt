@@ -991,7 +991,6 @@ class NovaGameDetailActivity : NovaActivity() {
             onSendNova = { hostSyncEngine?.sendNova() },
             onUsePolaris = { hostSyncEngine?.usePolarisProfile() },
             onClearProfile = { hostSyncEngine?.clearProfile() },
-            onAutoQuality = { hostSyncEngine?.setAiAutoQuality(it) },
             onKeepInStep = { hostSyncEngine?.setAutoSync(it) },
         )
 
@@ -1654,45 +1653,38 @@ class NovaGameDetailActivity : NovaActivity() {
         opt: JSONObject?,
         profilePreference: String
     ): NovaGameDetailOptimizationState {
-        if (opt == null) return NovaGameDetailOptimizationState()
+        if (opt == null || !StreamSyncManager.hasTrustedResolvedProfile(opt)) {
+            return NovaGameDetailOptimizationState()
+        }
 
-        val profileState = opt.optJSONObject("profile_state")
+        // Only the deterministic resolved-profile contract is renderable.
+        // Legacy AI/cache/recovery objects are neither launch inputs nor UI
+        // fallbacks in this release.
+        val profileState: JSONObject? = null
         val resolvedProfile = opt.optJSONObject("resolved_profile")
-        val currentProfile = profileState?.optJSONObject("current_profile")
-            ?: resolvedProfile
-            ?: opt.optJSONObject("effective_profile")
-        val resolvedFields = currentProfile?.optJSONObject("fields")
-            ?: resolvedProfile?.optJSONObject("fields")
+        val currentProfile = resolvedProfile
+        val resolvedFields = resolvedProfile?.optJSONObject("fields")
         fun resolvedField(name: String): JSONObject? = resolvedFields?.optJSONObject(name)
-        val lastResult = profileState?.optJSONObject("last_result")
+        val lastResult: JSONObject? = null
         val source = opt.optString("source", "")
         val confidence = opt.optString("confidence", "")
         val cacheStatus = opt.optString("cache_status", "")
         val displayMode = resolvedField("display_mode")
             ?.optString("value", "")
             ?.takeIf { it.isNotBlank() }
-            ?: currentProfile
-            ?.optString("display_mode", "")
-            ?.takeIf { it.isNotBlank() }
-            ?: opt.optString("display_mode", "")
+            .orEmpty()
         val bitrate = resolvedField("target_bitrate_kbps")
             ?.optInt("value", 0)
             ?.takeIf { it > 0 }
-            ?: currentProfile
-            ?.optInt("target_bitrate_kbps", 0)
-            ?.takeIf { it > 0 }
-            ?: opt.optInt("target_bitrate_kbps", 0)
-        val targetFps = currentProfile?.optDouble("target_fps", 0.0)
+            ?: 0
+        val targetFps = resolvedField("target_fps")?.optDouble("value", 0.0)
             ?.takeIf { it > 0.0 }
             ?: displayMode.substringAfterLast('x', "").toDoubleOrNull()
             ?: 0.0
         val codec = resolvedField("preferred_codec")
             ?.optString("value", "")
             ?.takeIf { it.isNotBlank() }
-            ?: currentProfile
-            ?.optString("preferred_codec", "")
-            ?.takeIf { it.isNotBlank() }
-            ?: opt.optString("preferred_codec", "")
+            .orEmpty()
         val hdr = resolvedField("hdr")?.takeIf { it.has("value") }?.optBoolean("value")
         val reasoning = opt.optString("reasoning", "")
         val normalizationReason = opt.optString("normalization_reason", "")
@@ -1711,8 +1703,14 @@ class NovaGameDetailActivity : NovaActivity() {
             val fieldNames = resolvedFields?.keys()
             while (fieldNames?.hasNext() == true) {
                 val fieldName = fieldNames.next()
+                if (fieldName == "display_mode" &&
+                    resolvedFields.has("display_width") && resolvedFields.has("display_height") &&
+                    resolvedFields.has("target_fps")) {
+                    continue
+                }
                 val field = resolvedFields.optJSONObject(fieldName) ?: continue
-                val fieldSource = field.optString("source", "").takeIf { it.isNotBlank() } ?: "unknown"
+                val fieldSource = (field.opt("source") as? String)
+                    ?.takeIf { it.isNotBlank() } ?: "unknown"
                 val flags = buildList {
                     if (field.optBoolean("locked", false)) add("locked")
                     if (field.optBoolean("normalized", false)) add("normalized")
@@ -1730,28 +1728,8 @@ class NovaGameDetailActivity : NovaActivity() {
                 ?.optString("preset_label", "")
                 ?.takeIf { it.isNotBlank() }
                 ?: resolvedProfile?.optString("preset_label", "")?.takeIf { it.isNotBlank() }
-            val titleLabel = if (source == "deterministic_preset_v1" && presetLabel != null) {
-                "Launch preset: $presetLabel"
-            } else profileState
-                ?.optString("label", "")
-                ?.takeIf { it.isNotBlank() }
-                ?: when {
-                    source.contains("ai_live") && cacheStatus.equals("invalidated", ignoreCase = true) ->
-                        "Auto Quality Recovery"
-                    source.contains("ai_cached") -> "Auto Quality Ready"
-                    source.contains("ai_live") -> "Auto Quality Optimized"
-                    source.contains("device_db") -> "Auto Quality Baseline"
-                    else -> "Auto Quality"
-                }
-            val sourceLabel = when {
-                source == "deterministic_preset_v1" -> "Deterministic policy v1"
-                source.contains("ai_live") && cacheStatus.equals("invalidated", ignoreCase = true) ->
-                    "Recovery"
-                source.contains("ai_cached") -> "Cached profile"
-                source.contains("ai_live") -> "Fresh profile"
-                source.contains("device_db") -> getString(R.string.nova_library_ai_baseline_source_label)
-                else -> source
-            }
+            val titleLabel = "Launch preset: ${presetLabel ?: "Auto"}"
+            val sourceLabel = "Deterministic policy v1"
             val profileStateLabel = profileState
                 ?.optString("state", "")
                 ?.takeIf { it.isNotBlank() }
@@ -1820,69 +1798,17 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         val stabilityCard = opt.optJSONObject("stability")?.let { stability ->
-            val safeProfile = stability.optJSONObject("safe_profile")
-            val safeProfileParts = mutableListOf<String>()
-            val safeCodec = safeProfile?.optString("preferred_codec", "").orEmpty()
-            if (safeCodec.isNotBlank()) {
-                safeProfileParts += safeCodec.uppercase()
-            }
-            val safeBitrate = safeProfile?.optInt("target_bitrate_kbps", 0) ?: 0
-            if (safeBitrate > 0) {
-                safeProfileParts += "${safeBitrate / 1000} Mbps"
-            }
-            val safeDisplayMode = safeProfile?.optString("display_mode", "").orEmpty()
-            if (safeDisplayMode.isNotBlank()) {
-                safeProfileParts += modeBadgeLabel(safeDisplayMode)
-            }
-            if (safeProfile?.has("hdr") == true && !safeProfile.optBoolean("hdr", false)) {
-                safeProfileParts += "HDR off"
-            }
-
-            val discouragedFeatures = stability.optJSONArray("discouraged_features")
-            val firstDiscouragedReason = if (discouragedFeatures != null && discouragedFeatures.length() > 0) {
-                discouragedFeatures.optJSONObject(0)?.optString("reason", "").orEmpty()
-            } else {
-                ""
-            }
-            val relaunchNotes = stability.optJSONArray("relaunch_notes")
-            val relaunchNote = if (relaunchNotes != null && relaunchNotes.length() > 0) {
-                relaunchNotes.optString(0)
-            } else {
-                ""
-            }
-            val stabilitySummary = stability.optString("summary", "")
-            val stabilityMode = stability.optString("mode", "")
-            val stabilityDetails = listOfNotNull(
-                stabilitySummary.takeIf { it.isNotBlank() },
-                firstDiscouragedReason.takeIf { it.isNotBlank() },
-                relaunchNote.takeIf { it.isNotBlank() }
-            ).joinToString(" ")
-
-            if (safeProfileParts.isNotEmpty() || stabilityDetails.isNotBlank()) {
-                val isStabilityFirst = stabilityMode.equals("stability_first", ignoreCase = true) ||
-                    opt.optInt("consecutive_poor_outcomes", 0) > 0
-                val relaunchRequired = stability.optBoolean("relaunch_required", false)
-                val observational = stability.optString("state", "").equals("observational", ignoreCase = true) ||
-                    stability.optString("auto_action", "none").equals("none", ignoreCase = true)
-                NovaGameDetailInsightCard(
-                    label = when {
-                        observational -> "Doctor Observation"
-                        isStabilityFirst || relaunchRequired -> "Deprecated Recovery Record"
-                        else -> "Manual Guidance"
-                    },
-                    source = "",
-                    settings = if (observational) {
-                        "Launch settings unchanged"
-                    } else if (safeProfileParts.isNotEmpty()) {
-                        safeProfileParts.joinToString(" · ")
-                    } else {
-                        "Not applicable to launch"
-                    },
-                    reasoning = stabilityDetails,
-                    isWarning = !observational && (isStabilityFirst || relaunchRequired)
-                )
-            } else {
+            val summary = (stability.opt("summary") as? String).orEmpty()
+            if (summary.isBlank()) {
                 null
+            } else {
+                NovaGameDetailInsightCard(
+                    label = "Doctor Observation",
+                    source = "",
+                    settings = "Launch settings unchanged",
+                    reasoning = summary,
+                    isWarning = false
+                )
             }
         }
 
@@ -1898,7 +1824,7 @@ class NovaGameDetailActivity : NovaActivity() {
             rawOptimization = opt,
             reviewRequired = StreamSyncManager.requiresLaunchPreflightReview(opt),
             reviewReason = StreamSyncManager.launchPreflightReviewReason(opt),
-            aiRecommendedMode = opt.optString("ai_recommended_mode", "")
+            aiRecommendedMode = ""
         )
     }
 

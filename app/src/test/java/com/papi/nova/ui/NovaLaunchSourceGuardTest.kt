@@ -763,6 +763,20 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun trustedResolvedLaunchCarriesExactBitrateAndHdrAuthority() {
+        val nvhttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+
+        assertTrue(
+            "the deterministic launch marker must carry every consumed typed value, including an exact HDR boolean",
+            nvhttp.contains("&resolvedProfile=1&bitrateKbps=") &&
+                nvhttp.contains("&resolvedHdr=") &&
+                game.contains("setResolvedProfile(launchResolvedProfileTrusted)") &&
+                !game.contains(".setResolvedProfile(true)")
+        )
+    }
+
+    @Test
     fun libraryAndShortcutLaunchDoNotRewriteHostStreamMode() {
         val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val shortcut = readSource("src/main/java/com/papi/nova/ShortcutTrampoline.kt")

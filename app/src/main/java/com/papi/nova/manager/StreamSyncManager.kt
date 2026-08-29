@@ -65,17 +65,30 @@ class StreamSyncManager private constructor() {
             optimization: JSONObject?
         ): StreamResolution {
             val configured = StreamResolution(configuredWidth, configuredHeight)
-            val displayMode = resolvedField(optimization, "display_mode") as? String
-            val resolved = parseDisplayModeResolution(displayMode)
+            val width = strictIntegralValue(resolvedField(optimization, "display_width"))
+            val height = strictIntegralValue(resolvedField(optimization, "display_height"))
+            val resolved = StreamResolution(width ?: 0, height ?: 0)
             return resolved.takeIf { it.isValid() } ?: configured
         }
 
         @JvmStatic
         fun resolveAutoSafeTargetFps(configuredFps: Float, optimization: JSONObject?): Float {
             if (configuredFps <= 0f) return configuredFps
-            val displayMode = resolvedField(optimization, "display_mode") as? String
-            return parseDisplayModeFps(displayMode).takeIf { it > 0f } ?: configuredFps
+            val resolved = (resolvedField(optimization, "target_fps") as? Number)?.toFloat() ?: 0f
+            return resolved.takeIf { it > 0f && it.isFinite() } ?: configuredFps
         }
+
+        @JvmStatic
+        fun resolveAutoSafeHdr(configuredHdr: Boolean, optimization: JSONObject?): Boolean {
+            val resolved = resolvedHdrValue(optimization) ?: return configuredHdr
+            // Host/client hard capability validation may step HDR down. A
+            // deterministic preview never turns HDR on when Nova disabled it.
+            return configuredHdr && resolved
+        }
+
+        @JvmStatic
+        fun resolvedHdrValue(optimization: JSONObject?): Boolean? =
+            resolvedField(optimization, "hdr") as? Boolean
 
         @JvmStatic
         fun resolveDisplayCompatibleAutoSafeTargetFps(
@@ -244,13 +257,34 @@ class StreamSyncManager private constructor() {
 
         private fun normalized(value: String?): String = value?.trim()?.lowercase(Locale.US) ?: ""
 
-        private fun resolvedProfile(optimization: JSONObject?): JSONObject? {
-            if (optimization == null ||
-                normalized(optimization.optString("source", "")) != "deterministic_preset_v1") {
+        private val resolvedFieldSources = setOf(
+            "explicit_launch_request",
+            "client_launch_request",
+            "paired_client",
+            "client_profile",
+            "device_profile_v1",
+            "capability_validation",
+            "composed_display_components"
+        )
+
+        private fun strictIntegralValue(value: Any?): Int? {
+            val number = value as? Number ?: return null
+            val doubleValue = number.toDouble()
+            if (!doubleValue.isFinite() || doubleValue % 1.0 != 0.0 ||
+                doubleValue < Int.MIN_VALUE || doubleValue > Int.MAX_VALUE) {
                 return null
             }
-            val profile = optimization.optJSONObject("resolved_profile") ?: return null
-            if (profile.optInt("policy_version", 0) != 1) return null
+            return doubleValue.toInt()
+        }
+
+        private fun resolvedProfile(optimization: JSONObject?): JSONObject? {
+            val payload = optimization ?: return null
+            val source = payload.opt("source") as? String
+            if (normalized(source) != "deterministic_preset_v1") {
+                return null
+            }
+            val profile = payload.opt("resolved_profile") as? JSONObject ?: return null
+            if (strictIntegralValue(profile.opt("policy_version")) != 1) return null
             return profile
         }
 
@@ -259,6 +293,14 @@ class StreamSyncManager private constructor() {
             val fields = resolvedProfile(optimization)?.optJSONObject("fields") ?: return false
             val displayMode = validResolvedField(fields.optJSONObject("display_mode"))
                 ?.opt("value") as? String ?: return false
+            val width = strictIntegralValue(
+                validResolvedField(fields.optJSONObject("display_width"))?.opt("value")
+            ) ?: return false
+            val height = strictIntegralValue(
+                validResolvedField(fields.optJSONObject("display_height"))?.opt("value")
+            ) ?: return false
+            val targetFps = validResolvedField(fields.optJSONObject("target_fps"))
+                ?.opt("value") as? Number ?: return false
             val bitrate = validResolvedField(fields.optJSONObject("target_bitrate_kbps"))
                 ?.opt("value") as? Number ?: return false
             if (validResolvedField(fields.optJSONObject("hdr"))?.opt("value") !is Boolean) {
@@ -266,20 +308,25 @@ class StreamSyncManager private constructor() {
             }
             val modeParts = displayMode.split("x")
             if (modeParts.size != 3) return false
-            val width = modeParts[0].toIntOrNull() ?: return false
-            val height = modeParts[1].toIntOrNull() ?: return false
-            val fps = modeParts[2].toDoubleOrNull() ?: return false
+            val modeWidth = modeParts[0].toIntOrNull() ?: return false
+            val modeHeight = modeParts[1].toIntOrNull() ?: return false
+            val modeFps = modeParts[2].toDoubleOrNull() ?: return false
+            val fps = targetFps.toDouble()
             val bitrateKbps = bitrate.toDouble()
             return width in 320..16384 && height in 240..16384 &&
                 fps.isFinite() && fps in 15.0..240.0 &&
+                modeWidth == width && modeHeight == height && modeFps.isFinite() &&
+                kotlin.math.abs(modeFps - fps) <= 0.001 &&
                 bitrateKbps.isFinite() && bitrateKbps in 1000.0..300000.0 &&
                 bitrateKbps == kotlin.math.floor(bitrateKbps)
         }
 
         private fun validResolvedField(detail: JSONObject?): JSONObject? {
             detail ?: return null
-            if (detail.optString("source", "").isBlank() ||
-                detail.optString("reason_code", "").isBlank() ||
+            val source = detail.opt("source") as? String ?: return null
+            val reasonCode = detail.opt("reason_code") as? String ?: return null
+            if (source.isBlank() || source !in resolvedFieldSources ||
+                reasonCode.isBlank() ||
                 detail.opt("locked") !is Boolean ||
                 detail.opt("normalized") !is Boolean ||
                 !detail.has("value") || detail.isNull("value")

@@ -16,7 +16,6 @@ internal class NovaPlaySetupHostActions(
     val onSendNova: () -> Unit,
     val onUsePolaris: () -> Unit,
     val onClearProfile: () -> Unit,
-    val onAutoQuality: (Boolean) -> Unit,
     val onKeepInStep: (Boolean) -> Unit,
 )
 
@@ -96,38 +95,6 @@ internal fun buildNovaPlaySetupHostRows(
             ),
         ),
         enabled = ready,
-    )
-    rows += NovaPlaySetupRowState(
-        row = NovaPlaySetupRow.HOST_AUTO_QUALITY,
-        label = getString(R.string.nova_play_setup_host_auto_quality),
-        caption = getString(R.string.nova_play_setup_host_auto_quality_caption),
-        value = onOff(sync.aiChecked),
-        stripTitle = getString(R.string.nova_play_setup_strip_auto_quality),
-        options = listOf(
-            NovaPlaySetupOption(
-                label = onOff(true),
-                consequence = getString(R.string.nova_play_setup_consequence_auto_on),
-                current = sync.aiChecked,
-                enabled = sync.aiEnabled,
-                onSelect = if (sync.aiEnabled) {
-                    { actions.onAutoQuality(true) }
-                } else {
-                    null
-                },
-            ),
-            NovaPlaySetupOption(
-                label = onOff(false),
-                consequence = getString(R.string.nova_play_setup_consequence_auto_off),
-                current = !sync.aiChecked,
-                enabled = sync.aiEnabled,
-                onSelect = if (sync.aiEnabled) {
-                    { actions.onAutoQuality(false) }
-                } else {
-                    null
-                },
-            ),
-        ),
-        enabled = sync.aiEnabled,
     )
     rows += NovaPlaySetupRowState(
         row = NovaPlaySetupRow.HOST_KEEP_IN_STEP,

@@ -140,7 +140,6 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                         onSendNova = { engine.sendNova() },
                         onUsePolaris = { engine.usePolarisProfile() },
                         onClearProfile = { engine.clearProfile() },
-                        onAutoQuality = { engine.setAiAutoQuality(it) },
                         onKeepInStep = { engine.setAutoSync(it) },
                     )
                     val rows = buildNovaPlaySetupHostRows(

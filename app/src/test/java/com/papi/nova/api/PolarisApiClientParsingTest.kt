@@ -1664,6 +1664,7 @@ class PolarisApiClientParsingTest {
             width = 1920,
             height = 1080,
             fps = 120f,
+            displayLocked = true,
             bitrateKbps = 40000,
             bitrateLocked = true,
             hdr = false,
@@ -1671,7 +1672,8 @@ class PolarisApiClientParsingTest {
 
         assertEquals(
             "/optimize?device=RetroidPocket6&game=Black+Myth%3A+Wukong&preference=high_fps" +
-                "&width=1920&height=1080&fps=120.0&bitrate_kbps=40000&bitrate_locked=1&hdr=0",
+                "&width=1920&height=1080&fps=120.0&display_locked=1" +
+                "&bitrate_kbps=40000&bitrate_locked=1&hdr=0",
             path
         )
         assertFalse(path.contains("trial="))

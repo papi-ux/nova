@@ -73,41 +73,42 @@ data class AutoQualityUiState(
                         streamPolicy.adaptiveBaseBitrateKbps > 0 &&
                         adaptiveTarget < streamPolicy.adaptiveBaseBitrateKbps
                     )
-            val healthGrade = status.health.grade.lowercase()
-            val healthAutoAction = status.health.autoAction.lowercase()
+            val authoritativeDoctor = status.hasAuthoritativeDoctorResult
+            val healthGrade = if (authoritativeDoctor) "stable" else status.health.grade.lowercase()
+            val healthAutoAction = if (authoritativeDoctor) "" else status.health.autoAction.lowercase()
             val healthSuggestsRecovery = status.hasHealthConcerns ||
-                status.health.recoveryProfile.isNotBlank() ||
-                status.health.relaunchRecommended ||
+                (!authoritativeDoctor && status.health.recoveryProfile.isNotBlank()) ||
+                (!authoritativeDoctor && status.health.relaunchRecommended) ||
                 healthAutoAction == "lower_bitrate" ||
                 healthAutoAction == "lower_render_profile" ||
                 healthAutoAction == "apply_recovery" ||
                 healthAutoAction == "suggest_recovery"
             val hostRenderLimited = status.isHostRenderLimited
             val currentBitrate = streamPolicy.effectiveBitrateKbps
-            val safeBitrateApplied = healthSuggestsRecovery &&
+            val safeBitrateApplied = !authoritativeDoctor && healthSuggestsRecovery &&
                 status.health.safeBitrateKbps > 0 &&
                 currentBitrate > 0 &&
                 status.health.safeBitrateKbps < currentBitrate
-            val safeFpsApplied = status.health.safeTargetFps > 0.0 &&
+            val safeFpsApplied = !authoritativeDoctor && status.health.safeTargetFps > 0.0 &&
                 targetFps > 0.0 &&
                 status.health.safeTargetFps < targetFps
             val hostRenderRecoveryQueued = hostRenderLimited &&
                 (
                     autoPolicy.isRecoveryQueued ||
-                        status.health.relaunchRecommended ||
+                    (!authoritativeDoctor && status.health.relaunchRecommended) ||
                         safeFpsApplied
                     )
             val safeProfileApplied = safeFpsApplied ||
                 safeBitrateApplied ||
-                (healthSuggestsRecovery && status.health.safeDisplayMode.isNotBlank()) ||
-                status.health.recoveryProfile.isNotBlank()
+                (!authoritativeDoctor && healthSuggestsRecovery && status.health.safeDisplayMode.isNotBlank()) ||
+                (!authoritativeDoctor && status.health.recoveryProfile.isNotBlank())
             val cpuCapture = status.capture.transport.equals("shm", ignoreCase = true) ||
                 status.capture.residency.equals("cpu", ignoreCase = true) ||
                 status.encoder.targetResidency.equals("cpu", ignoreCase = true)
             val syncFailed = status.syncStatus.isFailed ||
                 presentationStatus == "blocked"
             val severeHealth = healthGrade == "degraded" ||
-                status.health.decoderRisk.equals("elevated", ignoreCase = true)
+                (!authoritativeDoctor && status.health.decoderRisk.equals("elevated", ignoreCase = true))
             val manualOverride = status.syncStatus.isManualOverride ||
                 syncState == "manual_override"
 
@@ -302,7 +303,7 @@ data class AutoQualityUiState(
             if (healthSuggestsRecovery ||
                 adaptiveLowered ||
                 safeProfileApplied ||
-                status.health.relaunchRecommended ||
+                (!authoritativeDoctor && status.health.relaunchRecommended) ||
                 healthAutoAction == "lower_bitrate" ||
                 healthAutoAction == "lower_render_profile" ||
                 healthAutoAction == "apply_recovery" ||
@@ -317,7 +318,11 @@ data class AutoQualityUiState(
                     adaptiveLowered -> "Live bitrate adjusted"
                     else -> "Doctor observation"
                 }
-                val detail = status.health.summary.takeIf {
+                val detail = (if (authoritativeDoctor) {
+                    status.doctor.likelyCause
+                } else {
+                    status.health.summary
+                }).takeIf {
                     it.isNotBlank() && !it.trim().trimEnd('.', '!').equals("Stable", ignoreCase = true)
                 }
                     ?: when {

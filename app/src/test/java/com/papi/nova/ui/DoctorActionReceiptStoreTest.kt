@@ -51,7 +51,7 @@ class DoctorActionReceiptStoreTest {
         assertTrue(queued?.undoAvailable == true)
         assertEquals("undo_recovery_profile_next_launch", queued?.undoActionId)
         assertFalse(queued?.isTerminal == true)
-        for (terminalState in listOf("expired", "applied", "rejected", "undone")) {
+        for (terminalState in listOf("expired", "applied", "rejected", "undone", "superseded")) {
             val terminal = DoctorActionReceiptStore.fromRecoveryReceipt(
                 scopeId = recoveryScope,
                 receipt = PolarisSessionStatus.RecoveryReceipt(

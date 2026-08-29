@@ -415,6 +415,7 @@ class NovaHudUiStateTest {
                 doctor = PolarisSessionStatus.DoctorStatus(
                     available = true,
                     version = 2,
+                    resultId = "doctor-static-clean",
                     primaryIssue = "none"
                 )
             ),
@@ -545,6 +546,8 @@ class NovaHudUiStateTest {
             ),
             doctor = PolarisSessionStatus.DoctorStatus(
                 available = true,
+                version = 2,
+                resultId = "doctor-network-observation",
                 primaryIssue = "network_observation",
                 evidenceItems = listOf(
                     PolarisSessionStatus.DoctorStatus.EvidenceItem(
@@ -598,6 +601,8 @@ class NovaHudUiStateTest {
                 health = PolarisSessionStatus.HealthStatus(grade = "watch"),
                 doctor = PolarisSessionStatus.DoctorStatus(
                     available = true,
+                    version = 2,
+                    resultId = "doctor-confirmed-loss",
                     primaryIssue = "network_observation",
                     evidenceItems = listOf(
                         PolarisSessionStatus.DoctorStatus.EvidenceItem(
@@ -623,6 +628,8 @@ class NovaHudUiStateTest {
             health = PolarisSessionStatus.HealthStatus(grade = "watch"),
             doctor = PolarisSessionStatus.DoctorStatus(
                 available = true,
+                version = 2,
+                resultId = "doctor-control-observation",
                 primaryIssue = "control_channel_observation",
                 evidenceItems = listOf(
                     PolarisSessionStatus.DoctorStatus.EvidenceItem(
@@ -652,6 +659,66 @@ class NovaHudUiStateTest {
         assertEquals("Control retries observed", state.healthReasonLabel)
         assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
         assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
+    }
+
+    @Test
+    fun authoritativeDoctorNoneSuppressesStaleHealthNetworkAndPacingLabels() {
+        val doctor = PolarisSessionStatus.DoctorStatus(
+            available = true,
+            version = 2,
+            resultId = "doctor-current-clean",
+            primaryIssue = "none"
+        )
+        val staleNetwork = status(
+            health = PolarisSessionStatus.HealthStatus(
+                grade = "watch",
+                primaryIssue = "network_jitter",
+                issues = listOf("network_jitter"),
+                networkRisk = "elevated"
+            ),
+            doctor = doctor
+        )
+        val stalePacing = status(
+            health = PolarisSessionStatus.HealthStatus(
+                grade = "watch",
+                primaryIssue = "frame_pacing",
+                issues = listOf("frame_pacing")
+            ),
+            doctor = doctor
+        )
+
+        val networkState = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = staleNetwork,
+            sparklineSamples = listOf(60f)
+        )
+        val pacingState = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 30.0,
+            targetFps = 120.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = stalePacing,
+            sparklineSamples = listOf(30f)
+        )
+
+        assertEquals("none", staleNetwork.effectivePrimaryIssue)
+        assertFalse(staleNetwork.hasHealthConcerns)
+        assertEquals("Stable", networkState.healthReasonLabel)
+        assertEquals(NovaHudTone.STABLE, networkState.layerHealth[1].tone)
+        assertEquals("Stable", pacingState.healthReasonLabel)
+        assertEquals(NovaHudTone.STABLE, pacingState.fpsTone)
+        assertEquals(NovaHudTone.STABLE, pacingState.layerHealth[0].tone)
     }
 
     @Test

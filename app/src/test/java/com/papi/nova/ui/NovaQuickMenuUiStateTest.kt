@@ -386,11 +386,36 @@ class NovaQuickMenuUiStateTest {
                     likelyCause = "Old network warning",
                     primaryIssue = "network_jitter",
                     actionId = "lower_bitrate",
-                    actionLabel = "Fix and verify",
+                    actionLabel = "Auto Fix",
+                    actionCapability = "auto_fix",
                     actionKind = "live_tuning",
                     targetBitrateKbps = 7580,
                     packetLossPct = 0.0,
                     latencyMs = 3.8
+                )
+            )
+        )
+
+        assertFalse(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
+        assertEquals("Diagnose This Stream", state.overlayRows.first().label)
+    }
+
+    @Test
+    fun dormantRunTrialCapabilityIsPublishedAsManualUntilAnExecutableContractExists() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-v2-trial-dormant",
+                    classification = "HOST",
+                    likelyCause = "A one-shot cadence trial might distinguish the cause.",
+                    primaryIssue = "frame_pacing",
+                    actionId = "run_trial",
+                    actionLabel = "Run a trial",
+                    actionCapability = "run_trial",
+                    actionKind = "fresh_launch_trial"
                 )
             )
         )
@@ -588,8 +613,8 @@ class NovaQuickMenuUiStateTest {
 
         val state = quickState(status = status(), doctorReceipt = receipt)
 
-        assertTrue(state.doctorReceiptAction.caption.contains("removes only this queued safer profile"))
-        assertTrue(state.doctorReceiptAction.caption.contains("current stream and settings will not change"))
+        assertTrue(state.doctorReceiptAction.caption.contains("removes only this deprecated record"))
+        assertTrue(state.doctorReceiptAction.caption.contains("stream and launch settings remain unchanged"))
         assertFalse(state.doctorReceiptAction.caption.contains("restore the previous bitrate", ignoreCase = true))
     }
 

@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The guard Every Game never had. What it holds still: the four host rows and their
+ * The guard Every Game never had. What it holds still: the three deterministic host rows and their
  * order, desired and effective as separate axes on the mode cards, the arrow summary
  * finally rendering when they differ, and — the one that bites — A on the Profile row
  * firing nothing but Match Nova, because cycling four different verbs would push and
@@ -24,7 +24,6 @@ class NovaPlaySetupHostScopeTest {
             onSendNova = { calls += "send" },
             onUsePolaris = { calls += "pull" },
             onClearProfile = { calls += "clear" },
-            onAutoQuality = { calls += "ai:$it" },
             onKeepInStep = { calls += "step:$it" },
         )
     }
@@ -81,13 +80,12 @@ class NovaPlaySetupHostScopeTest {
         buildNovaPlaySetupHostRows(sync, "profile", getString, recorded.actions)
 
     @Test
-    fun buildsTheSheetSectionsAsFourRowsInOrder() {
+    fun buildsTheSheetSectionsAsThreeRowsInOrder() {
         val rows = rows(sync(), RecordedActions())
         assertEquals(
             listOf(
                 NovaPlaySetupRow.HOST_DEFAULT_DISPLAY,
                 NovaPlaySetupRow.HOST_PROFILE,
-                NovaPlaySetupRow.HOST_AUTO_QUALITY,
                 NovaPlaySetupRow.HOST_KEEP_IN_STEP,
             ),
             rows.map { it.row },
@@ -159,13 +157,12 @@ class NovaPlaySetupHostScopeTest {
     }
 
     @Test
-    fun togglesFlipOnAdvance() {
+    fun onlyKeepInStepRemainsAsAHostToggle() {
         val recorded = RecordedActions()
         val sync = sync(aiChecked = true, autoSyncChecked = false)
         val built = rows(sync, recorded)
-        advanceNovaPlaySetupHostRow(NovaPlaySetupRow.HOST_AUTO_QUALITY, built, sync, recorded.actions)
         advanceNovaPlaySetupHostRow(NovaPlaySetupRow.HOST_KEEP_IN_STEP, built, sync, recorded.actions)
-        assertEquals(listOf("ai:false", "step:true"), recorded.calls)
+        assertEquals(listOf("step:true"), recorded.calls)
     }
 
     @Test
@@ -184,7 +181,6 @@ class NovaPlaySetupHostScopeTest {
 private fun NovaPlaySetupRow.hostIndex(): Int = when (this) {
     NovaPlaySetupRow.HOST_DEFAULT_DISPLAY -> 0
     NovaPlaySetupRow.HOST_PROFILE -> 1
-    NovaPlaySetupRow.HOST_AUTO_QUALITY -> 2
-    NovaPlaySetupRow.HOST_KEEP_IN_STEP -> 3
+    NovaPlaySetupRow.HOST_KEEP_IN_STEP -> 2
     else -> error("not a host row: $this")
 }

@@ -86,6 +86,13 @@ data class PolarisArtworkUpdateResult(
 class PolarisArtworkLibraryUpdateUnavailableException :
     IOException("Polaris artwork library update API unavailable")
 
+enum class PolarisLaunchHostKind {
+    CURRENT_POLARIS,
+    LEGACY_POLARIS,
+    NON_POLARIS,
+    UNKNOWN
+}
+
 /**
  * HTTP client for Polaris REST API on the nvhttp port (47984).
  * Uses the same client certificate as Moonlight pairing.
@@ -480,6 +487,7 @@ class PolarisApiClient @JvmOverloads constructor(
             width: Int = 0,
             height: Int = 0,
             fps: Float = 0f,
+            displayLocked: Boolean = false,
             bitrateKbps: Int = 0,
             bitrateLocked: Boolean = false,
             hdr: Boolean? = null
@@ -498,6 +506,7 @@ class PolarisApiClient @JvmOverloads constructor(
             } else {
                 ""
             }
+            val displayLockParam = if (displayLocked && displayParam.isNotEmpty()) "&display_locked=1" else ""
             val bitrateParam = bitrateKbps.takeIf { it > 0 }?.let { "&bitrate_kbps=$it" } ?: ""
             val bitrateLockParam = if (bitrateLocked && bitrateKbps > 0) "&bitrate_locked=1" else ""
             val hdrParam = hdr?.let { "&hdr=${if (it) 1 else 0}" } ?: ""
@@ -506,6 +515,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 preferenceParam +
                 modeParam +
                 displayParam +
+                displayLockParam +
                 bitrateParam +
                 bitrateLockParam +
                 hdrParam
@@ -1626,6 +1636,19 @@ class PolarisApiClient @JvmOverloads constructor(
                 .build()
         ).execute()
 
+    private fun executeLaunchPolicyGet(request: Request): okhttp3.Response =
+        clientForCall().newBuilder()
+            .connectTimeout(2, TimeUnit.SECONDS)
+            .readTimeout(4, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
+            .newCall(
+                request.newBuilder()
+                    .header("Connection", "close")
+                    .build()
+            )
+            .execute()
+
 	private fun execute(request: Request) = clientForCall().newCall(
 		request.newBuilder()
 			.header("Connection", "close")
@@ -1711,6 +1734,56 @@ class PolarisApiClient @JvmOverloads constructor(
         } catch (e: Exception) {
             LimeLog.warning("Nova: Capabilities probe failed: ${errorMessage(e)}")
             null
+        }
+    }
+
+    /**
+     * Resolve host identity for a new launch without publishing process-global
+     * feature state. Network/protocol ambiguity is UNKNOWN and must fail closed;
+     * only explicit 404s from both Polaris routes identify a stock host.
+     */
+    fun identifyLaunchHost(): PolarisLaunchHostKind {
+        val probeClient = clientForCall().newBuilder()
+            .connectTimeout(2, TimeUnit.SECONDS)
+            .readTimeout(2, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
+        fun executeProbe(path: String) = probeClient.newCall(
+            Request.Builder()
+                .url("$baseUrl$path")
+                .header("Connection", "close")
+                .build()
+        ).execute()
+
+        return try {
+            executeProbe("/capabilities").use { response ->
+                when (response.code) {
+                    200 -> {
+                        val body = response.body?.string() ?: return PolarisLaunchHostKind.UNKNOWN
+                        val capabilities = runCatching {
+                            parseCapabilitiesResponse(JSONObject(body))
+                        }.getOrNull() ?: return PolarisLaunchHostKind.UNKNOWN
+                        if (!capabilities.server.equals("polaris", ignoreCase = true)) {
+                            PolarisLaunchHostKind.UNKNOWN
+                        } else if (capabilities.features.resolvedProfileProvenance) {
+                            PolarisLaunchHostKind.CURRENT_POLARIS
+                        } else {
+                            PolarisLaunchHostKind.LEGACY_POLARIS
+                        }
+                    }
+                    404 -> executeProbe("/session/status").use { fallback ->
+                        when (fallback.code) {
+                            200 -> PolarisLaunchHostKind.LEGACY_POLARIS
+                            404 -> PolarisLaunchHostKind.NON_POLARIS
+                            else -> PolarisLaunchHostKind.UNKNOWN
+                        }
+                    }
+                    else -> PolarisLaunchHostKind.UNKNOWN
+                }
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Launch host identity probe failed: ${errorMessage(e)}")
+            PolarisLaunchHostKind.UNKNOWN
         }
     }
 
@@ -2608,22 +2681,29 @@ class PolarisApiClient @JvmOverloads constructor(
         width: Int = 0,
         height: Int = 0,
         fps: Float = 0f,
+        displayLocked: Boolean = false,
         bitrateKbps: Int = 0,
         bitrateLocked: Boolean = false,
-        hdr: Boolean? = null
+        hdr: Boolean? = null,
+        launchBounded: Boolean = false
     ): org.json.JSONObject? {
         return try {
-            val url = "$baseUrl${buildOptimizationPath(device, game, preference, mode, width, height, fps, bitrateKbps, bitrateLocked, hdr)}"
+            val url = "$baseUrl${buildOptimizationPath(device, game, preference, mode, width, height, fps, displayLocked, bitrateKbps, bitrateLocked, hdr)}"
             val request = Request.Builder().url(url).get().build()
             LimeLog.info("Nova: Optimization query start for $url")
-            executeGetWithRetry(request).use { response ->
-                if (response.code == 200) {
+            val response = if (launchBounded) {
+                executeLaunchPolicyGet(request)
+            } else {
+                executeGetWithRetry(request)
+            }
+            response.use {
+                if (it.code == 200) {
                     LimeLog.info("Nova: Optimization query HTTP 200 for $url")
-                    val body = response.body?.string() ?: "{}"
+                    val body = it.body?.string() ?: "{}"
                     LimeLog.info("Nova: Optimization query body received (${body.length} bytes)")
                     org.json.JSONObject(body)
                 } else {
-                    LimeLog.warning("Nova: Optimization query returned HTTP ${response.code} for $url")
+                    LimeLog.warning("Nova: Optimization query returned HTTP ${it.code} for $url")
                     null
                 }
             }

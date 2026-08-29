@@ -693,7 +693,8 @@ class NvHTTP @Throws(IOException::class) constructor(
                 streamModeParam +
                 profilePreference +
                 (if (streamConfig.getResolvedProfile()) {
-                    "&resolvedProfile=1&bitrateKbps=" + streamConfig.getBitrate()
+                    "&resolvedProfile=1&bitrateKbps=" + streamConfig.getBitrate() +
+                        "&resolvedHdr=" + (if (enableHdr) 1 else 0)
                 } else {
                     ""
                 }) +

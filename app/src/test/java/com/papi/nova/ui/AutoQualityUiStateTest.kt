@@ -287,6 +287,35 @@ class AutoQualityUiStateTest {
         assertEquals("Auto Quality Off", state.label)
     }
 
+    @Test
+    fun authoritativeDoctorNoneIgnoresStaleHealthRecoveryAndPacingHistory() {
+        val state = AutoQualityUiState.from(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    summary = "Network jitter and frame pacing were previously observed.",
+                    primaryIssue = "frame_pacing",
+                    issues = listOf("frame_pacing", "network_jitter"),
+                    networkRisk = "elevated",
+                    recoveryProfile = "host_render_limited",
+                    relaunchRecommended = true,
+                    safeTargetFps = 30.0,
+                    safeBitrateKbps = 12000
+                ),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-current-none",
+                    primaryIssue = "none"
+                )
+            ),
+            fallbackTargetFps = 120.0
+        )
+
+        assertEquals(AutoQualityUiState.State.STABLE, state.state)
+        assertEquals("Auto Quality Stable", state.label)
+    }
+
     private fun status(
         state: String = "streaming",
         streamingActive: Boolean = true,
@@ -301,6 +330,7 @@ class AutoQualityUiStateTest {
         encoder: PolarisSessionStatus.EncoderStatus = encoder(),
         capture: PolarisSessionStatus.CaptureStatus = capture(),
         health: PolarisSessionStatus.HealthStatus = PolarisSessionStatus.HealthStatus(grade = "good"),
+        doctor: PolarisSessionStatus.DoctorStatus = PolarisSessionStatus.DoctorStatus(),
         autoQuality: PolarisSessionStatus.AutoQualityPolicy = PolarisSessionStatus.AutoQualityPolicy(),
         linuxGpuProfile: PolarisSessionStatus.LinuxGpuProfile? = null,
         sync: PolarisSessionStatus.SyncStatus = PolarisSessionStatus.SyncStatus(
@@ -318,6 +348,7 @@ class AutoQualityUiStateTest {
         capture = capture,
         autoQuality = autoQuality,
         health = health,
+        doctor = doctor,
         linuxGpuProfile = linuxGpuProfile,
         syncStatus = sync
     )

@@ -607,11 +607,20 @@ data class PolarisSessionStatus(
     val hasOptimizationNormalization get() = encoder.optimizationNormalizationReason.isNotBlank()
     val optimizationNormalizedLabel get() = if (hasOptimizationNormalization) "Host adjusted" else ""
     val optimizationConfidenceLabel get() = encoder.optimizationConfidence.uppercase()
-    val isHostRenderLimited get() =
+    val hasAuthoritativeDoctorResult get() =
+        doctor.available && doctor.version >= 2 && doctor.resultId.isNotBlank()
+    val effectivePrimaryIssue get() = if (hasAuthoritativeDoctorResult) {
+        doctor.primaryIssue.ifBlank { "none" }
+    } else {
+        health.primaryIssue
+    }
+    val isHostRenderLimited get() = if (hasAuthoritativeDoctorResult) {
+        doctor.primaryIssue.equals("host_render_limited", ignoreCase = true)
+    } else {
         health.hostRenderLimited ||
             health.primaryIssue.equals("host_render_limited", ignoreCase = true) ||
-            health.issues.any { it.equals("host_render_limited", ignoreCase = true) } ||
-            doctor.primaryIssue.equals("host_render_limited", ignoreCase = true)
+            health.issues.any { it.equals("host_render_limited", ignoreCase = true) }
+    }
     val isHdrDowngraded get() =
         health.primaryIssue.equals("hdr_downgraded", ignoreCase = true) ||
             health.issues.any { it.equals("hdr_downgraded", ignoreCase = true) } ||
@@ -640,15 +649,15 @@ data class PolarisSessionStatus(
                 issue.equals("control_channel_observation", ignoreCase = true) ||
                 issue.equals("control_channel_packet_loss", ignoreCase = true))
     private val healthPrimaryActionable get() =
-        health.primaryIssue.isNotBlank() &&
+        !hasAuthoritativeDoctorResult && health.primaryIssue.isNotBlank() &&
             !health.primaryIssue.equals("none", ignoreCase = true) &&
             !healthIssueIsCoveredByObservation(health.primaryIssue)
-    private val healthIssuesActionable get() = health.issues.any {
+    private val healthIssuesActionable get() = !hasAuthoritativeDoctorResult && health.issues.any {
         !healthIssueIsCoveredByObservation(it)
     }
     val hasHealthConcerns get() =
-        health.grade.equals("degraded", ignoreCase = true) ||
-            (health.grade.equals("watch", ignoreCase = true) && !doctorPrimaryIsObservation) ||
+        (!hasAuthoritativeDoctorResult && health.grade.equals("degraded", ignoreCase = true)) ||
+            (!hasAuthoritativeDoctorResult && health.grade.equals("watch", ignoreCase = true) && !doctorPrimaryIsObservation) ||
             healthPrimaryActionable ||
             healthIssuesActionable ||
             (doctor.primaryIssue.isNotBlank() &&
@@ -658,19 +667,22 @@ data class PolarisSessionStatus(
     val healthToneLabel get() = when {
         isHostRenderLimited -> "Host Render"
         doctor.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
-            health.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
-            health.issues.any { it.equals("frame_pacing", ignoreCase = true) } -> "Frame pacing"
+            (!hasAuthoritativeDoctorResult && (
+                health.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
+                    health.issues.any { it.equals("frame_pacing", ignoreCase = true) }
+                )) -> "Frame pacing"
         doctorPrimaryIsObservation && actionableDoctorEvidence -> "Needs attention"
         doctor.primaryIssue.equals("network_observation", ignoreCase = true) -> "Network recheck"
         doctor.primaryIssue.equals("control_channel_observation", ignoreCase = true) -> "Control retries"
         doctor.primaryIssue.equals("network_jitter", ignoreCase = true) -> "Network"
         doctor.primaryIssue.contains("decoder", ignoreCase = true) -> "Decoder"
-        health.grade.equals("degraded", ignoreCase = true) -> "Stream degraded"
-        health.grade.equals("watch", ignoreCase = true) -> "Needs attention"
+        !hasAuthoritativeDoctorResult && health.grade.equals("degraded", ignoreCase = true) -> "Stream degraded"
+        !hasAuthoritativeDoctorResult && health.grade.equals("watch", ignoreCase = true) -> "Needs attention"
         doctor.primaryIssue.isNotBlank() && !doctor.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
         actionableDoctorEvidence -> "Needs attention"
-        health.primaryIssue.isNotBlank() && !health.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
-        health.issues.isNotEmpty() -> "Needs attention"
+        !hasAuthoritativeDoctorResult && health.primaryIssue.isNotBlank() &&
+            !health.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
+        !hasAuthoritativeDoctorResult && health.issues.isNotEmpty() -> "Needs attention"
         else -> "Stable"
     }
 }

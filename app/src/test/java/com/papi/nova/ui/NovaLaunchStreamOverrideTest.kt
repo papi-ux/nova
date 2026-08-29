@@ -32,6 +32,12 @@ class NovaLaunchStreamOverrideTest {
             "\"policy_version\":1,\"preset\":\"quality\",\"fields\":{" +
             "\"display_mode\":{\"value\":\"1920x1080x60\",\"source\":\"paired_client\"," +
             "\"reason_code\":\"paired_display_setting\",\"locked\":false,\"normalized\":false}," +
+            "\"display_width\":{\"value\":1920,\"source\":\"paired_client\"," +
+            "\"reason_code\":\"paired_display_setting\",\"locked\":false,\"normalized\":false}," +
+            "\"display_height\":{\"value\":1080,\"source\":\"paired_client\"," +
+            "\"reason_code\":\"paired_display_setting\",\"locked\":false,\"normalized\":false}," +
+            "\"target_fps\":{\"value\":60,\"source\":\"paired_client\"," +
+            "\"reason_code\":\"paired_display_setting\",\"locked\":false,\"normalized\":false}," +
             "\"target_bitrate_kbps\":{\"value\":40000,\"source\":\"paired_client\"," +
             "\"reason_code\":\"paired_bitrate_setting\",\"locked\":false,\"normalized\":false}," +
             "\"hdr\":{\"value\":false,\"source\":\"explicit_launch_request\"," +
@@ -63,6 +69,12 @@ class NovaLaunchStreamOverrideTest {
         assertEquals("explicit_launch_request", display.getString("source"))
         assertEquals(NovaLaunchStreamOverride.NORMALIZATION_REASON, display.getString("reason_code"))
         assertTrue(display.getBoolean("locked"))
+        assertEquals(1440, fields.getJSONObject("display_width").getInt("value"))
+        assertEquals(810, fields.getJSONObject("display_height").getInt("value"))
+        assertEquals(60.0, fields.getJSONObject("target_fps").getDouble("value"), 0.001)
+        assertTrue(fields.getJSONObject("display_width").getBoolean("locked"))
+        assertTrue(fields.getJSONObject("display_height").getBoolean("locked"))
+        assertTrue(fields.getJSONObject("target_fps").getBoolean("locked"))
         assertEquals("balanced", composed.getString("display_planner_choice"))
         assertEquals(40000, fields.getJSONObject("target_bitrate_kbps").getInt("value"))
         assertFalse(composed.has("paired_profile_applied"))
@@ -81,6 +93,13 @@ class NovaLaunchStreamOverrideTest {
             composed.getJSONObject("resolved_profile").getJSONObject("fields")
                 .getJSONObject("display_mode").getString("value")
         )
+        val fields = composed.getJSONObject("resolved_profile").getJSONObject("fields")
+        assertEquals("paired_client", fields.getJSONObject("display_width").getString("source"))
+        assertEquals("paired_client", fields.getJSONObject("display_height").getString("source"))
+        assertFalse(fields.getJSONObject("display_width").getBoolean("locked"))
+        assertFalse(fields.getJSONObject("display_height").getBoolean("locked"))
+        assertEquals("explicit_launch_request", fields.getJSONObject("target_fps").getString("source"))
+        assertTrue(fields.getJSONObject("target_fps").getBoolean("locked"))
         assertFalse(composed.has("safe_target_fps_relaxed"))
         assertFalse(composed.has("effective_target_fps"))
     }

@@ -16,12 +16,13 @@ class StreamSyncManagerTest {
 
     private fun deterministicOptimization(
         preset: String = "auto",
-        displayMode: String? = null,
-        bitrateKbps: Int? = null,
+        displayMode: String? = "1920x1080x60",
+        bitrateKbps: Int? = 30_000,
         fieldSource: String = "explicit_launch_request"
     ): JSONObject {
         val fields = JSONObject()
         displayMode?.let {
+            val mode = it.split("x")
             fields.put(
                 "display_mode",
                 JSONObject()
@@ -31,6 +32,35 @@ class StreamSyncManagerTest {
                     .put("locked", true)
                     .put("normalized", false)
             )
+            if (mode.size == 3) {
+                fields.put(
+                    "display_width",
+                    JSONObject()
+                        .put("value", mode[0].toIntOrNull() ?: 0)
+                        .put("source", fieldSource)
+                        .put("reason_code", "test_explicit_setting")
+                        .put("locked", true)
+                        .put("normalized", false)
+                )
+                fields.put(
+                    "display_height",
+                    JSONObject()
+                        .put("value", mode[1].toIntOrNull() ?: 0)
+                        .put("source", fieldSource)
+                        .put("reason_code", "test_explicit_setting")
+                        .put("locked", true)
+                        .put("normalized", false)
+                )
+                fields.put(
+                    "target_fps",
+                    JSONObject()
+                        .put("value", mode[2].toDoubleOrNull() ?: 0.0)
+                        .put("source", fieldSource)
+                        .put("reason_code", "test_explicit_setting")
+                        .put("locked", true)
+                        .put("normalized", false)
+                )
+            }
         }
         bitrateKbps?.let {
             fields.put(
@@ -226,7 +256,7 @@ class StreamSyncManagerTest {
         val stringLocked = deterministicOptimization(displayMode = "1280x720x60")
         stringLocked.getJSONObject("resolved_profile")
             .getJSONObject("fields")
-            .getJSONObject("display_mode")
+            .getJSONObject("display_width")
             .put("locked", "true")
 
         assertEquals(30_000, StreamSyncManager.resolveAutoSafeBitrateKbps(30_000, missingNormalized))
@@ -283,6 +313,50 @@ class StreamSyncManagerTest {
         assertFalse(StreamSyncManager.hasTrustedResolvedProfile(malformedMode))
         assertFalse(StreamSyncManager.hasTrustedResolvedProfile(oversizedMode))
         assertFalse(StreamSyncManager.hasTrustedResolvedProfile(fractionalBitrate))
+    }
+
+    @Test
+    fun trustedLaunchEnvelopeRejectsCoercedAndNonPolicyProvenance() {
+        val numericSource = deterministicOptimization()
+        numericSource.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("target_fps")
+            .put("source", 7)
+        val historicalSource = deterministicOptimization()
+        historicalSource.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("display_width")
+            .put("source", "history_safe")
+        val stringPolicy = deterministicOptimization()
+        stringPolicy.getJSONObject("resolved_profile").put("policy_version", "1")
+        val mismatchedComponent = deterministicOptimization()
+        mismatchedComponent.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("display_width")
+            .put("value", 1280)
+
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(numericSource))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(historicalSource))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(stringPolicy))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(mismatchedComponent))
+    }
+
+    @Test
+    fun resolvedHdrComesOnlyFromATrustedTypedField() {
+        val enabled = deterministicOptimization()
+        enabled.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("hdr")
+            .put("value", true)
+        val malformed = JSONObject(enabled.toString())
+        malformed.getJSONObject("resolved_profile")
+            .getJSONObject("fields")
+            .getJSONObject("hdr")
+            .put("value", "true")
+
+        assertEquals(true, StreamSyncManager.resolvedHdrValue(enabled))
+        assertEquals(null, StreamSyncManager.resolvedHdrValue(malformed))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(malformed))
     }
 
     @Test

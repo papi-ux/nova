@@ -579,15 +579,23 @@ data class NovaQuickMenuUiState(
             val actionId = doctor?.actionId.orEmpty()
             val available = status != null &&
                 (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true)
-            val actionExecutable = doctor?.canExecuteAction == true && status.canAdjustHostTuning
-            val capability = when (doctor?.actionCapability?.lowercase()) {
+            val actionEnvelopeExecutable = doctor?.canExecuteAction == true
+            val readOnlyRecheck = actionId in setOf("recheck_network", "recheck_pacing")
+            val actionExecutable = actionEnvelopeExecutable && if (readOnlyRecheck) {
+                status?.ownedByClient == true && !status.isViewer
+            } else {
+                status?.canAdjustHostTuning == true
+            }
+            val capability = if (!actionExecutable) {
+                NovaQuickMenuDoctorCapability.MANUAL
+            } else when (doctor?.actionCapability?.lowercase()) {
                 "auto_fix" -> NovaQuickMenuDoctorCapability.AUTO_FIX
-                "run_trial" -> NovaQuickMenuDoctorCapability.RUN_TRIAL
                 "recheck" -> NovaQuickMenuDoctorCapability.RECHECK
-                "manual" -> NovaQuickMenuDoctorCapability.MANUAL
+                // Trials remain compile-time dormant in the matched host and
+                // Nova has no executable trial envelope in this release.
                 else -> when {
-                    actionExecutable && actionId in autoFixActionIds -> NovaQuickMenuDoctorCapability.AUTO_FIX
-                    actionExecutable && actionId in setOf("recheck_network", "recheck_pacing") -> NovaQuickMenuDoctorCapability.RECHECK
+                    actionId in autoFixActionIds -> NovaQuickMenuDoctorCapability.AUTO_FIX
+                    readOnlyRecheck -> NovaQuickMenuDoctorCapability.RECHECK
                     else -> NovaQuickMenuDoctorCapability.MANUAL
                 }
             }

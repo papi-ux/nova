@@ -68,11 +68,29 @@ object NovaLaunchStreamOverride {
         val fps = fpsOverride ?: chosenMode?.fps ?: rawMode?.fps ?: fallbackFps
 
         val displayMode = "${width}x${height}x$fps"
+        fun putField(name: String, value: Any, source: String, reason: String, locked: Boolean) {
+            fields.put(name, JSONObject().apply {
+                put("value", value)
+                put("source", source)
+                put("reason_code", reason)
+                put("locked", locked)
+                put("normalized", false)
+            })
+        }
+        if (resolution != null) {
+            putField("display_width", width, "explicit_launch_request", NORMALIZATION_REASON, true)
+            putField("display_height", height, "explicit_launch_request", NORMALIZATION_REASON, true)
+            putField("target_fps", fps.toDouble(), "explicit_launch_request", NORMALIZATION_REASON, true)
+        } else if (fpsOverride != null) {
+            // Width/height retain the host's paired/preset provenance. Only the
+            // explicitly pinned cadence becomes a client launch lock.
+            putField("target_fps", fps.toDouble(), "explicit_launch_request", NORMALIZATION_REASON, true)
+        }
         fields.put("display_mode", JSONObject().apply {
             put("value", displayMode)
-            put("source", "explicit_launch_request")
-            put("reason_code", NORMALIZATION_REASON)
-            put("locked", true)
+            put("source", if (resolution != null) "explicit_launch_request" else "composed_display_components")
+            put("reason_code", if (resolution != null) NORMALIZATION_REASON else "mixed_display_provenance")
+            put("locked", resolution != null)
             put("normalized", false)
         })
         // Top-level value is compatibility-only; StreamSync consumes the typed field.
