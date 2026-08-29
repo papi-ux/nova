@@ -269,6 +269,7 @@ private var launchOptimizationJson:String? = null
 private var launchResolvedProfileTrusted:Boolean = false
 private val launchPolicyGateGeneration = AtomicLong(0L)
 private val launchPolicyGatePending = AtomicBoolean(false)
+private var launchPolicyHandoffRecreation:Boolean = false
 private data class LaunchOptimizationDecision(
 val optimization:JSONObject?,
 val policyBlocked:Boolean,
@@ -1341,6 +1342,7 @@ this@Game.getIntent() === gateIntent)
 {
 launchPolicyGatePending.set(false)
 gateIntent.putExtra(EXTRA_LAUNCH_POLICY_TOKEN, nextToken)
+launchPolicyHandoffRecreation = true
 recreate()
 }
 else
@@ -3413,6 +3415,16 @@ super.onPause()
 
 override fun onStop() {
 super.onStop()
+
+// The deterministic launch gate recreates this Activity to consume its
+// process-local one-shot decision. Calling finish() from the retiring
+// instance would also finish the replacement ActivityRecord before its
+// stream can receive video.
+if (launchPolicyHandoffRecreation)
+{
+LimeLog.info("Nova: Preserving replacement Activity during launch policy handoff")
+return
+}
 
 SpinnerDialog.closeDialogs(this)
 Dialog.closeDialogs()

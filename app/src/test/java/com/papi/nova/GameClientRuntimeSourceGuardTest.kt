@@ -82,7 +82,18 @@ class GameClientRuntimeSourceGuardTest {
                 0 until launchSetup.indexOf("loadLaunchOptimization(") &&
                 launchSetup.contains("NovaLaunchPolicyGateStore.consume(") &&
                 launchSetup.contains("NovaLaunchPolicyGateStore.issue(") &&
+                launchSetup.contains("launchPolicyHandoffRecreation = true\nrecreate()") &&
                 !game.contains("thread.join(12000)")
+        )
+        val onStop = game.section("override fun onStop()", "private fun setInputGrabState(")
+        assertTrue(
+            "the retiring launch-policy Activity must not finish its replacement during the one-shot handoff",
+            game.contains("private var launchPolicyHandoffRecreation:Boolean = false") &&
+                onStop.contains("if (launchPolicyHandoffRecreation)") &&
+                onStop.indexOf("if (launchPolicyHandoffRecreation)") in
+                0 until onStop.indexOf("if (conn != null)") &&
+                onStop.indexOf("if (launchPolicyHandoffRecreation)") in
+                0 until onStop.lastIndexOf("finish()")
         )
         assertTrue(
             "singleTask launch decisions must bind the certificate and every local setting that can rewrite the resolved envelope",
