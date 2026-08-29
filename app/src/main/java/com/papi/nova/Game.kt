@@ -1362,6 +1362,18 @@ Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LEN
 finish()
 return
 }
+val expectedLaunchTopology = if (launchResolvedProfileTrusted) {
+com.papi.nova.manager.LaunchTopologyEnvelope.resolvedSelection(launchOptimization).orEmpty()
+} else {
+""
+}
+if (launchResolvedProfileTrusted && expectedLaunchTopology.isBlank())
+{
+LimeLog.severe("Nova: Refusing launch because the deterministic topology assertion is missing")
+Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
+finish()
+return
+}
 launchInitializationCommitted = true
 startNovaFeatureProbe()
 willStreamHdr = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeHdr(
@@ -1592,6 +1604,7 @@ displayHeight
 .setDisplayModeExplicit(displayModeExplicit)
 .setMirrorDesktop(mirrorDesktop)
 .setStreamMode(streamMode)
+.setExpectedTopology(expectedLaunchTopology)
 .setForcePrivateAfterSteamClose(forcePrivateAfterSteamClose)
 .setResolutionScaleFactor(prefConfig!!.resolutionScaleFactor)
 .setApp(app)

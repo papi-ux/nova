@@ -1,7 +1,9 @@
 package com.papi.nova.manager
 
 import org.json.JSONObject
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +26,7 @@ class LaunchTopologyEnvelopeTest {
                 optimization, "game-a", "", false, false, false
             )
         )
+        assertEquals("gamescope_stream", LaunchTopologyEnvelope.resolvedSelection(optimization))
         assertTrue(
             LaunchTopologyEnvelope.matches(
                 optimization, "1", "", false, false, false
@@ -81,6 +84,7 @@ class LaunchTopologyEnvelopeTest {
         inventedSource.getJSONObject("topology_resolution").put("source", "doctor_history")
 
         assertFalse(LaunchTopologyEnvelope.matches(missing, "game-a", "", false, false, false))
+        assertNull(LaunchTopologyEnvelope.resolvedSelection(missing))
         assertFalse(LaunchTopologyEnvelope.matches(coerced, "game-a", "", false, false, false))
         assertFalse(LaunchTopologyEnvelope.matches(inventedSource, "game-a", "", false, false, false))
         assertFalse(
@@ -91,6 +95,11 @@ class LaunchTopologyEnvelopeTest {
                 false,
                 false,
                 false,
+            )
+        )
+        assertNull(
+            LaunchTopologyEnvelope.resolvedSelection(
+                optimization("host_default", "invented_topology", false)
             )
         )
         assertFalse(

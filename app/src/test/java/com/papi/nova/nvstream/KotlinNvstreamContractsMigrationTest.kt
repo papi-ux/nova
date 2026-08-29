@@ -266,6 +266,7 @@ class KotlinNvstreamContractsMigrationTest {
         assertFalse(defaults.getEnableUltraLowLatency())
         assertFalse(defaults.getForceFreshLaunch())
         assertFalse(defaults.getResumeExistingOnly())
+        assertEquals("", defaults.getExpectedTopology())
 
         val customApp = NvApp("Custom")
         val builder = StreamConfiguration.Builder()
@@ -295,6 +296,7 @@ class KotlinNvstreamContractsMigrationTest {
             .setEnableUltraLowLatency(true)
             .setForceFreshLaunch(true)
             .setResumeExistingOnly(true)
+            .setExpectedTopology(" Gamescope_Stream ")
             .build()
 
         assertSame(customApp, config.getApp())
@@ -321,6 +323,7 @@ class KotlinNvstreamContractsMigrationTest {
         assertTrue(config.getEnableUltraLowLatency())
         assertTrue(config.getForceFreshLaunch())
         assertTrue(config.getResumeExistingOnly())
+        assertEquals("gamescope_stream", config.getExpectedTopology())
     }
 
     private fun assertPublicField(name: String, type: Class<*>) {

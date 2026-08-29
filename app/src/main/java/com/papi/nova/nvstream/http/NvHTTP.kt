@@ -670,6 +670,17 @@ class NvHTTP @Throws(IOException::class) constructor(
             .takeIf { it.isNotBlank() }
             ?.let { "&streamMode=" + URLEncoder.encode(it, "UTF-8") }
             ?: ""
+        val resolvedProfileParam = if (streamConfig.getResolvedProfile()) {
+            val expectedTopology = streamConfig.getExpectedTopology()
+            require(expectedTopology.isNotBlank()) {
+                "A deterministic resolved profile requires an expected topology assertion"
+            }
+            "&resolvedProfile=1&bitrateKbps=" + streamConfig.getBitrate() +
+                "&resolvedHdr=" + (if (enableHdr) 1 else 0) +
+                "&expectedTopology=" + URLEncoder.encode(expectedTopology, "UTF-8")
+        } else {
+            ""
+        }
 
         val xmlStr = openHttpConnectionToString(
             httpClientLongConnectNoReadTimeout,
@@ -692,12 +703,7 @@ class NvHTTP @Throws(IOException::class) constructor(
                 (if (forcePrivateAfterSteamClose) "&closeDesktopSteamForPrivate=1&launchMode=force_private_stream" else "") +
                 streamModeParam +
                 profilePreference +
-                (if (streamConfig.getResolvedProfile()) {
-                    "&resolvedProfile=1&bitrateKbps=" + streamConfig.getBitrate() +
-                        "&resolvedHdr=" + (if (enableHdr) 1 else 0)
-                } else {
-                    ""
-                }) +
+                resolvedProfileParam +
                 "&localAudioPlayMode=" + (if (streamConfig.getPlayLocalAudio()) 1 else 0) +
                 "&surroundAudioInfo=" + streamConfig.getAudioConfiguration()!!.getSurroundAudioInfo() +
                 "&remoteControllersBitmap=" + streamConfig.getAttachedGamepadMask() +

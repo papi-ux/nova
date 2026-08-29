@@ -787,7 +787,9 @@ class NovaLaunchSourceGuardTest {
             "the deterministic launch marker must carry every consumed typed value, including an exact HDR boolean",
             nvhttp.contains("&resolvedProfile=1&bitrateKbps=") &&
                 nvhttp.contains("&resolvedHdr=") &&
+                nvhttp.contains("&expectedTopology=") &&
                 game.contains("setResolvedProfile(launchResolvedProfileTrusted)") &&
+                game.contains("setExpectedTopology(expectedLaunchTopology)") &&
                 !game.contains(".setResolvedProfile(true)")
         )
     }

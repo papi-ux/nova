@@ -32,6 +32,7 @@ class StreamConfiguration private constructor() {
     private var resolvedProfile = false
     private var mirrorDesktop = false
     private var streamMode = ""
+    private var expectedTopology = ""
     private var forcePrivateAfterSteamClose = false
 
     class Builder {
@@ -184,6 +185,11 @@ class StreamConfiguration private constructor() {
             return this
         }
 
+        fun setExpectedTopology(expectedTopology: String?): Builder {
+            config.expectedTopology = expectedTopology?.trim()?.lowercase().orEmpty()
+            return this
+        }
+
         fun setForcePrivateAfterSteamClose(enable: Boolean): Builder {
             config.forcePrivateAfterSteamClose = enable
             return this
@@ -259,6 +265,8 @@ class StreamConfiguration private constructor() {
     fun getMirrorDesktop(): Boolean = mirrorDesktop
 
     fun getStreamMode(): String = streamMode
+
+    fun getExpectedTopology(): String = expectedTopology
 
     fun getForcePrivateAfterSteamClose(): Boolean = forcePrivateAfterSteamClose
 

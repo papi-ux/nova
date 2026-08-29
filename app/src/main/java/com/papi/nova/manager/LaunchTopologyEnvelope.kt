@@ -20,6 +20,17 @@ internal object LaunchTopologyEnvelope {
         "host_configuration",
     )
 
+    /**
+     * Canonical topology assertion from a trusted deterministic response.
+     * This value never selects host policy; it is echoed on /launch so Polaris
+     * can reject the request if its final resolver no longer agrees.
+     */
+    fun resolvedSelection(optimization: JSONObject?): String? {
+        val topologyResolution = optimization?.optJSONObject("topology_resolution") ?: return null
+        val resolved = topologyResolution.opt("resolved") as? String ?: return null
+        return resolved.trim().lowercase().takeIf { it in supportedTopologies }
+    }
+
     fun matches(
         optimization: JSONObject,
         appIdentity: String,
@@ -43,7 +54,7 @@ internal object LaunchTopologyEnvelope {
         val contractAppId = topologyResolution.opt("app_id") as? String ?: return false
         val expectedRequest = requestedTopology.ifBlank { "host_default" }
         val expectedApp = appIdentity.trim()
-        val normalizedResolved = resolvedTopology.lowercase()
+        val normalizedResolved = resolvedSelection(optimization) ?: return false
         val appMatches = expectedApp.isNotEmpty() &&
             (contractAppUuid.equals(expectedApp, ignoreCase = true) ||
                 contractAppId.equals(expectedApp, ignoreCase = true))
