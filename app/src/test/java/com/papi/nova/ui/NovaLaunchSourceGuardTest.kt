@@ -720,6 +720,22 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun ownerResumeCarriesTheActiveTopologySemanticsIntoTheExactIntent() {
+        val activity = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        val resume = activity.section(
+            "private fun resumeActiveSession(",
+            "private fun endActiveSession("
+        )
+
+        assertTrue(
+            "Resume Existing must preserve the active owner generation's canonical topology, mirror, and private-Steam semantics",
+            resume.contains("streamMode = session.streamMode") &&
+                resume.contains("mirrorDesktop = session.mirrorDesktop") &&
+                resume.contains("forcePrivateAfterSteamClose = session.forcePrivateAfterSteamClose")
+        )
+    }
+
+    @Test
     fun gameDetailLaunchDoesNotRewriteHostStreamMode() {
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
         val preflight = detail.section(

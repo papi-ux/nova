@@ -1487,6 +1487,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     requestedHeadless = displayMode?.optBoolean("requested_headless", false) ?: false,
                     effectiveHeadless = displayMode?.optBoolean("effective_headless", false) ?: false,
                     gpuNativeOverrideActive = displayMode?.optBoolean("gpu_native_override_active", false) ?: false,
+                    mirrorDesktop = strictBoolean(displayMode, "mirror_desktop"),
+                    forcePrivateAfterSteamClose = strictBoolean(displayMode, "force_private_after_steam_close"),
                     warning = displayMode?.optString("warning", "") ?: ""
                 ),
                 presentationPolicy = PolarisSessionStatus.PresentationPolicy(

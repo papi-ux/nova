@@ -1010,7 +1010,10 @@ class NovaLibraryActivity : NovaActivity() {
             serverCert,
             session.streamWidth,
             session.streamHeight,
-            session.streamFps
+            session.streamFps,
+            streamMode = session.streamMode,
+            mirrorDesktop = session.mirrorDesktop,
+            forcePrivateAfterSteamClose = session.forcePrivateAfterSteamClose
         )
         resumeIntent.putExtra(Game.EXTRA_RESUME_EXISTING, true)
         startActivity(resumeIntent)

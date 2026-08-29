@@ -922,6 +922,52 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
+    fun activeOwnerResumePreservesCanonicalTopologyAndPrivateSteamSemantics() {
+        val session = NovaLibraryActiveSessionUiState.from(
+            PolarisSessionStatus(
+                state = "streaming",
+                streamingActive = true,
+                game = "Private Game",
+                gameId = 778,
+                gameUuid = "private-game-uuid",
+                ownedByClient = true,
+                displayMode = PolarisSessionStatus.DisplayModeStatus(
+                    selection = "windowed_stream",
+                    forcePrivateAfterSteamClose = true
+                )
+            )
+        )
+
+        requireNotNull(session)
+        assertEquals("windowed_stream", session.streamMode)
+        assertFalse(session.mirrorDesktop)
+        assertTrue(session.forcePrivateAfterSteamClose)
+    }
+
+    @Test
+    fun activeOwnerResumePreservesExplicitMirrorSemantics() {
+        val session = NovaLibraryActiveSessionUiState.from(
+            PolarisSessionStatus(
+                state = "streaming",
+                streamingActive = true,
+                game = "Desktop",
+                gameId = 42,
+                gameUuid = "desktop-uuid",
+                ownedByClient = true,
+                displayMode = PolarisSessionStatus.DisplayModeStatus(
+                    selection = "desktop_display",
+                    mirrorDesktop = true
+                )
+            )
+        )
+
+        requireNotNull(session)
+        assertEquals("desktop_display", session.streamMode)
+        assertTrue(session.mirrorDesktop)
+        assertFalse(session.forcePrivateAfterSteamClose)
+    }
+
+    @Test
     fun activeSessionHidesPausedSessionOwnedByOtherClient() {
         val session = NovaLibraryActiveSessionUiState.from(
             PolarisSessionStatus(
@@ -973,6 +1019,9 @@ class NovaLibraryUiStateTest {
         assertEquals(1920, session.streamWidth)
         assertEquals(1080, session.streamHeight)
         assertEquals(30.0f, session.streamFps, 0.001f)
+        assertEquals("", session.streamMode)
+        assertFalse(session.mirrorDesktop)
+        assertFalse(session.forcePrivateAfterSteamClose)
     }
 
     @Test

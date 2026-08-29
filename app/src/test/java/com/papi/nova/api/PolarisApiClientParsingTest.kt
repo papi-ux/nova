@@ -557,8 +557,9 @@ class PolarisApiClientParsingTest {
                 "\"adaptive_max_bitrate_kbps\":30000,\"adaptive_bitrate_state\":\"network_pressure\"," +
                 "\"adaptive_bitrate_reason\":\"packet_loss\"," +
                 "\"ai_auto_quality_enabled\":true,\"ai_optimizer_enabled\":true,\"mangohud_configured\":true}," +
-                "\"display_mode\":{\"label\":\"Headless\",\"selection\":\"headless\",\"requested\":\"auto\"," +
-                "\"explicit_choice\":false,\"virtual_display\":false,\"requested_headless\":true,\"effective_headless\":true}," +
+                "\"display_mode\":{\"label\":\"Headless\",\"selection\":\"headless_stream\",\"requested\":\"auto\"," +
+                "\"explicit_choice\":false,\"virtual_display\":false,\"requested_headless\":true,\"effective_headless\":true," +
+                "\"mirror_desktop\":false,\"force_private_after_steam_close\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"resolution\":\"1920x1080\"," +
                 "\"transport\":\"dmabuf\",\"residency\":\"gpu\",\"format\":\"bgra8\"}," +
                 "\"encoder\":{\"codec\":\"hevc_nvenc\",\"bitrate_kbps\":20000,\"fps\":60.0," +
@@ -636,6 +637,9 @@ class PolarisApiClientParsingTest {
         assertEquals("network_pressure", status.tuning.adaptiveBitrateState)
         assertEquals("packet_loss", status.tuning.adaptiveBitrateReason)
         assertEquals("auto", status.displayMode.requested)
+        assertEquals("headless_stream", status.displayMode.selection)
+        assertFalse(status.displayMode.mirrorDesktop)
+        assertTrue(status.displayMode.forcePrivateAfterSteamClose)
         assertEquals("ai_cached", status.encoder.optimizationSource)
         assertEquals("medium", status.encoder.optimizationConfidence)
         assertEquals("hit", status.encoder.optimizationCacheStatus)

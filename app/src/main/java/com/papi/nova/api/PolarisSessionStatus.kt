@@ -108,6 +108,8 @@ data class PolarisSessionStatus(
         val requestedHeadless: Boolean = false,
         val effectiveHeadless: Boolean = false,
         val gpuNativeOverrideActive: Boolean = false,
+        val mirrorDesktop: Boolean = false,
+        val forcePrivateAfterSteamClose: Boolean = false,
         /** Why this session is not on the display the client asked for; blank when it is. */
         val warning: String = ""
     )
