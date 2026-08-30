@@ -493,6 +493,13 @@ private fun NovaQuickMenuDiagnosisCard(
         diagnosis.evidence.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("Evidence: $it") }
         diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
     }.joinToString(" · ")
+    val aiSupportingLine = diagnosis.aiExplanation.takeIf { it.isNotBlank() }?.let {
+        stringResource(R.string.nova_quick_menu_doctor_ai_explanation, it)
+    }
+    val sourceSupportingLine = diagnosis.informationalSource
+        .takeIf { it.isNotBlank() }
+        ?.let { "Source: $it" }
+    val supportingLine = listOfNotNull(aiSupportingLine, sourceSupportingLine).joinToString("\n")
     NovaQuickMenuInfoCard(
         modifier = if (initialFocusRequester != null) {
             Modifier.focusRequester(initialFocusRequester)
@@ -513,10 +520,7 @@ private fun NovaQuickMenuDiagnosisCard(
             ),
             enabled = diagnosis.available
         ),
-        supportingLine = diagnosis.informationalSource
-            .takeIf { it.isNotBlank() }
-            ?.let { "Source: $it" }
-            .orEmpty(),
+        supportingLine = supportingLine,
         // The real callbacks. This used to construct a fresh default instance, whose
         // every member is a no-op, so the card rendered enabled and did nothing when
         // pressed -- and looked no different from one that worked. The guard forbids the

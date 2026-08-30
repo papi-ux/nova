@@ -15,9 +15,11 @@ class NovaComposeSourceGuardTest {
         val content = readNovaQuickMenuContent()
 
         assertTrue(
-            "Doctor explanation fallback must have an always-visible and accessibility-visible source line",
-            content.contains("diagnosis.informationalSource") &&
-                content.contains("supportingLine = diagnosis.informationalSource") &&
+            "Doctor explanation must stay secondary, informational, visible, and accessibility-visible",
+            content.contains("diagnosis.aiExplanation") &&
+                content.contains("nova_quick_menu_doctor_ai_explanation") &&
+                content.contains("diagnosis.informationalSource") &&
+                content.contains("supportingLine = supportingLine") &&
                 content.contains("text = supportingLine") &&
                 content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine)")
         )

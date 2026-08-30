@@ -109,6 +109,7 @@ data class NovaQuickMenuDiagnosisState(
     val targetBitrateKbps: Int,
     val verificationDelaySeconds: Int,
     val undoSupported: Boolean,
+    val aiExplanation: String,
     val informationalSource: String
 )
 
@@ -580,6 +581,8 @@ data class NovaQuickMenuUiState(
 
         private fun diagnosisState(status: PolarisSessionStatus?): NovaQuickMenuDiagnosisState {
             val doctor = status?.doctor
+            val informationalAiExplanation = doctor?.aiExplanation
+                ?.takeIf { it.available && it.informational }
             val actionId = doctor?.actionId.orEmpty()
             val available = status != null &&
                 (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true)
@@ -618,7 +621,21 @@ data class NovaQuickMenuUiState(
                 targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
                 verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
                 undoSupported = doctor?.undoSupported == true,
+                aiExplanation = informationalAiExplanation
+                    ?.let { explanation ->
+                        buildList {
+                            explanation.likelyCause.takeIf { it.isNotBlank() }?.let(::add)
+                            explanation.tryFirst.firstOrNull()
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { add("Try first: $it") }
+                        }.joinToString(" ")
+                    }
+                    .orEmpty(),
                 informationalSource = when {
+                    informationalAiExplanation != null ->
+                        listOf("AI explanation only", informationalAiExplanation.sourceMode)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · ")
                     doctor?.explanationInformational == true &&
                         doctor.explanationSourceKind.equals("deterministic-fallback", ignoreCase = true) ->
                         listOf("Deterministic fallback", doctor.explanationSourceMode)
@@ -684,14 +701,14 @@ data class NovaQuickMenuUiState(
                 sync?.isApplying == true -> "Applying"
                 presentationStatus == "blocked" -> "Blocked"
                 presentationStatus == "pending" -> "Pending"
-                policy.adaptiveTargetBitrateKbps > 0 -> "Auto Quality"
+                policy.adaptiveTargetBitrateKbps > 0 -> "Live Tuning"
                 sync?.isSynced == true -> "Synced"
                 status.isClientPresentationSynced -> "Synced"
                 status.isStreaming -> "Live"
                 else -> "Ready"
             }
             val tone = when (label) {
-                "Synced", "Auto Quality", "Live" -> NovaQuickMenuTone.ACTIVE
+                "Synced", "Live Tuning", "Live" -> NovaQuickMenuTone.ACTIVE
                 "Pending", "Blocked", "Relaunch", "Attention", "Applying", "Manual" -> NovaQuickMenuTone.WARNING
                 "Ready" -> NovaQuickMenuTone.INACTIVE
                 else -> NovaQuickMenuTone.MUTED

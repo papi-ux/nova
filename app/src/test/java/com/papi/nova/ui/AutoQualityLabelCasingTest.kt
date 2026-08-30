@@ -29,9 +29,8 @@ class AutoQualityLabelCasingTest {
         }
 
         assertEquals(
-            "AutoQualityUiState named one concept four ways -- Auto Quality checking, " +
-                "Auto Quality Off, Auto Quality optimizing and Auto Quality Watching -- " +
-                "because nothing checked. These are chip labels, so they are names and take " +
+            "AutoQualityUiState status chips are names and must not drift into sentence casing. " +
+                "These are chip labels, so they take " +
                 "title case, with articles and short prepositions lowercase inside a phrase.",
             emptyList<String>(),
             offenders

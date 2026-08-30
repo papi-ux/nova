@@ -354,6 +354,54 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun aiExplanationStaysSecondaryToTheDeterministicAction() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-v2-needs_action-network_jitter",
+                    classification = "NET",
+                    likelyCause = "Confirmed media loss is limiting the stream.",
+                    primaryIssue = "network_jitter",
+                    actionId = "lower_bitrate",
+                    actionLabel = "Auto Fix",
+                    actionCapability = "auto_fix",
+                    actionKind = "live_tuning",
+                    actionEndpoint = "/api/doctor/action",
+                    actionMethod = "POST",
+                    actionPayloadId = "lower_bitrate",
+                    actionSourceResultId = "doctor-v2-needs_action-network_jitter",
+                    actionContractTyped = true,
+                    targetBitrateKbps = 16000,
+                    targetBitratePresent = true,
+                    targetBitrateTyped = true,
+                    verificationDelaySeconds = 8,
+                    verificationMode = "live_telemetry",
+                    verificationEndpoint = "/api/doctor/action",
+                    undoSupported = true,
+                    undoEndpoint = "/api/doctor/action",
+                    requiresOwner = true,
+                    aiExplanation = PolarisSessionStatus.DoctorStatus.AiExplanation(
+                        available = true,
+                        likelyCause = "Wi-Fi interference is the likely reason.",
+                        tryFirst = listOf("Move closer to the access point"),
+                        sourceMode = "openai-subscription",
+                        informational = true
+                    )
+                )
+            )
+        )
+
+        assertEquals("Confirmed media loss is limiting the stream.", state.diagnosis.likelyCause)
+        assertEquals("Auto Fix", state.overlayRows.first().label)
+        assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
+        assertTrue(state.diagnosis.aiExplanation.contains("Wi-Fi interference"))
+        assertTrue(state.diagnosis.aiExplanation.contains("Move closer"))
+        assertEquals("AI explanation only · openai-subscription", state.diagnosis.informationalSource)
+    }
+
+    @Test
     fun commandCenterDisablesDiagnoseThisStreamForMoonlightFallbackSession() {
         val state = quickState(status = null, apiAvailable = false)
         val diagnose = state.overlayRows.first { it.id == NovaQuickMenuActionId.DIAGNOSE_STREAM }

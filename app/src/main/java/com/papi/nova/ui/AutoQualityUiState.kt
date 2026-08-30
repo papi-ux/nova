@@ -43,8 +43,8 @@ data class AutoQualityUiState(
             if (status == null) {
                 return AutoQualityUiState(
                     state = State.WATCHING,
-                    label = "Auto Quality Checking",
-                    compactLabel = "AUTO",
+                    label = "Checking Stream",
+                    compactLabel = "CHECK",
                     detail = "Waiting for Polaris session status",
                     targetSummary = "",
                     tone = Tone.MUTED,
@@ -129,7 +129,7 @@ data class AutoQualityUiState(
             if (!autoEnabled && !manualOverride) {
                 return AutoQualityUiState(
                     state = State.OFF,
-                    label = "Auto Quality Off",
+                    label = "Live Tuning Off",
                     compactLabel = "OFF",
                     detail = "Manual stream tuning is active",
                     targetSummary = streamPolicy.targetSummary,
@@ -190,7 +190,7 @@ data class AutoQualityUiState(
                     autoPolicy.normalizedBlockedReason == "network" -> "Network limited"
                     autoPolicy.normalizedBlockedReason == "encoder" -> "Encoder limited"
                     autoPolicy.normalizedBlockedReason == "decoder" -> "Decoder limited"
-                    else -> "Auto Quality holding"
+                    else -> "Live tuning holding"
                 }
                 return AutoQualityUiState(
                     state = State.BLOCKED,
@@ -243,7 +243,7 @@ data class AutoQualityUiState(
                     compactLabel = "ATTN",
                     detail = legacyHealthSummary
                         ?: status.syncStatus.message.takeIf { it.isNotBlank() }
-                        ?: "Auto Quality needs a stream setting check",
+                        ?: "Doctor needs a stream setting check",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.DANGER,
                     enabled = true
@@ -296,9 +296,9 @@ data class AutoQualityUiState(
             ) {
                 return AutoQualityUiState(
                     state = State.OPTIMIZING,
-                    label = "Auto Quality Optimizing",
-                    compactLabel = "AUTO",
-                    detail = "Selecting the best launch profile",
+                    label = "Applying Launch Preset",
+                    compactLabel = "SETUP",
+                    detail = "Resolving the selected preset against host and client capabilities",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.INFO,
                     enabled = true
@@ -371,8 +371,8 @@ data class AutoQualityUiState(
             if (!status.isStreaming) {
                 return AutoQualityUiState(
                     state = State.WATCHING,
-                    label = "Auto Quality Watching",
-                    compactLabel = "AUTO",
+                    label = "Launch Ready",
+                    compactLabel = "READY",
                     detail = "Ready for the next stream",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.INFO,
@@ -382,7 +382,7 @@ data class AutoQualityUiState(
 
             return AutoQualityUiState(
                 state = State.STABLE,
-                label = if (autoPolicy.isAtQualityCap) "Auto Quality at cap" else "Auto Quality Stable",
+                label = if (autoPolicy.isAtQualityCap) "Stream at Quality Cap" else "Stream Ready",
                 compactLabel = "OK",
                 detail = autoPolicy.summary.takeIf { !authoritativeDoctor && it.isNotBlank() }
                     ?: status.doctor.likelyCause.takeIf {

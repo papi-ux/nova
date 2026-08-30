@@ -506,16 +506,16 @@ data class NovaHudUiState(
         }
 
         private fun AutoQualityUiState.hudLabel(): String = when (state) {
-            AutoQualityUiState.State.OFF -> "Auto Off"
-            AutoQualityUiState.State.WATCHING -> "Auto Check"
-            AutoQualityUiState.State.OPTIMIZING -> "Optimizing"
+            AutoQualityUiState.State.OFF -> "Live Tune Off"
+            AutoQualityUiState.State.WATCHING -> "Doctor Check"
+            AutoQualityUiState.State.OPTIMIZING -> "Launch Setup"
             AutoQualityUiState.State.STABLE -> when {
                 manualOverride -> "Quality Preset"
-                label.contains("cap", ignoreCase = true) -> "Auto Cap"
-                else -> "Auto Stable"
+                label.contains("cap", ignoreCase = true) -> "At Quality Cap"
+                else -> "Stream Ready"
             }
             AutoQualityUiState.State.RECOVERING -> when {
-                compactLabel == "HOST" -> "AI Recovery"
+                compactLabel == "HOST" -> "Host Recovery"
                 label.contains("safe", ignoreCase = true) -> "Auto Safe"
                 label.contains("cap", ignoreCase = true) -> "Auto Safe"
                 label.contains("bitrate", ignoreCase = true) -> "Bitrate Recovery"

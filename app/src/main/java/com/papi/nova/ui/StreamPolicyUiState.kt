@@ -37,9 +37,9 @@ data class StreamPolicyUiState(
 
     val statusCaption: String
         get() = when {
-            hasAdaptiveCap -> "Auto Safe is live at $adaptiveTargetLabel under your $qualityLimitLabel quality limit."
-            adaptiveEnabled && adaptiveTargetBitrateKbps > 0 -> "Auto Safe live target is $adaptiveTargetLabel."
-            autoQualityEnabled && qualityLimitBitrateKbps > 0 -> "Auto Safe is using your $qualityLimitLabel quality limit."
+            hasAdaptiveCap -> "Live tuning is at $adaptiveTargetLabel under your $qualityLimitLabel quality limit."
+            adaptiveEnabled && adaptiveTargetBitrateKbps > 0 -> "Live tuning target is $adaptiveTargetLabel."
+            autoQualityEnabled && qualityLimitBitrateKbps > 0 -> "Live tuning is using your $qualityLimitLabel quality limit."
             qualityLimitBitrateKbps > 0 -> "Using your $qualityLimitLabel quality limit."
             else -> "Waiting for stream policy."
         }
