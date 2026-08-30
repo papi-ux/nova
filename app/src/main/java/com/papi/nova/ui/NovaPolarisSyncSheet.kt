@@ -104,6 +104,9 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
             onMessage = { messageRes, _ ->
                 Toast.makeText(requireContext(), messageRes, Toast.LENGTH_SHORT).show()
             },
+            onTextMessage = { message, _ ->
+                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+            },
         ).also { this.engine = it }
         engine.start(initialSettings)
 
@@ -140,7 +143,6 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                         onSendNova = { engine.sendNova() },
                         onUsePolaris = { engine.usePolarisProfile() },
                         onClearProfile = { engine.clearProfile() },
-                        onAutoQuality = { engine.setAiAutoQuality(it) },
                         onKeepInStep = { engine.setAutoSync(it) },
                     )
                     val rows = buildNovaPlaySetupHostRows(

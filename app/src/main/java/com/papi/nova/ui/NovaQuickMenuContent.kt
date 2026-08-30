@@ -484,9 +484,9 @@ private fun NovaQuickMenuDiagnosisCard(
 ) {
     val capabilityLabel = when (diagnosis.capability) {
         NovaQuickMenuDoctorCapability.AUTO_FIX -> stringResource(R.string.nova_quick_menu_doctor_capability_auto_fix)
+        NovaQuickMenuDoctorCapability.RUN_TRIAL -> stringResource(R.string.nova_quick_menu_doctor_capability_run_trial)
         NovaQuickMenuDoctorCapability.RECHECK -> stringResource(R.string.nova_quick_menu_doctor_capability_recheck)
-        NovaQuickMenuDoctorCapability.DOCTOR -> stringResource(R.string.nova_quick_menu_doctor_capability_doctor)
-        NovaQuickMenuDoctorCapability.FALLBACK -> stringResource(R.string.nova_quick_menu_doctor_capability_fallback)
+        NovaQuickMenuDoctorCapability.MANUAL -> stringResource(R.string.nova_quick_menu_doctor_capability_manual)
     }
     val detail = buildList {
         diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }

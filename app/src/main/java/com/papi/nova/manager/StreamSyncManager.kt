@@ -34,8 +34,23 @@ class StreamSyncManager private constructor() {
 
     companion object {
         const val SYNC_MODE_AUTO_SAFE: String = "auto_safe"
-        private const val BALANCED_FLOOR_WIDTH = 1920
-        private const val BALANCED_FLOOR_HEIGHT = 1080
+
+        @JvmStatic
+        fun maxSupportedRefreshRate(display: Display?): Float {
+            if (display == null) return 0f
+            var maximum = display.refreshRate
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                display.supportedModes.forEach { mode ->
+                    maximum = maxOf(maximum, mode.refreshRate)
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                display.supportedRefreshRates.forEach { rate ->
+                    maximum = maxOf(maximum, rate)
+                }
+            }
+            return maximum
+        }
 
         @JvmStatic
         fun resolveProfileProvenance(
@@ -48,34 +63,12 @@ class StreamSyncManager private constructor() {
 
         @JvmStatic
         fun resolveAutoSafeBitrateKbps(configuredBitrateKbps: Int, optimization: JSONObject?): Int {
-            if (optimization == null) {
-                return configuredBitrateKbps
-            }
-
-            val target = optimization.optInt("target_bitrate_kbps", 0)
-            recoveryLaunchProfile(optimization)?.let { return it.targetBitrateKbps }
-            val stability = optimization.optJSONObject("stability")
-            val safeProfile = stability?.optJSONObject("safe_profile")
-            val safeTarget = safeProfile?.optInt("target_bitrate_kbps", 0) ?: 0
-            val confirmedRecovery = isConfirmedRecoveryPolicy(optimization, stability)
-
-            if (target > 0 && hasPairedLaunchProfileOverride(optimization)) {
-                return if (confirmedRecovery && safeTarget > 0) minOf(target, safeTarget) else target
-            }
-
-            var selected = configuredBitrateKbps
-            if (target > 0 && shouldHonorOptimizerTarget(optimization, stability)) {
-                selected = target
-            } else if (selected <= 0 && target > 0) {
-                selected = target
-            } else if (target > 0 && selected > 0) {
-                selected = minOf(selected, target)
-            }
-            if (confirmedRecovery && safeTarget > 0 && selected > 0) {
-                selected = minOf(selected, safeTarget)
-            }
-
-            return if (selected > 0) selected else configuredBitrateKbps
+            val target = resolvedField(optimization, "target_bitrate_kbps") as? Number
+            val resolved = target?.toInt()?.takeIf { it > 0 } ?: return configuredBitrateKbps
+            // Metered and other per-launch limits are sent to /optimize as
+            // explicit locks. Once the authenticated resolver returns a valid
+            // envelope, Nova must consume that exact value without rewriting it.
+            return resolved
         }
 
         @JvmStatic
@@ -85,85 +78,50 @@ class StreamSyncManager private constructor() {
             optimization: JSONObject?
         ): StreamResolution {
             val configured = StreamResolution(configuredWidth, configuredHeight)
-            if (optimization == null) {
-                return configured
-            }
-
-            recoveryLaunchProfile(optimization)?.let { recovery ->
-                return StreamResolution(recovery.width, recovery.height)
-            }
-
-            val optimized = parseDisplayModeResolution(optimization.optString("display_mode", ""))
-            if (!optimized.isValid()) {
-                return configured
-            }
-
-            if (hasPairedLaunchProfileOverride(optimization)) {
-                return optimized
-            }
-
-            if (configured.isValid() && optimized.pixels() > configured.pixels()) {
-                return configured
-            }
-
-            val stability = optimization.optJSONObject("stability")
-            if (
-                configured.width >= BALANCED_FLOOR_WIDTH &&
-                configured.height >= BALANCED_FLOOR_HEIGHT &&
-                optimized.height < BALANCED_FLOOR_HEIGHT &&
-                !isConfirmedRecoveryPolicy(optimization, stability)
-            ) {
-                return StreamResolution(BALANCED_FLOOR_WIDTH, BALANCED_FLOOR_HEIGHT)
-            }
-
-            return optimized
+            val width = strictIntegralValue(resolvedField(optimization, "display_width"))
+            val height = strictIntegralValue(resolvedField(optimization, "display_height"))
+            val resolved = StreamResolution(width ?: 0, height ?: 0)
+            return resolved.takeIf { it.isValid() } ?: configured
         }
 
         @JvmStatic
         fun resolveAutoSafeTargetFps(configuredFps: Float, optimization: JSONObject?): Float {
-            if (optimization == null || configuredFps <= 0f) {
-                return configuredFps
-            }
-
-            var selected = configuredFps
-            val optimizedFps = parseDisplayModeFps(optimization.optString("display_mode", ""))
-            recoveryLaunchProfile(optimization)?.let { recovery ->
-                return recovery.targetFps.takeIf { it > 0f } ?: optimizedFps.takeIf { it > 0f } ?: configuredFps
-            }
-            val stability = optimization.optJSONObject("stability")
-            val safeProfile = stability?.optJSONObject("safe_profile")
-            val confirmedRecovery = isConfirmedRecoveryPolicy(optimization, stability)
-            val safeTargetRelaxed = isSafeTargetFpsRelaxed(optimization, stability)
-            val safeTarget =
-                if (confirmedRecovery && !safeTargetRelaxed && safeProfile != null) {
-                    safeProfile.optDouble("target_fps", 0.0)
-                } else {
-                    0.0
-                }
-            val topLevelSafeTarget =
-                if (confirmedRecovery && !safeTargetRelaxed) {
-                    optimization.optDouble("safe_target_fps", 0.0)
-                } else {
-                    0.0
-                }
-
-            if (optimizedFps > 0f && hasPairedLaunchProfileOverride(optimization)) {
-                selected = optimizedFps
-            } else if (
-                optimizedFps > 0f &&
-                (optimizedFps >= selected || shouldHonorOptimizerFpsTarget(optimization, stability))
-            ) {
-                selected = minOf(selected, optimizedFps)
-            }
-            if (safeTarget > 0.0) {
-                selected = minOf(selected, safeTarget.toFloat())
-            }
-            if (topLevelSafeTarget > 0.0) {
-                selected = minOf(selected, topLevelSafeTarget.toFloat())
-            }
-
-            return if (selected > 0f) selected else configuredFps
+            if (configuredFps <= 0f) return configuredFps
+            val resolved = resolvedTargetFpsValue(optimization) ?: 0f
+            return resolved.takeIf { it > 0f && it.isFinite() } ?: configuredFps
         }
+
+        @JvmStatic
+        fun resolvedTargetFpsValue(optimization: JSONObject?): Float? =
+            (resolvedField(optimization, "target_fps") as? Number)
+                ?.toFloat()
+                ?.takeIf { it > 0f && it.isFinite() }
+
+        @JvmStatic
+        fun resolveAutoSafeHdr(configuredHdr: Boolean, optimization: JSONObject?): Boolean {
+            val resolved = resolvedHdrValue(optimization) ?: return configuredHdr
+            return resolved
+        }
+
+        @JvmStatic
+        fun resolvedHdrValue(optimization: JSONObject?): Boolean? =
+            resolvedField(optimization, "hdr") as? Boolean
+
+        @JvmStatic
+        fun resolvedFieldIsLocked(optimization: JSONObject?, name: String): Boolean? =
+            validResolvedField(
+                resolvedProfile(optimization)
+                    ?.optJSONObject("fields")
+                    ?.optJSONObject(name)
+            )?.opt("locked") as? Boolean
+
+        @JvmStatic
+        fun resolvedFieldIsNormalized(optimization: JSONObject?, name: String): Boolean? =
+            validResolvedField(
+                resolvedProfile(optimization)
+                    ?.optJSONObject("fields")
+                    ?.optJSONObject(name)
+            )?.opt("normalized") as? Boolean
 
         @JvmStatic
         fun resolveDisplayCompatibleAutoSafeTargetFps(
@@ -238,53 +196,14 @@ class StreamSyncManager private constructor() {
 
         @JvmStatic
         fun shouldPreferStabilityDecoder(optimization: JSONObject?): Boolean {
-            if (optimization == null) {
-                return false
-            }
-            val stability = optimization.optJSONObject("stability")
-            if (!isConfirmedRecoveryPolicy(optimization, stability)) {
-                return false
-            }
-            val safeTargetRelaxed = isSafeTargetFpsRelaxed(optimization, stability)
-
-            val source = optimization.optString("source", "")
-            if (!safeTargetRelaxed && source.lowercase(Locale.US).contains("history_safe")) {
-                return true
-            }
-
-            if (!safeTargetRelaxed && optimization.optDouble("safe_target_fps", 0.0) > 0.0) {
-                return true
-            }
-
-            if (stability == null) {
-                return false
-            }
-
-            val mode = stability.optString("mode", "")
-            if ("stability_first".equals(mode, ignoreCase = true)) {
-                return true
-            }
-
-            val safeProfile = stability.optJSONObject("safe_profile")
-            return !safeTargetRelaxed && safeProfile != null && safeProfile.optDouble("target_fps", 0.0) > 0.0
+            return resolvedPreset(optimization) == "stability"
         }
 
         @JvmStatic
         fun shouldForceFreshLaunch(optimization: JSONObject?): Boolean {
-            if (optimization == null) {
-                return false
-            }
-
-            recoveryLaunchProfile(optimization)?.let { return it.requiresFreshLaunch }
-
-            if (optimization.optBoolean("requires_fresh_launch", false) ||
-                optimization.optBoolean("relaunch_required", false)
-            ) {
-                return true
-            }
-
-            val stability = optimization.optJSONObject("stability")
-            return stability != null && stability.optBoolean("relaunch_required", false)
+            // Preset selection is part of an ordinary explicit launch. Legacy
+            // optimizer/recovery payloads cannot force a stop-and-relaunch.
+            return false
         }
 
         @JvmStatic
@@ -366,96 +285,100 @@ class StreamSyncManager private constructor() {
 
         @JvmStatic
         fun shouldPreferStableRefreshMultiple(optimization: JSONObject?, targetFps: Float): Boolean {
-            if (optimization == null || targetFps <= 0f || targetFps > 45f) {
-                return false
-            }
-            val stability = optimization.optJSONObject("stability")
-            if (!isConfirmedRecoveryPolicy(optimization, stability)) {
-                return false
-            }
-            val safeTargetRelaxed = isSafeTargetFpsRelaxed(optimization, stability)
-
-            val source = optimization.optString("source", "")
-            if (!safeTargetRelaxed && source.lowercase(Locale.US).contains("history_safe")) {
-                return true
-            }
-
-            if (!safeTargetRelaxed && optimization.optDouble("safe_target_fps", 0.0) > 0.0) {
-                return true
-            }
-
-            if (stability == null) {
-                return false
-            }
-
-            if ("stability_first".equals(stability.optString("mode", ""), ignoreCase = true)) {
-                return true
-            }
-
-            val safeProfile = stability.optJSONObject("safe_profile")
-            return !safeTargetRelaxed && safeProfile != null && safeProfile.optDouble("target_fps", 0.0) > 0.0
-        }
-
-        private fun isSafeTargetFpsRelaxed(optimization: JSONObject, stability: JSONObject?): Boolean =
-            optimization.optBoolean("safe_target_fps_relaxed", false) ||
-                (stability != null && stability.optBoolean("safe_target_fps_relaxed", false)) ||
-                isHighFpsTrial(optimization)
-
-        private fun isHighFpsTrial(optimization: JSONObject): Boolean {
-            if (optimization.optBoolean("trial_profile", false) &&
-                normalized(optimization.optString("trial_kind", "")) == "high_fps"
-            ) {
-                return true
-            }
-
-            val profileState = optimization.optJSONObject("profile_state") ?: return false
-            return profileState.optBoolean("trial_profile", false) &&
-                normalized(profileState.optString("trial_kind", "")) == "high_fps"
-        }
-
-        private fun shouldHonorOptimizerTarget(optimization: JSONObject, stability: JSONObject?): Boolean {
-            if (isConfirmedRecoveryPolicy(optimization, stability)) {
-                return false
-            }
-
-            return "high" == normalized(optimization.optString("confidence", ""))
-        }
-
-        private fun shouldHonorOptimizerFpsTarget(optimization: JSONObject, stability: JSONObject?): Boolean {
-            if (isConfirmedRecoveryPolicy(optimization, stability)) {
-                return true
-            }
-
-            val source = normalized(optimization.optString("source", ""))
-            val confidence = normalized(optimization.optString("confidence", ""))
-            return source.contains("ai") ||
-                source.contains("optimizer") ||
-                ("high" == confidence && !source.contains("client_profile"))
-        }
-
-        private fun isConfirmedRecoveryPolicy(optimization: JSONObject, stability: JSONObject?): Boolean {
-            val source = normalized(optimization.optString("source", ""))
-            val autoAction = normalized(optimization.optString("auto_action", ""))
-            val mode = if (stability != null) normalized(stability.optString("mode", "")) else ""
-            val stabilityAction = if (stability != null) normalized(stability.optString("auto_action", "")) else ""
-
-            return source.contains("history_safe") ||
-                "apply_recovery" == autoAction ||
-                "apply_recovery" == stabilityAction ||
-                "ai_recovery" == mode ||
-                "stability_first" == mode
+            return targetFps in 1f..45f && resolvedPreset(optimization) == "stability"
         }
 
         private fun normalized(value: String?): String = value?.trim()?.lowercase(Locale.US) ?: ""
 
-        private fun hasPairedLaunchProfileOverride(optimization: JSONObject): Boolean {
-            if (optimization.optBoolean("paired_profile_applied", false)) {
-                return true
-            }
+        private val resolvedFieldSources = setOf(
+            "explicit_launch_request",
+            "client_launch_request",
+            "paired_client",
+            "client_profile",
+            "device_profile_v1",
+            "capability_validation",
+            "composed_display_components"
+        )
 
-            return normalized(optimization.optString("normalization_reason", ""))
-                .contains("paired client profile")
+        private fun strictIntegralValue(value: Any?): Int? {
+            val number = value as? Number ?: return null
+            val doubleValue = number.toDouble()
+            if (!doubleValue.isFinite() || doubleValue % 1.0 != 0.0 ||
+                doubleValue < Int.MIN_VALUE || doubleValue > Int.MAX_VALUE) {
+                return null
+            }
+            return doubleValue.toInt()
         }
+
+        private fun resolvedProfile(optimization: JSONObject?): JSONObject? {
+            val payload = optimization ?: return null
+            val source = payload.opt("source") as? String
+            if (normalized(source) != "deterministic_preset_v1") {
+                return null
+            }
+            val profile = payload.opt("resolved_profile") as? JSONObject ?: return null
+            if (strictIntegralValue(profile.opt("policy_version")) != 1) return null
+            return profile
+        }
+
+        @JvmStatic
+        fun hasTrustedResolvedProfile(optimization: JSONObject?): Boolean {
+            val fields = resolvedProfile(optimization)?.optJSONObject("fields") ?: return false
+            val displayMode = validResolvedField(fields.optJSONObject("display_mode"))
+                ?.opt("value") as? String ?: return false
+            val width = strictIntegralValue(
+                validResolvedField(fields.optJSONObject("display_width"))?.opt("value")
+            ) ?: return false
+            val height = strictIntegralValue(
+                validResolvedField(fields.optJSONObject("display_height"))?.opt("value")
+            ) ?: return false
+            val targetFps = validResolvedField(fields.optJSONObject("target_fps"))
+                ?.opt("value") as? Number ?: return false
+            val bitrate = validResolvedField(fields.optJSONObject("target_bitrate_kbps"))
+                ?.opt("value") as? Number ?: return false
+            if (validResolvedField(fields.optJSONObject("hdr"))?.opt("value") !is Boolean) {
+                return false
+            }
+            val modeParts = displayMode.split("x")
+            if (modeParts.size != 3) return false
+            val modeWidth = modeParts[0].toIntOrNull() ?: return false
+            val modeHeight = modeParts[1].toIntOrNull() ?: return false
+            val modeFps = modeParts[2].toDoubleOrNull() ?: return false
+            val fps = targetFps.toDouble()
+            val bitrateKbps = bitrate.toDouble()
+            return width in 320..16384 && height in 240..16384 &&
+                fps.isFinite() && fps in 15.0..240.0 &&
+                modeWidth == width && modeHeight == height && modeFps.isFinite() &&
+                kotlin.math.abs(modeFps - fps) <= 0.001 &&
+                bitrateKbps.isFinite() && bitrateKbps in 1000.0..300000.0 &&
+                bitrateKbps == kotlin.math.floor(bitrateKbps)
+        }
+
+        private fun validResolvedField(detail: JSONObject?): JSONObject? {
+            detail ?: return null
+            val source = detail.opt("source") as? String ?: return null
+            val reasonCode = detail.opt("reason_code") as? String ?: return null
+            if (source.isBlank() || source !in resolvedFieldSources ||
+                reasonCode.isBlank() ||
+                detail.opt("locked") !is Boolean ||
+                detail.opt("normalized") !is Boolean ||
+                !detail.has("value") || detail.isNull("value")
+            ) {
+                return null
+            }
+            return detail
+        }
+
+        private fun resolvedField(optimization: JSONObject?, name: String): Any? {
+            val detail = validResolvedField(resolvedProfile(optimization)
+                ?.optJSONObject("fields")
+                ?.optJSONObject(name)) ?: return null
+            val value = detail.opt("value")
+            return value?.takeUnless { it === JSONObject.NULL }
+        }
+
+        private fun resolvedPreset(optimization: JSONObject?): String =
+            normalized(resolvedProfile(optimization)?.optString("preset", "auto"))
 
         @JvmStatic
         fun buildDeviceCapabilities(
@@ -473,7 +396,7 @@ class StreamSyncManager private constructor() {
             put(json, "device", Build.DEVICE)
             put(json, "sdk_int", Build.VERSION.SDK_INT)
             put(json, "external_display", externalDisplay)
-            put(json, "metered_network", isMetered(context))
+            put(json, "metered_network", isMeteredNetwork(context))
 
             if (display != null) {
                 put(json, "display_id", display.displayId)
@@ -527,7 +450,7 @@ class StreamSyncManager private constructor() {
                 profile = profile ?: ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT)
             ).toJson()
             put(json, "sync_mode", SYNC_MODE_AUTO_SAFE)
-            put(json, "metered_network", isMetered(context))
+            put(json, "metered_network", isMeteredNetwork(context))
             put(json, "frame_pacing", framePacing)
             if (displayModeId > 0) put(json, "display_mode_id", displayModeId)
             if (renderer != null) {
@@ -596,74 +519,17 @@ class StreamSyncManager private constructor() {
 
         @JvmStatic
         fun recoveryLaunchProfile(optimization: JSONObject?): RecoveryLaunchProfile? {
-            if (optimization == null ||
-                !optimization.optString("recovery_state", "").equals("queued", ignoreCase = true)
-            ) {
-                return null
-            }
-            val runId = optimization.optString("recovery_run_id", "").trim()
-            val profile = optimization.optJSONObject("recovery_profile") ?: return null
-            val streamDisplayMode = profile.optString(
-                "stream_display_mode",
-                optimization.optString("stream_display_mode", "")
-            ).trim().lowercase(Locale.US)
-            val width = profile.optInt("width", 0)
-            val height = profile.optInt("height", 0)
-            val targetFps = profile.optDouble("target_fps", 0.0).toFloat()
-            val targetBitrateKbps = profile.optInt(
-                "target_bitrate_kbps",
-                optimization.optInt("target_bitrate_kbps", 0)
-            )
-            val preferredCodec = profile.optString(
-                "preferred_codec",
-                optimization.optString("preferred_codec", "")
-            ).trim().lowercase(Locale.US)
-            val hdr = profile.opt("hdr") as? Boolean ?: return null
-            val preservePairedResolution = profile.opt("preserve_paired_resolution") as? Boolean
-                ?: return null
-            val requiresFreshLaunch = profile.opt("requires_fresh_launch") as? Boolean
-                ?: return null
-            if (runId.isBlank() ||
-                streamDisplayMode !in setOf(
-                    "headless_stream", "host_virtual_display", "gamescope_stream",
-                    "windowed_stream", "desktop_display"
-                ) ||
-                width !in 320..16384 || height !in 240..16384 ||
-                targetFps !in 15f..240f || targetBitrateKbps !in 1_000..300_000 ||
-                preferredCodec !in setOf("h264", "hevc", "av1") ||
-                !preservePairedResolution || !requiresFreshLaunch ||
-                (hdr && preferredCodec == "h264")
-            ) {
-                return null
-            }
-            return RecoveryLaunchProfile(
-                runId = runId,
-                streamDisplayMode = streamDisplayMode,
-                width = width,
-                height = height,
-                targetFps = targetFps,
-                targetBitrateKbps = targetBitrateKbps,
-                preferredCodec = preferredCodec,
-                hdr = hdr,
-                requiresFreshLaunch = requiresFreshLaunch
-            )
+            // Kept for binary/source compatibility with the v1 client model.
+            // Recovery receipts remain visible and cancellable, but never form
+            // a launch profile in Nova v1.3.9.
+            return null
         }
 
         @JvmStatic
         fun restrictVideoFormatsForRecovery(
             supportedVideoFormats: Int,
             recovery: RecoveryLaunchProfile?
-        ): Int {
-            if (recovery == null) return supportedVideoFormats
-            val codecMask = when (recovery.preferredCodec) {
-                "av1" -> MoonBridge.VIDEO_FORMAT_AV1_MAIN8 or
-                    if (recovery.hdr) MoonBridge.VIDEO_FORMAT_AV1_MAIN10 else 0
-                "hevc" -> MoonBridge.VIDEO_FORMAT_H265 or
-                    if (recovery.hdr) MoonBridge.VIDEO_FORMAT_H265_MAIN10 else 0
-                else -> MoonBridge.VIDEO_FORMAT_H264
-            }
-            return supportedVideoFormats and codecMask
-        }
+        ): Int = supportedVideoFormats
 
         private fun preferredCodec(
             videoFormat: PreferenceConfiguration.FormatOption?,
@@ -692,7 +558,8 @@ class StreamSyncManager private constructor() {
             }
         }
 
-        private fun isMetered(context: Context): Boolean {
+        @JvmStatic
+        fun isMeteredNetwork(context: Context): Boolean {
             val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager?
             return manager != null && manager.isActiveNetworkMetered
         }

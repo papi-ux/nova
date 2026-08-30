@@ -30,6 +30,7 @@ data class DoctorActionReceipt(
     val undoAvailable: Boolean = false,
     val undoActionId: String = "",
     val appUuid: String = "",
+    val sessionGeneration: Long = 0L,
     val expiresAtEpochSeconds: Long = 0L,
     val updatedAtEpochMs: Long = 0L
 ) {
@@ -49,7 +50,10 @@ data class DoctorActionRequestIdentity(
     val scopeId: String,
     val runId: String,
     val generation: Long,
-    val appSessionId: String = ""
+    val appSessionId: String = "",
+    val sessionGeneration: Long = 0L,
+    val actionId: String = "",
+    val requestId: String = ""
 )
 
 internal class DoctorMenuRefreshRegistry {
@@ -122,7 +126,8 @@ internal class DoctorActionPendingRegistry {
 
 object DoctorActionReceiptStore {
     internal val TERMINAL_STATES = setOf(
-        "stable", "resolved", "needs_attention", "applied", "expired", "rejected", "undone"
+        "stable", "resolved", "rolled_back", "superseded", "needs_attention",
+        "applied", "expired", "rejected", "undone"
     )
 
     private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v3_"
@@ -140,8 +145,9 @@ object DoctorActionReceiptStore {
         httpsPort: Int,
         sessionStatus: PolarisSessionStatus?
     ): String? = sessionStatus?.let {
+        if (it.appSessionIdPresent && it.sessionGeneration <= 0L) return null
         val (identityKind, identity) = if (it.appSessionIdPresent) {
-            "app-v1" to it.appSessionId
+            "app-generation-v1" to it.appSessionId
         } else {
             "legacy-token-v1" to it.sessionToken
         }
@@ -151,7 +157,8 @@ object DoctorActionReceiptStore {
             httpsPort = httpsPort,
             identityKind = identityKind,
             appSessionId = identity,
-            gameUuid = it.gameUuid
+            gameUuid = it.gameUuid,
+            sessionGeneration = if (it.appSessionIdPresent) it.sessionGeneration else 0L
         )
     }
 
@@ -160,10 +167,10 @@ object DoctorActionReceiptStore {
         httpsPort: Int,
         appSessionId: String,
         gameUuid: String
-    ): String? = scopeId(host, httpsPort, "app-v1", appSessionId, gameUuid)
+    ): String? = scopeId(host, httpsPort, "app-v1", appSessionId, gameUuid, 0L)
 
     fun recoveryScopeId(host: String, httpsPort: Int, appUuid: String): String? =
-        scopeId(host, httpsPort, "recovery-app-v1", appUuid, appUuid)
+        scopeId(host, httpsPort, "recovery-app-v1", appUuid, appUuid, 0L)
 
     fun fromRecoveryReceipt(
         scopeId: String,
@@ -281,7 +288,8 @@ object DoctorActionReceiptStore {
         httpsPort: Int,
         identityKind: String,
         appSessionId: String,
-        gameUuid: String
+        gameUuid: String,
+        sessionGeneration: Long
     ): String? {
         val normalizedHost = host.trim().lowercase()
         if (normalizedHost.isBlank() || appSessionId.isBlank() || gameUuid.isBlank()) return null
@@ -292,7 +300,8 @@ object DoctorActionReceiptStore {
             normalizedHost,
             httpsPort.toString(),
             appSessionId,
-            gameUuid
+            gameUuid,
+            sessionGeneration.toString()
         )
         val encoded = components.map { component ->
             val encoder = Charsets.UTF_8.newEncoder()
@@ -326,7 +335,8 @@ object DoctorActionReceiptStore {
         previous: DoctorActionReceipt?,
         scopeId: String,
         result: PolarisDoctorActionResult,
-        nowEpochMs: Long
+        nowEpochMs: Long,
+        sessionGeneration: Long = 0L
     ): DoctorActionReceipt {
         val previousInScope = previous?.takeIf { it.scopeId == scopeId }
         val runId = result.runId.ifBlank { previousInScope?.runId.orEmpty() }
@@ -338,7 +348,7 @@ object DoctorActionReceiptStore {
         val verificationActionId = when {
             terminal -> ""
             result.verificationActionId.isNotBlank() -> result.verificationActionId
-            responseState == "watching" -> sameRun?.verificationActionId.orEmpty()
+            responseState in setOf("applying", "watching") -> sameRun?.verificationActionId.orEmpty()
             else -> ""
         }
         val verificationAttemptCount = if (sameRun?.verificationPending == true) {
@@ -385,6 +395,9 @@ object DoctorActionReceiptStore {
             undoAvailable = undoAvailable,
             undoActionId = undoActionId.take(MAX_FIELD_LENGTH),
             appUuid = result.appUuid.ifBlank { sameRun?.appUuid.orEmpty() }.take(MAX_FIELD_LENGTH),
+            sessionGeneration = sessionGeneration.takeIf { it > 0L }
+                ?: sameRun?.sessionGeneration
+                ?: 0L,
             expiresAtEpochSeconds = result.expiresAt.takeIf { it > 0L }
                 ?: sameRun?.expiresAtEpochSeconds
                 ?: 0L,
@@ -458,7 +471,8 @@ object DoctorActionReceiptStore {
     ): Boolean {
         if (activeScopeId != request.scopeId || activeGeneration != request.generation) return false
         if (request.runId.isBlank()) return true
-        return current?.scopeId == request.scopeId && current.runId == request.runId
+        return current?.scopeId == request.scopeId && current.runId == request.runId &&
+            (request.sessionGeneration == 0L || current.sessionGeneration == request.sessionGeneration)
     }
 
     fun undoIsAuthorized(
@@ -467,13 +481,14 @@ object DoctorActionReceiptStore {
         activeScopeId: String?,
         validatedScopeId: String?,
         canAdjustHostTuning: Boolean
-    ): Boolean = canAdjustHostTuning &&
+    ): Boolean = (canAdjustHostTuning || candidate.runId.startsWith("recovery-run-")) &&
         activeScopeId != null &&
         validatedScopeId == activeScopeId &&
         current != null &&
         current.scopeId == activeScopeId &&
         candidate.scopeId == activeScopeId &&
         current.runId == candidate.runId &&
+        current.sessionGeneration == candidate.sessionGeneration &&
         current.undoAvailable &&
         current.undoActionId.isNotBlank() &&
         current.undoActionId == candidate.undoActionId
@@ -485,7 +500,9 @@ object DoctorActionReceiptStore {
         request: DoctorActionRequestIdentity,
         result: PolarisDoctorActionResult
     ): Boolean {
-        if (!result.status || !responseIdentityMatches(current, activeScopeId, activeGeneration, request, result)) {
+        if (!result.status || !result.changedContractValid ||
+            !responseIdentityMatches(current, activeScopeId, activeGeneration, request, result)
+        ) {
             return false
         }
         return true
@@ -499,18 +516,46 @@ object DoctorActionReceiptStore {
         result: PolarisDoctorActionResult
     ): Boolean {
         if (!requestIsCurrent(current, activeScopeId, activeGeneration, request)) return false
+        if (request.requestId.isNotBlank() && result.requestId != request.requestId) return false
+        if (request.appSessionId.isNotBlank() || request.sessionGeneration > 0L) {
+            if (!result.scopeContractValid ||
+                result.appSessionId != request.appSessionId ||
+                result.sessionGeneration != request.sessionGeneration
+            ) {
+                return false
+            }
+        }
         val responseRunId = result.runId.trim()
         return if (request.runId.isBlank()) {
             responseRunId.isNotBlank()
         } else {
-            responseRunId.isBlank() || responseRunId == request.runId
+            responseRunId == request.runId
         }
     }
 
-    fun successfulLegacyNewRunResult(
+    fun successfulReadOnlyNewRunResult(
         request: DoctorActionRequestIdentity,
         result: PolarisDoctorActionResult
-    ): Boolean = request.runId.isBlank() && result.status && result.runId.isBlank()
+    ): Boolean {
+        if (request.runId.isNotBlank() || request.actionId !in setOf("recheck_network", "recheck_pacing")) {
+            return false
+        }
+        val expectedStates = if (request.actionId == "recheck_pacing") {
+            setOf("observed")
+        } else {
+            setOf("stable", "confirmed_pressure")
+        }
+        return result.status && result.changedContractValid &&
+            (request.appSessionId.isBlank() ||
+                (result.scopeContractValid && result.appSessionId == request.appSessionId &&
+                    result.sessionGeneration == request.sessionGeneration)) &&
+            !result.changed &&
+            result.runId.isBlank() &&
+            result.state in expectedStates &&
+            result.verificationActionId.isBlank() &&
+            result.undoAvailable != true &&
+            result.undoActionId.isBlank()
+    }
 
     fun validationGenerationIsCurrent(activeGeneration: Long, requestGeneration: Long): Boolean =
         activeGeneration == requestGeneration
@@ -547,6 +592,7 @@ object DoctorActionReceiptStore {
             put("undo_available", receipt.undoAvailable)
             put("undo_action_id", receipt.undoActionId)
             put("app_uuid", receipt.appUuid)
+            put("session_generation", receipt.sessionGeneration)
             put("expires_at_epoch_seconds", receipt.expiresAtEpochSeconds)
             put("updated_at_epoch_ms", receipt.updatedAtEpochMs)
             put("saved_at_epoch_ms", savedAt)
@@ -609,6 +655,7 @@ object DoctorActionReceiptStore {
                 undoAvailable = json.optBoolean("undo_available", false),
                 undoActionId = json.optString("undo_action_id").take(MAX_FIELD_LENGTH),
                 appUuid = json.optString("app_uuid").take(MAX_FIELD_LENGTH),
+                sessionGeneration = json.optLong("session_generation", 0L).coerceAtLeast(0L),
                 expiresAtEpochSeconds = json.optLong("expires_at_epoch_seconds", 0L).coerceAtLeast(0L),
                 updatedAtEpochMs = json.optLong("updated_at_epoch_ms", 0L).coerceAtLeast(0L)
             )

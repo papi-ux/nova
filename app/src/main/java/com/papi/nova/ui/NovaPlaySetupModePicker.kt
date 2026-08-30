@@ -308,7 +308,7 @@ private fun NovaPlaySetupModeCard(
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .semantics {
                 contentDescription = if (choice.aiRecommended) {
-                    "${choice.label}. AI pick. ${choice.detail}"
+                    "${choice.label}. Host match. ${choice.detail}"
                 } else {
                     "${choice.label}. ${choice.detail}"
                 }

@@ -860,4 +860,44 @@ class NovaLaunchProfileSummaryTest {
         assertEquals("", summary.grantHoldReason)
     }
 
+    @Test
+    fun deterministicPresetShowsCompleteProvenanceWithoutAWarningLimit() {
+        fun field(value: Any, source: String, reason: String, locked: Boolean, normalized: Boolean) =
+            JSONObject()
+                .put("value", value)
+                .put("source", source)
+                .put("reason_code", reason)
+                .put("locked", locked)
+                .put("normalized", normalized)
+
+        val fields = JSONObject()
+            .put("display_mode", field("1920x1080x120", "composed", "component_precedence", true, false))
+            .put("display_width", field(1920, "paired_client", "paired_display_width", false, false))
+            .put("display_height", field(1080, "paired_client", "paired_display_height", false, false))
+            .put("target_fps", field(120.0, "client_launch_request", "explicit_fps_lock", true, false))
+            .put("target_bitrate_kbps", field(40_000, "host_capability", "host_bitrate_cap", false, true))
+            .put("preferred_codec", field("hevc", "paired_client", "paired_codec", false, false))
+            .put("nvenc_tune", field(0, "preset", "preset_default", false, false))
+            .put("hdr", field(false, "client_launch_request", "explicit_hdr_lock", true, false))
+            .put("color_range", field(0, "preset", "preset_default", false, false))
+        val optimization = JSONObject()
+            .put("source", "deterministic_preset_v1")
+            .put(
+                "resolved_profile",
+                JSONObject()
+                    .put("policy_version", 1)
+                    .put("preset", "high_fps")
+                    .put("preset_label", "High FPS")
+                    .put("fields", fields),
+            )
+
+        val summary = requireNotNull(buildNovaLaunchProfileSummary(optimization, clientAskedFps = 120.0))
+
+        assertTrue(summary.selectedLine.contains("1920×1080 @ 120 FPS"))
+        assertTrue(summary.provenanceLine.contains("FPS: client_launch_request / explicit_fps_lock / locked"))
+        assertTrue(summary.provenanceLine.contains("bitrate: host_capability / host_bitrate_cap / normalized"))
+        assertEquals("", summary.limitingLine)
+        assertEquals(NovaLaunchProfileNoticeTone.HEALTHY, summary.noticeTone)
+    }
+
 }

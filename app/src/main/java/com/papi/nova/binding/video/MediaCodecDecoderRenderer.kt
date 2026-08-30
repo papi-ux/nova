@@ -1771,7 +1771,8 @@ class MediaCodecDecoderRenderer(
             val rttInfo = MoonBridge.getEstimatedRttInfo()
             // Overlay text costs resource lookups and TrafficStats kernel round trips on the
             // decode thread; skip all of it unless something is actually going to display or
-            // log it. The numeric sample below stays unconditional: it feeds adaptive quality.
+            // log it. The raw numeric sample below stays unconditional so Doctor shadow
+            // telemetry remains independent of whether any HUD is visible.
             if (perfTextWanted || prefs.enablePerfLogging) {
                 val fullLog = buildPerfText(lastTwo, fps, decoder, decodeTimeMs, rttInfo)
                 perfListener.onPerfUpdate(fullLog)
@@ -1796,7 +1797,16 @@ class MediaCodecDecoderRenderer(
                 rttMs = (rttInfo shr 32).toInt(),
                 rttVarianceMs = rttInfo.toInt(),
                 decodeTimeMs = decodeTimeMs.toDouble(),
-                packetLossPct = packetLossPct
+                packetLossPct = packetLossPct,
+                monotonicTimestampMs = SystemClock.elapsedRealtime(),
+                framesExpected = (globalVideoStats.totalFrames + activeWindowVideoStats.totalFrames).toLong(),
+                framesReceived = (globalVideoStats.totalFramesReceived + activeWindowVideoStats.totalFramesReceived).toLong(),
+                framesRendered = (globalVideoStats.totalFramesRendered + activeWindowVideoStats.totalFramesRendered).toLong(),
+                framesLost = (globalVideoStats.framesLost + activeWindowVideoStats.framesLost).toLong(),
+                hostProcessingLatencyMs = lastTwo.framesWithHostProcessingLatency
+                    .takeIf { it > 0 }
+                    ?.let { lastTwo.totalHostProcessingLatency.toDouble() / 10.0 / it.toDouble() },
+                sessionGeneration = benchmarkStreamGeneration.toLong() + 1L
             )
             perfListener.onPerfSample(perfSample)
 

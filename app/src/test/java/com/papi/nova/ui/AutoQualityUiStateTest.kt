@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisSessionStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,13 +24,33 @@ class AutoQualityUiStateTest {
                 encoder = encoder(fps = 118.0),
                 capture = capture()
             ),
-            fallbackTargetFps = 120.0,
-            lastRenderedFps = 117.0
+            fallbackTargetFps = 120.0
         )
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
         assertEquals("Auto Quality Stable", state.label)
+        assertEquals("Stream target is holding steady", state.detail)
+        assertFalse(state.detail.contains("Network", ignoreCase = true))
+        assertFalse(state.detail.contains("frame pacing", ignoreCase = true))
         assertTrue(state.targetSummary.contains("HEVC"))
+    }
+
+    @Test
+    fun lowRenderedFpsWithoutHostCadenceEvidenceRemainsObservational() {
+        val state = AutoQualityUiState.from(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "good",
+                    primaryIssue = "none"
+                ),
+                encoder = encoder(fps = 30.0),
+                capture = capture()
+            ),
+            fallbackTargetFps = 120.0
+        )
+
+        assertEquals(AutoQualityUiState.State.STABLE, state.state)
+        assertEquals("Auto Quality Stable", state.label)
     }
 
     @Test
@@ -45,7 +66,7 @@ class AutoQualityUiStateTest {
             )
         )
 
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
         assertEquals("Frame pacing", state.label)
         assertEquals(AutoQualityUiState.Tone.WARNING, state.tone)
         assertEquals("Frame pacing", state.detail)
@@ -64,13 +85,13 @@ class AutoQualityUiStateTest {
             )
         )
 
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("Auto Safe capped", state.label)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
+        assertEquals("Live bitrate adjusted", state.label)
         assertTrue(state.targetSummary.contains("12 Mbps live / 30 Mbps limit"))
     }
 
     @Test
-    fun hostRenderRecoveryQueuedShowsAiRecoveryProfile() {
+    fun hostRenderRecoveryHistoryShowsObservationalPacingWatch() {
         val state = AutoQualityUiState.from(
             status = status(
                 health = PolarisSessionStatus.HealthStatus(
@@ -89,10 +110,10 @@ class AutoQualityUiStateTest {
             )
         )
 
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("AI Recovery Profile", state.label)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
+        assertEquals("Frame Pacing Watch", state.label)
         assertEquals("HOST", state.compactLabel)
-        assertEquals(true, state.recovering)
+        assertEquals(false, state.recovering)
     }
 
     @Test
@@ -138,8 +159,8 @@ class AutoQualityUiStateTest {
             )
         )
 
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("AI Recovery Profile", state.label)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
+        assertEquals("Frame Pacing Watch", state.label)
         assertTrue(state.manualOverride)
     }
 
@@ -270,6 +291,45 @@ class AutoQualityUiStateTest {
         assertEquals("Auto Quality Off", state.label)
     }
 
+    @Test
+    fun authoritativeDoctorNoneIgnoresStaleHealthRecoveryAndPacingHistory() {
+        val state = AutoQualityUiState.from(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    summary = "Network jitter and frame pacing were previously observed.",
+                    primaryIssue = "frame_pacing",
+                    issues = listOf("frame_pacing", "network_jitter"),
+                    networkRisk = "elevated",
+                    recoveryProfile = "host_render_limited",
+                    relaunchRecommended = true,
+                    safeTargetFps = 30.0,
+                    safeBitrateKbps = 12000
+                ),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-current-none",
+                    primaryIssue = "none"
+                ),
+                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
+                    enabled = true,
+                    state = "blocked",
+                    blockedReason = "network",
+                    relaunchRequired = true,
+                    summary = "Holding quality while network pressure clears."
+                )
+            ),
+            fallbackTargetFps = 120.0
+        )
+
+        assertEquals(AutoQualityUiState.State.STABLE, state.state)
+        assertEquals("Auto Quality Stable", state.label)
+        assertEquals("Stream target is holding steady", state.detail)
+        assertFalse(state.detail.contains("Network", ignoreCase = true))
+        assertFalse(state.detail.contains("frame pacing", ignoreCase = true))
+    }
+
     private fun status(
         state: String = "streaming",
         streamingActive: Boolean = true,
@@ -284,6 +344,7 @@ class AutoQualityUiStateTest {
         encoder: PolarisSessionStatus.EncoderStatus = encoder(),
         capture: PolarisSessionStatus.CaptureStatus = capture(),
         health: PolarisSessionStatus.HealthStatus = PolarisSessionStatus.HealthStatus(grade = "good"),
+        doctor: PolarisSessionStatus.DoctorStatus = PolarisSessionStatus.DoctorStatus(),
         autoQuality: PolarisSessionStatus.AutoQualityPolicy = PolarisSessionStatus.AutoQualityPolicy(),
         linuxGpuProfile: PolarisSessionStatus.LinuxGpuProfile? = null,
         sync: PolarisSessionStatus.SyncStatus = PolarisSessionStatus.SyncStatus(
@@ -301,6 +362,7 @@ class AutoQualityUiStateTest {
         capture = capture,
         autoQuality = autoQuality,
         health = health,
+        doctor = doctor,
         linuxGpuProfile = linuxGpuProfile,
         syncStatus = sync
     )

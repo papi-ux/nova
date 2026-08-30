@@ -176,6 +176,7 @@ class KotlinNvstreamRuntimeMigrationTest {
         )
         NvConnection::class.java.getMethod("stop")
         NvConnection::class.java.getDeclaredMethod("negotiateLaunchRefreshRate", floatType, intType)
+        NvConnection::class.java.getMethod("launchRefreshRateHz", floatType)
         NvConnection::class.java.getMethod("getSessionToken")
         NvConnection::class.java.getMethod("start", AudioRenderer::class.java, VideoDecoderRenderer::class.java, NvConnectionListener::class.java)
         NvConnection::class.java.getMethod("setWatchOnlyRequested", booleanType)
@@ -222,11 +223,18 @@ class KotlinNvstreamRuntimeMigrationTest {
         NvConnection::class.java.getMethod("sendUtf8Text", String::class.java)
         NvConnection::class.java.getMethod("findExternalAddressForMdns", String::class.java, intType)
         NvConnection::class.java.getMethod("shouldReplaceCurrentSession", booleanType, booleanType)
+        NvConnection::class.java.getMethod("canStartFreshLaunch", booleanType, booleanType)
 
         assertEquals(60.0f, NvConnection.negotiateLaunchRefreshRate(120.0f, 60), 0.001f)
         assertEquals(75.0f, NvConnection.negotiateLaunchRefreshRate(75.0f, 120), 0.001f)
+        assertEquals(60_000.0f, NvConnection.negotiateLaunchRefreshRate(119_880.0f, 60), 0.001f)
+        assertEquals(119.88f, NvConnection.launchRefreshRateHz(119_880.0f), 0.001f)
         assertTrue(NvConnection.shouldReplaceCurrentSession(true, false))
         assertFalse(NvConnection.shouldReplaceCurrentSession(true, true))
+        assertTrue(NvConnection.canStartFreshLaunch(false, false))
+        assertFalse(NvConnection.canStartFreshLaunch(true, false))
+        assertFalse(NvConnection.canStartFreshLaunch(false, true))
+        assertFalse(NvConnection.canStartFreshLaunch(true, true))
     }
 
     private fun readSource(path: String): String =

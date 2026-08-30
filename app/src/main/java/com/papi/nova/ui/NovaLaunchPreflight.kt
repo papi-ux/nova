@@ -16,11 +16,11 @@ import com.papi.nova.preferences.PreferenceConfiguration
  * cache — silently flipped the host's use_cage_compositor/headless flags, stopped the
  * private compositor from spawning, and made capture fall through to the desktop and
  * hard-fail. Only per-client display/bitrate are pushed here now; mirror and virtual
- * display still travel session-scoped on the /launch URL. The per-session stream mode
- * travels the same way (step 2): the resolved override rides the /launch streamMode
- * param via ServerHelper -> Game -> NvHTTP, which is why usesVirtualDisplay,
- * mirrorDesktop, resolvedMode and clientSettings are retained in the signature (the
- * call sites also use them for the /optimize mode hint and the /launch URL).
+ * display still travel session-scoped on the /launch URL. An explicit per-game mode
+ * rides the streamMode parameter; every trusted result separately echoes its resolved
+ * topology as expectedTopology so the host can detect drift without treating that
+ * assertion as a client-authored override. The retained arguments also feed the
+ * /optimize intent and the final launch URL.
  */
 @Suppress("UNUSED_PARAMETER")
 object NovaLaunchPreflight {

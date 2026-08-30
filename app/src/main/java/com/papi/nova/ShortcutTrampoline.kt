@@ -698,14 +698,25 @@ class ShortcutTrampoline : NovaActivity() {
             val clientSettings = apiClient.getClientSettings()
             // The per-game Tuning choice, not a fixed "auto": a game pinned to High FPS
             // in Play Setup must launch pinned from a home-screen shortcut too.
-            val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.name)
+            val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.id, polarisGame.name)
+            val preferences = PreferenceConfiguration.readPreferences(this)
+            val metered = StreamSyncManager.isMeteredNetwork(this)
+            val requestedBitrateKbps = if (metered) preferences.meteredBitrate else preferences.bitrate
             val optimization = apiClient.getOptimization(
                 DeviceUtils.getModel(),
-                polarisGame.name,
+                polarisGame.id.ifBlank { polarisGame.name },
                 profilePreference,
                 mode = PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings),
+                width = preferences.width,
+                height = preferences.height,
+                fps = preferences.fps,
+                bitrateKbps = requestedBitrateKbps,
+                bitrateLocked = metered,
+                hdr = preferences.enableHdr,
+                clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
+                    ServerHelper.getActiveDisplay(this, preferences)
+                ),
             )
-            val preferences = PreferenceConfiguration.readPreferences(this)
             val composed = NovaLaunchStreamOverride.compose(
                 optimization,
                 null,
@@ -714,17 +725,16 @@ class ShortcutTrampoline : NovaActivity() {
                 preferences.height,
                 preferences.fps.toInt(),
             )
-            val recoveryProfile = StreamSyncManager.recoveryLaunchProfile(composed)
-            val launchUsesVirtualDisplay = recoveryProfile?.virtualDisplay ?: withVirtualDisplay
-            val launchMirrorDesktop = recoveryProfile?.mirrorDesktop ?: false
-            val launchMode = recoveryProfile?.streamDisplayMode.orEmpty()
+            val launchUsesVirtualDisplay = withVirtualDisplay
+            val launchMirrorDesktop = false
+            val launchMode = ""
             val launchResolution = StreamSyncManager.resolveAutoSafeResolution(
                 preferences.width,
                 preferences.height,
                 composed,
             )
             val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(preferences.fps, composed)
-            val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(preferences.bitrate, composed)
+            val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(requestedBitrateKbps, composed)
 
             syncShortcutLaunchPreflightSettings(
                 apiClient = apiClient,
@@ -732,10 +742,12 @@ class ShortcutTrampoline : NovaActivity() {
                 usesVirtualDisplay = launchUsesVirtualDisplay,
                 mirrorDesktop = launchMirrorDesktop,
                 resolvedMode = launchMode,
-                width = launchResolution.width,
-                height = launchResolution.height,
-                fps = launchFps,
-                bitrateKbps = launchBitrateKbps,
+                // Do not persist a deterministic preset's one-launch result
+                // as the paired client's next-launch policy.
+                width = preferences.width,
+                height = preferences.height,
+                fps = preferences.fps,
+                bitrateKbps = preferences.bitrate,
             )
 
             launchPlan.copy(

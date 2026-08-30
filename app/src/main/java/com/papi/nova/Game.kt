@@ -46,6 +46,7 @@ import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaHudSessionSummaryLog
+import com.papi.nova.ui.NovaHudSessionStats
 import com.papi.nova.ui.NovaCompanionCommandDeckState
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudUiState
@@ -152,6 +153,7 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.ArrayList
 import java.util.Arrays
@@ -159,6 +161,7 @@ import java.util.Date
 import java.util.HashMap
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import android.view.SurfaceView
 import android.view.ViewGroup
 
@@ -169,10 +172,15 @@ class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, On
 
 private val runtimeTasks:NovaRuntimeTasks = NovaRuntimeTasks(this, "Nova runtime")
 private var novaHud:com.papi.nova.ui.NovaStreamHud? = null
+private val doctorTelemetry:NovaHudSessionStats = NovaHudSessionStats()
  var configuredHudTargetFps:Float = 0f
 private var configuredStreamFrameRateFps:Float = 0f
+private var configuredDisplayRefreshRateHz:Float = 0f
 private var configuredStreamBitrateKbps:Int = 0
+private var configuredStreamHdr:Boolean = false
 @Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
+private val doctorV2UploadInFlight:AtomicBoolean = AtomicBoolean(false)
+private val doctorV2UploadFailureLogged:AtomicBoolean = AtomicBoolean(false)
 private var preferStableRefreshMultipleForAutoSafe:Boolean = false
 private var audioHapticEngine:com.papi.nova.ui.AudioHapticEngine? = null
 private var gyroAimController:com.papi.nova.ui.GyroAimController? = null
@@ -208,6 +216,7 @@ private var currentOrientation:Int = 0
 
  // Nova: Polaris integration
      var novaApiClient:com.papi.nova.api.PolarisApiClient? = null
+private var novaFeatureScope:Long = 0L
 @Volatile private var lastPolarisSessionStatus:com.papi.nova.api.PolarisSessionStatus? = null
 private var polarisSessionStatusRefreshInFlight:AtomicBoolean = AtomicBoolean(false)
 private var novaResilienceManager:com.papi.nova.manager.ConnectionResilienceManager? = null
@@ -223,6 +232,7 @@ private var connecting:Boolean = false
 private var autoEnterPip:Boolean = false
 private var surfaceCreated:Boolean = false
 private var attemptedConnection:Boolean = false
+private var launchInitializationCommitted:Boolean = false
 private var suppressPipRefCount:Int = 0
 private var pcName:String? = null
 private var appName:String? = null
@@ -256,8 +266,16 @@ private var externalDisplayListener:DisplayManager.DisplayListener? = null
 com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfileSource.LOCAL_DEFAULT)
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
-private var launchRecoveryRunId:String = ""
-private var recoveryVerificationAttempted:AtomicBoolean = AtomicBoolean(false)
+private var launchResolvedProfileTrusted:Boolean = false
+private val launchPolicyGateGeneration = AtomicLong(0L)
+private val launchPolicyGatePending = AtomicBoolean(false)
+private data class LaunchOptimizationDecision(
+val optimization:JSONObject?,
+val policyBlocked:Boolean,
+val profilePreference:String,
+val resolvedProfileTrusted:Boolean,
+val policyMessage:String = ""
+)
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
 private var streamMode:String = ""
@@ -1046,7 +1064,6 @@ streamMode = this@Game.getIntent().getStringExtra(EXTRA_STREAM_MODE) ?: ""
 forcePrivateAfterSteamClose = this@Game.getIntent().getBooleanExtra(EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, false)
 launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
 launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
-launchRecoveryRunId = this@Game.getIntent().getStringExtra(EXTRA_RECOVERY_RUN_ID) ?: ""
 resumeExistingRequested = this@Game.getIntent().getBooleanExtra(EXTRA_RESUME_EXISTING, false)
 serverCmds = this@Game.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS) ?: ArrayList()
 var appSupportsHdr:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_APP_HDR, false)
@@ -1069,18 +1086,18 @@ e!!.printStackTrace()
 }
 
  // Nova: set up Polaris integration without blocking stream startup on REST probes.
-        com.papi.nova.manager.FeatureFlagManager.reset()
+novaFeatureScope = com.papi.nova.manager.FeatureFlagManager.beginScope()
 novaApiClient = com.papi.nova.api.PolarisApiClient(this, host ?: "", httpsPort, serverCert)
 novaLockScreenOverlay = com.papi.nova.ui.LockScreenOverlay(this, novaApiClient!!)
 novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this)
 novaResilienceManager = com.papi.nova.manager.ConnectionResilienceManager(
 novaApiClient!!,
 { LimeLog.info("Nova: Attempting reconnect...") },
-{ handlePolarisHostSessionEnded() }
+{ handlePolarisHostSessionEnded() },
+novaFeatureScope
 )
 com.papi.nova.jni.PolarisNativeHook.register(novaResilienceManager!!)
 syncDisconnectResumeTimeoutPolicy()
-startNovaFeatureProbe()
 
 if (appId == StreamConfiguration.INVALID_APP_ID)
 {
@@ -1088,31 +1105,15 @@ finish()
 return
 }
 
-var launchOptimization:JSONObject? = if (watchOnlyRequested || resumeExistingRequested) null else loadLaunchOptimization(appName)
-var recoveryLaunchProfile:com.papi.nova.manager.StreamSyncManager.RecoveryLaunchProfile? =
-com.papi.nova.manager.StreamSyncManager.recoveryLaunchProfile(launchOptimization)
-if (recoveryLaunchProfile != null)
-{
-launchRecoveryRunId = recoveryLaunchProfile!!.runId
-vDisplay = recoveryLaunchProfile!!.virtualDisplay
-mirrorDesktop = recoveryLaunchProfile!!.mirrorDesktop
-streamMode = recoveryLaunchProfile!!.streamDisplayMode
-LimeLog.info("Nova: Recovery launch contract " + launchRecoveryRunId + " topology=" + streamMode)
-}
-lastClientProfileProvenance = com.papi.nova.manager.StreamSyncManager.resolveProfileProvenance(launchOptimization, manualOverride = isManualProfileOverride())
+var launchOptimization:JSONObject? = null
+var forceFreshLaunch:Boolean = false
 
  // Initialize the MediaCodec helper before creating the decoder
         var glPrefs:GlPreferences? = GlPreferences.readPreferences(this)
 MediaCodecHelper.initialize(this, glPrefs!!.glRenderer)
 MediaCodecHelper.setPreferStabilityDecoders(
-com.papi.nova.manager.StreamSyncManager.shouldPreferStabilityDecoder(launchOptimization)
+launchProfilePreference.equals("stability", ignoreCase = true)
 )
-var forceFreshLaunch:Boolean = !watchOnlyRequested && !resumeExistingRequested &&
-com.papi.nova.manager.StreamSyncManager.shouldForceFreshLaunch(launchOptimization)
-if (forceFreshLaunch)
-{
-LimeLog.info("Nova: Auto Safe requires fresh launch before streaming")
-}
 
  // Check if the user has enabled HDR
         var displaySupportsHdr10:Boolean = false
@@ -1127,11 +1128,6 @@ isOnExternalDisplay,
 Build.VERSION.SDK_INT,
 displaySupportsHdr10
 )
-if (recoveryLaunchProfile != null)
-{
-willStreamHdr = recoveryLaunchProfile!!.hdr
-}
-
 if (shouldShowSdr10BitOptInToast(
 prefConfig!!.enableHdr,
 isOnExternalDisplay,
@@ -1246,11 +1242,162 @@ LimeLog.info("Balanced: preferLowerDelays=false, timeout=2000us")
 catch (ignored:Throwable) {}
 
  // Don't stream HDR if the decoder can't support it
-        if (willStreamHdr && !decoderRenderer!!.isHevcMain10Hdr10Supported && !decoderRenderer!!.isAv1Main10Supported)
+if (willStreamHdr && !decoderRenderer!!.isHevcMain10Hdr10Supported && !decoderRenderer!!.isAv1Main10Supported)
 {
 willStreamHdr = false
 NovaSnackbar.showError(this, getString(R.string.nova_hdr_decoder_unsupported))
 }
+
+// Resolve the launch only after Nova has validated the actual display and
+// decoder HDR capability. This keeps the deterministic preview and the value
+// sent on /launch identical instead of querying with a raw preference first.
+val optimizationRequestedFps = if (watchStreamFps > 0f) {
+watchStreamFps
+} else {
+val configuredFps = prefConfig!!.fps
+val displayMaximumFps = getMaxSupportedRefreshRate(currentDisplay)
+if (displayMaximumFps > 0f) Math.min(configuredFps, displayMaximumFps) else configuredFps
+}
+val launchPolicyFingerprint = launchPolicyFingerprint(
+appName = appName,
+bitrateLocked = isMetered,
+requestedWidth = displayWidth,
+requestedHeight = displayHeight,
+requestedFps = optimizationRequestedFps,
+displayLocked = watchStreamWidth > 0 && watchStreamHeight > 0,
+displayModeExplicit = displayModeExplicit,
+resumeExistingOnly = resumeExistingRequested,
+requestedHdr = willStreamHdr
+)
+var launchPolicyTokenInvalid = false
+if (watchOnlyRequested)
+{
+launchOptimization = null
+launchResolvedProfileTrusted = false
+this@Game.getIntent().removeExtra(EXTRA_LAUNCH_POLICY_TOKEN)
+}
+else
+{
+val policyToken = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_POLICY_TOKEN)
+val policyDecision = com.papi.nova.manager.NovaLaunchPolicyGateStore.consume(
+policyToken,
+launchPolicyFingerprint
+)
+this@Game.getIntent().removeExtra(EXTRA_LAUNCH_POLICY_TOKEN)
+if (policyDecision == null)
+{
+val gateIntent = this@Game.getIntent()
+val gateGeneration = launchPolicyGateGeneration.incrementAndGet()
+launchPolicyGatePending.set(true)
+launchRuntimeIo("NovaLaunchPolicyGate") {
+val launchDecision = loadLaunchOptimization(
+appName,
+isMetered,
+displayWidth,
+displayHeight,
+optimizationRequestedFps,
+watchStreamWidth > 0 && watchStreamHeight > 0,
+topologyLocked = displayModeExplicit,
+requestedHdr = willStreamHdr,
+requestedProfilePreference = launchProfilePreference
+)
+if (launchDecision.policyBlocked)
+{
+runOnMainIfRuntimeActive {
+if (launchPolicyGateGeneration.get() != gateGeneration ||
+this@Game.getIntent() !== gateIntent)
+{
+return@runOnMainIfRuntimeActive
+}
+launchPolicyGatePending.set(false)
+val policyMessage = launchDecision.policyMessage.takeIf { it.isNotBlank() }
+LimeLog.severe(
+if (policyMessage != null) {
+"Nova: Refusing launch because Polaris rejected the requested profile: $policyMessage"
+} else {
+"Nova: Refusing launch because host identity or deterministic resolved-profile authority is unproven"
+}
+)
+Toast.makeText(
+this@Game,
+policyMessage ?: getString(R.string.nova_launch_deterministic_host_required),
+Toast.LENGTH_LONG
+).show()
+finish()
+}
+return@launchRuntimeIo
+}
+val nextToken = com.papi.nova.manager.NovaLaunchPolicyGateStore.issue(
+launchPolicyFingerprint,
+com.papi.nova.manager.NovaLaunchPolicyGateStore.Decision(
+optimizationJson = launchDecision.optimization?.toString(),
+profilePreference = launchDecision.profilePreference,
+resolvedProfileTrusted = launchDecision.resolvedProfileTrusted
+)
+)
+runOnMainIfRuntimeActive {
+if (launchPolicyGateGeneration.get() == gateGeneration &&
+this@Game.getIntent() === gateIntent)
+{
+launchPolicyGatePending.set(false)
+gateIntent.putExtra(EXTRA_LAUNCH_POLICY_TOKEN, nextToken)
+recreate()
+}
+else
+{
+// Consume and retire the unused one-shot token. A decision may never be
+// transplanted onto a newer singleTask launch intent.
+com.papi.nova.manager.NovaLaunchPolicyGateStore.consume(nextToken, launchPolicyFingerprint)
+}
+}
+}
+return
+}
+launchProfilePreference = policyDecision.profilePreference
+launchPolicyGatePending.set(false)
+launchResolvedProfileTrusted = policyDecision.resolvedProfileTrusted
+launchOptimization = try
+{
+policyDecision.optimizationJson?.let(::JSONObject)
+}
+catch (e:Exception)
+{
+LimeLog.severe("Nova: Refusing an invalid process-local launch policy handoff")
+launchPolicyTokenInvalid = true
+null
+}
+}
+if (launchPolicyTokenInvalid)
+{
+LimeLog.severe("Nova: Refusing launch because host identity or deterministic resolved-profile authority is unproven")
+Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
+finish()
+return
+}
+val expectedLaunchTopology = if (launchResolvedProfileTrusted) {
+com.papi.nova.manager.LaunchTopologyEnvelope.resolvedSelection(launchOptimization).orEmpty()
+} else {
+""
+}
+if (launchResolvedProfileTrusted && expectedLaunchTopology.isBlank())
+{
+LimeLog.severe("Nova: Refusing launch because the deterministic topology assertion is missing")
+Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
+finish()
+return
+}
+launchInitializationCommitted = true
+startNovaFeatureProbe()
+willStreamHdr = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeHdr(
+willStreamHdr,
+launchOptimization
+)
+lastClientProfileProvenance = com.papi.nova.manager.StreamSyncManager.resolveProfileProvenance(
+launchOptimization,
+manualOverride = isManualProfileOverride()
+)
+forceFreshLaunch = !watchOnlyRequested && !resumeExistingRequested &&
+com.papi.nova.manager.StreamSyncManager.shouldForceFreshLaunch(launchOptimization)
  // Display a message to the user if HEVC was forced on but we still didn't find a decoder
         if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_HEVC && !decoderRenderer!!.isHevcSupported)
 {
@@ -1281,11 +1428,6 @@ if (willStreamHdr && decoderRenderer!!.isAv1Main10Supported)
 supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_AV1_MAIN10
 }
 }
-supportedVideoFormats = com.papi.nova.manager.StreamSyncManager.restrictVideoFormatsForRecovery(
-supportedVideoFormats,
-recoveryLaunchProfile
-)
-
 var gamepadMask:Int = ControllerHandler.getAttachedControllerMask(this).toInt()
 if (!prefConfig!!.multiController)
 {
@@ -1324,7 +1466,8 @@ var autoSafeTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveAut
 launchRefreshRate,
 launchOptimization
 )
-if (recoveryLaunchProfile == null && autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
+if (!launchResolvedProfileTrusted &&
+autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
 {
 var displayCompatibleTargetFps:Float = com.papi.nova.manager.StreamSyncManager.resolveDisplayCompatibleAutoSafeTargetFps(
 autoSafeTargetFps,
@@ -1338,7 +1481,11 @@ autoSafeTargetFps + " -> " + displayCompatibleTargetFps))
 autoSafeTargetFps = displayCompatibleTargetFps
 }
 }
-if (autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
+if (launchResolvedProfileTrusted && autoSafeTargetFps > 0f)
+{
+configuredStreamFrameRateFps = autoSafeTargetFps
+}
+else if (autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
 {
 configuredStreamFrameRateFps = autoSafeTargetFps
 }
@@ -1353,13 +1500,15 @@ configuredStreamFrameRateFps
 
  // Set to the optimal mode for streaming
         var displayRefreshRate:Float = prepareDisplayForRendering(currentDisplay)
+configuredDisplayRefreshRateHz = displayRefreshRate
 LimeLog.info("Display refresh rate: " + displayRefreshRate)
 
  // If the user requested frame pacing using a capped FPS, we will need to change our
         // desired FPS setting here in accordance with the active display refresh rate.
         var roundedRefreshRate:Int = Math.round(displayRefreshRate)
 var chosenFrameRate:Float = if (configuredStreamFrameRateFps > 0f) configuredStreamFrameRateFps else prefConfig!!.fps
-if (prefConfig!!.framePacing == PreferenceConfiguration.FRAME_PACING_CAP_FPS)
+if (!launchResolvedProfileTrusted &&
+prefConfig!!.framePacing == PreferenceConfiguration.FRAME_PACING_CAP_FPS)
 {
 if (chosenFrameRate >= roundedRefreshRate)
 {
@@ -1383,7 +1532,7 @@ LimeLog.info("Adjusting FPS target for screen to " + chosenFrameRate)
 }
 }
 
-if (prefConfig!!.framePacingWarpFactor > 0)
+if (!launchResolvedProfileTrusted && prefConfig!!.framePacingWarpFactor > 0)
 {
 chosenFrameRate *= prefConfig!!.framePacingWarpFactor
 }
@@ -1411,15 +1560,23 @@ LimeLog.info(("Nova: Auto Safe launch resolution " + displayWidth + "x" + displa
 displayWidth = autoSafeResolution!!.width
 displayHeight = autoSafeResolution!!.height
 }
-if (autoSafeTargetFps > 0f && autoSafeTargetFps + 0.5f < launchRefreshRate)
+if (launchResolvedProfileTrusted && autoSafeTargetFps > 0f)
 {
-LimeLog.info(("Nova: Auto Safe launch FPS " + launchRefreshRate +
+if (Math.abs(autoSafeTargetFps - launchRefreshRate) > 0.5f)
+{
+LimeLog.info(("Nova: Exact resolved launch FPS " + launchRefreshRate +
 " -> " + autoSafeTargetFps))
+}
 launchRefreshRate = autoSafeTargetFps
-chosenFrameRate = Math.min(chosenFrameRate, autoSafeTargetFps)
+chosenFrameRate = autoSafeTargetFps
 }
 configuredStreamFrameRateFps = chosenFrameRate
 configuredHudTargetFps = launchRefreshRate
+configuredStreamHdr = willStreamHdr
+doctorTelemetry.reset()
+doctorV2UploadFailureLogged.set(false)
+doctorTelemetry.setTargetFps(launchRefreshRate.toDouble())
+doctorTelemetry.recordBitrate(configuredStreamBitrateKbps)
 lastPolarisDeviceCapabilities = com.papi.nova.manager.StreamSyncManager.buildDeviceCapabilities(
 this,
 currentDisplay,
@@ -1439,8 +1596,8 @@ willStreamHdr,
 supportedVideoFormats,
 prefConfig!!.videoFormat,
 displayModeExplicit,
-recoveryLaunchProfile?.preferredCodec ?: "",
-recoveryLaunchProfile?.streamDisplayMode ?: streamMode
+"",
+streamMode
 )
 try
 {
@@ -1459,14 +1616,17 @@ displayHeight
 .setDisplayModeExplicit(displayModeExplicit)
 .setMirrorDesktop(mirrorDesktop)
 .setStreamMode(streamMode)
+.setExpectedTopology(expectedLaunchTopology)
 .setForcePrivateAfterSteamClose(forcePrivateAfterSteamClose)
 .setResolutionScaleFactor(prefConfig!!.resolutionScaleFactor)
 .setApp(app)
 .setEnableUltraLowLatency(prefConfig!!.enableUltraLowLatency)
 .setForceFreshLaunch(forceFreshLaunch)
+.setResumeExistingOnly(resumeExistingRequested)
 .setBitrate(configuredStreamBitrateKbps)
 .setEnableSops(prefConfig!!.enableSops)
 .setProfilePreference(launchProfilePreference)
+.setResolvedProfile(launchResolvedProfileTrusted)
 .enableLocalAudioPlayback(prefConfig!!.playHostAudio)
 .setMaxPacketSize(1392)
 .setRemoteConfiguration(StreamConfiguration.STREAM_CFG_AUTO) // NvConnection will perform LAN and VPN detection
@@ -2360,73 +2520,341 @@ private fun isManualProfileOverride():Boolean {
 return launchProfilePreference.isNotBlank() && !launchProfilePreference.equals("auto", ignoreCase = true)
 }
 
-private fun loadLaunchOptimization(appName:String?):JSONObject? {
+private fun requestedLaunchTopology():String {
+return if (mirrorDesktop) "desktop_display"
+else if (streamMode.isNotBlank()) streamMode
+else if (vDisplay) "host_virtual_display"
+else ""
+}
+
+private fun launchPolicyFingerprint(
+appName:String?,
+bitrateLocked:Boolean,
+requestedWidth:Int,
+requestedHeight:Int,
+requestedFps:Float,
+displayLocked:Boolean,
+displayModeExplicit:Boolean,
+resumeExistingOnly:Boolean,
+requestedHdr:Boolean
+):String = listOf(
+host.orEmpty(),
+port.toString(),
+httpsPort.toString(),
+uniqueId.orEmpty(),
+serverCertificatePolicyFingerprint(),
+appUUID.orEmpty(),
+appId.toString(),
+appName.orEmpty(),
+com.papi.nova.utils.DeviceUtils.getModel(),
+launchProfilePreference,
+launchOptimizationJson.orEmpty(),
+streamMode,
+mirrorDesktop.toString(),
+vDisplay.toString(),
+bitrateLocked.toString(),
+(if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate).toString(),
+requestedWidth.toString(),
+requestedHeight.toString(),
+requestedFps.toBits().toString(),
+displayLocked.toString(),
+displayModeExplicit.toString(),
+resumeExistingOnly.toString(),
+forcePrivateAfterSteamClose.toString(),
+prefConfig!!.resolutionScaleFactor.toString(),
+prefConfig!!.framePacing.toString(),
+prefConfig!!.framePacingWarpFactor.toString(),
+prefConfig!!.reduceRefreshRate.toString(),
+requestedHdr.toString()
+).joinToString("\u001f")
+
+private fun serverCertificatePolicyFingerprint():String
+{
+return try
+{
+val encoded = serverCert?.encoded ?: return "no-cert"
+MessageDigest.getInstance("SHA-256").digest(encoded).joinToString("") { byte ->
+"%02x".format(Locale.ROOT, byte.toInt() and 0xff)
+}
+}
+catch (e:Exception)
+{
+"invalid-cert"
+}
+}
+
+private fun resolvedOptimizationHonorsLaunchEnvelope(
+optimization:JSONObject,
+requestedHdr:Boolean,
+clientMaximumFps:Float,
+bitrateLocked:Boolean,
+bitrateCeilingKbps:Int,
+requestedWidth:Int,
+requestedHeight:Int,
+requestedFps:Float,
+displayLocked:Boolean,
+fpsLocked:Boolean,
+requestedTopology:String,
+topologyLocked:Boolean,
+mirrorDesktopRequested:Boolean,
+forcePrivateRequested:Boolean
+):Boolean {
+if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimization)) return false
+val topologyEnvelopeHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
+optimization = optimization,
+appIdentity = appUUID?.takeIf { it.isNotBlank() }
+?: appId.takeIf { it > 0 }?.toString().orEmpty(),
+requestedTopology = requestedTopology,
+topologyLocked = topologyLocked,
+mirrorDesktopRequested = mirrorDesktopRequested,
+forcePrivateRequested = forcePrivateRequested
+)
+val resolvedHdr = com.papi.nova.manager.StreamSyncManager.resolvedHdrValue(optimization)
+val resolvedFps = com.papi.nova.manager.StreamSyncManager.resolvedTargetFpsValue(optimization) ?: 0f
+val resolvedResolution = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
+requestedWidth,
+requestedHeight,
+optimization
+)
+val resolvedBitrate = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
+bitrateCeilingKbps,
+optimization
+)
+val bitrateLockHonored = !bitrateLocked ||
+(com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+optimization,
+"target_bitrate_kbps"
+) == true && resolvedBitrate in 1..bitrateCeilingKbps)
+val displayLockHonored = !displayLocked ||
+(resolvedResolution.width == requestedWidth &&
+resolvedResolution.height == requestedHeight &&
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+optimization,
+"display_width"
+) == true &&
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+optimization,
+"display_height"
+) == true)
+val fpsLockHonored = !(displayLocked || fpsLocked) ||
+(com.papi.nova.manager.StreamSyncManager.resolvedFieldIsLocked(
+optimization,
+"target_fps"
+) == true &&
+resolvedFps <= requestedFps + 0.5f &&
+(Math.abs(resolvedFps - requestedFps) <= 0.5f ||
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsNormalized(
+optimization,
+"target_fps"
+) == true))
+val hdrWithinEnvelope = resolvedHdr != null &&
+(resolvedHdr == requestedHdr ||
+(requestedHdr && !resolvedHdr &&
+com.papi.nova.manager.StreamSyncManager.resolvedFieldIsNormalized(
+optimization,
+"hdr"
+) == true))
+return hdrWithinEnvelope &&
+topologyEnvelopeHonored &&
+resolvedFps > 0f &&
+(clientMaximumFps <= 0f || resolvedFps <= clientMaximumFps + 0.5f) &&
+displayLockHonored &&
+fpsLockHonored &&
+bitrateLockHonored
+}
+
+private fun loadLaunchOptimization(
+appName:String?,
+bitrateLocked:Boolean,
+requestedWidth:Int,
+requestedHeight:Int,
+requestedFps:Float,
+displayLocked:Boolean,
+topologyLocked:Boolean,
+requestedHdr:Boolean,
+requestedProfilePreference:String
+):LaunchOptimizationDecision {
+val safeAppName:String = appName ?: ""
+val safeAppIdentity:String = appUUID?.takeIf { it.isNotBlank() }
+?: appId.takeIf { it > 0 }?.toString()
+?: safeAppName
+val preference:String = requestedProfilePreference.takeIf { it.isNotBlank() }
+?: com.papi.nova.ui.AutoQualityProfilePreferences.load(this, safeAppIdentity, safeAppName)
+fun blocked(message:String = ""):LaunchOptimizationDecision = LaunchOptimizationDecision(
+optimization = null,
+policyBlocked = true,
+profilePreference = preference,
+resolvedProfileTrusted = false,
+policyMessage = message
+)
+val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
+width = requestedWidth,
+height = requestedHeight,
+fps = requestedFps,
+displayLocked = displayLocked,
+bitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate,
+bitrateLocked = bitrateLocked
+)
+val requestedTopology = requestedLaunchTopology()
+val exactTopologyLocked = topologyLocked || mirrorDesktop ||
+forcePrivateAfterSteamClose || streamMode.isNotBlank()
+var preflightSelection = com.papi.nova.manager.LaunchOptimizationPreflightPolicy.select(
+callerRequest,
+null,
+false
+)
 if (!launchOptimizationJson.isNullOrBlank())
 {
 try
 {
-return JSONObject(launchOptimizationJson!!)
+val preflight = JSONObject(launchOptimizationJson!!)
+if (com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(preflight))
+{
+val clientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
+val containsNovaLaunchOverride = preflight.optString("normalization_reason", "") ==
+NovaLaunchStreamOverride.NORMALIZATION_REASON
+val preflightTopologyHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
+preflight,
+appUUID?.takeIf { it.isNotBlank() }
+?: appId.takeIf { it > 0 }?.toString().orEmpty(),
+requestedTopology,
+exactTopologyLocked,
+mirrorDesktop,
+forcePrivateAfterSteamClose
+)
+if (resolvedOptimizationHonorsLaunchEnvelope(
+preflight,
+requestedHdr,
+clientMaximumFps,
+callerRequest.bitrateLocked,
+callerRequest.bitrateKbps,
+requestedWidth,
+requestedHeight,
+requestedFps,
+displayLocked,
+preference.equals("high_fps", ignoreCase = true),
+requestedTopology,
+exactTopologyLocked,
+mirrorDesktop,
+forcePrivateAfterSteamClose
+) && !containsNovaLaunchOverride)
+{
+// Play Setup already resolved the exact per-launch locks. Its HDR value is
+// accepted only after it matches Nova's actual display/decoder capability.
+preflightSelection = com.papi.nova.manager.LaunchOptimizationPreflightPolicy.select(
+callerRequest,
+preflight,
+true
+)
+}
+else
+{
+// A rejected result has no authority over even the next resolver request.
+// Requery from the immutable caller fields and locks whether app/topology,
+// display capability, HDR, FPS, or metered bitrate caused the rejection.
+preflightSelection = com.papi.nova.manager.LaunchOptimizationPreflightPolicy.select(
+callerRequest,
+preflight,
+false
+)
+LimeLog.info(if (!preflightTopologyHonored) {
+"Nova: Discarding preflight values after app or topology intent changed"
+} else {
+"Nova: Discarding preflight values after the launch envelope changed"
+})
+}
+}
+else
+{
+return blocked()
+}
 }
 catch (e:Exception) {
-LimeLog.warning("Nova: Ignoring invalid preflight optimization payload")
+LimeLog.warning("Nova: Rejecting malformed preflight optimization payload")
+return blocked()
 }
 }
 if (novaApiClient == null)
 {
-return null
+return blocked()
 }
 
-var result:Array<JSONObject?> = arrayOfNulls<JSONObject?>(1)
-var failure:Array<Exception?> = arrayOfNulls<Exception?>(1)
-var thread:Thread = Thread({ try
+val hostKind = try
 {
-var safeAppName:String = appName ?: ""
-var preference:String = launchProfilePreference.takeIf { it.isNotBlank() } ?: getSharedPreferences("nova_prefs", MODE_PRIVATE)
-.getString("ai_profile_preference_name_" + safeAppName, "auto") ?: "auto"
-launchProfilePreference = preference
-result[0] = novaApiClient!!.getOptimization(DeviceUtils.getModel(), safeAppName, preference)
+novaApiClient!!.identifyLaunchHost()
 }
-catch (e:Exception) {
-failure[0] = e
-}
- }, "NovaLaunchOptimization")
-thread.start()
-
-try
+catch (e:Exception)
 {
-thread.join(4500)
+LimeLog.severe("Nova: Launch identity failed closed: " + e.message)
+return blocked()
 }
-catch (e:InterruptedException) {
-Thread.currentThread().interrupt()
-return null
-}
-
-if (thread.isAlive())
+if (hostKind == com.papi.nova.api.PolarisLaunchHostKind.NON_POLARIS)
 {
-LimeLog.warning("Nova: Launch optimization query timed out after 4500ms; starting with local defaults")
-return null
+LimeLog.info("Nova: Stock host confirmed; launching with local settings and no resolvedProfile marker")
+return LaunchOptimizationDecision(null, false, preference, false)
 }
-if (failure[0] != null)
+if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
 {
-LimeLog.warning("Nova: Launch optimization query failed: " + failure[0]!!.message)
-return null
+LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
+return blocked()
 }
-val optimizationResult = result[0]
-if (optimizationResult != null)
+val resolverRequest = preflightSelection.resolverRequest ?: callerRequest
+val optimizationResult = try {
+preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(
+DeviceUtils.getModel(), safeAppIdentity, preference,
+mode = requestedLaunchTopology(),
+topologyLocked = exactTopologyLocked,
+mirrorDesktop = mirrorDesktop,
+forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
+width = resolverRequest.width,
+height = resolverRequest.height,
+fps = resolverRequest.fps,
+displayLocked = resolverRequest.displayLocked,
+bitrateKbps = resolverRequest.bitrateKbps,
+bitrateLocked = resolverRequest.bitrateLocked,
+hdr = requestedHdr,
+clientMaxFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay()),
+launchBounded = true)
+}
+catch (e:com.papi.nova.api.PolarisApiRejectedException)
+{
+return blocked(e.rejection.error)
+}
+if (optimizationResult == null)
+{
+return blocked()
+}
+else
 {
 LimeLog.info(("Nova: Launch optimization loaded source=" + optimizationResult.optString("source", "unknown") +
 " mode=" + optimizationResult.optString("display_mode", "")))
+if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimizationResult))
+{
+return blocked()
 }
-// Launches that bypass the detail screen (Continue Playing, shortcuts that lost their
-// preflight) arrive here with the raw host blob, so the High FPS pin has to be composed
-// on this path too or Tuning = High FPS would only bind when Play Setup was opened.
-return NovaLaunchStreamOverride.compose(
+val currentClientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
+if (!resolvedOptimizationHonorsLaunchEnvelope(
 optimizationResult,
-null,
-NovaLaunchStreamOverride.highFpsPin(launchProfilePreference, prefConfig.fps),
-prefConfig.width,
-prefConfig.height,
-prefConfig.fps.toInt())
+requestedHdr,
+currentClientMaximumFps,
+callerRequest.bitrateLocked,
+callerRequest.bitrateKbps,
+callerRequest.width,
+callerRequest.height,
+callerRequest.fps,
+callerRequest.displayLocked,
+preference.equals("high_fps", ignoreCase = true),
+requestedTopology,
+exactTopologyLocked,
+mirrorDesktop,
+forcePrivateAfterSteamClose
+))
+{
+LimeLog.severe("Nova: Rejecting resolved profile outside the current HDR, FPS, or bitrate-lock envelope")
+return blocked()
+}
+}
+return LaunchOptimizationDecision(optimizationResult, false, preference, true)
 }
 
 private fun getMaxSupportedRefreshRate(display:Display?):Float {
@@ -2839,7 +3267,7 @@ novaLockScreenOverlay!!.destroy()
 if (novaReconnectOverlay != null) novaReconnectOverlay!!.dismiss()
 novaResilienceManager?.shutdown()
 com.papi.nova.jni.PolarisNativeHook.unregister()
-com.papi.nova.manager.FeatureFlagManager.reset()
+com.papi.nova.manager.FeatureFlagManager.reset(novaFeatureScope)
 
 if (novaDisconnectReceiver != null)
 {
@@ -2922,6 +3350,28 @@ super.onNewIntent(intent)
 if (isDisconnectIntent(intent))
 {
 disconnect()
+return
+}
+
+if (intent != null && launchPolicyGatePending.getAndSet(false))
+{
+launchPolicyGateGeneration.incrementAndGet()
+runtimeTasks.cancel("NovaLaunchPolicyGate")
+setIntent(intent)
+LimeLog.info("Nova: Restarting launch policy validation for a newer launch intent")
+recreate()
+return
+}
+
+if (intent != null && launchInitializationCommitted && !attemptedConnection &&
+intent.hasExtra(EXTRA_HOST) && intent.hasExtra(EXTRA_APP_ID)
+)
+{
+launchPolicyGateGeneration.incrementAndGet()
+runtimeTasks.cancel("NovaLaunchPolicyGate")
+setIntent(intent)
+LimeLog.info("Nova: Replacing a validated but not-yet-started launch with the newer intent")
+recreate()
 return
 }
 
@@ -4817,12 +5267,12 @@ connecting = connected
 isStreamActive = false
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
-runtimeTasks.cancel("NovaBitrateAdjust")
- // Send AI session report before dismissing HUD
-            if (novaHud != null && host != null)
+runtimeTasks.cancel("NovaDoctorV2Sample")
+ // Raw Doctor sampling runs independently of HUD visibility.
+            if (host != null)
 {
-val summary:Map<String, Any>? = novaHud!!.getSessionSummary()
-com.papi.nova.LimeLog.info("Nova: HUD session summary " + NovaHudSessionSummaryLog.format(summary ?: emptyMap()))
+val summary:Map<String, Any> = doctorTelemetry.summary()
+com.papi.nova.LimeLog.info("Nova: observational session summary " + NovaHudSessionSummaryLog.format(summary))
 val reportHost:String? = host
 val reportHttpsPort:Int = httpsPort
 val reportServerCert:X509Certificate? = serverCert
@@ -4832,36 +5282,9 @@ val reportGame:String? = if (appName != null) appName else ""
 launchRuntimeIo("NovaSessionReport") { try
 {
 var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, reportHost ?: "", reportHttpsPort, reportServerCert)
-client.sendSessionReport(
-reportDevice ?: "", reportUniqueId ?: "", reportGame ?: "",
-getSummaryDouble(summary, "avg_fps", 0.0),
-getSummaryDouble(summary, "target_fps", 0.0),
-getSummaryDouble(summary, "low_1_percent_fps", 0.0),
-getSummaryDouble(summary, "min_fps", 0.0),
-getSummaryDouble(summary, "frame_pacing_bad_pct", 0.0),
-getSummaryDouble(summary, "safe_target_fps", 0.0),
-getSummaryDouble(summary, "avg_latency_ms", 0.0),
-getSummaryInt(summary, "avg_bitrate_kbps", 0),
-getSummaryDouble(summary, "packet_loss_pct", 0.0),
-getSummaryString(summary, "codec"),
-getSummaryInt(summary, "duration_s", 0),
-getSummaryInt(summary, "samples", 0),
-"disconnect",
-getSummaryString(summary, "optimization_source"),
-getSummaryString(summary, "optimization_confidence"),
-getSummaryInt(summary, "recommendation_version", 0),
-getSummaryString(summary, "health_grade"),
-getSummaryString(summary, "primary_issue"),
-getSummaryStringList(summary, "issues"),
-getSummaryString(summary, "decoder_risk"),
-getSummaryString(summary, "hdr_risk"),
-getSummaryString(summary, "network_risk"),
-getSummaryString(summary, "capture_path"),
-getSummaryInt(summary, "safe_bitrate_kbps", 0),
-getSummaryString(summary, "safe_codec"),
-getSummaryString(summary, "safe_display_mode"),
-getSummaryBoolean(summary, "safe_hdr"),
-getSummaryBoolean(summary, "relaunch_recommended") == true
+client.sendDoctorEvidenceReport(
+reportDevice ?: "", reportUniqueId ?: "", reportGame ?: "", summary,
+if (reportedCrash) "decoder_crash" else "disconnect"
 )
 }
 catch (e:kotlinx.coroutines.CancellationException) {
@@ -4870,17 +5293,11 @@ throw e
 catch (e:Exception) {
 com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e!!.message)
 }
- }
-novaHud!!.dismiss()
+}
+}
+novaHud?.dismiss()
 novaHud = null
 syncPerfTextWanted()
-}
-else if (novaHud != null)
-{
-novaHud!!.dismiss()
-novaHud = null
-syncPerfTextWanted()
-}
  // Stop audio haptics and gyro aiming
             if (audioHapticEngine != null)
 {
@@ -5484,6 +5901,46 @@ else if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)
 hideSystemUi(2000)
 }
 }
+private fun uploadDoctorV2Sample(sample:PerfOverlaySample) {
+if (!connected ||
+!novaDoctorV2ShadowEnabled() ||
+!doctorV2UploadInFlight.compareAndSet(false, true))
+{
+return
+}
+val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: run {
+doctorV2UploadInFlight.set(false)
+return
+}
+val effectiveTopology:String = lastPolarisSessionStatus?.displayMode?.selection?.takeIf { it.isNotBlank() }
+?: requestedLaunchTopology()
+val sampleTargetFps:Double = configuredHudTargetFps.toDouble()
+val sampleRefreshRateHz:Double = configuredDisplayRefreshRateHz.toDouble()
+val sampleBitrateKbps:Int = configuredStreamBitrateKbps
+val sampleHdr:Boolean = configuredStreamHdr
+launchRuntimeIo("NovaDoctorV2Sample") {
+try
+{
+val accepted:Boolean = client.sendDoctorV2Sample(
+sample = sample,
+targetFps = sampleTargetFps,
+refreshRateHz = sampleRefreshRateHz,
+bitrateKbps = sampleBitrateKbps,
+topology = effectiveTopology,
+hdr = sampleHdr
+)
+if (!accepted && doctorV2UploadFailureLogged.compareAndSet(false, true))
+{
+com.papi.nova.LimeLog.warning("Nova: Doctor v2 shadow sample was not accepted; continuing locally")
+}
+}
+finally
+{
+doctorV2UploadInFlight.set(false)
+}
+}
+}
+
 override fun onPerfUpdate(text:String) {
 runOnUiThread(object : Runnable {
 override fun run() {
@@ -5512,6 +5969,8 @@ override fun onPerfSample(sample:PerfOverlaySample) {
 runOnUiThread(object : Runnable {
 override fun run() {
 lastCompanionPerfSample = sample
+doctorTelemetry.recordPerfSample(sample)
+uploadDoctorV2Sample(sample)
                 if (novaHud != null && novaHud!!.isShowing)
 {
 novaHud!!.updateFromPerfSample(sample)
@@ -5738,7 +6197,7 @@ queuePolarisCursorVisibilitySync(!cursorVisible)
 }
 
 private fun queuePolarisCursorVisibilitySync(hostCursorVisible:Boolean) {
-if ((novaApiClient == null || !com.papi.nova.manager.FeatureFlagManager.hasCursorVisibilityControl))
+if ((novaApiClient == null || !novaHasCursorVisibilityControl()))
 {
 return
 }
@@ -5775,7 +6234,7 @@ hasPendingCursorVisibilitySync = false
 }
 
 var client:com.papi.nova.api.PolarisApiClient? = novaApiClient
-if ((client == null || !com.papi.nova.manager.FeatureFlagManager.hasCursorVisibilityControl))
+if ((client == null || !novaHasCursorVisibilityControl()))
 {
 continue
 }
@@ -5817,6 +6276,23 @@ block()
 }
 }
 
+private fun currentNovaCapabilities():com.papi.nova.api.PolarisCapabilities? =
+com.papi.nova.manager.FeatureFlagManager.capabilitiesForScope(novaFeatureScope)
+
+private fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
+
+private fun novaHasCursorVisibilityControl():Boolean =
+currentNovaCapabilities()?.features?.cursorVisibilityControl == true
+
+private fun novaHasLockScreenControl():Boolean =
+currentNovaCapabilities()?.features?.lockScreenControl == true
+
+private fun novaHasClientSettings():Boolean =
+currentNovaCapabilities()?.features?.clientSettings == true
+
+private fun novaDoctorV2ShadowEnabled():Boolean =
+currentNovaCapabilities()?.features?.doctorV2ShadowEnabled == true
+
 private fun startNovaFeatureProbe() {
 var client:com.papi.nova.api.PolarisApiClient? = novaApiClient
 if (client == null)
@@ -5825,14 +6301,14 @@ return
 }
 
 runtimeTasks.launchIo("NovaFeatureProbe") {
-com.papi.nova.manager.FeatureFlagManager.probe(client)
+val published:Boolean = com.papi.nova.manager.FeatureFlagManager.probe(client, novaFeatureScope)
 runtimeTasks.runOnMainIfActive {
-if (isFinishing || isDestroyed)
+if (isFinishing || isDestroyed || !published)
 {
 return@runOnMainIfActive
 }
 startNovaEventSourceIfSupported()
-if (com.papi.nova.manager.FeatureFlagManager.isPolarisServer)
+if (novaIsPolarisServer())
 {
 queuePolarisClientSettingsSnapshot(null)
 schedulePolarisLiveSessionStatusRefresh(true)
@@ -5844,7 +6320,7 @@ schedulePolarisLiveSessionStatusRefresh(true)
 private fun startNovaEventSourceIfSupported() {
 if ((novaEventSource != null ||
 novaApiClient == null ||
-!com.papi.nova.manager.FeatureFlagManager.isPolarisServer))
+!novaIsPolarisServer()))
 {
 return
 }
@@ -5881,7 +6357,7 @@ else if (PolarisSessionEvents.shouldFinishGameActivity("", sessionState, polaris
 {
 handlePolarisHostSessionEnded()
 }
-if (com.papi.nova.manager.FeatureFlagManager.hasLockScreenControl)
+if (novaHasLockScreenControl())
 {
 var shouldShowLockOverlay:Boolean = shouldShowPolarisLockOverlay(screenLocked, cageRunning)
 if (shouldShowLockOverlay && cageRunning)
@@ -5930,7 +6406,7 @@ runtimeTasks.cancel("NovaSessionStatus")
 }
 
 private fun queuePolarisClientSettingsSnapshot(clientPresentation:JSONObject?) {
-if ((novaApiClient == null || !com.papi.nova.manager.FeatureFlagManager.hasClientSettings))
+if ((novaApiClient == null || !novaHasClientSettings()))
 {
 return
 }
@@ -5940,7 +6416,7 @@ reportPolarisClientSettingsSnapshot(clientPresentation)
 }
 
 private fun reportPolarisClientSettingsSnapshot(clientPresentation:JSONObject?):Boolean {
-if ((novaApiClient == null || !com.papi.nova.manager.FeatureFlagManager.hasClientSettings))
+if ((novaApiClient == null || !novaHasClientSettings()))
 {
 return false
 }
@@ -6189,7 +6665,6 @@ maybeShowDisplayModeWarning(status)
 updateCompanionCommandDeck()
 }
 reportClientPresentationIfNeeded(status)
-maybeVerifyRecoveryAfterConnect(status)
 }
 }
 catch (e:kotlinx.coroutines.CancellationException) {
@@ -6202,51 +6677,6 @@ finally
 {
 polarisSessionStatusRefreshInFlight.set(false)
 } }
-}
-
-private fun maybeVerifyRecoveryAfterConnect(status:com.papi.nova.api.PolarisSessionStatus) {
-val runId:String = launchRecoveryRunId
-val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: return
-if (runId.isBlank() || !connected || !isStreamActive || !status.isStreaming || status.isViewer)
-{
-return
-}
-if (!status.gameUuid.equals(appUUID, ignoreCase = true) ||
-status.encoder.codec.isBlank() || status.encoder.bitrateKbps <= 0 ||
-status.encoder.encodeTargetFps <= 0.0 || status.capture.resolution.isBlank())
-{
-return
-}
-val receipt = status.recoveryRecords.firstOrNull { it.runId == runId }
-    ?: status.recovery.takeIf { it.runId == runId }
-if (receipt == null || !receipt.isQueued || !recoveryVerificationAttempted.compareAndSet(false, true))
-{
-return
-}
-val result = client.runDoctorAction(
-"verify_recovery_profile_next_launch",
-status.appSessionId,
-appUuid = appUUID.orEmpty(),
-runId = runId
-)
-if (result == null)
-{
-recoveryVerificationAttempted.set(false)
-LimeLog.warning("Nova: Recovery verification transport failed; will retry after fresh status")
-return
-}
-if (result.status && result.recoveryState.equals("applied", ignoreCase = true))
-{
-LimeLog.info("Nova: Recovery profile verified and consumed run=" + runId)
-launchRecoveryRunId = ""
-launchOptimizationJson = null
-intent.removeExtra(EXTRA_RECOVERY_RUN_ID)
-intent.removeExtra(EXTRA_LAUNCH_OPTIMIZATION)
-}
-else
-{
-LimeLog.warning("Nova: Recovery verification did not consume run=" + runId + " state=" + result.recoveryState)
-}
 }
 
 private fun applyMouseMode(mode:Int) {
@@ -6376,25 +6806,6 @@ if (lastPolarisSessionStatus != null)
 hud.applySessionStatus(lastPolarisSessionStatus)
 }
 
-	val streamHost:String? = host
-	val streamHttpsPort:Int = httpsPort
-	val streamServerCert:X509Certificate? = serverCert
-	// Wire proactive bitrate adjustment through runtime tasks so repeated slider moves coalesce.
-	hud.onBitrateAdjust = { newBitrate:Int ->
-	launchReplacingRuntimeIo("NovaBitrateAdjust") { try
-{
-val client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, streamHost ?: "", streamHttpsPort, streamServerCert)
-client.setBitrate(newBitrate)
-com.papi.nova.LimeLog.info("Nova: Proactive bitrate adjust → " + newBitrate + " kbps")
-}
-catch (e:kotlinx.coroutines.CancellationException) {
-throw e
-}
-catch (e:Exception) {
-com.papi.nova.LimeLog.warning("Nova: Bitrate adjust failed: " + e!!.message)
-}
- }
-}
 schedulePolarisLiveSessionStatusRefresh(true)
 }
 
@@ -6861,6 +7272,7 @@ const val EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE:String = "ForcePrivateAfterSteam
  const val EXTRA_STREAM_FPS:String = "StreamFps"
  const val EXTRA_AI_PROFILE_PREFERENCE:String = "AiProfilePreference"
  const val EXTRA_LAUNCH_OPTIMIZATION:String = "LaunchOptimization"
+ private const val EXTRA_LAUNCH_POLICY_TOKEN:String = "NovaLaunchPolicyToken"
  const val EXTRA_RECOVERY_RUN_ID:String = "RecoveryRunId"
  const val EXTRA_RESUME_EXISTING:String = "ResumeExisting"
  const val EXTRA_SERVER_COMMANDS:String = "ServerCommands"

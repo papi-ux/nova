@@ -10,7 +10,7 @@ import org.junit.Test
 
 class NovaComposeSourceGuardTest {
     @Test
-    fun commandCenterRendersDeterministicFallbackAsASourceAndGuardsRecoveryConfirmation() {
+    fun commandCenterRendersExplanationSourceAndCapabilityExactActions() {
         val menu = readNovaQuickMenu()
         val content = readNovaQuickMenuContent()
 
@@ -22,18 +22,30 @@ class NovaComposeSourceGuardTest {
                 content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine)")
         )
         assertTrue(
-            "Doctor capability chips must distinguish mutating Auto Fix from read-only Recheck using localized labels",
+            "Doctor capability chips must distinguish all four action classes using localized labels",
             content.contains("NovaQuickMenuDoctorCapability.AUTO_FIX") &&
+                content.contains("NovaQuickMenuDoctorCapability.RUN_TRIAL") &&
                 content.contains("NovaQuickMenuDoctorCapability.RECHECK") &&
+                content.contains("NovaQuickMenuDoctorCapability.MANUAL") &&
                 content.contains("nova_quick_menu_doctor_capability_auto_fix") &&
+                content.contains("nova_quick_menu_doctor_capability_run_trial") &&
                 content.contains("nova_quick_menu_doctor_capability_recheck") &&
+                content.contains("nova_quick_menu_doctor_capability_manual") &&
                 !content.contains("label = if (diagnosis.actionExecutable) \"One click\"")
         )
         assertTrue(
-            "next-launch confirmation copy must be unreachable for any other Doctor action kind",
-            menu.contains("doctor.actionId != \"apply_recovery_profile_next_launch\"") &&
-                menu.contains("doctor.actionKind != \"next_launch_profile\"") &&
-                menu.contains("R.string.nova_quick_menu_doctor_confirm_recovery_message")
+            "deprecated next-launch recovery must have no executable confirmation path",
+            !menu.contains("apply_recovery_profile_next_launch") &&
+                !menu.contains("nova_quick_menu_doctor_confirm_recovery_message") &&
+                menu.contains("if (doctor.requiresConfirmation)") &&
+                menu.contains("game.copyNovaHudDiagnostics()")
+        )
+        assertTrue(
+            "read-only Recheck must use owner observation authority instead of host-tuning authority",
+            menu.contains("fun canExecuteDoctorAction(") &&
+                menu.contains("status.ownedByClient && !status.isViewer") &&
+                menu.contains("!canExecuteDoctorAction(latestStatus, doctor)") &&
+                menu.contains("!canExecuteDoctorAction(status, doctor)")
         )
     }
 
@@ -1177,9 +1189,9 @@ class NovaComposeSourceGuardTest {
             ""
         }
         assertTrue(
-            "one destination holds the whole decision, as four rows in a fixed order per scope: " +
+            "one destination holds the whole decision in a fixed order per scope: " +
                 "where it runs, the resolution, the tuning and how Steam starts for this game; " +
-                "the host's default display, profile, Auto Quality and Keep in Step for every " +
+                "the host's default display, deterministic profile and Keep in Step for every " +
                 "game. Splitting these across drawers is what made each of them carry half of " +
                 "the other's subject",
             rowDeclaration >= 0 &&
@@ -1190,7 +1202,6 @@ class NovaComposeSourceGuardTest {
                     "STEAM_LAUNCH",
                     "HOST_DEFAULT_DISPLAY",
                     "HOST_PROFILE",
-                    "HOST_AUTO_QUALITY",
                     "HOST_KEEP_IN_STEP",
                 ).windowed(2).all { (before, after) ->
                     rowDeclarationBlock.indexOf(before) in 0 until rowDeclarationBlock.indexOf(after)
@@ -1201,9 +1212,9 @@ class NovaComposeSourceGuardTest {
                 detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,") &&
                 detail.contains("row = NovaPlaySetupRow.HOST_DEFAULT_DISPLAY,") &&
                 detail.contains("row = NovaPlaySetupRow.HOST_PROFILE,") &&
-                detail.contains("row = NovaPlaySetupRow.HOST_AUTO_QUALITY,") &&
                 detail.contains("row = NovaPlaySetupRow.HOST_KEEP_IN_STEP,")
         )
+        assertFalse(detail.contains("HOST_AUTO_QUALITY"))
         assertTrue(
             "the strip is a legend for whichever row holds focus, not a picker with a state of " +
                 "its own. Three picker states ranked by a when is what made Steam Launch work " +

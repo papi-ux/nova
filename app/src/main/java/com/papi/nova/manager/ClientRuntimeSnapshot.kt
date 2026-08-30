@@ -8,6 +8,8 @@ import java.util.Locale
  */
 enum class ClientProfileSource(val wireValue: String, val displayLabel: String) {
     LOCAL_DEFAULT("local_default", "Local defaults"),
+    DETERMINISTIC_PRESET("deterministic_preset_v1", "Deterministic preset"),
+    EXPLICIT_LAUNCH("nova_explicit_launch_v1", "Explicit launch"),
     POLARIS_LIVE("polaris_live", "Polaris live"),
     POLARIS_CACHED("polaris_cached", "Polaris cached"),
     HISTORY_SAFE("history_safe", "History safe"),
@@ -72,6 +74,8 @@ data class ClientProfileProvenance(
             return when {
                 normalized.isEmpty() || normalized == "local" || normalized == "local_default" ->
                     ClientProfileSource.LOCAL_DEFAULT
+                normalized == "deterministic_preset_v1" -> ClientProfileSource.DETERMINISTIC_PRESET
+                normalized == "nova_explicit_launch_v1" -> ClientProfileSource.EXPLICIT_LAUNCH
                 normalized == "polaris_live" || normalized == "ai_live" || normalized == "live" ||
                     normalized == "ai_optimizer" || normalized == "optimizer" ->
                     ClientProfileSource.POLARIS_LIVE

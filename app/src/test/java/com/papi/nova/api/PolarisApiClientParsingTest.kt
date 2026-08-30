@@ -23,22 +23,54 @@ import org.robolectric.annotation.Config
 class PolarisApiClientParsingTest {
 
     @Test
+    fun typedPolicyRejectionRequiresLiteralFailureFieldsAndPreservesTheReason() {
+        val optimize = PolarisApiClient.parseTypedRejection(
+            httpStatus = 400,
+            body = """{"status":false,"code":"invalid_or_unavailable_topology","error":"Gamescope is unavailable.\nChoose another mode."}""",
+            mutationEnvelope = false,
+        )
+        assertNotNull(optimize)
+        assertEquals(400, optimize?.httpStatus)
+        assertEquals("invalid_or_unavailable_topology", optimize?.code)
+        assertEquals("Gamescope is unavailable. Choose another mode.", optimize?.error)
+
+        val mutation = PolarisApiClient.parseTypedRejection(
+            httpStatus = 500,
+            body = """{"status":false,"changed":false,"state":"persistence_failed","code":"stream_display_mode_persistence_failed","error":"The host could not save that mode."}""",
+            mutationEnvelope = true,
+        )
+        assertEquals("The host could not save that mode.", mutation?.error)
+
+        assertNull(PolarisApiClient.parseTypedRejection(400, """{"status":"false","code":"bad","error":"bad"}""", false))
+        assertNull(PolarisApiClient.parseTypedRejection(400, """{"status":false,"changed":"false","state":"rejected","code":"bad","error":"bad"}""", true))
+        assertNull(PolarisApiClient.parseTypedRejection(200, """{"status":false,"code":"bad","error":"bad"}""", false))
+    }
+
+    @Test
     fun doctorActionBodyCarriesExactAppGenerationAndOmitsOnlyLegacyBlankIdentity() {
         val modern = PolarisApiClient.buildDoctorActionBody(
             actionId = "undo",
             appSessionId = "app-generation-123",
+            sessionGeneration = 41L,
             appUuid = "game-uuid-123",
             sourceResultId = "doctor-v2",
             targetBitrateKbps = 16_000,
+            controllerRevision = 51L,
+            evidenceRevision = 61L,
             runId = "doctor-run-7",
+            requestId = "request-7",
             confirmed = true
         )
         assertEquals("undo", modern.getString("action_id"))
         assertEquals("app-generation-123", modern.getString("app_session_id"))
+        assertEquals(41L, modern.getLong("session_generation"))
         assertEquals("game-uuid-123", modern.getString("app_uuid"))
         assertEquals("doctor-v2", modern.getString("source_result_id"))
         assertEquals(16_000, modern.getInt("target_bitrate_kbps"))
+        assertEquals(51L, modern.getLong("controller_revision"))
+        assertEquals(61L, modern.getLong("evidence_revision"))
         assertEquals("doctor-run-7", modern.getString("run_id"))
+        assertEquals("request-7", modern.getString("request_id"))
         assertTrue(modern.getBoolean("confirmed"))
 
         val legacy = PolarisApiClient.buildDoctorActionBody(
@@ -51,7 +83,7 @@ class PolarisApiClientParsingTest {
     @Test
     fun doctorActionUndoAvailabilityRequiresLiteralBoolean() {
         fun parsed(value: String): PolarisDoctorActionResult = PolarisApiClient.parseDoctorActionResponse(
-            JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{\"available\":$value}}")
+            JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{\"available\":$value,\"action_id\":\"undo\"}}")
         )
 
         assertEquals(true, parsed("true").undoAvailable)
@@ -63,6 +95,11 @@ class PolarisApiClientParsingTest {
                 JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{}}")
             ).undoAvailable
         )
+        assertFalse(
+            PolarisApiClient.parseDoctorActionResponse(
+                JSONObject("{\"status\":\"true\",\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}")
+            ).status
+        )
     }
 
     @Test
@@ -70,7 +107,9 @@ class PolarisApiClientParsingTest {
         val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 409,
             responseBody = "{\"status\":false,\"run_id\":\"run-1\",\"error\":\"expired\"," +
-                "\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}"
+                "\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}",
+            actionId = "verify",
+            requestedRunId = "run-1"
         )
 
         assertFalse(rejected.status)
@@ -79,6 +118,241 @@ class PolarisApiClientParsingTest {
         assertEquals(false, rejected.undoAvailable)
         assertEquals("", rejected.undoActionId)
         assertFalse(rejected.error.contains("409"))
+    }
+
+    @Test
+    fun doctorActionHttpSuccessRequiresTheTypedActionAndRunContract() {
+        val blankRunMutation = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"watching\"}",
+            actionId = "lower_bitrate",
+            requestedRunId = "",
+            requestedRequestId = "request-1"
+        )
+        val blankRunVerification = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"resolved\"}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+        val recheck = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"observed\"}",
+            actionId = "recheck_pacing",
+            requestedRunId = ""
+        )
+        val incompleteNextStep = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"watching\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+        val incompleteApplyingStep = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"applying\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertFalse(blankRunMutation.status)
+        assertEquals("Invalid Doctor action response", blankRunMutation.error)
+        assertFalse(blankRunVerification.status)
+        assertFalse(incompleteNextStep.status)
+        assertFalse(incompleteApplyingStep.status)
+        assertTrue(recheck.status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedMutationVerificationAndUndo() {
+        val applied = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"applying\"," +
+                "\"run_id\":\"doctor-run-1\",\"request_id\":\"request-1\"," +
+                "\"verification\":{\"action_id\":\"verify\"," +
+                "\"delay_seconds\":8},\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "lower_bitrate",
+            requestedRunId = "",
+            requestedRequestId = "request-1"
+        )
+        val verified = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"resolved\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+        val nextQualityStep = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"applying\"," +
+                "\"run_id\":\"doctor-run-1\",\"verification\":{\"action_id\":\"verify\"," +
+                "\"delay_seconds\":8},\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+        val undone = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"undone\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "undo",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(applied.status)
+        assertTrue(verified.status)
+        assertTrue(nextQualityStep.status)
+        assertTrue(undone.status)
+    }
+
+    @Test
+    fun doctorActionHttpRequiresTheExactRequestedAppGenerationScope() {
+        fun parsed(appSessionId: Any?, sessionGeneration: Any?): PolarisDoctorActionResult {
+            val response = JSONObject()
+                .put("status", true)
+                .put("changed", true)
+                .put("state", "applying")
+                .put("run_id", "doctor-run-1")
+                .put("request_id", "request-1")
+                .put("verification", JSONObject()
+                    .put("action_id", "verify")
+                    .put("delay_seconds", 8))
+                .put("undo", JSONObject()
+                    .put("available", true)
+                    .put("action_id", "undo"))
+            if (appSessionId != null) response.put("app_session_id", appSessionId)
+            if (sessionGeneration != null) response.put("session_generation", sessionGeneration)
+            return PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 200,
+                responseBody = response.toString(),
+                actionId = "lower_bitrate",
+                requestedRunId = "",
+                requestedRequestId = "request-1",
+                requestedAppSessionId = "app-session-41",
+                requestedSessionGeneration = 41L,
+            )
+        }
+
+        assertTrue(parsed("app-session-41", 41L).status)
+        assertFalse(parsed(null, null).status)
+        assertFalse(parsed("app-session-42", 41L).status)
+        assertFalse(parsed("app-session-41", 42L).status)
+        assertFalse(parsed("app-session-41", "41").status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsOnlyExactIdempotentRetryReceipt() {
+        fun parsed(requestId: String, changed: Any): PolarisDoctorActionResult =
+            PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 200,
+                responseBody = JSONObject()
+                    .put("status", true)
+                    .put("changed", changed)
+                    .put("state", "watching")
+                    .put("run_id", "doctor-run-1")
+                    .put("request_id", requestId)
+                    .put("verification", JSONObject()
+                        .put("action_id", "verify")
+                        .put("delay_seconds", 8))
+                    .put("undo", JSONObject()
+                        .put("available", true)
+                        .put("action_id", "undo"))
+                    .toString(),
+                actionId = "lower_bitrate",
+                requestedRunId = "",
+                requestedRequestId = "request-1"
+            )
+
+        assertTrue(parsed("request-1", false).status)
+        assertFalse(parsed("request-2", false).status)
+        assertFalse(parsed("request-1", "false").status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsExactTerminalReceiptAfterLostApplyResponse() {
+        fun parsed(state: String, changed: Boolean, requestId: String): PolarisDoctorActionResult =
+            PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 200,
+                responseBody = JSONObject()
+                    .put("status", true)
+                    .put("changed", changed)
+                    .put("state", state)
+                    .put("run_id", "doctor-run-1")
+                    .put("request_id", requestId)
+                    .put("undo", JSONObject().put("available", false))
+                    .toString(),
+                actionId = "lower_bitrate",
+                requestedRunId = "",
+                requestedRequestId = "request-1"
+            )
+
+        assertTrue(parsed("rolled_back", true, "request-1").status)
+        assertTrue(parsed("superseded", false, "request-1").status)
+        assertFalse(parsed("rolled_back", true, "request-2").status)
+        assertFalse(parsed("rolled_back", false, "request-1").status)
+    }
+
+    @Test
+    fun doctorActionHttpRejectsMissingOrMalformedChangedField() {
+        fun parsed(changedJson: String): PolarisDoctorActionResult =
+            PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 200,
+                responseBody = "{\"status\":true$changedJson,\"state\":\"observed\"}",
+                actionId = "recheck_pacing",
+                requestedRunId = ""
+            )
+
+        assertFalse(parsed("").status)
+        assertFalse(parsed(",\"changed\":\"false\"").status)
+        assertTrue(parsed(",\"changed\":false").status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedVerificationStillCollecting() {
+        val collecting = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"watching\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":true,\"action_id\":\"undo\"}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(collecting.status)
+        assertEquals("watching", collecting.state)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedAutomaticRollback() {
+        val rolledBack = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"rolled_back\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(rolledBack.status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsOnlyTheExactLegacyRecoveryUndoReceipt() {
+        val accepted = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"undone\"," +
+                "\"run_id\":\"recovery-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "undo",
+            requestedRunId = "recovery-run-1"
+        )
+        val mismatched = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"undone\"," +
+                "\"run_id\":\"recovery-run-2\",\"undo\":{\"available\":false}}",
+            actionId = "undo",
+            requestedRunId = "recovery-run-1"
+        )
+
+        assertTrue(accepted.status)
+        assertFalse(mismatched.status)
     }
 
     @Test
@@ -93,7 +367,7 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun explicitHostTuningRevocationOverridesLegacyOwnershipFallback() {
+    fun hostTuningAuthorityRequiresTheCompleteTypedContract() {
         val explicitRevocation = PolarisApiClient.parseSessionStatusResponse(
             JSONObject(
                 "{\"state\":\"streaming\",\"owned_by_client\":true,\"client_role\":\"owner\"," +
@@ -105,7 +379,17 @@ class PolarisApiClientParsingTest {
         )
 
         assertFalse(explicitRevocation.canAdjustHostTuning)
-        assertTrue(legacyOmission.canAdjustHostTuning)
+        assertFalse(legacyOmission.canAdjustHostTuning)
+        assertFalse(legacyOmission.authorityContractValid)
+
+        val malformed = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject(
+                "{\"state\":\"streaming\",\"owned_by_client\":\"true\"," +
+                    "\"client_role\":\"owner\",\"controls\":{\"host_tuning_allowed\":\"false\"}}"
+            )
+        )
+        assertFalse(malformed.authorityContractValid)
+        assertFalse(malformed.canAdjustHostTuning)
     }
 
     @Test
@@ -206,7 +490,8 @@ class PolarisApiClientParsingTest {
         val json = JSONObject(
             "{\"server\":\"polaris\",\"version\":\"1.0.0\"," +
                 "\"features\":{\"ai_optimizer\":true,\"ai_optimizer_control\":true,\"cursor_visibility_control\":true," +
-                "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true}," +
+                "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true," +
+                "\"resolved_profile_provenance_v1\":true,\"expected_topology_assertion_v1\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"codecs\":[\"hevc\"]}}"
         )
 
@@ -220,6 +505,52 @@ class PolarisApiClientParsingTest {
         assertTrue(capabilities.features.streamPolicy)
         assertTrue(capabilities.features.clientSettings)
         assertTrue(capabilities.features.optimizerSync)
+        assertTrue(capabilities.features.resolvedProfileProvenance)
+        assertTrue(capabilities.features.expectedTopologyAssertion)
+        assertTrue(PolarisApiClient.supportsDeterministicLaunchContract(capabilities))
+    }
+
+    @Test
+    fun parseCapabilitiesResponse_rejectsCoercedResolvedProfileAuthority() {
+        val capabilities = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject(
+                "{\"server\":\"polaris\",\"features\":" +
+                    "{\"resolved_profile_provenance_v1\":\"true\"}}"
+            )
+        )
+
+        assertFalse(capabilities.features.resolvedProfileProvenance)
+    }
+
+    @Test
+    fun parseCapabilitiesResponse_requiresTypedExpectedTopologyAuthority() {
+        val missing = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject(
+                "{\"server\":\"polaris\",\"features\":" +
+                    "{\"resolved_profile_provenance_v1\":true}}"
+            )
+        )
+        val coerced = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject(
+                "{\"server\":\"polaris\",\"features\":" +
+                    "{\"resolved_profile_provenance_v1\":true," +
+                    "\"expected_topology_assertion_v1\":\"true\"}}"
+            )
+        )
+        val disabled = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject(
+                "{\"server\":\"polaris\",\"features\":" +
+                    "{\"resolved_profile_provenance_v1\":true," +
+                    "\"expected_topology_assertion_v1\":false}}"
+            )
+        )
+
+        assertFalse(missing.features.expectedTopologyAssertion)
+        assertFalse(coerced.features.expectedTopologyAssertion)
+        assertFalse(disabled.features.expectedTopologyAssertion)
+        assertFalse(PolarisApiClient.supportsDeterministicLaunchContract(missing))
+        assertFalse(PolarisApiClient.supportsDeterministicLaunchContract(coerced))
+        assertFalse(PolarisApiClient.supportsDeterministicLaunchContract(disabled))
     }
 
     @Test
@@ -248,11 +579,32 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun authoritativeDoctorNoneNeverInheritsStaleHealthDiagnosis() {
+        val status = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject()
+                .put("state", "streaming")
+                .put("doctor", JSONObject()
+                    .put("version", 2)
+                    .put("result_id", "doctor-v2-clean")
+                    .put("primary_issue", "none"))
+                .put("health", JSONObject()
+                    .put("primary_issue", "network_jitter")
+                    .put("summary", "Network jitter is the most likely source."))
+        )
+
+        assertTrue(status.hasAuthoritativeDoctorResult)
+        assertEquals("none", status.effectivePrimaryIssue)
+        assertEquals("No confirmed issue", status.doctor.likelyCause)
+        assertFalse(status.doctor.likelyCause.contains("Network", ignoreCase = true))
+    }
+
+    @Test
     fun parseSessionStatusResponse_includesLiveSessionFields() {
         val json = JSONObject(
             "{\"state\":\"streaming\",\"streaming_active\":true,\"shutdown_requested\":false," +
                 "\"game_id\":123,\"game_uuid\":\"game-uuid\"," +
-                "\"session_token\":\"token-123\",\"app_session_id\":\"app-session-123\",\"owner_unique_id\":\"owner-uuid\"," +
+                "\"session_token\":\"token-123\",\"app_session_id\":\"app-session-123\",\"session_generation\":41," +
+                "\"owner_unique_id\":\"owner-uuid\"," +
                 "\"owner_device_name\":\"Retroid\",\"client_role\":\"viewer\",\"viewer_count\":2,\"owned_by_client\":true," +
                 "\"cursor_visible\":true,\"dynamic_range\":1,\"mangohud_configured\":true,\"ai_auto_quality_enabled\":true," +
                 "\"controls\":{\"host_tuning_allowed\":false,\"quit_allowed\":false,\"shutdown_in_progress\":false," +
@@ -262,8 +614,9 @@ class PolarisApiClientParsingTest {
                 "\"adaptive_max_bitrate_kbps\":30000,\"adaptive_bitrate_state\":\"network_pressure\"," +
                 "\"adaptive_bitrate_reason\":\"packet_loss\"," +
                 "\"ai_auto_quality_enabled\":true,\"ai_optimizer_enabled\":true,\"mangohud_configured\":true}," +
-                "\"display_mode\":{\"label\":\"Headless\",\"selection\":\"headless\",\"requested\":\"auto\"," +
-                "\"explicit_choice\":false,\"virtual_display\":false,\"requested_headless\":true,\"effective_headless\":true}," +
+                "\"display_mode\":{\"label\":\"Headless\",\"selection\":\"headless_stream\",\"requested\":\"auto\"," +
+                "\"explicit_choice\":false,\"virtual_display\":false,\"requested_headless\":true,\"effective_headless\":true," +
+                "\"mirror_desktop\":false,\"force_private_after_steam_close\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"resolution\":\"1920x1080\"," +
                 "\"transport\":\"dmabuf\",\"residency\":\"gpu\",\"format\":\"bgra8\"}," +
                 "\"encoder\":{\"codec\":\"hevc_nvenc\",\"bitrate_kbps\":20000,\"fps\":60.0," +
@@ -321,6 +674,7 @@ class PolarisApiClientParsingTest {
         assertEquals("token-123", status.sessionToken)
         assertEquals("app-session-123", status.appSessionId)
         assertTrue(status.appSessionIdPresent)
+        assertEquals(41L, status.sessionGeneration)
         assertEquals("owner-uuid", status.ownerUniqueId)
         assertEquals("Retroid", status.ownerDeviceName)
         assertEquals("viewer", status.clientRole)
@@ -340,6 +694,9 @@ class PolarisApiClientParsingTest {
         assertEquals("network_pressure", status.tuning.adaptiveBitrateState)
         assertEquals("packet_loss", status.tuning.adaptiveBitrateReason)
         assertEquals("auto", status.displayMode.requested)
+        assertEquals("headless_stream", status.displayMode.selection)
+        assertFalse(status.displayMode.mirrorDesktop)
+        assertTrue(status.displayMode.forcePrivateAfterSteamClose)
         assertEquals("ai_cached", status.encoder.optimizationSource)
         assertEquals("medium", status.encoder.optimizationConfidence)
         assertEquals("hit", status.encoder.optimizationCacheStatus)
@@ -423,6 +780,18 @@ class PolarisApiClientParsingTest {
                 PolarisApiClient.parseSessionStatusResponse(invalidGame)
             }
         }
+
+        listOf<Any>(JSONObject.NULL, "41", true, -1, 1.5).forEach { invalid ->
+            val invalidGeneration = JSONObject()
+                .put("state", "streaming")
+                .put("game_uuid", "control")
+                .put("session_token", "token-123")
+                .put("app_session_id", "app-session-123")
+                .put("session_generation", invalid)
+            assertThrows(JSONException::class.java) {
+                PolarisApiClient.parseSessionStatusResponse(invalidGeneration)
+            }
+        }
     }
 
     @Test
@@ -441,33 +810,130 @@ class PolarisApiClientParsingTest {
 
     @Test
     fun parseSessionStatusResponse_includesPolarisDoctorDiagnosis() {
-        val json = JSONObject(
-            "{\"state\":\"streaming\",\"streaming_active\":true," +
-                "\"doctor\":{\"version\":2,\"result_id\":\"doctor-v2-needs_action-network_jitter-gpu_native\"," +
-                "\"simple_state\":\"Network issue detected\",\"primary_issue\":\"network_jitter\"," +
-                "\"confidence\":{\"level\":\"high\"}," +
-                "\"evidence\":[{\"id\":\"packet_loss\",\"value\":3.4,\"detail\":\"Packet loss is 3.4% over the last sample window.\"}," +
-                "{\"id\":\"latency\",\"value\":12.0,\"detail\":\"Latency is 12ms.\"}]," +
-                "\"recommendation\":{\"body\":\"Current evidence confirms network pressure.\",\"next_step_label\":\"Fix and verify\"}," +
-                "\"safe_recovery_action\":{\"id\":\"lower_bitrate\",\"label\":\"Fix and verify\",\"kind\":\"live_tuning\"," +
-                "\"payload_preview\":{\"target_bitrate_kbps\":16000},\"verification\":{\"delay_seconds\":8},\"undo\":{\"supported\":true}}}," +
-                "\"ai_doctor_explanation\":{\"status\":true,\"explanation\":{\"likely_cause\":\"Wi-Fi jitter is the likely bottleneck.\"," +
-                "\"evidence\":[\"3.4% packet loss\"],\"try_first\":[\"Lower bitrate\"]," +
-                "\"advanced_detail\":\"Network evidence beats encoder speculation.\",\"confidence\":\"high\",\"destructive_action_allowed\":true}}}"
-        )
+        val resultId = "doctor-v2-needs_action-network_jitter-gpu_native"
+        val json = JSONObject()
+            .put("state", "streaming")
+            .put("streaming_active", true)
+            .put("app_session_id", "app-session-41")
+            .put("session_generation", 41L)
+            .put(
+                "doctor",
+                JSONObject()
+                    .put("version", 2)
+                    .put("result_id", resultId)
+                    .put("primary_issue", "network_jitter")
+                    .put("summary", "Current evidence confirms network pressure.")
+                    .put("confidence", JSONObject().put("level", "high"))
+                    .put(
+                        "evidence",
+                        org.json.JSONArray()
+                            .put(
+                                JSONObject()
+                                    .put("id", "packet_loss")
+                                    .put("status", "fail")
+                                    .put("source", "media_transport")
+                                    .put("value", 3.4)
+                                    .put("detail", "Packet loss is 3.4% over the last sample window.")
+                            )
+                            .put(
+                                JSONObject()
+                                    .put("id", "latency")
+                                    .put("status", "pass")
+                                    .put("source", "stream_stats")
+                                    .put("value", 12.0)
+                                    .put("detail", "Latency is 12ms.")
+                            )
+                    )
+                    .put(
+                        "recommendation",
+                        JSONObject()
+                            .put("body", "Current evidence confirms network pressure.")
+                            .put("next_step_label", "Fix and verify")
+                    )
+                    .put(
+                        "safe_recovery_action",
+                        JSONObject()
+                            .put("id", "lower_bitrate")
+                            .put("label", "Auto Fix")
+                            .put("capability", "auto_fix")
+                            .put("kind", "live_tuning")
+                            .put("endpoint", "/api/doctor/action")
+                            .put("method", "POST")
+                            .put("destructive", false)
+                            .put("requires_confirmation", false)
+                            .put("requires_owner", true)
+                            .put("allowed_in_viewer_mode", false)
+                            .put("owner_tuning_allowed", false)
+                            .put("paired_endpoint", "")
+                            .put(
+                                "payload_preview",
+                                JSONObject()
+                                    .put("action_id", "lower_bitrate")
+                                    .put("source_result_id", resultId)
+                                    .put("app_session_id", "app-session-41")
+                                    .put("session_generation", 41L)
+                                    .put("controller_revision", 51L)
+                                    .put("evidence_revision", 61L)
+                                    .put("target_bitrate_kbps", 16_000)
+                            )
+                            .put(
+                                "verification",
+                                JSONObject()
+                                    .put("mode", "live_telemetry")
+                                    .put("endpoint", "/api/doctor/action")
+                                    .put("delay_seconds", 8)
+                            )
+                            .put(
+                                "undo",
+                                JSONObject()
+                                    .put("supported", true)
+                                    .put("endpoint", "/api/doctor/action")
+                                    .put("paired_endpoint", "")
+                            )
+                    )
+            )
+            .put(
+                "ai_doctor_explanation",
+                JSONObject()
+                    .put("status", true)
+                    .put(
+                        "source",
+                        JSONObject()
+                            .put("kind", "openai")
+                            .put("mode", "subscription")
+                            .put("informational", true)
+                    )
+                    .put(
+                        "explanation",
+                        JSONObject()
+                            .put("likely_cause", "Wi-Fi jitter is the likely bottleneck.")
+                            .put("evidence", org.json.JSONArray().put("3.4% packet loss"))
+                            .put("try_first", org.json.JSONArray().put("Lower bitrate"))
+                            .put("advanced_detail", "Network evidence beats encoder speculation.")
+                            .put("confidence", "high")
+                            .put("destructive_action_allowed", true)
+                    )
+            )
 
         val status = PolarisApiClient.parseSessionStatusResponse(json)
 
         assertTrue(status.doctor.available)
         assertEquals("NET", status.doctor.classification)
-        assertEquals("Wi-Fi jitter is the likely bottleneck.", status.doctor.likelyCause)
-        assertEquals("3.4% packet loss", status.doctor.evidence.first())
-        assertEquals("Lower bitrate", status.doctor.tryFirst.first())
+        assertEquals("Current evidence confirms network pressure.", status.doctor.likelyCause)
+        assertEquals("Packet loss is 3.4% over the last sample window.", status.doctor.evidence.first())
+        assertEquals("Current evidence confirms network pressure.", status.doctor.tryFirst.first())
         assertEquals("high", status.doctor.confidence)
+        assertTrue(status.doctor.aiExplanation.available)
+        assertEquals("Wi-Fi jitter is the likely bottleneck.", status.doctor.aiExplanation.likelyCause)
+        assertEquals("Lower bitrate", status.doctor.aiExplanation.tryFirst.first())
         assertEquals(2, status.doctor.version)
         assertEquals("lower_bitrate", status.doctor.actionId)
-        assertEquals("Fix and verify", status.doctor.actionLabel)
+        assertEquals("Auto Fix", status.doctor.actionLabel)
         assertEquals(16000, status.doctor.targetBitrateKbps)
+        assertEquals("app-session-41", status.doctor.actionAppSessionId)
+        assertEquals(41L, status.doctor.actionSessionGeneration)
+        assertEquals(51L, status.doctor.actionControllerRevision)
+        assertEquals(61L, status.doctor.actionEvidenceRevision)
         assertEquals(8, status.doctor.verificationDelaySeconds)
         assertTrue(status.doctor.undoSupported)
         assertEquals(3.4, status.doctor.packetLossPct!!, 0.01)
@@ -498,7 +964,7 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun nextLaunchRecoveryActionRequiresTheExactAuthenticatedContract() {
+    fun deprecatedNextLaunchRecoveryActionIsNeverExecutable() {
         fun status(mutate: (JSONObject) -> Unit = {}): PolarisSessionStatus.DoctorStatus {
             val action = JSONObject()
                 .put("id", "apply_recovery_profile_next_launch")
@@ -530,7 +996,7 @@ class PolarisApiClientParsingTest {
         }
 
         val exact = status()
-        assertTrue(exact.canExecuteAction)
+        assertFalse(exact.canExecuteAction)
         assertEquals("game-a", exact.actionAppUuid)
         assertFalse(status { it.put("id", "apply_recovery_profile") }.canExecuteAction)
         assertFalse(status { it.put("kind", "live_tuning") }.canExecuteAction)
@@ -635,7 +1101,10 @@ class PolarisApiClientParsingTest {
         assertEquals("deterministic-fallback", status.doctor.explanationSourceKind)
         assertEquals("openai-subscription", status.doctor.explanationSourceMode)
         assertTrue(status.doctor.explanationInformational)
-        assertEquals("deterministic-fallback", status.doctor.confidence)
+        assertEquals("Frame pacing needs attention.", status.doctor.likelyCause)
+        assertEquals("deterministic", status.doctor.confidence)
+        assertEquals("Frame pacing is uneven.", status.doctor.aiExplanation.likelyCause)
+        assertEquals("deterministic-fallback", status.doctor.aiExplanation.confidence)
     }
 
     @Test
@@ -736,16 +1205,47 @@ class PolarisApiClientParsingTest {
     @Test
     fun matchesConfirmedAction_requiresExactActionIdAndResultIdPair() {
         val confirmed = PolarisSessionStatus.DoctorStatus(
-            actionId = "disable_steam_input_xbox",
-            resultId = "doctor-v2-steam_input_conflict-xbox"
+            available = true,
+            version = 2,
+            resultId = "doctor-v2-network-a",
+            primaryIssue = "network_jitter",
+            evidenceItems = listOf(
+                PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                    id = "packet_loss",
+                    status = "fail",
+                    source = "media_transport",
+                    value = 3.4
+                )
+            ),
+            actionId = "lower_bitrate",
+            actionCapability = "auto_fix",
+            actionKind = "live_tuning",
+            actionEndpoint = "/api/doctor/action",
+            actionMethod = "POST",
+            actionPayloadId = "lower_bitrate",
+            actionSourceResultId = "doctor-v2-network-a",
+            actionContractTyped = true,
+            actionAppSessionId = "app-session-41",
+            actionSessionGeneration = 41L,
+            actionControllerRevision = 51L,
+            actionEvidenceRevision = 61L,
+            targetBitrateKbps = 16_000,
+            targetBitratePresent = true,
+            targetBitrateTyped = true,
+            verificationDelaySeconds = 8,
+            verificationMode = "live_telemetry",
+            verificationEndpoint = "/api/doctor/action",
+            undoSupported = true,
+            undoEndpoint = "/api/doctor/action",
+            requiresOwner = true
         )
 
         assertTrue(confirmed.matchesConfirmedAction(confirmed))
         assertFalse(
-            confirmed.copy(actionId = "lower_bitrate").matchesConfirmedAction(confirmed)
+            confirmed.copy(actionId = "restore_quality").matchesConfirmedAction(confirmed)
         )
         assertFalse(
-            confirmed.copy(resultId = "doctor-v2-steam_input_conflict-xbox-next")
+            confirmed.copy(resultId = "doctor-v2-network-next")
                 .matchesConfirmedAction(confirmed)
         )
         assertFalse(
@@ -774,6 +1274,21 @@ class PolarisApiClientParsingTest {
         assertEquals("Host render is missing the stream FPS target.", status.doctor.likelyCause)
         assertEquals("Lower game FPS before tuning bitrate.", status.doctor.tryFirst.first())
         assertEquals("fallback", status.doctor.confidence)
+    }
+
+    @Test
+    fun observationalNetworkFallbackIsNotClassifiedAsHostOrNetworkFailure() {
+        val status = PolarisApiClient.parseSessionStatusResponse(
+            JSONObject(
+                "{\"state\":\"streaming\",\"streaming_active\":true," +
+                    "\"health\":{\"grade\":\"watch\",\"summary\":\"Control retries observed.\"," +
+                    "\"primary_issue\":\"control_channel_observation\"}}"
+            )
+        )
+
+        assertEquals("UNKNOWN", status.doctor.classification)
+        assertFalse(status.hasHealthConcerns)
+        assertEquals("Control retries", status.healthToneLabel)
     }
 
     @Test
@@ -1402,18 +1917,29 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
-    fun buildOptimizationPath_includesHighFpsTrialWhenRequested() {
+    fun buildOptimizationPath_carriesExplicitLaunchLocksWithoutATrialQuery() {
         val path = PolarisApiClient.buildOptimizationPath(
             device = "RetroidPocket6",
             game = "Black Myth: Wukong",
             preference = "high_fps",
-            trial = "high_fps"
+            topologyLocked = true,
+            width = 1920,
+            height = 1080,
+            fps = 120f,
+            displayLocked = true,
+            bitrateKbps = 40000,
+            bitrateLocked = true,
+            hdr = false,
+            clientMaxFps = 119.88f,
         )
 
         assertEquals(
-            "/optimize?device=RetroidPocket6&game=Black+Myth%3A+Wukong&preference=high_fps&trial=high_fps",
+            "/optimize?device=RetroidPocket6&game=Black+Myth%3A+Wukong&preference=high_fps" +
+                "&topology_locked=1&width=1920&height=1080&fps=120.0&display_locked=1" +
+                "&bitrate_kbps=40000&bitrate_locked=1&hdr=0&client_max_fps=119.88",
             path
         )
+        assertFalse(path.contains("trial="))
     }
 
     @Test
@@ -1441,6 +1967,38 @@ class PolarisApiClientParsingTest {
             legacy
         )
     }
+
+    @Test
+    fun buildOptimizationPathCarriesCanonicalAppAndExactSteamTopologyChoice() {
+        val mirror = PolarisApiClient.buildOptimizationPath(
+            device = "RetroidPocket6",
+            game = "f2f47f88-3463-4e5a-9db2-d50b1f83ab77",
+            preference = "quality",
+            mode = "desktop_display",
+            topologyLocked = true,
+            mirrorDesktop = true,
+        )
+        val privateStream = PolarisApiClient.buildOptimizationPath(
+            device = "RetroidPocket6",
+            game = "42",
+            preference = "auto",
+            mode = "gamescope_stream",
+            topologyLocked = true,
+            forcePrivateAfterSteamClose = true,
+        )
+
+        assertEquals(
+            "/optimize?device=RetroidPocket6&game=f2f47f88-3463-4e5a-9db2-d50b1f83ab77" +
+                "&preference=quality&mode=desktop_display&topology_locked=1&mirrorDesktop=1",
+            mirror,
+        )
+        assertTrue(privateStream.contains("game=42"))
+        assertTrue(privateStream.contains("mode=gamescope_stream"))
+        assertTrue(privateStream.contains("topology_locked=1"))
+        assertTrue(privateStream.contains("closeDesktopSteamForPrivate=1"))
+        assertTrue(privateStream.contains("launchMode=force_private_stream"))
+    }
+
     @Test
     fun buildSteamLaunchModeUpdateBodyNormalizesAliases() {
         val body = PolarisApiClient.buildSteamLaunchModeUpdateBody("game-1", "gamepadui")

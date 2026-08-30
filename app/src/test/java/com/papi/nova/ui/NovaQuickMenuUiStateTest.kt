@@ -33,7 +33,7 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Leave", state.endAction.label)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.MOUSE_MODE }.enabled)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.enabled)
-        assertFalse(state.advancedRows.first { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY }.enabled)
+        assertFalse(state.advancedRows.any { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY })
         assertEquals("Owner", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.MUTED, state.stability.chip.tone)
     }
@@ -57,7 +57,7 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
-    fun hostRenderLimitedSessionWarnsWithPlayerReadableRecoveryCopy() {
+    fun hostRenderLimitedSessionWarnsWithObservationalPacingCopy() {
         val state = quickState(
             status = status(
                 aiOptimizerEnabled = true,
@@ -78,9 +78,9 @@ class NovaQuickMenuUiStateTest {
             aiEnabled = true
         )
 
-        assertEquals("AI Recovery Profile ready for next launch.", state.healthSummary)
+        assertEquals("Frame-pacing evidence needs a read-only recheck; launch settings are unchanged.", state.healthSummary)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
-        assertEquals("AI Recovery Profile", state.stability.chip.label)
+        assertEquals("Frame Pacing Watch", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.WARNING, state.stability.chip.tone)
     }
 
@@ -149,6 +149,31 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun authoritativeDoctorNoneDoesNotShowStaleHealthSummaryBesideSteadyState() {
+        val state = quickState(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "watch",
+                    summary = "Network jitter was previously observed.",
+                    primaryIssue = "network_jitter",
+                    issues = listOf("network_jitter")
+                ),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-current-none",
+                    primaryIssue = "none",
+                    likelyCause = "No confirmed issue"
+                )
+            )
+        )
+
+        assertEquals("Session looks steady.", state.healthSummary)
+        assertFalse(state.healthSummary.contains("Network", ignoreCase = true))
+        assertFalse(state.diagnosis.likelyCause.contains("Network", ignoreCase = true))
+    }
+
+    @Test
     fun controllerToggleCopyClarifiesTouchOverlayInsteadOfPhysicalGamepad() {
         val state = quickState(status = status(), currentGameName = "Portal")
         val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }
@@ -163,9 +188,8 @@ class NovaQuickMenuUiStateTest {
         val state = quickState(status = null, apiAvailable = false)
 
         assertEquals("Checking stream mode", state.sessionMode.label)
-        assertEquals("N/A", state.advancedRows.first { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY }.chip!!.label)
         assertEquals("N/A", state.advancedRows.first { it.id == NovaQuickMenuActionId.MANGOHUD }.chip!!.label)
-        assertEquals("not a Polaris session", state.advancedRows.first { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY }.caption)
+        assertFalse(state.advancedRows.any { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY })
         assertFalse(state.advancedRows.first { it.id == NovaQuickMenuActionId.CLEAR_GAME_PROFILE }.enabled)
     }
 
@@ -261,11 +285,31 @@ class NovaQuickMenuUiStateTest {
                     confidence = "high",
                     primaryIssue = "network_jitter",
                     actionId = "lower_bitrate",
-                    actionLabel = "Fix and verify",
+                    actionLabel = "Auto Fix",
+                    actionCapability = "auto_fix",
                     actionKind = "live_tuning",
+                    actionEndpoint = "/api/doctor/action",
+                    actionMethod = "POST",
+                    actionPayloadId = "lower_bitrate",
+                    actionSourceResultId = "doctor-v2-needs_action-network_jitter-gpu_native",
+                    actionContractTyped = true,
                     targetBitrateKbps = 16000,
+                    targetBitratePresent = true,
+                    targetBitrateTyped = true,
                     verificationDelaySeconds = 8,
+                    verificationMode = "live_telemetry",
+                    verificationEndpoint = "/api/doctor/action",
                     undoSupported = true,
+                    undoEndpoint = "/api/doctor/action",
+                    requiresOwner = true,
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "packet_loss",
+                            status = "fail",
+                            source = "media_transport",
+                            value = 3.4
+                        )
+                    ),
                     packetLossPct = 3.4,
                     latencyMs = 12.0
                 )
@@ -274,7 +318,7 @@ class NovaQuickMenuUiStateTest {
 
         val diagnose = state.overlayRows.first()
         assertEquals(NovaQuickMenuActionId.DIAGNOSE_STREAM, diagnose.id)
-        assertEquals("Fix and verify", diagnose.label)
+        assertEquals("Auto Fix", diagnose.label)
         assertEquals("Wi-Fi jitter is the likely bottleneck.", diagnose.caption)
         assertEquals("NET", diagnose.chip!!.label)
         assertEquals(NovaQuickMenuTone.WARNING, diagnose.chip.tone)
@@ -306,7 +350,7 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Deterministic fallback · openai-subscription", state.diagnosis.informationalSource)
         assertFalse(state.diagnosis.actionExecutable)
-        assertEquals(NovaQuickMenuDoctorCapability.DOCTOR, state.diagnosis.capability)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
     }
 
     @Test
@@ -317,7 +361,7 @@ class NovaQuickMenuUiStateTest {
         assertFalse(diagnose.enabled)
         assertEquals("N/A", diagnose.chip!!.label)
         assertEquals("Connect to Polaris for HOST / NET / CLIENT diagnostics.", diagnose.caption)
-        assertEquals(NovaQuickMenuDoctorCapability.FALLBACK, state.diagnosis.capability)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
     }
 
     @Test
@@ -327,12 +371,23 @@ class NovaQuickMenuUiStateTest {
                 doctor = PolarisSessionStatus.DoctorStatus(
                     available = true,
                     version = 2,
+                    resultId = "doctor-v2-network-observation",
                     classification = "NET",
                     likelyCause = "A network warning needs more live evidence before Doctor changes quality.",
                     primaryIssue = "network_observation",
                     actionId = "recheck_network",
                     actionLabel = "Recheck network",
+                    actionCapability = "recheck",
                     actionKind = "verification",
+                    actionEndpoint = "/api/doctor/action",
+                    actionMethod = "POST",
+                    actionPayloadId = "recheck_network",
+                    actionSourceResultId = "doctor-v2-network-observation",
+                    actionContractTyped = true,
+                    verificationDelaySeconds = 3,
+                    verificationMode = "live_telemetry",
+                    verificationEndpoint = "/api/doctor/action",
+                    requiresOwner = true,
                     packetLossPct = 0.4,
                     latencyMs = 20.0
                 )
@@ -356,7 +411,8 @@ class NovaQuickMenuUiStateTest {
                     likelyCause = "Old network warning",
                     primaryIssue = "network_jitter",
                     actionId = "lower_bitrate",
-                    actionLabel = "Fix and verify",
+                    actionLabel = "Auto Fix",
+                    actionCapability = "auto_fix",
                     actionKind = "live_tuning",
                     targetBitrateKbps = 7580,
                     packetLossPct = 0.0,
@@ -366,42 +422,98 @@ class NovaQuickMenuUiStateTest {
         )
 
         assertFalse(state.diagnosis.actionExecutable)
-        assertEquals(NovaQuickMenuDoctorCapability.DOCTOR, state.diagnosis.capability)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
         assertEquals("Diagnose This Stream", state.overlayRows.first().label)
     }
 
     @Test
-    fun cleanHistorySafeCapOffersOneClickQualityRestore() {
+    fun dormantRunTrialCapabilityIsPublishedAsManualUntilAnExecutableContractExists() {
         val state = quickState(
             status = status(
                 doctor = PolarisSessionStatus.DoctorStatus(
                     available = true,
                     version = 2,
-                    resultId = "doctor-v2-needs_action-quality_capped_by_history-gpu_native",
+                    resultId = "doctor-v2-trial-dormant",
                     classification = "HOST",
-                    likelyCause = "An older recovery profile is limiting quality even though the live network is stable.",
-                    primaryIssue = "quality_capped_by_history",
+                    likelyCause = "A one-shot cadence trial might distinguish the cause.",
+                    primaryIssue = "frame_pacing",
+                    actionId = "run_trial",
+                    actionLabel = "Run a trial",
+                    actionCapability = "run_trial",
+                    actionKind = "fresh_launch_trial"
+                )
+            )
+        )
+
+        assertFalse(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
+        assertEquals("Diagnose This Stream", state.overlayRows.first().label)
+    }
+
+    @Test
+    fun cleanLiveReductionOffersOneClickQualityRestoreWithinLaunchCeiling() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-v2-needs_action-quality_reduced_live-gpu_native",
+                    classification = "HOST",
+                    likelyCause = "The reversible live target is below the capability-validated launch ceiling.",
+                    primaryIssue = "quality_reduced_live",
                     actionId = "restore_quality",
-                    actionLabel = "Restore and verify",
+                    actionLabel = "Auto Fix",
+                    actionCapability = "auto_fix",
                     actionKind = "live_tuning",
-                    targetBitrateKbps = 20000,
+                    actionEndpoint = "/api/doctor/action",
+                    actionMethod = "POST",
+                    actionPayloadId = "restore_quality",
+                    actionSourceResultId = "doctor-v2-needs_action-quality_reduced_live-gpu_native",
+                    actionContractTyped = true,
+                    targetBitrateKbps = 15000,
+                    targetBitratePresent = true,
+                    targetBitrateTyped = true,
                     verificationDelaySeconds = 8,
+                    verificationMode = "graduated_live_telemetry",
+                    verificationEndpoint = "/api/doctor/action",
                     undoSupported = true,
+                    undoEndpoint = "/api/doctor/action",
+                    requiresOwner = true,
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "effective_quality_ceiling",
+                            status = "watch",
+                            source = "launch_policy",
+                            value = 15000.0
+                        ),
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "packet_loss",
+                            status = "pass",
+                            source = "media_transport",
+                            value = 0.0
+                        ),
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "latency",
+                            status = "pass",
+                            source = "stream_stats",
+                            value = 3.8
+                        )
+                    ),
                     packetLossPct = 0.0,
                     latencyMs = 3.8
                 )
             )
         )
 
-        assertEquals("Restore and verify", state.overlayRows.first().label)
+        assertEquals("Auto Fix", state.overlayRows.first().label)
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
-        assertEquals(20000, state.diagnosis.targetBitrateKbps)
+        assertEquals(15000, state.diagnosis.targetBitrateKbps)
         assertTrue(state.diagnosis.undoSupported)
     }
 
     @Test
-    fun exactNextLaunchRecoveryIsPresentedAsAutoFixWithoutChangingItsActionCopy() {
+    fun exactLegacyNextLaunchRecoveryIsPresentedAsNonExecutableManualGuidance() {
         val state = quickState(
             status = status(
                 doctor = PolarisSessionStatus.DoctorStatus(
@@ -424,9 +536,9 @@ class NovaQuickMenuUiStateTest {
             )
         )
 
-        assertTrue(state.diagnosis.actionExecutable)
-        assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
-        assertEquals("Use safer profile next launch", state.overlayRows.first().label)
+        assertFalse(state.diagnosis.actionExecutable)
+        assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
+        assertEquals("Diagnose This Stream", state.overlayRows.first().label)
     }
 
     @Test
@@ -526,9 +638,32 @@ class NovaQuickMenuUiStateTest {
 
         val state = quickState(status = status(), doctorReceipt = receipt)
 
-        assertTrue(state.doctorReceiptAction.caption.contains("removes only this queued safer profile"))
-        assertTrue(state.doctorReceiptAction.caption.contains("current stream and settings will not change"))
+        assertTrue(state.doctorReceiptAction.caption.contains("removes only this deprecated record"))
+        assertTrue(state.doctorReceiptAction.caption.contains("stream and launch settings remain unchanged"))
         assertFalse(state.doctorReceiptAction.caption.contains("restore the previous bitrate", ignoreCase = true))
+    }
+
+    @Test
+    fun pairedOwnerCanCancelLegacyRecoveryWithoutOwningTheActiveStream() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope-a",
+            runId = "recovery-run-1",
+            state = "queued",
+            message = "Deprecated profile queued.",
+            undoAvailable = true,
+            undoActionId = "undo",
+            appUuid = "game-1"
+        )
+        val viewerStatus = status(
+            clientRole = "viewer",
+            ownedByClient = false,
+            controls = PolarisSessionStatus.ControlsStatus(hostTuningAllowed = false)
+        )
+
+        val state = quickState(status = viewerStatus, doctorReceipt = receipt)
+
+        assertTrue(state.doctorReceiptAction.visible)
+        assertTrue(state.doctorReceiptAction.enabled)
     }
 
     @Test
@@ -638,24 +773,53 @@ class NovaQuickMenuUiStateTest {
         encoder: PolarisSessionStatus.EncoderStatus = PolarisSessionStatus.EncoderStatus(),
         capture: PolarisSessionStatus.CaptureStatus = PolarisSessionStatus.CaptureStatus(),
         linuxGpuProfile: PolarisSessionStatus.LinuxGpuProfile? = null
-    ) = PolarisSessionStatus(
-        state = state,
-        streamingActive = true,
-        game = "Portal",
-        gameUuid = "game-1",
-        clientRole = clientRole,
-        ownedByClient = ownedByClient,
-        controls = controls,
-        tuning = tuning,
-        displayMode = displayMode,
-        clientPresentation = clientPresentation,
-        syncStatus = syncStatus,
-        autoQuality = autoQuality,
-        health = health,
-        doctor = doctor,
-        encoder = encoder,
-        capture = capture,
-        linuxGpuProfile = linuxGpuProfile,
-        aiOptimizerEnabled = aiOptimizerEnabled
-    )
+    ): PolarisSessionStatus {
+        val scopedActionIds = setOf(
+            "lower_bitrate",
+            "restore_quality",
+            "recheck_network",
+            "recheck_pacing"
+        )
+        val scopedDoctor = if (doctor.actionId in scopedActionIds) {
+            doctor.copy(
+                actionAppSessionId = doctor.actionAppSessionId.ifBlank { "app-session-1" },
+                actionSessionGeneration = doctor.actionSessionGeneration.takeIf { it > 0L } ?: 41L,
+                actionControllerRevision = if (doctor.actionCapability == "auto_fix") {
+                    doctor.actionControllerRevision.takeIf { it > 0L } ?: 51L
+                } else {
+                    doctor.actionControllerRevision
+                },
+                actionEvidenceRevision = if (doctor.actionCapability == "auto_fix") {
+                    doctor.actionEvidenceRevision.takeIf { it > 0L } ?: 61L
+                } else {
+                    doctor.actionEvidenceRevision
+                }
+            )
+        } else {
+            doctor
+        }
+        return PolarisSessionStatus(
+            state = state,
+            streamingActive = true,
+            game = "Portal",
+            gameUuid = "game-1",
+            appSessionId = "app-session-1",
+            appSessionIdPresent = true,
+            sessionGeneration = 41L,
+            clientRole = clientRole,
+            ownedByClient = ownedByClient,
+            controls = controls,
+            tuning = tuning,
+            displayMode = displayMode,
+            clientPresentation = clientPresentation,
+            syncStatus = syncStatus,
+            autoQuality = autoQuality,
+            health = health,
+            doctor = scopedDoctor,
+            encoder = encoder,
+            capture = capture,
+            linuxGpuProfile = linuxGpuProfile,
+            aiOptimizerEnabled = aiOptimizerEnabled
+        )
+    }
 }

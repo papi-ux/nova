@@ -51,7 +51,7 @@ class DoctorActionReceiptStoreTest {
         assertTrue(queued?.undoAvailable == true)
         assertEquals("undo_recovery_profile_next_launch", queued?.undoActionId)
         assertFalse(queued?.isTerminal == true)
-        for (terminalState in listOf("expired", "applied", "rejected", "undone")) {
+        for (terminalState in listOf("expired", "applied", "rejected", "undone", "superseded")) {
             val terminal = DoctorActionReceiptStore.fromRecoveryReceipt(
                 scopeId = recoveryScope,
                 receipt = PolarisSessionStatus.RecoveryReceipt(
@@ -518,12 +518,12 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
-    fun responseGuardRejectsStaleScopeGenerationAndRunButAcceptsBlankRunId() {
+    fun responseGuardRejectsStaleScopeGenerationRunAndBlankRunId() {
         val request = DoctorActionRequestIdentity(scopeA, "doctor-run-1", generation = 7L)
         val current = watchingReceipt()
         val blankRunResponse = PolarisDoctorActionResult(status = true, state = "watching", runId = "")
 
-        assertTrue(
+        assertFalse(
             DoctorActionReceiptStore.responseMatches(
                 current = current,
                 activeScopeId = scopeA,
@@ -592,27 +592,52 @@ class DoctorActionReceiptStoreTest {
                 result = PolarisDoctorActionResult(status = true, state = "watching", runId = "doctor-run-2")
             )
         )
+        assertFalse(
+            DoctorActionReceiptStore.responseMatches(
+                current = watchingReceipt(),
+                activeScopeId = scopeA,
+                activeGeneration = 9L,
+                request = request,
+                result = PolarisDoctorActionResult(
+                    status = true,
+                    state = "watching",
+                    runId = "doctor-run-2",
+                    changedContractValid = false
+                )
+            )
+        )
     }
 
     @Test
-    fun successfulLegacyNewRunCanBePresentedWithoutDurableReceipt() {
-        val request = DoctorActionRequestIdentity(scopeA, runId = "", generation = 9L)
+    fun successfulReadOnlyRecheckCanBePresentedWithoutDurableReceipt() {
+        val request = DoctorActionRequestIdentity(
+            scopeA,
+            runId = "",
+            generation = 9L,
+            actionId = "recheck_pacing"
+        )
         val result = PolarisDoctorActionResult(
             status = true,
-            changed = true,
-            state = "stable",
-            message = "Applied",
+            changed = false,
+            state = "observed",
+            message = "Observed",
             runId = ""
         )
 
-        assertTrue(DoctorActionReceiptStore.successfulLegacyNewRunResult(request, result))
+        assertTrue(DoctorActionReceiptStore.successfulReadOnlyNewRunResult(request, result))
         assertFalse(
-            DoctorActionReceiptStore.successfulLegacyNewRunResult(
+            DoctorActionReceiptStore.successfulReadOnlyNewRunResult(
                 request.copy(runId = "doctor-run-1"),
                 result
             )
         )
-        assertFalse(DoctorActionReceiptStore.successfulLegacyNewRunResult(request, result.copy(status = false)))
+        assertFalse(
+            DoctorActionReceiptStore.successfulReadOnlyNewRunResult(
+                request.copy(actionId = "lower_bitrate"),
+                result.copy(changed = true, state = "stable")
+            )
+        )
+        assertFalse(DoctorActionReceiptStore.successfulReadOnlyNewRunResult(request, result.copy(status = false)))
     }
 
     @Test
@@ -659,10 +684,14 @@ class DoctorActionReceiptStoreTest {
             sessionToken = "transport-a",
             appSessionId = "app-session-a",
             appSessionIdPresent = true,
+            sessionGeneration = 41L,
             gameUuid = "control"
         )
         val afterStatus = beforeStatus.copy(sessionToken = "transport-b")
-        val laterStatus = afterStatus.copy(appSessionId = "app-session-b")
+        val laterStatus = afterStatus.copy(
+            appSessionId = "app-session-b",
+            sessionGeneration = 42L
+        )
         val beforeResume = requireNotNull(
             DoctorActionReceiptStore.scopeId(
                 host = "10.0.0.232",
@@ -803,6 +832,16 @@ class DoctorActionReceiptStoreTest {
         assertFalse(authorized(activeScope = "other-scope", validatedScope = "other-scope"))
         assertFalse(authorized(validatedScope = null))
         assertFalse(authorized(canAdjust = false))
+        val queuedRecovery = current.copy(runId = "recovery-run-1", state = "queued")
+        assertTrue(
+            DoctorActionReceiptStore.undoIsAuthorized(
+                current = queuedRecovery,
+                candidate = queuedRecovery,
+                activeScopeId = scopeA,
+                validatedScopeId = scopeA,
+                canAdjustHostTuning = false
+            )
+        )
         assertFalse(
             DoctorActionReceiptStore.undoIsAuthorized(
                 current = current.copy(undoAvailable = false),

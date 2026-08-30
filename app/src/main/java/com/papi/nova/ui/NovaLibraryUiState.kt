@@ -166,7 +166,10 @@ data class NovaLibraryActiveSessionUiState(
     val displayModeExplicit: Boolean,
     val streamWidth: Int,
     val streamHeight: Int,
-    val streamFps: Float
+    val streamFps: Float,
+    val streamMode: String = "",
+    val mirrorDesktop: Boolean = false,
+    val forcePrivateAfterSteamClose: Boolean = false
 ) {
     val watchOnly: Boolean
         get() = !ownedByClient
@@ -212,7 +215,22 @@ data class NovaLibraryActiveSessionUiState(
                 displayModeExplicit = status.hasExplicitDisplayModeChoice,
                 streamWidth = streamProfile.width,
                 streamHeight = streamProfile.height,
-                streamFps = streamProfile.fps
+                streamFps = streamProfile.fps,
+                // Resume Existing is an exact continuation of the active
+                // generation, not a new topology choice. Preserve canonical
+                // owner semantics so the deterministic resume envelope can be
+                // validated by Polaris. Viewer Watch remains read-only and
+                // lets Polaris pin the owner's active semantics.
+                streamMode = if (status.ownedByClient) {
+                    status.displayMode.selection
+                        .ifBlank { status.syncStatus.applied.streamDisplayMode }
+                        .ifBlank { status.syncStatus.effective.streamDisplayMode }
+                } else {
+                    ""
+                },
+                mirrorDesktop = status.ownedByClient && status.displayMode.mirrorDesktop,
+                forcePrivateAfterSteamClose =
+                    status.ownedByClient && status.displayMode.forcePrivateAfterSteamClose
             )
         }
 

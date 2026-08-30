@@ -38,8 +38,7 @@ data class AutoQualityUiState(
         @JvmStatic
         fun from(
             status: PolarisSessionStatus?,
-            fallbackTargetFps: Double = 0.0,
-            lastRenderedFps: Double = 0.0
+            fallbackTargetFps: Double = 0.0
         ): AutoQualityUiState {
             if (status == null) {
                 return AutoQualityUiState(
@@ -74,44 +73,45 @@ data class AutoQualityUiState(
                         streamPolicy.adaptiveBaseBitrateKbps > 0 &&
                         adaptiveTarget < streamPolicy.adaptiveBaseBitrateKbps
                     )
-            val healthGrade = status.health.grade.lowercase()
-            val healthAutoAction = status.health.autoAction.lowercase()
+            val authoritativeDoctor = status.hasAuthoritativeDoctorResult
+            val legacyHealthSummary = status.health.summary.takeIf {
+                !authoritativeDoctor && it.isNotBlank()
+            }
+            val healthGrade = if (authoritativeDoctor) "stable" else status.health.grade.lowercase()
+            val healthAutoAction = if (authoritativeDoctor) "" else status.health.autoAction.lowercase()
             val healthSuggestsRecovery = status.hasHealthConcerns ||
-                status.health.recoveryProfile.isNotBlank() ||
-                status.health.relaunchRecommended ||
+                (!authoritativeDoctor && status.health.recoveryProfile.isNotBlank()) ||
+                (!authoritativeDoctor && status.health.relaunchRecommended) ||
                 healthAutoAction == "lower_bitrate" ||
                 healthAutoAction == "lower_render_profile" ||
                 healthAutoAction == "apply_recovery" ||
                 healthAutoAction == "suggest_recovery"
             val hostRenderLimited = status.isHostRenderLimited
             val currentBitrate = streamPolicy.effectiveBitrateKbps
-            val safeBitrateApplied = healthSuggestsRecovery &&
+            val safeBitrateApplied = !authoritativeDoctor && healthSuggestsRecovery &&
                 status.health.safeBitrateKbps > 0 &&
                 currentBitrate > 0 &&
                 status.health.safeBitrateKbps < currentBitrate
-            val safeFpsApplied = status.health.safeTargetFps > 0.0 &&
+            val safeFpsApplied = !authoritativeDoctor && status.health.safeTargetFps > 0.0 &&
                 targetFps > 0.0 &&
                 status.health.safeTargetFps < targetFps
             val hostRenderRecoveryQueued = hostRenderLimited &&
                 (
-                    autoPolicy.isRecoveryQueued ||
-                        status.health.relaunchRecommended ||
+                    (!authoritativeDoctor && autoPolicy.isRecoveryQueued) ||
+                    (!authoritativeDoctor && status.health.relaunchRecommended) ||
                         safeFpsApplied
                     )
             val safeProfileApplied = safeFpsApplied ||
                 safeBitrateApplied ||
-                (healthSuggestsRecovery && status.health.safeDisplayMode.isNotBlank()) ||
-                status.health.recoveryProfile.isNotBlank()
-            val frameTargetMiss = targetFps > 0.0 &&
-                lastRenderedFps > 0.0 &&
-                lastRenderedFps < targetFps * 0.85
+                (!authoritativeDoctor && healthSuggestsRecovery && status.health.safeDisplayMode.isNotBlank()) ||
+                (!authoritativeDoctor && status.health.recoveryProfile.isNotBlank())
             val cpuCapture = status.capture.transport.equals("shm", ignoreCase = true) ||
                 status.capture.residency.equals("cpu", ignoreCase = true) ||
                 status.encoder.targetResidency.equals("cpu", ignoreCase = true)
             val syncFailed = status.syncStatus.isFailed ||
                 presentationStatus == "blocked"
             val severeHealth = healthGrade == "degraded" ||
-                status.health.decoderRisk.equals("elevated", ignoreCase = true)
+                (!authoritativeDoctor && status.health.decoderRisk.equals("elevated", ignoreCase = true))
             val manualOverride = status.syncStatus.isManualOverride ||
                 syncState == "manual_override"
 
@@ -150,7 +150,7 @@ data class AutoQualityUiState(
                     label = "Sync Attention",
                     compactLabel = "MAN",
                     detail = status.syncStatus.message.takeIf { it.isNotBlank() }
-                        ?: status.health.summary.takeIf { it.isNotBlank() }
+                        ?: legacyHealthSummary
                         ?: "Nova and Polaris need a settings check",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
@@ -164,25 +164,25 @@ data class AutoQualityUiState(
                     .takeIf { it > 0.0 }
                     ?: autoPolicy.suggestedTargetFps
                 val detail = when {
-                    safeTarget > 0.0 -> "Host render limited; next launch can target ${safeTarget.roundToInt()} FPS"
-                    autoPolicy.summary.isNotBlank() -> autoPolicy.summary
-                    status.health.summary.isNotBlank() -> status.health.summary
-                    else -> "Host render path is missing the target frame rate"
+                    safeTarget > 0.0 -> "Observed host pacing pressure near ${safeTarget.roundToInt()} FPS; launch settings are unchanged"
+                    !authoritativeDoctor && autoPolicy.summary.isNotBlank() -> autoPolicy.summary
+                    legacyHealthSummary != null -> legacyHealthSummary
+                    else -> "Host render evidence needs a read-only pacing recheck"
                 }
                 return AutoQualityUiState(
-                    state = State.RECOVERING,
-                    label = "AI Recovery Profile",
+                    state = State.NEEDS_ATTENTION,
+                    label = "Frame Pacing Watch",
                     compactLabel = "HOST",
                     detail = detail,
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
                     enabled = true,
-                    recovering = true,
+                    recovering = false,
                     manualOverride = manualOverride
                 )
             }
 
-            if (autoPolicy.isBlocked) {
+            if (!authoritativeDoctor && autoPolicy.isBlocked) {
                 val hostBlocked = autoPolicy.normalizedBlockedReason == "host_render_limited" ||
                     hostRenderLimited
                 val label = when {
@@ -203,7 +203,7 @@ data class AutoQualityUiState(
                         else -> "HOLD"
                     },
                     detail = autoPolicy.summary.takeIf { it.isNotBlank() }
-                        ?: status.health.summary.takeIf { it.isNotBlank() }
+                        ?: legacyHealthSummary
                         ?: "Holding quality until the stream is stable",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
@@ -218,7 +218,9 @@ data class AutoQualityUiState(
                     state = State.BLOCKED,
                     label = "Host Render Limited",
                     compactLabel = "HOST",
-                    detail = status.health.summary.takeIf { it.isNotBlank() }
+                    detail = status.doctor.likelyCause.takeIf {
+                        authoritativeDoctor && it.isNotBlank()
+                    } ?: legacyHealthSummary
                         ?: "Holding quality until the host render path reaches the stream FPS target",
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
@@ -239,7 +241,7 @@ data class AutoQualityUiState(
                     state = State.NEEDS_ATTENTION,
                     label = label,
                     compactLabel = "ATTN",
-                    detail = status.health.summary.takeIf { it.isNotBlank() }
+                    detail = legacyHealthSummary
                         ?: status.syncStatus.message.takeIf { it.isNotBlank() }
                         ?: "Auto Quality needs a stream setting check",
                     targetSummary = streamPolicy.targetSummary,
@@ -266,7 +268,7 @@ data class AutoQualityUiState(
                 )
             }
 
-            if (autoPolicy.isUpgradeAvailable) {
+            if (!authoritativeDoctor && autoPolicy.isUpgradeAvailable) {
                 return AutoQualityUiState(
                     state = State.UPGRADE_AVAILABLE,
                     label = "Higher Quality Ready",
@@ -306,36 +308,37 @@ data class AutoQualityUiState(
             if (healthSuggestsRecovery ||
                 adaptiveLowered ||
                 safeProfileApplied ||
-                status.health.relaunchRecommended ||
+                (!authoritativeDoctor && status.health.relaunchRecommended) ||
                 healthAutoAction == "lower_bitrate" ||
                 healthAutoAction == "lower_render_profile" ||
                 healthAutoAction == "apply_recovery" ||
                 healthAutoAction == "suggest_recovery" ||
-                hostRenderLimited ||
-                frameTargetMiss
+                hostRenderLimited
             ) {
                 val label = when {
                     hostRenderLimited -> "Host render limited"
                     status.healthToneLabel == "Frame pacing" -> "Frame pacing"
                     healthGrade == "degraded" -> "Stream degraded"
                     healthGrade == "watch" -> "Needs attention"
-                    adaptiveLowered -> "Auto Safe capped"
-                    safeFpsApplied -> "Recovering FPS"
-                    status.health.relaunchRecommended -> "Recovery queued"
-                    else -> "Auto Quality recovering"
+                    adaptiveLowered -> "Live bitrate adjusted"
+                    else -> "Doctor observation"
                 }
-                val detail = status.health.summary.takeIf {
+                val detail = (if (authoritativeDoctor) {
+                    status.doctor.likelyCause
+                } else {
+                    legacyHealthSummary.orEmpty()
+                }).takeIf {
                     it.isNotBlank() && !it.trim().trimEnd('.', '!').equals("Stable", ignoreCase = true)
                 }
                     ?: when {
                         status.hasHealthConcerns -> status.healthToneLabel
                         adaptiveLowered -> streamPolicy.statusCaption
-                        safeFpsApplied -> "Safer ${status.health.safeTargetFps.roundToInt()} FPS profile is available"
+                        safeFpsApplied -> "Historical FPS guidance is observational; launch settings are unchanged"
                         hostRenderLimited -> "Host render path is missing the target frame rate"
-                        else -> "Applying a safer stream profile"
+                        else -> "Recheck the measured evidence or review manual guidance"
                     }
                 return AutoQualityUiState(
-                    state = State.RECOVERING,
+                    state = State.NEEDS_ATTENTION,
                     label = label,
                     compactLabel = when {
                         hostRenderLimited -> "HOST"
@@ -346,7 +349,7 @@ data class AutoQualityUiState(
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.WARNING,
                     enabled = true,
-                    recovering = true,
+                    recovering = false,
                     manualOverride = manualOverride
                 )
             }
@@ -381,8 +384,13 @@ data class AutoQualityUiState(
                 state = State.STABLE,
                 label = if (autoPolicy.isAtQualityCap) "Auto Quality at cap" else "Auto Quality Stable",
                 compactLabel = "OK",
-                detail = autoPolicy.summary.takeIf { it.isNotBlank() }
-                    ?: status.health.summary.takeIf { it.isNotBlank() }
+                detail = autoPolicy.summary.takeIf { !authoritativeDoctor && it.isNotBlank() }
+                    ?: status.doctor.likelyCause.takeIf {
+                        authoritativeDoctor &&
+                            it.isNotBlank() &&
+                            !it.equals("No confirmed issue", ignoreCase = true)
+                    }
+                    ?: legacyHealthSummary
                     ?: "Stream target is holding steady",
                 targetSummary = streamPolicy.targetSummary,
                 tone = Tone.STABLE,
