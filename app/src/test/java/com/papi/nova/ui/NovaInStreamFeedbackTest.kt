@@ -63,4 +63,19 @@ class NovaInStreamFeedbackTest {
             anchored
         )
     }
+
+    @Test
+    fun doctorVerificationBacksOffWhenAuthorityOrResponseScopeCannotBeValidated() {
+        val menu = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
+
+        assertTrue(
+            "revoked authority must defer the same receipt instead of redispatching a past-due Verify",
+            menu.contains("if (!acceptedStatus || latestStatus?.canAdjustHostTuning != true)") &&
+                menu.contains("deferDoctorVerification(request)")
+        )
+        assertTrue(
+            "an unscoped or otherwise unmatched failure must enter the same bounded backoff",
+            menu.contains("stopDoctorVerification(request, verification)\n                                ?: deferDoctorVerification(request)")
+        )
+    }
 }

@@ -604,10 +604,21 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
                 game.launchReplacingRuntimeIo("NovaQuickMenuDoctorVerify") {
                     val latestStatus = client.getSessionStatus()
-                    if (!acceptRefreshedSessionStatus(latestStatus) ||
-                        latestStatus?.canAdjustHostTuning != true ||
-                        !requestIsCurrent(request)
-                    ) {
+                    val acceptedStatus = acceptRefreshedSessionStatus(latestStatus)
+                    if (!requestIsCurrent(request)) {
+                        game.runOnMainIfRuntimeActive {
+                            doctorActionPendingRegistry.clearIfOwned(request.generation)
+                            doctorMenuRefreshRegistry.dispatch()
+                        }
+                        return@launchReplacingRuntimeIo
+                    }
+                    if (!acceptedStatus || latestStatus?.canAdjustHostTuning != true) {
+                        // A revoked owner scope or transient status failure must
+                        // not leave a past-due receipt dispatching a zero-delay
+                        // Verify loop. Back off and eventually surface the
+                        // durable receipt as Needs attention without discarding
+                        // its still-unresolved Undo metadata.
+                        deferDoctorVerification(request)
                         game.runOnMainIfRuntimeActive {
                             doctorActionPendingRegistry.clearIfOwned(request.generation)
                             doctorMenuRefreshRegistry.dispatch()
@@ -622,8 +633,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     )
                     val updated = when {
                         verification == null -> deferDoctorVerification(request)
-                        !verification.status -> stopDoctorVerification(request, verification)
+                        !verification.status ->
+                            stopDoctorVerification(request, verification)
+                                ?: deferDoctorVerification(request)
                         else -> storeDoctorResult(request, verification)
+                            ?: deferDoctorVerification(request)
                     }
                     if (verification?.status == true && updated != null) {
                         acceptRefreshedSessionStatus(client.getSessionStatus())
