@@ -222,6 +222,38 @@ class PolarisApiClientParsingTest {
             requestedAppSessionId = "app-session-1",
             requestedSessionGeneration = 7L
         )
+        val wrongStatuses = listOf(400, 403, 500).map { statusCode ->
+            PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = statusCode,
+                responseBody = body,
+                actionId = "verify",
+                requestedRunId = "doctor-run-1",
+                requestedAppSessionId = "app-session-1",
+                requestedSessionGeneration = 7L
+            )
+        }
+        val forgedUndoAvailability = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body.replace(
+                "\"undo\":{\"available\":false}",
+                "\"undo\":{\"available\":true}"
+            ),
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val contradictoryUndoAction = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body.replace(
+                "\"undo\":{\"available\":false}",
+                "\"undo\":{\"available\":false,\"action_id\":\"undo\"}"
+            ),
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
 
         assertFalse(accepted.status)
         assertTrue(accepted.changedContractValid)
@@ -234,6 +266,17 @@ class PolarisApiClientParsingTest {
         assertFalse(wrongScope.changedContractValid)
         assertEquals("", wrongScope.state)
         assertEquals("Doctor action rejected", wrongScope.error)
+        wrongStatuses.forEach { rejected ->
+            assertFalse(rejected.changedContractValid)
+            assertEquals("", rejected.state)
+            assertEquals("Doctor action rejected", rejected.error)
+        }
+        assertFalse(forgedUndoAvailability.changedContractValid)
+        assertEquals("", forgedUndoAvailability.state)
+        assertEquals("Doctor action rejected", forgedUndoAvailability.error)
+        assertFalse(contradictoryUndoAction.changedContractValid)
+        assertEquals("", contradictoryUndoAction.state)
+        assertEquals("Doctor action rejected", contradictoryUndoAction.error)
     }
 
     @Test
@@ -463,11 +506,39 @@ class PolarisApiClientParsingTest {
             requestedAppSessionId = "app-session-1",
             requestedSessionGeneration = 7L
         )
+        val forgedUndoAvailability = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = body.replace(
+                "\"undo\":{\"available\":false}",
+                "\"undo\":{\"available\":true}"
+            ),
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val contradictoryUndoAction = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = body.replace(
+                "\"undo\":{\"available\":false}",
+                "\"undo\":{\"available\":false,\"action_id\":\"undo\"}"
+            ),
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
 
         assertTrue(rolledBack.status)
         assertTrue(staleUndo.status)
         assertEquals("rolled_back", staleUndo.state)
         assertEquals(false, staleUndo.undoAvailable)
+        assertFalse(forgedUndoAvailability.status)
+        assertFalse(forgedUndoAvailability.changedContractValid)
+        assertEquals("", forgedUndoAvailability.state)
+        assertFalse(contradictoryUndoAction.status)
+        assertFalse(contradictoryUndoAction.changedContractValid)
+        assertEquals("", contradictoryUndoAction.state)
     }
 
     @Test

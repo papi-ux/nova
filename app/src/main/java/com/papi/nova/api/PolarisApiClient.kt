@@ -1225,6 +1225,17 @@ class PolarisApiClient @JvmOverloads constructor(
             val parsed = responseJson?.let { json ->
                 runCatching { parseDoctorActionResponse(json) }.getOrNull()
             }
+            val terminalUndoExplicitlyUnavailable = responseJson
+                ?.optJSONObject("undo")
+                ?.let { undo ->
+                    undo.opt("available") is Boolean && undo.opt("available") == false &&
+                        (!undo.has("action_id") ||
+                            (undo.opt("action_id") is String &&
+                                strictString(undo, "action_id").isBlank()))
+                } == true
+            val terminalUndoContractValid = parsed?.state !in setOf(
+                "undone", "superseded", "rolled_back", "rollback_unconfirmed"
+            ) || terminalUndoExplicitlyUnavailable
             if (statusCode == 200 && parsed != null && doctorActionResponseMatchesRequest(
                     actionId = actionId,
                     requestedRunId = requestedRunId,
@@ -1232,7 +1243,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     requestedAppSessionId = requestedAppSessionId,
                     requestedSessionGeneration = requestedSessionGeneration,
                     result = parsed
-                )) {
+                ) && terminalUndoContractValid) {
                 return parsed
             }
 
@@ -1243,7 +1254,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 responseJson.opt("changed") is Boolean &&
                 responseJson.opt("changed") == false &&
                 parsed != null
-            val typedRollbackUnconfirmed = statusCode != 200 &&
+            val typedRollbackUnconfirmed = statusCode == 409 &&
                 responseJson != null &&
                 responseJson.opt("status") is Boolean &&
                 responseJson.opt("status") == false &&
@@ -1256,6 +1267,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 parsed.scopeContractValid &&
                 parsed.appSessionId == requestedAppSessionId &&
                 parsed.sessionGeneration == requestedSessionGeneration &&
+                terminalUndoExplicitlyUnavailable &&
                 parsed.undoAvailable == false && parsed.undoActionId.isBlank() &&
                 when (actionId) {
                     "lower_bitrate", "restore_quality" ->
