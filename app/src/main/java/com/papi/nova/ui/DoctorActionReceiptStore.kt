@@ -383,7 +383,9 @@ object DoctorActionReceiptStore {
             scopeId = scopeId,
             runId = runId.take(MAX_FIELD_LENGTH),
             state = state.take(MAX_FIELD_LENGTH),
-            message = result.message.ifBlank { sameRun?.message.orEmpty() }.take(MAX_FIELD_LENGTH),
+            message = result.message.ifBlank {
+                result.error.ifBlank { sameRun?.message.orEmpty() }
+            }.take(MAX_FIELD_LENGTH),
             verificationActionId = if (verificationExhausted) "" else verificationActionId.take(MAX_FIELD_LENGTH),
             verificationDueAtEpochMs = if (!verificationExhausted && verificationDelayMs > 0L) {
                 safeNow + verificationDelayMs
@@ -521,12 +523,16 @@ object DoctorActionReceiptStore {
         request: DoctorActionRequestIdentity,
         result: PolarisDoctorActionResult
     ): Boolean {
-        if (!result.status || !result.changedContractValid ||
+        if (!result.changedContractValid ||
             !responseIdentityMatches(current, activeScopeId, activeGeneration, request, result)
         ) {
             return false
         }
-        return true
+        if (result.status) return true
+        return request.runId.isBlank() &&
+            request.actionId in setOf("lower_bitrate", "restore_quality") &&
+            result.state == "rollback_unconfirmed" && result.changed &&
+            result.undoAvailable != true && result.undoActionId.isBlank()
     }
 
     fun responseIdentityMatches(

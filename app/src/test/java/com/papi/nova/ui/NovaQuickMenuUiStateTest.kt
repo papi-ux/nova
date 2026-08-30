@@ -625,6 +625,26 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun unconfirmedDoctorRollbackStaysVisibleAsNeedsAttention() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope-a",
+            runId = "doctor-run-1",
+            state = "rollback_unconfirmed",
+            message = "The encoder did not confirm that the prior bitrate was restored.",
+            undoAvailable = false,
+            undoActionId = ""
+        )
+
+        val state = quickState(status = status(), doctorReceipt = receipt)
+
+        assertTrue(state.doctorReceiptAction.visible)
+        assertFalse(state.doctorReceiptAction.enabled)
+        assertEquals("Needs attention", state.doctorReceiptAction.chip?.label)
+        assertEquals(NovaQuickMenuTone.WARNING, state.doctorReceiptAction.chip?.tone)
+        assertTrue(state.doctorReceiptAction.caption.contains("did not confirm"))
+    }
+
+    @Test
     fun recoveryUndoCopyPromisesOnlyQueuedProfileRemoval() {
         val receipt = DoctorActionReceipt(
             scopeId = "scope-a",

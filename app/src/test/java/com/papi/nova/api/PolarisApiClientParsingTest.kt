@@ -458,6 +458,20 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun doctorActionHttpAcceptsCorrelatedSupersededUndo() {
+        val superseded = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"superseded\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "undo",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(superseded.status)
+        assertEquals("superseded", superseded.state)
+    }
+
+    @Test
     fun doctorActionHttpAcceptsOnlyTheExactLegacyRecoveryUndoReceipt() {
         val accepted = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 200,

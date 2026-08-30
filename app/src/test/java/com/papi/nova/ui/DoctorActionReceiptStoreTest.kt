@@ -581,6 +581,53 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
+    fun exactNewRunRollbackUnconfirmedCanPersistItsTerminalSafetyReceipt() {
+        val request = DoctorActionRequestIdentity(
+            scopeId = scopeA,
+            runId = "",
+            generation = 5L,
+            appSessionId = "app-session-a",
+            sessionGeneration = 7L,
+            actionId = "lower_bitrate",
+            requestId = "request-1"
+        )
+        val result = PolarisDoctorActionResult(
+            status = false,
+            changed = true,
+            changedContractValid = true,
+            state = "rollback_unconfirmed",
+            error = "Encoder did not confirm restore",
+            runId = "doctor-run-1",
+            requestId = "request-1",
+            appSessionId = "app-session-a",
+            sessionGeneration = 7L,
+            scopeContractValid = true,
+            undoAvailable = false
+        )
+
+        assertTrue(
+            DoctorActionReceiptStore.responseMatches(
+                current = null,
+                activeScopeId = scopeA,
+                activeGeneration = 5L,
+                request = request,
+                result = result
+            )
+        )
+        val receipt = DoctorActionReceiptStore.applyResult(
+            previous = null,
+            scopeId = scopeA,
+            result = result,
+            nowEpochMs = 13_000L,
+            sessionGeneration = 7L
+        )
+        assertEquals("rollback_unconfirmed", receipt.state)
+        assertEquals("Encoder did not confirm restore", receipt.message)
+        assertFalse(receipt.undoAvailable)
+        assertEquals("", receipt.undoActionId)
+    }
+
+    @Test
     fun responseGuardRejectsStaleScopeGenerationRunAndBlankRunId() {
         val request = DoctorActionRequestIdentity(scopeA, "doctor-run-1", generation = 7L)
         val current = watchingReceipt()

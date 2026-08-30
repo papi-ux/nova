@@ -546,6 +546,8 @@ data class NovaQuickMenuUiState(
                     chip(context.getString(R.string.nova_quick_menu_doctor_receipt_verified), NovaQuickMenuTone.ACTIVE)
                 receipt.state == "needs_attention" ->
                     chip(context.getString(R.string.nova_quick_menu_doctor_receipt_attention), NovaQuickMenuTone.WARNING)
+                receipt.state == "rollback_unconfirmed" ->
+                    chip(context.getString(R.string.nova_quick_menu_doctor_receipt_attention), NovaQuickMenuTone.WARNING)
                 else -> chip(context.getString(R.string.nova_quick_menu_done), NovaQuickMenuTone.INACTIVE)
             }
             val caption = buildList {

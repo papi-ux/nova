@@ -1358,8 +1358,13 @@ class PolarisApiClient @JvmOverloads constructor(
                 "undo" ->
                     requestedRunId.isNotBlank() && runId == requestedRunId &&
                         (runId.startsWith("doctor-run-") || runId.startsWith("recovery-run-")) &&
-                        result.state == "undone" &&
-                        result.changed && result.undoAvailable != true
+                        when (result.state) {
+                            "undone" -> result.changed && result.undoAvailable != true
+                            "superseded" -> runId.startsWith("doctor-run-") &&
+                                !result.changed && result.undoAvailable != true &&
+                                result.undoActionId.isBlank()
+                            else -> false
+                        }
                 "undo_recovery_profile_next_launch" ->
                     requestedRunId.startsWith("recovery-run-") && runId == requestedRunId &&
                         result.state == "undone" && result.changed && result.undoAvailable != true
