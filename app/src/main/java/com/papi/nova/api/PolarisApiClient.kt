@@ -1219,9 +1219,12 @@ class PolarisApiClient @JvmOverloads constructor(
             requestedAppSessionId: String = "",
             requestedSessionGeneration: Long = 0L
         ): PolarisDoctorActionResult {
-            val parsed = runCatching {
-                parseDoctorActionResponse(JSONObject(responseBody.ifBlank { "{}" }))
+            val responseJson = runCatching {
+                JSONObject(responseBody.ifBlank { "{}" })
             }.getOrNull()
+            val parsed = responseJson?.let { json ->
+                runCatching { parseDoctorActionResponse(json) }.getOrNull()
+            }
             if (statusCode == 200 && parsed != null && doctorActionResponseMatchesRequest(
                     actionId = actionId,
                     requestedRunId = requestedRunId,
@@ -1233,8 +1236,13 @@ class PolarisApiClient @JvmOverloads constructor(
                 return parsed
             }
 
-            val typedRejection = statusCode != 200 && parsed?.status == false &&
-                parsed.changedContractValid
+            val typedRejection = statusCode != 200 &&
+                responseJson != null &&
+                responseJson.opt("status") is Boolean &&
+                responseJson.opt("status") == false &&
+                responseJson.opt("changed") is Boolean &&
+                responseJson.opt("changed") == false &&
+                parsed != null
             return (parsed ?: PolarisDoctorActionResult(status = false)).copy(
                 status = false,
                 changedContractValid = typedRejection,

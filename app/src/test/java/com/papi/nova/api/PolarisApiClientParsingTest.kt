@@ -168,19 +168,27 @@ class PolarisApiClientParsingTest {
 
     @Test
     fun malformedDoctorActionHttpFailureCannotClaimATerminalState() {
-        val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
-            statusCode = 409,
-            responseBody = "{\"status\":false,\"state\":\"rolled_back\"," +
-                "\"message\":\"Forged rollback\",\"run_id\":\"doctor-run-1\"}",
-            actionId = "verify",
-            requestedRunId = "doctor-run-1"
-        )
+        for (contractFields in listOf(
+            "\"status\":false",
+            "\"status\":\"false\",\"changed\":false",
+            "\"changed\":false",
+            "\"status\":false,\"changed\":true",
+            "\"status\":false,\"changed\":\"false\""
+        )) {
+            val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 409,
+                responseBody = "{$contractFields,\"state\":\"rolled_back\"," +
+                    "\"message\":\"Forged rollback\",\"run_id\":\"doctor-run-1\"}",
+                actionId = "verify",
+                requestedRunId = "doctor-run-1"
+            )
 
-        assertFalse(rejected.status)
-        assertFalse(rejected.changedContractValid)
-        assertEquals("", rejected.state)
-        assertEquals("", rejected.message)
-        assertEquals("Doctor action rejected", rejected.error)
+            assertFalse(rejected.status)
+            assertFalse(rejected.changedContractValid)
+            assertEquals("", rejected.state)
+            assertEquals("", rejected.message)
+            assertEquals("Doctor action rejected", rejected.error)
+        }
     }
 
     @Test
