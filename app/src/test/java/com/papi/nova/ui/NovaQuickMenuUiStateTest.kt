@@ -382,6 +382,14 @@ class NovaQuickMenuUiStateTest {
                     undoSupported = true,
                     undoEndpoint = "/api/doctor/action",
                     requiresOwner = true,
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "packet_loss",
+                            status = "fail",
+                            source = "media_transport",
+                            value = 3.4
+                        )
+                    ),
                     aiExplanation = PolarisSessionStatus.DoctorStatus.AiExplanation(
                         available = true,
                         likelyCause = "Wi-Fi interference is the likely reason.",
