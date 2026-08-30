@@ -581,6 +581,29 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
+    fun staleUndoRetiresAgainstEitherExactHostRollbackTerminal() {
+        for ((state, status) in listOf("rolled_back" to true, "rollback_unconfirmed" to false)) {
+            val retired = DoctorActionReceiptStore.retireUndo(
+                receipt = watchingReceipt().copy(state = "needs_attention", verificationActionId = ""),
+                result = PolarisDoctorActionResult(
+                    status = status,
+                    changed = true,
+                    changedContractValid = true,
+                    state = state,
+                    error = if (state == "rollback_unconfirmed") "Encoder did not confirm restore" else "",
+                    runId = "doctor-run-1",
+                    undoAvailable = false
+                ),
+                nowEpochMs = 12_900L
+            )
+
+            assertEquals(state, retired.state)
+            assertFalse(retired.undoAvailable)
+            assertEquals("", retired.undoActionId)
+        }
+    }
+
+    @Test
     fun exactNewRunRollbackUnconfirmedCanPersistItsTerminalSafetyReceipt() {
         val request = DoctorActionRequestIdentity(
             scopeId = scopeA,

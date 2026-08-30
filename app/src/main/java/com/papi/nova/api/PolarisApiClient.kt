@@ -1256,7 +1256,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 parsed.scopeContractValid &&
                 parsed.appSessionId == requestedAppSessionId &&
                 parsed.sessionGeneration == requestedSessionGeneration &&
-                parsed.undoAvailable != true && parsed.undoActionId.isBlank() &&
+                parsed.undoAvailable == false && parsed.undoActionId.isBlank() &&
                 when (actionId) {
                     "lower_bitrate", "restore_quality" ->
                         requestedRunId.isBlank() && requestedRequestId.isNotBlank() &&
@@ -1323,9 +1323,9 @@ class PolarisApiClient @JvmOverloads constructor(
                             // apply/verification watchdog. The idempotency key
                             // still authorizes returning that exact terminal receipt.
                             "rolled_back" -> result.changed &&
-                                result.undoAvailable != true && result.undoActionId.isBlank()
+                                result.undoAvailable == false && result.undoActionId.isBlank()
                             "superseded" -> !result.changed &&
-                                result.undoAvailable != true && result.undoActionId.isBlank()
+                                result.undoAvailable == false && result.undoActionId.isBlank()
                             else -> false
                         }
                 "verify" ->
@@ -1349,9 +1349,9 @@ class PolarisApiClient @JvmOverloads constructor(
                                         result.verificationDelaySeconds == 0))
                             "resolved" -> !result.changed && result.undoAvailable == true &&
                                 result.undoActionId == "undo"
-                            "rolled_back" -> result.changed && result.undoAvailable != true &&
+                            "rolled_back" -> result.changed && result.undoAvailable == false &&
                                 result.undoActionId.isBlank()
-                            "superseded" -> !result.changed && result.undoAvailable != true &&
+                            "superseded" -> !result.changed && result.undoAvailable == false &&
                                 result.undoActionId.isBlank()
                             else -> false
                         }
@@ -1361,7 +1361,10 @@ class PolarisApiClient @JvmOverloads constructor(
                         when (result.state) {
                             "undone" -> result.changed && result.undoAvailable != true
                             "superseded" -> runId.startsWith("doctor-run-") &&
-                                !result.changed && result.undoAvailable != true &&
+                                !result.changed && result.undoAvailable == false &&
+                                result.undoActionId.isBlank()
+                            "rolled_back" -> runId.startsWith("doctor-run-") &&
+                                result.changed && result.undoAvailable == false &&
                                 result.undoActionId.isBlank()
                             else -> false
                         }

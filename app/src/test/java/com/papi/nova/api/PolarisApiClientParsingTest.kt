@@ -214,11 +214,23 @@ class PolarisApiClientParsingTest {
             requestedAppSessionId = "app-session-2",
             requestedSessionGeneration = 8L
         )
+        val acceptedUndo = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body,
+            actionId = "undo",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
 
         assertFalse(accepted.status)
         assertTrue(accepted.changedContractValid)
         assertEquals("rollback_unconfirmed", accepted.state)
         assertEquals("Encoder did not confirm restore", accepted.error)
+        assertFalse(acceptedUndo.status)
+        assertTrue(acceptedUndo.changedContractValid)
+        assertEquals("rollback_unconfirmed", acceptedUndo.state)
+        assertEquals(false, acceptedUndo.undoAvailable)
         assertFalse(wrongScope.changedContractValid)
         assertEquals("", wrongScope.state)
         assertEquals("Doctor action rejected", wrongScope.error)
@@ -432,15 +444,30 @@ class PolarisApiClientParsingTest {
 
     @Test
     fun doctorActionHttpAcceptsCorrelatedAutomaticRollback() {
+        val body = "{\"status\":true,\"changed\":true,\"state\":\"rolled_back\"," +
+            "\"run_id\":\"doctor-run-1\",\"app_session_id\":\"app-session-1\"," +
+            "\"session_generation\":7,\"undo\":{\"available\":false}}"
         val rolledBack = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 200,
-            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"rolled_back\"," +
-                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
+            responseBody = body,
             actionId = "verify",
-            requestedRunId = "doctor-run-1"
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val staleUndo = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = body,
+            actionId = "undo",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
         )
 
         assertTrue(rolledBack.status)
+        assertTrue(staleUndo.status)
+        assertEquals("rolled_back", staleUndo.state)
+        assertEquals(false, staleUndo.undoAvailable)
     }
 
     @Test
