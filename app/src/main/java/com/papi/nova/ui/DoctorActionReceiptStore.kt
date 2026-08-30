@@ -127,7 +127,7 @@ internal class DoctorActionPendingRegistry {
 object DoctorActionReceiptStore {
     internal val TERMINAL_STATES = setOf(
         "stable", "resolved", "rolled_back", "superseded", "needs_attention",
-        "applied", "expired", "rejected", "undone"
+        "applied", "expired", "rejected", "undone", "rollback_unconfirmed"
     )
 
     private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v3_"
@@ -457,16 +457,27 @@ object DoctorActionReceiptStore {
         receipt: DoctorActionReceipt,
         result: PolarisDoctorActionResult,
         nowEpochMs: Long
-    ): DoctorActionReceipt = receipt.copy(
-        state = "needs_attention",
-        message = result.message.ifBlank { result.error.ifBlank { receipt.message } }.take(MAX_FIELD_LENGTH),
-        verificationActionId = "",
-        verificationDueAtEpochMs = 0L,
-        verificationFailureCount = MAX_VERIFICATION_FAILURES,
-        undoAvailable = false,
-        undoActionId = "",
-        updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
-    )
+    ): DoctorActionReceipt {
+        val message = result.message.ifBlank { result.error.ifBlank { receipt.message } }
+            .take(MAX_FIELD_LENGTH)
+        if (!result.changedContractValid) {
+            return receipt.copy(
+                state = "needs_attention",
+                message = message,
+                updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
+            )
+        }
+        return receipt.copy(
+            state = result.state.takeIf { it in TERMINAL_STATES } ?: "needs_attention",
+            message = message,
+            verificationActionId = "",
+            verificationDueAtEpochMs = 0L,
+            verificationFailureCount = MAX_VERIFICATION_FAILURES,
+            undoAvailable = false,
+            undoActionId = "",
+            updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
+        )
+    }
 
     fun nextVerificationDelayMs(receipt: DoctorActionReceipt, nowEpochMs: Long): Long {
         if (!receipt.verificationPending) return -1L

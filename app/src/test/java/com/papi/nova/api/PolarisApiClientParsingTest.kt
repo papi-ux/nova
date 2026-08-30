@@ -178,7 +178,8 @@ class PolarisApiClientParsingTest {
             val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
                 statusCode = 409,
                 responseBody = "{$contractFields,\"state\":\"rolled_back\"," +
-                    "\"message\":\"Forged rollback\",\"run_id\":\"doctor-run-1\"}",
+                    "\"message\":\"Forged rollback\",\"error\":\"Prior bitrate restored\"," +
+                    "\"run_id\":\"doctor-run-1\"}",
                 actionId = "verify",
                 requestedRunId = "doctor-run-1"
             )
@@ -189,6 +190,38 @@ class PolarisApiClientParsingTest {
             assertEquals("", rejected.message)
             assertEquals("Doctor action rejected", rejected.error)
         }
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsOnlyExactScopedRollbackUnconfirmedFailure() {
+        val body = "{\"status\":false,\"changed\":true,\"state\":\"rollback_unconfirmed\"," +
+            "\"run_id\":\"doctor-run-1\",\"app_session_id\":\"app-session-1\"," +
+            "\"session_generation\":7,\"error\":\"Encoder did not confirm restore\"," +
+            "\"undo\":{\"available\":false}}"
+        val accepted = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body,
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val wrongScope = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body,
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-2",
+            requestedSessionGeneration = 8L
+        )
+
+        assertFalse(accepted.status)
+        assertTrue(accepted.changedContractValid)
+        assertEquals("rollback_unconfirmed", accepted.state)
+        assertEquals("Encoder did not confirm restore", accepted.error)
+        assertFalse(wrongScope.changedContractValid)
+        assertEquals("", wrongScope.state)
+        assertEquals("Doctor action rejected", wrongScope.error)
     }
 
     @Test
@@ -408,6 +441,20 @@ class PolarisApiClientParsingTest {
         )
 
         assertTrue(rolledBack.status)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedSupersededVerification() {
+        val superseded = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"superseded\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(superseded.status)
+        assertEquals("superseded", superseded.state)
     }
 
     @Test

@@ -1236,22 +1236,46 @@ class PolarisApiClient @JvmOverloads constructor(
                 return parsed
             }
 
-            val typedRejection = statusCode != 200 &&
+            val typedNoChangeRejection = statusCode != 200 &&
                 responseJson != null &&
                 responseJson.opt("status") is Boolean &&
                 responseJson.opt("status") == false &&
                 responseJson.opt("changed") is Boolean &&
                 responseJson.opt("changed") == false &&
                 parsed != null
+            val typedRollbackUnconfirmed = statusCode != 200 &&
+                responseJson != null &&
+                responseJson.opt("status") is Boolean &&
+                responseJson.opt("status") == false &&
+                responseJson.opt("changed") is Boolean &&
+                responseJson.opt("changed") == true &&
+                parsed != null &&
+                parsed.state == "rollback_unconfirmed" &&
+                parsed.runId.startsWith("doctor-run-") &&
+                requestedAppSessionId.isNotBlank() && requestedSessionGeneration > 0L &&
+                parsed.scopeContractValid &&
+                parsed.appSessionId == requestedAppSessionId &&
+                parsed.sessionGeneration == requestedSessionGeneration &&
+                parsed.undoAvailable != true && parsed.undoActionId.isBlank() &&
+                when (actionId) {
+                    "lower_bitrate", "restore_quality" ->
+                        requestedRunId.isBlank() && requestedRequestId.isNotBlank() &&
+                            parsed.requestId == requestedRequestId
+                    "verify", "undo" ->
+                        requestedRunId.isNotBlank() && parsed.runId == requestedRunId
+                    else -> false
+                }
+            val typedRejection = typedNoChangeRejection || typedRollbackUnconfirmed
             return (parsed ?: PolarisDoctorActionResult(status = false)).copy(
                 status = false,
                 changedContractValid = typedRejection,
-                state = "",
-                message = "",
-                error = if (statusCode == 200) {
-                    "Invalid Doctor action response"
-                } else {
-                    parsed?.error?.takeIf { it.isNotBlank() } ?: "Doctor action rejected"
+                state = if (typedRollbackUnconfirmed) parsed.state else "",
+                message = if (typedRollbackUnconfirmed) parsed.message else "",
+                error = when {
+                    statusCode == 200 -> "Invalid Doctor action response"
+                    typedRejection -> parsed.error.takeIf { it.isNotBlank() }
+                        ?: "Doctor action rejected"
+                    else -> "Doctor action rejected"
                 },
                 undoAvailable = false,
                 undoActionId = ""
@@ -1326,6 +1350,8 @@ class PolarisApiClient @JvmOverloads constructor(
                             "resolved" -> !result.changed && result.undoAvailable == true &&
                                 result.undoActionId == "undo"
                             "rolled_back" -> result.changed && result.undoAvailable != true &&
+                                result.undoActionId.isBlank()
+                            "superseded" -> !result.changed && result.undoAvailable != true &&
                                 result.undoActionId.isBlank()
                             else -> false
                         }

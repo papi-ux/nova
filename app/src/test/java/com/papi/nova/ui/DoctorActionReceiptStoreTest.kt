@@ -541,6 +541,46 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
+    fun malformedUndoFailureCannotRetireDurableUndo() {
+        val retired = DoctorActionReceiptStore.retireUndo(
+            receipt = watchingReceipt().copy(state = "resolved", verificationActionId = ""),
+            result = PolarisDoctorActionResult(
+                status = false,
+                changedContractValid = false,
+                error = "Doctor action rejected",
+                runId = "doctor-run-1"
+            ),
+            nowEpochMs = 12_500L
+        )
+
+        assertEquals("needs_attention", retired.state)
+        assertEquals("Doctor action rejected", retired.message)
+        assertTrue(retired.undoAvailable)
+        assertEquals("restore_quality", retired.undoActionId)
+    }
+
+    @Test
+    fun rollbackUnconfirmedRetiresUndoWithExactSafetyState() {
+        val stopped = DoctorActionReceiptStore.stopVerification(
+            receipt = watchingReceipt(),
+            result = PolarisDoctorActionResult(
+                status = false,
+                changed = true,
+                changedContractValid = true,
+                state = "rollback_unconfirmed",
+                error = "Encoder did not confirm restore",
+                runId = "doctor-run-1"
+            ),
+            nowEpochMs = 12_750L
+        )
+
+        assertEquals("rollback_unconfirmed", stopped.state)
+        assertEquals("Encoder did not confirm restore", stopped.message)
+        assertFalse(stopped.undoAvailable)
+        assertEquals("", stopped.undoActionId)
+    }
+
+    @Test
     fun responseGuardRejectsStaleScopeGenerationRunAndBlankRunId() {
         val request = DoctorActionRequestIdentity(scopeA, "doctor-run-1", generation = 7L)
         val current = watchingReceipt()
