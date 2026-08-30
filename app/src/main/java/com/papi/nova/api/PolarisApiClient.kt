@@ -1233,10 +1233,18 @@ class PolarisApiClient @JvmOverloads constructor(
                 return parsed
             }
 
+            val typedRejection = statusCode != 200 && parsed?.status == false &&
+                parsed.changedContractValid
             return (parsed ?: PolarisDoctorActionResult(status = false)).copy(
                 status = false,
-                error = parsed?.error?.takeIf { it.isNotBlank() }
-                    ?: if (statusCode == 200) "Invalid Doctor action response" else "Doctor action rejected",
+                changedContractValid = typedRejection,
+                state = "",
+                message = "",
+                error = if (statusCode == 200) {
+                    "Invalid Doctor action response"
+                } else {
+                    parsed?.error?.takeIf { it.isNotBlank() } ?: "Doctor action rejected"
+                },
                 undoAvailable = false,
                 undoActionId = ""
             )

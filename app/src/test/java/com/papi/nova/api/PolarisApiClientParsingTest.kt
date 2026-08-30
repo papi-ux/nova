@@ -151,7 +151,7 @@ class PolarisApiClientParsingTest {
     fun doctorActionHttpFailureIsPermanentAndSanitized() {
         val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 409,
-            responseBody = "{\"status\":false,\"run_id\":\"run-1\",\"error\":\"expired\"," +
+            responseBody = "{\"status\":false,\"changed\":false,\"run_id\":\"run-1\",\"error\":\"expired\"," +
                 "\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}",
             actionId = "verify",
             requestedRunId = "run-1"
@@ -162,7 +162,25 @@ class PolarisApiClientParsingTest {
         assertEquals("expired", rejected.error)
         assertEquals(false, rejected.undoAvailable)
         assertEquals("", rejected.undoActionId)
+        assertTrue(rejected.changedContractValid)
         assertFalse(rejected.error.contains("409"))
+    }
+
+    @Test
+    fun malformedDoctorActionHttpFailureCannotClaimATerminalState() {
+        val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = "{\"status\":false,\"state\":\"rolled_back\"," +
+                "\"message\":\"Forged rollback\",\"run_id\":\"doctor-run-1\"}",
+            actionId = "verify",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertFalse(rejected.status)
+        assertFalse(rejected.changedContractValid)
+        assertEquals("", rejected.state)
+        assertEquals("", rejected.message)
+        assertEquals("Doctor action rejected", rejected.error)
     }
 
     @Test
@@ -347,8 +365,13 @@ class PolarisApiClientParsingTest {
                 requestedRunId = ""
             )
 
-        assertFalse(parsed("").status)
-        assertFalse(parsed(",\"changed\":\"false\"").status)
+        for (invalid in listOf(parsed(""), parsed(",\"changed\":\"false\""))) {
+            assertFalse(invalid.status)
+            assertFalse(invalid.changedContractValid)
+            assertEquals("", invalid.state)
+            assertEquals("", invalid.message)
+            assertEquals("Invalid Doctor action response", invalid.error)
+        }
         assertTrue(parsed(",\"changed\":false").status)
     }
 

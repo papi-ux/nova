@@ -431,6 +431,16 @@ object DoctorActionReceiptStore {
         result: PolarisDoctorActionResult,
         nowEpochMs: Long
     ): DoctorActionReceipt {
+        if (!result.changedContractValid) {
+            return receipt.copy(
+                state = "needs_attention",
+                message = result.error.ifBlank { "Invalid Doctor action response" }.take(MAX_FIELD_LENGTH),
+                verificationActionId = "",
+                verificationDueAtEpochMs = 0L,
+                verificationFailureCount = MAX_VERIFICATION_FAILURES,
+                updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
+            )
+        }
         return receipt.copy(
             state = result.state.takeIf { it in TERMINAL_STATES } ?: "needs_attention",
             message = result.message.ifBlank { result.error.ifBlank { receipt.message } }.take(MAX_FIELD_LENGTH),

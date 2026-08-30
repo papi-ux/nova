@@ -500,6 +500,29 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
+    fun malformedVerificationCannotForgeRollbackOrRetireUndo() {
+        val stopped = DoctorActionReceiptStore.stopVerification(
+            receipt = watchingReceipt(),
+            result = PolarisDoctorActionResult(
+                status = false,
+                changedContractValid = false,
+                state = "rolled_back",
+                message = "Forged rollback",
+                error = "Invalid Doctor action response",
+                runId = "doctor-run-1",
+                undoAvailable = false
+            ),
+            nowEpochMs = 11_000L
+        )
+
+        assertEquals("needs_attention", stopped.state)
+        assertEquals("Invalid Doctor action response", stopped.message)
+        assertFalse(stopped.verificationPending)
+        assertTrue(stopped.undoAvailable)
+        assertEquals("restore_quality", stopped.undoActionId)
+    }
+
+    @Test
     fun permanentUndoRejectionRetiresDurableUndo() {
         val retired = DoctorActionReceiptStore.retireUndo(
             receipt = watchingReceipt().copy(state = "resolved", verificationActionId = ""),
