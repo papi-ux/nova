@@ -430,6 +430,8 @@
     <string name="nova_library_reset_game_profile_empty">No saved game profile</string>
     <string name="nova_library_reset_game_profile_failed">Profile reset failed</string>
     <string name="nova_library_pin_shortcut">Pin to Home Screen</string>
+    <string name="nova_library_pin_shortcut_pending">Waiting for launcher</string>
+    <string name="nova_library_pin_shortcut_pinned">Pinned to Home Screen</string>
     <string name="nova_library_pin_shortcut_success">Shortcut request sent - your launcher may ask you to place it</string>
     <string name="nova_library_pin_shortcut_unsupported">Your launcher doesn\'t support pinned shortcuts</string>
     <string name="nova_library_pin_shortcut_failed">Couldn\'t create the shortcut</string>

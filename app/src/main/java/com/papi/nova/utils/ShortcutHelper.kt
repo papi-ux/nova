@@ -22,6 +22,12 @@ import java.nio.charset.Charset
 import java.util.Collections
 import java.util.LinkedList
 
+enum class GameShortcutPinState {
+    UNSUPPORTED,
+    AVAILABLE,
+    PINNED,
+}
+
 class ShortcutHelper(private val context: Activity) {
     private val sm: ShortcutManager? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
@@ -129,8 +135,35 @@ class ShortcutHelper(private val context: Activity) {
         createAppViewShortcut(details, false, false)
     }
 
-    private fun getShortcutIdForGame(computer: ComputerDetails, app: NvApp): String {
-        return computer.uuid + app.appId
+    private fun getShortcutIdForGame(computer: ComputerDetails, app: NvApp): String =
+        getShortcutIdForGame(computer.uuid, app.appId)
+
+    private fun getShortcutIdForGame(hostUuid: String, appId: Int): String = hostUuid + appId
+
+    /**
+     * Reports the launcher's state for one exact host/game shortcut.
+     *
+     * A game appearing in Nova's own library is unrelated to Android's pinned-shortcut
+     * registry. Keeping this query next to the ID builder prevents the detail UI from
+     * guessing from either library membership or a previously accepted pin request.
+     */
+    @TargetApi(Build.VERSION_CODES.O)
+    fun getGameShortcutPinState(hostUuid: String, appId: Int): GameShortcutPinState {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return GameShortcutPinState.UNSUPPORTED
+        }
+
+        val manager = sm ?: return GameShortcutPinState.UNSUPPORTED
+        if (!manager.isRequestPinShortcutSupported) {
+            return GameShortcutPinState.UNSUPPORTED
+        }
+
+        val shortcutId = getShortcutIdForGame(hostUuid, appId)
+        return if (manager.pinnedShortcuts.any { it.id == shortcutId }) {
+            GameShortcutPinState.PINNED
+        } else {
+            GameShortcutPinState.AVAILABLE
+        }
     }
 
     @TargetApi(Build.VERSION_CODES.O)
@@ -200,7 +233,7 @@ class ShortcutHelper(private val context: Activity) {
             action = Intent.ACTION_DEFAULT
         }
 
-        val shortcutInfo = ShortcutInfo.Builder(context, hostUuid + appId)
+        val shortcutInfo = ShortcutInfo.Builder(context, getShortcutIdForGame(hostUuid, appId))
             .setIntent(intent)
             .setShortLabel(appName + " (" + hostName + ")")
             .setIcon(appIcon)

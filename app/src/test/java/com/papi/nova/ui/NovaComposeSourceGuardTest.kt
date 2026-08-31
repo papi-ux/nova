@@ -1140,27 +1140,45 @@ class NovaComposeSourceGuardTest {
             detail.contains("internal fun NovaGameDetailLaunchFooter(")
         )
         assertTrue(
-            "the action lane is one row, so a D-pad walk never leaves it",
+            "landscape keeps one deterministic action row and portrait groups utilities below it",
             actions.contains("Row(") &&
+                actions.contains("if (stacked) {") &&
+                actions.contains("Column(") &&
                 actions.contains("horizontalArrangement = Arrangement.spacedBy(10.dp)")
         )
         assertTrue(
             "every focusable action clears the accessible target floor",
             detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
-                detail.contains("heightIn(min = NovaGameDetailActionHeight)")
+                detail.contains("heightIn(min = NovaGameDetailActionHeight)") &&
+                detail.contains("Modifier.size(NovaGameDetailActionHeight)")
         )
-        // A fixed four now rather than three. Reset used to be drawn only while a review
-        // was expanded, so outside that case the only way to reach it was a copy inside
-        // Play Setup -- and a Play Setup held to four rows has no room to keep one. What
-        // the guard is really protecting is unchanged: the count must not vary by game.
         assertTrue(
-            "the rail is a fixed four, so a D-pad walk cannot find a different number of " +
-                "nodes on a different game; only an expanded review adds to it",
+            "Launch stays primary; Play Setup and Reset retain labels; Pin and Artwork are " +
+                "compact utilities rather than peers competing with launch",
             actions.contains("NovaGameDetailDestination.PLAY_SETUP") &&
                 actions.contains("NovaGameDetailDestination.ARTWORK") &&
-                actions.contains("if (!reviewExpanded) {") &&
+                actions.contains("iconRes = R.drawable.ic_settings") &&
+                actions.contains("iconRes = R.drawable.ic_update") &&
+                actions.substringAfter("val pinAction:").substringBefore("val artworkAction:")
+                    .contains("iconOnly = true") &&
+                actions.substringAfter("val artworkAction:").substringBefore("val showEnd")
+                    .contains("iconOnly = true") &&
                 actions.contains("onRetryHighFps") &&
                 actions.contains("onResetProfile")
+        )
+        assertTrue(
+            "pin visibility and enabled state come from Android's exact shortcut state",
+            actions.contains("shortcutPinState != GameShortcutPinState.UNSUPPORTED") &&
+                actions.contains("shortcutPinState == GameShortcutPinState.PINNED") &&
+                actions.contains("shortcutPinState == GameShortcutPinState.AVAILABLE") &&
+                actions.contains("!shortcutPinRequestPending")
+        )
+        assertTrue(
+            "icon-only utilities keep their full spoken label on the parent control",
+            detail.contains(".semantics { contentDescription = text }") &&
+                detail.contains("contentDescription = null") &&
+                actions.contains("nova-game-detail-pin-shortcut") &&
+                actions.contains("nova-game-detail-artwork")
         )
         assertFalse(
             "reset must not be gated on a review being open: that left it unreachable in the " +
