@@ -65,7 +65,12 @@ object NovaLaunchStreamOverride {
 
         val width = chosenMode?.width ?: rawMode?.width ?: fallbackWidth
         val height = chosenMode?.height ?: rawMode?.height ?: fallbackHeight
-        val fps = fpsOverride ?: chosenMode?.fps ?: rawMode?.fps ?: fallbackFps
+        // A resolution card owns width and height only. The planner's target_mode
+        // includes a trailing rate because Polaris represents modes as WxHxF, but
+        // importing that rate here silently turns a resolution choice into an FPS
+        // choice. Keep the host-resolved cadence unless Tuning supplied an explicit
+        // High FPS pin.
+        val fps = fpsOverride ?: rawMode?.fps ?: fallbackFps
 
         val displayMode = "${width}x${height}x$fps"
         fun putField(name: String, value: Any, source: String, reason: String, locked: Boolean) {
@@ -80,17 +85,18 @@ object NovaLaunchStreamOverride {
         if (resolution != null) {
             putField("display_width", width, "explicit_launch_request", NORMALIZATION_REASON, true)
             putField("display_height", height, "explicit_launch_request", NORMALIZATION_REASON, true)
-            putField("target_fps", fps.toDouble(), "explicit_launch_request", NORMALIZATION_REASON, true)
-        } else if (fpsOverride != null) {
+        }
+        if (fpsOverride != null) {
             // Width/height retain the host's paired/preset provenance. Only the
             // explicitly pinned cadence becomes a client launch lock.
             putField("target_fps", fps.toDouble(), "explicit_launch_request", NORMALIZATION_REASON, true)
         }
+        val allDisplayComponentsExplicit = resolution != null && fpsOverride != null
         fields.put("display_mode", JSONObject().apply {
             put("value", displayMode)
-            put("source", if (resolution != null) "explicit_launch_request" else "composed_display_components")
-            put("reason_code", if (resolution != null) NORMALIZATION_REASON else "mixed_display_provenance")
-            put("locked", resolution != null)
+            put("source", if (allDisplayComponentsExplicit) "explicit_launch_request" else "composed_display_components")
+            put("reason_code", if (allDisplayComponentsExplicit) NORMALIZATION_REASON else "mixed_display_provenance")
+            put("locked", allDisplayComponentsExplicit)
             put("normalized", false)
         })
         // Top-level value is compatibility-only; StreamSync consumes the typed field.
