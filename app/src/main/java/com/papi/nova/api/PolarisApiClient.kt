@@ -1887,12 +1887,15 @@ class PolarisApiClient @JvmOverloads constructor(
     private fun executeWithTransientRetry(request: Request): okhttp3.Response =
         runWithTransientTlsRetry(onTransient = { resetCallClient() }) { execute(request) }
 
-    private fun executeNonRetryable(request: Request): okhttp3.Response =
+    private fun newNonRetryableCall(request: Request): okhttp3.Call =
         buildNonRetryableHttpClient(clientForCall()).newCall(
             request.newBuilder()
                 .header("Connection", "close")
                 .build()
-        ).execute()
+        )
+
+    private fun executeNonRetryable(request: Request): okhttp3.Response =
+        newNonRetryableCall(request).execute()
 
     private fun executeIdempotentDoctorAction(request: Request): okhttp3.Response = try {
         executeNonRetryable(request)
@@ -2834,57 +2837,11 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     /**
-     * Send session quality report at end of stream.
-     */
-    fun sendDoctorEvidenceReport(
-        device: String,
-        uniqueId: String,
-        game: String,
-        evidence: Map<String, Any>,
-        endReason: String
-    ): Boolean {
-        return try {
-            val raw = JSONObject()
-            evidence.forEach { (key, value) -> raw.put(key, value) }
-            raw.put("schema_version", 2)
-            raw.put("contract", "doctor_v2_raw")
-            raw.put("end_reason", endReason)
-
-            val body = JSONObject().apply {
-                put("device", device)
-                if (uniqueId.isNotBlank()) put("unique_id", uniqueId)
-                put("game", game)
-                put("doctor_v2", raw)
-                // Temporary observational v1 compatibility. Only raw numeric
-                // evidence is mirrored; no diagnosis, action, safe setting, or
-                // relaunch recommendation can be supplied by Nova.
-                listOf(
-                    "avg_fps", "target_fps", "low_1_percent_fps", "min_fps",
-                    "avg_latency_ms", "avg_bitrate_kbps",
-                    "packet_loss_pct", "packet_loss_source", "codec", "duration_s", "samples"
-                ).forEach { key -> if (raw.has(key)) put(key, raw.get(key)) }
-                put("end_reason", endReason)
-            }
-            val request = Request.Builder()
-                .url("$baseUrl/session/report")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            execute(request).use { response -> response.code == 200 }
-        } catch (e: Exception) {
-            LimeLog.warning("Nova: Doctor evidence report failed: ${errorMessage(e)}")
-            false
-        }
-    }
-
-    /**
      * Send raw cumulative media counters for host-derived live Doctor evidence.
      * The exact host app/session identity is mandatory and the request is never
      * retried, so a delayed sample cannot cross a stream generation.
      */
-    fun sendLiveMediaTelemetry(
+    suspend fun sendLiveMediaTelemetry(
         sample: PerfOverlaySample,
         appSessionId: String,
         sessionGeneration: Long,
@@ -2918,74 +2875,18 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            executeNonRetryable(request).use { response ->
-                if (response.code != 200) return false
-                val json = JSONObject(response.body?.string() ?: return false)
-                json.opt("status") is Boolean && json.getBoolean("status")
+            executeCancellableHttpCall(newNonRetryableCall(request)) { response ->
+                val responseBody = response.body?.string()
+                if (response.code != 200 || responseBody == null) {
+                    false
+                } else {
+                    val json = JSONObject(responseBody)
+                    json.opt("status") is Boolean && json.getBoolean("status")
+                }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
-            false
-        }
-    }
-
-    /**
-     * Legacy v1 report shape retained for older integrations. New Nova code
-     * uses [sendDoctorEvidenceReport].
-     */
-    fun sendSessionReport(device: String, uniqueId: String, game: String, avgFps: Double, targetFps: Double,
-                          lowOnePercentFps: Double, minFps: Double, framePacingBadPct: Double, safeTargetFps: Double,
-                          avgLatency: Double,
-                          avgBitrate: Int, packetLoss: Double, codec: String,
-                          durationS: Int, samples: Int, endReason: String,
-                          optimizationSource: String, optimizationConfidence: String,
-                          recommendationVersion: Int,
-                          healthGrade: String,
-                          primaryIssue: String,
-                          issues: List<String>,
-                          decoderRisk: String,
-                          hdrRisk: String,
-                          networkRisk: String,
-                          capturePath: String,
-                          safeBitrateKbps: Int,
-                          safeCodec: String,
-                          safeDisplayMode: String,
-                          safeHdr: Boolean?,
-                          relaunchRecommended: Boolean): Boolean {
-        return try {
-            val body = org.json.JSONObject().apply {
-                put("device", device)
-                if (uniqueId.isNotBlank()) put("unique_id", uniqueId)
-                put("game", game)
-                put("avg_fps", avgFps)
-                if (targetFps > 0.0) put("target_fps", targetFps)
-                if (lowOnePercentFps > 0.0) put("low_1_percent_fps", lowOnePercentFps)
-                if (minFps > 0.0) put("min_fps", minFps)
-                put("avg_latency_ms", avgLatency)
-                put("avg_bitrate_kbps", avgBitrate)
-                put("packet_loss_pct", packetLoss)
-                put("codec", codec)
-                put("duration_s", durationS)
-                put("samples", samples)
-                put("end_reason", endReason)
-                if (optimizationSource.isNotBlank()) put("optimization_source", optimizationSource)
-                if (optimizationConfidence.isNotBlank()) put("optimization_confidence", optimizationConfidence)
-                if (recommendationVersion > 0) put("recommendation_version", recommendationVersion)
-                if (capturePath.isNotBlank()) put("capture_path", capturePath)
-                // Legacy callers are observational too. Derived diagnoses,
-                // safe settings, and relaunch recommendations are ignored.
-            }
-            val request = Request.Builder()
-                .url("$baseUrl/session/report")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            execute(request).use { response ->
-                response.code == 200
-            }
-        } catch (e: Exception) {
-            LimeLog.warning("Nova: Session report failed: ${errorMessage(e)}")
             false
         }
     }

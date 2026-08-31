@@ -241,7 +241,7 @@ class KotlinGameRuntimeMigrationTest {
     }
 
     @Test
-    fun streamShutdownReportUsesRuntimeTasksInsteadOfRawThread() {
+    fun streamShutdownKeepsDoctorSummaryLocalInsteadOfSendingUnscopedEvidence() {
         val source = readGameSource()
         val stopConnection = source.substring(
             source.indexOf("private fun stopConnection()"),
@@ -252,7 +252,9 @@ class KotlinGameRuntimeMigrationTest {
             stopConnection.indexOf("novaHud?.dismiss()")
         )
 
-        assertTrue(sessionReport.contains("launchRuntimeIo(\"NovaSessionReport\")"))
+        assertTrue(sessionReport.contains("Nova: observational session summary"))
+        assertFalse(sessionReport.contains("launchRuntimeIo("))
+        assertFalse(sessionReport.contains("sendDoctorEvidenceReport"))
         assertFalse(sessionReport.contains("Thread({"))
     }
 
@@ -290,6 +292,8 @@ class KotlinGameRuntimeMigrationTest {
         assertTrue(stopConnection.contains("doctorTelemetryUploadGate.invalidate()"))
         assertTrue(stopConnection.contains("runtimeTasks.cancel(\"NovaDoctorTelemetry\")"))
         assertFalse(stopConnection.contains("NovaDoctorV2Sample"))
+        assertFalse(stopConnection.contains("NovaSessionReport"))
+        assertFalse(stopConnection.contains("sendDoctorEvidenceReport"))
         assertTrue(upload.contains("if (liveStatus == null)"))
         assertTrue(upload.contains("client.sendLiveMediaTelemetry("))
         assertFalse(upload.contains("sendDoctorV2Sample"))

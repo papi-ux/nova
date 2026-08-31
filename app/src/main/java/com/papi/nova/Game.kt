@@ -5283,32 +5283,8 @@ stopPolarisLiveSessionStatusRefresh()
 doctorTelemetryUploadGate.invalidate()
 runtimeTasks.cancel("NovaDoctorTelemetry")
  // Raw Doctor sampling runs independently of HUD visibility.
-            if (host != null)
-{
 val summary:Map<String, Any> = doctorTelemetry.summary()
 com.papi.nova.LimeLog.info("Nova: observational session summary " + NovaHudSessionSummaryLog.format(summary))
-val reportHost:String? = host
-val reportHttpsPort:Int = httpsPort
-val reportServerCert:X509Certificate? = serverCert
-val reportDevice:String? = DeviceUtils.getModel()
-val reportUniqueId:String? = uniqueId
-val reportGame:String? = if (appName != null) appName else ""
-launchRuntimeIo("NovaSessionReport") { try
-{
-var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, reportHost ?: "", reportHttpsPort, reportServerCert)
-client.sendDoctorEvidenceReport(
-reportDevice ?: "", reportUniqueId ?: "", reportGame ?: "", summary,
-if (reportedCrash) "decoder_crash" else "disconnect"
-)
-}
-catch (e:kotlinx.coroutines.CancellationException) {
-throw e
-}
-catch (e:Exception) {
-com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e!!.message)
-}
-}
-}
 novaHud?.dismiss()
 novaHud = null
 syncPerfTextWanted()

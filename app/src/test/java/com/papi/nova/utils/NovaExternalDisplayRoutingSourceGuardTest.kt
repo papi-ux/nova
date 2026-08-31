@@ -436,11 +436,11 @@ class NovaExternalDisplayRoutingSourceGuardTest {
                 .substringBefore("override fun stageFailed(")
         val streamInactive = stopConnection.indexOf("isStreamActive = false")
         val controlsClosed = stopConnection.indexOf("closeCompanionControls()", streamInactive)
-        val backgroundCleanup = stopConnection.indexOf("launchRuntimeIo(\"NovaSessionReport\")")
+        val backgroundCleanup = stopConnection.indexOf("doctorTelemetryUploadGate.invalidate()")
 
         assertTrue("stopConnection must mark the stream inactive", streamInactive >= 0)
         assertTrue("stopConnection must dismiss companion controls after marking the stream inactive", controlsClosed > streamInactive)
-        assertTrue("companion controls must close before asynchronous teardown work", controlsClosed in 0 until backgroundCleanup)
+        assertTrue("companion controls must close before Doctor telemetry teardown", controlsClosed in 0 until backgroundCleanup)
     }
 
     @Test
