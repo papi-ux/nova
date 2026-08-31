@@ -30,6 +30,11 @@ class ShortcutHelperPolarisShortcutTest {
         val appName = "Ys VIII: Lacrimosa of Dana"
         val hdrSupported = true
 
+        assertEquals(
+            GameShortcutPinState.AVAILABLE,
+            ShortcutHelper(activity).getGameShortcutPinState(hostUuid, appId),
+        )
+
         val result = ShortcutHelper(activity).createPinnedGameShortcut(
             hostUuid = hostUuid,
             hostName = hostName,
@@ -56,6 +61,32 @@ class ShortcutHelperPolarisShortcutTest {
         assertEquals(appUuid, intent.getStringExtra(Game.EXTRA_APP_UUID))
         assertEquals("" + appId, intent.getStringExtra(Game.EXTRA_APP_ID))
         assertEquals(hdrSupported, intent.getBooleanExtra(Game.EXTRA_APP_HDR, !hdrSupported))
+        assertEquals(
+            GameShortcutPinState.PINNED,
+            ShortcutHelper(activity).getGameShortcutPinState(hostUuid, appId),
+        )
+        assertEquals(
+            "pin state must be scoped to the exact host and app",
+            GameShortcutPinState.AVAILABLE,
+            ShortcutHelper(activity).getGameShortcutPinState(hostUuid, appId + 1),
+        )
+        assertEquals(
+            "a shortcut pinned for another host must not claim this game is pinned",
+            GameShortcutPinState.AVAILABLE,
+            ShortcutHelper(activity).getGameShortcutPinState("OTHER-HOST", appId),
+        )
+    }
+
+    @Test
+    fun reportsUnsupportedWhenLauncherCannotRequestPinnedShortcuts() {
+        val activity = Robolectric.buildActivity(Activity::class.java).get()
+        val shortcutManager = activity.getSystemService(ShortcutManagerClass)
+        shadowOf(shortcutManager).setIsRequestPinShortcutSupported(false)
+
+        assertEquals(
+            GameShortcutPinState.UNSUPPORTED,
+            ShortcutHelper(activity).getGameShortcutPinState("HOST", 42),
+        )
     }
 
     companion object {

@@ -108,6 +108,7 @@ import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaFocusableCard
 import com.papi.nova.utils.DeviceUtils
+import com.papi.nova.utils.GameShortcutPinState
 import com.papi.nova.utils.ServerHelper
 import com.papi.nova.utils.ShortcutHelper
 import kotlinx.coroutines.CancellationException
@@ -137,6 +138,9 @@ class NovaGameDetailActivity : NovaActivity() {
     private var clientSettings: PolarisClientSettings? = null
     private var serverName: String = ""
     private var serverUuid: String? = null
+    private var shortcutGameAppId: Int? = null
+    private var shortcutPinState by mutableStateOf(GameShortcutPinState.UNSUPPORTED)
+    private var shortcutPinRequestPending by mutableStateOf(false)
 
     /**
      * The sheet took these as constructor lambdas. Keeping the names and the nullable
@@ -251,6 +255,8 @@ class NovaGameDetailActivity : NovaActivity() {
 
         apiClient = PolarisApiClient(this, host, httpsPort, serverCert)
         shortcutHelper = ShortcutHelper(this)
+        shortcutGameAppId = game.appId
+        refreshShortcutPinState()
         artworkViewModel = ViewModelProvider(
             this,
             NovaArtworkLibraryUpdateViewModel.Factory(
@@ -274,6 +280,44 @@ class NovaGameDetailActivity : NovaActivity() {
 
         setUpDetail(game, apiClient)
         refreshActiveSession(game)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshShortcutPinState()
+    }
+
+    private fun refreshShortcutPinState() {
+        if (!::shortcutHelper.isInitialized) return
+        val hostUuid = serverUuid?.takeIf { it.isNotBlank() }
+        val appId = shortcutGameAppId
+        shortcutPinState = if (hostUuid == null || appId == null) {
+            GameShortcutPinState.UNSUPPORTED
+        } else {
+            shortcutHelper.getGameShortcutPinState(hostUuid, appId)
+        }
+        if (shortcutPinState != GameShortcutPinState.AVAILABLE) {
+            shortcutPinRequestPending = false
+        }
+    }
+
+    /**
+     * requestPinShortcut() only means the launcher accepted the request. Poll briefly
+     * while its confirmation UI is up, and recheck again from onResume, so Nova never
+     * calls a request "pinned" before Android does.
+     */
+    private fun awaitShortcutPinConfirmation() {
+        shortcutPinRequestPending = true
+        lifecycleScope.launch {
+            repeat(12) {
+                delay(250)
+                refreshShortcutPinState()
+                if (shortcutPinState == GameShortcutPinState.PINNED) {
+                    return@launch
+                }
+            }
+            shortcutPinRequestPending = false
+        }
     }
 
     /**
@@ -1223,6 +1267,8 @@ class NovaGameDetailActivity : NovaActivity() {
                             resetWorking = false
                         }
                     },
+                    shortcutPinState = shortcutPinState,
+                    shortcutPinRequestPending = shortcutPinRequestPending,
                     onPinShortcut = {
                         val hostUuid = serverUuid
                         val messageRes = if (hostUuid.isNullOrEmpty()) {
@@ -1238,6 +1284,7 @@ class NovaGameDetailActivity : NovaActivity() {
                                 iconBits = null,
                             )
                             if (pinned) {
+                                awaitShortcutPinConfirmation()
                                 R.string.nova_library_pin_shortcut_success
                             } else {
                                 R.string.nova_library_pin_shortcut_unsupported

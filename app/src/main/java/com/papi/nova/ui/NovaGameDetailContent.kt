@@ -72,6 +72,7 @@ import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaFocusableCard
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.utils.GameShortcutPinState
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -233,6 +234,8 @@ internal fun NovaGameDetailContent(
     onAdvancePlaySetupRow: (NovaPlaySetupRow) -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    shortcutPinState: GameShortcutPinState,
+    shortcutPinRequestPending: Boolean,
     onPinShortcut: () -> Unit,
     artworkState: NovaArtworkStudioState,
     onRefreshArtwork: () -> Unit,
@@ -297,6 +300,8 @@ internal fun NovaGameDetailContent(
             onPrimaryLaunch = onPrimaryLaunch,
             onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile,
+            shortcutPinState = shortcutPinState,
+            shortcutPinRequestPending = shortcutPinRequestPending,
             onPinShortcut = onPinShortcut,
             onDestination = onDestination,
             activeSession = activeSession,

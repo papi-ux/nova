@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -41,6 +42,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -76,6 +78,7 @@ import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.utils.GameShortcutPinState
 import kotlinx.coroutines.delay
 
 /** Where the detail window currently is. Back unwinds one level before leaving. */
@@ -129,6 +132,8 @@ internal fun NovaGameDetailOverview(
     onPrimaryLaunch: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    shortcutPinState: GameShortcutPinState,
+    shortcutPinRequestPending: Boolean,
     onPinShortcut: () -> Unit,
     onDestination: (NovaGameDetailDestination) -> Unit,
     activeSession: NovaLibraryActiveSessionUiState?,
@@ -248,6 +253,8 @@ internal fun NovaGameDetailOverview(
                 onPrimaryLaunch = onPrimaryLaunch,
                 onRetryHighFps = onRetryHighFps,
                 onResetProfile = onResetProfile,
+                shortcutPinState = shortcutPinState,
+                shortcutPinRequestPending = shortcutPinRequestPending,
                 onPinShortcut = onPinShortcut,
                 onDestination = onDestination,
                 activeSession = activeSession,
@@ -412,6 +419,8 @@ private fun NovaGameDetailActions(
     onPrimaryLaunch: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    shortcutPinState: GameShortcutPinState,
+    shortcutPinRequestPending: Boolean,
     onPinShortcut: () -> Unit,
     onDestination: (NovaGameDetailDestination) -> Unit,
     activeSession: NovaLibraryActiveSessionUiState?,
@@ -419,29 +428,15 @@ private fun NovaGameDetailActions(
     onEndSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val lane: @Composable (@Composable () -> Unit) -> Unit = { content ->
-        if (stacked) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = modifier.fillMaxWidth(),
-                content = { content() },
-            )
-        } else {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = modifier,
-                content = { content() },
-            )
+    val playFocusable = uiState.playEnabled || activeSession != null
+    LaunchedEffect(playFocusable) {
+        if (playFocusable) {
+            delay(NOVA_FIRST_FOCUS_SETTLE_MS)
+            runCatching { playFocusRequester.requestFocus() }
         }
     }
 
-    // Stacked buttons sized to their own labels look ragged; in a column they share a width.
-    val itemWidth: Modifier = if (stacked) Modifier.fillMaxWidth() else Modifier
-
-    lane {
-        // Precedence: someone else's session, then yours, then the ordinary launch.
-        // Launching over a session another device owns would take their display.
+    val primaryAction: @Composable (Modifier) -> Unit = { actionModifier ->
         NovaGameDetailAction(
             text = when {
                 activeSession?.watchOnly == true -> stringResource(R.string.nova_game_detail_watch)
@@ -452,87 +447,125 @@ private fun NovaGameDetailActions(
             enabled = uiState.playEnabled || activeSession != null,
             primary = activeSession?.watchOnly != true,
             glyph = stringResource(R.string.nova_controller_hint_a),
-            modifier = itemWidth
+            modifier = actionModifier
                 .focusRequester(playFocusRequester)
                 .testTag("nova-game-detail-primary"),
         )
+    }
 
-        // Play holds first focus, and it has to be asked for here.
-        //
-        // The request used to live in NovaGameDetailLaunchFooter, which lost its last
-        // caller when this window replaced the bottom sheet, so nothing had requested
-        // focus since. Focus fell to whichever node happened to be focusable first, and
-        // the primary is not focusable until the launch profile arrives -- so on a slow
-        // profile the d-pad started on the destination beside Play instead of on Play.
-        //
-        // Keyed on enabled, because that is the moment the primary becomes reachable.
-        // The request is allowed to fail: while a destination is open the Overview is a
-        // focusProperties { canFocus = false } group, and asking then must not throw.
-        //
-        // Settle first, for the same reason novaHoldsFirstFocus does: when the profile
-        // is already cached, playEnabled is true on the first composition, so this
-        // effect runs before Play is placed -- the request lands on nothing, runCatching
-        // swallows it, and focus falls to the first focusable above Play (the launch-
-        // profile row). Waiting one settle lets layout happen so the request lands on
-        // Play. On the slow-profile path playEnabled flips true after layout, so the
-        // wait costs nothing there.
-        val playFocusable = uiState.playEnabled || activeSession != null
-        LaunchedEffect(playFocusable) {
-            if (playFocusable) {
-                delay(NOVA_FIRST_FOCUS_SETTLE_MS)
-                runCatching { playFocusRequester.requestFocus() }
-            }
-        }
+    val endAction: @Composable (Modifier) -> Unit = { actionModifier ->
+        NovaGameDetailAction(
+            text = stringResource(R.string.nova_game_detail_end_session),
+            onClick = onEndSession,
+            mark = "◼",
+            modifier = actionModifier,
+        )
+    }
 
-        if (activeSession != null && !activeSession.watchOnly) {
-            NovaGameDetailAction(
-                text = stringResource(R.string.nova_game_detail_end_session),
-                onClick = onEndSession,
-                mark = "◼",
-                modifier = itemWidth,
-            )
-        }
+    val retryAction: @Composable (Modifier) -> Unit = { actionModifier ->
+        NovaGameDetailAction(
+            text = stringResource(R.string.nova_library_retry_high_fps),
+            onClick = onRetryHighFps,
+            mark = "\u25B2",
+            modifier = actionModifier,
+        )
+    }
 
-        // Reset is on the rail whatever the review is doing. It used to be drawn only
-        // while a review was expanded, which made Play Setup's copy the only one anybody
-        // could reach the rest of the time -- and the copy is what a four-row Play Setup
-        // has no room for.
-        if (reviewExpanded && optimizationState.profileSummary?.showRetryHighFps == true) {
-            NovaGameDetailAction(
-                text = stringResource(R.string.nova_library_retry_high_fps),
-                onClick = onRetryHighFps,
-                mark = "\u25B2",
-                modifier = itemWidth,
-            )
-        }
+    val playSetupAction: @Composable (Modifier) -> Unit = { actionModifier ->
+        NovaGameDetailAction(
+            text = stringResource(R.string.nova_play_setup_title),
+            onClick = { onDestination(NovaGameDetailDestination.PLAY_SETUP) },
+            iconRes = R.drawable.ic_settings,
+            modifier = actionModifier.testTag("nova-game-detail-play-setup"),
+        )
+    }
+
+    val resetAction: @Composable (Modifier) -> Unit = { actionModifier ->
         NovaGameDetailAction(
             text = stringResource(R.string.nova_library_reset_game_profile),
             onClick = onResetProfile,
-            mark = "\u21BA",
-            modifier = itemWidth,
+            iconRes = R.drawable.ic_update,
+            modifier = actionModifier.testTag("nova-game-detail-reset"),
         )
+    }
+
+    val pinVisible = shortcutPinState != GameShortcutPinState.UNSUPPORTED
+    val pinLabel = when {
+        shortcutPinRequestPending -> stringResource(R.string.nova_library_pin_shortcut_pending)
+        shortcutPinState == GameShortcutPinState.PINNED ->
+            stringResource(R.string.nova_library_pin_shortcut_pinned)
+        else -> stringResource(R.string.nova_library_pin_shortcut)
+    }
+    val pinAction: @Composable (Modifier) -> Unit = { actionModifier ->
         NovaGameDetailAction(
-            text = stringResource(R.string.nova_library_pin_shortcut),
+            text = pinLabel,
             onClick = onPinShortcut,
-            mark = "\u2691",
-            modifier = itemWidth,
+            enabled = shortcutPinState == GameShortcutPinState.AVAILABLE &&
+                !shortcutPinRequestPending,
+            iconRes = if (shortcutPinState == GameShortcutPinState.PINNED) {
+                R.drawable.ic_check
+            } else {
+                R.drawable.ic_nova_pin
+            },
+            iconOnly = true,
+            modifier = actionModifier.testTag("nova-game-detail-pin-shortcut"),
         )
-        if (!reviewExpanded) {
-            // Three nodes, always. `showLaunchModeAction` used to decide whether a
-            // fourth existed, so the lane changed length depending on the game; what it
-            // gated is now a row inside Play Setup rather than an action beside it.
-            NovaGameDetailAction(
-                text = stringResource(R.string.nova_play_setup_title),
-                onClick = { onDestination(NovaGameDetailDestination.PLAY_SETUP) },
-                mark = "\u2699",
-                modifier = itemWidth,
-            )
-            NovaGameDetailAction(
-                text = stringResource(R.string.nova_artwork_studio_title),
-                onClick = { onDestination(NovaGameDetailDestination.ARTWORK) },
-                mark = "\u25C8",
-                modifier = itemWidth,
-            )
+    }
+
+    val artworkAction: @Composable (Modifier) -> Unit = { actionModifier ->
+        NovaGameDetailAction(
+            text = stringResource(R.string.nova_artwork_studio_title),
+            onClick = { onDestination(NovaGameDetailDestination.ARTWORK) },
+            iconRes = R.drawable.ic_nova_artwork,
+            iconOnly = true,
+            modifier = actionModifier.testTag("nova-game-detail-artwork"),
+        )
+    }
+
+    val showEnd = activeSession != null && !activeSession.watchOnly
+    val showRetry = reviewExpanded && optimizationState.profileSummary?.showRetryHighFps == true
+
+    if (stacked) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = modifier.fillMaxWidth(),
+        ) {
+            primaryAction(Modifier.fillMaxWidth())
+            if (showEnd) endAction(Modifier.fillMaxWidth())
+            if (showRetry) retryAction(Modifier.fillMaxWidth())
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (!reviewExpanded) playSetupAction(Modifier.weight(1f))
+                resetAction(Modifier.weight(1f))
+            }
+
+            if (pinVisible || !reviewExpanded) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (pinVisible) pinAction(Modifier)
+                    if (!reviewExpanded) artworkAction(Modifier)
+                }
+            }
+        }
+    } else {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier,
+        ) {
+            primaryAction(Modifier)
+            if (showEnd) endAction(Modifier)
+            if (showRetry) retryAction(Modifier)
+            if (!reviewExpanded) playSetupAction(Modifier)
+            resetAction(Modifier)
+            if (pinVisible) pinAction(Modifier)
+            if (!reviewExpanded) artworkAction(Modifier)
         }
     }
 }
@@ -790,6 +823,8 @@ private fun NovaGameDetailAction(
     primary: Boolean = false,
     glyph: String? = null,
     mark: String? = null,
+    iconRes: Int? = null,
+    iconOnly: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -816,9 +851,19 @@ private fun NovaGameDetailAction(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        horizontalArrangement = if (iconOnly) {
+            Arrangement.Center
+        } else {
+            Arrangement.spacedBy(9.dp)
+        },
         modifier = modifier
-            .heightIn(min = NovaGameDetailActionHeight)
+            .then(
+                if (iconOnly) {
+                    Modifier.size(NovaGameDetailActionHeight)
+                } else {
+                    Modifier.heightIn(min = NovaGameDetailActionHeight)
+                }
+            )
             .clip(shape)
             .background(background, shape)
             .border(
@@ -834,7 +879,10 @@ private fun NovaGameDetailAction(
                 onClick = onClick,
             )
             .semantics { contentDescription = text }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(
+                horizontal = if (iconOnly) 11.dp else 14.dp,
+                vertical = 10.dp,
+            ),
     ) {
         if (glyph != null) {
             Box(
@@ -855,14 +903,24 @@ private fun NovaGameDetailAction(
         if (mark != null) {
             Text(text = mark, color = label.copy(alpha = 0.62f), fontSize = 13.sp)
         }
-        Text(
-            text = text,
-            color = label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (iconRes != null) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = label.copy(alpha = if (iconOnly) 0.82f else 0.72f),
+                modifier = Modifier.size(if (iconOnly) 22.dp else 18.dp),
+            )
+        }
+        if (!iconOnly) {
+            Text(
+                text = text,
+                color = label,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
