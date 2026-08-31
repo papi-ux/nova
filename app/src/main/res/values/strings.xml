@@ -282,7 +282,16 @@
     <string name="nova_play_setup_granted_format">Granted: %1$s</string>
     <string name="nova_play_setup_compare_where">If you changed where it runs</string>
     <string name="nova_play_setup_fact_host_default">Host default</string>
-    <string name="nova_play_setup_mode_host_default_only">Set by the host. This one rearranges the host displays, so it cannot be chosen for a single session.</string>
+    <string name="nova_play_setup_mode_host_default_only">Headless Dongle rearranges physical displays, so a game cannot turn it on for one launch.</string>
+    <string name="nova_play_setup_mode_host_default_only_badge">Host default only</string>
+    <string name="nova_play_setup_mode_current_host_default_badge">Current host default</string>
+    <string name="nova_play_setup_mode_open_host_settings">Open Polaris Settings</string>
+    <string name="nova_play_setup_mode_private_detail">Recommended. Runs the game on a private display without touching the host monitors.</string>
+    <string name="nova_play_setup_mode_gpu_detail">Same privacy, keeping frames on the GPU when the host supports it.</string>
+    <string name="nova_play_setup_mode_gamescope_detail">Steam Deck-style session for Steam-first hosts. Gamescope must be installed.</string>
+    <string name="nova_play_setup_mode_virtual_detail">Adds a display to the host desktop. Windows and icons may rearrange.</string>
+    <string name="nova_play_setup_mode_dongle_detail">Moves the desktop to a dummy plug and blanks the real panel. Configure it once as the host default.</string>
+    <string name="nova_play_setup_mode_mirror_detail">Streams everything visible on the host, including notifications.</string>
     <string name="nova_play_setup_band_private">Private — your desktop stays untouched</string>
     <string name="nova_play_setup_band_host">Host display — uses or swaps the host screen</string>
     <string name="nova_play_setup_host_default_entry_detail">Follow the host\'s Default Display — currently %1$s</string>
