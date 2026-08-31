@@ -2880,58 +2880,6 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     /**
-     * Upload one raw monotonic Doctor v2 sample while the stream is active.
-     * Polaris derives session/app scope and every diagnosis; Nova supplies no
-     * action, confidence, safe setting, or launch recommendation.
-     */
-    fun sendDoctorV2Sample(
-        sample: PerfOverlaySample,
-        targetFps: Double,
-        refreshRateHz: Double,
-        bitrateKbps: Int,
-        topology: String,
-        hdr: Boolean
-    ): Boolean {
-        return try {
-            val raw = JSONObject().apply {
-                put("monotonic_timestamp_ms", sample.monotonicTimestampMs)
-                put("session_generation", sample.sessionGeneration)
-                put("frames_expected", sample.framesExpected)
-                put("frames_received", sample.framesReceived)
-                put("frames_rendered", sample.framesRendered)
-                put("frames_lost", sample.framesLost)
-                put("received_fps", sample.incomingFps)
-                put("rendered_fps", sample.renderedFps)
-                put("target_fps", targetFps)
-                put("refresh_rate_hz", refreshRateHz)
-                put("rtt_ms", sample.rttMs)
-                put("decode_latency_ms", sample.decodeTimeMs)
-                sample.hostProcessingLatencyMs?.let { put("host_processing_latency_ms", it) }
-                put("width", sample.width)
-                put("height", sample.height)
-                put("codec", sample.codec)
-                put("bitrate_kbps", bitrateKbps)
-                put("topology", topology)
-                put("hdr", hdr)
-            }
-            val request = Request.Builder()
-                .url("$baseUrl/doctor/v2/evidence")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    JSONObject().put("sample", raw).toString()
-                ))
-                .build()
-            // Samples are monotonic and intentionally best-effort. Retrying a
-            // lost response would submit a duplicate timestamp.
-            executeNonRetryable(request).use { response -> response.code == 200 }
-        } catch (_: Exception) {
-            // Continuous shadow sampling is best-effort. The caller records a
-            // single failure without turning a transient outage into log spam.
-            false
-        }
-    }
-
-    /**
      * Send raw cumulative media counters for host-derived live Doctor evidence.
      * The exact host app/session identity is mandatory and the request is never
      * retried, so a delayed sample cannot cross a stream generation.

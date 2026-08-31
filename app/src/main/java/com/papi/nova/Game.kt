@@ -42,6 +42,7 @@ import com.papi.nova.preferences.GlPreferences
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.runtime.BackgroundResumePolicy
+import com.papi.nova.runtime.DoctorTelemetryUploadGate
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
@@ -179,7 +180,7 @@ private var configuredDisplayRefreshRateHz:Float = 0f
 private var configuredStreamBitrateKbps:Int = 0
 private var configuredStreamHdr:Boolean = false
 @Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
-private val doctorTelemetryUploadInFlight:AtomicBoolean = AtomicBoolean(false)
+private val doctorTelemetryUploadGate:DoctorTelemetryUploadGate = DoctorTelemetryUploadGate()
 private val doctorTelemetryUploadFailureLogged:AtomicBoolean = AtomicBoolean(false)
 private var preferStableRefreshMultipleForAutoSafe:Boolean = false
 private var audioHapticEngine:com.papi.nova.ui.AudioHapticEngine? = null
@@ -5279,7 +5280,8 @@ connecting = connected
 isStreamActive = false
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
-runtimeTasks.cancel("NovaDoctorV2Sample")
+doctorTelemetryUploadGate.invalidate()
+runtimeTasks.cancel("NovaDoctorTelemetry")
  // Raw Doctor sampling runs independently of HUD visibility.
             if (host != null)
 {
@@ -5914,12 +5916,13 @@ hideSystemUi(2000)
 }
 }
 private fun uploadDoctorSample(sample:PerfOverlaySample) {
-if (!connected || !doctorTelemetryUploadInFlight.compareAndSet(false, true))
+if (!connected)
 {
 return
 }
+val uploadToken:Long = doctorTelemetryUploadGate.tryAcquire() ?: return
 val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: run {
-doctorTelemetryUploadInFlight.set(false)
+doctorTelemetryUploadGate.release(uploadToken)
 return
 }
 val liveStatus = lastPolarisSessionStatus?.takeIf { status ->
@@ -5927,12 +5930,12 @@ novaHasLiveMediaTelemetry() && status.authorityContractValid &&
 status.isStreaming && status.ownedByClient && status.clientRole == "owner" &&
 status.appSessionId.isNotBlank() && status.sessionGeneration > 0L
 }
-if (liveStatus == null && !novaDoctorV2ShadowEnabled())
+if (liveStatus == null)
 {
-doctorTelemetryUploadInFlight.set(false)
+doctorTelemetryUploadGate.release(uploadToken)
 return
 }
-val effectiveTopology:String = lastPolarisSessionStatus?.displayMode?.selection?.takeIf { it.isNotBlank() }
+val effectiveTopology:String = liveStatus.displayMode?.selection?.takeIf { it.isNotBlank() }
 ?: requestedLaunchTopology()
 val sampleTargetFps:Double = configuredHudTargetFps.toDouble()
 val sampleRefreshRateHz:Double = configuredDisplayRefreshRateHz.toDouble()
@@ -5941,18 +5944,10 @@ val sampleHdr:Boolean = configuredStreamHdr
 launchRuntimeIo("NovaDoctorTelemetry") {
 try
 {
-val accepted:Boolean = if (liveStatus != null) client.sendLiveMediaTelemetry(
+val accepted:Boolean = client.sendLiveMediaTelemetry(
 sample = sample,
 appSessionId = liveStatus.appSessionId,
 sessionGeneration = liveStatus.sessionGeneration,
-targetFps = sampleTargetFps,
-refreshRateHz = sampleRefreshRateHz,
-bitrateKbps = sampleBitrateKbps,
-topology = effectiveTopology,
-hdr = sampleHdr
-)
-else client.sendDoctorV2Sample(
-sample = sample,
 targetFps = sampleTargetFps,
 refreshRateHz = sampleRefreshRateHz,
 bitrateKbps = sampleBitrateKbps,
@@ -5966,7 +5961,7 @@ com.papi.nova.LimeLog.warning("Nova: Live Doctor telemetry was not accepted; con
 }
 finally
 {
-doctorTelemetryUploadInFlight.set(false)
+doctorTelemetryUploadGate.release(uploadToken)
 }
 }
 }
@@ -6322,9 +6317,6 @@ currentNovaCapabilities()?.features?.clientSettings == true
 
 private fun novaHasLiveMediaTelemetry():Boolean =
 currentNovaCapabilities()?.features?.liveMediaTelemetry == true
-
-private fun novaDoctorV2ShadowEnabled():Boolean =
-currentNovaCapabilities()?.features?.doctorV2ShadowEnabled == true
 
 private fun startNovaFeatureProbe() {
 var client:com.papi.nova.api.PolarisApiClient? = novaApiClient

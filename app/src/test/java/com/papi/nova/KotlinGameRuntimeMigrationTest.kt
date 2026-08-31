@@ -276,6 +276,27 @@ class KotlinGameRuntimeMigrationTest {
     }
 
     @Test
+    fun doctorTelemetryRequiresExactLiveOwnerScopeAndCancelsByItsRealTaskName() {
+        val source = readGameSource()
+        val stopConnection = source.substring(
+            source.indexOf("private fun stopConnection()"),
+            source.indexOf("override fun stageFailed(")
+        )
+        val upload = source.substring(
+            source.indexOf("private fun uploadDoctorSample(sample:PerfOverlaySample)"),
+            source.indexOf("override fun onPerfUpdate(text:String)")
+        )
+
+        assertTrue(stopConnection.contains("doctorTelemetryUploadGate.invalidate()"))
+        assertTrue(stopConnection.contains("runtimeTasks.cancel(\"NovaDoctorTelemetry\")"))
+        assertFalse(stopConnection.contains("NovaDoctorV2Sample"))
+        assertTrue(upload.contains("if (liveStatus == null)"))
+        assertTrue(upload.contains("client.sendLiveMediaTelemetry("))
+        assertFalse(upload.contains("sendDoctorV2Sample"))
+        assertFalse(source.contains("private fun novaDoctorV2ShadowEnabled()"))
+    }
+
+    @Test
     fun gameForwardsStructuredPerfSamplesToNovaHud() {
         val source = readGameSource()
 
