@@ -10,6 +10,8 @@ Launch presets are deterministic and carry field-level provenance, including sep
 
 Play Setup keeps host-wide choices such as Headless Dongle visible without presenting them as selectable per-game overrides. Pressing a host-only card opens the matching Polaris settings surface, while launch-mode and capture-path descriptions lead with display, privacy, and performance impact before backend terminology.
 
+Play Setup now remembers each game's explicit resolution and offers frame rate as an independent row, so choosing one no longer silently rewrites the other. The saved choices are revalidated against the current display and panel capabilities, and unrepresentable pins are retired instead of being applied invisibly. Thanks to Fabian Zettl for contributing the resolution and frame-rate work in #265 and #266.
+
 Every optimize result is bound to the canonical app UUID or ID and the exact topology that will launch. Host default remains distinct from an explicit Desktop choice, and a later mirror/private Steam decision forces re-resolution instead of reusing a different topology's preflight. Duplicate app titles no longer share a launch-preset preference.
 
 Nova rejects malformed resolved-field provenance and legacy Polaris optimization responses that do not provide both the deterministic resolved-profile and versioned topology-assertion contracts. Host identity is scoped to the launch attempt and fails closed on timeout or ambiguity; only a positively identified stock host may launch without the marker. This prevents Nova 1.4.0 from launching through a Polaris version that could still apply historical or AI-derived settings or ignore a changed host topology.
@@ -20,7 +22,7 @@ Live Doctor actions and paired bitrate/adaptive controls carry the exact app-ses
 
 The HUD is observational and never changes bitrate merely because it is open. Nova does not request or apply an automatic MangoHud, DXVK, VKD3D, or game-process FPS limiter. User-authored host/game settings remain untouched. Steam Input remains manual and read-only.
 
-Game detail keeps Launch as the primary action and gives Play Setup and Reset Game Profile the stronger text treatment. Pin to Home Screen and Artwork Studio are compact, state-aware icon actions, so secondary tools remain available without competing with getting back into the game.
+Game detail keeps Launch as the primary action and gives Play Setup and Reset Game Profile the stronger text treatment. Pin to Home Screen and Artwork Studio are compact, state-aware icon actions, so secondary tools remain available without competing with getting back into the game. Pinned shortcuts now use the selected game's artwork, loading it off the UI thread and cancelling duplicate requests.
 
 ### Release packaging
 
