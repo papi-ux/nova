@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.content.Context
+import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.shared.polaris.model.PolarisGame
 
 /**
@@ -23,16 +24,31 @@ object NovaLaunchModeOverrides {
     // Values written before the canonical-id vocabulary ("headless",
     // "virtual_display") map forward at read time, forever — no bulk migration,
     // no stranded prefs.
-    fun load(context: Context, game: PolarisGame): String? =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    fun load(context: Context, game: PolarisGame): String? {
+        val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val normalized = preferences
             .getString(key(game), null)
             ?.takeIf { it.isNotBlank() }
             ?.let { PolarisGame.normalizeLaunchMode(it) }
+        if (normalized == PolarisClientSettings.MODE_HEADLESS_DONGLE) {
+            // v1.3.x briefly allowed this physical, host-wide swap to be saved per game.
+            // Retire that one stale value at read time so an upgraded client cannot send
+            // a launch override its own 1.4 picker correctly labels host-default-only.
+            preferences.edit().remove(key(game)).apply()
+            return null
+        }
+        return normalized
+    }
 
     fun save(context: Context, game: PolarisGame, mode: String) {
+        val normalized = PolarisGame.normalizeLaunchMode(mode)
+        if (normalized == PolarisClientSettings.MODE_HEADLESS_DONGLE) {
+            clear(context, game)
+            return
+        }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putString(key(game), PolarisGame.normalizeLaunchMode(mode))
+            .putString(key(game), normalized)
             .apply()
     }
 

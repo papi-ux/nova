@@ -13,6 +13,31 @@ class NovaFrameRateRowSourceGuardTest {
     private val source =
         File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText()
 
+    @Test
+    fun autoPreviewUsesTheSameResolvedCadenceAsTheLaunchComposer() {
+        val frameRateRow = source.indexOf("row = NovaPlaySetupRow.FRAME_RATE")
+        assertTrue("The Frame Rate row must exist.", frameRateRow >= 0)
+
+        val preview = source.lastIndexOf("val effectiveFps =", frameRateRow)
+        assertTrue(preview >= 0)
+        val previewBody = source.substring(preview, frameRateRow)
+        assertTrue(
+            "Auto FPS must come from NovaLaunchStreamOverride.automaticFps(), the same " +
+                "authority compose() uses for an unpinned launch.",
+            previewBody.contains("NovaLaunchStreamOverride.automaticFps("),
+        )
+        assertTrue(
+            "Tuning = High FPS supplies the Settings cadence before the host-resolved " +
+                "fallback, matching effectiveFpsPin() at launch.",
+            previewBody.contains("chosenFps ?: fpsPin ?: NovaLaunchStreamOverride.automaticFps("),
+        )
+        assertTrue(
+            "A resolution choice owns dimensions only; its trailing targetMode FPS must not " +
+                "be shown as Auto when compose() preserves the host-resolved cadence.",
+            !previewBody.contains("NovaDisplayResolutionPlanner.resolutionFps("),
+        )
+    }
+
     /**
      * The Frame Rate row only exists alongside the display planner. Without this, a pin
      * saved during an earlier session with a planner would keep steering

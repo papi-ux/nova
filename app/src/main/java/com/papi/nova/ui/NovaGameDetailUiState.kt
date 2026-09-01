@@ -94,8 +94,11 @@ data class NovaGameDetailUiState(
             // Only a deliberate choice reaches here, so it answers before the host does.
             // The contract's preferredMode stays below the host, as it means the app's own
             // default rather than anyone's decision.
-            val chosen = launchModeOverride
+            val perGameOverride = launchModeOverride
                 ?.takeIf { it.isNotBlank() }
+                ?.let(PolarisStreamDisplayMode::normalize)
+                ?.takeUnless { it == PolarisClientSettings.MODE_HEADLESS_DONGLE }
+            val chosen = perGameOverride
                 ?.let { PolarisGame.resolveLaunchMode(it, choice.headlessAllowed, choice.virtualDisplayAllowed) }
             val playMode = when {
                 chosen == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY && choice.virtualDisplayAllowed &&
@@ -173,7 +176,7 @@ data class NovaGameDetailUiState(
                 steamLaunchWarning = steamLaunchWarning,
                 hostStreamDisplayMode = hostStreamDisplayMode,
                 hostStreamDisplayModeLabel = hostStreamDisplayModeLabel,
-                hasExplicitOverride = !launchModeOverride.isNullOrBlank(),
+                hasExplicitOverride = !perGameOverride.isNullOrBlank(),
                 hostProfileLabel = hostProfileLabel(clientSettings),
             )
         }

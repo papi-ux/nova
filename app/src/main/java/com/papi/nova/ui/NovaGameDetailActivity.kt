@@ -460,8 +460,8 @@ class NovaGameDetailActivity : NovaActivity() {
         // (NovaResolutionOverrides) and resolved back against this open's planner here.
         var chosenResolution by mutableStateOf<NovaDisplayResolutionChoice?>(loadResolutionOverride(currentGame))
         // An explicit frame-rate pin, independent of resolution. It composes over
-        // whatever fps the resolution choice (or the host's own plan) would have used --
-        // see NovaLaunchStreamOverride.compose, where fpsOverride wins over both. Persisted
+        // the host-resolved cadence -- see NovaLaunchStreamOverride.compose, where the
+        // resolution row changes dimensions while fpsOverride alone changes cadence. Persisted
         // the same way as chosenResolution, so it survives past this Activity's lifetime.
         var chosenFps by mutableStateOf<Int?>(loadFrameRateOverride(currentGame))
         // Changing a row is cheap; telling the host about it is not. Presses settle first
@@ -1018,8 +1018,10 @@ class NovaGameDetailActivity : NovaActivity() {
                     overridden = overridden,
                 )
 
-                val effectiveFps = chosenFps
-                    ?: effective?.targetMode?.let { NovaDisplayResolutionPlanner.resolutionFps(it) }
+                val effectiveFps = chosenFps ?: fpsPin ?: NovaLaunchStreamOverride.automaticFps(
+                    optimizationState.rawOptimization,
+                    preferences.fps.toInt(),
+                )
                 rows += NovaPlaySetupRowState(
                     row = NovaPlaySetupRow.FRAME_RATE,
                     label = getString(R.string.nova_play_setup_frame_rate),
@@ -1028,7 +1030,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else {
                         getString(R.string.nova_play_setup_frame_rate_caption)
                     },
-                    value = effectiveFps?.let { getString(R.string.nova_play_setup_frame_rate_fps_format, it) }.orEmpty(),
+                    value = getString(R.string.nova_play_setup_frame_rate_fps_format, effectiveFps),
                     stripTitle = getString(R.string.nova_play_setup_strip_frame_rate),
                     options = buildList {
                         add(

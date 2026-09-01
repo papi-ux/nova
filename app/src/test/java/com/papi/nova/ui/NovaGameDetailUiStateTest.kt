@@ -357,6 +357,25 @@ class NovaGameDetailUiStateTest {
         assertEquals("Private Stream (GPU-native)", state.hostStreamDisplayModeLabel)
     }
 
+    @Test
+    fun stalePerGameHeadlessDongleOverrideFallsBackToTheHostDefault() {
+        val state = NovaGameDetailUiState.from(
+            game = game(),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(
+                    streamDisplayMode = PolarisClientSettings.MODE_DESKTOP_DISPLAY,
+                ),
+            ),
+            profilePreference = "auto",
+            launchModeOverride = PolarisClientSettings.MODE_HEADLESS_DONGLE,
+        )
+
+        assertEquals(PolarisClientSettings.MODE_DESKTOP_DISPLAY, state.playMode)
+        assertFalse(state.hasExplicitOverride)
+        assertFalse(state.overridesHostMode)
+    }
+
     private fun game(
         name: String = "Portal",
         runtime: String = "native",

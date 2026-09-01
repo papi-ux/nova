@@ -20,6 +20,18 @@ object NovaLaunchStreamOverride {
             null
         }
 
+    /** The unpinned cadence [compose] will actually place in the launch envelope. */
+    fun automaticFps(raw: JSONObject?, fallbackFps: Int): Int {
+        val trustedRaw = raw?.takeIf(::isTrustedDeterministicEnvelope)
+        val displayMode = trustedRaw
+            ?.optJSONObject("resolved_profile")
+            ?.optJSONObject("fields")
+            ?.optJSONObject("display_mode")
+            ?.optString("value", "")
+            .orEmpty()
+        return parseMode(displayMode)?.fps ?: fallbackFps
+    }
+
     fun compose(
         raw: JSONObject?,
         resolution: NovaDisplayResolutionChoice?,
@@ -70,7 +82,7 @@ object NovaLaunchStreamOverride {
         // importing that rate here silently turns a resolution choice into an FPS
         // choice. Keep the host-resolved cadence unless Tuning supplied an explicit
         // High FPS pin.
-        val fps = fpsOverride ?: rawMode?.fps ?: fallbackFps
+        val fps = fpsOverride ?: automaticFps(trustedRaw, fallbackFps)
 
         val displayMode = "${width}x${height}x$fps"
         fun putField(name: String, value: Any, source: String, reason: String, locked: Boolean) {

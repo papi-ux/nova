@@ -140,6 +140,18 @@ class NovaLaunchStreamOverrideTest {
     }
 
     @Test
+    fun automaticFpsReportsTheSameCadenceComposeWillLaunch() {
+        val raw = deterministicBlob()
+        val fields = raw.getJSONObject("resolved_profile").getJSONObject("fields")
+        fields.getJSONObject("display_mode").put("value", "1920x1080x120")
+        fields.getJSONObject("target_fps").put("value", 120)
+
+        assertEquals(120, NovaLaunchStreamOverride.automaticFps(raw, 60))
+        assertEquals(60, NovaLaunchStreamOverride.automaticFps(JSONObject(), 60))
+        assertEquals(60, NovaLaunchStreamOverride.automaticFps(null, 60))
+    }
+
+    @Test
     fun legacyRecoveryBlobCannotBeRelabelledAsATrustedExplicitContract() {
         val composed = NovaLaunchStreamOverride.compose(
             legacyRecoveryBlob(), choice("1440x810x60"), null, 1280, 800, 60
