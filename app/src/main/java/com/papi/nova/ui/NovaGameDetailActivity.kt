@@ -478,6 +478,12 @@ class NovaGameDetailActivity : NovaActivity() {
         // request may publish settings/optimization state or replay a held Play press.
         val preflightRequestFence = NovaLaunchPreflightRequestFence()
         var preflightJob: Job? = null
+        // Steam mode is a host mutation, unlike the read-only optimizer request. It owns
+        // a separate debounce/job and a serial commit queue so another Play Setup row can
+        // neither discard it nor allow a newer choice to be overwritten by an older POST.
+        val steamLaunchModeWriteQueue = NovaSteamLaunchModeWriteQueue()
+        val steamLaunchModeIntents = NovaSteamLaunchModeIntentTracker(currentGame.steamLaunchMode)
+        var steamLaunchModeJob: Job? = null
         // A launch was asked for while the preflight that arms the desktop-Steam guard was
         // still on the wire. The press is held rather than dropped: being quick should not
         // cost you the launch, and it must not cost you the guard either.
@@ -715,6 +721,15 @@ class NovaGameDetailActivity : NovaActivity() {
             }
         }
 
+        /** A launch plan must be resolved only after the latest Steam-mode mutation settles. */
+        suspend fun awaitLatestSteamLaunchModeWrite() {
+            while (true) {
+                val observed = steamLaunchModeJob ?: return
+                observed.join()
+                if (steamLaunchModeJob === observed) return
+            }
+        }
+
         fun loadOptimization(preference: String, usesVirtualDisplay: Boolean = uiState.playUsesVirtualDisplay) {
             LimeLog.info(
                 "Nova: Preflight optimization requested game=${currentGame.name} " +
@@ -734,6 +749,10 @@ class NovaGameDetailActivity : NovaActivity() {
                 var launchCanReplay = false
                 var failureMessageShown = false
                 val nextOptimizationState = try {
+                    awaitLatestSteamLaunchModeWrite()
+                    if (!preflightRequestFence.owns(requestGeneration)) {
+                        throw CancellationException("launch preflight superseded")
+                    }
                     check(
                         syncAndPublishLaunchPreflightSettings(
                             usesVirtualDisplay,
@@ -985,33 +1004,60 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         fun selectSteamLaunchMode(value: String) {
-            val previousGame = currentGame
             val requestedMode = PolarisGame.SteamLaunchContract.normalizeMode(value)
-            if (requestedMode == previousGame.steamLaunchMode) return
+            if (requestedMode == currentGame.steamLaunchMode) return
 
             // Shown immediately and reconciled when the host answers. The row is a value
             // someone is cycling through, so it cannot wait on a round-trip to redraw.
-            currentGame = previousGame.copy(
-                steamLaunch = previousGame.steamLaunch?.copy(mode = requestedMode)
+            currentGame = currentGame.copy(
+                steamLaunch = currentGame.steamLaunch?.copy(mode = requestedMode)
             )
             refreshUiState()
-            settleThen {
-                val confirmedMode = withContext(Dispatchers.IO) {
-                    apiClient.setSteamLaunchMode(previousGame.id, requestedMode)
+
+            // A Steam change supersedes any pending read-only settle, whose eventual
+            // optimizer request is recreated after this host mutation confirms.
+            optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
+            preflightRequestFence.invalidate()
+            preflightJob?.cancel()
+            preflightJob = null
+            settleJob?.cancel()
+            settleJob = null
+            pendingSettledWork = null
+
+            steamLaunchModeIntents.select(requestedMode)
+            if (steamLaunchModeJob?.isActive != true) {
+                val gameId = currentGame.id
+                steamLaunchModeJob = lifecycleScope.launch {
+                    while (true) {
+                        val commit = steamLaunchModeIntents.snapshot() ?: return@launch
+                        delay(NOVA_PLAY_SETUP_SETTLE_MS)
+                        if (!steamLaunchModeIntents.owns(commit)) continue
+                        val confirmedMode = steamLaunchModeWriteQueue.commit {
+                            withContext(Dispatchers.IO) {
+                                apiClient.setSteamLaunchMode(gameId, commit.mode)
+                            }
+                        }
+
+                        // A superseded request may still have committed on the host. Keep
+                        // its acknowledgement as the rollback point, then loop so the
+                        // newest player intent is guaranteed to commit afterward.
+                        val resolution = steamLaunchModeIntents.complete(commit, confirmedMode)
+                        if (!resolution.ownsLatest) continue
+
+                        currentGame = currentGame.copy(
+                            steamLaunch = currentGame.steamLaunch?.copy(mode = resolution.displayMode)
+                        )
+                        if (confirmedMode == null) {
+                            NovaSnackbar.showError(
+                                this@NovaGameDetailActivity,
+                                getString(R.string.nova_steam_launch_mode_failed),
+                            )
+                        }
+                        refreshUiState()
+                        loadOptimization(profilePreference)
+                        return@launch
+                    }
                 }
-                if (confirmedMode != null) {
-                    currentGame = currentGame.copy(
-                        steamLaunch = currentGame.steamLaunch?.copy(mode = confirmedMode)
-                    )
-                } else {
-                    currentGame = previousGame
-                    NovaSnackbar.showError(
-                        this@NovaGameDetailActivity,
-                        getString(R.string.nova_steam_launch_mode_failed),
-                    )
-                }
-                refreshUiState()
-                loadOptimization(profilePreference)
             }
         }
 

@@ -833,6 +833,7 @@ class NovaLaunchSourceGuardTest {
             detail.contains("val preflightRequestFence = NovaLaunchPreflightRequestFence()") &&
                 optimization.contains("preflightJob?.cancel()") &&
                 optimization.contains("val requestGeneration = preflightRequestFence.begin()") &&
+                optimization.contains("awaitLatestSteamLaunchModeWrite()") &&
                 optimization.contains("if (!preflightRequestFence.owns(requestGeneration)) return@launch") &&
                 optimization.indexOf("if (!preflightRequestFence.owns(requestGeneration)) return@launch") <
                 optimization.indexOf("optimizationState = nextOptimizationState") &&
@@ -930,9 +931,11 @@ class NovaLaunchSourceGuardTest {
         assertTrue(!selection.contains("dismiss()"))
         assertTrue(!selection.contains("onLaunch?.invoke"))
         assertTrue(selection.contains("apiClient.setSteamLaunchMode"))
-        // The row advances on every press, so the host is told once the presses stop.
-        // Writing per press turned a cycle through two values into two round-trips.
-        assertTrue(selection.contains("settleThen {"))
+        // The row advances on every press, but its mutation is independently debounced;
+        // unrelated profile/topology settling must not discard the pending host write.
+        assertTrue(selection.contains("delay(NOVA_PLAY_SETUP_SETTLE_MS)"))
+        assertTrue(selection.contains("steamLaunchModeIntents.owns(commit)"))
+        assertTrue(!selection.contains("settleThen {"))
     }
 
     @Test
@@ -946,11 +949,22 @@ class NovaLaunchSourceGuardTest {
         assertTrue(api.contains("fun setSteamLaunchMode(gameId: String, mode: String): String?"))
         assertTrue(api.contains("json.optString(\"mode\", normalizedMode)"))
         assertTrue(detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,"))
-        assertTrue(detail.contains("confirmedMode != null"))
+        assertTrue(detail.contains("steamLaunchModeIntents.complete(commit, confirmedMode)"))
+        val steamSelection = detail.section("fun selectSteamLaunchMode(", "/**\n         * The act column")
         assertTrue(
-            "Steam confirmation must remain inside the tracked settle job so a newer selection can cancel its stale continuation",
-            detail.section("fun selectSteamLaunchMode(", "/**\n         * The act column")
-                .let { it.contains("settleThen {") && !it.contains("lifecycleScope.launch") }
+            "Steam mutations need separate serialized ownership so cross-row debounce cannot discard them and older requests cannot commit last",
+            steamSelection.contains("steamLaunchModeJob?.isActive != true") &&
+                steamSelection.contains("steamLaunchModeIntents.select(requestedMode)") &&
+                steamSelection.contains("steamLaunchModeIntents.snapshot()") &&
+                steamSelection.contains("steamLaunchModeWriteQueue.commit") &&
+                steamSelection.contains("steamLaunchModeIntents.complete(commit, confirmedMode)") &&
+                !steamSelection.contains("settleThen {")
+        )
+        assertTrue(
+            "all optimizer paths must wait until the newest Steam mutation confirms or rolls back",
+            detail.contains("suspend fun awaitLatestSteamLaunchModeWrite()") &&
+                detail.section("fun loadOptimization(", "/**\n         * Tell the host once the presses stop.")
+                    .contains("awaitLatestSteamLaunchModeWrite()")
         )
     }
 

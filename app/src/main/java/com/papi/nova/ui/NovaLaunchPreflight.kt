@@ -3,6 +3,8 @@ package com.papi.nova.ui
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.preferences.PreferenceConfiguration
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Main-thread ownership fence for Game Detail launch preflights.
@@ -21,6 +23,45 @@ internal class NovaLaunchPreflightRequestFence {
     }
 
     fun owns(requestGeneration: Long): Boolean = requestGeneration == generation
+}
+
+/**
+ * Serializes Steam launch-mode writes so a newer choice always commits after an older
+ * request whose blocking HTTP exchange was already on the wire.
+ */
+internal class NovaSteamLaunchModeWriteQueue {
+    private val mutex = Mutex()
+
+    suspend fun <T> commit(write: suspend () -> T): T = mutex.withLock { write() }
+}
+
+/** Main-thread latest-intent state for the serialized Steam launch-mode worker. */
+internal class NovaSteamLaunchModeIntentTracker(initialConfirmedMode: String) {
+    data class Commit(val generation: Long, val mode: String)
+    data class Resolution(val ownsLatest: Boolean, val displayMode: String)
+
+    private var generation: Long = 0
+    private var pendingMode: String? = null
+    private var confirmedMode: String = initialConfirmedMode
+
+    fun select(mode: String) {
+        pendingMode = mode
+        generation += 1
+    }
+
+    fun snapshot(): Commit? = pendingMode?.let { Commit(generation, it) }
+
+    fun owns(commit: Commit): Boolean = commit.generation == generation
+
+    fun complete(commit: Commit, hostConfirmedMode: String?): Resolution {
+        if (hostConfirmedMode != null) confirmedMode = hostConfirmedMode
+        if (!owns(commit)) return Resolution(ownsLatest = false, displayMode = confirmedMode)
+        pendingMode = null
+        return Resolution(
+            ownsLatest = true,
+            displayMode = hostConfirmedMode ?: confirmedMode,
+        )
+    }
 }
 
 /**
