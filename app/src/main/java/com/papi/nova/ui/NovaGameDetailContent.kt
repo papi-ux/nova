@@ -223,6 +223,7 @@ internal fun NovaGameDetailContent(
     modePicker: NovaPlaySetupModePickerState?,
     onPickMode: (String) -> Unit,
     onPickHostDefault: () -> Unit,
+    onConfigureHostMode: () -> Unit = {},
     playLabel: String,
     launchModeTitle: String,
     headlessModeLabel: String,
@@ -362,6 +363,7 @@ internal fun NovaGameDetailContent(
                         } else {
                             null
                         },
+                        onConfigureHost = onConfigureHostMode,
                     )
                 } else if (playSetupScope == NovaPlaySetupScope.EVERY_GAME && hostPlaySetupPlan != null) {
                     // The same four-row shape, absorbing the Polaris Sync sheet's three

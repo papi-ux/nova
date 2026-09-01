@@ -181,6 +181,17 @@ class NovaGameDetailActivity : NovaActivity() {
         finish()
     }
 
+    /** Return to the library so its existing, correctly port-scoped host action opens Polaris. */
+    private fun finishWithManageServerRequest() {
+        setResult(
+            RESULT_OK,
+            Intent()
+                .putExtra(EXTRA_RESULT_MANAGE_SERVER, true)
+                .putExtra(EXTRA_RESULT_GAME, updatedGame?.let { PolarisGameJson.encode(it) }),
+        )
+        finish()
+    }
+
     private val onRefreshArtwork: ((PolarisGame, (NovaArtworkMutationResult) -> Unit) -> Unit)? =
         { game, onResult -> artworkViewModel.refreshArtwork(game = game, onResult = onResult) }
 
@@ -1257,6 +1268,20 @@ class NovaGameDetailActivity : NovaActivity() {
                                     },
                                 ),
                                 hostDefaultOnlyDetail = getString(R.string.nova_play_setup_mode_host_default_only),
+                                plainModeDetails = mapOf(
+                                    PolarisClientSettings.MODE_HEADLESS_STREAM to
+                                        getString(R.string.nova_play_setup_mode_private_detail),
+                                    PolarisClientSettings.MODE_GPU_NATIVE_TEST to
+                                        getString(R.string.nova_play_setup_mode_gpu_detail),
+                                    PolarisClientSettings.MODE_GAMESCOPE_STREAM to
+                                        getString(R.string.nova_play_setup_mode_gamescope_detail),
+                                    PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY to
+                                        getString(R.string.nova_play_setup_mode_virtual_detail),
+                                    PolarisClientSettings.MODE_HEADLESS_DONGLE to
+                                        getString(R.string.nova_play_setup_mode_dongle_detail),
+                                    PolarisClientSettings.MODE_DESKTOP_DISPLAY to
+                                        getString(R.string.nova_play_setup_mode_mirror_detail),
+                                ),
                             )
                         }
                     } else {
@@ -1271,6 +1296,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         }
                     },
                     onPickHostDefault = { pickHostDefault() },
+                    onConfigureHostMode = { finishWithManageServerRequest() },
                     playLabel = if (pendingLaunch) {
                         // The press landed and is being held, so say so. A button that
                         // looks untouched for the length of an HTTP round-trip reads as
@@ -2083,6 +2109,7 @@ class NovaGameDetailActivity : NovaActivity() {
         const val EXTRA_RESULT_LAUNCH = "nova.detail.result.launch"
         const val EXTRA_RESULT_LAUNCH_GAME = "nova.detail.result.launchGame"
         const val EXTRA_RESULT_SESSION = "nova.detail.result.session"
+        const val EXTRA_RESULT_MANAGE_SERVER = "nova.detail.result.manageServer"
         const val RESULT_SESSION_RESUME = "resume"
         const val RESULT_SESSION_END = "end"
         const val EXTRA_RESULT_GAME = "nova.detail.result.game"

@@ -814,6 +814,9 @@ class NovaLibraryActivity : NovaActivity() {
         data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_GAME)
             ?.let { PolarisGameJson.decode(it) }
             ?.let { updated -> allGames = allGames.map { if (it.id == updated.id) updated else it } }
+        if (data.getBooleanExtra(NovaGameDetailActivity.EXTRA_RESULT_MANAGE_SERVER, false)) {
+            openServerDisplaySettings()
+        }
         when (data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_SESSION)) {
             // The window saw the session but cannot act on it: resuming and ending both
             // need stream credentials that live here.
@@ -1064,8 +1067,18 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     private fun openServerManagement() {
+        openServerManagementAt("")
+    }
+
+    private fun openServerDisplaySettings() {
+        // ConfigView recognizes the Audio/Video tab id in its hash target and lands
+        // where the host-wide Headless Dongle choice lives.
+        openServerManagementAt("/#/config#av")
+    }
+
+    private fun openServerManagementAt(path: String) {
         val managementPort = if (streamHttpPort > 0) streamHttpPort + 1 else 47990
-        val managementUrl = "https://$streamHost:$managementPort"
+        val managementUrl = "https://$streamHost:$managementPort$path"
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(managementUrl)))
         } catch (e: Exception) {

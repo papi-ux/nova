@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.papi.nova.R
+import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
@@ -55,6 +56,8 @@ internal data class NovaPlaySetupModeChoice(
     /** In effect this session without being the saved choice (fallback or pending relaunch). */
     val active: Boolean,
     val enabled: Boolean,
+    /** Available on the host, but only as the host-wide default. Press opens host settings. */
+    val hostDefaultOnly: Boolean = false,
     /** The provider's advisory pick from the current optimization payload; never auto-applied. */
     val aiRecommended: Boolean = false,
 )
@@ -141,6 +144,7 @@ internal fun buildGameModePickerState(
     hostDefaultLabel: String,
     aiRecommendedMode: String = "",
     hostDefaultOnlyDetail: String = "",
+    plainModeDetails: Map<String, String> = emptyMap(),
 ): NovaPlaySetupModePickerState {
     val allowed = allowedModes.map { PolarisGame.normalizeLaunchMode(it) }.toSet()
     return NovaPlaySetupModePickerState(
@@ -150,6 +154,14 @@ internal fun buildGameModePickerState(
         choices = modes
             .filter { allowed.isEmpty() || PolarisStreamDisplayMode.normalize(it.mode) in allowed }
             .map { mode ->
+                val normalizedMode = PolarisStreamDisplayMode.normalize(mode.mode)
+                val plainModeDetail = plainModeDetails[normalizedMode].orEmpty()
+                // A physical dongle swap is never a per-game action. Fail closed even
+                // when an older host predates session_overridable and defaults it true.
+                val hostDefaultOnly = mode.available && (
+                    !mode.sessionOverridable ||
+                        normalizedMode == PolarisClientSettings.MODE_HEADLESS_DONGLE
+                    )
                 NovaPlaySetupModeChoice(
                     id = mode.mode,
                     label = mode.label,
@@ -157,15 +169,17 @@ internal fun buildGameModePickerState(
                         !mode.available && mode.unavailableReason.isNotBlank() -> mode.unavailableReason
                         // Available, but the host will not take it for one session. Saying
                         // so beats offering a pick the host silently drops on launch.
-                        !mode.sessionOverridable && hostDefaultOnlyDetail.isNotBlank() ->
+                        hostDefaultOnly && hostDefaultOnlyDetail.isNotBlank() ->
                             hostDefaultOnlyDetail
+                        plainModeDetail.isNotBlank() -> plainModeDetail
                         else -> mode.reason
                     },
                     group = mode.group,
                     current = hasExplicitOverride && mode.mode == playMode,
                     active = mode.mode == playMode && !hasExplicitOverride,
-                    enabled = mode.available && mode.sessionOverridable,
-                    aiRecommended = mode.available && mode.sessionOverridable &&
+                    enabled = mode.available && !hostDefaultOnly,
+                    hostDefaultOnly = hostDefaultOnly,
+                    aiRecommended = mode.available && !hostDefaultOnly &&
                         aiRecommendedMode.isNotBlank() && mode.mode == aiRecommendedMode,
                 )
             },
@@ -184,6 +198,7 @@ internal fun NovaPlaySetupModePicker(
     state: NovaPlaySetupModePickerState,
     onPick: (String) -> Unit,
     onPickHostDefault: (() -> Unit)?,
+    onConfigureHost: () -> Unit = {},
 ) {
     val colors = LocalNovaComposeColors.current
     var footer by remember(state) {
@@ -223,6 +238,7 @@ internal fun NovaPlaySetupModePicker(
                         NovaPlaySetupModeCard(
                             choice = choice,
                             onPick = { onPick(choice.id) },
+                            onConfigureHost = onConfigureHost,
                             onFocusedDetail = { footer = it },
                             modifier = Modifier.weight(1f),
                         )
@@ -253,6 +269,7 @@ internal fun NovaPlaySetupModePicker(
 private fun NovaPlaySetupModeCard(
     choice: NovaPlaySetupModeChoice,
     onPick: () -> Unit,
+    onConfigureHost: () -> Unit,
     onFocusedDetail: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -260,6 +277,7 @@ private fun NovaPlaySetupModeCard(
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(NovaRadius.row)
     var focused by remember { mutableStateOf(false) }
+    val interactive = choice.enabled || choice.hostDefaultOnly
     Column(
         modifier = modifier
             .onFocusChanged {
@@ -274,8 +292,10 @@ private fun NovaPlaySetupModeCard(
             // stepped twice per card. Disabled cards keep the plain focusable() so a
             // controller can still read the host's reason in the footer.
             .then(
-                if (choice.enabled) {
-                    Modifier.clickable(role = Role.Button) { onPick() }
+                if (interactive) {
+                    Modifier.clickable(role = Role.Button) {
+                        if (choice.enabled) onPick() else onConfigureHost()
+                    }
                 } else {
                     Modifier
                         // A disabled card remains focusable so its host-supplied reason
@@ -307,10 +327,17 @@ private fun NovaPlaySetupModeCard(
             )
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .semantics {
-                contentDescription = if (choice.aiRecommended) {
-                    "${choice.label}. Host match. ${choice.detail}"
-                } else {
-                    "${choice.label}. ${choice.detail}"
+                contentDescription = when {
+                    choice.hostDefaultOnly -> {
+                        val state = if (choice.active) {
+                            "Current host default"
+                        } else {
+                            "Host default only"
+                        }
+                        "${choice.label}. $state. ${choice.detail} Open Polaris Settings."
+                    }
+                    choice.aiRecommended -> "${choice.label}. Host match. ${choice.detail}"
+                    else -> "${choice.label}. ${choice.detail}"
                 }
                 if (choice.current) selected = true
             },
@@ -318,14 +345,29 @@ private fun NovaPlaySetupModeCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = choice.label,
-                color = if (choice.enabled) colors.textPrimary else colors.textMuted,
+                color = if (interactive) colors.textPrimary else colors.textMuted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            if (choice.aiRecommended) {
+            if (choice.hostDefaultOnly) {
+                Text(
+                    text = stringResource(
+                        if (choice.active) {
+                            R.string.nova_play_setup_mode_current_host_default_badge
+                        } else {
+                            R.string.nova_play_setup_mode_host_default_only_badge
+                        },
+                    ),
+                    color = if (choice.active) colors.accent else colors.textMuted,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            } else if (choice.aiRecommended) {
                 Text(
                     text = stringResource(R.string.nova_play_setup_ai_pick),
                     color = colors.accent,
@@ -345,6 +387,16 @@ private fun NovaPlaySetupModeCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp),
         )
+        if (choice.hostDefaultOnly) {
+            Text(
+                text = stringResource(R.string.nova_play_setup_mode_open_host_settings),
+                color = colors.accent,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
     }
 }
 

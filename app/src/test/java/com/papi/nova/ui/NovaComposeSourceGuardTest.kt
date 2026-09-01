@@ -3139,4 +3139,27 @@ class NovaComposeSourceGuardTest {
                 detail.contains("onCorrectMatch = { onDestination(NovaGameDetailDestination.ARTWORK) }")
         )
     }
+
+    @Test
+    fun hostOnlyDisplayModeUsesTheExistingScopedManagementHandoff() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val library = readNovaLibraryActivity()
+        val picker = readSource("src/main/java/com/papi/nova/ui/NovaPlaySetupModePicker.kt")
+
+        assertTrue(
+            "Headless Dongle must remain host-only even when an older host omits the flag",
+            picker.contains("normalizedMode == PolarisClientSettings.MODE_HEADLESS_DONGLE") &&
+                picker.contains("hostDefaultOnly = hostDefaultOnly")
+        )
+        assertTrue(
+            "the host-only card should ask the library to open host settings, not select a launch mode",
+            detail.contains("EXTRA_RESULT_MANAGE_SERVER") &&
+                detail.contains("onConfigureHostMode = { finishWithManageServerRequest() }") &&
+                library.contains("openServerDisplaySettings()")
+        )
+        assertTrue(
+            "the handoff should land on the host Audio/Video settings section",
+            library.contains("/#/config#av")
+        )
+    }
 }
