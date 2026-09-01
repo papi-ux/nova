@@ -430,6 +430,8 @@
     <!-- Play was pressed while the preflight that decides whether desktop Steam is in the
          way is still on the wire. The press is held, not dropped. -->
     <string name="nova_game_detail_launch_checking_host">Checking the Host…</string>
+    <string name="nova_game_detail_launch_retry_host_check">Retry Host Check</string>
+    <string name="nova_game_detail_launch_preflight_unavailable">Couldn’t verify Polaris launch settings. Try Play again.</string>
     <string name="nova_library_preflight_review_title">Review Launch Profile</string>
     <string name="nova_library_preflight_review_message">Polaris selected a different launch profile: %1$s</string>
     <string name="nova_library_preflight_launch">Launch</string>

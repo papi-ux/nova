@@ -15,6 +15,29 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class NovaGameDetailUiStateTest {
     @Test
+    fun launchPreflightGateWaitsRetriesAndOnlyThenAllowsLaunch() {
+        assertEquals(
+            NovaLaunchPreflightGate.WAIT,
+            NovaGameDetailOptimizationState(preflightInFlight = true).launchPreflightGate(),
+        )
+        assertEquals(
+            NovaLaunchPreflightGate.RETRY,
+            NovaGameDetailOptimizationState(preflightFailed = true).launchPreflightGate(),
+        )
+        assertEquals(
+            NovaLaunchPreflightGate.READY,
+            NovaGameDetailOptimizationState().launchPreflightGate(),
+        )
+        assertEquals(
+            NovaLaunchPreflightGate.READY,
+            NovaGameDetailOptimizationState(
+                rawOptimization = JSONObject(),
+                preflightInFlight = true,
+            ).launchPreflightGate(),
+        )
+    }
+
+    @Test
     fun agreeingWithTheHostIsNotAnOverride() {
         val state = NovaGameDetailUiState.from(
             game = game(

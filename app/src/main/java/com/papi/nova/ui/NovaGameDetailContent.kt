@@ -139,8 +139,22 @@ data class NovaGameDetailOptimizationState(
     val reviewRequired: Boolean = false,
     val reviewReason: String = "",
     val preflightInFlight: Boolean = false,
+    /** The host capability preflight failed, so Play must retry it before launching. */
+    val preflightFailed: Boolean = false,
     val aiRecommendedMode: String = ""
 )
+
+internal enum class NovaLaunchPreflightGate {
+    READY,
+    WAIT,
+    RETRY,
+}
+
+internal fun NovaGameDetailOptimizationState.launchPreflightGate(): NovaLaunchPreflightGate = when {
+    rawOptimization == null && preflightInFlight -> NovaLaunchPreflightGate.WAIT
+    preflightFailed -> NovaLaunchPreflightGate.RETRY
+    else -> NovaLaunchPreflightGate.READY
+}
 
 data class NovaLaunchOptionsState(
     val title: String,

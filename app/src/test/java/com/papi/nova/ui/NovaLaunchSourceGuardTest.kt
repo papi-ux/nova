@@ -138,8 +138,9 @@ class NovaLaunchSourceGuardTest {
                 "the guard's answer is still on the wire",
             detail.contains("val preflightInFlight: Boolean = false") &&
                 detail.contains("NovaGameDetailOptimizationState(preflightInFlight = true)") &&
-                detail.contains("if (optimizationState.rawOptimization == null && optimizationState.preflightInFlight) {") &&
-                detail.contains("if (pendingLaunch) attemptLaunch()")
+                detail.contains("when (optimizationState.launchPreflightGate())") &&
+                detail.contains("NovaLaunchPreflightGate.WAIT ->") &&
+                detail.contains("if (launchCanReplay)")
         )
         assertTrue(
             "every launch path must come through the one gate, so a second path cannot go round the guard the first one gained",
@@ -775,10 +776,11 @@ class NovaLaunchSourceGuardTest {
         assertTrue(
             "a launch sends only the validated session mode: normal host defaults stay unpinned, while an unavailable default can use Polaris's safe per-session replacement",
             detail.contains("uiState.launchStreamMode,") &&
+                detail.contains("its resolved name separately so the library can describe it truthfully") &&
+                detail.contains("uiState.playMode,") &&
                 detailState.contains("!perGameOverride.isNullOrBlank() -> playMode") &&
                 detailState.contains("hostDefaultUnavailable &&") &&
-                detailState.contains("clientSettings.isLaunchModeSessionOverridable(playMode) -> playMode") &&
-                !detail.contains("uiState.playMode,\n                launchOptimization()")
+                detailState.contains("clientSettings.isLaunchModeSessionOverridable(playMode) -> playMode")
         )
     }
 
@@ -800,11 +802,16 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "the settings returned by launch preflight must rebuild UI state before either optimizer path captures the exact mode",
-            publish.contains("clientSettings = updated") &&
+            publish.contains("} ?: return false") &&
+                publish.contains("clientSettings = updated") &&
                 publish.contains("refreshUiState()") &&
+                publish.contains("return true") &&
                 optimization.contains("syncAndPublishLaunchPreflightSettings(") &&
+                optimization.contains("check(syncAndPublishLaunchPreflightSettings(") &&
                 optimization.contains("val optimizationMode = uiState.playMode") &&
                 optimization.contains("mode = optimizationMode") &&
+                optimization.contains("NovaGameDetailOptimizationState(preflightFailed = true)") &&
+                optimization.contains("pendingLaunch = false") &&
                 highFps.contains("syncAndPublishLaunchPreflightSettings(") &&
                 highFps.contains("val optimizationMode = uiState.playMode") &&
                 highFps.contains("mode = optimizationMode")
@@ -825,10 +832,16 @@ class NovaLaunchSourceGuardTest {
                 content.contains("nova_play_setup_host_safe_fallback")
         )
         assertTrue(
-            "the launch snackbar must use the exact resolved registry mode when no special Steam/virtual action overrides it",
-            library.contains("val resolvedLaunchModeLabel = when") &&
+            "the launch snackbar must name an unpinned host default without sending that presentation value as streamMode authority",
+            detail.contains(".put(RESULT_KEY_PRESENTATION_MODE, presentationMode)") &&
+                detail.contains("uiState.launchStreamMode,") &&
+                detail.contains("uiState.playMode,") &&
+                library.contains("presentationMode = request.optString(") &&
+                library.contains("val presentedLaunchMode = launchMode.ifBlank { presentationMode }") &&
+                library.contains("val resolvedLaunchModeLabel = when") &&
                 library.contains("PolarisGame.MODE_GAMESCOPE_STREAM") &&
-                library.contains("resolvedLaunchModeLabel.isNotBlank() -> resolvedLaunchModeLabel")
+                library.contains("resolvedLaunchModeLabel.isNotBlank() -> resolvedLaunchModeLabel") &&
+                library.contains("streamMode = launchMode")
         )
     }
 

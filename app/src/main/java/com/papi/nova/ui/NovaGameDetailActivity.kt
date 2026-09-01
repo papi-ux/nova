@@ -150,8 +150,8 @@ class NovaGameDetailActivity : NovaActivity() {
      * shape lets the body below stay the code that was reviewed as a bottom sheet,
      * rather than a rewrite that happens to compile.
      */
-    private val onLaunch: ((PolarisGame, Boolean, Boolean, Boolean, String, String, JSONObject?) -> Unit)? =
-        { game, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, streamMode, preflight ->
+    private val onLaunch: ((PolarisGame, Boolean, Boolean, Boolean, String, String, String, JSONObject?) -> Unit)? =
+        { game, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, streamMode, presentationMode, preflight ->
             setResult(
                 RESULT_OK,
                 Intent().putExtra(
@@ -162,6 +162,9 @@ class NovaGameDetailActivity : NovaActivity() {
                         .put(RESULT_KEY_FORCE_PRIVATE, forcePrivateAfterSteamClose)
                         .put(RESULT_KEY_PROFILE_PREFERENCE, profilePreference)
                         .put(RESULT_KEY_STREAM_MODE, streamMode)
+                        // Presentation only: the library can name an unpinned host
+                        // default without turning it into streamMode authority.
+                        .put(RESULT_KEY_PRESENTATION_MODE, presentationMode)
                         .put(RESULT_KEY_PREFLIGHT, preflight ?: JSONObject.NULL)
                         .toString(),
                 )
@@ -510,7 +513,7 @@ class NovaGameDetailActivity : NovaActivity() {
         suspend fun syncAndPublishLaunchPreflightSettings(
             usesVirtualDisplay: Boolean,
             resolvedMode: String,
-        ) {
+        ): Boolean {
             val updated = withContext(Dispatchers.IO) {
                 syncLaunchPreflightSettings(
                     this@NovaGameDetailActivity,
@@ -519,11 +522,10 @@ class NovaGameDetailActivity : NovaActivity() {
                     clientSettings,
                     resolvedMode,
                 )
-            }
-            if (updated != null) {
-                clientSettings = updated
-                refreshUiState()
-            }
+            } ?: return false
+            clientSettings = updated
+            refreshUiState()
+            return true
         }
 
         /**
@@ -625,6 +627,9 @@ class NovaGameDetailActivity : NovaActivity() {
         // waiting on it, so pressing Play never means waiting out a delay meant for
         // someone still cycling.
         var flushSettled: () -> Unit = {}
+        // Assigned after loadOptimization is declared. It lets the single launch gate
+        // retry a failed host-capability check without creating a second launch path.
+        var retryPreflight: () -> Unit = {}
 
         fun launchConfirmed(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
             pendingLaunch = false
@@ -638,6 +643,9 @@ class NovaGameDetailActivity : NovaActivity() {
                 // choice, or the safe replacement for a host default that is no
                 // longer launch-ready, travels for this session only.
                 uiState.launchStreamMode,
+                // A normal host default intentionally stays out of streamMode. Carry
+                // its resolved name separately so the library can describe it truthfully.
+                uiState.playMode,
                 launchOptimization()
             )
             finish()
@@ -663,13 +671,21 @@ class NovaGameDetailActivity : NovaActivity() {
             // Guarded on the RAW blob: a pick or an fps pin makes the composed blob
             // non-null even while the preflight that arms the desktop-Steam guard is
             // still on the wire, and a launch in that window must wait either way.
-            if (optimizationState.rawOptimization == null && optimizationState.preflightInFlight) {
-                pendingLaunch = true
-                // Whatever is waiting to settle is what this launch is waiting on, so run
-                // it now instead of holding the press for a delay that exists to absorb
-                // presses nobody is making any more.
-                flushSettled()
-                return
+            when (optimizationState.launchPreflightGate()) {
+                NovaLaunchPreflightGate.WAIT -> {
+                    pendingLaunch = true
+                    // Whatever is waiting to settle is what this launch is waiting on, so run
+                    // it now instead of holding the press for a delay that exists to absorb
+                    // presses nobody is making any more.
+                    flushSettled()
+                    return
+                }
+                NovaLaunchPreflightGate.RETRY -> {
+                    pendingLaunch = true
+                    retryPreflight()
+                    return
+                }
+                NovaLaunchPreflightGate.READY -> Unit
             }
             pendingLaunch = false
             val decision = NovaDesktopSteamLaunchDecision.from(uiState, optimization)
@@ -703,8 +719,11 @@ class NovaGameDetailActivity : NovaActivity() {
             // settled answer of "nothing to guard" -- for as long as the round-trip took.
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             lifecycleScope.launch {
+                var launchCanReplay = false
                 optimizationState = try {
-                    syncAndPublishLaunchPreflightSettings(usesVirtualDisplay, uiState.playMode)
+                    check(syncAndPublishLaunchPreflightSettings(usesVirtualDisplay, uiState.playMode)) {
+                        "launch preflight settings unavailable"
+                    }
                     val optimizationMode = uiState.playMode
                     val opt = withContext(Dispatchers.IO) {
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
@@ -725,18 +744,32 @@ class NovaGameDetailActivity : NovaActivity() {
                         )
                     }
                     logPreflightOptimization("Preflight optimization", opt, preference)
-                    buildOptimizationState(opt, preference)
+                    buildOptimizationState(opt, preference).also { launchCanReplay = true }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: PolarisApiRejectedException) {
                     LimeLog.warning("Nova: Preflight optimization rejected: ${e.rejection.code}")
                     NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
-                    NovaGameDetailOptimizationState()
+                    NovaGameDetailOptimizationState(preflightFailed = true)
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: Preflight optimization failed: ${e.message}")
-                    NovaGameDetailOptimizationState()
+                    NovaGameDetailOptimizationState(preflightFailed = true)
                 }
-                if (pendingLaunch) attemptLaunch()
+                if (pendingLaunch) {
+                    if (launchCanReplay) {
+                        attemptLaunch()
+                    } else {
+                        pendingLaunch = false
+                        NovaSnackbar.showError(
+                            this@NovaGameDetailActivity,
+                            getString(R.string.nova_game_detail_launch_preflight_unavailable),
+                        )
+                    }
+                }
             }
         }
+
+        retryPreflight = { loadOptimization(profilePreference) }
 
         /**
          * Tell the host once the presses stop.
@@ -772,11 +805,14 @@ class NovaGameDetailActivity : NovaActivity() {
             refreshUiState(profilePreference)
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             lifecycleScope.launch {
+                var launchCanReplay = false
                 optimizationState = try {
-                    syncAndPublishLaunchPreflightSettings(
-                        uiState.playUsesVirtualDisplay,
-                        uiState.playMode,
-                    )
+                    check(
+                        syncAndPublishLaunchPreflightSettings(
+                            uiState.playUsesVirtualDisplay,
+                            uiState.playMode,
+                        ),
+                    ) { "launch preflight settings unavailable" }
                     val optimizationMode = uiState.playMode
                     val opt = withContext(Dispatchers.IO) {
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
@@ -797,16 +833,28 @@ class NovaGameDetailActivity : NovaActivity() {
                         )
                     }
                     logPreflightOptimization("High FPS preset preflight", opt, profilePreference)
-                    buildOptimizationState(opt, profilePreference)
+                    buildOptimizationState(opt, profilePreference).also { launchCanReplay = true }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: PolarisApiRejectedException) {
                     LimeLog.warning("Nova: High FPS preflight rejected: ${e.rejection.code}")
                     NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
-                    NovaGameDetailOptimizationState()
+                    NovaGameDetailOptimizationState(preflightFailed = true)
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: High FPS preset preflight failed: ${e.message}")
-                    NovaGameDetailOptimizationState()
+                    NovaGameDetailOptimizationState(preflightFailed = true)
                 }
-                if (pendingLaunch) attemptLaunch()
+                if (pendingLaunch) {
+                    if (launchCanReplay) {
+                        attemptLaunch()
+                    } else {
+                        pendingLaunch = false
+                        NovaSnackbar.showError(
+                            this@NovaGameDetailActivity,
+                            getString(R.string.nova_game_detail_launch_preflight_unavailable),
+                        )
+                    }
+                }
             }
         }
 
@@ -1344,6 +1392,8 @@ class NovaGameDetailActivity : NovaActivity() {
                         // looks untouched for the length of an HTTP round-trip reads as
                         // one that did not register.
                         getString(R.string.nova_game_detail_launch_checking_host)
+                    } else if (optimizationState.preflightFailed) {
+                        getString(R.string.nova_game_detail_launch_retry_host_check)
                     } else if (optimizationState.reviewRequired) {
                         getString(R.string.nova_library_review_and_launch)
                     } else {
@@ -2196,6 +2246,7 @@ class NovaGameDetailActivity : NovaActivity() {
         const val RESULT_KEY_FORCE_PRIVATE = "forcePrivateAfterSteamClose"
         const val RESULT_KEY_PROFILE_PREFERENCE = "profilePreference"
         const val RESULT_KEY_STREAM_MODE = "streamDisplayMode"
+        const val RESULT_KEY_PRESENTATION_MODE = "presentationDisplayMode"
         const val RESULT_KEY_PREFLIGHT = "preflightOptimization"
 
         private const val DEFAULT_HTTPS_PORT = 47984

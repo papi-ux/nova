@@ -843,6 +843,7 @@ class NovaLibraryActivity : NovaActivity() {
             forcePrivateAfterSteamClose = request.optBoolean(NovaGameDetailActivity.RESULT_KEY_FORCE_PRIVATE),
             profilePreference = request.optString(NovaGameDetailActivity.RESULT_KEY_PROFILE_PREFERENCE, "auto"),
             resolvedMode = request.optString(NovaGameDetailActivity.RESULT_KEY_STREAM_MODE, ""),
+            presentationMode = request.optString(NovaGameDetailActivity.RESULT_KEY_PRESENTATION_MODE, ""),
             preflightOptimization = request.optJSONObject(NovaGameDetailActivity.RESULT_KEY_PREFLIGHT),
         )
     }
@@ -852,6 +853,7 @@ class NovaLibraryActivity : NovaActivity() {
         withVirtualDisplay: Boolean,
         mirrorDesktop: Boolean = false,
         resolvedMode: String = "",
+        presentationMode: String = "",
         forcePrivateAfterSteamClose: Boolean = false,
         profilePreference: String = "auto",
         preflightOptimization: org.json.JSONObject? = null
@@ -877,7 +879,8 @@ class NovaLibraryActivity : NovaActivity() {
         val launchUsesVirtualDisplay = withVirtualDisplay
         val launchMirrorsDesktop = mirrorDesktop
         val launchMode = resolvedMode
-        val resolvedLaunchModeLabel = when (PolarisGame.normalizeLaunchMode(launchMode)) {
+        val presentedLaunchMode = launchMode.ifBlank { presentationMode }
+        val resolvedLaunchModeLabel = when (PolarisGame.normalizeLaunchMode(presentedLaunchMode)) {
             PolarisGame.MODE_HEADLESS_STREAM -> getString(R.string.nova_library_launch_headless)
             PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
             PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
