@@ -501,6 +501,32 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         /**
+         * Publish the settings learned by launch preflight before resolving its mode.
+         *
+         * The eager settings GET is only a convenience and may fail or lose this race.
+         * The preflight response is authoritative too, so its capability verdict must
+         * rebuild the exact mode that both /optimize and the final launch will carry.
+         */
+        suspend fun syncAndPublishLaunchPreflightSettings(
+            usesVirtualDisplay: Boolean,
+            resolvedMode: String,
+        ) {
+            val updated = withContext(Dispatchers.IO) {
+                syncLaunchPreflightSettings(
+                    this@NovaGameDetailActivity,
+                    apiClient,
+                    usesVirtualDisplay,
+                    clientSettings,
+                    resolvedMode,
+                )
+            }
+            if (updated != null) {
+                clientSettings = updated
+                refreshUiState()
+            }
+        }
+
+        /**
          * The host scope, reached from the surface where the per-game choice is made.
          *
          * Polaris Sync owns settings loading and six handlers that write to the host, so
@@ -678,15 +704,14 @@ class NovaGameDetailActivity : NovaActivity() {
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             lifecycleScope.launch {
                 optimizationState = try {
+                    syncAndPublishLaunchPreflightSettings(usesVirtualDisplay, uiState.playMode)
+                    val optimizationMode = uiState.playMode
                     val opt = withContext(Dispatchers.IO) {
-                        syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, usesVirtualDisplay, clientSettings, uiState.playMode)?.let {
-                            clientSettings = it
-                        }
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
                         val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         apiClient.getOptimization(
                             deviceName, currentGame.id.ifBlank { currentGame.name }, preference,
-                            mode = uiState.playMode,
+                            mode = optimizationMode,
                             topologyLocked = true,
                             width = launchPrefs.width,
                             height = launchPrefs.height,
@@ -748,15 +773,17 @@ class NovaGameDetailActivity : NovaActivity() {
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             lifecycleScope.launch {
                 optimizationState = try {
+                    syncAndPublishLaunchPreflightSettings(
+                        uiState.playUsesVirtualDisplay,
+                        uiState.playMode,
+                    )
+                    val optimizationMode = uiState.playMode
                     val opt = withContext(Dispatchers.IO) {
-                        syncLaunchPreflightSettings(this@NovaGameDetailActivity, apiClient, uiState.playUsesVirtualDisplay, clientSettings, uiState.playMode)?.let {
-                            clientSettings = it
-                        }
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
                         val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         apiClient.getOptimization(
                             deviceName, currentGame.id.ifBlank { currentGame.name }, profilePreference,
-                            mode = uiState.playMode,
+                            mode = optimizationMode,
                             topologyLocked = true,
                             width = launchPrefs.width,
                             height = launchPrefs.height,
@@ -847,7 +874,19 @@ class NovaGameDetailActivity : NovaActivity() {
             hasExplicitOverride = uiState.hasExplicitOverride,
             title = "",
             hostDefaultLabel = "",
-        ).choices.size
+        ).choices.count { it.enabled }
+
+        /** Classic headless/virtual can cycle inline; every other multi-choice set opens the picker. */
+        fun gameModePickerEligible(): Boolean {
+            val inlineChoiceCount = listOf(
+                PolarisGame.MODE_HEADLESS_STREAM,
+                PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
+            ).count { mode ->
+                currentGame.isLaunchModeAvailable(mode, clientSettings) &&
+                    clientSettings.isLaunchModeSessionOverridable(mode)
+            }
+            return novaModePickerEligible(gameModeCatalogSize(), inlineChoiceCount)
+        }
 
         /**
          * A pick from the full-panel picker. The picker only offers what the host
@@ -981,8 +1020,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 value = modeBadgeLabel(uiState.playMode),
                 stripTitle = getString(R.string.nova_play_setup_strip_where),
                 options = modeOptions,
-                enabled = modeOptions.count { it.enabled } > 1 ||
-                    novaModePickerEligible(gameModeCatalogSize()),
+                enabled = modeOptions.count { it.enabled } > 1 || gameModePickerEligible(),
                 overridden = uiState.overridesHostMode,
             )
 
@@ -1332,9 +1370,7 @@ class NovaGameDetailActivity : NovaActivity() {
                                 advanceHostPlaySetupRow(row)
                             }
                         } else {
-                            if (row == NovaPlaySetupRow.WHERE_IT_RUNS &&
-                                novaModePickerEligible(gameModeCatalogSize())
-                            ) {
+                            if (row == NovaPlaySetupRow.WHERE_IT_RUNS && gameModePickerEligible()) {
                                 explainedRow = row
                                 modePickerOpen = true
                             } else {
@@ -1593,7 +1629,11 @@ class NovaGameDetailActivity : NovaActivity() {
             defaultToVirtualDisplay = defaultToVirtualDisplay,
             clientSettings = clientSettings,
             profilePreference = profilePreference,
-            launchModeOverride = NovaLaunchModeOverrides.load(this@NovaGameDetailActivity, game),
+            launchModeOverride = NovaLaunchModeOverrides.loadAvailable(
+                this@NovaGameDetailActivity,
+                game,
+                clientSettings,
+            ),
         )
     }
 
@@ -1857,6 +1897,20 @@ class NovaGameDetailActivity : NovaActivity() {
             parts += getString(R.string.nova_polaris_sync_host_mode_detail, uiState.hostStreamDisplayModeLabel)
         }
         parts += when {
+            uiState.usesSafeHostFallback -> {
+                buildList {
+                    add(
+                        getString(
+                            R.string.nova_library_launch_intro_safe_fallback,
+                            uiState.hostStreamDisplayModeLabel,
+                            uiState.playModeLabel,
+                        ),
+                    )
+                    uiState.hostStreamDisplayModeUnavailableReason
+                        .takeIf { it.isNotBlank() }
+                        ?.let(::add)
+                }.joinToString(" ")
+            }
             uiState.virtualDisplayUnavailable -> {
                 val unavailableParts = mutableListOf(
                     getString(R.string.nova_library_virtual_display_unavailable_body)

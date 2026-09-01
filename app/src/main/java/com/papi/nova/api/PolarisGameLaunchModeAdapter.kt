@@ -30,7 +30,13 @@ fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, client
         .ifBlank { preferredMode }
         .ifBlank { fallbackMode }
     val virtualAvailable = modeAvailability(clientSettings, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
-    val virtualUnavailableReason = modeUnavailableReason(clientSettings, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
+    val virtualUnavailableReason = clientSettings.launchModeUnavailableReason(
+        PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
+    )
+    val virtualIntent = defaultToVirtualDisplay ||
+        PolarisGame.normalizeLaunchMode(hostRequestedMode) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY ||
+        PolarisGame.normalizeLaunchMode(contract?.preferredMode.orEmpty()) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY ||
+        PolarisGame.normalizeLaunchMode(contract?.recommendedMode.orEmpty()) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY
 
     return PolarisGame.LaunchModeChoice(
         preferredMode = preferredMode,
@@ -40,7 +46,7 @@ fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, client
         // A current host intentionally removes an unavailable mode from the
         // per-game allowed list. The catalog's typed false still needs to reach
         // the player as setup guidance instead of being hidden by that removal.
-        virtualDisplayUnavailable = virtualAvailable == false,
+        virtualDisplayUnavailable = virtualIntent && virtualAvailable == false,
         virtualDisplayUnavailableReason = virtualUnavailableReason,
         hostDefaultMode = hostDefaultMode,
         hostModeReason = clientSettings?.desired?.streamDisplayModeReason?.takeIf { it.isNotBlank() } ?: clientSettings?.effective?.streamDisplayModeReason ?: ""
@@ -81,8 +87,9 @@ private fun modeAvailability(clientSettings: PolarisClientSettings?, mode: Strin
     return matches.any { it.available }
 }
 
-private fun modeUnavailableReason(clientSettings: PolarisClientSettings?, mode: String): String {
-    val modes = clientSettings?.capabilities?.modes ?: return ""
+/** The host's current typed reason for rejecting this launch mode, when present. */
+fun PolarisClientSettings?.launchModeUnavailableReason(mode: String): String {
+    val modes = this?.capabilities?.modes ?: return ""
     return matchingModes(modes, mode).firstOrNull { !it.available }?.let {
         it.unavailableReason.ifBlank { it.reason }
     }.orEmpty()

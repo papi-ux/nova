@@ -44,6 +44,15 @@ class NovaPlaySetupModePickerTest {
         assertFalse(novaModePickerEligible(2))
         assertTrue(novaModePickerEligible(3))
         assertTrue(novaModePickerEligible(6))
+        assertTrue(
+            "two registry choices need the full picker because neither is in the inline pair",
+            novaModePickerEligible(choiceCount = 2, inlineChoiceCount = 0),
+        )
+        assertTrue(
+            "one classic and one registry choice cannot be cycled by the classic row",
+            novaModePickerEligible(choiceCount = 2, inlineChoiceCount = 1),
+        )
+        assertFalse(novaModePickerEligible(choiceCount = 1, inlineChoiceCount = 0))
     }
 
     @Test

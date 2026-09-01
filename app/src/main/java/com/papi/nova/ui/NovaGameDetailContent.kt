@@ -424,18 +424,37 @@ internal fun NovaGameDetailContent(
                             grantedFormat = stringResource(R.string.nova_play_setup_granted_format),
                             hostFacts = buildList {
                                 if (uiState.hostStreamDisplayModeLabel.isNotBlank()) {
+                                    val safeFallbackDetail = if (uiState.usesSafeHostFallback) {
+                                        buildList {
+                                            add(
+                                                stringResource(
+                                                    R.string.nova_play_setup_host_safe_fallback,
+                                                    uiState.playModeLabel,
+                                                ),
+                                            )
+                                            uiState.hostStreamDisplayModeUnavailableReason
+                                                .takeIf { it.isNotBlank() }
+                                                ?.let(::add)
+                                        }.joinToString(" ")
+                                    } else {
+                                        ""
+                                    }
                                     add(
                                         NovaPlaySetupFact(
                                             key = stringResource(R.string.nova_play_setup_fact_host_default),
                                             value = uiState.hostStreamDisplayModeLabel,
-                                            detail = stringResource(
-                                                if (uiState.overridesHostMode) {
-                                                    R.string.nova_play_setup_host_overridden
-                                                } else {
-                                                    R.string.nova_play_setup_host_followed
-                                                },
-                                            ),
-                                            tone = if (uiState.overridesHostMode) {
+                                            detail = when {
+                                                uiState.usesSafeHostFallback -> safeFallbackDetail
+                                                uiState.overridesHostMode -> stringResource(
+                                                    R.string.nova_play_setup_host_overridden,
+                                                )
+                                                else -> stringResource(
+                                                    R.string.nova_play_setup_host_followed,
+                                                )
+                                            },
+                                            tone = if (
+                                                uiState.overridesHostMode || uiState.usesSafeHostFallback
+                                            ) {
                                                 NovaPlaySetupTone.WARN
                                             } else {
                                                 NovaPlaySetupTone.PLAIN

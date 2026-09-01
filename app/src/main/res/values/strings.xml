@@ -299,6 +299,7 @@
     <string name="nova_play_setup_fact_host_profile">Host profile</string>
     <string name="nova_play_setup_host_overridden">This game overrides it. Every other game follows the host.</string>
     <string name="nova_play_setup_host_followed">This game follows it.</string>
+    <string name="nova_play_setup_host_safe_fallback">This host mode is not ready, so this launch uses %1$s instead.</string>
     <string name="nova_play_setup_every_game">Every Game</string>
     <string name="nova_play_setup_pref_auto">Uses this launch request and paired-device settings, normalized only for current capabilities.</string>
     <string name="nova_play_setup_pref_quality">Holds resolution and bitrate. Drops frames before it drops sharpness.</string>
@@ -456,9 +457,10 @@
     <string name="nova_library_no_launch_modes">No launch modes are available for this game.</string>
     <string name="nova_library_launch_intro_headless_default">Nova will use a private stream for this launch.</string>
     <string name="nova_library_launch_intro_virtual_default">Nova will use Host Virtual Display for this launch.</string>
-    <string name="nova_library_launch_intro_virtual_unavailable">Host Virtual Display is not ready on this host. Nova will use Private Stream instead.</string>
+    <string name="nova_library_launch_intro_virtual_unavailable">Host Virtual Display is not ready on this host. Nova will use the available launch mode shown instead.</string>
+    <string name="nova_library_launch_intro_safe_fallback">The host default, %1$s, is not ready. Nova will use %2$s for this launch.</string>
     <string name="nova_library_virtual_display_unavailable_title">Host Virtual Display is not ready</string>
-    <string name="nova_library_virtual_display_unavailable_body">Polaris says this host cannot start a virtual-display stream right now. Nova will use Private Stream instead.</string>
+    <string name="nova_library_virtual_display_unavailable_body">Polaris says this host cannot start a virtual-display stream right now. Nova will use the available launch mode shown above instead.</string>
     <string name="nova_library_virtual_display_unavailable_reason_format">Reason: %1$s</string>
     <string name="nova_library_launch_mode_note">Private Stream is recommended for handheld play. GPU-native appears in Command Center as a capture path when Polaris keeps frames on the GPU. Host Virtual Display and Mirror Desktop stay advanced host options.</string>
     <string name="nova_library_launch_default_mode_badge">Default: %1$s</string>

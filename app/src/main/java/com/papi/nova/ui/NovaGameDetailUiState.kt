@@ -4,6 +4,7 @@ import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.api.isLaunchModeAvailable
 import com.papi.nova.api.isLaunchModeSessionOverridable
+import com.papi.nova.api.launchModeUnavailableReason
 import com.papi.nova.api.resolveLaunchModeChoice
 import com.papi.nova.shared.polaris.model.PolarisGame
 import org.json.JSONObject
@@ -55,6 +56,7 @@ data class NovaGameDetailUiState(
     val steamLaunchWarning: Boolean,
     val hostStreamDisplayMode: String,
     val hostStreamDisplayModeLabel: String,
+    val hostStreamDisplayModeUnavailableReason: String,
     /** True only when this client stored a per-game launch-mode override. */
     val hasExplicitOverride: Boolean,
     /**
@@ -82,6 +84,13 @@ data class NovaGameDetailUiState(
     /** The mode Nova will actually send, independent of a stale host-default label. */
     val playModeLabel: String
         get() = PolarisStreamDisplayMode.labelForMode(playMode)
+
+    /** Nova selected an available one-launch replacement for a stale host default. */
+    val usesSafeHostFallback: Boolean
+        get() = !hasExplicitOverride &&
+            launchStreamMode.isNotBlank() &&
+            PolarisStreamDisplayMode.normalize(launchStreamMode) !=
+            PolarisStreamDisplayMode.normalize(hostStreamDisplayMode)
 
     enum class MangoHudRisk {
         NONE,
@@ -184,6 +193,8 @@ data class NovaGameDetailUiState(
                 steamLaunch.allows("big-picture")
             val steamLaunchWarning = steamLaunchMode == "big-picture"
             val hostStreamDisplayModeLabel = PolarisStreamDisplayMode.labelForMode(hostStreamDisplayMode)
+            val hostStreamDisplayModeUnavailableReason =
+                clientSettings.launchModeUnavailableReason(hostStreamDisplayMode)
 
             return NovaGameDetailUiState(
                 game = game,
@@ -215,6 +226,7 @@ data class NovaGameDetailUiState(
                 steamLaunchWarning = steamLaunchWarning,
                 hostStreamDisplayMode = hostStreamDisplayMode,
                 hostStreamDisplayModeLabel = hostStreamDisplayModeLabel,
+                hostStreamDisplayModeUnavailableReason = hostStreamDisplayModeUnavailableReason,
                 hasExplicitOverride = !perGameOverride.isNullOrBlank(),
                 hostProfileLabel = hostProfileLabel(clientSettings),
             )

@@ -877,6 +877,15 @@ class NovaLibraryActivity : NovaActivity() {
         val launchUsesVirtualDisplay = withVirtualDisplay
         val launchMirrorsDesktop = mirrorDesktop
         val launchMode = resolvedMode
+        val resolvedLaunchModeLabel = when (PolarisGame.normalizeLaunchMode(launchMode)) {
+            PolarisGame.MODE_HEADLESS_STREAM -> getString(R.string.nova_library_launch_headless)
+            PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
+            PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
+            PolarisGame.MODE_GAMESCOPE_STREAM -> getString(R.string.nova_library_launch_gamescope)
+            PolarisGame.MODE_HEADLESS_DONGLE -> getString(R.string.nova_library_launch_dongle)
+            else -> ""
+        }
 
         NovaSnackbar.show(
             this,
@@ -887,6 +896,7 @@ class NovaLibraryActivity : NovaActivity() {
                     launchUsesVirtualDisplay -> getString(R.string.nova_library_launch_virtual_display)
                     launchMirrorsDesktop -> getString(R.string.nova_desktop_steam_mirror_desktop)
                     forcePrivateAfterSteamClose -> getString(R.string.nova_desktop_steam_force_private)
+                    resolvedLaunchModeLabel.isNotBlank() -> resolvedLaunchModeLabel
                     else -> getString(R.string.nova_library_launch_headless)
                 }
             )

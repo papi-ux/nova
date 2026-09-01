@@ -416,6 +416,11 @@ class NovaGameDetailUiStateTest {
         assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, state.launchStreamMode)
         assertEquals("Mirror Desktop", state.playModeLabel)
         assertFalse(state.hasExplicitOverride)
+        assertTrue(state.usesSafeHostFallback)
+        assertEquals(
+            "labwc and wlr-randr are not installed",
+            state.hostStreamDisplayModeUnavailableReason,
+        )
     }
 
     @Test
@@ -444,7 +449,9 @@ class NovaGameDetailUiStateTest {
         )
 
         assertEquals(PolarisGame.MODE_GAMESCOPE_STREAM, state.playMode)
+        assertEquals("Gamescope Stream", state.playModeLabel)
         assertEquals("", state.launchStreamMode)
+        assertFalse(state.usesSafeHostFallback)
     }
 
     @Test

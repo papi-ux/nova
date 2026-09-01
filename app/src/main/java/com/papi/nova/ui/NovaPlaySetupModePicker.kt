@@ -81,11 +81,13 @@ internal data class NovaPlaySetupModePickerState(
 /**
  * Whether a row's press should open the picker rather than cycle in place.
  *
- * Two options cycle in one press and need no panel; the moment a host offers a third,
- * cycling means walking a ring blind and the picker takes over. Hosts that predate the
- * mode catalog can never exceed the classic pair per game, so they keep the old press.
+ * The classic headless/virtual pair cycles in place. A multi-choice set that includes
+ * registry modes cannot be represented by that inline pair, so it opens the picker even
+ * when it contains exactly two choices. Hosts that predate the mode catalog keep the old
+ * two-value press.
  */
-internal fun novaModePickerEligible(choiceCount: Int): Boolean = choiceCount > 2
+internal fun novaModePickerEligible(choiceCount: Int, inlineChoiceCount: Int = 2): Boolean =
+    choiceCount > 1 && choiceCount > inlineChoiceCount
 
 /**
  * Band order is the mental model of the choice: private modes (the desktop stays

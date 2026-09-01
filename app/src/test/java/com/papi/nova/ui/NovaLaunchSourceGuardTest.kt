@@ -579,7 +579,7 @@ class NovaLaunchSourceGuardTest {
         val strings = readSource("src/main/res/values/strings.xml")
 
         assertTrue(strings.contains("nova_library_virtual_display_unavailable_title") && strings.contains("Host Virtual Display is not ready"))
-        assertTrue(strings.contains("nova_library_virtual_display_unavailable_body") && strings.contains("Polaris says this host cannot start a virtual-display stream right now. Nova will use Private Stream instead."))
+        assertTrue(strings.contains("nova_library_virtual_display_unavailable_body") && strings.contains("Polaris says this host cannot start a virtual-display stream right now. Nova will use the available launch mode shown above instead."))
         assertTrue(strings.contains("nova_library_virtual_display_unavailable_reason_format") && strings.contains("Reason: %1"))
         assertTrue(detail.contains("nova_library_virtual_display_unavailable_body"))
         assertTrue(detail.contains("nova_library_virtual_display_unavailable_reason_format"))
@@ -779,6 +779,56 @@ class NovaLaunchSourceGuardTest {
                 detailState.contains("hostDefaultUnavailable &&") &&
                 detailState.contains("clientSettings.isLaunchModeSessionOverridable(playMode) -> playMode") &&
                 !detail.contains("uiState.playMode,\n                launchOptimization()")
+        )
+    }
+
+    @Test
+    fun preflightPublishesCapabilityStateBeforeOptimizingAndLaunchingItsFallback() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val publish = detail.section(
+            "suspend fun syncAndPublishLaunchPreflightSettings(",
+            "/**\n         * The host scope",
+        )
+        val optimization = detail.section(
+            "fun loadOptimization(",
+            "/**\n         * Tell the host once the presses stop.",
+        )
+        val highFps = detail.section(
+            "fun selectHighFpsPreset()",
+            "fun selectLaunchMode(",
+        )
+
+        assertTrue(
+            "the settings returned by launch preflight must rebuild UI state before either optimizer path captures the exact mode",
+            publish.contains("clientSettings = updated") &&
+                publish.contains("refreshUiState()") &&
+                optimization.contains("syncAndPublishLaunchPreflightSettings(") &&
+                optimization.contains("val optimizationMode = uiState.playMode") &&
+                optimization.contains("mode = optimizationMode") &&
+                highFps.contains("syncAndPublishLaunchPreflightSettings(") &&
+                highFps.contains("val optimizationMode = uiState.playMode") &&
+                highFps.contains("mode = optimizationMode")
+        )
+    }
+
+    @Test
+    fun launchCopyNamesTheExactResolvedModeAndAutomaticFallbackHonestly() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val content = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+        val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+
+        assertTrue(
+            "automatic fallback copy must be distinct from a user override and include the current host rejection reason",
+            detail.contains("uiState.usesSafeHostFallback ->") &&
+                detail.contains("hostStreamDisplayModeUnavailableReason") &&
+                content.contains("uiState.usesSafeHostFallback") &&
+                content.contains("nova_play_setup_host_safe_fallback")
+        )
+        assertTrue(
+            "the launch snackbar must use the exact resolved registry mode when no special Steam/virtual action overrides it",
+            library.contains("val resolvedLaunchModeLabel = when") &&
+                library.contains("PolarisGame.MODE_GAMESCOPE_STREAM") &&
+                library.contains("resolvedLaunchModeLabel.isNotBlank() -> resolvedLaunchModeLabel")
         )
     }
 

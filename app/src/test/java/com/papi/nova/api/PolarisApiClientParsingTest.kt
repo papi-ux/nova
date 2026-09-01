@@ -1799,6 +1799,31 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun launchModeChoice_doesNotClaimAnUnusedVirtualFallbackForDesktopPlay() {
+        val settings = PolarisApiClient.parseClientSettingsResponse(
+            JSONObject(
+                "{\"version\":1,\"desired\":{\"stream_display_mode\":\"desktop_display\"}," +
+                    "\"effective\":{},\"capabilities\":{\"modes\":[" +
+                    "{\"value\":\"desktop_display\",\"available\":true}," +
+                    "{\"value\":\"host_virtual_display\",\"available\":false," +
+                    "\"unavailable_reason\":\"Set linux_streaming_output first.\"}]}}"
+            )
+        )
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Game\"," +
+                    "\"launch_mode\":{\"preferred_mode\":\"desktop_display\"," +
+                    "\"recommended_mode\":\"desktop_display\",\"allowed_modes\":[\"desktop_display\"]}}"
+            )
+        )
+
+        val choice = game.resolveLaunchModeChoice(false, settings)
+
+        assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, choice.recommendedMode)
+        assertFalse(choice.virtualDisplayUnavailable)
+    }
+
+    @Test
     fun parseGame_includesSteamLaunchContract() {
         val game = PolarisGameJsonAdapter.fromJson(
             JSONObject(

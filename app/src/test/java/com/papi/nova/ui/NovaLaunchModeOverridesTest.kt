@@ -47,4 +47,47 @@ class NovaLaunchModeOverridesTest {
         assertNull(NovaLaunchModeOverrides.load(context, game))
         assertFalse(preferences.contains(key))
     }
+
+    @Test
+    fun unavailableSavedModeIsRetiredInsteadOfReactivatingLater() {
+        NovaLaunchModeOverrides.save(context, game, PolarisGame.MODE_GAMESCOPE_STREAM)
+        val currentGame = game.copy(
+            launchMode = PolarisGame.LaunchModeContract(
+                recommendedMode = PolarisGame.MODE_DESKTOP_DISPLAY,
+                allowedModes = listOf(PolarisGame.MODE_DESKTOP_DISPLAY),
+            ),
+        )
+        val settings = PolarisClientSettings(
+            capabilities = PolarisClientSettings.Capabilities(
+                modes = listOf(
+                    PolarisClientSettings.ModeOption(
+                        value = PolarisGame.MODE_GAMESCOPE_STREAM,
+                        available = false,
+                        unavailableReason = "gamescope is not installed",
+                    ),
+                    PolarisClientSettings.ModeOption(
+                        value = PolarisGame.MODE_DESKTOP_DISPLAY,
+                        available = true,
+                        sessionOverridable = true,
+                    ),
+                ),
+            ),
+        )
+
+        assertNull(NovaLaunchModeOverrides.loadAvailable(context, currentGame, settings))
+        assertFalse(preferences.contains(key))
+
+        val laterSettings = settings.copy(
+            capabilities = settings.capabilities.copy(
+                modes = listOf(
+                    PolarisClientSettings.ModeOption(
+                        value = PolarisGame.MODE_GAMESCOPE_STREAM,
+                        available = true,
+                        sessionOverridable = true,
+                    ),
+                ),
+            ),
+        )
+        assertNull(NovaLaunchModeOverrides.loadAvailable(context, game, laterSettings))
+    }
 }

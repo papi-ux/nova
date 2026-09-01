@@ -2,6 +2,8 @@ package com.papi.nova.ui
 
 import android.content.Context
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.isLaunchModeAvailable
+import com.papi.nova.api.isLaunchModeSessionOverridable
 import com.papi.nova.shared.polaris.model.PolarisGame
 
 /**
@@ -38,6 +40,30 @@ object NovaLaunchModeOverrides {
             return null
         }
         return normalized
+    }
+
+    /**
+     * Load a saved choice only while the current host and game still authorize it.
+     *
+     * A hidden invalid preference must not wake back up just because a later catalog
+     * happens to advertise the same id again. Once current typed authority rejects a
+     * saved per-game mode, retire that answer and let the player choose it again if it
+     * becomes available in the future.
+     */
+    fun loadAvailable(
+        context: Context,
+        game: PolarisGame,
+        clientSettings: PolarisClientSettings?,
+    ): String? {
+        val mode = load(context, game) ?: return null
+        if (
+            !game.isLaunchModeAvailable(mode, clientSettings) ||
+            !clientSettings.isLaunchModeSessionOverridable(mode)
+        ) {
+            clear(context, game)
+            return null
+        }
+        return mode
     }
 
     fun save(context: Context, game: PolarisGame, mode: String) {
