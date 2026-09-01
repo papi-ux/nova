@@ -472,6 +472,12 @@ class NovaGameDetailActivity : NovaActivity() {
         // Changing a row is cheap; telling the host about it is not. Presses settle first
         // so that cycling past three values costs one round-trip rather than three.
         var settleJob: Job? = null
+        var pendingSettledWork: (suspend () -> Unit)? = null
+        // A blocking host request may not observe coroutine cancellation until it returns.
+        // The generation fence is therefore the authority boundary: only the newest
+        // request may publish settings/optimization state or replay a held Play press.
+        val preflightRequestFence = NovaLaunchPreflightRequestFence()
+        var preflightJob: Job? = null
         // A launch was asked for while the preflight that arms the desktop-Steam guard was
         // still on the wire. The press is held rather than dropped: being quick should not
         // cost you the launch, and it must not cost you the guard either.
@@ -513,6 +519,7 @@ class NovaGameDetailActivity : NovaActivity() {
         suspend fun syncAndPublishLaunchPreflightSettings(
             usesVirtualDisplay: Boolean,
             resolvedMode: String,
+            requestGeneration: Long,
         ): Boolean {
             val updated = withContext(Dispatchers.IO) {
                 syncLaunchPreflightSettings(
@@ -523,6 +530,9 @@ class NovaGameDetailActivity : NovaActivity() {
                     resolvedMode,
                 )
             } ?: return false
+            if (!preflightRequestFence.owns(requestGeneration)) {
+                throw CancellationException("launch preflight superseded")
+            }
             clientSettings = updated
             refreshUiState()
             return true
@@ -717,12 +727,20 @@ class NovaGameDetailActivity : NovaActivity() {
             // Marked here rather than inside the coroutine. Callers used to clear the state
             // themselves and then call this, so between those two statements it read as a
             // settled answer of "nothing to guard" -- for as long as the round-trip took.
+            preflightJob?.cancel()
+            val requestGeneration = preflightRequestFence.begin()
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
-            lifecycleScope.launch {
+            preflightJob = lifecycleScope.launch {
                 var launchCanReplay = false
                 var failureMessageShown = false
-                optimizationState = try {
-                    check(syncAndPublishLaunchPreflightSettings(usesVirtualDisplay, uiState.playMode)) {
+                val nextOptimizationState = try {
+                    check(
+                        syncAndPublishLaunchPreflightSettings(
+                            usesVirtualDisplay,
+                            uiState.playMode,
+                            requestGeneration,
+                        ),
+                    ) {
                         "launch preflight settings unavailable"
                     }
                     val optimizationMode = uiState.playMode
@@ -747,19 +765,26 @@ class NovaGameDetailActivity : NovaActivity() {
                     check(StreamSyncManager.hasTrustedResolvedProfile(opt)) {
                         "trusted launch profile unavailable"
                     }
+                    if (!preflightRequestFence.owns(requestGeneration)) {
+                        throw CancellationException("launch preflight superseded")
+                    }
                     logPreflightOptimization("Preflight optimization", opt, preference)
                     buildOptimizationState(opt, preference).also { launchCanReplay = true }
                 } catch (e: CancellationException) {
-                    throw e
+                    return@launch
                 } catch (e: PolarisApiRejectedException) {
+                    if (!preflightRequestFence.owns(requestGeneration)) return@launch
                     LimeLog.warning("Nova: Preflight optimization rejected: ${e.rejection.code}")
                     NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
                     failureMessageShown = true
                     NovaGameDetailOptimizationState(preflightFailed = true)
                 } catch (e: Exception) {
+                    if (!preflightRequestFence.owns(requestGeneration)) return@launch
                     LimeLog.warning("Nova: Preflight optimization failed: ${e.message}")
                     NovaGameDetailOptimizationState(preflightFailed = true)
                 }
+                if (!preflightRequestFence.owns(requestGeneration)) return@launch
+                optimizationState = nextOptimizationState
                 if (pendingLaunch) {
                     if (launchCanReplay) {
                         attemptLaunch()
@@ -788,21 +813,27 @@ class NovaGameDetailActivity : NovaActivity() {
          * so a launch in that window has to wait rather than be armed from it. That is the
          * same rule as the preflight guard, applied to a gap this introduces.
          */
-        fun settleThen(work: () -> Unit) {
+        fun settleThen(work: suspend () -> Unit) {
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
+            preflightRequestFence.invalidate()
+            preflightJob?.cancel()
+            preflightJob = null
             settleJob?.cancel()
+            pendingSettledWork = work
             settleJob = lifecycleScope.launch {
                 delay(NOVA_PLAY_SETUP_SETTLE_MS)
+                if (pendingSettledWork !== work) return@launch
+                pendingSettledWork = null
                 work()
             }
         }
 
         flushSettled = {
-            val job = settleJob
-            if (job != null && job.isActive) {
-                job.cancel()
-                settleJob = null
-                loadOptimization(profilePreference)
+            val work = pendingSettledWork
+            if (work != null) {
+                settleJob?.cancel()
+                pendingSettledWork = null
+                settleJob = lifecycleScope.launch { work() }
             }
         }
 
@@ -810,66 +841,10 @@ class NovaGameDetailActivity : NovaActivity() {
             profilePreference = "high_fps"
             saveProfilePreference(currentGame, profilePreference)
             refreshUiState(profilePreference)
-            optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
-            lifecycleScope.launch {
-                var launchCanReplay = false
-                var failureMessageShown = false
-                optimizationState = try {
-                    check(
-                        syncAndPublishLaunchPreflightSettings(
-                            uiState.playUsesVirtualDisplay,
-                            uiState.playMode,
-                        ),
-                    ) { "launch preflight settings unavailable" }
-                    val optimizationMode = uiState.playMode
-                    val opt = withContext(Dispatchers.IO) {
-                        val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
-                        val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
-                        apiClient.getOptimization(
-                            deviceName, currentGame.id.ifBlank { currentGame.name }, profilePreference,
-                            mode = optimizationMode,
-                            topologyLocked = true,
-                            width = launchPrefs.width,
-                            height = launchPrefs.height,
-                            fps = launchPrefs.fps,
-                            bitrateKbps = if (metered) launchPrefs.meteredBitrate else launchPrefs.bitrate,
-                            bitrateLocked = metered,
-                            hdr = launchPrefs.enableHdr,
-                            clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
-                                ServerHelper.getActiveDisplay(this@NovaGameDetailActivity, launchPrefs)
-                            ),
-                        )
-                    }
-                    check(StreamSyncManager.hasTrustedResolvedProfile(opt)) {
-                        "trusted launch profile unavailable"
-                    }
-                    logPreflightOptimization("High FPS preset preflight", opt, profilePreference)
-                    buildOptimizationState(opt, profilePreference).also { launchCanReplay = true }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: PolarisApiRejectedException) {
-                    LimeLog.warning("Nova: High FPS preflight rejected: ${e.rejection.code}")
-                    NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
-                    failureMessageShown = true
-                    NovaGameDetailOptimizationState(preflightFailed = true)
-                } catch (e: Exception) {
-                    LimeLog.warning("Nova: High FPS preset preflight failed: ${e.message}")
-                    NovaGameDetailOptimizationState(preflightFailed = true)
-                }
-                if (pendingLaunch) {
-                    if (launchCanReplay) {
-                        attemptLaunch()
-                    } else {
-                        pendingLaunch = false
-                        if (!failureMessageShown) {
-                            NovaSnackbar.showError(
-                                this@NovaGameDetailActivity,
-                                getString(R.string.nova_game_detail_launch_preflight_unavailable),
-                            )
-                        }
-                    }
-                }
-            }
+            settleJob?.cancel()
+            settleJob = null
+            pendingSettledWork = null
+            loadOptimization(profilePreference)
         }
 
         fun selectLaunchMode(mode: String) {
@@ -1021,24 +996,22 @@ class NovaGameDetailActivity : NovaActivity() {
             )
             refreshUiState()
             settleThen {
-                lifecycleScope.launch {
-                    val confirmedMode = withContext(Dispatchers.IO) {
-                        apiClient.setSteamLaunchMode(previousGame.id, requestedMode)
-                    }
-                    if (confirmedMode != null) {
-                        currentGame = currentGame.copy(
-                            steamLaunch = currentGame.steamLaunch?.copy(mode = confirmedMode)
-                        )
-                    } else {
-                        currentGame = previousGame
-                        NovaSnackbar.showError(
-                            this@NovaGameDetailActivity,
-                            getString(R.string.nova_steam_launch_mode_failed),
-                        )
-                    }
-                    refreshUiState()
-                    loadOptimization(profilePreference)
+                val confirmedMode = withContext(Dispatchers.IO) {
+                    apiClient.setSteamLaunchMode(previousGame.id, requestedMode)
                 }
+                if (confirmedMode != null) {
+                    currentGame = currentGame.copy(
+                        steamLaunch = currentGame.steamLaunch?.copy(mode = confirmedMode)
+                    )
+                } else {
+                    currentGame = previousGame
+                    NovaSnackbar.showError(
+                        this@NovaGameDetailActivity,
+                        getString(R.string.nova_steam_launch_mode_failed),
+                    )
+                }
+                refreshUiState()
+                loadOptimization(profilePreference)
             }
         }
 

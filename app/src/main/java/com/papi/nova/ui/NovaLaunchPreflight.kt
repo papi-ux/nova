@@ -5,6 +5,25 @@ import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.preferences.PreferenceConfiguration
 
 /**
+ * Main-thread ownership fence for Game Detail launch preflights.
+ *
+ * A response is allowed to publish state or replay a held Play press only while it owns
+ * the newest generation. Cancellation avoids wasted work; this generation check is the
+ * authority boundary when a blocking HTTP call cannot be interrupted immediately.
+ */
+internal class NovaLaunchPreflightRequestFence {
+    private var generation: Long = 0
+
+    fun begin(): Long = ++generation
+
+    fun invalidate() {
+        generation += 1
+    }
+
+    fun owns(requestGeneration: Long): Boolean = requestGeneration == generation
+}
+
+/**
  * The one place a launch pushes its per-client display intent to the host before starting.
  *
  * Three surfaces launch games (game detail, the library result path, and shortcut

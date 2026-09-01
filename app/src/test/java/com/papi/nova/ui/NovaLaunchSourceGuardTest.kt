@@ -144,11 +144,13 @@ class NovaLaunchSourceGuardTest {
         )
         assertTrue(
             "every launch path must come through the one gate, so a second path cannot go round the guard the first one gained",
-            detail.contains("onPrimaryLaunch = { attemptLaunch() }") &&
+                detail.contains("onPrimaryLaunch = { attemptLaunch() }") &&
                 !detail.contains("fun launchSelected(") &&
                 // A settle that fires late must not let a launch through on the previous
                 // value, so it marks in flight now and the launch flushes it early.
-                detail.contains("optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)\n            settleJob?.cancel()") &&
+                detail.contains("optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)") &&
+                detail.contains("preflightRequestFence.invalidate()") &&
+                detail.contains("settleJob?.cancel()") &&
                 detail.contains("flushSettled()")
         )
         assertTrue(
@@ -806,27 +808,38 @@ class NovaLaunchSourceGuardTest {
                 publish.contains("clientSettings = updated") &&
                 publish.contains("refreshUiState()") &&
                 publish.contains("return true") &&
+                publish.contains("preflightRequestFence.owns(requestGeneration)") &&
                 optimization.contains("syncAndPublishLaunchPreflightSettings(") &&
-                optimization.contains("check(syncAndPublishLaunchPreflightSettings(") &&
+                optimization.contains("requestGeneration,") &&
                 optimization.contains("check(StreamSyncManager.hasTrustedResolvedProfile(opt))") &&
                 optimization.contains("val optimizationMode = uiState.playMode") &&
                 optimization.contains("mode = optimizationMode") &&
                 optimization.contains("NovaGameDetailOptimizationState(preflightFailed = true)") &&
                 optimization.contains("pendingLaunch = false") &&
-                highFps.contains("syncAndPublishLaunchPreflightSettings(") &&
-                highFps.contains("check(StreamSyncManager.hasTrustedResolvedProfile(opt))") &&
-                highFps.contains("val optimizationMode = uiState.playMode") &&
-                highFps.contains("mode = optimizationMode")
+                highFps.contains("loadOptimization(profilePreference)") &&
+                highFps.contains("pendingSettledWork = null") &&
+                !highFps.contains("lifecycleScope.launch")
         )
 
         assertTrue(
             "a typed host rejection must remain visible instead of being replaced by the generic retry message",
             optimization.contains("var failureMessageShown = false") &&
                 optimization.contains("failureMessageShown = true") &&
-                optimization.contains("if (!failureMessageShown)") &&
-                highFps.contains("var failureMessageShown = false") &&
-                highFps.contains("failureMessageShown = true") &&
-                highFps.contains("if (!failureMessageShown)")
+                optimization.contains("if (!failureMessageShown)")
+        )
+
+        assertTrue(
+            "only the newest preflight may publish state or replay a held launch, and a selection change must retire the request immediately",
+            detail.contains("val preflightRequestFence = NovaLaunchPreflightRequestFence()") &&
+                optimization.contains("preflightJob?.cancel()") &&
+                optimization.contains("val requestGeneration = preflightRequestFence.begin()") &&
+                optimization.contains("if (!preflightRequestFence.owns(requestGeneration)) return@launch") &&
+                optimization.indexOf("if (!preflightRequestFence.owns(requestGeneration)) return@launch") <
+                optimization.indexOf("optimizationState = nextOptimizationState") &&
+                optimization.indexOf("optimizationState = nextOptimizationState") <
+                optimization.indexOf("if (pendingLaunch)") &&
+                detail.section("fun settleThen(", "fun selectHighFpsPreset(")
+                    .contains("preflightRequestFence.invalidate()")
         )
     }
 
@@ -934,6 +947,11 @@ class NovaLaunchSourceGuardTest {
         assertTrue(api.contains("json.optString(\"mode\", normalizedMode)"))
         assertTrue(detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,"))
         assertTrue(detail.contains("confirmedMode != null"))
+        assertTrue(
+            "Steam confirmation must remain inside the tracked settle job so a newer selection can cancel its stale continuation",
+            detail.section("fun selectSteamLaunchMode(", "/**\n         * The act column")
+                .let { it.contains("settleThen {") && !it.contains("lifecycleScope.launch") }
+        )
     }
 
     private fun readSource(path: String): String =
