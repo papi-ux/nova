@@ -97,6 +97,7 @@ import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.manager.StreamSyncManager
+import com.papi.nova.preferences.NovaDisplayFpsCapability
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
@@ -442,6 +443,11 @@ class NovaGameDetailActivity : NovaActivity() {
         // rebuilt fresh from the planner every open, so only its id is persisted
         // (NovaResolutionOverrides) and resolved back against this open's planner here.
         var chosenResolution by mutableStateOf<NovaDisplayResolutionChoice?>(loadResolutionOverride(currentGame))
+        // An explicit frame-rate pin, independent of resolution. It composes over
+        // whatever fps the resolution choice (or the host's own plan) would have used --
+        // see NovaLaunchStreamOverride.compose, where fpsOverride wins over both. Persisted
+        // the same way as chosenResolution, so it survives past this Activity's lifetime.
+        var chosenFps by mutableStateOf<Int?>(loadFrameRateOverride(currentGame))
         // Changing a row is cheap; telling the host about it is not. Presses settle first
         // so that cycling past three values costs one round-trip rather than three.
         var settleJob: Job? = null
@@ -452,17 +458,20 @@ class NovaGameDetailActivity : NovaActivity() {
 
         /**
          * The blob this launch would go out with: the host's plan, composed with the
-         * resolution chosen here and the High FPS pin, when either exists. Composed
-         * over the host blob rather than replacing it, so a resolution pick no longer
-         * silently discards the recovery clamp -- only the explicit fps pin releases
-         * it. The fps that launches must always be re-derivable from this blob.
+         * resolution chosen here and the fps pin, when either exists. Composed over the
+         * host blob rather than replacing it, so a resolution pick no longer silently
+         * discards the recovery clamp -- only the explicit fps pin releases it. An
+         * explicit Frame Rate row choice wins over the implicit Tuning = High FPS pin,
+         * since a pin made by name here is a more specific answer than one inferred
+         * from a quality profile. The fps that launches must always be re-derivable
+         * from this blob.
          */
         fun launchOptimization(): JSONObject? {
             val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
             return NovaLaunchStreamOverride.compose(
                 raw = optimizationState.rawOptimization,
                 resolution = chosenResolution,
-                fpsOverride = NovaLaunchStreamOverride.highFpsPin(profilePreference, preferences.fps),
+                fpsOverride = effectiveFpsPin(chosenFps, profilePreference, preferences.fps),
                 fallbackWidth = preferences.width,
                 fallbackHeight = preferences.height,
                 fallbackFps = preferences.fps.toInt(),
@@ -864,6 +873,20 @@ class NovaGameDetailActivity : NovaActivity() {
             saveResolutionOverride(currentGame, choice.id)
         }
 
+        /**
+         * Pin a frame rate rather than launching with it, same as [chooseResolution].
+         * Null clears the pin -- the row's own "Auto" option -- so the game goes back to
+         * whatever fps the resolution choice or the host's plan would have used.
+         */
+        fun chooseFrameRate(fps: Int?) {
+            chosenFps = fps
+            if (fps != null) {
+                saveFrameRateOverride(currentGame, fps)
+            } else {
+                clearFrameRateOverride(currentGame)
+            }
+        }
+
         fun selectProfilePreference(value: String) {
             if (value == profilePreference) return
             profilePreference = value
@@ -978,15 +1001,69 @@ class NovaGameDetailActivity : NovaActivity() {
                     },
                     overridden = overridden,
                 )
+
+                val effectiveFps = chosenFps
+                    ?: effective?.targetMode?.let { NovaDisplayResolutionPlanner.resolutionFps(it) }
+                rows += NovaPlaySetupRowState(
+                    row = NovaPlaySetupRow.FRAME_RATE,
+                    label = getString(R.string.nova_play_setup_frame_rate),
+                    caption = if (chosenFps != null) {
+                        getString(R.string.nova_play_setup_frame_rate_chosen)
+                    } else {
+                        getString(R.string.nova_play_setup_frame_rate_caption)
+                    },
+                    value = effectiveFps?.let { getString(R.string.nova_play_setup_frame_rate_fps_format, it) }.orEmpty(),
+                    stripTitle = getString(R.string.nova_play_setup_strip_frame_rate),
+                    options = buildList {
+                        add(
+                            NovaPlaySetupOption(
+                                label = getString(R.string.nova_play_setup_frame_rate_auto),
+                                consequence = getString(R.string.nova_play_setup_frame_rate_auto_consequence),
+                                current = chosenFps == null,
+                                onSelect = { chooseFrameRate(null) },
+                            )
+                        )
+                        // Culled to what this panel can actually present -- offering 120
+                        // on a 60Hz panel would let a player lock in a launch the display
+                        // cannot honor, turning a simple choice into a fail-closed error.
+                        val panelAllowedFps = NovaDisplayFpsCapability.allowedFpsValues(
+                            NovaDisplayFpsCapability.maxSupportedFps(windowManager.defaultDisplay)
+                        )
+                        NOVA_FRAME_RATE_CHOICES.filter { it in panelAllowedFps }.forEach { fps ->
+                            add(
+                                NovaPlaySetupOption(
+                                    label = getString(R.string.nova_play_setup_frame_rate_fps_format, fps),
+                                    consequence = "",
+                                    current = chosenFps == fps,
+                                    onSelect = { chooseFrameRate(fps) },
+                                )
+                            )
+                        }
+                    },
+                    overridden = chosenFps != null,
+                )
+            } else if (chosenFps != null) {
+                // The Frame Rate row only exists alongside the display planner above. A
+                // pin saved during an earlier session with a planner could otherwise keep
+                // steering launchOptimization()'s fpsOverride from here on while having no
+                // visible, clearable control on this screen -- a durable lock nobody can
+                // see or undo. Retire it instead of leaving it stuck.
+                chooseFrameRate(null)
             }
 
             rows += NovaPlaySetupRowState(
                 row = NovaPlaySetupRow.TUNING,
                 label = getString(R.string.nova_play_setup_tuning),
-                // High FPS is binding, so the caption states the explicit pin.
-                // Historical Doctor guidance never participates in this launch.
+                // High FPS is binding, so the caption states the explicit pin -- but only
+                // when Tuning's own High FPS preference is what is actually pinning it. An
+                // explicit Frame Rate row choice wins over that pin in launchOptimization()
+                // (see the fpsOverride comment there), and the row above already says so;
+                // Tuning claiming credit for a number the Frame Rate row is really the one
+                // launching with would put a wrong number in front of the player -- not
+                // just an inconsistent one. Historical Doctor guidance never participates
+                // in this launch either way.
                 caption = when {
-                    fpsPin != null -> getString(R.string.nova_play_setup_tuning_pins, fpsPin)
+                    chosenFps == null && fpsPin != null -> getString(R.string.nova_play_setup_tuning_pins, fpsPin)
                     // The row used to show only the saved ask; for the asks the host
                     // owns, the outcome is the half that was never said anywhere.
                     else -> when (
@@ -1013,7 +1090,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         onSelect = { selectProfilePreference(value) },
                     )
                 },
-                overridden = fpsPin != null,
+                overridden = chosenFps == null && fpsPin != null,
             )
 
             if (uiState.showSteamLaunchMode) {
@@ -1493,6 +1570,32 @@ class NovaGameDetailActivity : NovaActivity() {
     /** Drop the durable choice, not just the in-memory state, so it does not return on reopen. */
     private fun clearResolutionOverride(game: PolarisGame) {
         NovaResolutionOverrides.clear(this@NovaGameDetailActivity, game)
+    }
+
+    /**
+     * A saved pin from a previous open, coerced down to what this panel can present.
+     *
+     * The pin can outlive the panel it was chosen on -- a different physical display, or
+     * the same one after a refresh-rate change. An impossible value here would not just
+     * look wrong: launchOptimization() feeds it straight into fpsOverride, so it would
+     * fail the launch outright rather than merely being an odd choice on screen.
+     */
+    private fun loadFrameRateOverride(game: PolarisGame): Int? {
+        val saved = NovaFrameRateOverrides.load(this@NovaGameDetailActivity, game) ?: return null
+        val maxSupportedFps = NovaDisplayFpsCapability.maxSupportedFps(windowManager.defaultDisplay)
+        val coerced = NovaDisplayFpsCapability.coerce(saved, maxSupportedFps)
+        if (coerced != saved) {
+            NovaFrameRateOverrides.save(this@NovaGameDetailActivity, game, coerced)
+        }
+        return coerced
+    }
+
+    private fun saveFrameRateOverride(game: PolarisGame, fps: Int) {
+        NovaFrameRateOverrides.save(this@NovaGameDetailActivity, game, fps)
+    }
+
+    private fun clearFrameRateOverride(game: PolarisGame) {
+        NovaFrameRateOverrides.clear(this@NovaGameDetailActivity, game)
     }
 
     private fun loadArtworkState(game: PolarisGame): NovaArtworkStudioState {
@@ -2038,3 +2141,25 @@ internal fun resolveSavedResolutionChoice(
     if (savedId.isNullOrBlank()) return null
     return visibleChoices.firstOrNull { it.id == savedId }
 }
+
+/**
+ * The fixed rates the Frame Rate row could offer, independent of what any resolution
+ * choice happens to pair with. Not host-derived like the resolution list -- Polaris does
+ * not publish a capability list to filter this against -- but it must still be culled to
+ * what this panel can actually present: see [NovaDisplayFpsCapability.allowedFpsValues],
+ * the same threshold every other FPS-offering surface in the app uses.
+ */
+private val NOVA_FRAME_RATE_CHOICES = listOf(30, 60, 90, 120)
+
+/**
+ * The fps that actually launches: an explicit Frame Rate row pin, or -- only when there
+ * is none -- the fps Tuning = High FPS would pin instead.
+ *
+ * The single place this precedence is decided. [NovaGameDetailActivity]'s
+ * launchOptimization() feeds this straight into the launch envelope's fpsOverride; the
+ * Play Setup Tuning row caption must never name a different winner than this, which is
+ * why the row suppresses its own "Pins N FPS" claim whenever chosenFps is non-null
+ * instead of recomputing this precedence a second time.
+ */
+internal fun effectiveFpsPin(chosenFps: Int?, profilePreference: String, settingsFps: Float): Int? =
+    chosenFps ?: NovaLaunchStreamOverride.highFpsPin(profilePreference, settingsFps)
