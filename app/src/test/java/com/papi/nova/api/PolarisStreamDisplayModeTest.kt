@@ -22,6 +22,8 @@ class PolarisStreamDisplayModeTest {
         assertEquals("Host Virtual Display", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY))
         assertEquals("Mirror Desktop", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
         assertEquals("Private Stream (GPU-native)", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
+        assertEquals("Gamescope Stream", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_GAMESCOPE_STREAM))
+        assertEquals("Headless Dongle", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_HEADLESS_DONGLE))
     }
 
     @Test

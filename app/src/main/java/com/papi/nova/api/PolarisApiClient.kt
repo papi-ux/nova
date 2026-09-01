@@ -16,12 +16,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.ConnectionPool
 import okhttp3.Protocol
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.ByteArrayInputStream
 import java.io.IOException
@@ -40,6 +44,8 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.net.Socket
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
@@ -152,6 +158,29 @@ class PolarisApiClient @JvmOverloads constructor(
                 .callTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .readTimeout(ARTWORK_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .build()
+
+        @JvmStatic
+        internal suspend fun awaitArtworkResponse(call: Call): Response =
+            suspendCancellableCoroutine { continuation ->
+                continuation.invokeOnCancellation { call.cancel() }
+                call.enqueue(
+                    object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            if (continuation.isActive) {
+                                continuation.resumeWithException(e)
+                            }
+                        }
+
+                        override fun onResponse(call: Call, response: Response) {
+                            if (continuation.isActive) {
+                                continuation.resume(response) { _, value, _ -> value.close() }
+                            } else {
+                                response.close()
+                            }
+                        }
+                    },
+                )
+            }
 
         @JvmStatic
         internal fun buildNonRetryableHttpClient(base: OkHttpClient): OkHttpClient =
@@ -640,6 +669,53 @@ class PolarisApiClient @JvmOverloads constructor(
                     )
                 }
             }
+        }
+
+        /**
+         * Launch preflight needs the current typed catalog, not merely a JSON body that
+         * can be coerced into default settings. Missing or malformed authority must make
+         * the update nullable so Game Detail stays in its retry gate.
+         */
+        @JvmStatic
+        internal fun hasTypedLaunchModeAuthority(json: JSONObject): Boolean {
+            val settingsJson = json.optJSONObject("client_settings") ?: json
+            if (strictIntOrNull(settingsJson, "version") != 1) return false
+            val desired = settingsJson.optJSONObject("desired") ?: return false
+            val effective = settingsJson.optJSONObject("effective") ?: return false
+            val capabilities = settingsJson.optJSONObject("capabilities") ?: return false
+            val modes = capabilities.opt("modes") as? JSONArray ?: return false
+            if (modes.length() == 0) return false
+
+            val knownModes = setOf(
+                PolarisGame.MODE_HEADLESS_STREAM,
+                PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
+                PolarisGame.MODE_DESKTOP_DISPLAY,
+                PolarisGame.MODE_WINDOWED_STREAM,
+                PolarisGame.MODE_GAMESCOPE_STREAM,
+                PolarisGame.MODE_HEADLESS_DONGLE,
+            )
+            val catalogModes = linkedSetOf<String>()
+            for (index in 0 until modes.length()) {
+                val mode = modes.optJSONObject(index) ?: return false
+                val value = (mode.opt("value") as? String)
+                    ?.let(PolarisGame::normalizeLaunchMode)
+                    ?.takeIf { it in knownModes }
+                    ?: return false
+                if (mode.opt("available") !is Boolean ||
+                    (mode.has("session_overridable") && mode.opt("session_overridable") !is Boolean) ||
+                    !catalogModes.add(value)
+                ) {
+                    return false
+                }
+            }
+
+            val desiredMode = (desired.opt("stream_display_mode") as? String)
+                ?.let(PolarisGame::normalizeLaunchMode)
+                .orEmpty()
+            val effectiveMode = (effective.opt("stream_display_mode") as? String)
+                ?.let(PolarisGame::normalizeLaunchMode)
+                .orEmpty()
+            return desiredMode in catalogModes && effectiveMode in catalogModes
         }
 
         @JvmStatic
@@ -2141,7 +2217,12 @@ class PolarisApiClient @JvmOverloads constructor(
                     }
                     return null
                 }
-                parseClientSettingsResponse(JSONObject(responseBody.ifBlank { return null }))
+                val responseJson = JSONObject(responseBody.ifBlank { return null })
+                if (!hasTypedLaunchModeAuthority(responseJson)) {
+                    LimeLog.warning("Nova: Client settings update omitted typed launch-mode authority")
+                    return null
+                }
+                parseClientSettingsResponse(responseJson)
             }
         } catch (e: PolarisApiRejectedException) {
             throw e
@@ -2215,7 +2296,9 @@ class PolarisApiClient @JvmOverloads constructor(
         selectArtworkUrl(serverAddress, resolvedHttpsPort, game, PolarisGame.ARTWORK_KIND_POSTER).orEmpty()
 
     fun clearCoverCache() {
-        coverCache.evictAll()
+        synchronized(coverCache) {
+            coverCache.evictAll()
+        }
     }
 
     private fun parseBoundedArtworkJson(body: okhttp3.ResponseBody): JSONObject? {
@@ -2421,7 +2504,19 @@ class PolarisApiClient @JvmOverloads constructor(
         loadArtworkInto(view, game, PolarisGame.ARTWORK_KIND_POSTER)
     }
 
-    fun loadArtworkInto(view: ImageView, game: PolarisGame, kind: String) {
+    private data class ArtworkLoadSpec(
+        val gameId: String,
+        val gameName: String,
+        val kind: String,
+        val imageUrl: String?,
+        val revision: String,
+        val usesManifest: Boolean,
+        val targetWidth: Int,
+        val targetHeight: Int,
+        val cacheKey: String,
+    )
+
+    private fun buildArtworkLoadSpec(game: PolarisGame, kind: String): ArtworkLoadSpec {
         val normalizedKind = kind.trim().lowercase()
         val manifestAsset = game.artworkAsset(normalizedKind)?.takeIf { it.cached }
         val manifestUrl = manifestAsset?.let {
@@ -2441,45 +2536,94 @@ class PolarisApiClient @JvmOverloads constructor(
             "polaris-cover:${game.id}:$normalizedKind:$sizeBucket:${game.coverUrl}"
         }
 
-        view.setTag(R.id.nova_artwork_request_key, cacheKey)
+        return ArtworkLoadSpec(
+            gameId = game.id,
+            gameName = game.name,
+            kind = normalizedKind,
+            imageUrl = imageUrl,
+            revision = revision,
+            usesManifest = usesManifest,
+            targetWidth = targetWidth,
+            targetHeight = targetHeight,
+            cacheKey = cacheKey,
+        )
+    }
+
+    private fun cachedCover(cacheKey: String): Bitmap? = synchronized(coverCache) {
+        coverCache.get(cacheKey)
+    }
+
+    private fun cacheCover(cacheKey: String, bitmap: Bitmap) = synchronized(coverCache) {
+        coverCache.put(cacheKey, bitmap)
+    }
+
+    private suspend fun resolveArtworkBitmap(spec: ArtworkLoadSpec): Bitmap? {
+        val imageUrl = spec.imageUrl ?: return null
+        cachedCover(spec.cacheKey)?.let { return it }
+
+        val exactDisk = if (spec.usesManifest) {
+            artworkDiskCache.load(
+                spec.gameId,
+                spec.kind,
+                spec.revision,
+                allowStale = false,
+                spec.targetWidth,
+                spec.targetHeight,
+            )
+        } else null
+        val bitmap = exactDisk ?: run {
+            val fetched = fetchArtwork(imageUrl, spec.targetWidth, spec.targetHeight)
+            if (fetched != null) {
+                if (spec.usesManifest) {
+                    artworkDiskCache.store(
+                        spec.gameId,
+                        spec.kind,
+                        spec.revision,
+                        fetched.bytes,
+                        fetched.mimeType,
+                    )
+                }
+                fetched.bitmap
+            } else if (spec.usesManifest) {
+                artworkDiskCache.load(
+                    spec.gameId,
+                    spec.kind,
+                    spec.revision,
+                    allowStale = true,
+                    spec.targetWidth,
+                    spec.targetHeight,
+                )
+            } else null
+        }
+        if (bitmap != null) cacheCover(spec.cacheKey, bitmap)
+        return bitmap
+    }
+
+    internal suspend fun loadShortcutIcon(game: PolarisGame): Bitmap? =
+        resolveArtworkBitmap(buildArtworkLoadSpec(game, PolarisGame.ARTWORK_KIND_ICON))
+
+    fun loadArtworkInto(view: ImageView, game: PolarisGame, kind: String) {
+        val spec = buildArtworkLoadSpec(game, kind)
+
+        view.setTag(R.id.nova_artwork_request_key, spec.cacheKey)
         view.setImageResource(R.drawable.nova_cover_placeholder)
         (view.getTag(R.id.nova_artwork_job) as? Job)?.cancel()
-        if (imageUrl == null) return
+        if (spec.imageUrl == null) return
 
-        coverCache.get(cacheKey)?.let { cached ->
+        cachedCover(spec.cacheKey)?.let { cached ->
             view.setImageBitmap(cached)
             return
         }
 
         val job = imageScope.launch {
-            val exactDisk = if (usesManifest) {
-                artworkDiskCache.load(game.id, normalizedKind, revision, allowStale = false, targetWidth, targetHeight)
-            } else null
-            val bitmap = exactDisk ?: run {
-                val fetched = fetchArtwork(imageUrl, targetWidth, targetHeight)
-                if (fetched != null) {
-                    if (usesManifest) {
-                        artworkDiskCache.store(
-                            game.id,
-                            normalizedKind,
-                            revision,
-                            fetched.bytes,
-                            fetched.mimeType,
-                        )
-                    }
-                    fetched.bitmap
-                } else if (usesManifest) {
-                    artworkDiskCache.load(game.id, normalizedKind, revision, allowStale = true, targetWidth, targetHeight)
-                } else null
-            }
+            val bitmap = resolveArtworkBitmap(spec)
             withContext(Dispatchers.Main) {
-                if (view.getTag(R.id.nova_artwork_request_key) != cacheKey) return@withContext
+                if (view.getTag(R.id.nova_artwork_request_key) != spec.cacheKey) return@withContext
                 if (bitmap != null) {
-                    coverCache.put(cacheKey, bitmap)
                     view.setImageBitmap(bitmap)
                 } else {
                     view.setImageResource(R.drawable.nova_cover_placeholder)
-                    LimeLog.warning("Nova: $normalizedKind artwork load failed for ${game.name}")
+                    LimeLog.warning("Nova: ${spec.kind} artwork load failed for ${spec.gameName}")
                 }
             }
         }
@@ -2496,7 +2640,7 @@ class PolarisApiClient @JvmOverloads constructor(
         repeat(3) { attempt ->
             try {
                 val request = Request.Builder().url(url).build()
-                executeArtwork(request).use { response ->
+                awaitArtworkResponse(artworkClient.newCall(request)).use { response ->
                     if (!response.isSuccessful) {
                         LimeLog.warning("Nova: artwork request failed [$requestClass] code=${response.code}")
                         return null

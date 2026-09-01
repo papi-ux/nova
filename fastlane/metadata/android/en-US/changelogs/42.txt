@@ -1,0 +1,2 @@
+Nova 1.4.0
+Doctor stays evidence-first with exact session authority, verified same-stream bitrate fixes, and rollback. Launch presets remain deterministic and independent from AI or history. Play Setup remembers per-game resolution and frame rate independently. Pinned shortcuts use game artwork, while Pin and Artwork stay compact beside Launch, Play Setup, and Reset. No hidden game-process limiter is applied, and Steam Input remains read-only.

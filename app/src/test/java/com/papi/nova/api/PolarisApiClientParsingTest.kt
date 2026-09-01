@@ -24,6 +24,48 @@ import org.robolectric.annotation.Config
 class PolarisApiClientParsingTest {
 
     @Test
+    fun launchPreflightAuthorityRequiresCompleteTypedCurrentModeEnvelope() {
+        assertFalse(PolarisApiClient.hasTypedLaunchModeAuthority(JSONObject()))
+        assertFalse(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject("""{"client_settings":{"version":1}}"""),
+            ),
+        )
+        assertFalse(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_display"},"effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[{"value":"desktop_display","available":"true","session_overridable":true}]}}}""",
+                ),
+            ),
+        )
+        assertFalse(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_display"},"effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[{"value":"desktop_display","available":true,"session_overridable":"true"}]}}}""",
+                ),
+            ),
+        )
+
+        // The non-Linux catalog predates session_overridable; absence keeps its
+        // documented true default, but a present malformed value above is rejected.
+        assertTrue(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_display"},"effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[{"value":"desktop_display","available":true}]}}}""",
+                ),
+            ),
+        )
+
+        assertTrue(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_display"},"effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[{"value":"desktop_display","available":true,"session_overridable":true},{"value":"gamescope_stream","available":false,"session_overridable":true}]}}}""",
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun typedPolicyRejectionRequiresLiteralFailureFieldsAndPreservesTheReason() {
         val optimize = PolarisApiClient.parseTypedRejection(
             httpStatus = 400,
@@ -1770,6 +1812,57 @@ class PolarisApiClientParsingTest {
             "Polaris will stream from the private headless compositor runtime.",
             choice.hostModeReason
         )
+    }
+
+    @Test
+    fun launchModeChoice_keepsUnavailableVirtualGuidanceWhenContractRemovesTheMode() {
+        val settings = PolarisApiClient.parseClientSettingsResponse(
+            JSONObject(
+                "{\"version\":1,\"desired\":{},\"effective\":{},\"capabilities\":{\"modes\":[" +
+                    "{\"value\":\"headless_stream\",\"available\":true}," +
+                    "{\"value\":\"host_virtual_display\",\"available\":false," +
+                    "\"reason\":\"General mode copy.\",\"unavailable_reason\":\"Set linux_streaming_output first.\"}]}}"
+            )
+        )
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Game\"," +
+                    "\"launch_mode\":{\"preferred_mode\":\"host_virtual_display\"," +
+                    "\"recommended_mode\":\"headless_stream\",\"allowed_modes\":[\"headless_stream\"]}}"
+            )
+        )
+
+        val choice = game.resolveLaunchModeChoice(true, settings)
+
+        assertEquals(PolarisGame.MODE_HEADLESS_STREAM, choice.recommendedMode)
+        assertFalse(choice.virtualDisplayAllowed)
+        assertTrue(choice.virtualDisplayUnavailable)
+        assertEquals("Set linux_streaming_output first.", choice.virtualDisplayUnavailableReason)
+    }
+
+    @Test
+    fun launchModeChoice_doesNotClaimAnUnusedVirtualFallbackForDesktopPlay() {
+        val settings = PolarisApiClient.parseClientSettingsResponse(
+            JSONObject(
+                "{\"version\":1,\"desired\":{\"stream_display_mode\":\"desktop_display\"}," +
+                    "\"effective\":{},\"capabilities\":{\"modes\":[" +
+                    "{\"value\":\"desktop_display\",\"available\":true}," +
+                    "{\"value\":\"host_virtual_display\",\"available\":false," +
+                    "\"unavailable_reason\":\"Set linux_streaming_output first.\"}]}}"
+            )
+        )
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Game\"," +
+                    "\"launch_mode\":{\"preferred_mode\":\"desktop_display\"," +
+                    "\"recommended_mode\":\"desktop_display\",\"allowed_modes\":[\"desktop_display\"]}}"
+            )
+        )
+
+        val choice = game.resolveLaunchModeChoice(false, settings)
+
+        assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, choice.recommendedMode)
+        assertFalse(choice.virtualDisplayUnavailable)
     }
 
     @Test

@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.papi.nova.ui.compose.NovaComposeTheme
@@ -93,5 +94,50 @@ class NovaPlaySetupModePickerComposeTest {
             )
         }
         disabledCard.assertIsFocused()
+    }
+
+    @Test
+    fun hostDefaultOnlyCardOpensHostSettingsWithoutSelectingTheMode() {
+        val picked = mutableListOf<String>()
+        var configureRequests = 0
+        val detail = "Headless Dongle rearranges physical displays, so a game cannot turn it on for one launch."
+
+        composeRule.setContent {
+            NovaComposeTheme {
+                NovaPlaySetupModePicker(
+                    state = NovaPlaySetupModePickerState(
+                        title = "Where It Runs",
+                        hostDefaultLabel = null,
+                        hostDefaultCurrent = false,
+                        choices = listOf(
+                            NovaPlaySetupModeChoice(
+                                id = "headless_dongle",
+                                label = "Headless Dongle",
+                                detail = detail,
+                                group = "host",
+                                current = false,
+                                active = false,
+                                enabled = false,
+                                hostDefaultOnly = true,
+                            ),
+                        ),
+                    ),
+                    onPick = { picked += it },
+                    onPickHostDefault = null,
+                    onConfigureHost = { configureRequests += 1 },
+                )
+            }
+        }
+
+        composeRule
+            .onNodeWithContentDescription(
+                "Headless Dongle. Host default only. $detail Open Polaris Settings.",
+            )
+            .performClick()
+
+        composeRule.runOnIdle {
+            assertTrue("host-only card must not select a per-game mode", picked.isEmpty())
+            assertTrue("host-only card should open host settings", configureRequests == 1)
+        }
     }
 }

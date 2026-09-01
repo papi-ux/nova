@@ -15,6 +15,29 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class NovaGameDetailUiStateTest {
     @Test
+    fun launchPreflightGateWaitsRetriesAndOnlyThenAllowsLaunch() {
+        assertEquals(
+            NovaLaunchPreflightGate.WAIT,
+            NovaGameDetailOptimizationState(preflightInFlight = true).launchPreflightGate(),
+        )
+        assertEquals(
+            NovaLaunchPreflightGate.RETRY,
+            NovaGameDetailOptimizationState(preflightFailed = true).launchPreflightGate(),
+        )
+        assertEquals(
+            NovaLaunchPreflightGate.READY,
+            NovaGameDetailOptimizationState().launchPreflightGate(),
+        )
+        assertEquals(
+            NovaLaunchPreflightGate.READY,
+            NovaGameDetailOptimizationState(
+                rawOptimization = JSONObject(),
+                preflightInFlight = true,
+            ).launchPreflightGate(),
+        )
+    }
+
+    @Test
     fun agreeingWithTheHostIsNotAnOverride() {
         val state = NovaGameDetailUiState.from(
             game = game(
@@ -335,7 +358,11 @@ class NovaGameDetailUiStateTest {
                 launchMode = PolarisGame.LaunchModeContract(
                     preferredMode = "headless_stream",
                     recommendedMode = "headless_stream",
-                    allowedModes = listOf("headless_stream", "host_virtual_display")
+                    allowedModes = listOf(
+                        "headless_stream",
+                        "host_virtual_display",
+                        PolarisClientSettings.MODE_GPU_NATIVE_TEST,
+                    )
                 )
             ),
             defaultToVirtualDisplay = false,
@@ -355,6 +382,165 @@ class NovaGameDetailUiStateTest {
         assertFalse("following the host is not overriding it", state.overridesHostMode)
         assertEquals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, state.hostStreamDisplayMode)
         assertEquals("Private Stream (GPU-native)", state.hostStreamDisplayModeLabel)
+        assertEquals("", state.launchStreamMode)
+    }
+
+    @Test
+    fun stalePerGameHeadlessDongleOverrideFallsBackToTheHostDefault() {
+        val state = NovaGameDetailUiState.from(
+            game = game(),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(
+                    streamDisplayMode = PolarisClientSettings.MODE_DESKTOP_DISPLAY,
+                ),
+            ),
+            profilePreference = "auto",
+            launchModeOverride = PolarisClientSettings.MODE_HEADLESS_DONGLE,
+        )
+
+        assertEquals(PolarisClientSettings.MODE_DESKTOP_DISPLAY, state.playMode)
+        assertFalse(state.hasExplicitOverride)
+        assertFalse(state.overridesHostMode)
+    }
+
+    @Test
+    fun unavailableNonPairHostDefaultUsesAndCarriesTheHostsSafeRecommendation() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                launchMode = PolarisGame.LaunchModeContract(
+                    preferredMode = PolarisGame.MODE_WINDOWED_STREAM,
+                    recommendedMode = PolarisGame.MODE_DESKTOP_DISPLAY,
+                    allowedModes = listOf(PolarisGame.MODE_DESKTOP_DISPLAY),
+                ),
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = PolarisGame.MODE_WINDOWED_STREAM),
+                capabilities = PolarisClientSettings.Capabilities(
+                    modes = listOf(
+                        PolarisClientSettings.ModeOption(
+                            value = PolarisGame.MODE_WINDOWED_STREAM,
+                            available = false,
+                            unavailableReason = "labwc and wlr-randr are not installed",
+                        ),
+                        PolarisClientSettings.ModeOption(
+                            value = PolarisGame.MODE_DESKTOP_DISPLAY,
+                            available = true,
+                            sessionOverridable = true,
+                        ),
+                    ),
+                ),
+            ),
+            profilePreference = "auto",
+        )
+
+        assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, state.playMode)
+        assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, state.launchStreamMode)
+        assertEquals("Mirror Desktop", state.playModeLabel)
+        assertFalse(state.hasExplicitOverride)
+        assertTrue(state.usesSafeHostFallback)
+        assertEquals(
+            "labwc and wlr-randr are not installed",
+            state.hostStreamDisplayModeUnavailableReason,
+        )
+    }
+
+    @Test
+    fun availableNonPairHostDefaultStillLaunchesAsAnUnpinnedHostDefault() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                launchMode = PolarisGame.LaunchModeContract(
+                    recommendedMode = PolarisGame.MODE_GAMESCOPE_STREAM,
+                    allowedModes = listOf(PolarisGame.MODE_GAMESCOPE_STREAM),
+                ),
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = PolarisGame.MODE_GAMESCOPE_STREAM),
+                capabilities = PolarisClientSettings.Capabilities(
+                    modes = listOf(
+                        PolarisClientSettings.ModeOption(
+                            value = PolarisGame.MODE_GAMESCOPE_STREAM,
+                            available = true,
+                            sessionOverridable = true,
+                        ),
+                    ),
+                ),
+            ),
+            profilePreference = "auto",
+        )
+
+        assertEquals(PolarisGame.MODE_GAMESCOPE_STREAM, state.playMode)
+        assertEquals("Gamescope Stream", state.playModeLabel)
+        assertEquals("", state.launchStreamMode)
+        assertFalse(state.usesSafeHostFallback)
+    }
+
+    @Test
+    fun availableNonPairChoicesKeepPlayOptionsVisible() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                launchMode = PolarisGame.LaunchModeContract(
+                    recommendedMode = PolarisGame.MODE_DESKTOP_DISPLAY,
+                    allowedModes = listOf(
+                        PolarisGame.MODE_DESKTOP_DISPLAY,
+                        PolarisGame.MODE_GAMESCOPE_STREAM,
+                    ),
+                ),
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = PolarisGame.MODE_DESKTOP_DISPLAY),
+                capabilities = PolarisClientSettings.Capabilities(
+                    modes = listOf(
+                        PolarisClientSettings.ModeOption(
+                            value = PolarisGame.MODE_DESKTOP_DISPLAY,
+                            available = true,
+                            sessionOverridable = true,
+                        ),
+                        PolarisClientSettings.ModeOption(
+                            value = PolarisGame.MODE_GAMESCOPE_STREAM,
+                            available = true,
+                            sessionOverridable = true,
+                        ),
+                    ),
+                ),
+            ),
+            profilePreference = "auto",
+        )
+
+        assertEquals(2, state.actionableLaunchModeCount)
+        assertTrue(state.launchOptionsEnabled)
+        assertTrue(state.showLaunchOptionsButton)
+    }
+
+    @Test
+    fun staleUnavailableNonPairPerGameOverrideIsIgnored() {
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                launchMode = PolarisGame.LaunchModeContract(
+                    recommendedMode = PolarisGame.MODE_DESKTOP_DISPLAY,
+                    allowedModes = listOf(PolarisGame.MODE_DESKTOP_DISPLAY),
+                ),
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = PolarisGame.MODE_DESKTOP_DISPLAY),
+                capabilities = PolarisClientSettings.Capabilities(
+                    modes = listOf(
+                        PolarisClientSettings.ModeOption(value = PolarisGame.MODE_DESKTOP_DISPLAY, available = true),
+                        PolarisClientSettings.ModeOption(value = PolarisGame.MODE_GAMESCOPE_STREAM, available = false),
+                    ),
+                ),
+            ),
+            profilePreference = "auto",
+            launchModeOverride = PolarisGame.MODE_GAMESCOPE_STREAM,
+        )
+
+        assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, state.playMode)
+        assertEquals("", state.launchStreamMode)
+        assertFalse(state.hasExplicitOverride)
     }
 
     private fun game(

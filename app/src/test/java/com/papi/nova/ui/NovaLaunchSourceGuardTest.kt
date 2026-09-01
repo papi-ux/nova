@@ -138,16 +138,19 @@ class NovaLaunchSourceGuardTest {
                 "the guard's answer is still on the wire",
             detail.contains("val preflightInFlight: Boolean = false") &&
                 detail.contains("NovaGameDetailOptimizationState(preflightInFlight = true)") &&
-                detail.contains("if (optimizationState.rawOptimization == null && optimizationState.preflightInFlight) {") &&
-                detail.contains("if (pendingLaunch) attemptLaunch()")
+                detail.contains("when (optimizationState.launchPreflightGate())") &&
+                detail.contains("NovaLaunchPreflightGate.WAIT ->") &&
+                detail.contains("if (launchCanReplay)")
         )
         assertTrue(
             "every launch path must come through the one gate, so a second path cannot go round the guard the first one gained",
-            detail.contains("onPrimaryLaunch = { attemptLaunch() }") &&
+                detail.contains("onPrimaryLaunch = { attemptLaunch() }") &&
                 !detail.contains("fun launchSelected(") &&
                 // A settle that fires late must not let a launch through on the previous
                 // value, so it marks in flight now and the launch flushes it early.
-                detail.contains("optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)\n            settleJob?.cancel()") &&
+                detail.contains("optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)") &&
+                detail.contains("preflightRequestFence.invalidate()") &&
+                detail.contains("settleJob?.cancel()") &&
                 detail.contains("flushSettled()")
         )
         assertTrue(
@@ -579,7 +582,7 @@ class NovaLaunchSourceGuardTest {
         val strings = readSource("src/main/res/values/strings.xml")
 
         assertTrue(strings.contains("nova_library_virtual_display_unavailable_title") && strings.contains("Host Virtual Display is not ready"))
-        assertTrue(strings.contains("nova_library_virtual_display_unavailable_body") && strings.contains("Polaris says this host cannot start a virtual-display stream right now. Nova will use Private Stream instead."))
+        assertTrue(strings.contains("nova_library_virtual_display_unavailable_body") && strings.contains("Polaris says this host cannot start a virtual-display stream right now. Nova will use the available launch mode shown above instead."))
         assertTrue(strings.contains("nova_library_virtual_display_unavailable_reason_format") && strings.contains("Reason: %1"))
         assertTrue(detail.contains("nova_library_virtual_display_unavailable_body"))
         assertTrue(detail.contains("nova_library_virtual_display_unavailable_reason_format"))
@@ -771,10 +774,100 @@ class NovaLaunchSourceGuardTest {
         )
 
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val detailState = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailUiState.kt")
         assertTrue(
-            "a launch sends streamMode only for an EXPLICIT per-game override; resolving the host default into the launch froze stale modes into sessions",
-            detail.contains("NovaLaunchModeOverrides.load(this@NovaGameDetailActivity, currentGame).orEmpty()") &&
-                !detail.contains("uiState.playMode,\n                launchOptimization()")
+            "a launch sends only the validated session mode: normal host defaults stay unpinned, while an unavailable default can use Polaris's safe per-session replacement",
+            detail.contains("uiState.launchStreamMode,") &&
+                detail.contains("its resolved name separately so the library can describe it truthfully") &&
+                detail.contains("uiState.playMode,") &&
+                detailState.contains("!perGameOverride.isNullOrBlank() -> playMode") &&
+                detailState.contains("hostDefaultUnavailable &&") &&
+                detailState.contains("clientSettings.isLaunchModeSessionOverridable(playMode) -> playMode")
+        )
+    }
+
+    @Test
+    fun preflightPublishesCapabilityStateBeforeOptimizingAndLaunchingItsFallback() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val publish = detail.section(
+            "suspend fun syncAndPublishLaunchPreflightSettings(",
+            "/**\n         * The host scope",
+        )
+        val optimization = detail.section(
+            "fun loadOptimization(",
+            "/**\n         * Tell the host once the presses stop.",
+        )
+        val highFps = detail.section(
+            "fun selectHighFpsPreset()",
+            "fun selectLaunchMode(",
+        )
+
+        assertTrue(
+            "the settings returned by launch preflight must rebuild UI state before either optimizer path captures the exact mode",
+            publish.contains("} ?: return false") &&
+                publish.contains("clientSettings = updated") &&
+                publish.contains("refreshUiState()") &&
+                publish.contains("return true") &&
+                publish.contains("preflightRequestFence.owns(requestGeneration)") &&
+                optimization.contains("syncAndPublishLaunchPreflightSettings(") &&
+                optimization.contains("requestGeneration,") &&
+                optimization.contains("check(StreamSyncManager.hasTrustedResolvedProfile(opt))") &&
+                optimization.contains("val optimizationMode = uiState.playMode") &&
+                optimization.contains("mode = optimizationMode") &&
+                optimization.contains("NovaGameDetailOptimizationState(preflightFailed = true)") &&
+                optimization.contains("pendingLaunch = false") &&
+                highFps.contains("loadOptimization(profilePreference)") &&
+                highFps.contains("pendingSettledWork = null") &&
+                !highFps.contains("lifecycleScope.launch")
+        )
+
+        assertTrue(
+            "a typed host rejection must remain visible instead of being replaced by the generic retry message",
+            optimization.contains("var failureMessageShown = false") &&
+                optimization.contains("failureMessageShown = true") &&
+                optimization.contains("if (!failureMessageShown)")
+        )
+
+        assertTrue(
+            "only the newest preflight may publish state or replay a held launch, and a selection change must retire the request immediately",
+            detail.contains("val preflightRequestFence = NovaLaunchPreflightRequestFence()") &&
+                optimization.contains("preflightJob?.cancel()") &&
+                optimization.contains("val requestGeneration = preflightRequestFence.begin()") &&
+                optimization.contains("awaitLatestSteamLaunchModeWrite()") &&
+                optimization.contains("if (!preflightRequestFence.owns(requestGeneration)) return@launch") &&
+                optimization.indexOf("if (!preflightRequestFence.owns(requestGeneration)) return@launch") <
+                optimization.indexOf("optimizationState = nextOptimizationState") &&
+                optimization.indexOf("optimizationState = nextOptimizationState") <
+                optimization.indexOf("if (pendingLaunch)") &&
+                detail.section("fun settleThen(", "fun selectHighFpsPreset(")
+                    .contains("preflightRequestFence.invalidate()")
+        )
+    }
+
+    @Test
+    fun launchCopyNamesTheExactResolvedModeAndAutomaticFallbackHonestly() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val content = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+        val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+
+        assertTrue(
+            "automatic fallback copy must be distinct from a user override and include the current host rejection reason",
+            detail.contains("uiState.usesSafeHostFallback ->") &&
+                detail.contains("hostStreamDisplayModeUnavailableReason") &&
+                content.contains("uiState.usesSafeHostFallback") &&
+                content.contains("nova_play_setup_host_safe_fallback")
+        )
+        assertTrue(
+            "the launch snackbar must name an unpinned host default without sending that presentation value as streamMode authority",
+            detail.contains(".put(RESULT_KEY_PRESENTATION_MODE, presentationMode)") &&
+                detail.contains("uiState.launchStreamMode,") &&
+                detail.contains("uiState.playMode,") &&
+                library.contains("presentationMode = request.optString(") &&
+                library.contains("val presentedLaunchMode = launchMode.ifBlank { presentationMode }") &&
+                library.contains("val resolvedLaunchModeLabel = when") &&
+                library.contains("PolarisGame.MODE_GAMESCOPE_STREAM") &&
+                library.contains("resolvedLaunchModeLabel.isNotBlank() -> resolvedLaunchModeLabel") &&
+                library.contains("streamMode = launchMode")
         )
     }
 
@@ -830,6 +923,7 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
+        val retainedLaunch = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
         val selection = detail.section(
             "fun selectSteamLaunchMode(value: String) {",
             "fun resetProfile() {"
@@ -837,10 +931,13 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(!selection.contains("dismiss()"))
         assertTrue(!selection.contains("onLaunch?.invoke"))
-        assertTrue(selection.contains("apiClient.setSteamLaunchMode"))
-        // The row advances on every press, so the host is told once the presses stop.
-        // Writing per press turned a cycle through two values into two round-trips.
-        assertTrue(selection.contains("settleThen {"))
+        assertTrue(retainedLaunch.contains("apiClient.setSteamLaunchMode(gameId, mode)"))
+        // The row advances on every press, but its mutation is independently debounced;
+        // unrelated profile/topology settling must not discard the pending host write.
+        assertTrue(retainedLaunch.contains("delay(settleDelayMs)"))
+        assertTrue(retainedLaunch.contains("intents.owns(commit)"))
+        assertTrue(selection.contains("launchViewModel.selectSteamLaunchMode(requestedMode)"))
+        assertTrue(!selection.contains("settleThen {"))
     }
 
     @Test
@@ -850,11 +947,30 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
+        val retainedLaunch = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
 
         assertTrue(api.contains("fun setSteamLaunchMode(gameId: String, mode: String): String?"))
         assertTrue(api.contains("json.optString(\"mode\", normalizedMode)"))
         assertTrue(detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,"))
-        assertTrue(detail.contains("confirmedMode != null"))
+        assertTrue(retainedLaunch.contains("intents.complete(commit, confirmedMode)"))
+        val steamSelection = detail.section("fun selectSteamLaunchMode(", "/**\n         * The act column")
+        assertTrue(
+            "Steam mutations need retained serialized ownership so cross-row debounce or Activity recreation cannot discard or reorder them",
+            detail.contains("NovaGameDetailLaunchViewModel.Factory(") &&
+                detail.contains("launchViewModel.steamLaunchModeSnapshot().displayMode") &&
+                steamSelection.contains("launchViewModel.selectSteamLaunchMode(requestedMode)") &&
+                retainedLaunch.contains("class NovaGameDetailLaunchViewModel(") &&
+                retainedLaunch.contains("scope = viewModelScope") &&
+                retainedLaunch.contains("writeQueue.commit { write(commit.mode) }") &&
+                retainedLaunch.contains("intents.complete(commit, confirmedMode)") &&
+                !steamSelection.contains("settleThen {")
+        )
+        assertTrue(
+            "all optimizer paths must wait until the newest Steam mutation confirms or rolls back",
+            detail.contains("suspend fun awaitLatestSteamLaunchModeWrite()") &&
+                detail.section("fun loadOptimization(", "/**\n         * Tell the host once the presses stop.")
+                    .contains("awaitLatestSteamLaunchModeWrite()")
+        )
     }
 
     private fun readSource(path: String): String =

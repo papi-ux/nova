@@ -1,6 +1,10 @@
 package com.papi.nova.utils
 
 import android.app.Activity
+import android.content.pm.ShortcutInfo
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.Icon
 import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.ShortcutTrampoline
@@ -51,6 +55,7 @@ class ShortcutHelperPolarisShortcutTest {
         // real (Robolectric-intercepted) manager rather than the shadow instance.
         val pinned = shortcutManager.pinnedShortcuts
         assertEquals(1, pinned.size)
+        assertEquals(Icon.TYPE_RESOURCE, shortcutIconType(pinned[0]))
 
         val intent = requireNotNull(pinned[0].intent) { "Pinned shortcut is missing its intent" }
         assertEquals(ShortcutTrampoline::class.java.name, intent.component?.className)
@@ -89,8 +94,42 @@ class ShortcutHelperPolarisShortcutTest {
         )
     }
 
+    @Test
+    fun primitiveOverloadUsesAdaptiveGameArtworkWhenProvided() {
+        val activity = Robolectric.buildActivity(Activity::class.java).get()
+        val shortcutManager = activity.getSystemService(ShortcutManagerClass)
+        shadowOf(shortcutManager).setIsRequestPinShortcutSupported(true)
+        val iconBits = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.MAGENTA)
+        }
+
+        try {
+            val result = ShortcutHelper(activity).createPinnedGameShortcut(
+                hostUuid = "F976460C-ED1F-6F05-4802-CF641F329CB9",
+                hostName = "STUDIO",
+                appUuid = "875C7772-6DDD-8124-4293-F7FB09D44A97",
+                appId = 1519944208,
+                appName = "Ys VIII: Lacrimosa of Dana",
+                hdrSupported = true,
+                iconBits = iconBits,
+            )
+
+            assertTrue("requestPinShortcut should report success", result)
+            assertEquals(Icon.TYPE_ADAPTIVE_BITMAP, shortcutIconType(shortcutManager.pinnedShortcuts.single()))
+        } finally {
+            iconBits.recycle()
+        }
+    }
+
     companion object {
         // Local alias keeps the getSystemService call below on one line.
         private val ShortcutManagerClass = android.content.pm.ShortcutManager::class.java
+
+        private fun shortcutIconType(shortcut: ShortcutInfo): Int {
+            val field = ShortcutInfo::class.java.getDeclaredField("mIcon").apply {
+                isAccessible = true
+            }
+            return (field.get(shortcut) as Icon).type
+        }
     }
 }

@@ -139,8 +139,22 @@ data class NovaGameDetailOptimizationState(
     val reviewRequired: Boolean = false,
     val reviewReason: String = "",
     val preflightInFlight: Boolean = false,
+    /** The host capability preflight failed, so Play must retry it before launching. */
+    val preflightFailed: Boolean = false,
     val aiRecommendedMode: String = ""
 )
+
+internal enum class NovaLaunchPreflightGate {
+    READY,
+    WAIT,
+    RETRY,
+}
+
+internal fun NovaGameDetailOptimizationState.launchPreflightGate(): NovaLaunchPreflightGate = when {
+    rawOptimization == null && preflightInFlight -> NovaLaunchPreflightGate.WAIT
+    preflightFailed -> NovaLaunchPreflightGate.RETRY
+    else -> NovaLaunchPreflightGate.READY
+}
 
 data class NovaLaunchOptionsState(
     val title: String,
@@ -223,6 +237,7 @@ internal fun NovaGameDetailContent(
     modePicker: NovaPlaySetupModePickerState?,
     onPickMode: (String) -> Unit,
     onPickHostDefault: () -> Unit,
+    onConfigureHostMode: () -> Unit = {},
     playLabel: String,
     launchModeTitle: String,
     headlessModeLabel: String,
@@ -362,6 +377,7 @@ internal fun NovaGameDetailContent(
                         } else {
                             null
                         },
+                        onConfigureHost = onConfigureHostMode,
                     )
                 } else if (playSetupScope == NovaPlaySetupScope.EVERY_GAME && hostPlaySetupPlan != null) {
                     // The same four-row shape, absorbing the Polaris Sync sheet's three
@@ -403,9 +419,10 @@ internal fun NovaGameDetailContent(
                             modeLabel = when (uiState.playMode) {
                                 PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> virtualDisplayModeLabel
                                 PolarisGame.MODE_HEADLESS_STREAM -> headlessModeLabel
-                                // Following a host default outside the pair: say what it
-                                // actually is instead of mislabeling it Private Stream.
-                                else -> uiState.hostStreamDisplayModeLabel.ifBlank { headlessModeLabel }
+                                // A stale host default can be replaced for this launch.
+                                // Name the mode Nova will actually send, not the rejected
+                                // host-default label.
+                                else -> uiState.playModeLabel.ifBlank { headlessModeLabel }
                             },
                             lines = listOfNotNull(
                                 summary?.selectedLine
@@ -421,18 +438,37 @@ internal fun NovaGameDetailContent(
                             grantedFormat = stringResource(R.string.nova_play_setup_granted_format),
                             hostFacts = buildList {
                                 if (uiState.hostStreamDisplayModeLabel.isNotBlank()) {
+                                    val safeFallbackDetail = if (uiState.usesSafeHostFallback) {
+                                        buildList {
+                                            add(
+                                                stringResource(
+                                                    R.string.nova_play_setup_host_safe_fallback,
+                                                    uiState.playModeLabel,
+                                                ),
+                                            )
+                                            uiState.hostStreamDisplayModeUnavailableReason
+                                                .takeIf { it.isNotBlank() }
+                                                ?.let(::add)
+                                        }.joinToString(" ")
+                                    } else {
+                                        ""
+                                    }
                                     add(
                                         NovaPlaySetupFact(
                                             key = stringResource(R.string.nova_play_setup_fact_host_default),
                                             value = uiState.hostStreamDisplayModeLabel,
-                                            detail = stringResource(
-                                                if (uiState.overridesHostMode) {
-                                                    R.string.nova_play_setup_host_overridden
-                                                } else {
-                                                    R.string.nova_play_setup_host_followed
-                                                },
-                                            ),
-                                            tone = if (uiState.overridesHostMode) {
+                                            detail = when {
+                                                uiState.usesSafeHostFallback -> safeFallbackDetail
+                                                uiState.overridesHostMode -> stringResource(
+                                                    R.string.nova_play_setup_host_overridden,
+                                                )
+                                                else -> stringResource(
+                                                    R.string.nova_play_setup_host_followed,
+                                                )
+                                            },
+                                            tone = if (
+                                                uiState.overridesHostMode || uiState.usesSafeHostFallback
+                                            ) {
                                                 NovaPlaySetupTone.WARN
                                             } else {
                                                 NovaPlaySetupTone.PLAIN

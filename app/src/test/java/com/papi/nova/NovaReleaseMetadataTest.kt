@@ -81,13 +81,13 @@ class NovaReleaseMetadataTest {
         val releaseWorkflow = File(root, ".github/workflows/build.yml").readText()
         val storeNotes = File(
             root,
-            "fastlane/metadata/android/en-US/changelogs/41.txt"
+            "fastlane/metadata/android/en-US/changelogs/42.txt"
         )
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.3.9\""))
-        assertTrue(build.contains("versionCode = 41"))
-        assertTrue(changelog.contains("## 1.3.9 - 2026-08-26"))
+        assertTrue(build.contains("versionName \"1.4.0\""))
+        assertTrue(build.contains("versionCode = 42"))
+        assertTrue(changelog.contains("## 1.4.0 - 2026-09-01"))
         assertTrue(changelog.contains("Steam Input remains manual and read-only."))
         assertTrue(releaseWorkflow.contains("python3 scripts/extract_release_notes.py"))
         assertTrue(releaseWorkflow.contains("--notes-file \"\$release_notes\""))
@@ -107,7 +107,57 @@ class NovaReleaseMetadataTest {
             "Google Play release notes must be at most 500 Unicode characters",
             storeNotesBody.codePointCount(0, storeNotesBody.length) <= 500,
         )
-        assertTrue(storeNotesBody.startsWith("Nova 1.3.9"))
+        assertTrue(storeNotesBody.startsWith("Nova 1.4.0"))
+    }
+
+    @Test
+    fun releaseScriptTagsOnlyTheExactProtectedMasterHead() {
+        val releaseScript = File(repoRoot(), "bin/release.sh").readText()
+        val lines = releaseScript.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .toList()
+
+        assertTrue(releaseScript.contains("version=\"\${1:-\$declared_version}\""))
+        assertConsecutive(lines, listOf(
+            "if [[ \"\$version\" != \"\$declared_version\" ]]; then",
+            "echo \"Requested release version \${version} does not match app version \${declared_version}.\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertConsecutive(lines, listOf(
+            "current_branch=\"\$(git symbolic-ref --quiet --short HEAD || true)\"",
+            "if [[ \"\$current_branch\" != \"master\" ]]; then",
+            "echo \"Release tagging requires the local master branch; found '\${current_branch:-detached HEAD}'.\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertOrdered(lines, listOf(
+            "git fetch --no-tags origin refs/heads/master:refs/remotes/origin/master",
+            "local_head=\"\$(git rev-parse HEAD)\"",
+            "remote_master=\"\$(git rev-parse refs/remotes/origin/master)\"",
+            "if [[ \"\$local_head\" != \"\$remote_master\" ]]; then",
+        ))
+        assertTrue(lines.count { it == "require_exact_master_head" } == 2)
+        assertOrdered(lines, listOf(
+            "require_exact_master_head",
+            "./gradlew -PnovaAbis=arm64-v8a,armeabi-v7a,x86_64 assembleNonRoot_gameRelease",
+            "require_exact_master_head",
+            "git tag -a \"\$tag\" -m \"Nova \${tag}\"",
+            "if ! git push --atomic origin \\",
+            "HEAD:refs/heads/master \\",
+            "\"refs/tags/\${tag}:refs/tags/\${tag}\"",
+        ))
+        assertConsecutive(lines, listOf(
+            "then",
+            "git tag -d \"\$tag\" >/dev/null",
+            "echo \"Atomic master/tag publication failed; removed local \${tag}.\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertTrue(lines.none {
+            it == "git push origin master" || it == "git push origin \"\$tag\""
+        })
     }
 
     @Test

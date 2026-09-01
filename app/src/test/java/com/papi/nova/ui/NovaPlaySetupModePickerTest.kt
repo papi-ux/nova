@@ -44,6 +44,15 @@ class NovaPlaySetupModePickerTest {
         assertFalse(novaModePickerEligible(2))
         assertTrue(novaModePickerEligible(3))
         assertTrue(novaModePickerEligible(6))
+        assertTrue(
+            "two registry choices need the full picker because neither is in the inline pair",
+            novaModePickerEligible(choiceCount = 2, inlineChoiceCount = 0),
+        )
+        assertTrue(
+            "one classic and one registry choice cannot be cycled by the classic row",
+            novaModePickerEligible(choiceCount = 2, inlineChoiceCount = 1),
+        )
+        assertFalse(novaModePickerEligible(choiceCount = 1, inlineChoiceCount = 0))
     }
 
     @Test
@@ -224,6 +233,7 @@ class NovaPlaySetupModePickerTest {
         // Available, but not selectable for one launch: offering it would let the
         // user pick something the host drops on the way through.
         assertFalse(dongle.enabled)
+        assertTrue(dongle.hostDefaultOnly)
         assertEquals("Set by the host.", dongle.detail)
 
         assertTrue(game.choices.single { it.id == "headless_stream" }.enabled)
@@ -242,18 +252,55 @@ class NovaPlaySetupModePickerTest {
     }
 
     @Test
-    fun hostsThatPredateTheFlagKeepEveryModeSelectable() {
-        // The parser defaults sessionOverridable to true, so an older host behaves
-        // exactly as it does today rather than losing its whole catalog.
+    fun legacyHostsKeepOrdinaryModesSelectableButDongleFailsClosed() {
+        // A legacy host lacks session_overridable. Ordinary modes keep compatibility,
+        // but a physical dongle swap must never become a per-game action by omission.
         val game = buildGameModePickerState(
-            modes = listOf(mode("headless_stream"), mode("desktop_display")),
+            modes = listOf(
+                mode("headless_stream"),
+                mode("desktop_display"),
+                mode("headless_dongle"),
+            ),
             allowedModes = emptyList(),
             playMode = "headless_stream",
             hasExplicitOverride = false,
             title = "Where It Runs",
             hostDefaultLabel = "Host default",
+            hostDefaultOnlyDetail = "Set by the host.",
         )
 
-        assertTrue(game.choices.all { it.enabled })
+        assertTrue(game.choices.single { it.id == "headless_stream" }.enabled)
+        assertTrue(game.choices.single { it.id == "desktop_display" }.enabled)
+        val dongle = game.choices.single { it.id == "headless_dongle" }
+        assertFalse(dongle.enabled)
+        assertTrue(dongle.hostDefaultOnly)
+    }
+
+    @Test
+    fun knownModesUsePlayerFacingCopyBeforeHostBackendJargon() {
+        val state = buildGameModePickerState(
+            modes = listOf(
+                mode("headless_stream", reason = "Runtime: labwc; capture: wlroots"),
+                mode("desktop_display", reason = "Runtime: none; capture: portal"),
+            ),
+            allowedModes = emptyList(),
+            playMode = "headless_stream",
+            hasExplicitOverride = false,
+            title = "Where It Runs",
+            hostDefaultLabel = "Host default",
+            plainModeDetails = mapOf(
+                "headless_stream" to "Private display; host monitors stay untouched.",
+                "desktop_display" to "Streams everything visible on the host.",
+            ),
+        )
+
+        assertEquals(
+            "Private display; host monitors stay untouched.",
+            state.choices.single { it.id == "headless_stream" }.detail,
+        )
+        assertEquals(
+            "Streams everything visible on the host.",
+            state.choices.single { it.id == "desktop_display" }.detail,
+        )
     }
 }

@@ -814,6 +814,9 @@ class NovaLibraryActivity : NovaActivity() {
         data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_GAME)
             ?.let { PolarisGameJson.decode(it) }
             ?.let { updated -> allGames = allGames.map { if (it.id == updated.id) updated else it } }
+        if (data.getBooleanExtra(NovaGameDetailActivity.EXTRA_RESULT_MANAGE_SERVER, false)) {
+            openServerDisplaySettings()
+        }
         when (data.getStringExtra(NovaGameDetailActivity.EXTRA_RESULT_SESSION)) {
             // The window saw the session but cannot act on it: resuming and ending both
             // need stream credentials that live here.
@@ -840,6 +843,7 @@ class NovaLibraryActivity : NovaActivity() {
             forcePrivateAfterSteamClose = request.optBoolean(NovaGameDetailActivity.RESULT_KEY_FORCE_PRIVATE),
             profilePreference = request.optString(NovaGameDetailActivity.RESULT_KEY_PROFILE_PREFERENCE, "auto"),
             resolvedMode = request.optString(NovaGameDetailActivity.RESULT_KEY_STREAM_MODE, ""),
+            presentationMode = request.optString(NovaGameDetailActivity.RESULT_KEY_PRESENTATION_MODE, ""),
             preflightOptimization = request.optJSONObject(NovaGameDetailActivity.RESULT_KEY_PREFLIGHT),
         )
     }
@@ -849,6 +853,7 @@ class NovaLibraryActivity : NovaActivity() {
         withVirtualDisplay: Boolean,
         mirrorDesktop: Boolean = false,
         resolvedMode: String = "",
+        presentationMode: String = "",
         forcePrivateAfterSteamClose: Boolean = false,
         profilePreference: String = "auto",
         preflightOptimization: org.json.JSONObject? = null
@@ -874,6 +879,16 @@ class NovaLibraryActivity : NovaActivity() {
         val launchUsesVirtualDisplay = withVirtualDisplay
         val launchMirrorsDesktop = mirrorDesktop
         val launchMode = resolvedMode
+        val presentedLaunchMode = launchMode.ifBlank { presentationMode }
+        val resolvedLaunchModeLabel = when (PolarisGame.normalizeLaunchMode(presentedLaunchMode)) {
+            PolarisGame.MODE_HEADLESS_STREAM -> getString(R.string.nova_library_launch_headless)
+            PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
+            PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
+            PolarisGame.MODE_GAMESCOPE_STREAM -> getString(R.string.nova_library_launch_gamescope)
+            PolarisGame.MODE_HEADLESS_DONGLE -> getString(R.string.nova_library_launch_dongle)
+            else -> ""
+        }
 
         NovaSnackbar.show(
             this,
@@ -884,6 +899,7 @@ class NovaLibraryActivity : NovaActivity() {
                     launchUsesVirtualDisplay -> getString(R.string.nova_library_launch_virtual_display)
                     launchMirrorsDesktop -> getString(R.string.nova_desktop_steam_mirror_desktop)
                     forcePrivateAfterSteamClose -> getString(R.string.nova_desktop_steam_force_private)
+                    resolvedLaunchModeLabel.isNotBlank() -> resolvedLaunchModeLabel
                     else -> getString(R.string.nova_library_launch_headless)
                 }
             )
@@ -1064,8 +1080,18 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     private fun openServerManagement() {
+        openServerManagementAt("")
+    }
+
+    private fun openServerDisplaySettings() {
+        // ConfigView recognizes the Audio/Video tab id in its hash target and lands
+        // where the host-wide Headless Dongle choice lives.
+        openServerManagementAt("/#/config#av")
+    }
+
+    private fun openServerManagementAt(path: String) {
         val managementPort = if (streamHttpPort > 0) streamHttpPort + 1 else 47990
-        val managementUrl = "https://$streamHost:$managementPort"
+        val managementUrl = "https://$streamHost:$managementPort$path"
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(managementUrl)))
         } catch (e: Exception) {

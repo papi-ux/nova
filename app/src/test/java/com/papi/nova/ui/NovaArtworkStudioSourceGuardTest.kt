@@ -66,8 +66,8 @@ class NovaArtworkStudioSourceGuardTest {
         assertFalse(preview.contains("view.tag = requestMarker"))
         assertFalse(preview.contains("polaris-artwork-preview:\$url"))
         assertFalse(preview.contains("view.tag = cacheKey"))
-        assertTrue(api.contains("view.setTag(R.id.nova_artwork_request_key, cacheKey)"))
-        assertTrue(api.contains("view.getTag(R.id.nova_artwork_request_key) != cacheKey"))
+        assertTrue(api.contains("view.setTag(R.id.nova_artwork_request_key, spec.cacheKey)"))
+        assertTrue(api.contains("view.getTag(R.id.nova_artwork_request_key) != spec.cacheKey"))
         assertFalse(api.contains("view.tag = cacheKey"))
         assertFalse(preview.contains("candidate.posterPreviewUrl"))
 

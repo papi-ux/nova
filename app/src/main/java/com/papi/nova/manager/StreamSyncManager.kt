@@ -521,7 +521,7 @@ class StreamSyncManager private constructor() {
         fun recoveryLaunchProfile(optimization: JSONObject?): RecoveryLaunchProfile? {
             // Kept for binary/source compatibility with the v1 client model.
             // Recovery receipts remain visible and cancellable, but never form
-            // a launch profile in Nova v1.3.9.
+            // a launch profile in Nova v1.4.0.
             return null
         }
 
