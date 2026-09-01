@@ -127,7 +127,7 @@ internal class DoctorActionPendingRegistry {
 object DoctorActionReceiptStore {
     internal val TERMINAL_STATES = setOf(
         "stable", "resolved", "rolled_back", "superseded", "needs_attention",
-        "applied", "expired", "rejected", "undone"
+        "applied", "expired", "rejected", "undone", "rollback_unconfirmed"
     )
 
     private const val RECEIPT_KEY_PREFIX = "nova_doctor_action_receipt_v3_"
@@ -383,7 +383,9 @@ object DoctorActionReceiptStore {
             scopeId = scopeId,
             runId = runId.take(MAX_FIELD_LENGTH),
             state = state.take(MAX_FIELD_LENGTH),
-            message = result.message.ifBlank { sameRun?.message.orEmpty() }.take(MAX_FIELD_LENGTH),
+            message = result.message.ifBlank {
+                result.error.ifBlank { sameRun?.message.orEmpty() }
+            }.take(MAX_FIELD_LENGTH),
             verificationActionId = if (verificationExhausted) "" else verificationActionId.take(MAX_FIELD_LENGTH),
             verificationDueAtEpochMs = if (!verificationExhausted && verificationDelayMs > 0L) {
                 safeNow + verificationDelayMs
@@ -431,6 +433,16 @@ object DoctorActionReceiptStore {
         result: PolarisDoctorActionResult,
         nowEpochMs: Long
     ): DoctorActionReceipt {
+        if (!result.changedContractValid) {
+            return receipt.copy(
+                state = "needs_attention",
+                message = result.error.ifBlank { "Invalid Doctor action response" }.take(MAX_FIELD_LENGTH),
+                verificationActionId = "",
+                verificationDueAtEpochMs = 0L,
+                verificationFailureCount = MAX_VERIFICATION_FAILURES,
+                updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
+            )
+        }
         return receipt.copy(
             state = result.state.takeIf { it in TERMINAL_STATES } ?: "needs_attention",
             message = result.message.ifBlank { result.error.ifBlank { receipt.message } }.take(MAX_FIELD_LENGTH),
@@ -447,16 +459,27 @@ object DoctorActionReceiptStore {
         receipt: DoctorActionReceipt,
         result: PolarisDoctorActionResult,
         nowEpochMs: Long
-    ): DoctorActionReceipt = receipt.copy(
-        state = "needs_attention",
-        message = result.message.ifBlank { result.error.ifBlank { receipt.message } }.take(MAX_FIELD_LENGTH),
-        verificationActionId = "",
-        verificationDueAtEpochMs = 0L,
-        verificationFailureCount = MAX_VERIFICATION_FAILURES,
-        undoAvailable = false,
-        undoActionId = "",
-        updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
-    )
+    ): DoctorActionReceipt {
+        val message = result.message.ifBlank { result.error.ifBlank { receipt.message } }
+            .take(MAX_FIELD_LENGTH)
+        if (!result.changedContractValid) {
+            return receipt.copy(
+                state = "needs_attention",
+                message = message,
+                updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
+            )
+        }
+        return receipt.copy(
+            state = result.state.takeIf { it in TERMINAL_STATES } ?: "needs_attention",
+            message = message,
+            verificationActionId = "",
+            verificationDueAtEpochMs = 0L,
+            verificationFailureCount = MAX_VERIFICATION_FAILURES,
+            undoAvailable = false,
+            undoActionId = "",
+            updatedAtEpochMs = nowEpochMs.coerceAtLeast(0L)
+        )
+    }
 
     fun nextVerificationDelayMs(receipt: DoctorActionReceipt, nowEpochMs: Long): Long {
         if (!receipt.verificationPending) return -1L
@@ -500,12 +523,16 @@ object DoctorActionReceiptStore {
         request: DoctorActionRequestIdentity,
         result: PolarisDoctorActionResult
     ): Boolean {
-        if (!result.status || !result.changedContractValid ||
+        if (!result.changedContractValid ||
             !responseIdentityMatches(current, activeScopeId, activeGeneration, request, result)
         ) {
             return false
         }
-        return true
+        if (result.status) return true
+        return request.runId.isBlank() &&
+            request.actionId in setOf("lower_bitrate", "restore_quality") &&
+            result.state == "rollback_unconfirmed" && result.changed &&
+            result.undoAvailable != true && result.undoActionId.isBlank()
     }
 
     fun responseIdentityMatches(

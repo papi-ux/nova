@@ -989,6 +989,7 @@
     <string name="nova_quick_menu_doctor_capability_run_trial">Run a trial</string>
     <string name="nova_quick_menu_doctor_capability_recheck">Recheck</string>
     <string name="nova_quick_menu_doctor_capability_manual">Manual</string>
+    <string name="nova_quick_menu_doctor_ai_explanation">AI explanation (informational): %1$s</string>
     <string name="nova_quick_menu_doctor_stable">Doctor verified the network is stable. Bitrate was left unchanged.</string>
     <string name="nova_quick_menu_doctor_confirmed">Doctor now has enough live evidence. Press Fix and verify to apply one safe step.</string>
     <string name="nova_quick_menu_doctor_watching">Fix applied. Doctor is watching live loss and latency.</string>
@@ -1000,7 +1001,7 @@
     <string name="nova_quick_menu_doctor_receipt_title">Doctor result</string>
     <string name="nova_quick_menu_doctor_receipt_watching">Watching</string>
     <string name="nova_quick_menu_doctor_receipt_queued">Queued</string>
-    <string name="nova_quick_menu_doctor_receipt_applied">Applied</string>
+    <string name="nova_quick_menu_doctor_receipt_applied">Fixing</string>
     <string name="nova_quick_menu_doctor_receipt_expired">Expired</string>
     <string name="nova_quick_menu_doctor_receipt_rejected">Rejected</string>
     <string name="nova_quick_menu_doctor_receipt_verified">Verified</string>

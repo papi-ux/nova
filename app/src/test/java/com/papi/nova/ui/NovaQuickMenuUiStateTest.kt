@@ -354,6 +354,62 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun aiExplanationStaysSecondaryToTheDeterministicAction() {
+        val state = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-v2-needs_action-network_jitter",
+                    classification = "NET",
+                    likelyCause = "Confirmed media loss is limiting the stream.",
+                    primaryIssue = "network_jitter",
+                    actionId = "lower_bitrate",
+                    actionLabel = "Auto Fix",
+                    actionCapability = "auto_fix",
+                    actionKind = "live_tuning",
+                    actionEndpoint = "/api/doctor/action",
+                    actionMethod = "POST",
+                    actionPayloadId = "lower_bitrate",
+                    actionSourceResultId = "doctor-v2-needs_action-network_jitter",
+                    actionContractTyped = true,
+                    targetBitrateKbps = 16000,
+                    targetBitratePresent = true,
+                    targetBitrateTyped = true,
+                    verificationDelaySeconds = 8,
+                    verificationMode = "live_telemetry",
+                    verificationEndpoint = "/api/doctor/action",
+                    undoSupported = true,
+                    undoEndpoint = "/api/doctor/action",
+                    requiresOwner = true,
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "packet_loss",
+                            status = "fail",
+                            source = "media_transport",
+                            value = 3.4
+                        )
+                    ),
+                    aiExplanation = PolarisSessionStatus.DoctorStatus.AiExplanation(
+                        available = true,
+                        likelyCause = "Wi-Fi interference is the likely reason.",
+                        tryFirst = listOf("Move closer to the access point"),
+                        sourceMode = "openai-subscription",
+                        informational = true
+                    )
+                )
+            )
+        )
+
+        assertEquals("Confirmed media loss is limiting the stream.", state.diagnosis.likelyCause)
+        assertEquals("Auto Fix", state.overlayRows.first().label)
+        assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
+        assertTrue(state.diagnosis.aiExplanation.contains("Wi-Fi interference"))
+        assertTrue(state.diagnosis.aiExplanation.contains("Move closer"))
+        assertEquals("AI explanation only · openai-subscription", state.diagnosis.informationalSource)
+    }
+
+    @Test
     fun commandCenterDisablesDiagnoseThisStreamForMoonlightFallbackSession() {
         val state = quickState(status = null, apiAvailable = false)
         val diagnose = state.overlayRows.first { it.id == NovaQuickMenuActionId.DIAGNOSE_STREAM }
@@ -622,6 +678,26 @@ class NovaQuickMenuUiStateTest {
         assertEquals(NovaQuickMenuActionId.DOCTOR_UNDO, state.doctorReceiptAction.id)
         assertEquals("Verified", state.doctorReceiptAction.chip?.label)
         assertTrue(state.doctorReceiptAction.caption.contains("restore", ignoreCase = true))
+    }
+
+    @Test
+    fun unconfirmedDoctorRollbackStaysVisibleAsNeedsAttention() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope-a",
+            runId = "doctor-run-1",
+            state = "rollback_unconfirmed",
+            message = "The encoder did not confirm that the prior bitrate was restored.",
+            undoAvailable = false,
+            undoActionId = ""
+        )
+
+        val state = quickState(status = status(), doctorReceipt = receipt)
+
+        assertTrue(state.doctorReceiptAction.visible)
+        assertFalse(state.doctorReceiptAction.enabled)
+        assertEquals("Needs attention", state.doctorReceiptAction.chip?.label)
+        assertEquals(NovaQuickMenuTone.WARNING, state.doctorReceiptAction.chip?.tone)
+        assertTrue(state.doctorReceiptAction.caption.contains("did not confirm"))
     }
 
     @Test

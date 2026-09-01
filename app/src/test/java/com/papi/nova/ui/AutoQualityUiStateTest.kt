@@ -28,7 +28,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Auto Quality Stable", state.label)
+        assertEquals("Stream Ready", state.label)
         assertEquals("Stream target is holding steady", state.detail)
         assertFalse(state.detail.contains("Network", ignoreCase = true))
         assertFalse(state.detail.contains("frame pacing", ignoreCase = true))
@@ -50,7 +50,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Auto Quality Stable", state.label)
+        assertEquals("Stream Ready", state.label)
     }
 
     @Test
@@ -202,7 +202,10 @@ class AutoQualityUiStateTest {
         assertEquals(4707, policy.effectiveBitrateKbps)
         assertEquals(50000, policy.qualityLimitBitrateKbps)
         assertEquals("4.7 Mbps live / 50 Mbps limit", policy.bitrateSummary)
-        assertTrue(policy.statusCaption.contains("under your 50 Mbps quality limit"))
+        assertEquals(
+            "Live tuning is at 4.7 Mbps under your 50 Mbps quality limit.",
+            policy.statusCaption
+        )
     }
 
     @Test
@@ -288,7 +291,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.OFF, state.state)
-        assertEquals("Auto Quality Off", state.label)
+        assertEquals("Live Tuning Off", state.label)
     }
 
     @Test
@@ -324,7 +327,7 @@ class AutoQualityUiStateTest {
         )
 
         assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Auto Quality Stable", state.label)
+        assertEquals("Stream Ready", state.label)
         assertEquals("Stream target is holding steady", state.detail)
         assertFalse(state.detail.contains("Network", ignoreCase = true))
         assertFalse(state.detail.contains("frame pacing", ignoreCase = true))

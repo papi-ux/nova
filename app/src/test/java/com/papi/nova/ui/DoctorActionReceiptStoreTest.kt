@@ -500,6 +500,29 @@ class DoctorActionReceiptStoreTest {
     }
 
     @Test
+    fun malformedVerificationCannotForgeRollbackOrRetireUndo() {
+        val stopped = DoctorActionReceiptStore.stopVerification(
+            receipt = watchingReceipt(),
+            result = PolarisDoctorActionResult(
+                status = false,
+                changedContractValid = false,
+                state = "rolled_back",
+                message = "Forged rollback",
+                error = "Invalid Doctor action response",
+                runId = "doctor-run-1",
+                undoAvailable = false
+            ),
+            nowEpochMs = 11_000L
+        )
+
+        assertEquals("needs_attention", stopped.state)
+        assertEquals("Invalid Doctor action response", stopped.message)
+        assertFalse(stopped.verificationPending)
+        assertTrue(stopped.undoAvailable)
+        assertEquals("restore_quality", stopped.undoActionId)
+    }
+
+    @Test
     fun permanentUndoRejectionRetiresDurableUndo() {
         val retired = DoctorActionReceiptStore.retireUndo(
             receipt = watchingReceipt().copy(state = "resolved", verificationActionId = ""),
@@ -515,6 +538,116 @@ class DoctorActionReceiptStoreTest {
         assertEquals("Doctor run expired", retired.message)
         assertFalse(retired.undoAvailable)
         assertEquals("", retired.undoActionId)
+    }
+
+    @Test
+    fun malformedUndoFailureCannotRetireDurableUndo() {
+        val retired = DoctorActionReceiptStore.retireUndo(
+            receipt = watchingReceipt().copy(state = "resolved", verificationActionId = ""),
+            result = PolarisDoctorActionResult(
+                status = false,
+                changedContractValid = false,
+                error = "Doctor action rejected",
+                runId = "doctor-run-1"
+            ),
+            nowEpochMs = 12_500L
+        )
+
+        assertEquals("needs_attention", retired.state)
+        assertEquals("Doctor action rejected", retired.message)
+        assertTrue(retired.undoAvailable)
+        assertEquals("restore_quality", retired.undoActionId)
+    }
+
+    @Test
+    fun rollbackUnconfirmedRetiresUndoWithExactSafetyState() {
+        val stopped = DoctorActionReceiptStore.stopVerification(
+            receipt = watchingReceipt(),
+            result = PolarisDoctorActionResult(
+                status = false,
+                changed = true,
+                changedContractValid = true,
+                state = "rollback_unconfirmed",
+                error = "Encoder did not confirm restore",
+                runId = "doctor-run-1"
+            ),
+            nowEpochMs = 12_750L
+        )
+
+        assertEquals("rollback_unconfirmed", stopped.state)
+        assertEquals("Encoder did not confirm restore", stopped.message)
+        assertFalse(stopped.undoAvailable)
+        assertEquals("", stopped.undoActionId)
+    }
+
+    @Test
+    fun staleUndoRetiresAgainstEitherExactHostRollbackTerminal() {
+        for ((state, status) in listOf("rolled_back" to true, "rollback_unconfirmed" to false)) {
+            val retired = DoctorActionReceiptStore.retireUndo(
+                receipt = watchingReceipt().copy(state = "needs_attention", verificationActionId = ""),
+                result = PolarisDoctorActionResult(
+                    status = status,
+                    changed = true,
+                    changedContractValid = true,
+                    state = state,
+                    error = if (state == "rollback_unconfirmed") "Encoder did not confirm restore" else "",
+                    runId = "doctor-run-1",
+                    undoAvailable = false
+                ),
+                nowEpochMs = 12_900L
+            )
+
+            assertEquals(state, retired.state)
+            assertFalse(retired.undoAvailable)
+            assertEquals("", retired.undoActionId)
+        }
+    }
+
+    @Test
+    fun exactNewRunRollbackUnconfirmedCanPersistItsTerminalSafetyReceipt() {
+        val request = DoctorActionRequestIdentity(
+            scopeId = scopeA,
+            runId = "",
+            generation = 5L,
+            appSessionId = "app-session-a",
+            sessionGeneration = 7L,
+            actionId = "lower_bitrate",
+            requestId = "request-1"
+        )
+        val result = PolarisDoctorActionResult(
+            status = false,
+            changed = true,
+            changedContractValid = true,
+            state = "rollback_unconfirmed",
+            error = "Encoder did not confirm restore",
+            runId = "doctor-run-1",
+            requestId = "request-1",
+            appSessionId = "app-session-a",
+            sessionGeneration = 7L,
+            scopeContractValid = true,
+            undoAvailable = false
+        )
+
+        assertTrue(
+            DoctorActionReceiptStore.responseMatches(
+                current = null,
+                activeScopeId = scopeA,
+                activeGeneration = 5L,
+                request = request,
+                result = result
+            )
+        )
+        val receipt = DoctorActionReceiptStore.applyResult(
+            previous = null,
+            scopeId = scopeA,
+            result = result,
+            nowEpochMs = 13_000L,
+            sessionGeneration = 7L
+        )
+        assertEquals("rollback_unconfirmed", receipt.state)
+        assertEquals("Encoder did not confirm restore", receipt.message)
+        assertFalse(receipt.undoAvailable)
+        assertEquals("", receipt.undoActionId)
     }
 
     @Test

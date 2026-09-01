@@ -241,7 +241,7 @@ class KotlinGameRuntimeMigrationTest {
     }
 
     @Test
-    fun streamShutdownReportUsesRuntimeTasksInsteadOfRawThread() {
+    fun streamShutdownKeepsDoctorSummaryLocalInsteadOfSendingUnscopedEvidence() {
         val source = readGameSource()
         val stopConnection = source.substring(
             source.indexOf("private fun stopConnection()"),
@@ -252,7 +252,9 @@ class KotlinGameRuntimeMigrationTest {
             stopConnection.indexOf("novaHud?.dismiss()")
         )
 
-        assertTrue(sessionReport.contains("launchRuntimeIo(\"NovaSessionReport\")"))
+        assertTrue(sessionReport.contains("Nova: observational session summary"))
+        assertFalse(sessionReport.contains("launchRuntimeIo("))
+        assertFalse(sessionReport.contains("sendDoctorEvidenceReport"))
         assertFalse(sessionReport.contains("Thread({"))
     }
 
@@ -265,9 +267,37 @@ class KotlinGameRuntimeMigrationTest {
         )
 
         assertTrue(perfSample.contains("doctorTelemetry.recordPerfSample(sample)"))
-        assertTrue(perfSample.contains("uploadDoctorV2Sample(sample)"))
+        assertTrue(perfSample.contains("uploadDoctorSample(sample)"))
+        assertTrue(
+            "raw Doctor telemetry must be uploaded before the optional visible HUD branch",
+            perfSample.indexOf("uploadDoctorSample(sample)") in
+                0 until perfSample.indexOf("if (novaHud != null && novaHud!!.isShowing)")
+        )
         assertFalse(source.contains("NovaBitrateAdjust"))
         assertFalse(source.contains("hud.onBitrateAdjust"))
+    }
+
+    @Test
+    fun doctorTelemetryRequiresExactLiveOwnerScopeAndCancelsByItsRealTaskName() {
+        val source = readGameSource()
+        val stopConnection = source.substring(
+            source.indexOf("private fun stopConnection()"),
+            source.indexOf("override fun stageFailed(")
+        )
+        val upload = source.substring(
+            source.indexOf("private fun uploadDoctorSample(sample:PerfOverlaySample)"),
+            source.indexOf("override fun onPerfUpdate(text:String)")
+        )
+
+        assertTrue(stopConnection.contains("doctorTelemetryUploadGate.invalidate()"))
+        assertTrue(stopConnection.contains("runtimeTasks.cancel(\"NovaDoctorTelemetry\")"))
+        assertFalse(stopConnection.contains("NovaDoctorV2Sample"))
+        assertFalse(stopConnection.contains("NovaSessionReport"))
+        assertFalse(stopConnection.contains("sendDoctorEvidenceReport"))
+        assertTrue(upload.contains("if (liveStatus == null)"))
+        assertTrue(upload.contains("client.sendLiveMediaTelemetry("))
+        assertFalse(upload.contains("sendDoctorV2Sample"))
+        assertFalse(source.contains("private fun novaDoctorV2ShadowEnabled()"))
     }
 
     @Test

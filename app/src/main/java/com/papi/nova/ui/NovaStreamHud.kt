@@ -261,6 +261,10 @@ class NovaStreamHud(
             updateLatency(sample.rttMs)
             applyCodecLabel(sample.codec)
             sessionStats.recordPacketLoss(sample.packetLossPct)
+            // The display helpers above own the HUD's rolling averages. Preserve the
+            // exact cumulative decoder evidence too, so Copy diagnostics reports the
+            // same raw sample that Doctor uploads instead of default zero counters.
+            sessionStats.recordRawMediaEvidence(sample)
             publishState()
         }
     }

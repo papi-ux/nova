@@ -955,6 +955,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     expectedTopologyAssertion = strictBoolean(features, "expected_topology_assertion_v1"),
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
                     cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
+                    liveMediaTelemetry = strictBoolean(features, "live_media_telemetry_v1"),
                     doctorV2Shadow = features?.optBoolean("doctor_v2_shadow_v1") ?: false,
                     doctorV2ShadowEnabled = features?.optBoolean("doctor_v2_shadow_enabled") ?: false,
                     doctorTrials = features?.optBoolean("doctor_trials_v1") ?: false,
@@ -1218,9 +1219,23 @@ class PolarisApiClient @JvmOverloads constructor(
             requestedAppSessionId: String = "",
             requestedSessionGeneration: Long = 0L
         ): PolarisDoctorActionResult {
-            val parsed = runCatching {
-                parseDoctorActionResponse(JSONObject(responseBody.ifBlank { "{}" }))
+            val responseJson = runCatching {
+                JSONObject(responseBody.ifBlank { "{}" })
             }.getOrNull()
+            val parsed = responseJson?.let { json ->
+                runCatching { parseDoctorActionResponse(json) }.getOrNull()
+            }
+            val terminalUndoExplicitlyUnavailable = responseJson
+                ?.optJSONObject("undo")
+                ?.let { undo ->
+                    undo.opt("available") is Boolean && undo.opt("available") == false &&
+                        (!undo.has("action_id") ||
+                            (undo.opt("action_id") is String &&
+                                strictString(undo, "action_id").isBlank()))
+                } == true
+            val terminalUndoContractValid = parsed?.state !in setOf(
+                "undone", "superseded", "rolled_back", "rollback_unconfirmed"
+            ) || terminalUndoExplicitlyUnavailable
             if (statusCode == 200 && parsed != null && doctorActionResponseMatchesRequest(
                     actionId = actionId,
                     requestedRunId = requestedRunId,
@@ -1228,14 +1243,52 @@ class PolarisApiClient @JvmOverloads constructor(
                     requestedAppSessionId = requestedAppSessionId,
                     requestedSessionGeneration = requestedSessionGeneration,
                     result = parsed
-                )) {
+                ) && terminalUndoContractValid) {
                 return parsed
             }
 
+            val typedNoChangeRejection = statusCode != 200 &&
+                responseJson != null &&
+                responseJson.opt("status") is Boolean &&
+                responseJson.opt("status") == false &&
+                responseJson.opt("changed") is Boolean &&
+                responseJson.opt("changed") == false &&
+                parsed != null
+            val typedRollbackUnconfirmed = statusCode == 409 &&
+                responseJson != null &&
+                responseJson.opt("status") is Boolean &&
+                responseJson.opt("status") == false &&
+                responseJson.opt("changed") is Boolean &&
+                responseJson.opt("changed") == true &&
+                parsed != null &&
+                parsed.state == "rollback_unconfirmed" &&
+                parsed.runId.startsWith("doctor-run-") &&
+                requestedAppSessionId.isNotBlank() && requestedSessionGeneration > 0L &&
+                parsed.scopeContractValid &&
+                parsed.appSessionId == requestedAppSessionId &&
+                parsed.sessionGeneration == requestedSessionGeneration &&
+                terminalUndoExplicitlyUnavailable &&
+                parsed.undoAvailable == false && parsed.undoActionId.isBlank() &&
+                when (actionId) {
+                    "lower_bitrate", "restore_quality" ->
+                        requestedRunId.isBlank() && requestedRequestId.isNotBlank() &&
+                            parsed.requestId == requestedRequestId
+                    "verify", "undo" ->
+                        requestedRunId.isNotBlank() && parsed.runId == requestedRunId
+                    else -> false
+                }
+            val typedRejection = typedNoChangeRejection || typedRollbackUnconfirmed
             return (parsed ?: PolarisDoctorActionResult(status = false)).copy(
                 status = false,
-                error = parsed?.error?.takeIf { it.isNotBlank() }
-                    ?: if (statusCode == 200) "Invalid Doctor action response" else "Doctor action rejected",
+                changedContractValid = typedRejection,
+                state = if (typedRollbackUnconfirmed) parsed.state else "",
+                message = if (typedRollbackUnconfirmed) parsed.message else "",
+                error = when {
+                    statusCode == 200 -> "Invalid Doctor action response"
+                    typedRejection -> parsed.error.takeIf { it.isNotBlank() }
+                        ?: "Doctor action rejected"
+                    else -> "Doctor action rejected"
+                },
                 undoAvailable = false,
                 undoActionId = ""
             )
@@ -1282,9 +1335,9 @@ class PolarisApiClient @JvmOverloads constructor(
                             // apply/verification watchdog. The idempotency key
                             // still authorizes returning that exact terminal receipt.
                             "rolled_back" -> result.changed &&
-                                result.undoAvailable != true && result.undoActionId.isBlank()
+                                result.undoAvailable == false && result.undoActionId.isBlank()
                             "superseded" -> !result.changed &&
-                                result.undoAvailable != true && result.undoActionId.isBlank()
+                                result.undoAvailable == false && result.undoActionId.isBlank()
                             else -> false
                         }
                 "verify" ->
@@ -1308,15 +1361,25 @@ class PolarisApiClient @JvmOverloads constructor(
                                         result.verificationDelaySeconds == 0))
                             "resolved" -> !result.changed && result.undoAvailable == true &&
                                 result.undoActionId == "undo"
-                            "rolled_back" -> result.changed && result.undoAvailable != true &&
+                            "rolled_back" -> result.changed && result.undoAvailable == false &&
+                                result.undoActionId.isBlank()
+                            "superseded" -> !result.changed && result.undoAvailable == false &&
                                 result.undoActionId.isBlank()
                             else -> false
                         }
                 "undo" ->
                     requestedRunId.isNotBlank() && runId == requestedRunId &&
                         (runId.startsWith("doctor-run-") || runId.startsWith("recovery-run-")) &&
-                        result.state == "undone" &&
-                        result.changed && result.undoAvailable != true
+                        when (result.state) {
+                            "undone" -> result.changed && result.undoAvailable != true
+                            "superseded" -> runId.startsWith("doctor-run-") &&
+                                !result.changed && result.undoAvailable == false &&
+                                result.undoActionId.isBlank()
+                            "rolled_back" -> runId.startsWith("doctor-run-") &&
+                                result.changed && result.undoAvailable == false &&
+                                result.undoActionId.isBlank()
+                            else -> false
+                        }
                 "undo_recovery_profile_next_launch" ->
                     requestedRunId.startsWith("recovery-run-") && runId == requestedRunId &&
                         result.state == "undone" && result.changed && result.undoAvailable != true
@@ -1357,6 +1420,41 @@ class PolarisApiClient @JvmOverloads constructor(
             if (runId.isNotBlank()) put("run_id", runId)
             if (requestId.isNotBlank()) put("request_id", requestId)
             if (confirmed) put("confirmed", true)
+        }
+
+        @JvmStatic
+        internal fun buildLiveMediaTelemetryBody(
+            sample: PerfOverlaySample,
+            appSessionId: String,
+            sessionGeneration: Long,
+            targetFps: Double,
+            refreshRateHz: Double,
+            bitrateKbps: Int,
+            topology: String,
+            hdr: Boolean
+        ): JSONObject = JSONObject().apply {
+            put("app_session_id", appSessionId)
+            put("session_generation", sessionGeneration)
+            put("sample", JSONObject().apply {
+                put("monotonic_timestamp_ms", sample.monotonicTimestampMs)
+                put("decoder_generation", sample.sessionGeneration)
+                put("frames_expected", sample.framesExpected)
+                put("frames_received", sample.framesReceived)
+                put("frames_rendered", sample.framesRendered)
+                put("frames_lost", sample.framesLost)
+                put("received_fps", sample.incomingFps)
+                put("rendered_fps", sample.renderedFps)
+                put("target_fps", targetFps)
+                put("refresh_rate_hz", refreshRateHz)
+                put("decode_latency_ms", sample.decodeTimeMs)
+                sample.hostProcessingLatencyMs?.let { put("host_processing_latency_ms", it) }
+                put("width", sample.width)
+                put("height", sample.height)
+                put("codec", sample.codec)
+                put("bitrate_kbps", bitrateKbps)
+                put("topology", topology)
+                put("hdr", hdr)
+            })
         }
 
         private fun parseRecoverySafeProfile(json: JSONObject?): PolarisSessionStatus.RecoverySafeProfile =
@@ -1789,12 +1887,15 @@ class PolarisApiClient @JvmOverloads constructor(
     private fun executeWithTransientRetry(request: Request): okhttp3.Response =
         runWithTransientTlsRetry(onTransient = { resetCallClient() }) { execute(request) }
 
-    private fun executeNonRetryable(request: Request): okhttp3.Response =
+    private fun newNonRetryableCall(request: Request): okhttp3.Call =
         buildNonRetryableHttpClient(clientForCall()).newCall(
             request.newBuilder()
                 .header("Connection", "close")
                 .build()
-        ).execute()
+        )
+
+    private fun executeNonRetryable(request: Request): okhttp3.Response =
+        newNonRetryableCall(request).execute()
 
     private fun executeIdempotentDoctorAction(request: Request): okhttp3.Response = try {
         executeNonRetryable(request)
@@ -2736,161 +2837,56 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     /**
-     * Send session quality report at end of stream.
+     * Send raw cumulative media counters for host-derived live Doctor evidence.
+     * The exact host app/session identity is mandatory and the request is never
+     * retried, so a delayed sample cannot cross a stream generation.
      */
-    fun sendDoctorEvidenceReport(
-        device: String,
-        uniqueId: String,
-        game: String,
-        evidence: Map<String, Any>,
-        endReason: String
-    ): Boolean {
-        return try {
-            val raw = JSONObject()
-            evidence.forEach { (key, value) -> raw.put(key, value) }
-            raw.put("schema_version", 2)
-            raw.put("contract", "doctor_v2_raw")
-            raw.put("end_reason", endReason)
-
-            val body = JSONObject().apply {
-                put("device", device)
-                if (uniqueId.isNotBlank()) put("unique_id", uniqueId)
-                put("game", game)
-                put("doctor_v2", raw)
-                // Temporary observational v1 compatibility. Only raw numeric
-                // evidence is mirrored; no diagnosis, action, safe setting, or
-                // relaunch recommendation can be supplied by Nova.
-                listOf(
-                    "avg_fps", "target_fps", "low_1_percent_fps", "min_fps",
-                    "avg_latency_ms", "avg_bitrate_kbps",
-                    "packet_loss_pct", "packet_loss_source", "codec", "duration_s", "samples"
-                ).forEach { key -> if (raw.has(key)) put(key, raw.get(key)) }
-                put("end_reason", endReason)
-            }
-            val request = Request.Builder()
-                .url("$baseUrl/session/report")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            execute(request).use { response -> response.code == 200 }
-        } catch (e: Exception) {
-            LimeLog.warning("Nova: Doctor evidence report failed: ${errorMessage(e)}")
-            false
-        }
-    }
-
-    /**
-     * Upload one raw monotonic Doctor v2 sample while the stream is active.
-     * Polaris derives session/app scope and every diagnosis; Nova supplies no
-     * action, confidence, safe setting, or launch recommendation.
-     */
-    fun sendDoctorV2Sample(
+    suspend fun sendLiveMediaTelemetry(
         sample: PerfOverlaySample,
+        appSessionId: String,
+        sessionGeneration: Long,
         targetFps: Double,
         refreshRateHz: Double,
         bitrateKbps: Int,
         topology: String,
         hdr: Boolean
     ): Boolean {
-        return try {
-            val raw = JSONObject().apply {
-                put("monotonic_timestamp_ms", sample.monotonicTimestampMs)
-                put("session_generation", sample.sessionGeneration)
-                put("frames_expected", sample.framesExpected)
-                put("frames_received", sample.framesReceived)
-                put("frames_rendered", sample.framesRendered)
-                put("frames_lost", sample.framesLost)
-                put("received_fps", sample.incomingFps)
-                put("rendered_fps", sample.renderedFps)
-                put("target_fps", targetFps)
-                put("refresh_rate_hz", refreshRateHz)
-                put("rtt_ms", sample.rttMs)
-                put("decode_latency_ms", sample.decodeTimeMs)
-                sample.hostProcessingLatencyMs?.let { put("host_processing_latency_ms", it) }
-                put("width", sample.width)
-                put("height", sample.height)
-                put("codec", sample.codec)
-                put("bitrate_kbps", bitrateKbps)
-                put("topology", topology)
-                put("hdr", hdr)
-            }
-            val request = Request.Builder()
-                .url("$baseUrl/doctor/v2/evidence")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    JSONObject().put("sample", raw).toString()
-                ))
-                .build()
-            // Samples are monotonic and intentionally best-effort. Retrying a
-            // lost response would submit a duplicate timestamp.
-            executeNonRetryable(request).use { response -> response.code == 200 }
-        } catch (_: Exception) {
-            // Continuous shadow sampling is best-effort. The caller records a
-            // single failure without turning a transient outage into log spam.
-            false
+        if (appSessionId.isBlank() || sessionGeneration <= 0L ||
+            sample.monotonicTimestampMs <= 0L || sample.framesExpected < 0L ||
+            sample.framesReceived < 0L || sample.framesLost < 0L
+        ) {
+            return false
         }
-    }
-
-    /**
-     * Legacy v1 report shape retained for older integrations. New Nova code
-     * uses [sendDoctorEvidenceReport].
-     */
-    fun sendSessionReport(device: String, uniqueId: String, game: String, avgFps: Double, targetFps: Double,
-                          lowOnePercentFps: Double, minFps: Double, framePacingBadPct: Double, safeTargetFps: Double,
-                          avgLatency: Double,
-                          avgBitrate: Int, packetLoss: Double, codec: String,
-                          durationS: Int, samples: Int, endReason: String,
-                          optimizationSource: String, optimizationConfidence: String,
-                          recommendationVersion: Int,
-                          healthGrade: String,
-                          primaryIssue: String,
-                          issues: List<String>,
-                          decoderRisk: String,
-                          hdrRisk: String,
-                          networkRisk: String,
-                          capturePath: String,
-                          safeBitrateKbps: Int,
-                          safeCodec: String,
-                          safeDisplayMode: String,
-                          safeHdr: Boolean?,
-                          relaunchRecommended: Boolean): Boolean {
         return try {
-            val body = org.json.JSONObject().apply {
-                put("device", device)
-                if (uniqueId.isNotBlank()) put("unique_id", uniqueId)
-                put("game", game)
-                put("avg_fps", avgFps)
-                if (targetFps > 0.0) put("target_fps", targetFps)
-                if (lowOnePercentFps > 0.0) put("low_1_percent_fps", lowOnePercentFps)
-                if (minFps > 0.0) put("min_fps", minFps)
-                put("avg_latency_ms", avgLatency)
-                put("avg_bitrate_kbps", avgBitrate)
-                put("packet_loss_pct", packetLoss)
-                put("codec", codec)
-                put("duration_s", durationS)
-                put("samples", samples)
-                put("end_reason", endReason)
-                if (optimizationSource.isNotBlank()) put("optimization_source", optimizationSource)
-                if (optimizationConfidence.isNotBlank()) put("optimization_confidence", optimizationConfidence)
-                if (recommendationVersion > 0) put("recommendation_version", recommendationVersion)
-                if (capturePath.isNotBlank()) put("capture_path", capturePath)
-                // Legacy callers are observational too. Derived diagnoses,
-                // safe settings, and relaunch recommendations are ignored.
-            }
+            val body = buildLiveMediaTelemetryBody(
+                sample = sample,
+                appSessionId = appSessionId,
+                sessionGeneration = sessionGeneration,
+                targetFps = targetFps,
+                refreshRateHz = refreshRateHz,
+                bitrateKbps = bitrateKbps,
+                topology = topology,
+                hdr = hdr
+            )
             val request = Request.Builder()
-                .url("$baseUrl/session/report")
+                .url("$baseUrl/session/telemetry")
                 .post(okhttp3.RequestBody.create(
                     "application/json".toMediaTypeOrNull(),
                     body.toString()
                 ))
                 .build()
-            execute(request).use { response ->
-                response.code == 200
+            executeCancellableHttpCall(newNonRetryableCall(request)) { response ->
+                val responseBody = response.body?.string()
+                if (response.code != 200 || responseBody == null) {
+                    false
+                } else {
+                    val json = JSONObject(responseBody)
+                    json.opt("status") is Boolean && json.getBoolean("status")
+                }
             }
-        } catch (e: Exception) {
-            LimeLog.warning("Nova: Session report failed: ${errorMessage(e)}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
             false
         }
     }

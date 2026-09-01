@@ -73,8 +73,8 @@ class NovaHudUiStateTest {
         assertEquals("24 Mbps", state.bitrateLabel)
         assertEquals("1920×1080", state.resolutionLabel)
         assertEquals("HEVC", state.codecLabel)
-        assertEquals("Auto Quality Stable", state.autopilotLabel)
-        assertEquals("Auto Stable", state.autopilotHudLabel)
+        assertEquals("Stream Ready", state.autopilotLabel)
+        assertEquals("Stream Ready", state.autopilotHudLabel)
         assertEquals("OK", state.autopilotCompactLabel)
         assertEquals(NovaHudTone.STABLE, state.fpsTone)
         assertEquals(NovaHudTone.STABLE, state.latencyTone)
@@ -313,7 +313,7 @@ class NovaHudUiStateTest {
             sparklineSamples = emptyList()
         )
 
-        assertEquals("Auto Stable", stable.autopilotHudLabel)
+        assertEquals("Stream Ready", stable.autopilotHudLabel)
         assertEquals("Quality Ready", upgrade.autopilotHudLabel)
         assertEquals("Attention", attention.autopilotHudLabel)
         assertTrue(
@@ -957,6 +957,7 @@ class NovaHudUiStateTest {
 
         assertTrue(source.contains("fun updateFromPerfSample(sample: PerfOverlaySample)"))
         assertTrue(source.contains("updateFps(sample.fps)"))
+        assertTrue(source.contains("sessionStats.recordRawMediaEvidence(sample)"))
         assertTrue(source.contains("updateFromPerfText(text: String)"))
         assertTrue(source.contains("NovaHudPerfSample.fromPerfText(text)"))
     }
@@ -976,7 +977,7 @@ class NovaHudUiStateTest {
         assertFalse(hudSource.contains("setBitrate("))
         assertFalse(hudSource.contains("currentBitrateKbps * 0.75"))
         assertFalse(gameSource.contains("hud.onBitrateAdjust"))
-        assertTrue(gameSource.contains("uploadDoctorV2Sample(sample)"))
+        assertTrue(gameSource.contains("uploadDoctorSample(sample)"))
     }
 
     @Test

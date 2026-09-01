@@ -1,6 +1,7 @@
 package com.papi.nova.api
 
 import com.papi.nova.shared.polaris.model.PolarisGame
+import com.papi.nova.binding.video.PerfOverlaySample
 import java.util.concurrent.TimeUnit
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
@@ -81,6 +82,50 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun liveMediaTelemetryCarriesRawCountersAndExactHostScopeOnly() {
+        val body = PolarisApiClient.buildLiveMediaTelemetryBody(
+            sample = PerfOverlaySample(
+                fps = 119.0,
+                incomingFps = 118.5,
+                renderedFps = 118.0,
+                width = 1920,
+                height = 1080,
+                codec = "c2.qti.hevc.decoder",
+                rttMs = 77,
+                rttVarianceMs = 4,
+                decodeTimeMs = 3.5,
+                packetLossPct = 42.0,
+                monotonicTimestampMs = 12_345L,
+                framesExpected = 1_000L,
+                framesReceived = 990L,
+                framesRendered = 988L,
+                framesLost = 10L,
+                sessionGeneration = 3L
+            ),
+            appSessionId = "app-session-41",
+            sessionGeneration = 41L,
+            targetFps = 120.0,
+            refreshRateHz = 120.0,
+            bitrateKbps = 20_000,
+            topology = "gamescope_stream",
+            hdr = false
+        )
+
+        assertEquals("app-session-41", body.getString("app_session_id"))
+        assertEquals(41L, body.getLong("session_generation"))
+        val sample = body.getJSONObject("sample")
+        assertEquals(12_345L, sample.getLong("monotonic_timestamp_ms"))
+        assertEquals(1_000L, sample.getLong("frames_expected"))
+        assertEquals(990L, sample.getLong("frames_received"))
+        assertEquals(10L, sample.getLong("frames_lost"))
+        assertEquals(3L, sample.getLong("decoder_generation"))
+        assertFalse(sample.has("packet_loss_pct"))
+        assertFalse(sample.has("rtt_ms"))
+        assertFalse(sample.has("settings"))
+        assertFalse(sample.has("actions"))
+    }
+
+    @Test
     fun doctorActionUndoAvailabilityRequiresLiteralBoolean() {
         fun parsed(value: String): PolarisDoctorActionResult = PolarisApiClient.parseDoctorActionResponse(
             JSONObject("{\"status\":true,\"run_id\":\"run-1\",\"undo\":{\"available\":$value,\"action_id\":\"undo\"}}")
@@ -106,7 +151,7 @@ class PolarisApiClientParsingTest {
     fun doctorActionHttpFailureIsPermanentAndSanitized() {
         val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 409,
-            responseBody = "{\"status\":false,\"run_id\":\"run-1\",\"error\":\"expired\"," +
+            responseBody = "{\"status\":false,\"changed\":false,\"run_id\":\"run-1\",\"error\":\"expired\"," +
                 "\"undo\":{\"available\":true,\"action_id\":\"restore_quality\"}}",
             actionId = "verify",
             requestedRunId = "run-1"
@@ -117,7 +162,121 @@ class PolarisApiClientParsingTest {
         assertEquals("expired", rejected.error)
         assertEquals(false, rejected.undoAvailable)
         assertEquals("", rejected.undoActionId)
+        assertTrue(rejected.changedContractValid)
         assertFalse(rejected.error.contains("409"))
+    }
+
+    @Test
+    fun malformedDoctorActionHttpFailureCannotClaimATerminalState() {
+        for (contractFields in listOf(
+            "\"status\":false",
+            "\"status\":\"false\",\"changed\":false",
+            "\"changed\":false",
+            "\"status\":false,\"changed\":true",
+            "\"status\":false,\"changed\":\"false\""
+        )) {
+            val rejected = PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = 409,
+                responseBody = "{$contractFields,\"state\":\"rolled_back\"," +
+                    "\"message\":\"Forged rollback\",\"error\":\"Prior bitrate restored\"," +
+                    "\"run_id\":\"doctor-run-1\"}",
+                actionId = "verify",
+                requestedRunId = "doctor-run-1"
+            )
+
+            assertFalse(rejected.status)
+            assertFalse(rejected.changedContractValid)
+            assertEquals("", rejected.state)
+            assertEquals("", rejected.message)
+            assertEquals("Doctor action rejected", rejected.error)
+        }
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsOnlyExactScopedRollbackUnconfirmedFailure() {
+        val body = "{\"status\":false,\"changed\":true,\"state\":\"rollback_unconfirmed\"," +
+            "\"run_id\":\"doctor-run-1\",\"app_session_id\":\"app-session-1\"," +
+            "\"session_generation\":7,\"error\":\"Encoder did not confirm restore\"," +
+            "\"undo\":{\"available\":false}}"
+        val accepted = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body,
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val wrongScope = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body,
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-2",
+            requestedSessionGeneration = 8L
+        )
+        val acceptedUndo = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body,
+            actionId = "undo",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val wrongStatuses = listOf(400, 403, 500).map { statusCode ->
+            PolarisApiClient.parseDoctorActionHttpResponse(
+                statusCode = statusCode,
+                responseBody = body,
+                actionId = "verify",
+                requestedRunId = "doctor-run-1",
+                requestedAppSessionId = "app-session-1",
+                requestedSessionGeneration = 7L
+            )
+        }
+        val forgedUndoAvailability = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body.replace(
+                "\"undo\":{\"available\":false}",
+                "\"undo\":{\"available\":true}"
+            ),
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val contradictoryUndoAction = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 409,
+            responseBody = body.replace(
+                "\"undo\":{\"available\":false}",
+                "\"undo\":{\"available\":false,\"action_id\":\"undo\"}"
+            ),
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+
+        assertFalse(accepted.status)
+        assertTrue(accepted.changedContractValid)
+        assertEquals("rollback_unconfirmed", accepted.state)
+        assertEquals("Encoder did not confirm restore", accepted.error)
+        assertFalse(acceptedUndo.status)
+        assertTrue(acceptedUndo.changedContractValid)
+        assertEquals("rollback_unconfirmed", acceptedUndo.state)
+        assertEquals(false, acceptedUndo.undoAvailable)
+        assertFalse(wrongScope.changedContractValid)
+        assertEquals("", wrongScope.state)
+        assertEquals("Doctor action rejected", wrongScope.error)
+        wrongStatuses.forEach { rejected ->
+            assertFalse(rejected.changedContractValid)
+            assertEquals("", rejected.state)
+            assertEquals("Doctor action rejected", rejected.error)
+        }
+        assertFalse(forgedUndoAvailability.changedContractValid)
+        assertEquals("", forgedUndoAvailability.state)
+        assertEquals("Doctor action rejected", forgedUndoAvailability.error)
+        assertFalse(contradictoryUndoAction.changedContractValid)
+        assertEquals("", contradictoryUndoAction.state)
+        assertEquals("Doctor action rejected", contradictoryUndoAction.error)
     }
 
     @Test
@@ -302,8 +461,13 @@ class PolarisApiClientParsingTest {
                 requestedRunId = ""
             )
 
-        assertFalse(parsed("").status)
-        assertFalse(parsed(",\"changed\":\"false\"").status)
+        for (invalid in listOf(parsed(""), parsed(",\"changed\":\"false\""))) {
+            assertFalse(invalid.status)
+            assertFalse(invalid.changedContractValid)
+            assertEquals("", invalid.state)
+            assertEquals("", invalid.message)
+            assertEquals("Invalid Doctor action response", invalid.error)
+        }
         assertTrue(parsed(",\"changed\":false").status)
     }
 
@@ -323,15 +487,86 @@ class PolarisApiClientParsingTest {
 
     @Test
     fun doctorActionHttpAcceptsCorrelatedAutomaticRollback() {
+        val body = "{\"status\":true,\"changed\":true,\"state\":\"rolled_back\"," +
+            "\"run_id\":\"doctor-run-1\",\"app_session_id\":\"app-session-1\"," +
+            "\"session_generation\":7,\"undo\":{\"available\":false}}"
         val rolledBack = PolarisApiClient.parseDoctorActionHttpResponse(
             statusCode = 200,
-            responseBody = "{\"status\":true,\"changed\":true,\"state\":\"rolled_back\"," +
+            responseBody = body,
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val staleUndo = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = body,
+            actionId = "undo",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val forgedUndoAvailability = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = body.replace(
+                "\"undo\":{\"available\":false}",
+                "\"undo\":{\"available\":true}"
+            ),
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+        val contradictoryUndoAction = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = body.replace(
+                "\"undo\":{\"available\":false}",
+                "\"undo\":{\"available\":false,\"action_id\":\"undo\"}"
+            ),
+            actionId = "verify",
+            requestedRunId = "doctor-run-1",
+            requestedAppSessionId = "app-session-1",
+            requestedSessionGeneration = 7L
+        )
+
+        assertTrue(rolledBack.status)
+        assertTrue(staleUndo.status)
+        assertEquals("rolled_back", staleUndo.state)
+        assertEquals(false, staleUndo.undoAvailable)
+        assertFalse(forgedUndoAvailability.status)
+        assertFalse(forgedUndoAvailability.changedContractValid)
+        assertEquals("", forgedUndoAvailability.state)
+        assertFalse(contradictoryUndoAction.status)
+        assertFalse(contradictoryUndoAction.changedContractValid)
+        assertEquals("", contradictoryUndoAction.state)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedSupersededVerification() {
+        val superseded = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"superseded\"," +
                 "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
             actionId = "verify",
             requestedRunId = "doctor-run-1"
         )
 
-        assertTrue(rolledBack.status)
+        assertTrue(superseded.status)
+        assertEquals("superseded", superseded.state)
+    }
+
+    @Test
+    fun doctorActionHttpAcceptsCorrelatedSupersededUndo() {
+        val superseded = PolarisApiClient.parseDoctorActionHttpResponse(
+            statusCode = 200,
+            responseBody = "{\"status\":true,\"changed\":false,\"state\":\"superseded\"," +
+                "\"run_id\":\"doctor-run-1\",\"undo\":{\"available\":false}}",
+            actionId = "undo",
+            requestedRunId = "doctor-run-1"
+        )
+
+        assertTrue(superseded.status)
+        assertEquals("superseded", superseded.state)
     }
 
     @Test
@@ -491,7 +726,8 @@ class PolarisApiClientParsingTest {
             "{\"server\":\"polaris\",\"version\":\"1.0.0\"," +
                 "\"features\":{\"ai_optimizer\":true,\"ai_optimizer_control\":true,\"cursor_visibility_control\":true," +
                 "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true," +
-                "\"resolved_profile_provenance_v1\":true,\"expected_topology_assertion_v1\":true}," +
+                "\"resolved_profile_provenance_v1\":true,\"expected_topology_assertion_v1\":true," +
+                "\"live_media_telemetry_v1\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"codecs\":[\"hevc\"]}}"
         )
 
@@ -507,7 +743,25 @@ class PolarisApiClientParsingTest {
         assertTrue(capabilities.features.optimizerSync)
         assertTrue(capabilities.features.resolvedProfileProvenance)
         assertTrue(capabilities.features.expectedTopologyAssertion)
+        assertTrue(capabilities.features.liveMediaTelemetry)
         assertTrue(PolarisApiClient.supportsDeterministicLaunchContract(capabilities))
+    }
+
+    @Test
+    fun liveMediaTelemetryCapabilityRequiresLiteralBoolean() {
+        val enabled = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject("{\"server\":\"polaris\",\"features\":{\"live_media_telemetry_v1\":true}}")
+        )
+        val coerced = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject("{\"server\":\"polaris\",\"features\":{\"live_media_telemetry_v1\":\"true\"}}")
+        )
+        val missing = PolarisApiClient.parseCapabilitiesResponse(
+            JSONObject("{\"server\":\"polaris\",\"features\":{}}")
+        )
+
+        assertTrue(enabled.features.liveMediaTelemetry)
+        assertFalse(coerced.features.liveMediaTelemetry)
+        assertFalse(missing.features.liveMediaTelemetry)
     }
 
     @Test
@@ -1256,6 +1510,30 @@ class PolarisApiClientParsingTest {
         )
         assertFalse(
             PolarisSessionStatus.DoctorStatus().matchesConfirmedAction(confirmed)
+        )
+
+        val refreshedSameAction = confirmed.copy(
+            resultId = "doctor-v2-network-next",
+            actionSourceResultId = "doctor-v2-network-next",
+            actionControllerRevision = 52L,
+            actionEvidenceRevision = 64L,
+            targetBitrateKbps = 15_000
+        )
+        assertFalse(refreshedSameAction.matchesConfirmedAction(confirmed))
+        assertTrue(refreshedSameAction.matchesExecutableActionIntent(confirmed))
+        assertFalse(
+            refreshedSameAction.copy(actionSessionGeneration = 42L)
+                .matchesExecutableActionIntent(confirmed)
+        )
+        assertFalse(
+            refreshedSameAction.copy(actionAppSessionId = "app-session-other")
+                .matchesExecutableActionIntent(confirmed)
+        )
+        assertFalse(
+            refreshedSameAction.copy(
+                actionId = "restore_quality",
+                actionPayloadId = "restore_quality"
+            ).matchesExecutableActionIntent(confirmed)
         )
     }
 

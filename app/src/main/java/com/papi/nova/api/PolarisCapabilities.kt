@@ -22,6 +22,7 @@ data class PolarisCapabilities(
         val expectedTopologyAssertion: Boolean = false,
         val lockScreenControl: Boolean = false,
         val cursorVisibilityControl: Boolean = false,
+        val liveMediaTelemetry: Boolean = false,
         val doctorV2Shadow: Boolean = false,
         val doctorV2ShadowEnabled: Boolean = false,
         val doctorTrials: Boolean = false,

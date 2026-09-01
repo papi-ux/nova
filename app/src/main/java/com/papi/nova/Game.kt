@@ -42,6 +42,7 @@ import com.papi.nova.preferences.GlPreferences
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.runtime.BackgroundResumePolicy
+import com.papi.nova.runtime.DoctorTelemetryUploadGate
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
@@ -179,8 +180,8 @@ private var configuredDisplayRefreshRateHz:Float = 0f
 private var configuredStreamBitrateKbps:Int = 0
 private var configuredStreamHdr:Boolean = false
 @Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
-private val doctorV2UploadInFlight:AtomicBoolean = AtomicBoolean(false)
-private val doctorV2UploadFailureLogged:AtomicBoolean = AtomicBoolean(false)
+private val doctorTelemetryUploadGate:DoctorTelemetryUploadGate = DoctorTelemetryUploadGate()
+private val doctorTelemetryUploadFailureLogged:AtomicBoolean = AtomicBoolean(false)
 private var preferStableRefreshMultipleForAutoSafe:Boolean = false
 private var audioHapticEngine:com.papi.nova.ui.AudioHapticEngine? = null
 private var gyroAimController:com.papi.nova.ui.GyroAimController? = null
@@ -269,6 +270,7 @@ private var launchOptimizationJson:String? = null
 private var launchResolvedProfileTrusted:Boolean = false
 private val launchPolicyGateGeneration = AtomicLong(0L)
 private val launchPolicyGatePending = AtomicBoolean(false)
+private var launchPolicyHandoffRecreation:Boolean = false
 private data class LaunchOptimizationDecision(
 val optimization:JSONObject?,
 val policyBlocked:Boolean,
@@ -1341,6 +1343,7 @@ this@Game.getIntent() === gateIntent)
 {
 launchPolicyGatePending.set(false)
 gateIntent.putExtra(EXTRA_LAUNCH_POLICY_TOKEN, nextToken)
+launchPolicyHandoffRecreation = true
 recreate()
 }
 else
@@ -1574,7 +1577,7 @@ configuredStreamFrameRateFps = chosenFrameRate
 configuredHudTargetFps = launchRefreshRate
 configuredStreamHdr = willStreamHdr
 doctorTelemetry.reset()
-doctorV2UploadFailureLogged.set(false)
+doctorTelemetryUploadFailureLogged.set(false)
 doctorTelemetry.setTargetFps(launchRefreshRate.toDouble())
 doctorTelemetry.recordBitrate(configuredStreamBitrateKbps)
 lastPolarisDeviceCapabilities = com.papi.nova.manager.StreamSyncManager.buildDeviceCapabilities(
@@ -3413,6 +3416,16 @@ super.onPause()
 
 override fun onStop() {
 super.onStop()
+
+// The deterministic launch gate recreates this Activity to consume its
+// process-local one-shot decision. Calling finish() from the retiring
+// instance would also finish the replacement ActivityRecord before its
+// stream can receive video.
+if (launchPolicyHandoffRecreation)
+{
+LimeLog.info("Nova: Preserving replacement Activity during launch policy handoff")
+return
+}
 
 SpinnerDialog.closeDialogs(this)
 Dialog.closeDialogs()
@@ -5267,34 +5280,11 @@ connecting = connected
 isStreamActive = false
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
-runtimeTasks.cancel("NovaDoctorV2Sample")
+doctorTelemetryUploadGate.invalidate()
+runtimeTasks.cancel("NovaDoctorTelemetry")
  // Raw Doctor sampling runs independently of HUD visibility.
-            if (host != null)
-{
 val summary:Map<String, Any> = doctorTelemetry.summary()
 com.papi.nova.LimeLog.info("Nova: observational session summary " + NovaHudSessionSummaryLog.format(summary))
-val reportHost:String? = host
-val reportHttpsPort:Int = httpsPort
-val reportServerCert:X509Certificate? = serverCert
-val reportDevice:String? = DeviceUtils.getModel()
-val reportUniqueId:String? = uniqueId
-val reportGame:String? = if (appName != null) appName else ""
-launchRuntimeIo("NovaSessionReport") { try
-{
-var client:com.papi.nova.api.PolarisApiClient = com.papi.nova.api.PolarisApiClient(this@Game, reportHost ?: "", reportHttpsPort, reportServerCert)
-client.sendDoctorEvidenceReport(
-reportDevice ?: "", reportUniqueId ?: "", reportGame ?: "", summary,
-if (reportedCrash) "decoder_crash" else "disconnect"
-)
-}
-catch (e:kotlinx.coroutines.CancellationException) {
-throw e
-}
-catch (e:Exception) {
-com.papi.nova.LimeLog.warning("Nova: Session report failed: " + e!!.message)
-}
-}
-}
 novaHud?.dismiss()
 novaHud = null
 syncPerfTextWanted()
@@ -5901,42 +5891,53 @@ else if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)
 hideSystemUi(2000)
 }
 }
-private fun uploadDoctorV2Sample(sample:PerfOverlaySample) {
-if (!connected ||
-!novaDoctorV2ShadowEnabled() ||
-!doctorV2UploadInFlight.compareAndSet(false, true))
+private fun uploadDoctorSample(sample:PerfOverlaySample) {
+if (!connected)
 {
 return
 }
+val uploadToken:Long = doctorTelemetryUploadGate.tryAcquire() ?: return
 val client:com.papi.nova.api.PolarisApiClient = novaApiClient ?: run {
-doctorV2UploadInFlight.set(false)
+doctorTelemetryUploadGate.release(uploadToken)
 return
 }
-val effectiveTopology:String = lastPolarisSessionStatus?.displayMode?.selection?.takeIf { it.isNotBlank() }
+val liveStatus = lastPolarisSessionStatus?.takeIf { status ->
+novaHasLiveMediaTelemetry() && status.authorityContractValid &&
+status.isStreaming && status.ownedByClient && status.clientRole == "owner" &&
+status.appSessionId.isNotBlank() && status.sessionGeneration > 0L
+}
+if (liveStatus == null)
+{
+doctorTelemetryUploadGate.release(uploadToken)
+return
+}
+val effectiveTopology:String = liveStatus.displayMode?.selection?.takeIf { it.isNotBlank() }
 ?: requestedLaunchTopology()
 val sampleTargetFps:Double = configuredHudTargetFps.toDouble()
 val sampleRefreshRateHz:Double = configuredDisplayRefreshRateHz.toDouble()
 val sampleBitrateKbps:Int = configuredStreamBitrateKbps
 val sampleHdr:Boolean = configuredStreamHdr
-launchRuntimeIo("NovaDoctorV2Sample") {
+launchRuntimeIo("NovaDoctorTelemetry") {
 try
 {
-val accepted:Boolean = client.sendDoctorV2Sample(
+val accepted:Boolean = client.sendLiveMediaTelemetry(
 sample = sample,
+appSessionId = liveStatus.appSessionId,
+sessionGeneration = liveStatus.sessionGeneration,
 targetFps = sampleTargetFps,
 refreshRateHz = sampleRefreshRateHz,
 bitrateKbps = sampleBitrateKbps,
 topology = effectiveTopology,
 hdr = sampleHdr
 )
-if (!accepted && doctorV2UploadFailureLogged.compareAndSet(false, true))
+if (!accepted && doctorTelemetryUploadFailureLogged.compareAndSet(false, true))
 {
-com.papi.nova.LimeLog.warning("Nova: Doctor v2 shadow sample was not accepted; continuing locally")
+com.papi.nova.LimeLog.warning("Nova: Live Doctor telemetry was not accepted; continuing locally")
 }
 }
 finally
 {
-doctorV2UploadInFlight.set(false)
+doctorTelemetryUploadGate.release(uploadToken)
 }
 }
 }
@@ -5970,7 +5971,7 @@ runOnUiThread(object : Runnable {
 override fun run() {
 lastCompanionPerfSample = sample
 doctorTelemetry.recordPerfSample(sample)
-uploadDoctorV2Sample(sample)
+uploadDoctorSample(sample)
                 if (novaHud != null && novaHud!!.isShowing)
 {
 novaHud!!.updateFromPerfSample(sample)
@@ -6290,8 +6291,8 @@ currentNovaCapabilities()?.features?.lockScreenControl == true
 private fun novaHasClientSettings():Boolean =
 currentNovaCapabilities()?.features?.clientSettings == true
 
-private fun novaDoctorV2ShadowEnabled():Boolean =
-currentNovaCapabilities()?.features?.doctorV2ShadowEnabled == true
+private fun novaHasLiveMediaTelemetry():Boolean =
+currentNovaCapabilities()?.features?.liveMediaTelemetry == true
 
 private fun startNovaFeatureProbe() {
 var client:com.papi.nova.api.PolarisApiClient? = novaApiClient

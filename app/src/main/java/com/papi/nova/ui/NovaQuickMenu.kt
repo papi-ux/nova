@@ -604,10 +604,21 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
                 game.launchReplacingRuntimeIo("NovaQuickMenuDoctorVerify") {
                     val latestStatus = client.getSessionStatus()
-                    if (!acceptRefreshedSessionStatus(latestStatus) ||
-                        latestStatus?.canAdjustHostTuning != true ||
-                        !requestIsCurrent(request)
-                    ) {
+                    val acceptedStatus = acceptRefreshedSessionStatus(latestStatus)
+                    if (!requestIsCurrent(request)) {
+                        game.runOnMainIfRuntimeActive {
+                            doctorActionPendingRegistry.clearIfOwned(request.generation)
+                            doctorMenuRefreshRegistry.dispatch()
+                        }
+                        return@launchReplacingRuntimeIo
+                    }
+                    if (!acceptedStatus || latestStatus?.canAdjustHostTuning != true) {
+                        // A revoked owner scope or transient status failure must
+                        // not leave a past-due receipt dispatching a zero-delay
+                        // Verify loop. Back off and eventually surface the
+                        // durable receipt as Needs attention without discarding
+                        // its still-unresolved Undo metadata.
+                        deferDoctorVerification(request)
                         game.runOnMainIfRuntimeActive {
                             doctorActionPendingRegistry.clearIfOwned(request.generation)
                             doctorMenuRefreshRegistry.dispatch()
@@ -622,8 +633,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     )
                     val updated = when {
                         verification == null -> deferDoctorVerification(request)
-                        !verification.status -> stopDoctorVerification(request, verification)
+                        !verification.status ->
+                            stopDoctorVerification(request, verification)
+                                ?: deferDoctorVerification(request)
                         else -> storeDoctorResult(request, verification)
+                            ?: deferDoctorVerification(request)
                     }
                     if (verification?.status == true && updated != null) {
                         acceptRefreshedSessionStatus(client.getSessionStatus())
@@ -655,27 +669,34 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         fun executeConfirmedDoctorAction(doctor: PolarisSessionStatus.DoctorStatus, client: PolarisApiClient) {
             game.launchReplacingRuntimeIo("NovaQuickMenuDoctorAction") {
                 val latestStatus = client.getSessionStatus()
+                val latestDoctor = latestStatus?.doctor
                 if (!acceptRefreshedSessionStatus(latestStatus) ||
                     latestStatus == null ||
-                    !canExecuteDoctorAction(latestStatus, doctor) ||
-                    latestStatus.doctor.matchesConfirmedAction(doctor).not()
+                    latestDoctor == null ||
+                    !canExecuteDoctorAction(latestStatus, latestDoctor) ||
+                    latestDoctor.matchesExecutableActionIntent(doctor).not()
                 ) {
+                    game.runOnMainIfRuntimeActive {
+                        if (menuValidationIsCurrent() && dialog?.isShowing == true) {
+                            refreshState()
+                        }
+                    }
                     return@launchReplacingRuntimeIo
                 }
                 val scope = synchronized(doctorActionLock) { doctorReceiptScopeId }
                     ?: return@launchReplacingRuntimeIo
-                val request = beginNewDoctorRequest(scope, doctor.actionId) ?: return@launchReplacingRuntimeIo
+                val request = beginNewDoctorRequest(scope, latestDoctor.actionId) ?: return@launchReplacingRuntimeIo
                 val result = client.runDoctorAction(
-                    actionId = doctor.actionId,
+                    actionId = latestDoctor.actionId,
                     appSessionId = request.appSessionId,
                     sessionGeneration = request.sessionGeneration,
-                    appUuid = doctor.actionAppUuid,
-                    sourceResultId = doctor.resultId,
-                    targetBitrateKbps = doctor.targetBitrateKbps,
-                    controllerRevision = doctor.actionControllerRevision,
-                    evidenceRevision = doctor.actionEvidenceRevision,
+                    appUuid = latestDoctor.actionAppUuid,
+                    sourceResultId = latestDoctor.resultId,
+                    targetBitrateKbps = latestDoctor.targetBitrateKbps,
+                    controllerRevision = latestDoctor.actionControllerRevision,
+                    evidenceRevision = latestDoctor.actionEvidenceRevision,
                     requestId = request.requestId,
-                    confirmed = doctor.requiresConfirmation
+                    confirmed = latestDoctor.requiresConfirmation
                 )
                 val readOnlySuccess = result?.let {
                     DoctorActionReceiptStore.successfulReadOnlyNewRunResult(request, it)

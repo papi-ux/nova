@@ -66,15 +66,15 @@ class NovaLaunchStreamOverrideTest {
 
         assertEquals("1440x810x60", composed.getString("display_mode"))
         assertEquals("1440x810x60", display.getString("value"))
-        assertEquals("explicit_launch_request", display.getString("source"))
-        assertEquals(NovaLaunchStreamOverride.NORMALIZATION_REASON, display.getString("reason_code"))
-        assertTrue(display.getBoolean("locked"))
+        assertEquals("composed_display_components", display.getString("source"))
+        assertEquals("mixed_display_provenance", display.getString("reason_code"))
+        assertFalse(display.getBoolean("locked"))
         assertEquals(1440, fields.getJSONObject("display_width").getInt("value"))
         assertEquals(810, fields.getJSONObject("display_height").getInt("value"))
         assertEquals(60.0, fields.getJSONObject("target_fps").getDouble("value"), 0.001)
         assertTrue(fields.getJSONObject("display_width").getBoolean("locked"))
         assertTrue(fields.getJSONObject("display_height").getBoolean("locked"))
-        assertTrue(fields.getJSONObject("target_fps").getBoolean("locked"))
+        assertFalse(fields.getJSONObject("target_fps").getBoolean("locked"))
         assertEquals("balanced", composed.getString("display_planner_choice"))
         assertEquals(40000, fields.getJSONObject("target_bitrate_kbps").getInt("value"))
         assertFalse(composed.has("paired_profile_applied"))
@@ -110,6 +110,33 @@ class NovaLaunchStreamOverrideTest {
             deterministicBlob(), choice("1440x810x60"), 120, 1280, 800, 60
         )!!
         assertEquals("1440x810x120", composed.getString("display_mode"))
+        val display = composed.getJSONObject("resolved_profile").getJSONObject("fields")
+            .getJSONObject("display_mode")
+        assertEquals("explicit_launch_request", display.getString("source"))
+        assertTrue(display.getBoolean("locked"))
+    }
+
+    @Test
+    fun resolutionPickCannotSilentlyLowerTheResolvedFps() {
+        val raw = deterministicBlob()
+        val fields = raw.getJSONObject("resolved_profile").getJSONObject("fields")
+        fields.getJSONObject("display_mode").put("value", "1920x1080x120")
+        fields.getJSONObject("target_fps").put("value", 120)
+
+        val composed = NovaLaunchStreamOverride.compose(
+            raw,
+            choice("1920x1080x60", id = "native"),
+            null,
+            1920,
+            1080,
+            60,
+        )!!
+        val composedFields = composed.getJSONObject("resolved_profile").getJSONObject("fields")
+
+        assertEquals("1920x1080x120", composed.getString("display_mode"))
+        assertEquals(120.0, composedFields.getJSONObject("target_fps").getDouble("value"), 0.001)
+        assertEquals("paired_client", composedFields.getJSONObject("target_fps").getString("source"))
+        assertFalse(composedFields.getJSONObject("target_fps").getBoolean("locked"))
     }
 
     @Test
