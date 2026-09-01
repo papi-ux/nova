@@ -111,6 +111,56 @@ class NovaReleaseMetadataTest {
     }
 
     @Test
+    fun releaseScriptTagsOnlyTheExactProtectedMasterHead() {
+        val releaseScript = File(repoRoot(), "bin/release.sh").readText()
+        val lines = releaseScript.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .toList()
+
+        assertTrue(releaseScript.contains("version=\"\${1:-\$declared_version}\""))
+        assertConsecutive(lines, listOf(
+            "if [[ \"\$version\" != \"\$declared_version\" ]]; then",
+            "echo \"Requested release version \${version} does not match app version \${declared_version}.\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertConsecutive(lines, listOf(
+            "current_branch=\"\$(git symbolic-ref --quiet --short HEAD || true)\"",
+            "if [[ \"\$current_branch\" != \"master\" ]]; then",
+            "echo \"Release tagging requires the local master branch; found '\${current_branch:-detached HEAD}'.\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertOrdered(lines, listOf(
+            "git fetch --no-tags origin refs/heads/master:refs/remotes/origin/master",
+            "local_head=\"\$(git rev-parse HEAD)\"",
+            "remote_master=\"\$(git rev-parse refs/remotes/origin/master)\"",
+            "if [[ \"\$local_head\" != \"\$remote_master\" ]]; then",
+        ))
+        assertTrue(lines.count { it == "require_exact_master_head" } == 2)
+        assertOrdered(lines, listOf(
+            "require_exact_master_head",
+            "./gradlew -PnovaAbis=arm64-v8a,armeabi-v7a,x86_64 assembleNonRoot_gameRelease",
+            "require_exact_master_head",
+            "git tag -a \"\$tag\" -m \"Nova \${tag}\"",
+            "if ! git push --atomic origin \\",
+            "HEAD:refs/heads/master \\",
+            "\"refs/tags/\${tag}:refs/tags/\${tag}\"",
+        ))
+        assertConsecutive(lines, listOf(
+            "then",
+            "git tag -d \"\$tag\" >/dev/null",
+            "echo \"Atomic master/tag publication failed; removed local \${tag}.\" >&2",
+            "exit 1",
+            "fi",
+        ))
+        assertTrue(lines.none {
+            it == "git push origin master" || it == "git push origin \"\$tag\""
+        })
+    }
+
+    @Test
     fun releasePublicationStaysBoundToOneVerifiedSource() {
         val root = repoRoot()
         val workflow = File(root, ".github/workflows/build.yml").readText()
