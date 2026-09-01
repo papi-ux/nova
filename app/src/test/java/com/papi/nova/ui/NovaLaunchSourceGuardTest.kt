@@ -923,6 +923,7 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
+        val retainedLaunch = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
         val selection = detail.section(
             "fun selectSteamLaunchMode(value: String) {",
             "fun resetProfile() {"
@@ -930,11 +931,12 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(!selection.contains("dismiss()"))
         assertTrue(!selection.contains("onLaunch?.invoke"))
-        assertTrue(selection.contains("apiClient.setSteamLaunchMode"))
+        assertTrue(retainedLaunch.contains("apiClient.setSteamLaunchMode(gameId, mode)"))
         // The row advances on every press, but its mutation is independently debounced;
         // unrelated profile/topology settling must not discard the pending host write.
-        assertTrue(selection.contains("delay(NOVA_PLAY_SETUP_SETTLE_MS)"))
-        assertTrue(selection.contains("steamLaunchModeIntents.owns(commit)"))
+        assertTrue(retainedLaunch.contains("delay(settleDelayMs)"))
+        assertTrue(retainedLaunch.contains("intents.owns(commit)"))
+        assertTrue(selection.contains("launchViewModel.selectSteamLaunchMode(requestedMode)"))
         assertTrue(!selection.contains("settleThen {"))
     }
 
@@ -945,19 +947,22 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
+        val retainedLaunch = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
 
         assertTrue(api.contains("fun setSteamLaunchMode(gameId: String, mode: String): String?"))
         assertTrue(api.contains("json.optString(\"mode\", normalizedMode)"))
         assertTrue(detail.contains("row = NovaPlaySetupRow.STEAM_LAUNCH,"))
-        assertTrue(detail.contains("steamLaunchModeIntents.complete(commit, confirmedMode)"))
+        assertTrue(retainedLaunch.contains("intents.complete(commit, confirmedMode)"))
         val steamSelection = detail.section("fun selectSteamLaunchMode(", "/**\n         * The act column")
         assertTrue(
-            "Steam mutations need separate serialized ownership so cross-row debounce cannot discard them and older requests cannot commit last",
-            steamSelection.contains("steamLaunchModeJob?.isActive != true") &&
-                steamSelection.contains("steamLaunchModeIntents.select(requestedMode)") &&
-                steamSelection.contains("steamLaunchModeIntents.snapshot()") &&
-                steamSelection.contains("steamLaunchModeWriteQueue.commit") &&
-                steamSelection.contains("steamLaunchModeIntents.complete(commit, confirmedMode)") &&
+            "Steam mutations need retained serialized ownership so cross-row debounce or Activity recreation cannot discard or reorder them",
+            detail.contains("NovaGameDetailLaunchViewModel.Factory(") &&
+                detail.contains("launchViewModel.steamLaunchModeSnapshot().displayMode") &&
+                steamSelection.contains("launchViewModel.selectSteamLaunchMode(requestedMode)") &&
+                retainedLaunch.contains("class NovaGameDetailLaunchViewModel(") &&
+                retainedLaunch.contains("scope = viewModelScope") &&
+                retainedLaunch.contains("writeQueue.commit { write(commit.mode) }") &&
+                retainedLaunch.contains("intents.complete(commit, confirmedMode)") &&
                 !steamSelection.contains("settleThen {")
         )
         assertTrue(

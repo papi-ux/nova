@@ -1,10 +1,21 @@
 package com.papi.nova.ui
 
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.preferences.PreferenceConfiguration
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Main-thread ownership fence for Game Detail launch preflights.
@@ -61,6 +72,160 @@ internal class NovaSteamLaunchModeIntentTracker(initialConfirmedMode: String) {
             ownsLatest = true,
             displayMode = hostConfirmedMode ?: confirmedMode,
         )
+    }
+}
+
+/**
+ * Retained, latest-intent owner for one game's Steam launch-mode mutation.
+ *
+ * The HTTP call is synchronous below OkHttp's retry wrapper, so destroying an Activity
+ * cannot retract a request already delivered to Polaris. Keeping this worker in a
+ * ViewModel-owned scope lets the replacement Activity join the same mutation and queue
+ * its newer intent after it, instead of starting a fresh queue that can be overwritten.
+ */
+internal class NovaSteamLaunchModeCoordinator(
+    private val scope: CoroutineScope,
+    initialConfirmedMode: String,
+    private val settleDelayMs: Long = NOVA_PLAY_SETUP_SETTLE_MS,
+    private val write: suspend (String) -> String?,
+) {
+    data class Snapshot(
+        val generation: Long,
+        val displayMode: String,
+        val pending: Boolean,
+        val failed: Boolean,
+    )
+
+    private val stateLock = Any()
+    private val writeQueue = NovaSteamLaunchModeWriteQueue()
+    private val intents = NovaSteamLaunchModeIntentTracker(initialConfirmedMode)
+    private var state = Snapshot(
+        generation = 0,
+        displayMode = initialConfirmedMode,
+        pending = false,
+        failed = false,
+    )
+    private var worker: Job? = null
+
+    fun snapshot(): Snapshot = synchronized(stateLock) { state }
+
+    fun select(mode: String): Long = synchronized(stateLock) {
+        intents.select(mode)
+        val commit = checkNotNull(intents.snapshot())
+        state = Snapshot(
+            generation = commit.generation,
+            displayMode = mode,
+            pending = true,
+            failed = false,
+        )
+        if (worker?.isActive != true) {
+            worker = scope.launch { drain() }
+        }
+        commit.generation
+    }
+
+    suspend fun awaitLatest(): Snapshot {
+        while (true) {
+            val observed = synchronized(stateLock) { worker }
+                ?: return snapshot()
+            observed.join()
+            synchronized(stateLock) {
+                if (worker === observed && !state.pending) return state
+            }
+        }
+    }
+
+    private suspend fun drain() {
+        while (true) {
+            val commit = synchronized(stateLock) { intents.snapshot() } ?: return
+            delay(settleDelayMs)
+            val stillLatest = synchronized(stateLock) { intents.owns(commit) }
+            if (!stillLatest) continue
+
+            val confirmedMode = try {
+                writeQueue.commit { write(commit.mode) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+
+            val ownsLatest = synchronized(stateLock) {
+                val resolution = intents.complete(commit, confirmedMode)
+                if (resolution.ownsLatest) {
+                    state = Snapshot(
+                        generation = commit.generation,
+                        displayMode = resolution.displayMode,
+                        pending = false,
+                        failed = confirmedMode == null,
+                    )
+                    true
+                } else {
+                    val replacement = checkNotNull(intents.snapshot())
+                    state = Snapshot(
+                        generation = replacement.generation,
+                        displayMode = replacement.mode,
+                        pending = true,
+                        failed = false,
+                    )
+                    false
+                }
+            }
+            if (ownsLatest) return
+        }
+    }
+}
+
+/** Retains the Steam mutation authority across Game Detail configuration recreation. */
+internal class NovaGameDetailLaunchViewModel(
+    apiClient: PolarisApiClient,
+    gameId: String,
+    initialSteamLaunchMode: String,
+) : ViewModel() {
+    private val steamLaunchMode = NovaSteamLaunchModeCoordinator(
+        scope = viewModelScope,
+        initialConfirmedMode = initialSteamLaunchMode,
+        write = { mode ->
+            withContext(Dispatchers.IO) {
+                apiClient.setSteamLaunchMode(gameId, mode)
+            }
+        },
+    )
+
+    fun steamLaunchModeSnapshot(): NovaSteamLaunchModeCoordinator.Snapshot =
+        steamLaunchMode.snapshot()
+
+    fun selectSteamLaunchMode(mode: String): Long = steamLaunchMode.select(mode)
+
+    suspend fun awaitLatestSteamLaunchMode(): NovaSteamLaunchModeCoordinator.Snapshot =
+        steamLaunchMode.awaitLatest()
+
+    internal class Factory(
+        context: Context,
+        private val serverAddress: String,
+        private val httpsPort: Int,
+        serverCertDer: ByteArray?,
+        private val gameId: String,
+        private val initialSteamLaunchMode: String,
+    ) : ViewModelProvider.Factory {
+        private val applicationContext = context.applicationContext
+        private val serverCertificate = serverCertDer?.copyOf()
+
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            require(modelClass.isAssignableFrom(NovaGameDetailLaunchViewModel::class.java))
+            val client = PolarisApiClient(
+                applicationContext,
+                serverAddress,
+                httpsPort,
+                serverCertificate,
+            )
+            return NovaGameDetailLaunchViewModel(
+                apiClient = client,
+                gameId = gameId,
+                initialSteamLaunchMode = initialSteamLaunchMode,
+            ) as T
+        }
     }
 }
 
