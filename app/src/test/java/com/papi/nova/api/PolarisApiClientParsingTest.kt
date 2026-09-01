@@ -1773,6 +1773,32 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun launchModeChoice_keepsUnavailableVirtualGuidanceWhenContractRemovesTheMode() {
+        val settings = PolarisApiClient.parseClientSettingsResponse(
+            JSONObject(
+                "{\"version\":1,\"desired\":{},\"effective\":{},\"capabilities\":{\"modes\":[" +
+                    "{\"value\":\"headless_stream\",\"available\":true}," +
+                    "{\"value\":\"host_virtual_display\",\"available\":false," +
+                    "\"reason\":\"General mode copy.\",\"unavailable_reason\":\"Set linux_streaming_output first.\"}]}}"
+            )
+        )
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Game\"," +
+                    "\"launch_mode\":{\"preferred_mode\":\"host_virtual_display\"," +
+                    "\"recommended_mode\":\"headless_stream\",\"allowed_modes\":[\"headless_stream\"]}}"
+            )
+        )
+
+        val choice = game.resolveLaunchModeChoice(true, settings)
+
+        assertEquals(PolarisGame.MODE_HEADLESS_STREAM, choice.recommendedMode)
+        assertFalse(choice.virtualDisplayAllowed)
+        assertTrue(choice.virtualDisplayUnavailable)
+        assertEquals("Set linux_streaming_output first.", choice.virtualDisplayUnavailableReason)
+    }
+
+    @Test
     fun parseGame_includesSteamLaunchContract() {
         val game = PolarisGameJsonAdapter.fromJson(
             JSONObject(

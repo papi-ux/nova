@@ -94,6 +94,8 @@ import com.papi.nova.api.PolarisArtworkChoice
 import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
+import com.papi.nova.api.isLaunchModeAvailable
+import com.papi.nova.api.isLaunchModeSessionOverridable
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.manager.StreamSyncManager
@@ -606,14 +608,10 @@ class NovaGameDetailActivity : NovaActivity() {
                 mirrorDesktop,
                 forcePrivateAfterSteamClose,
                 profilePreference,
-                // Session-scoped streamMode travels ONLY for an explicit per-game
-                // override. Passing the resolved playMode here froze a (possibly
-                // stale) host default into the launch and overrode it per-session;
-                // a host-default launch must send nothing and ride the host's
-                // current mode instead.
-                PolarisStreamDisplayMode.normalize(
-                    NovaLaunchModeOverrides.load(this@NovaGameDetailActivity, currentGame).orEmpty()
-                ),
+                // Normal host-default launches send nothing. A validated per-game
+                // choice, or the safe replacement for a host default that is no
+                // longer launch-ready, travels for this session only.
+                uiState.launchStreamMode,
                 launchOptimization()
             )
             finish()
@@ -786,10 +784,9 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         fun selectLaunchMode(mode: String) {
-            val allowed = when (PolarisGame.normalizeLaunchMode(mode)) {
-                PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> uiState.virtualDisplayAllowed && !uiState.virtualDisplayUnavailable
-                else -> uiState.headlessAllowed
-            }
+            val normalizedMode = PolarisGame.normalizeLaunchMode(mode)
+            val allowed = currentGame.isLaunchModeAvailable(normalizedMode, clientSettings) &&
+                clientSettings.isLaunchModeSessionOverridable(normalizedMode)
             if (!allowed || mode == uiState.playMode) return
 
             val previousLaunchMode = currentGame.launchMode

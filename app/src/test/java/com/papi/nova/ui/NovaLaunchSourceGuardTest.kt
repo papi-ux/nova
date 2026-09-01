@@ -771,9 +771,13 @@ class NovaLaunchSourceGuardTest {
         )
 
         val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val detailState = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailUiState.kt")
         assertTrue(
-            "a launch sends streamMode only for an EXPLICIT per-game override; resolving the host default into the launch froze stale modes into sessions",
-            detail.contains("NovaLaunchModeOverrides.load(this@NovaGameDetailActivity, currentGame).orEmpty()") &&
+            "a launch sends only the validated session mode: normal host defaults stay unpinned, while an unavailable default can use Polaris's safe per-session replacement",
+            detail.contains("uiState.launchStreamMode,") &&
+                detailState.contains("!perGameOverride.isNullOrBlank() -> playMode") &&
+                detailState.contains("hostDefaultUnavailable &&") &&
+                detailState.contains("clientSettings.isLaunchModeSessionOverridable(playMode) -> playMode") &&
                 !detail.contains("uiState.playMode,\n                launchOptimization()")
         )
     }

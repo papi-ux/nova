@@ -405,9 +405,10 @@ internal fun NovaGameDetailContent(
                             modeLabel = when (uiState.playMode) {
                                 PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> virtualDisplayModeLabel
                                 PolarisGame.MODE_HEADLESS_STREAM -> headlessModeLabel
-                                // Following a host default outside the pair: say what it
-                                // actually is instead of mislabeling it Private Stream.
-                                else -> uiState.hostStreamDisplayModeLabel.ifBlank { headlessModeLabel }
+                                // A stale host default can be replaced for this launch.
+                                // Name the mode Nova will actually send, not the rejected
+                                // host-default label.
+                                else -> uiState.playModeLabel.ifBlank { headlessModeLabel }
                             },
                             lines = listOfNotNull(
                                 summary?.selectedLine

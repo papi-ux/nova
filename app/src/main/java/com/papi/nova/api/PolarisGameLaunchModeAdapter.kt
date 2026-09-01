@@ -4,19 +4,32 @@ import com.papi.nova.shared.polaris.model.PolarisGame
 
 fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, clientSettings: PolarisClientSettings? = null): PolarisGame.LaunchModeChoice {
     val contract = launchMode
-    val headlessAvailable = modeAvailability(clientSettings, PolarisGame.MODE_HEADLESS_STREAM)
-    val virtualAvailable = modeAvailability(clientSettings, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
-    val headlessAllowed = (contract?.allows(PolarisGame.MODE_HEADLESS_STREAM) ?: true) && headlessAvailable != false
-    val virtualDisplayAllowed = (contract?.allows(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) ?: true) && virtualAvailable != false
+    val headlessAllowed = isLaunchModeAvailable(PolarisGame.MODE_HEADLESS_STREAM, clientSettings)
+    val virtualDisplayAllowed = isLaunchModeAvailable(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY, clientSettings)
     val hostRequestedMode = clientSettings?.desired?.streamDisplayMode?.takeIf { it.isNotBlank() }
         ?: clientSettings?.effective?.streamDisplayMode?.takeIf { it.isNotBlank() }
         ?: ""
-    val hostDefaultMode = hostRequestedMode.takeIf { it.isNotBlank() }?.let {
-        PolarisGame.resolveLaunchMode(it, headlessAllowed, virtualDisplayAllowed)
-    } ?: ""
-    val fallbackMode = if (defaultToVirtualDisplay && virtualDisplayAllowed) PolarisGame.MODE_HOST_VIRTUAL_DISPLAY else PolarisGame.MODE_HEADLESS_STREAM
-    val preferredMode = PolarisGame.resolveLaunchMode(contract?.preferredMode?.takeIf { it.isNotBlank() } ?: fallbackMode, headlessAllowed, virtualDisplayAllowed)
-    val recommendedMode = PolarisGame.resolveLaunchMode(hostDefaultMode.takeIf { it.isNotBlank() } ?: contract?.recommendedMode?.takeIf { it.isNotBlank() } ?: preferredMode, headlessAllowed, virtualDisplayAllowed)
+    val resolveAvailable = { mode: String ->
+        PolarisGame.normalizeLaunchMode(mode)
+            .takeIf { it.isNotBlank() && isLaunchModeAvailable(it, clientSettings) }
+            .orEmpty()
+    }
+    val hostDefaultMode = resolveAvailable(hostRequestedMode)
+    val fallbackMode = buildList {
+        if (defaultToVirtualDisplay) add(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
+        add(PolarisGame.MODE_HEADLESS_STREAM)
+        add(PolarisGame.MODE_DESKTOP_DISPLAY)
+        add(PolarisGame.MODE_GAMESCOPE_STREAM)
+        add(PolarisGame.MODE_WINDOWED_STREAM)
+        add(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
+        contract?.allowedModes.orEmpty().forEach(::add)
+    }.asSequence().map(resolveAvailable).firstOrNull { it.isNotBlank() }.orEmpty()
+    val preferredMode = resolveAvailable(contract?.preferredMode.orEmpty()).ifBlank { fallbackMode }
+    val recommendedMode = hostDefaultMode
+        .ifBlank { resolveAvailable(contract?.recommendedMode.orEmpty()) }
+        .ifBlank { preferredMode }
+        .ifBlank { fallbackMode }
+    val virtualAvailable = modeAvailability(clientSettings, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
     val virtualUnavailableReason = modeUnavailableReason(clientSettings, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
 
     return PolarisGame.LaunchModeChoice(
@@ -24,11 +37,36 @@ fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, client
         recommendedMode = recommendedMode,
         headlessAllowed = headlessAllowed,
         virtualDisplayAllowed = virtualDisplayAllowed,
-        virtualDisplayUnavailable = (contract?.allows(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) ?: defaultToVirtualDisplay) && virtualAvailable == false,
+        // A current host intentionally removes an unavailable mode from the
+        // per-game allowed list. The catalog's typed false still needs to reach
+        // the player as setup guidance instead of being hidden by that removal.
+        virtualDisplayUnavailable = virtualAvailable == false,
         virtualDisplayUnavailableReason = virtualUnavailableReason,
         hostDefaultMode = hostDefaultMode,
         hostModeReason = clientSettings?.desired?.streamDisplayModeReason?.takeIf { it.isNotBlank() } ?: clientSettings?.effective?.streamDisplayModeReason ?: ""
     )
+}
+
+/** True only when every authority supplied by the host accepts this mode now. */
+fun PolarisGame.isLaunchModeAvailable(mode: String, clientSettings: PolarisClientSettings?): Boolean {
+    val normalizedMode = PolarisGame.normalizeLaunchMode(mode)
+    if (normalizedMode.isBlank()) return false
+
+    val contractModes = launchMode?.allowedModes.orEmpty()
+    if (contractModes.isNotEmpty() && launchMode?.allows(normalizedMode) != true) return false
+
+    val catalogModes = clientSettings?.capabilities?.modes.orEmpty()
+    if (catalogModes.isNotEmpty() && matchingModes(catalogModes, normalizedMode).none { it.available }) return false
+    return true
+}
+
+/** Whether this available mode may be carried as a one-launch streamMode override. */
+fun PolarisClientSettings?.isLaunchModeSessionOverridable(mode: String): Boolean {
+    val normalizedMode = PolarisGame.normalizeLaunchMode(mode)
+    if (normalizedMode.isBlank() || normalizedMode == PolarisGame.MODE_HEADLESS_DONGLE) return false
+    val catalogModes = this?.capabilities?.modes.orEmpty()
+    if (catalogModes.isEmpty()) return true
+    return matchingModes(catalogModes, normalizedMode).any { it.available && it.sessionOverridable }
 }
 
 // Canonical ids make alias sets unnecessary: normalizeLaunchMode maps every
@@ -45,7 +83,9 @@ private fun modeAvailability(clientSettings: PolarisClientSettings?, mode: Strin
 
 private fun modeUnavailableReason(clientSettings: PolarisClientSettings?, mode: String): String {
     val modes = clientSettings?.capabilities?.modes ?: return ""
-    return matchingModes(modes, mode).firstOrNull { !it.available }?.reason.orEmpty()
+    return matchingModes(modes, mode).firstOrNull { !it.available }?.let {
+        it.unavailableReason.ifBlank { it.reason }
+    }.orEmpty()
 }
 
 private fun matchingModes(modes: List<PolarisClientSettings.ModeOption>, mode: String): List<PolarisClientSettings.ModeOption> {
