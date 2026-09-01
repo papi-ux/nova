@@ -44,6 +44,7 @@ import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.runtime.BackgroundResumePolicy
 import com.papi.nova.runtime.DoctorTelemetryUploadGate
 import com.papi.nova.runtime.NovaRuntimeTasks
+import com.papi.nova.runtime.PolarisLiveStatusRefreshPolicy
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaHudSessionSummaryLog
@@ -299,7 +300,7 @@ if (!connected || !isStreamActive || timerHandler == null)
 return
 }
 refreshPolarisLiveSessionStatus()
-timerHandler!!.postDelayed(this, POLARIS_SESSION_STATUS_REFRESH_MS)
+timerHandler!!.postDelayed(this, PolarisLiveStatusRefreshPolicy.ACTIVE_STREAM_POLL_INTERVAL_MS)
 }
 }
 private var streamContainer:StreamContainer? = null
@@ -6394,7 +6395,10 @@ if (immediate)
 {
 refreshPolarisLiveSessionStatus()
 }
-timerHandler!!.postDelayed(polarisSessionStatusRefreshTick, POLARIS_SESSION_STATUS_REFRESH_MS)
+timerHandler!!.postDelayed(
+polarisSessionStatusRefreshTick,
+PolarisLiveStatusRefreshPolicy.ACTIVE_STREAM_POLL_INTERVAL_MS
+)
 }
 
 private fun stopPolarisLiveSessionStatusRefresh() {
@@ -7247,7 +7251,6 @@ companion object {
  private const val THREE_FINGER_TAP_THRESHOLD:Int = 300
  private const val FOUR_FINGER_TAP_THRESHOLD:Int = 300
  private const val FIVE_FINGER_TAP_THRESHOLD:Int = 300
- private const val POLARIS_SESSION_STATUS_REFRESH_MS:Long = 15000L
  private const val NOVA_PROGRESS_READY_DISMISS_DELAY_MS:Long = 350L
  private const val INVALID_DISPLAY_ID:Int = -1
 
