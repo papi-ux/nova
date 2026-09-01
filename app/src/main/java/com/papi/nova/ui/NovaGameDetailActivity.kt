@@ -720,6 +720,7 @@ class NovaGameDetailActivity : NovaActivity() {
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             lifecycleScope.launch {
                 var launchCanReplay = false
+                var failureMessageShown = false
                 optimizationState = try {
                     check(syncAndPublishLaunchPreflightSettings(usesVirtualDisplay, uiState.playMode)) {
                         "launch preflight settings unavailable"
@@ -743,6 +744,9 @@ class NovaGameDetailActivity : NovaActivity() {
                             ),
                         )
                     }
+                    check(StreamSyncManager.hasTrustedResolvedProfile(opt)) {
+                        "trusted launch profile unavailable"
+                    }
                     logPreflightOptimization("Preflight optimization", opt, preference)
                     buildOptimizationState(opt, preference).also { launchCanReplay = true }
                 } catch (e: CancellationException) {
@@ -750,6 +754,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 } catch (e: PolarisApiRejectedException) {
                     LimeLog.warning("Nova: Preflight optimization rejected: ${e.rejection.code}")
                     NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
+                    failureMessageShown = true
                     NovaGameDetailOptimizationState(preflightFailed = true)
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: Preflight optimization failed: ${e.message}")
@@ -760,10 +765,12 @@ class NovaGameDetailActivity : NovaActivity() {
                         attemptLaunch()
                     } else {
                         pendingLaunch = false
-                        NovaSnackbar.showError(
-                            this@NovaGameDetailActivity,
-                            getString(R.string.nova_game_detail_launch_preflight_unavailable),
-                        )
+                        if (!failureMessageShown) {
+                            NovaSnackbar.showError(
+                                this@NovaGameDetailActivity,
+                                getString(R.string.nova_game_detail_launch_preflight_unavailable),
+                            )
+                        }
                     }
                 }
             }
@@ -806,6 +813,7 @@ class NovaGameDetailActivity : NovaActivity() {
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             lifecycleScope.launch {
                 var launchCanReplay = false
+                var failureMessageShown = false
                 optimizationState = try {
                     check(
                         syncAndPublishLaunchPreflightSettings(
@@ -832,6 +840,9 @@ class NovaGameDetailActivity : NovaActivity() {
                             ),
                         )
                     }
+                    check(StreamSyncManager.hasTrustedResolvedProfile(opt)) {
+                        "trusted launch profile unavailable"
+                    }
                     logPreflightOptimization("High FPS preset preflight", opt, profilePreference)
                     buildOptimizationState(opt, profilePreference).also { launchCanReplay = true }
                 } catch (e: CancellationException) {
@@ -839,6 +850,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 } catch (e: PolarisApiRejectedException) {
                     LimeLog.warning("Nova: High FPS preflight rejected: ${e.rejection.code}")
                     NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
+                    failureMessageShown = true
                     NovaGameDetailOptimizationState(preflightFailed = true)
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: High FPS preset preflight failed: ${e.message}")
@@ -849,10 +861,12 @@ class NovaGameDetailActivity : NovaActivity() {
                         attemptLaunch()
                     } else {
                         pendingLaunch = false
-                        NovaSnackbar.showError(
-                            this@NovaGameDetailActivity,
-                            getString(R.string.nova_game_detail_launch_preflight_unavailable),
-                        )
+                        if (!failureMessageShown) {
+                            NovaSnackbar.showError(
+                                this@NovaGameDetailActivity,
+                                getString(R.string.nova_game_detail_launch_preflight_unavailable),
+                            )
+                        }
                     }
                 }
             }

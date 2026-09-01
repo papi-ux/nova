@@ -808,13 +808,25 @@ class NovaLaunchSourceGuardTest {
                 publish.contains("return true") &&
                 optimization.contains("syncAndPublishLaunchPreflightSettings(") &&
                 optimization.contains("check(syncAndPublishLaunchPreflightSettings(") &&
+                optimization.contains("check(StreamSyncManager.hasTrustedResolvedProfile(opt))") &&
                 optimization.contains("val optimizationMode = uiState.playMode") &&
                 optimization.contains("mode = optimizationMode") &&
                 optimization.contains("NovaGameDetailOptimizationState(preflightFailed = true)") &&
                 optimization.contains("pendingLaunch = false") &&
                 highFps.contains("syncAndPublishLaunchPreflightSettings(") &&
+                highFps.contains("check(StreamSyncManager.hasTrustedResolvedProfile(opt))") &&
                 highFps.contains("val optimizationMode = uiState.playMode") &&
                 highFps.contains("mode = optimizationMode")
+        )
+
+        assertTrue(
+            "a typed host rejection must remain visible instead of being replaced by the generic retry message",
+            optimization.contains("var failureMessageShown = false") &&
+                optimization.contains("failureMessageShown = true") &&
+                optimization.contains("if (!failureMessageShown)") &&
+                highFps.contains("var failureMessageShown = false") &&
+                highFps.contains("failureMessageShown = true") &&
+                highFps.contains("if (!failureMessageShown)")
         )
     }
 

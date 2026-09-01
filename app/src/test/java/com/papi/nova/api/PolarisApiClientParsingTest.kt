@@ -24,6 +24,48 @@ import org.robolectric.annotation.Config
 class PolarisApiClientParsingTest {
 
     @Test
+    fun launchPreflightAuthorityRequiresCompleteTypedCurrentModeEnvelope() {
+        assertFalse(PolarisApiClient.hasTypedLaunchModeAuthority(JSONObject()))
+        assertFalse(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject("""{"client_settings":{"version":1}}"""),
+            ),
+        )
+        assertFalse(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_display"},"effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[{"value":"desktop_display","available":"true","session_overridable":true}]}}}""",
+                ),
+            ),
+        )
+        assertFalse(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_display"},"effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[{"value":"desktop_display","available":true,"session_overridable":"true"}]}}}""",
+                ),
+            ),
+        )
+
+        // The non-Linux catalog predates session_overridable; absence keeps its
+        // documented true default, but a present malformed value above is rejected.
+        assertTrue(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_display"},"effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[{"value":"desktop_display","available":true}]}}}""",
+                ),
+            ),
+        )
+
+        assertTrue(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_display"},"effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[{"value":"desktop_display","available":true,"session_overridable":true},{"value":"gamescope_stream","available":false,"session_overridable":true}]}}}""",
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun typedPolicyRejectionRequiresLiteralFailureFieldsAndPreservesTheReason() {
         val optimize = PolarisApiClient.parseTypedRejection(
             httpStatus = 400,

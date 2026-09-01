@@ -671,6 +671,53 @@ class PolarisApiClient @JvmOverloads constructor(
             }
         }
 
+        /**
+         * Launch preflight needs the current typed catalog, not merely a JSON body that
+         * can be coerced into default settings. Missing or malformed authority must make
+         * the update nullable so Game Detail stays in its retry gate.
+         */
+        @JvmStatic
+        internal fun hasTypedLaunchModeAuthority(json: JSONObject): Boolean {
+            val settingsJson = json.optJSONObject("client_settings") ?: json
+            if (strictIntOrNull(settingsJson, "version") != 1) return false
+            val desired = settingsJson.optJSONObject("desired") ?: return false
+            val effective = settingsJson.optJSONObject("effective") ?: return false
+            val capabilities = settingsJson.optJSONObject("capabilities") ?: return false
+            val modes = capabilities.opt("modes") as? JSONArray ?: return false
+            if (modes.length() == 0) return false
+
+            val knownModes = setOf(
+                PolarisGame.MODE_HEADLESS_STREAM,
+                PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
+                PolarisGame.MODE_DESKTOP_DISPLAY,
+                PolarisGame.MODE_WINDOWED_STREAM,
+                PolarisGame.MODE_GAMESCOPE_STREAM,
+                PolarisGame.MODE_HEADLESS_DONGLE,
+            )
+            val catalogModes = linkedSetOf<String>()
+            for (index in 0 until modes.length()) {
+                val mode = modes.optJSONObject(index) ?: return false
+                val value = (mode.opt("value") as? String)
+                    ?.let(PolarisGame::normalizeLaunchMode)
+                    ?.takeIf { it in knownModes }
+                    ?: return false
+                if (mode.opt("available") !is Boolean ||
+                    (mode.has("session_overridable") && mode.opt("session_overridable") !is Boolean) ||
+                    !catalogModes.add(value)
+                ) {
+                    return false
+                }
+            }
+
+            val desiredMode = (desired.opt("stream_display_mode") as? String)
+                ?.let(PolarisGame::normalizeLaunchMode)
+                .orEmpty()
+            val effectiveMode = (effective.opt("stream_display_mode") as? String)
+                ?.let(PolarisGame::normalizeLaunchMode)
+                .orEmpty()
+            return desiredMode in catalogModes && effectiveMode in catalogModes
+        }
+
         @JvmStatic
         fun parseClientSettingsResponse(json: JSONObject): PolarisClientSettings {
             val settingsJson = json.optJSONObject("client_settings") ?: json
@@ -2170,7 +2217,12 @@ class PolarisApiClient @JvmOverloads constructor(
                     }
                     return null
                 }
-                parseClientSettingsResponse(JSONObject(responseBody.ifBlank { return null }))
+                val responseJson = JSONObject(responseBody.ifBlank { return null })
+                if (!hasTypedLaunchModeAuthority(responseJson)) {
+                    LimeLog.warning("Nova: Client settings update omitted typed launch-mode authority")
+                    return null
+                }
+                parseClientSettingsResponse(responseJson)
             }
         } catch (e: PolarisApiRejectedException) {
             throw e
