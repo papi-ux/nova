@@ -235,6 +235,9 @@ class NovaGameDetailActivity : NovaActivity() {
      */
     private var hostSyncEngine: NovaPolarisSyncEngine? = null
 
+    /** One icon-resolution/pin request at a time; lifecycle cancellation reaches OkHttp. */
+    private var pinShortcutJob: Job? = null
+
     /**
      * Set when Polaris reports desktop Steam active. It turns Launch mode into the
      * three-way choice that used to be a bottom sheet raised over the content.
@@ -400,6 +403,8 @@ class NovaGameDetailActivity : NovaActivity() {
     }
 
     override fun onDestroy() {
+        pinShortcutJob?.cancel()
+        pinShortcutJob = null
         hostSyncEngine?.close()
         super.onDestroy()
     }
@@ -1380,28 +1385,47 @@ class NovaGameDetailActivity : NovaActivity() {
                     },
                     shortcutPinState = shortcutPinState,
                     shortcutPinRequestPending = shortcutPinRequestPending,
-                    onPinShortcut = {
+                    onPinShortcut = pinShortcut@ {
                         val hostUuid = serverUuid
-                        val messageRes = if (hostUuid.isNullOrEmpty()) {
-                            R.string.nova_library_pin_shortcut_failed
+                        if (hostUuid.isNullOrEmpty()) {
+                            Toast.makeText(
+                                this@NovaGameDetailActivity,
+                                R.string.nova_library_pin_shortcut_failed,
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         } else {
-                            val pinned = shortcutHelper.createPinnedGameShortcut(
-                                hostUuid = hostUuid,
-                                hostName = serverName,
-                                appUuid = currentGame.id,
-                                appId = currentGame.appId,
-                                appName = currentGame.name,
-                                hdrSupported = currentGame.hdrSupported,
-                                iconBits = null,
-                            )
-                            if (pinned) {
-                                awaitShortcutPinConfirmation()
-                                R.string.nova_library_pin_shortcut_success
-                            } else {
-                                R.string.nova_library_pin_shortcut_unsupported
+                            if (pinShortcutJob?.isActive == true) return@pinShortcut
+                            val pinnedGame = currentGame
+                            pinShortcutJob = lifecycleScope.launch {
+                                try {
+                                    val iconBits = withContext(Dispatchers.IO) {
+                                        apiClient.loadShortcutIcon(pinnedGame)
+                                    }
+                                    val pinned = shortcutHelper.createPinnedGameShortcut(
+                                        hostUuid = hostUuid,
+                                        hostName = serverName,
+                                        appUuid = pinnedGame.id,
+                                        appId = pinnedGame.appId,
+                                        appName = pinnedGame.name,
+                                        hdrSupported = pinnedGame.hdrSupported,
+                                        iconBits = iconBits,
+                                    )
+                                    val messageRes = if (pinned) {
+                                        awaitShortcutPinConfirmation()
+                                        R.string.nova_library_pin_shortcut_success
+                                    } else {
+                                        R.string.nova_library_pin_shortcut_unsupported
+                                    }
+                                    Toast.makeText(
+                                        this@NovaGameDetailActivity,
+                                        messageRes,
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                } finally {
+                                    pinShortcutJob = null
+                                }
                             }
                         }
-                        Toast.makeText(this@NovaGameDetailActivity, messageRes, Toast.LENGTH_SHORT).show()
                     },
                     artworkState = artworkState,
                     onRefreshArtwork = {
