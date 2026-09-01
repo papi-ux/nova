@@ -290,7 +290,7 @@
     <string name="nova_play_setup_mode_gpu_detail">Same privacy, keeping frames on the GPU when the host supports it.</string>
     <string name="nova_play_setup_mode_gamescope_detail">Steam Deck-style session for Steam-first hosts. Gamescope must be installed.</string>
     <string name="nova_play_setup_mode_virtual_detail">Adds a display to the host desktop. Windows and icons may rearrange.</string>
-    <string name="nova_play_setup_mode_dongle_detail">Moves the desktop to a dummy plug. Privacy mode blanks the real panel; Off mode keeps it active. Configure this once as the host default.</string>
+    <string name="nova_play_setup_mode_dongle_detail">Moves the desktop to a dummy plug. Privacy blanks the real panel after one-time portal approval is saved; the approval session keeps it on. Off keeps it active. Configure this once as the host default.</string>
     <string name="nova_play_setup_mode_mirror_detail">Streams everything visible on the host, including notifications.</string>
     <string name="nova_play_setup_band_private">Private — your desktop stays untouched</string>
     <string name="nova_play_setup_band_host">Host display — uses or swaps the host screen</string>
