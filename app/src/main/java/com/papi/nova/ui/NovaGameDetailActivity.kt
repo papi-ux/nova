@@ -438,8 +438,10 @@ class NovaGameDetailActivity : NovaActivity() {
         explainedRow = NovaPlaySetupRow.WHERE_IT_RUNS
         // An explicit resolution, held until launch rather than launching on the spot.
         // Picking one used to start the game immediately, which is why the row that owned
-        // it could not be a setting: there was nothing to set.
-        var chosenResolution by mutableStateOf<NovaDisplayResolutionChoice?>(null)
+        // it could not be a setting: there was nothing to set. The choice itself is
+        // rebuilt fresh from the planner every open, so only its id is persisted
+        // (NovaResolutionOverrides) and resolved back against this open's planner here.
+        var chosenResolution by mutableStateOf<NovaDisplayResolutionChoice?>(loadResolutionOverride(currentGame))
         // Changing a row is cheap; telling the host about it is not. Presses settle first
         // so that cycling past three values costs one round-trip rather than three.
         var settleJob: Job? = null
@@ -777,8 +779,11 @@ class NovaGameDetailActivity : NovaActivity() {
             NovaLaunchModeOverrides.save(this@NovaGameDetailActivity, currentGame, mode)
             refreshUiState()
             // A resolution was an answer to "how should this run on that display". Changing
-            // the display changes the question, so the answer does not carry over.
+            // the display changes the question, so the answer does not carry over — and
+            // must not resurface on the next open either, or the question looks answered
+            // when it was never asked for this display.
             chosenResolution = null
+            clearResolutionOverride(currentGame)
             settleThen { loadOptimization(profilePreference, usesVirtualDisplay = PolarisGame.normalizeLaunchMode(mode) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) }
         }
 
@@ -832,6 +837,7 @@ class NovaGameDetailActivity : NovaActivity() {
             NovaLaunchModeOverrides.save(this@NovaGameDetailActivity, currentGame, mode)
             refreshUiState()
             chosenResolution = null
+            clearResolutionOverride(currentGame)
             settleThen { loadOptimization(profilePreference, usesVirtualDisplay = PolarisGame.normalizeLaunchMode(mode) == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY) }
         }
 
@@ -841,6 +847,7 @@ class NovaGameDetailActivity : NovaActivity() {
             NovaLaunchModeOverrides.clear(this@NovaGameDetailActivity, currentGame)
             refreshUiState()
             chosenResolution = null
+            clearResolutionOverride(currentGame)
             settleThen { loadOptimization(profilePreference, usesVirtualDisplay = uiState.playUsesVirtualDisplay) }
         }
 
@@ -854,6 +861,7 @@ class NovaGameDetailActivity : NovaActivity() {
          */
         fun chooseResolution(choice: NovaDisplayResolutionChoice) {
             chosenResolution = choice
+            saveResolutionOverride(currentGame, choice.id)
         }
 
         fun selectProfilePreference(value: String) {
@@ -1471,6 +1479,22 @@ class NovaGameDetailActivity : NovaActivity() {
         AutoQualityProfilePreferences.save(this@NovaGameDetailActivity, game.id, game.name, preference)
     }
 
+    /** Resolves a saved resolution-choice id back against this open's planner, if any. */
+    private fun loadResolutionOverride(game: PolarisGame): NovaDisplayResolutionChoice? =
+        resolveSavedResolutionChoice(
+            savedId = NovaResolutionOverrides.load(this@NovaGameDetailActivity, game),
+            visibleChoices = resolutionPlanner(game).visibleChoices,
+        )
+
+    private fun saveResolutionOverride(game: PolarisGame, choiceId: String) {
+        NovaResolutionOverrides.save(this@NovaGameDetailActivity, game, choiceId)
+    }
+
+    /** Drop the durable choice, not just the in-memory state, so it does not return on reopen. */
+    private fun clearResolutionOverride(game: PolarisGame) {
+        NovaResolutionOverrides.clear(this@NovaGameDetailActivity, game)
+    }
+
     private fun loadArtworkState(game: PolarisGame): NovaArtworkStudioState {
         val defaults = NovaArtworkStudioState.from(game)
         val prefs = this@NovaGameDetailActivity.getSharedPreferences("nova_artwork", 0)
@@ -1997,3 +2021,20 @@ class NovaGameDetailActivity : NovaActivity() {
  * early anyway, so this is only ever the cost of walking away mid-change.
  */
 private const val NOVA_PLAY_SETUP_SETTLE_MS = 650L
+
+/**
+ * Resolves a persisted resolution-choice id against this open's planner choices.
+ *
+ * [NovaDisplayResolutionChoice] objects are rebuilt fresh from the planner on every
+ * screen open, so a saved id can point at a choice that no longer exists — a host
+ * catalog change, a different display topology, or a stale id from before this game's
+ * choices were last rebuilt. That must read as "no override", not a crash or a stale
+ * object, so the lookup is a plain [List.firstOrNull] and a miss returns null.
+ */
+internal fun resolveSavedResolutionChoice(
+    savedId: String?,
+    visibleChoices: List<NovaDisplayResolutionChoice>,
+): NovaDisplayResolutionChoice? {
+    if (savedId.isNullOrBlank()) return null
+    return visibleChoices.firstOrNull { it.id == savedId }
+}
